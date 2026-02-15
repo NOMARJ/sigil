@@ -15,7 +15,9 @@ from fastapi.testclient import TestClient
 class TestScanSubmission:
     """Tests for the scan submission endpoint."""
 
-    def test_submit_scan_clean(self, client: TestClient, clean_scan_request: dict[str, Any]) -> None:
+    def test_submit_scan_clean(
+        self, client: TestClient, clean_scan_request: dict[str, Any]
+    ) -> None:
         """A scan with no findings should return CLEAN verdict and zero score."""
         resp = client.post("/v1/scan", json=clean_scan_request)
         assert resp.status_code == 200
@@ -43,7 +45,9 @@ class TestScanSubmission:
         assert len(data["findings"]) == 3
         assert data["target"] == "evil-package"
 
-    def test_submit_scan_returns_scan_id(self, client: TestClient, clean_scan_request: dict[str, Any]) -> None:
+    def test_submit_scan_returns_scan_id(
+        self, client: TestClient, clean_scan_request: dict[str, Any]
+    ) -> None:
         """Each scan should receive a unique scan_id."""
         resp1 = client.post("/v1/scan", json=clean_scan_request)
         resp2 = client.post("/v1/scan", json=clean_scan_request)

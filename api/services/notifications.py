@@ -12,7 +12,6 @@ configured, logging warnings instead of raising exceptions.
 
 from __future__ import annotations
 
-import json
 import logging
 import smtplib
 import ssl
@@ -33,6 +32,7 @@ _HTTP_TIMEOUT = 10.0
 # ---------------------------------------------------------------------------
 # Slack
 # ---------------------------------------------------------------------------
+
 
 async def send_slack_notification(
     webhook_url: str,
@@ -60,7 +60,11 @@ async def send_slack_notification(
 
     if fields:
         payload["attachments"][0]["fields"] = [
-            {"title": f.get("title", ""), "value": f.get("value", ""), "short": f.get("short", True)}
+            {
+                "title": f.get("title", ""),
+                "value": f.get("value", ""),
+                "short": f.get("short", True),
+            }
             for f in fields
         ]
 
@@ -83,6 +87,7 @@ async def send_slack_notification(
 # ---------------------------------------------------------------------------
 # Email (SMTP)
 # ---------------------------------------------------------------------------
+
 
 async def send_email_notification(
     recipients: list[str],
@@ -141,7 +146,9 @@ def _smtp_send(recipients: list[str], msg: MIMEMultipart) -> None:
 
     if settings.smtp_port == 465:
         # SSL/TLS from the start
-        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, context=context) as server:
+        with smtplib.SMTP_SSL(
+            settings.smtp_host, settings.smtp_port, context=context
+        ) as server:
             server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(msg, to_addrs=recipients)
     else:
@@ -157,6 +164,7 @@ def _smtp_send(recipients: list[str], msg: MIMEMultipart) -> None:
 # ---------------------------------------------------------------------------
 # Generic Webhook
 # ---------------------------------------------------------------------------
+
 
 async def send_webhook_notification(
     webhook_url: str,
@@ -185,7 +193,11 @@ async def send_webhook_notification(
                 headers=request_headers,
             )
             if 200 <= resp.status_code < 300:
-                logger.info("Webhook notification sent to %s (status=%d)", webhook_url, resp.status_code)
+                logger.info(
+                    "Webhook notification sent to %s (status=%d)",
+                    webhook_url,
+                    resp.status_code,
+                )
                 return True
             logger.warning("Webhook returned %d: %s", resp.status_code, resp.text[:200])
             return False
@@ -200,6 +212,7 @@ async def send_webhook_notification(
 # ---------------------------------------------------------------------------
 # Unified dispatcher
 # ---------------------------------------------------------------------------
+
 
 async def send_notification(
     channel_type: str,

@@ -26,7 +26,6 @@ from api.database import db
 from api.models import (
     DashboardStats,
     ErrorResponse,
-    Finding,
     ScanDetail,
     ScanListItem,
     ScanListResponse,
@@ -50,6 +49,7 @@ SCAN_TABLE = "scans"
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
     """Convert a DB row to a ScanListItem."""
@@ -110,6 +110,7 @@ async def _get_scan_or_404(scan_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Core scan submission (existing endpoint)
 # ---------------------------------------------------------------------------
+
 
 async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
     """Shared implementation for scan submission."""
@@ -205,6 +206,7 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
 # ---------------------------------------------------------------------------
 # Dashboard scan endpoints (on dashboard_router, no /v1 prefix)
 # ---------------------------------------------------------------------------
+
 
 @dashboard_router.post(
     "/scans",
@@ -377,6 +379,7 @@ async def reject_scan(
 # Dashboard stats
 # ---------------------------------------------------------------------------
 
+
 @dashboard_router.get(
     "/dashboard/stats",
     response_model=DashboardStats,
@@ -394,18 +397,18 @@ async def get_dashboard_stats(
 
     total_scans = len(rows)
     threats_blocked = sum(
-        1 for r in rows
-        if r.get("verdict") in ("HIGH_RISK", "CRITICAL")
+        1 for r in rows if r.get("verdict") in ("HIGH_RISK", "CRITICAL")
     )
     packages_approved = sum(
-        1 for r in rows
+        1
+        for r in rows
         if r.get("metadata_json", {}).get("approved") is True
-        or (isinstance(r.get("metadata_json"), dict) and r["metadata_json"].get("approved") is True)
+        or (
+            isinstance(r.get("metadata_json"), dict)
+            and r["metadata_json"].get("approved") is True
+        )
     )
-    critical_findings = sum(
-        1 for r in rows
-        if r.get("verdict") == "CRITICAL"
-    )
+    critical_findings = sum(1 for r in rows if r.get("verdict") == "CRITICAL")
 
     return DashboardStats(
         total_scans=total_scans,

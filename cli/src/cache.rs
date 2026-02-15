@@ -3,13 +3,13 @@
 //! Computes a hash of all file paths and modification times in a directory.
 //! If the hash matches a cached result, returns the cached scan without re-scanning.
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::fs;
-use sha2::{Sha256, Digest};
-use serde::{Serialize, Deserialize};
-use walkdir::WalkDir;
 use crate::scanner::ScanResult;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 const CACHE_DIR: &str = ".sigil/cache";
 const CACHE_VERSION: u32 = 1;
@@ -79,10 +79,7 @@ pub fn load_cached(path: &Path) -> Option<ScanResult> {
 }
 
 /// Save a scan result to cache.
-pub fn save_to_cache(
-    path: &Path,
-    result: &ScanResult,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_to_cache(path: &Path, result: &ScanResult) -> Result<(), Box<dyn std::error::Error>> {
     let dir_hash = compute_directory_hash(path)?;
     let cache_path = cache_dir();
     fs::create_dir_all(&cache_path)?;
@@ -133,12 +130,10 @@ pub fn clear_cache() -> Result<usize, Box<dyn std::error::Error>> {
     }
 
     let mut count = 0;
-    for entry in fs::read_dir(&cache_path)? {
-        if let Ok(entry) = entry {
-            if entry.path().extension().map_or(false, |e| e == "json") {
-                fs::remove_file(entry.path())?;
-                count += 1;
-            }
+    for entry in fs::read_dir(&cache_path)?.flatten() {
+        if entry.path().extension().is_some_and(|e| e == "json") {
+            fs::remove_file(entry.path())?;
+            count += 1;
         }
     }
     Ok(count)

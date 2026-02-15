@@ -94,8 +94,13 @@ pub fn add(source: &str, source_type: &str) -> Result<QuarantineEntry, String> {
     let id = short_id();
     let item_path = quarantine_path().join(&id);
 
-    fs::create_dir_all(&item_path)
-        .map_err(|e| format!("failed to create quarantine dir {}: {}", item_path.display(), e))?;
+    fs::create_dir_all(&item_path).map_err(|e| {
+        format!(
+            "failed to create quarantine dir {}: {}",
+            item_path.display(),
+            e
+        )
+    })?;
 
     let now = Utc::now();
     let entry = QuarantineEntry {

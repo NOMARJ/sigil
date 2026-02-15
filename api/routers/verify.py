@@ -83,7 +83,9 @@ async def verify_package(request: VerifyRequest) -> VerifyResponse:
 
     badge_url: str | None = None
     if verified:
-        safe_name = f"{request.ecosystem}-{request.package_name}-{request.package_version}"
+        safe_name = (
+            f"{request.ecosystem}-{request.package_name}-{request.package_version}"
+        )
         badge_url = _BADGE_URL_TEMPLATE.format(
             verdict=verdict.value.lower(),
             package=safe_name,

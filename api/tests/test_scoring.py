@@ -7,7 +7,6 @@ score calculation, and verdict threshold mapping.
 
 from __future__ import annotations
 
-import pytest
 
 from api.models import Finding, ScanPhase, Severity, Verdict
 from api.services.scoring import (

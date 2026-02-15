@@ -35,6 +35,7 @@ logger = logging.getLogger("sigil.api")
 # Lifespan — connect/disconnect external services
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage startup and shutdown of external connections."""
@@ -85,6 +86,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Global exception handler
 # ---------------------------------------------------------------------------
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -137,7 +139,9 @@ from fastapi import APIRouter as _APIRouter  # noqa: E402
 
 # -- Auth aliases: /auth/register, /auth/login, /auth/me, /auth/refresh, /auth/logout
 _auth_dashboard = _APIRouter(prefix="/auth", tags=["auth-dashboard"])
-_auth_dashboard.add_api_route("/register", auth.register, methods=["POST"], status_code=201)
+_auth_dashboard.add_api_route(
+    "/register", auth.register, methods=["POST"], status_code=201
+)
 _auth_dashboard.add_api_route("/login", auth.login, methods=["POST"])
 _auth_dashboard.add_api_route("/me", auth.me, methods=["GET"])
 _auth_dashboard.add_api_route("/refresh", auth.refresh_token, methods=["POST"])
@@ -153,53 +157,83 @@ app.include_router(team.router)
 # -- Settings > Policy aliases: /settings/policy -> policies endpoints
 _settings_policy = _APIRouter(prefix="/settings/policy", tags=["settings-policy"])
 _settings_policy.add_api_route("", policies.list_policies, methods=["GET"])
-_settings_policy.add_api_route("", policies.create_policy, methods=["POST"], status_code=201)
+_settings_policy.add_api_route(
+    "", policies.create_policy, methods=["POST"], status_code=201
+)
 _settings_policy.add_api_route("/{policy_id}", policies.update_policy, methods=["PUT"])
-_settings_policy.add_api_route("/{policy_id}", policies.update_policy, methods=["PATCH"])
-_settings_policy.add_api_route("/{policy_id}", policies.delete_policy, methods=["DELETE"], status_code=204)
+_settings_policy.add_api_route(
+    "/{policy_id}", policies.update_policy, methods=["PATCH"]
+)
+_settings_policy.add_api_route(
+    "/{policy_id}", policies.delete_policy, methods=["DELETE"], status_code=204
+)
 app.include_router(_settings_policy)
 
 # -- Settings > Alerts aliases: /settings/alerts -> alerts endpoints
 _settings_alerts = _APIRouter(prefix="/settings/alerts", tags=["settings-alerts"])
 _settings_alerts.add_api_route("", alerts.list_alerts, methods=["GET"])
-_settings_alerts.add_api_route("", alerts.create_alert, methods=["POST"], status_code=201)
+_settings_alerts.add_api_route(
+    "", alerts.create_alert, methods=["POST"], status_code=201
+)
 _settings_alerts.add_api_route("/{alert_id}", alerts.update_alert, methods=["PUT"])
 _settings_alerts.add_api_route("/{alert_id}", alerts.update_alert, methods=["PATCH"])
-_settings_alerts.add_api_route("/{alert_id}", alerts.delete_alert, methods=["DELETE"], status_code=204)
+_settings_alerts.add_api_route(
+    "/{alert_id}", alerts.delete_alert, methods=["DELETE"], status_code=204
+)
 _settings_alerts.add_api_route("/test", alerts.test_alert, methods=["POST"])
 app.include_router(_settings_alerts)
 
 # -- Unprefixed policy/alert aliases: /policies, /alerts
 _policies_dashboard = _APIRouter(prefix="/policies", tags=["policies-dashboard"])
 _policies_dashboard.add_api_route("", policies.list_policies, methods=["GET"])
-_policies_dashboard.add_api_route("", policies.create_policy, methods=["POST"], status_code=201)
-_policies_dashboard.add_api_route("/evaluate", policies.evaluate_policies, methods=["POST"])
-_policies_dashboard.add_api_route("/{policy_id}", policies.update_policy, methods=["PUT"])
-_policies_dashboard.add_api_route("/{policy_id}", policies.update_policy, methods=["PATCH"])
-_policies_dashboard.add_api_route("/{policy_id}", policies.delete_policy, methods=["DELETE"], status_code=204)
+_policies_dashboard.add_api_route(
+    "", policies.create_policy, methods=["POST"], status_code=201
+)
+_policies_dashboard.add_api_route(
+    "/evaluate", policies.evaluate_policies, methods=["POST"]
+)
+_policies_dashboard.add_api_route(
+    "/{policy_id}", policies.update_policy, methods=["PUT"]
+)
+_policies_dashboard.add_api_route(
+    "/{policy_id}", policies.update_policy, methods=["PATCH"]
+)
+_policies_dashboard.add_api_route(
+    "/{policy_id}", policies.delete_policy, methods=["DELETE"], status_code=204
+)
 app.include_router(_policies_dashboard)
 
 _alerts_dashboard = _APIRouter(prefix="/alerts", tags=["alerts-dashboard"])
 _alerts_dashboard.add_api_route("", alerts.list_alerts, methods=["GET"])
-_alerts_dashboard.add_api_route("", alerts.create_alert, methods=["POST"], status_code=201)
+_alerts_dashboard.add_api_route(
+    "", alerts.create_alert, methods=["POST"], status_code=201
+)
 _alerts_dashboard.add_api_route("/test", alerts.test_alert, methods=["POST"])
 _alerts_dashboard.add_api_route("/{alert_id}", alerts.update_alert, methods=["PUT"])
 _alerts_dashboard.add_api_route("/{alert_id}", alerts.update_alert, methods=["PATCH"])
-_alerts_dashboard.add_api_route("/{alert_id}", alerts.delete_alert, methods=["DELETE"], status_code=204)
+_alerts_dashboard.add_api_route(
+    "/{alert_id}", alerts.delete_alert, methods=["DELETE"], status_code=204
+)
 app.include_router(_alerts_dashboard)
 
 # -- Unprefixed threat, publisher, report, verify, billing aliases
 _threat_dashboard = _APIRouter(prefix="", tags=["threat-intel-dashboard"])
-_threat_dashboard.add_api_route("/threat/{package_hash}", threat.get_threat, methods=["GET"])
+_threat_dashboard.add_api_route(
+    "/threat/{package_hash}", threat.get_threat, methods=["GET"]
+)
 _threat_dashboard.add_api_route("/signatures", threat.list_signatures, methods=["GET"])
 app.include_router(_threat_dashboard)
 
 _publisher_dashboard = _APIRouter(prefix="", tags=["publisher-dashboard"])
-_publisher_dashboard.add_api_route("/publisher/{publisher_id}", publisher.get_publisher, methods=["GET"])
+_publisher_dashboard.add_api_route(
+    "/publisher/{publisher_id}", publisher.get_publisher, methods=["GET"]
+)
 app.include_router(_publisher_dashboard)
 
 _report_dashboard = _APIRouter(prefix="", tags=["report-dashboard"])
-_report_dashboard.add_api_route("/report", report.create_report, methods=["POST"], status_code=201)
+_report_dashboard.add_api_route(
+    "/report", report.create_report, methods=["POST"], status_code=201
+)
 app.include_router(_report_dashboard)
 
 _verify_dashboard = _APIRouter(prefix="", tags=["verify-dashboard"])
@@ -209,8 +243,12 @@ app.include_router(_verify_dashboard)
 _billing_dashboard = _APIRouter(prefix="/billing", tags=["billing-dashboard"])
 _billing_dashboard.add_api_route("/plans", billing.list_plans, methods=["GET"])
 _billing_dashboard.add_api_route("/subscribe", billing.subscribe, methods=["POST"])
-_billing_dashboard.add_api_route("/subscription", billing.get_subscription, methods=["GET"])
-_billing_dashboard.add_api_route("/portal", billing.create_portal_session, methods=["POST"])
+_billing_dashboard.add_api_route(
+    "/subscription", billing.get_subscription, methods=["GET"]
+)
+_billing_dashboard.add_api_route(
+    "/portal", billing.create_portal_session, methods=["POST"]
+)
 _billing_dashboard.add_api_route("/webhook", billing.stripe_webhook, methods=["POST"])
 app.include_router(_billing_dashboard)
 
@@ -218,6 +256,7 @@ app.include_router(_billing_dashboard)
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
+
 
 @app.get("/health", tags=["system"], summary="Health check")
 async def health() -> dict:

@@ -198,10 +198,7 @@ async fn main() {
     let cli = Cli::parse();
 
     if cli.verbose {
-        eprintln!(
-            "{} verbose mode enabled",
-            "sigil:".bold().cyan()
-        );
+        eprintln!("{} verbose mode enabled", "sigil:".bold().cyan());
     }
 
     let exit_code = match cli.command {
@@ -209,19 +206,46 @@ async fn main() {
             url,
             branch,
             auto_approve,
-        } => cmd_clone(&url, branch.as_deref(), auto_approve, &cli.format, cli.verbose).await,
+        } => {
+            cmd_clone(
+                &url,
+                branch.as_deref(),
+                auto_approve,
+                &cli.format,
+                cli.verbose,
+            )
+            .await
+        }
 
         Commands::Pip {
             package,
             version,
             auto_approve,
-        } => cmd_pip(&package, version.as_deref(), auto_approve, &cli.format, cli.verbose).await,
+        } => {
+            cmd_pip(
+                &package,
+                version.as_deref(),
+                auto_approve,
+                &cli.format,
+                cli.verbose,
+            )
+            .await
+        }
 
         Commands::Npm {
             package,
             version,
             auto_approve,
-        } => cmd_npm(&package, version.as_deref(), auto_approve, &cli.format, cli.verbose).await,
+        } => {
+            cmd_npm(
+                &package,
+                version.as_deref(),
+                auto_approve,
+                &cli.format,
+                cli.verbose,
+            )
+            .await
+        }
 
         Commands::Scan {
             path,
@@ -229,7 +253,18 @@ async fn main() {
             severity,
             submit,
             no_cache,
-        } => cmd_scan(&path, &phases, &severity, submit, no_cache, &cli.format, cli.verbose).await,
+        } => {
+            cmd_scan(
+                &path,
+                &phases,
+                &severity,
+                submit,
+                no_cache,
+                &cli.format,
+                cli.verbose,
+            )
+            .await
+        }
 
         Commands::ClearCache => cmd_clear_cache().await,
 
@@ -274,9 +309,7 @@ async fn main() {
 /// Extract .whl/.zip and .tar.gz/.tgz archives in a directory so the scanner
 /// can inspect the actual source files inside packages.
 fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let entries: Vec<_> = std::fs::read_dir(dir)?
-        .filter_map(|e| e.ok())
-        .collect();
+    let entries: Vec<_> = std::fs::read_dir(dir)?.filter_map(|e| e.ok()).collect();
 
     for entry in entries {
         let path = entry.path();
@@ -290,10 +323,7 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             // Extract zip archives (.whl files are zip format)
             let file = std::fs::File::open(&path)?;
             let mut archive = zip::ZipArchive::new(file)?;
-            let extract_dir = dir.join(
-                name.trim_end_matches(".whl")
-                    .trim_end_matches(".zip"),
-            );
+            let extract_dir = dir.join(name.trim_end_matches(".whl").trim_end_matches(".zip"));
             std::fs::create_dir_all(&extract_dir)?;
             archive.extract(&extract_dir)?;
             std::fs::remove_file(&path)?;
@@ -302,10 +332,7 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let file = std::fs::File::open(&path)?;
             let gz = flate2::read::GzDecoder::new(file);
             let mut archive = tar::Archive::new(gz);
-            let extract_dir = dir.join(
-                name.trim_end_matches(".tar.gz")
-                    .trim_end_matches(".tgz"),
-            );
+            let extract_dir = dir.join(name.trim_end_matches(".tar.gz").trim_end_matches(".tgz"));
             std::fs::create_dir_all(&extract_dir)?;
             archive.unpack(&extract_dir)?;
             std::fs::remove_file(&path)?;
@@ -336,7 +363,11 @@ async fn cmd_clone(
     let entry = match quarantine::add(url, "git") {
         Ok(e) => e,
         Err(err) => {
-            eprintln!("{} failed to create quarantine entry: {}", "error:".bold().red(), err);
+            eprintln!(
+                "{} failed to create quarantine entry: {}",
+                "error:".bold().red(),
+                err
+            );
             return 1;
         }
     };
@@ -372,7 +403,11 @@ async fn cmd_clone(
     // 4. Auto-approve if requested and scan is clean
     if auto_approve && result.verdict == scanner::Verdict::Clean {
         if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
-            eprintln!("{} failed to auto-approve: {}", "warning:".bold().yellow(), err);
+            eprintln!(
+                "{} failed to auto-approve: {}",
+                "warning:".bold().yellow(),
+                err
+            );
         } else {
             println!("{} auto-approved (clean scan)", "sigil:".bold().green());
         }
@@ -405,7 +440,11 @@ async fn cmd_pip(
     let entry = match quarantine::add(&pkg_spec, "pip") {
         Ok(e) => e,
         Err(err) => {
-            eprintln!("{} failed to create quarantine entry: {}", "error:".bold().red(), err);
+            eprintln!(
+                "{} failed to create quarantine entry: {}",
+                "error:".bold().red(),
+                err
+            );
             return 1;
         }
     };
@@ -447,7 +486,11 @@ async fn cmd_pip(
 
     if auto_approve && result.verdict == scanner::Verdict::Clean {
         if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
-            eprintln!("{} failed to auto-approve: {}", "warning:".bold().yellow(), err);
+            eprintln!(
+                "{} failed to auto-approve: {}",
+                "warning:".bold().yellow(),
+                err
+            );
         } else {
             println!("{} auto-approved (clean scan)", "sigil:".bold().green());
         }
@@ -480,7 +523,11 @@ async fn cmd_npm(
     let entry = match quarantine::add(&pkg_spec, "npm") {
         Ok(e) => e,
         Err(err) => {
-            eprintln!("{} failed to create quarantine entry: {}", "error:".bold().red(), err);
+            eprintln!(
+                "{} failed to create quarantine entry: {}",
+                "error:".bold().red(),
+                err
+            );
             return 1;
         }
     };
@@ -520,7 +567,11 @@ async fn cmd_npm(
 
     if auto_approve && result.verdict == scanner::Verdict::Clean {
         if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
-            eprintln!("{} failed to auto-approve: {}", "warning:".bold().yellow(), err);
+            eprintln!(
+                "{} failed to auto-approve: {}",
+                "warning:".bold().yellow(),
+                err
+            );
         } else {
             println!("{} auto-approved (clean scan)", "sigil:".bold().green());
         }
@@ -533,7 +584,7 @@ async fn cmd_npm(
 }
 
 async fn cmd_scan(
-    path: &PathBuf,
+    path: &Path,
     phases: &str,
     severity: &str,
     submit: bool,
@@ -542,7 +593,11 @@ async fn cmd_scan(
     verbose: bool,
 ) -> i32 {
     if !path.exists() {
-        eprintln!("{} path does not exist: {}", "error:".bold().red(), path.display());
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
         return 1;
     }
 
@@ -558,10 +613,7 @@ async fn cmd_scan(
     // Try loading from cache
     if use_cache {
         if let Some(cached) = cache::load_cached(path) {
-            println!(
-                "{} using cached result",
-                "sigil:".bold().green(),
-            );
+            println!("{} using cached result", "sigil:".bold().green(),);
             output::print_scan_summary(&cached, format);
             output::print_findings(&cached.findings, format);
             output::print_verdict(&cached.verdict, format);
@@ -588,11 +640,7 @@ async fn cmd_scan(
         Some(severity)
     };
 
-    let result = scanner::run_scan(
-        path,
-        phase_filter.as_deref(),
-        min_severity,
-    );
+    let result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
 
     if format == "sarif" {
         output::print_scan_sarif(&result, &path.to_string_lossy());
@@ -619,7 +667,10 @@ async fn cmd_scan(
         }
         let client = api::SigilClient::new(None);
         match client.submit_scan(&result).await {
-            Ok(_) => println!("{} results submitted to Sigil cloud", "sigil:".bold().green()),
+            Ok(_) => println!(
+                "{} results submitted to Sigil cloud",
+                "sigil:".bold().green()
+            ),
             Err(err) => eprintln!(
                 "{} failed to submit results: {} (continuing offline)",
                 "warning:".bold().yellow(),
@@ -662,7 +713,11 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
     };
 
     if verbose {
-        eprintln!("loaded baseline: {} findings, score {}", baseline_result.findings.len(), baseline_result.score);
+        eprintln!(
+            "loaded baseline: {} findings, score {}",
+            baseline_result.findings.len(),
+            baseline_result.score
+        );
     }
 
     // Run current scan
@@ -742,20 +797,23 @@ async fn cmd_clear_cache() -> i32 {
 }
 
 async fn cmd_fetch(force: bool, verbose: bool) -> i32 {
-    println!("{} fetching latest threat signatures...", "sigil:".bold().cyan());
+    println!(
+        "{} fetching latest threat signatures...",
+        "sigil:".bold().cyan()
+    );
 
     let client = api::SigilClient::new(None);
     match client.get_signatures(force).await {
         Ok(count) => {
-            println!(
-                "{} fetched {} signatures",
-                "sigil:".bold().green(),
-                count
-            );
+            println!("{} fetched {} signatures", "sigil:".bold().green(), count);
             0
         }
         Err(err) => {
-            eprintln!("{} failed to fetch signatures: {}", "error:".bold().red(), err);
+            eprintln!(
+                "{} failed to fetch signatures: {}",
+                "error:".bold().red(),
+                err
+            );
             if verbose {
                 eprintln!("hint: check your network connection or API token");
             }
@@ -843,7 +901,11 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(err) => {
-            eprintln!("{} cannot determine current binary path: {}", "error:".bold().red(), err);
+            eprintln!(
+                "{} cannot determine current binary path: {}",
+                "error:".bold().red(),
+                err
+            );
             return 1;
         }
     };
@@ -854,7 +916,11 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
 
     match std::fs::copy(&current_exe, &target) {
         Ok(_) => {
-            println!("{} installed successfully to {}", "sigil:".bold().green(), target.display());
+            println!(
+                "{} installed successfully to {}",
+                "sigil:".bold().green(),
+                target.display()
+            );
             0
         }
         Err(err) => {
@@ -973,11 +1039,10 @@ async fn cmd_config(key: Option<&str>, value: Option<&str>, list: bool, _verbose
     } else if let Some(k) = key {
         if let Some(v) = value {
             // Set a config value
-            let mut config: serde_json::Value =
-                std::fs::read_to_string(&config_path)
-                    .ok()
-                    .and_then(|c| serde_json::from_str(&c).ok())
-                    .unwrap_or_else(|| serde_json::json!({}));
+            let mut config: serde_json::Value = std::fs::read_to_string(&config_path)
+                .ok()
+                .and_then(|c| serde_json::from_str(&c).ok())
+                .unwrap_or_else(|| serde_json::json!({}));
 
             config[k] = serde_json::Value::String(v.to_string());
 

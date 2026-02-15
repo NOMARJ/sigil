@@ -30,16 +30,16 @@ QUARANTINE_DIR="${SIGIL_QUARANTINE_DIR:-$HOME/.sigil/quarantine}"
 APPROVED_DIR="${SIGIL_APPROVED_DIR:-$HOME/.sigil/approved}"
 LOG_DIR="${SIGIL_LOG_DIR:-$HOME/.sigil/logs}"
 REPORT_DIR="${SIGIL_REPORT_DIR:-$HOME/.sigil/reports}"
-CONFIG_FILE="${SIGIL_CONFIG:-$HOME/.sigil/config}"
+export CONFIG_FILE="${SIGIL_CONFIG:-$HOME/.sigil/config}"
 TOKEN_FILE="${SIGIL_TOKEN:-$HOME/.sigil/token}"
 API_BASE_URL="${SIGIL_API_URL:-https://api.sigil.nomark.dev}"
 
-# Severity thresholds (exit codes)
-SEVERITY_CRITICAL=1
-SEVERITY_HIGH=2
-SEVERITY_MEDIUM=3
-SEVERITY_LOW=4
-SEVERITY_CLEAN=0
+# Severity thresholds (exit codes) — exported for use in hooks/scripts
+export SEVERITY_CRITICAL=1
+export SEVERITY_HIGH=2
+export SEVERITY_MEDIUM=3
+export SEVERITY_LOW=4
+export SEVERITY_CLEAN=0
 
 # Colours
 RED='\033[0;31m'
@@ -76,10 +76,10 @@ ensure_tools() {
     done
 
     local scanners_available=0
-    check_tool "semgrep"    && scanners_available=$((scanners_available + 1)) || info "semgrep not found — install via: pip install semgrep"
-    check_tool "bandit"     && scanners_available=$((scanners_available + 1)) || info "bandit not found — install via: pip install bandit"
-    check_tool "trufflehog" && scanners_available=$((scanners_available + 1)) || info "trufflehog not found — install via: brew install trufflehog"
-    check_tool "safety"     && scanners_available=$((scanners_available + 1)) || info "safety not found — install via: pip install safety"
+    if check_tool "semgrep"; then scanners_available=$((scanners_available + 1)); else info "semgrep not found — install via: pip install semgrep"; fi
+    if check_tool "bandit"; then scanners_available=$((scanners_available + 1)); else info "bandit not found — install via: pip install bandit"; fi
+    if check_tool "trufflehog"; then scanners_available=$((scanners_available + 1)); else info "trufflehog not found — install via: brew install trufflehog"; fi
+    if check_tool "safety"; then scanners_available=$((scanners_available + 1)); else info "safety not found — install via: pip install safety"; fi
 
     if [ ${#missing[@]} -gt 0 ]; then
         fail "Missing required tools: ${missing[*]}"
@@ -112,6 +112,7 @@ should_ignore() {
     local filepath="$1"
     for pattern in "${SIGIL_IGNORE_PATTERNS[@]}"; do
         # Use bash pattern matching (supports *, ?, **)
+        # shellcheck disable=SC2053
         if [[ "$filepath" == $pattern ]] || [[ "$filepath" == */$pattern ]] || [[ "$filepath" == $pattern/* ]]; then
             return 0  # Should ignore
         fi
@@ -451,7 +452,7 @@ run_external_scanners() {
         echo -e "\n${BOLD}-- npm audit --${NC}" | tee -a "$report_file"
         local npm_out npm_vulns
         npm_out=$(cd "$target_dir" && npm audit --json 2>/dev/null || true)
-        npm_vulns=$(echo "$npm_out" | python3 -c "import sys,json; d=json.load(sys.stdin); v=d.get('metadata',{}).get('vulnerabilities',{}); print(v.get('critical',0)+v.get('high',0))" 2>/dev/null || echo "0")
+        npm_vulns=$(echo "$npm_out" | python3 -c "import sys,json; d=json.load(sys.stdin); v=d.get('metadata',{}).get('vulnerabilities',{}); print(v.get('critical',0)+v.get('high',0))" 2>/dev/null) || npm_vulns="0"
         if [ "$npm_vulns" -gt 0 ]; then
             fail "npm audit found $npm_vulns critical/high vulnerabilities" | tee -a "$report_file"
             findings=$((findings + npm_vulns * 5))
@@ -818,7 +819,7 @@ cmd_config() {
     echo ""
     echo -e "${BOLD}Scanner availability:${NC}"
     for tool in semgrep bandit trufflehog safety npm pip git; do
-        check_tool "$tool" && pass "$tool" || warn "$tool (not installed)"
+        if check_tool "$tool"; then pass "$tool"; else warn "$tool (not installed)"; fi
     done
 }
 
@@ -924,7 +925,7 @@ cmd_aliases() {
 
     if grep -q "$ALIAS_BLOCK_START" "$rc_file" 2>/dev/null; then
         warn "Aliases already installed in $rc_file"
-        read -p "Reinstall/update? [y/N]: " confirm
+        read -r -p "Reinstall/update? [y/N]: " confirm
         [[ ! "$confirm" =~ ^[Yy]$ ]] && { info "Skipped. Use 'sigil aliases --print' to view aliases."; return 0; }
         sed -i.bak "/$ALIAS_BLOCK_START/,/$ALIAS_BLOCK_END/d" "$rc_file"
         log "Removed existing aliases"
@@ -983,7 +984,7 @@ cmd_install() {
     else
         warn "Missing scanners: ${missing_scanners[*]}"
         echo ""
-        read -p "Install available scanners via pip? [y/N]: " confirm
+        read -r -p "Install available scanners via pip? [y/N]: " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             local pip_scanners=()
             for s in "${missing_scanners[@]}"; do
@@ -992,7 +993,13 @@ cmd_install() {
                     trufflehog) info "TruffleHog: install separately — brew install trufflehog" ;;
                 esac
             done
-            [ ${#pip_scanners[@]} -gt 0 ] && pip install "${pip_scanners[@]}" 2>/dev/null && pass "Installed: ${pip_scanners[*]}" || warn "Some installs failed — try manually"
+            if [ ${#pip_scanners[@]} -gt 0 ]; then
+                if pip install "${pip_scanners[@]}" 2>/dev/null; then
+                    pass "Installed: ${pip_scanners[*]}"
+                else
+                    warn "Some installs failed — try manually"
+                fi
+            fi
         else
             info "Skipped. sigil works without them (built-in scanner always runs)."
         fi

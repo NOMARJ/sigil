@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class Verdict(str, enum.Enum):
     """Overall risk verdict derived from the aggregate score."""
 
@@ -53,6 +54,7 @@ class ScanPhase(str, enum.Enum):
 # Finding
 # ---------------------------------------------------------------------------
 
+
 class Finding(BaseModel):
     """A single security finding discovered during a scan phase."""
 
@@ -69,6 +71,7 @@ class Finding(BaseModel):
 # Scan
 # ---------------------------------------------------------------------------
 
+
 class ScanRequest(BaseModel):
     """Payload submitted to POST /v1/scan."""
 
@@ -78,8 +81,12 @@ class ScanRequest(BaseModel):
         description="One of: directory, git, pip, npm",
     )
     files_scanned: int = Field(0, description="Total files examined")
-    findings: list[Finding] = Field(default_factory=list, description="Raw findings list")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary scan metadata")
+    findings: list[Finding] = Field(
+        default_factory=list, description="Raw findings list"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary scan metadata"
+    )
 
 
 class ScanResponse(BaseModel):
@@ -103,6 +110,7 @@ class ScanResponse(BaseModel):
 # Threat Intelligence
 # ---------------------------------------------------------------------------
 
+
 class ThreatEntry(BaseModel):
     """A known-malicious package record in the threat database."""
 
@@ -110,8 +118,12 @@ class ThreatEntry(BaseModel):
     package_name: str = Field(..., description="Package name (e.g. 'evil-pkg')")
     version: str = Field("", description="Affected version or range")
     severity: Severity = Field(Severity.HIGH)
-    source: str = Field("community", description="Intel source (community, nvd, internal)")
-    confirmed_at: datetime | None = Field(None, description="When the threat was confirmed")
+    source: str = Field(
+        "community", description="Intel source (community, nvd, internal)"
+    )
+    confirmed_at: datetime | None = Field(
+        None, description="When the threat was confirmed"
+    )
     description: str = Field("", description="Human-readable description of the threat")
 
 
@@ -138,10 +150,13 @@ class SignatureResponse(BaseModel):
 # Publisher Reputation
 # ---------------------------------------------------------------------------
 
+
 class PublisherReputation(BaseModel):
     """Trust profile for a package publisher."""
 
-    publisher_id: str = Field(..., description="Publisher identifier (npm username, PyPI user, etc.)")
+    publisher_id: str = Field(
+        ..., description="Publisher identifier (npm username, PyPI user, etc.)"
+    )
     trust_score: float = Field(
         100.0,
         ge=0.0,
@@ -149,7 +164,9 @@ class PublisherReputation(BaseModel):
         description="Trust score from 0 (untrusted) to 100 (fully trusted)",
     )
     total_packages: int = Field(0, description="Total packages published")
-    flagged_count: int = Field(0, description="Number of packages flagged as suspicious")
+    flagged_count: int = Field(
+        0, description="Number of packages flagged as suspicious"
+    )
     first_seen: datetime | None = None
     last_active: datetime | None = None
     notes: str = Field("", description="Additional reputation notes")
@@ -158,6 +175,7 @@ class PublisherReputation(BaseModel):
 # ---------------------------------------------------------------------------
 # Threat Report
 # ---------------------------------------------------------------------------
+
 
 class ThreatReport(BaseModel):
     """User-submitted threat report for a package."""
@@ -182,6 +200,7 @@ class ThreatReportResponse(BaseModel):
 # Marketplace Verification
 # ---------------------------------------------------------------------------
 
+
 class VerifyRequest(BaseModel):
     """Request to verify a package for a marketplace badge."""
 
@@ -189,7 +208,9 @@ class VerifyRequest(BaseModel):
     package_version: str = Field(..., description="Exact version to verify")
     ecosystem: str = Field(..., description="Ecosystem: npm, pip, cargo, etc.")
     publisher_id: str = Field("", description="Publisher identifier")
-    artifact_hash: str = Field("", description="SHA-256 hash of the distribution artifact")
+    artifact_hash: str = Field(
+        "", description="SHA-256 hash of the distribution artifact"
+    )
 
 
 class VerifyResponse(BaseModel):
@@ -200,7 +221,9 @@ class VerifyResponse(BaseModel):
     verified: bool = Field(False, description="Whether the package passed verification")
     verdict: Verdict = Field(Verdict.CLEAN)
     risk_score: float = 0.0
-    badge_url: str | None = Field(None, description="URL to the Sigil-verified badge if approved")
+    badge_url: str | None = Field(
+        None, description="URL to the Sigil-verified badge if approved"
+    )
     findings_summary: str = Field("", description="Brief summary of any findings")
     verified_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -208,6 +231,7 @@ class VerifyResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Auth / User
 # ---------------------------------------------------------------------------
+
 
 class PolicyType(str, enum.Enum):
     """Types of scan policies that can be applied to a team."""
@@ -238,6 +262,7 @@ class PlanTier(str, enum.Enum):
 # ---------------------------------------------------------------------------
 # Policies
 # ---------------------------------------------------------------------------
+
 
 class PolicyCreate(BaseModel):
     """Request to create a new team policy."""
@@ -296,6 +321,7 @@ class PolicyEvaluateResponse(BaseModel):
 # Alerts / Notifications
 # ---------------------------------------------------------------------------
 
+
 class AlertCreate(BaseModel):
     """Request to create a notification channel."""
 
@@ -311,7 +337,9 @@ class AlertUpdate(BaseModel):
     """Request to update an alert channel."""
 
     channel_type: ChannelType | None = Field(None, description="Updated channel type")
-    channel_config: dict[str, Any] | None = Field(None, description="Updated configuration")
+    channel_config: dict[str, Any] | None = Field(
+        None, description="Updated configuration"
+    )
     enabled: bool | None = Field(None, description="Updated enabled state")
 
 
@@ -344,13 +372,16 @@ class AlertTestResponse(BaseModel):
 # Billing
 # ---------------------------------------------------------------------------
 
+
 class PlanInfo(BaseModel):
     """A billing plan description."""
 
     tier: PlanTier
     name: str
     price_monthly: float = Field(0.0, description="Monthly price in USD")
-    scans_per_month: int = Field(0, description="Included scans per month (0 = unlimited)")
+    scans_per_month: int = Field(
+        0, description="Included scans per month (0 = unlimited)"
+    )
     features: list[str] = Field(default_factory=list, description="Feature list")
 
 
@@ -389,6 +420,7 @@ class WebhookResponse(BaseModel):
 # Auth / User
 # ---------------------------------------------------------------------------
 
+
 class UserCreate(BaseModel):
     """Registration request payload."""
 
@@ -425,6 +457,7 @@ class TokenResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Scan — Dashboard list / detail models
 # ---------------------------------------------------------------------------
+
 
 class ScanListItem(BaseModel):
     """Summary of a scan for list views."""
@@ -482,6 +515,7 @@ class DashboardStats(BaseModel):
 # ---------------------------------------------------------------------------
 # Team management
 # ---------------------------------------------------------------------------
+
 
 class TeamMember(BaseModel):
     """A team member record."""
@@ -543,6 +577,7 @@ class AuthTokens(BaseModel):
 # ---------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------
+
 
 class ErrorResponse(BaseModel):
     """Standard error body."""

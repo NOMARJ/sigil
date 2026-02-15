@@ -26,7 +26,9 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.green());
             println!(
                 "{}",
-                "  VERDICT: CLEAN -- No security issues detected".green().bold()
+                "  VERDICT: CLEAN -- No security issues detected"
+                    .green()
+                    .bold()
             );
             println!("{}", line.green());
         }
@@ -34,7 +36,9 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.cyan());
             println!(
                 "{}",
-                "  VERDICT: LOW RISK -- Minor informational findings".cyan().bold()
+                "  VERDICT: LOW RISK -- Minor informational findings"
+                    .cyan()
+                    .bold()
             );
             println!("{}", line.cyan());
         }
@@ -66,12 +70,7 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
                     .red()
                     .bold()
             );
-            println!(
-                "{}",
-                "  DO NOT install or execute this code."
-                    .red()
-                    .bold()
-            );
+            println!("{}", "  DO NOT install or execute this code.".red().bold());
             println!("{}", line.red().bold());
         }
     }
@@ -137,11 +136,10 @@ pub fn print_findings(findings: &[Finding], format: &str) {
                 };
 
                 println!(
-                    "  {} [{}] {} {}",
+                    "  {} [{}] {} ",
                     severity_str,
                     finding.rule.dimmed(),
-                    location.bold(),
-                    ""
+                    location.bold()
                 );
                 println!("       {}", finding.snippet.dimmed());
             }
@@ -173,7 +171,10 @@ pub fn print_scan_summary(result: &ScanResult, format: &str) {
             "verdict": format!("{}", result.verdict),
             "duration_ms": result.duration_ms,
         });
-        println!("{}", serde_json::to_string_pretty(&summary).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&summary).unwrap_or_default()
+        );
         return;
     }
 
@@ -234,8 +235,6 @@ fn format_score(score: u32) -> String {
         format!("{}", score.to_string().cyan().bold())
     } else if score < 25 {
         format!("{}", score.to_string().yellow().bold())
-    } else if score < 50 {
-        format!("{}", score.to_string().red().bold())
     } else {
         format!("{}", score.to_string().red().bold())
     }
@@ -280,8 +279,14 @@ pub fn print_quarantine_list(entries: &[QuarantineEntry], detailed: bool, format
 
         if detailed {
             println!("       Path:    {}", entry.path.display());
-            println!("       Created: {}", entry.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
-            println!("       Updated: {}", entry.updated_at.format("%Y-%m-%d %H:%M:%S UTC"));
+            println!(
+                "       Created: {}",
+                entry.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+            );
+            println!(
+                "       Updated: {}",
+                entry.updated_at.format("%Y-%m-%d %H:%M:%S UTC")
+            );
             if let Some(ref reason) = entry.reason {
                 println!("       Reason:  {}", reason);
             }

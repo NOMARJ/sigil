@@ -9,20 +9,19 @@ data factories.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
-from typing import Any, AsyncIterator, Iterator
-from unittest.mock import AsyncMock, patch
+from typing import Any, Iterator
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api.database import SupabaseClient, RedisClient, _memory_store, _memory_cache
+from api.database import _memory_store, _memory_cache
 
 
 # ---------------------------------------------------------------------------
 # Event loop fixture for async tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
@@ -35,6 +34,7 @@ def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
 # ---------------------------------------------------------------------------
 # Reset in-memory stores between tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _reset_memory_stores():
@@ -49,6 +49,7 @@ def _reset_memory_stores():
 # ---------------------------------------------------------------------------
 # FastAPI test client
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
@@ -66,6 +67,7 @@ def client() -> Iterator[TestClient]:
 # Auth helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def test_user_data() -> dict[str, str]:
     """Return standard test user registration data."""
@@ -77,7 +79,9 @@ def test_user_data() -> dict[str, str]:
 
 
 @pytest.fixture()
-def registered_user(client: TestClient, test_user_data: dict[str, str]) -> dict[str, Any]:
+def registered_user(
+    client: TestClient, test_user_data: dict[str, str]
+) -> dict[str, Any]:
     """Register a test user and return the full response dict (includes token)."""
     resp = client.post("/v1/auth/register", json=test_user_data)
     assert resp.status_code == 201, f"Registration failed: {resp.text}"
@@ -94,6 +98,7 @@ def auth_headers(registered_user: dict[str, Any]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Sample data factories
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def sample_findings() -> list[dict[str, Any]]:

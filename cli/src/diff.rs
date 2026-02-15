@@ -22,9 +22,10 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
 
     // Match findings by (rule, file, line) tuple
     for finding in &current.findings {
-        let exists_in_previous = previous.findings.iter().any(|f| {
-            f.rule == finding.rule && f.file == finding.file && f.line == finding.line
-        });
+        let exists_in_previous = previous
+            .findings
+            .iter()
+            .any(|f| f.rule == finding.rule && f.file == finding.file && f.line == finding.line);
         if exists_in_previous {
             unchanged_findings.push(finding.clone());
         } else {
@@ -33,9 +34,10 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
     }
 
     for finding in &previous.findings {
-        let exists_in_current = current.findings.iter().any(|f| {
-            f.rule == finding.rule && f.file == finding.file && f.line == finding.line
-        });
+        let exists_in_current = current
+            .findings
+            .iter()
+            .any(|f| f.rule == finding.rule && f.file == finding.file && f.line == finding.line);
         if !exists_in_current {
             resolved_findings.push(finding.clone());
         }
@@ -58,8 +60,8 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
         resolved_findings,
         unchanged_findings,
         score_delta,
-        previous_verdict: previous.verdict.clone(),
-        current_verdict: current.verdict.clone(),
+        previous_verdict: previous.verdict,
+        current_verdict: current.verdict,
         summary,
     }
 }
