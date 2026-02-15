@@ -423,6 +423,124 @@ class TokenResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Scan — Dashboard list / detail models
+# ---------------------------------------------------------------------------
+
+class ScanListItem(BaseModel):
+    """Summary of a scan for list views."""
+
+    id: str
+    target: str
+    target_type: str = "directory"
+    files_scanned: int = 0
+    findings_count: int = 0
+    risk_score: float = 0.0
+    verdict: str = "CLEAN"
+    threat_hits: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ScanListResponse(BaseModel):
+    """Paginated list of scans."""
+
+    items: list[ScanListItem] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    per_page: int = 20
+
+
+class ScanDetail(BaseModel):
+    """Full scan record returned by GET /scans/{id}."""
+
+    id: str
+    target: str
+    target_type: str = "directory"
+    files_scanned: int = 0
+    findings_count: int = 0
+    risk_score: float = 0.0
+    verdict: str = "CLEAN"
+    threat_hits: int = 0
+    findings_json: list[Any] = Field(default_factory=list)
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DashboardStats(BaseModel):
+    """Aggregate statistics for the dashboard overview."""
+
+    total_scans: int = 0
+    threats_blocked: int = 0
+    packages_approved: int = 0
+    critical_findings: int = 0
+    scans_trend: float = 0.0
+    threats_trend: float = 0.0
+    approved_trend: float = 0.0
+    critical_trend: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Team management
+# ---------------------------------------------------------------------------
+
+class TeamMember(BaseModel):
+    """A team member record."""
+
+    id: str
+    email: str
+    name: str = ""
+    role: str = "member"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TeamResponse(BaseModel):
+    """Team details with members list."""
+
+    id: str
+    name: str
+    owner_id: str | None = None
+    plan: str = "free"
+    members: list[TeamMember] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TeamInviteRequest(BaseModel):
+    """Request to invite a member to a team."""
+
+    email: str = Field(..., description="Email of the user to invite")
+    role: str = Field("member", description="Role to assign: member, admin, or owner")
+
+
+class TeamInviteResponse(BaseModel):
+    """Response after sending a team invite."""
+
+    success: bool = True
+    message: str = "Invitation sent"
+    email: str = ""
+    role: str = "member"
+
+
+class RoleUpdateRequest(BaseModel):
+    """Request to update a team member's role."""
+
+    role: str = Field(..., description="New role: member, admin, or owner")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request to refresh an access token."""
+
+    refresh_token: str = Field(..., description="The refresh token")
+
+
+class AuthTokens(BaseModel):
+    """Token pair returned on refresh."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = Field(..., description="Token lifetime in seconds")
+
+
+# ---------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------
 

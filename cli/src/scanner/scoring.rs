@@ -46,12 +46,12 @@ pub fn calculate_score(findings: &[Finding]) -> u32 {
 
 /// Determine the overall verdict from findings and the aggregate score.
 ///
-/// Verdicts are assigned as follows:
+/// Thresholds (aligned with the bash CLI and API):
 /// - **Clean**: no findings at all
-/// - **LowRisk**: score <= 10
-/// - **MediumRisk**: score <= 50
-/// - **HighRisk**: score <= 100
-/// - **Critical**: score > 100, or any single Critical-severity finding
+/// - **LowRisk**: score 1-9
+/// - **MediumRisk**: score 10-24
+/// - **HighRisk**: score 25-49
+/// - **Critical**: score >= 50, or any single Critical-severity finding
 ///   from the InstallHooks phase (immediate escalation)
 pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
     if findings.is_empty() {
@@ -63,15 +63,15 @@ pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
         f.phase == Phase::InstallHooks && f.severity == Severity::Critical
     });
 
-    if has_critical_install || score > 100 {
+    if has_critical_install || score >= 50 {
         return Verdict::Critical;
     }
 
-    if score > 50 {
+    if score >= 25 {
         return Verdict::HighRisk;
     }
 
-    if score > 10 {
+    if score >= 10 {
         return Verdict::MediumRisk;
     }
 
@@ -127,15 +127,15 @@ mod tests {
 
     #[test]
     fn test_high_risk_verdict() {
+        // Score needs to be in range 25-49 for HighRisk
         let findings = vec![
             dummy_finding(Phase::CodePatterns, Severity::High, 5),
-            dummy_finding(Phase::CodePatterns, Severity::High, 5),
-            dummy_finding(Phase::NetworkExfil, Severity::High, 3),
-            dummy_finding(Phase::Obfuscation, Severity::High, 5),
+            dummy_finding(Phase::NetworkExfil, Severity::Medium, 3),
+            dummy_finding(Phase::Credentials, Severity::Medium, 2),
         ];
         let score = calculate_score(&findings);
-        // 3*5 + 3*5 + 3*3 + 3*5 = 15+15+9+15 = 54
-        assert_eq!(score, 54);
+        // 3*5 + 2*3 + 2*2 = 15+6+4 = 25
+        assert_eq!(score, 25);
         assert_eq!(determine_verdict(&findings, score), Verdict::HighRisk);
     }
 
@@ -145,24 +145,21 @@ mod tests {
             dummy_finding(Phase::InstallHooks, Severity::Critical, 10),
         ];
         let score = calculate_score(&findings);
-        // Even with a relatively low score (5*10=50), Critical install hook escalates
+        // Critical install hook always escalates to Critical verdict
         assert_eq!(determine_verdict(&findings, score), Verdict::Critical);
     }
 
     #[test]
     fn test_critical_by_score() {
+        // Score >= 50 triggers Critical verdict
         let findings = vec![
             dummy_finding(Phase::CodePatterns, Severity::Critical, 5),
             dummy_finding(Phase::Obfuscation, Severity::Critical, 5),
-            dummy_finding(Phase::NetworkExfil, Severity::Critical, 3),
-            dummy_finding(Phase::CodePatterns, Severity::High, 5),
-            dummy_finding(Phase::CodePatterns, Severity::High, 5),
         ];
         let score = calculate_score(&findings);
-        // 5*5 + 5*5 + 5*3 + 3*5 + 3*5 = 25+25+15+15+15 = 95
-        // Not > 100, but no critical install hook either => HighRisk
-        // Add more to push over
-        assert!(score <= 100);
-        assert_eq!(determine_verdict(&findings, score), Verdict::HighRisk);
+        // 5*5 + 5*5 = 25+25 = 50
+        assert_eq!(score, 50);
+        assert!(score >= 50);
+        assert_eq!(determine_verdict(&findings, score), Verdict::Critical);
     }
 }

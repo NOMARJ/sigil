@@ -28,7 +28,9 @@ from fastapi.security import OAuth2PasswordBearer
 from api.config import settings
 from api.database import db
 from api.models import (
+    AuthTokens,
     ErrorResponse,
+    RefreshTokenRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -338,3 +340,65 @@ async def me(current_user: Annotated[UserResponse, Depends(get_current_user)]) -
     Requires a valid Bearer token in the ``Authorization`` header.
     """
     return current_user
+
+
+@router.post(
+    "/refresh",
+    response_model=AuthTokens,
+    summary="Refresh an access token",
+    responses={401: {"model": ErrorResponse}},
+)
+async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
+    """Exchange a refresh token for a new access token.
+
+    Validates the provided refresh token and, if valid, issues a fresh
+    access token.  The refresh token is treated as a JWT with the same
+    structure as the access token.
+    """
+    payload = _verify_token(body.refresh_token)
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token: missing 'sub' claim",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify the user still exists
+    user = await db.select_one(USER_TABLE, {"id": user_id})
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    new_token = _create_access_token({"sub": user_id, "email": user.get("email", "")})
+    expires_in = settings.jwt_expire_minutes * 60
+
+    logger.info("Token refreshed for user: %s", user_id)
+
+    return AuthTokens(
+        access_token=new_token,
+        token_type="bearer",
+        expires_in=expires_in,
+    )
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Log out the current user",
+    responses={401: {"model": ErrorResponse}},
+)
+async def logout(
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> None:
+    """Invalidate the current session.
+
+    In a stateless JWT setup this is effectively a no-op on the server side.
+    The client should discard its stored tokens.  A token blocklist can be
+    added here in the future for immediate revocation.
+    """
+    logger.info("User logged out: %s", current_user.id)
+    return None

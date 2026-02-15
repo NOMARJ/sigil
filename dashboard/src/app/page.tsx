@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import StatsCard from "@/components/StatsCard";
 import ScanTable from "@/components/ScanTable";
 import * as api from "@/lib/api";
@@ -147,12 +148,12 @@ export default function DashboardPage() {
               Latest package and repository scans.
             </p>
           </div>
-          <a
+          <Link
             href="/scans"
             className="btn-ghost text-xs"
           >
             View all
-          </a>
+          </Link>
         </div>
         <div className="card-body">
           {loading ? (

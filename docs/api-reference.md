@@ -8,24 +8,24 @@
 
 **Content-Type:** All request and response bodies use `application/json`.
 
+**Path Compatibility:** Most endpoints are available at both `/v1/<path>` (for CLI clients) and `/<path>` (for the dashboard). Both forms call the same handler and return identical responses.
+
 ---
 
 ## Table of Contents
 
 - [Authentication](#authentication)
-  - [POST /v1/auth/register](#post-v1authregister)
-  - [POST /v1/auth/login](#post-v1authlogin)
-  - [GET /v1/auth/me](#get-v1authme)
 - [Scanning](#scanning)
-  - [POST /v1/scan](#post-v1scan)
+- [Dashboard](#dashboard)
 - [Threat Intelligence](#threat-intelligence)
-  - [GET /v1/threat/{hash}](#get-v1threathash)
-  - [GET /v1/publisher/{id}](#get-v1publisherid)
-  - [POST /v1/report](#post-v1report)
-- [Signatures](#signatures)
-  - [GET /v1/signatures](#get-v1signatures)
-- [Marketplace](#marketplace)
-  - [POST /v1/verify](#post-v1verify)
+- [Publishers](#publishers)
+- [Reports](#reports)
+- [Verification](#verification)
+- [Team Management](#team-management)
+- [Policies](#policies)
+- [Alerts](#alerts)
+- [Billing](#billing)
+- [System](#system)
 - [Error Handling](#error-handling)
 
 ---
@@ -34,7 +34,12 @@
 
 ### POST /v1/auth/register
 
-Create a new Sigil account.
+Create a new Sigil account and receive a JWT.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Rate limit** | 10/min |
 
 **Request Body:**
 
@@ -48,39 +53,30 @@ Create a new Sigil account.
 
 ```json
 {
-  "id": "usr_a1b2c3d4e5f6",
-  "email": "dev@example.com",
-  "name": "Jane Dev",
-  "created_at": "2026-02-15T10:30:00Z",
-  "tier": "free"
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": "usr_a1b2c3d4e5f6",
+    "email": "dev@example.com",
+    "name": "Jane Dev",
+    "created_at": "2026-02-15T10:30:00Z"
+  }
 }
 ```
 
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 400 | Invalid email format or password too short |
-| 409 | Email already registered |
-| 422 | Missing required fields |
-
-**Example:**
-
-```bash
-curl -X POST https://api.sigilsec.ai/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "dev@example.com",
-    "password": "s3cure-passw0rd",
-    "name": "Jane Dev"
-  }'
-```
+**Status Codes:** 201 Created, 409 Email already registered, 422 Validation error
 
 ---
 
 ### POST /v1/auth/login
 
 Authenticate and receive a JWT token.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Rate limit** | 30/min |
 
 **Request Body:**
 
@@ -100,29 +96,12 @@ Authenticate and receive a JWT token.
     "id": "usr_a1b2c3d4e5f6",
     "email": "dev@example.com",
     "name": "Jane Dev",
-    "tier": "pro"
+    "created_at": "2026-02-15T10:30:00Z"
   }
 }
 ```
 
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Invalid email or password |
-| 422 | Missing required fields |
-| 429 | Too many login attempts (rate limited) |
-
-**Example:**
-
-```bash
-curl -X POST https://api.sigilsec.ai/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "dev@example.com",
-    "password": "s3cure-passw0rd"
-  }'
-```
+**Status Codes:** 200 OK, 401 Invalid credentials, 429 Rate limited
 
 ---
 
@@ -130,11 +109,9 @@ curl -X POST https://api.sigilsec.ai/v1/auth/login \
 
 Retrieve the authenticated user's profile.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
 
 **Response (200 OK):**
 
@@ -143,26 +120,55 @@ Retrieve the authenticated user's profile.
   "id": "usr_a1b2c3d4e5f6",
   "email": "dev@example.com",
   "name": "Jane Dev",
-  "tier": "pro",
-  "created_at": "2026-02-15T10:30:00Z",
-  "scan_count": 142,
-  "last_scan_at": "2026-02-15T14:22:00Z"
+  "created_at": "2026-02-15T10:30:00Z"
 }
 ```
 
-**Error Responses:**
+**Status Codes:** 200 OK, 401 Unauthorized
 
-| Status | Description |
-|--------|-------------|
-| 401 | Missing or invalid token |
-| 403 | Token expired |
+---
 
-**Example:**
+### POST /auth/refresh
 
-```bash
-curl https://api.sigilsec.ai/v1/auth/me \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+Exchange a refresh token for a new access token.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No (uses refresh token) |
+| **Also available at** | `POST /v1/auth/refresh` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `refresh_token` | string | Yes | A valid refresh token (JWT) |
+
+**Response (200 OK):**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
 ```
+
+**Status Codes:** 200 OK, 401 Invalid or expired refresh token
+
+---
+
+### POST /auth/logout
+
+Log out the current user. The client should discard stored tokens.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /v1/auth/logout` |
+
+**Response:** 204 No Content
+
+**Status Codes:** 204 No Content, 401 Unauthorized
 
 ---
 
@@ -170,106 +176,197 @@ curl https://api.sigilsec.ai/v1/auth/me \
 
 ### POST /v1/scan
 
-Submit scan results from the CLI. The CLI sends only metadata -- never source code. This endpoint stores the scan for history, enriches it with threat intelligence, and returns any known threats matching the scanned content.
+Submit scan results from the CLI for enrichment with threat intelligence. The CLI sends metadata and findings -- never source code.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | No (public submission) |
 
 **Request Body:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `quarantine_id` | string | Yes | Unique scan identifier from the CLI |
-| `source_type` | string | Yes | One of: `git`, `pip`, `npm`, `url`, `local` |
-| `source_ref` | string | Yes | URL, package name, or path that was scanned |
-| `source_hash` | string | No | SHA-256 hash of the scanned content |
-| `score` | integer | Yes | Cumulative risk score from all phases |
-| `verdict` | string | Yes | One of: `clean`, `low`, `medium`, `high`, `critical` |
-| `phases` | array | Yes | Per-phase results (see below) |
-| `file_stats` | object | No | File type counts and total size |
-| `cli_version` | string | No | Version of the CLI that performed the scan |
+| `target` | string | Yes | Package name, URL, or path that was scanned |
+| `target_type` | string | Yes | One of: `git`, `pip`, `npm`, `url`, `directory` |
+| `files_scanned` | integer | Yes | Number of files scanned |
+| `findings` | array | Yes | List of Finding objects (see below) |
+| `metadata` | object | No | Additional scan metadata (hashes, cli_version, etc.) |
 
-**Phase Object:**
+**Finding Object:**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `phase` | integer | Phase number (1-6) |
-| `name` | string | Phase name |
-| `score` | integer | Score contribution from this phase |
-| `findings` | array | List of finding strings |
+| `phase` | string | Scan phase (e.g. `install_hooks`, `code_patterns`) |
+| `rule` | string | Rule identifier (e.g. `INSTALL-001`) |
+| `severity` | string | One of: `low`, `medium`, `high`, `critical` |
+| `file` | string | File path where finding was detected |
+| `line` | integer | Line number (1-based), nullable |
+| `snippet` | string | Code snippet or match description |
 
-**Response (201 Created):**
+**Response (200 OK):**
 
 ```json
 {
   "scan_id": "scn_x7y8z9a0b1c2",
-  "quarantine_id": "20260215_143000_example_repo",
-  "score": 15,
-  "verdict": "medium",
-  "threats": [
-    {
-      "hash": "sha256:abc123...",
-      "severity": "high",
-      "description": "Known credential exfiltration pattern",
-      "reported_at": "2026-02-10T08:00:00Z",
-      "reports_count": 23
-    }
-  ],
-  "publisher": {
-    "id": "pub_d4e5f6",
-    "name": "suspicious-author",
-    "reputation": 12,
-    "total_packages": 3,
-    "flagged_packages": 2
-  },
+  "target": "https://github.com/someone/example-repo",
+  "target_type": "git",
+  "files_scanned": 24,
+  "findings": [...],
+  "risk_score": 15.0,
+  "verdict": "MEDIUM_RISK",
+  "threat_intel_hits": [],
   "created_at": "2026-02-15T14:30:00Z"
 }
 ```
 
-**Error Responses:**
+**Status Codes:** 200 OK, 422 Validation error
 
-| Status | Description |
-|--------|-------------|
-| 400 | Invalid scan data or unknown verdict value |
-| 401 | Missing or invalid token |
-| 413 | Payload too large (max 1MB) |
-| 422 | Missing required fields |
-| 429 | Rate limited |
+---
 
-**Example:**
+### GET /scans
 
-```bash
-curl -X POST https://api.sigilsec.ai/v1/scan \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "quarantine_id": "20260215_143000_example_repo",
-    "source_type": "git",
-    "source_ref": "https://github.com/someone/example-repo",
-    "source_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "score": 15,
-    "verdict": "medium",
-    "phases": [
-      {"phase": 1, "name": "install_hooks", "score": 0, "findings": []},
-      {"phase": 2, "name": "code_patterns", "score": 10, "findings": ["eval() in src/utils.py:42"]},
-      {"phase": 3, "name": "network_exfil", "score": 3, "findings": ["requests.post in src/api.py:18"]},
-      {"phase": 4, "name": "credentials", "score": 2, "findings": ["os.environ in src/config.py:5"]},
-      {"phase": 5, "name": "obfuscation", "score": 0, "findings": []},
-      {"phase": 6, "name": "provenance", "score": 0, "findings": []}
-    ],
-    "file_stats": {
-      "total_files": 24,
-      "python": 12,
-      "javascript": 8,
-      "other": 4,
-      "total_size_bytes": 145920
-    },
-    "cli_version": "0.1.0"
-  }'
+List scans with pagination and filtering.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | integer | 1 | Page number (>= 1) |
+| `per_page` | integer | 20 | Items per page (1-100) |
+| `verdict` | string | -- | Filter by verdict |
+| `source` | string | -- | Filter by target_type |
+| `search` | string | -- | Search in target name |
+
+**Response (200 OK):**
+
+```json
+{
+  "items": [
+    {
+      "id": "scn_x7y8z9a0b1c2",
+      "target": "example-repo",
+      "target_type": "git",
+      "files_scanned": 24,
+      "findings_count": 3,
+      "risk_score": 15.0,
+      "verdict": "MEDIUM_RISK",
+      "threat_hits": 0,
+      "metadata": {},
+      "created_at": "2026-02-15T14:30:00Z"
+    }
+  ],
+  "total": 142,
+  "page": 1,
+  "per_page": 20
+}
 ```
+
+**Status Codes:** 200 OK, 401 Unauthorized
+
+---
+
+### GET /scans/{id}
+
+Get full details of a single scan.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):** Full scan detail including `findings_json` and `metadata_json` arrays.
+
+**Status Codes:** 200 OK, 401 Unauthorized, 404 Not found
+
+---
+
+### GET /scans/{id}/findings
+
+Get findings for a specific scan.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):** Array of finding objects from the scan.
+
+**Status Codes:** 200 OK, 401 Unauthorized, 404 Not found
+
+---
+
+### POST /scans/{id}/approve
+
+Approve a quarantined scan, marking it as safe.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):**
+
+```json
+{
+  "scan_id": "scn_x7y8z9a0b1c2",
+  "status": "approved",
+  "approved_by": "usr_a1b2c3d4e5f6"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized, 404 Not found
+
+---
+
+### POST /scans/{id}/reject
+
+Reject a quarantined scan, marking it as blocked.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):**
+
+```json
+{
+  "scan_id": "scn_x7y8z9a0b1c2",
+  "status": "rejected",
+  "rejected_by": "usr_a1b2c3d4e5f6"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized, 404 Not found
+
+---
+
+## Dashboard
+
+### GET /dashboard/stats
+
+Aggregate dashboard statistics for the team overview.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):**
+
+```json
+{
+  "total_scans": 1420,
+  "threats_blocked": 23,
+  "packages_approved": 890,
+  "critical_findings": 5,
+  "scans_trend": 12.5,
+  "threats_trend": -3.2,
+  "approved_trend": 8.1,
+  "critical_trend": 0.0
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized
 
 ---
 
@@ -277,19 +374,18 @@ curl -X POST https://api.sigilsec.ai/v1/scan \
 
 ### GET /v1/threat/{hash}
 
-Look up a content hash against the threat intelligence database. Returns known threats, community reports, and recommended actions.
+Look up a package hash against the threat intelligence database.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Also available at** | `GET /threat/{hash}` |
 
 **Path Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `hash` | string | SHA-256 hash of the content (prefixed with `sha256:`) |
+| `hash` | string | SHA-256 hash of the package artifact |
 
 **Response (200 OK):**
 
@@ -299,59 +395,82 @@ Look up a content hash against the threat intelligence database. Returns known t
   "known_threat": true,
   "severity": "critical",
   "category": "credential_exfiltration",
-  "description": "Package uploads .aws/credentials and .env files to remote server via obfuscated postinstall script",
+  "description": "Package uploads credentials to remote server",
   "first_seen": "2026-01-20T12:00:00Z",
-  "last_seen": "2026-02-14T18:30:00Z",
   "reports_count": 47,
   "affected_packages": [
-    {"ecosystem": "npm", "name": "aws-helper-utils", "version": "1.2.3"},
-    {"ecosystem": "npm", "name": "aws-helper-utilz", "version": "1.0.0"}
-  ],
-  "references": [
-    "https://sigilsec.ai/threats/THR-2026-0142"
+    {"ecosystem": "npm", "name": "aws-helper-utils", "version": "1.2.3"}
   ],
   "recommended_action": "reject"
 }
 ```
 
-**Response (200 OK -- no threat found):**
-
-```json
-{
-  "hash": "sha256:abc123def456...",
-  "known_threat": false,
-  "severity": null,
-  "category": null,
-  "description": null
-}
-```
-
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 400 | Invalid hash format |
-| 401 | Missing or invalid token |
-| 429 | Rate limited |
-
-**Example:**
-
-```bash
-curl https://api.sigilsec.ai/v1/threat/sha256:e3b0c44298fc1c149afbf4c8996fb924 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
-```
+**Status Codes:** 200 OK, 404 Hash not found
 
 ---
 
+### GET /v1/signatures
+
+Fetch pattern detection signatures. Supports delta sync via the `since` parameter.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Also available at** | `GET /signatures` |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `since` | string (ISO 8601) | No | Return only signatures updated after this timestamp |
+
+**Response (200 OK):**
+
+```json
+{
+  "signatures": [
+    {
+      "id": "sig_001",
+      "phase": 1,
+      "name": "npm_postinstall_exec",
+      "pattern": "\"postinstall\"\\s*:\\s*\".*\\b(curl|wget|bash)\\b",
+      "severity": "critical",
+      "weight": 10,
+      "ecosystem": "npm",
+      "updated_at": "2026-02-10T12:00:00Z"
+    }
+  ],
+  "total": 156,
+  "since": "2026-02-01T00:00:00Z",
+  "next_sync_token": "2026-02-15T15:00:00Z"
+}
+```
+
+**Status Codes:** 200 OK, 400 Invalid `since` format
+
+---
+
+### GET /threats
+
+Search threats. Dashboard alias for threat intelligence queries.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Also available at** | `GET /v1/threat/{hash}` (single lookup) |
+
+---
+
+## Publishers
+
 ### GET /v1/publisher/{id}
 
-Look up the reputation of a package publisher/author. Reputation is computed from community scan data, report history, and package behavior over time.
+Look up the reputation of a package publisher/author.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Also available at** | `GET /publisher/{id}` |
 
 **Path Parameters:**
 
@@ -376,56 +495,26 @@ Look up the reputation of a package publisher/author. Reputation is computed fro
   "reputation_label": "low",
   "total_packages": 3,
   "flagged_packages": 2,
-  "total_scans": 89,
-  "average_risk_score": 38.5,
-  "first_seen": "2026-01-15T00:00:00Z",
-  "flags": [
-    "multiple_flagged_packages",
-    "typosquat_pattern",
-    "new_account"
-  ],
   "packages": [
-    {"name": "aws-helper-utils", "version": "1.2.3", "verdict": "critical", "scans": 47},
-    {"name": "aws-helper-utilz", "version": "1.0.0", "verdict": "critical", "scans": 31},
-    {"name": "string-utils-fast", "version": "2.0.1", "verdict": "clean", "scans": 11}
+    {"name": "aws-helper-utils", "version": "1.2.3", "verdict": "critical", "scans": 47}
   ]
 }
 ```
 
-**Response (404 Not Found):**
-
-```json
-{
-  "detail": "Publisher not found"
-}
-```
-
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 401 | Missing or invalid token |
-| 404 | Publisher not found in database |
-| 429 | Rate limited |
-
-**Example:**
-
-```bash
-curl "https://api.sigilsec.ai/v1/publisher/suspicious-author?ecosystem=npm" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
-```
+**Status Codes:** 200 OK, 404 Publisher not found
 
 ---
 
+## Reports
+
 ### POST /v1/report
 
-Submit a threat report for a package or repository. Reports contribute to community threat intelligence and, once verified, generate new detection signatures.
+Submit a threat report for a package or repository. Reports contribute to community threat intelligence.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /report` |
 
 **Request Body:**
 
@@ -436,22 +525,11 @@ Submit a threat report for a package or repository. Reports contribute to commun
 | `source_hash` | string | No | SHA-256 hash of the content |
 | `category` | string | Yes | Threat category (see below) |
 | `severity` | string | Yes | One of: `low`, `medium`, `high`, `critical` |
-| `description` | string | Yes | Human-readable description of the threat |
-| `evidence` | array | No | List of evidence strings (rule matches, file paths) |
-| `scan_id` | string | No | Associated scan ID if submitted after a scan |
+| `description` | string | Yes | Human-readable description |
+| `evidence` | array | No | List of evidence strings |
+| `scan_id` | string | No | Associated scan ID |
 
-**Threat Categories:**
-
-| Category | Description |
-|----------|-------------|
-| `credential_exfiltration` | Code that steals secrets, API keys, or credentials |
-| `backdoor` | Code that establishes unauthorized remote access |
-| `install_hook_abuse` | Malicious code in install lifecycle scripts |
-| `typosquat` | Package name designed to impersonate a legitimate package |
-| `obfuscated_payload` | Intentionally obfuscated malicious code |
-| `cryptominer` | Unauthorized cryptocurrency mining |
-| `data_exfiltration` | Code that sends non-credential data to external servers |
-| `other` | Other malicious behavior |
+**Threat Categories:** `credential_exfiltration`, `backdoor`, `install_hook_abuse`, `typosquat`, `obfuscated_payload`, `cryptominer`, `data_exfiltration`, `other`
 
 **Response (201 Created):**
 
@@ -462,136 +540,24 @@ Submit a threat report for a package or repository. Reports contribute to commun
   "source_ref": "aws-helper-utils",
   "category": "credential_exfiltration",
   "severity": "critical",
-  "created_at": "2026-02-15T15:00:00Z",
-  "message": "Thank you. This report will be reviewed and may generate new detection signatures."
+  "created_at": "2026-02-15T15:00:00Z"
 }
 ```
 
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 400 | Invalid category or severity value |
-| 401 | Missing or invalid token |
-| 422 | Missing required fields |
-| 429 | Rate limited (max 10 reports per hour) |
-
-**Example:**
-
-```bash
-curl -X POST https://api.sigilsec.ai/v1/report \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_type": "npm",
-    "source_ref": "aws-helper-utils",
-    "source_hash": "sha256:abc123...",
-    "category": "credential_exfiltration",
-    "severity": "critical",
-    "description": "Package postinstall script reads ~/.aws/credentials and sends to remote webhook",
-    "evidence": [
-      "postinstall in package.json",
-      "fs.readFileSync(.aws/credentials) in install.js:14",
-      "fetch(https://evil.example.com/collect) in install.js:22"
-    ]
-  }'
-```
+**Status Codes:** 201 Created, 401 Unauthorized, 422 Validation error, 429 Rate limited (max 10/hour)
 
 ---
 
-## Signatures
-
-### GET /v1/signatures
-
-Fetch pattern detection signatures. Supports delta sync so the CLI only downloads new or updated signatures since the last sync.
-
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `since` | string (ISO 8601) | No | Return only signatures created/updated after this timestamp |
-| `phase` | integer | No | Filter by scan phase (1-6) |
-| `severity` | string | No | Filter by minimum severity: `low`, `medium`, `high`, `critical` |
-
-**Response (200 OK):**
-
-```json
-{
-  "signatures": [
-    {
-      "id": "sig_001",
-      "phase": 1,
-      "name": "npm_postinstall_exec",
-      "description": "npm postinstall script that executes arbitrary commands",
-      "pattern": "\"postinstall\"\\s*:\\s*\".*\\b(curl|wget|bash|sh|node -e|eval)\\b",
-      "severity": "critical",
-      "weight": 10,
-      "ecosystem": "npm",
-      "created_at": "2026-01-01T00:00:00Z",
-      "updated_at": "2026-02-10T12:00:00Z"
-    },
-    {
-      "id": "sig_002",
-      "phase": 2,
-      "name": "python_pickle_rce",
-      "description": "Python pickle deserialization (potential remote code execution)",
-      "pattern": "pickle\\.(loads|load)\\s*\\(",
-      "severity": "high",
-      "weight": 5,
-      "ecosystem": "pypi",
-      "created_at": "2026-01-01T00:00:00Z",
-      "updated_at": "2026-01-15T00:00:00Z"
-    }
-  ],
-  "total": 2,
-  "since": "2026-02-01T00:00:00Z",
-  "next_sync_token": "2026-02-15T15:00:00Z"
-}
-```
-
-**Error Responses:**
-
-| Status | Description |
-|--------|-------------|
-| 400 | Invalid `since` timestamp format |
-| 401 | Missing or invalid token |
-| 429 | Rate limited |
-
-**Example:**
-
-```bash
-# Full sync (first time)
-curl https://api.sigilsec.ai/v1/signatures \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
-
-# Delta sync (subsequent)
-curl "https://api.sigilsec.ai/v1/signatures?since=2026-02-14T00:00:00Z" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
-
-# Filter by phase and severity
-curl "https://api.sigilsec.ai/v1/signatures?phase=1&severity=critical" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
-```
-
----
-
-## Marketplace
+## Verification
 
 ### POST /v1/verify
 
-Verify a package or tool for marketplace listing. This endpoint runs an enhanced scan and returns a verification result that can be displayed as a trust badge. Intended for marketplace operators and CI/CD pipelines.
+Verify a package or tool for marketplace listing. Runs an enhanced scan and returns a verification result suitable for trust badges.
 
-**Headers:**
-
-| Header | Value |
-|--------|-------|
-| `Authorization` | `Bearer <token>` |
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /verify` |
 
 **Request Body:**
 
@@ -601,7 +567,7 @@ Verify a package or tool for marketplace listing. This endpoint runs an enhanced
 | `source_ref` | string | Yes | Package name, URL, or repository |
 | `source_version` | string | No | Specific version to verify |
 | `source_hash` | string | No | SHA-256 hash for integrity check |
-| `callback_url` | string | No | Webhook URL for async result notification |
+| `callback_url` | string | No | Webhook URL for async notification |
 
 **Response (200 OK):**
 
@@ -615,65 +581,557 @@ Verify a package or tool for marketplace listing. This endpoint runs an enhanced
   "verdict": "low",
   "badge_url": "https://sigilsec.ai/badge/ver_s1t2u3v4w5x6.svg",
   "verified_at": "2026-02-15T15:30:00Z",
-  "expires_at": "2026-03-15T15:30:00Z",
-  "details": {
-    "phases_clean": [1, 5, 6],
-    "phases_flagged": [
-      {"phase": 2, "score": 2, "note": "eval() in config parser (likely benign)"},
-      {"phase": 3, "score": 1, "note": "HTTP client for API calls (expected)"}
-    ],
-    "publisher_reputation": 87,
-    "known_threats": 0
-  }
+  "expires_at": "2026-03-15T15:30:00Z"
 }
 ```
 
-**Response (200 OK -- verification failed):**
+**Status Codes:** 200 OK, 401 Unauthorized, 403 Requires Pro or Team tier, 404 Package not found, 422 Validation error
+
+---
+
+## Team Management
+
+### GET /team
+
+Get the current user's team with all members.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+
+**Response (200 OK):**
 
 ```json
 {
-  "verification_id": "ver_y6z7a8b9c0d1",
-  "status": "failed",
-  "source_ref": "evil-package",
-  "score": 62,
-  "verdict": "critical",
-  "badge_url": null,
-  "verified_at": "2026-02-15T15:35:00Z",
-  "details": {
-    "phases_flagged": [
-      {"phase": 1, "score": 10, "note": "Malicious postinstall hook"},
-      {"phase": 3, "score": 30, "note": "Data exfiltration to external webhook"},
-      {"phase": 5, "score": 20, "note": "Obfuscated payload"},
-      {"phase": 4, "score": 2, "note": "Reads .aws/credentials"}
-    ],
-    "known_threats": 1,
-    "publisher_reputation": 5
-  }
+  "id": "team_abc123",
+  "name": "My Team",
+  "owner_id": "usr_a1b2c3d4e5f6",
+  "plan": "pro",
+  "members": [
+    {
+      "id": "usr_a1b2c3d4e5f6",
+      "email": "owner@example.com",
+      "name": "Jane Dev",
+      "role": "owner",
+      "created_at": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "created_at": "2026-01-01T00:00:00Z"
 }
 ```
 
-**Error Responses:**
+**Status Codes:** 200 OK, 401 Unauthorized
 
-| Status | Description |
+---
+
+### POST /team/invite
+
+Invite a member to the team by email. Only admins and owners can invite.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes (admin/owner) |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Email address to invite |
+| `role` | string | Yes | One of: `member`, `admin`, `owner` |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Invitation sent to 'dev@example.com'",
+  "email": "dev@example.com",
+  "role": "member"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized, 403 Not admin/owner, 422 Invalid role
+
+---
+
+### DELETE /team/members/{id}
+
+Remove a member from the team. Only admins and owners can remove members. The team owner cannot be removed.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes (admin/owner) |
+
+**Response:** 204 No Content
+
+**Status Codes:** 204 No Content, 400 Cannot remove yourself, 401 Unauthorized, 403 Not admin/owner or target is owner, 404 User not found
+
+---
+
+### PATCH /team/members/{id}/role
+
+Update a team member's role. Only admins and owners can change roles. Only the current owner can assign the `owner` role.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes (admin/owner) |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | string | Yes | One of: `member`, `admin`, `owner` |
+
+**Response (200 OK):**
+
+```json
+{
+  "id": "usr_x1y2z3",
+  "email": "dev@example.com",
+  "name": "Dev User",
+  "role": "admin",
+  "created_at": "2026-01-15T00:00:00Z"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized, 403 Insufficient permissions, 404 User not found, 422 Invalid role
+
+---
+
+## Policies
+
+### GET /v1/policies
+
+List all policies for the authenticated user's team.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `GET /policies`, `GET /settings/policy` |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `enabled` | boolean | No | Filter by enabled state |
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": "pol_abc123",
+    "team_id": "team_xyz",
+    "name": "Block known malware",
+    "type": "blocklist",
+    "config": {"packages": ["evil-package", "malware-pkg"]},
+    "enabled": true,
+    "created_at": "2026-02-01T00:00:00Z",
+    "updated_at": "2026-02-10T00:00:00Z"
+  }
+]
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized
+
+---
+
+### POST /v1/policies
+
+Create a new scan policy for the team.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /policies`, `POST /settings/policy` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Policy name |
+| `type` | string | Yes | One of: `allowlist`, `blocklist`, `auto_approve_threshold`, `required_phases` |
+| `config` | object | Yes | Policy configuration (varies by type) |
+| `enabled` | boolean | No | Whether the policy is active (default: true) |
+
+**Response (201 Created):** PolicyResponse object.
+
+**Status Codes:** 201 Created, 401 Unauthorized
+
+---
+
+### PUT /v1/policies/{id}
+
+Update an existing policy. Only provided fields are updated.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `PUT /policies/{id}`, `PUT /settings/policy/{id}` |
+
+**Request Body:** Same as POST, all fields optional.
+
+**Response (200 OK):** Updated PolicyResponse object.
+
+**Status Codes:** 200 OK, 401 Unauthorized, 403 Policy not in your team, 404 Not found
+
+---
+
+### DELETE /v1/policies/{id}
+
+Delete a policy by ID.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `DELETE /policies/{id}`, `DELETE /settings/policy/{id}` |
+
+**Response:** 204 No Content
+
+**Status Codes:** 204 No Content, 401 Unauthorized, 403 Policy not in your team, 404 Not found
+
+---
+
+### POST /v1/policies/evaluate
+
+Evaluate a scan result against all enabled team policies.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /policies/evaluate` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `target` | string | Yes | Package/target name |
+| `risk_score` | number | Yes | Risk score from the scan |
+| `findings` | array | Yes | Array of Finding objects |
+
+**Response (200 OK):**
+
+```json
+{
+  "allowed": true,
+  "violations": [],
+  "auto_approved": true,
+  "evaluated_policies": 3
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized
+
+---
+
+## Alerts
+
+### GET /v1/alerts
+
+List alert channel configurations for the team.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `GET /alerts`, `GET /settings/alerts` |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `enabled` | boolean | No | Filter by enabled state |
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": "alt_abc123",
+    "team_id": "team_xyz",
+    "channel_type": "slack",
+    "channel_config": {"webhook_url": "https://hooks.slack.com/..."},
+    "enabled": true,
+    "created_at": "2026-02-01T00:00:00Z"
+  }
+]
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized
+
+---
+
+### POST /v1/alerts
+
+Create a new alert channel.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /alerts`, `POST /settings/alerts` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `channel_type` | string | Yes | One of: `slack`, `email`, `webhook` |
+| `channel_config` | object | Yes | Channel-specific configuration |
+| `enabled` | boolean | No | Whether the channel is active (default: true) |
+
+**Channel Config by Type:**
+- **slack:** `{"webhook_url": "https://hooks.slack.com/..."}`
+- **email:** `{"recipients": ["alerts@example.com"]}`
+- **webhook:** `{"webhook_url": "https://...", "headers": {}}`
+
+**Response (201 Created):** AlertResponse object.
+
+**Status Codes:** 201 Created, 401 Unauthorized, 422 Invalid config
+
+---
+
+### PUT /v1/alerts/{id}
+
+Update an alert channel configuration.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `PUT /alerts/{id}`, `PUT /settings/alerts/{id}` |
+
+**Request Body:** Same as POST, all fields optional.
+
+**Response (200 OK):** Updated AlertResponse object.
+
+**Status Codes:** 200 OK, 401 Unauthorized, 403 Not your team, 404 Not found
+
+---
+
+### DELETE /v1/alerts/{id}
+
+Remove an alert channel.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `DELETE /alerts/{id}`, `DELETE /settings/alerts/{id}` |
+
+**Response:** 204 No Content
+
+**Status Codes:** 204 No Content, 401 Unauthorized, 403 Not your team, 404 Not found
+
+---
+
+### POST /v1/alerts/test
+
+Send a test notification through a channel configuration. Does not require the channel to be saved.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /alerts/test`, `POST /settings/alerts/test` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `channel_type` | string | Yes | One of: `slack`, `email`, `webhook` |
+| `channel_config` | object | Yes | Channel configuration to test |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Test notification sent successfully"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized, 422 Invalid config
+
+---
+
+## Billing
+
+### GET /v1/billing/plans
+
+List available subscription plans.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+| **Also available at** | `GET /billing/plans` |
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "tier": "free",
+    "name": "Free",
+    "price_monthly": 0.0,
+    "scans_per_month": 50,
+    "features": ["50 scans/month", "Community threat intelligence", "Basic scan reports", "Single user"]
+  },
+  {
+    "tier": "pro",
+    "name": "Pro",
+    "price_monthly": 29.0,
+    "scans_per_month": 500,
+    "features": ["500 scans/month", "Full threat intelligence", "Advanced scan reports", "Priority support", "API access", "Custom policies"]
+  },
+  {
+    "tier": "team",
+    "name": "Team",
+    "price_monthly": 99.0,
+    "scans_per_month": 5000,
+    "features": ["5,000 scans/month", "Full threat intelligence", "Team dashboard", "RBAC & audit log", "Slack/webhook alerts", "Custom policies", "Priority support", "SSO (SAML)"]
+  },
+  {
+    "tier": "enterprise",
+    "name": "Enterprise",
+    "price_monthly": 0.0,
+    "scans_per_month": 0,
+    "features": ["Unlimited scans", "Custom contract"]
+  }
+]
+```
+
+---
+
+### POST /v1/billing/subscribe
+
+Create or change a subscription.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /billing/subscribe` |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `plan` | string | Yes | One of: `free`, `pro`, `team` |
+
+**Response (200 OK):** SubscriptionResponse with plan, status, period dates, and Stripe subscription ID (if applicable).
+
+**Status Codes:** 200 OK, 400 Enterprise requires custom contract, 401 Unauthorized, 502 Payment provider error
+
+---
+
+### GET /v1/billing/subscription
+
+Get the current subscription for the authenticated user.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `GET /billing/subscription` |
+
+**Response (200 OK):**
+
+```json
+{
+  "plan": "pro",
+  "status": "active",
+  "current_period_start": "2026-02-01T00:00:00Z",
+  "current_period_end": "2026-03-01T00:00:00Z",
+  "cancel_at_period_end": false,
+  "stripe_subscription_id": "sub_xxx"
+}
+```
+
+**Status Codes:** 200 OK, 401 Unauthorized
+
+---
+
+### POST /v1/billing/portal
+
+Create a Stripe Customer Portal session for managing subscription, payment methods, and invoices.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes |
+| **Also available at** | `POST /billing/portal` |
+
+**Response (200 OK):**
+
+```json
+{
+  "url": "https://billing.stripe.com/session/..."
+}
+```
+
+**Status Codes:** 200 OK, 400 No billing account, 401 Unauthorized, 502 Payment provider error
+
+---
+
+### POST /v1/billing/webhook
+
+Stripe webhook handler. Called by Stripe directly to notify of subscription changes, payment events, etc.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No (verified via Stripe signature) |
+| **Also available at** | `POST /billing/webhook` |
+
+**Headers:**
+
+| Header | Description |
 |--------|-------------|
-| 400 | Invalid source type or reference |
-| 401 | Missing or invalid token |
-| 403 | Verification requires Pro or Team tier |
-| 404 | Package or version not found |
-| 422 | Missing required fields |
-| 429 | Rate limited |
+| `stripe-signature` | Stripe webhook signature for verification |
 
-**Example:**
+**Response (200 OK):**
 
-```bash
-curl -X POST https://api.sigilsec.ai/v1/verify \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_type": "npm",
-    "source_ref": "langchain-community",
-    "source_version": "0.2.1"
-  }'
+```json
+{
+  "received": true,
+  "event_type": "customer.subscription.updated"
+}
+```
+
+**Status Codes:** 200 OK, 400 Invalid payload or signature
+
+---
+
+## System
+
+### GET /health
+
+Health check endpoint. Returns service status and backend connectivity.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0",
+  "supabase_connected": true,
+  "redis_connected": true
+}
+```
+
+---
+
+### GET /
+
+Root endpoint with API metadata.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | No |
+
+**Response (200 OK):**
+
+```json
+{
+  "service": "Sigil API",
+  "version": "0.1.0",
+  "docs": "/docs"
+}
 ```
 
 ---
@@ -684,25 +1142,24 @@ All error responses follow a consistent format:
 
 ```json
 {
-  "detail": "Human-readable error message",
-  "code": "MACHINE_READABLE_CODE",
-  "status": 400
+  "detail": "Human-readable error message"
 }
 ```
 
-### Common Error Codes
+### Common Status Codes
 
-| HTTP Status | Code | Description |
-|-------------|------|-------------|
-| 400 | `BAD_REQUEST` | Malformed request body or invalid parameters |
-| 401 | `UNAUTHORIZED` | Missing or invalid authentication token |
-| 403 | `FORBIDDEN` | Valid token but insufficient permissions or tier |
-| 404 | `NOT_FOUND` | Requested resource does not exist |
-| 409 | `CONFLICT` | Resource already exists (e.g., duplicate registration) |
-| 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds maximum size (1MB) |
-| 422 | `VALIDATION_ERROR` | Request body fails schema validation |
-| 429 | `RATE_LIMITED` | Too many requests; retry after `Retry-After` header |
-| 500 | `INTERNAL_ERROR` | Unexpected server error |
+| HTTP Status | Description |
+|-------------|-------------|
+| 400 | Malformed request body or invalid parameters |
+| 401 | Missing or invalid authentication token |
+| 403 | Valid token but insufficient permissions |
+| 404 | Requested resource does not exist |
+| 409 | Resource already exists (e.g., duplicate registration) |
+| 413 | Request body exceeds maximum size (1MB) |
+| 422 | Request body fails schema validation |
+| 429 | Too many requests; retry after `Retry-After` header |
+| 500 | Unexpected server error |
+| 502 | External service error (Stripe, etc.) |
 
 ### Rate Limits
 
@@ -720,3 +1177,10 @@ X-RateLimit-Remaining: 118
 X-RateLimit-Reset: 1708012800
 Retry-After: 42
 ```
+
+### Interactive API Docs
+
+The API provides interactive documentation at:
+- **Swagger UI:** `GET /docs`
+- **ReDoc:** `GET /redoc`
+- **OpenAPI JSON:** `GET /openapi.json`

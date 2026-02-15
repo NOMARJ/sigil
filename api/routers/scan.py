@@ -1,25 +1,39 @@
 """
 Sigil API — Scan Router
 
-POST /v1/scan — Accept scan results, enrich with threat intelligence,
-compute risk scores, and persist to the database.
+POST /v1/scan         — Accept scan results, enrich with threat intelligence,
+                        compute risk scores, and persist to the database.
+GET  /scans           — List scans with pagination and filtering.
+GET  /scans/{id}      — Get a single scan by ID.
+GET  /scans/{id}/findings — Get findings for a scan.
+POST /scans/{id}/approve  — Approve a quarantined scan.
+POST /scans/{id}/reject   — Reject a quarantined scan.
+POST /scans           — Submit a new scan (dashboard alias).
+GET  /dashboard/stats — Aggregate dashboard statistics.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
+from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
 from api.models import (
+    DashboardStats,
     ErrorResponse,
     Finding,
+    ScanDetail,
+    ScanListItem,
+    ScanListResponse,
     ScanRequest,
     ScanResponse,
 )
+from api.routers.auth import get_current_user, UserResponse
 from api.services.scoring import compute_verdict
 from api.services.threat_intel import lookup_threats_for_hashes
 
@@ -27,31 +41,84 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1", tags=["scan"])
 
+# Dashboard-facing router (no /v1 prefix)
+dashboard_router = APIRouter(tags=["scan"])
 
-@router.post(
-    "/scan",
-    response_model=ScanResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Submit scan results for enrichment",
-    responses={422: {"model": ErrorResponse}},
-)
-async def submit_scan(request: ScanRequest) -> ScanResponse:
-    """Accept raw scan findings, enrich them with threat intelligence,
-    compute an aggregate risk score and verdict, and persist the result.
+SCAN_TABLE = "scans"
 
-    The response includes:
-    - The original findings
-    - A weighted risk score
-    - A verdict (CLEAN / LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL)
-    - Any matching entries from the threat intelligence database
-    """
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
+    """Convert a DB row to a ScanListItem."""
+    return ScanListItem(
+        id=row.get("id", ""),
+        target=row.get("target", ""),
+        target_type=row.get("target_type", "directory"),
+        files_scanned=row.get("files_scanned", 0),
+        findings_count=row.get("findings_count", 0),
+        risk_score=row.get("risk_score", 0.0),
+        verdict=row.get("verdict", "CLEAN"),
+        threat_hits=row.get("threat_hits", 0),
+        metadata=row.get("metadata_json", {}),
+        created_at=row.get("created_at", datetime.utcnow()),
+    )
+
+
+def _row_to_detail(row: dict[str, Any]) -> ScanDetail:
+    """Convert a DB row to a ScanDetail."""
+    findings = row.get("findings_json", [])
+    if isinstance(findings, str):
+        try:
+            findings = json.loads(findings)
+        except (json.JSONDecodeError, TypeError):
+            findings = []
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    return ScanDetail(
+        id=row.get("id", ""),
+        target=row.get("target", ""),
+        target_type=row.get("target_type", "directory"),
+        files_scanned=row.get("files_scanned", 0),
+        findings_count=row.get("findings_count", 0),
+        risk_score=row.get("risk_score", 0.0),
+        verdict=row.get("verdict", "CLEAN"),
+        threat_hits=row.get("threat_hits", 0),
+        findings_json=findings,
+        metadata_json=metadata,
+        created_at=row.get("created_at", datetime.utcnow()),
+    )
+
+
+async def _get_scan_or_404(scan_id: str) -> dict[str, Any]:
+    """Fetch a scan by ID or raise 404."""
+    row = await db.select_one(SCAN_TABLE, {"id": scan_id})
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found",
+        )
+    return row
+
+
+# ---------------------------------------------------------------------------
+# Core scan submission (existing endpoint)
+# ---------------------------------------------------------------------------
+
+async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
+    """Shared implementation for scan submission."""
     scan_id = uuid4().hex[:16]
 
     # --- 1. Compute risk score & verdict ------------------------------------
     risk_score, verdict = compute_verdict(request.findings)
 
     # --- 2. Threat intelligence enrichment ----------------------------------
-    # Pull hashes from metadata if provided (e.g. artifact SHA-256 hashes)
     hashes: list[str] = []
     if "hashes" in request.metadata:
         hashes = request.metadata["hashes"]
@@ -60,11 +127,9 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
 
     threat_hits = await lookup_threats_for_hashes(hashes) if hashes else []
 
-    # If threat intel found hits, bump the score
     if threat_hits:
         threat_bonus = sum(10.0 for _ in threat_hits)
         risk_score += threat_bonus
-        # Recompute verdict with updated score
         from api.services.scoring import score_to_verdict
 
         verdict = score_to_verdict(risk_score)
@@ -84,9 +149,10 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
     )
 
     # --- 4. Persist scan result ---------------------------------------------
+    findings_data = [f.model_dump(mode="json") for f in request.findings]
     try:
         await db.insert(
-            "scans",
+            SCAN_TABLE,
             {
                 "id": scan_id,
                 "target": request.target,
@@ -96,12 +162,13 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
                 "risk_score": response.risk_score,
                 "verdict": verdict.value,
                 "threat_hits": len(threat_hits),
+                "findings_json": findings_data,
+                "metadata_json": request.metadata,
                 "created_at": now.isoformat(),
             },
         )
     except Exception:
         logger.exception("Failed to persist scan %s", scan_id)
-        # Non-fatal — the scan result is still returned to the caller
 
     logger.info(
         "Scan %s completed: target=%s score=%.1f verdict=%s findings=%d",
@@ -113,3 +180,240 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
     )
 
     return response
+
+
+@router.post(
+    "/scan",
+    response_model=ScanResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Submit scan results for enrichment",
+    responses={422: {"model": ErrorResponse}},
+)
+async def submit_scan(request: ScanRequest) -> ScanResponse:
+    """Accept raw scan findings, enrich them with threat intelligence,
+    compute an aggregate risk score and verdict, and persist the result.
+
+    The response includes:
+    - The original findings
+    - A weighted risk score
+    - A verdict (CLEAN / LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL)
+    - Any matching entries from the threat intelligence database
+    """
+    return await _submit_scan_impl(request)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard scan endpoints (on dashboard_router, no /v1 prefix)
+# ---------------------------------------------------------------------------
+
+@dashboard_router.post(
+    "/scans",
+    response_model=ScanResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Submit scan results (dashboard path)",
+    responses={422: {"model": ErrorResponse}},
+)
+async def submit_scan_dashboard(request: ScanRequest) -> ScanResponse:
+    """Dashboard-compatible alias for scan submission at POST /scans."""
+    return await _submit_scan_impl(request)
+
+
+@dashboard_router.get(
+    "/scans",
+    response_model=ScanListResponse,
+    summary="List scans with pagination",
+    responses={401: {"model": ErrorResponse}},
+)
+async def list_scans(
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    verdict: str | None = Query(None, description="Filter by verdict"),
+    source: str | None = Query(None, description="Filter by target_type"),
+    search: str | None = Query(None, description="Search in target name"),
+) -> ScanListResponse:
+    """Return a paginated list of scans for the authenticated user.
+
+    Supports filtering by verdict, source (target_type), and free-text
+    search in the target name.
+    """
+    filters: dict[str, Any] = {}
+    if verdict:
+        filters["verdict"] = verdict
+    if source:
+        filters["target_type"] = source
+
+    # Fetch a generous batch for in-memory pagination/filtering
+    rows = await db.select(SCAN_TABLE, filters if filters else None, limit=1000)
+
+    # Apply text search filter in-memory
+    if search:
+        search_lower = search.lower()
+        rows = [r for r in rows if search_lower in r.get("target", "").lower()]
+
+    # Sort by created_at descending
+    rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+
+    total = len(rows)
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_rows = rows[start:end]
+
+    return ScanListResponse(
+        items=[_row_to_list_item(r) for r in page_rows],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@dashboard_router.get(
+    "/scans/{scan_id}",
+    response_model=ScanDetail,
+    summary="Get a single scan by ID",
+    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def get_scan(
+    scan_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> ScanDetail:
+    """Return the full details of a scan by its ID."""
+    row = await _get_scan_or_404(scan_id)
+    return _row_to_detail(row)
+
+
+@dashboard_router.get(
+    "/scans/{scan_id}/findings",
+    response_model=list[dict[str, Any]],
+    summary="Get findings for a scan",
+    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def get_scan_findings(
+    scan_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> list[dict[str, Any]]:
+    """Return the findings extracted from a scan's findings_json field."""
+    row = await _get_scan_or_404(scan_id)
+    findings = row.get("findings_json", [])
+    if isinstance(findings, str):
+        try:
+            findings = json.loads(findings)
+        except (json.JSONDecodeError, TypeError):
+            findings = []
+    return findings
+
+
+@dashboard_router.post(
+    "/scans/{scan_id}/approve",
+    response_model=dict[str, Any],
+    summary="Approve a quarantined scan",
+    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def approve_scan(
+    scan_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Approve a scan, marking it as safe in the metadata."""
+    row = await _get_scan_or_404(scan_id)
+
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+
+    metadata["approved"] = True
+    metadata["approved_by"] = current_user.id
+    metadata["approved_at"] = datetime.utcnow().isoformat()
+    metadata.pop("rejected", None)
+    metadata.pop("rejected_by", None)
+    metadata.pop("rejected_at", None)
+
+    row["metadata_json"] = metadata
+    await db.upsert(SCAN_TABLE, row)
+
+    logger.info("Scan %s approved by user %s", scan_id, current_user.id)
+
+    return {"scan_id": scan_id, "status": "approved", "approved_by": current_user.id}
+
+
+@dashboard_router.post(
+    "/scans/{scan_id}/reject",
+    response_model=dict[str, Any],
+    summary="Reject a quarantined scan",
+    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def reject_scan(
+    scan_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> dict[str, Any]:
+    """Reject a scan, marking it as blocked in the metadata."""
+    row = await _get_scan_or_404(scan_id)
+
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+
+    metadata["rejected"] = True
+    metadata["rejected_by"] = current_user.id
+    metadata["rejected_at"] = datetime.utcnow().isoformat()
+    metadata.pop("approved", None)
+    metadata.pop("approved_by", None)
+    metadata.pop("approved_at", None)
+
+    row["metadata_json"] = metadata
+    await db.upsert(SCAN_TABLE, row)
+
+    logger.info("Scan %s rejected by user %s", scan_id, current_user.id)
+
+    return {"scan_id": scan_id, "status": "rejected", "rejected_by": current_user.id}
+
+
+# ---------------------------------------------------------------------------
+# Dashboard stats
+# ---------------------------------------------------------------------------
+
+@dashboard_router.get(
+    "/dashboard/stats",
+    response_model=DashboardStats,
+    summary="Get aggregate dashboard statistics",
+    responses={401: {"model": ErrorResponse}},
+)
+async def get_dashboard_stats(
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> DashboardStats:
+    """Return aggregate statistics for the dashboard overview page.
+
+    Computes totals and trends from the scans table.
+    """
+    rows = await db.select(SCAN_TABLE, None, limit=10000)
+
+    total_scans = len(rows)
+    threats_blocked = sum(
+        1 for r in rows
+        if r.get("verdict") in ("HIGH_RISK", "CRITICAL")
+    )
+    packages_approved = sum(
+        1 for r in rows
+        if r.get("metadata_json", {}).get("approved") is True
+        or (isinstance(r.get("metadata_json"), dict) and r["metadata_json"].get("approved") is True)
+    )
+    critical_findings = sum(
+        1 for r in rows
+        if r.get("verdict") == "CRITICAL"
+    )
+
+    return DashboardStats(
+        total_scans=total_scans,
+        threats_blocked=threats_blocked,
+        packages_approved=packages_approved,
+        critical_findings=critical_findings,
+        scans_trend=0.0,
+        threats_trend=0.0,
+        approved_trend=0.0,
+        critical_trend=0.0,
+    )

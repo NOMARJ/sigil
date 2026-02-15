@@ -68,7 +68,25 @@ SCAN_EXIT=0
 log "Running sigil scan on '$SCAN_PATH'..."
 echo ""
 
-sigil scan "$SCAN_PATH" 2>&1 | tee "$SCAN_OUTPUT" || SCAN_EXIT=$?
+SCAN_CMD="sigil scan \"$SCAN_PATH\""
+
+# Add phases filter if specified
+if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
+    SCAN_CMD="$SCAN_CMD --phases $PHASES"
+fi
+
+# Add exclusions if specified
+if [ -n "${EXCLUDE:-}" ]; then
+    SCAN_CMD="$SCAN_CMD --exclude $EXCLUDE"
+fi
+
+# Add API key for cloud features
+if [ -n "${API_KEY:-}" ]; then
+    export SIGIL_API_KEY="$API_KEY"
+    SCAN_CMD="$SCAN_CMD --submit"
+fi
+
+eval $SCAN_CMD 2>&1 | tee "$SCAN_OUTPUT" || SCAN_EXIT=$?
 
 echo ""
 
