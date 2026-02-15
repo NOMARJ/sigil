@@ -119,6 +119,29 @@ After running `sigil install`, these aliases are available in every terminal ses
 sigil install --git-hooks
 ```
 
+## IDE & Agent Integrations
+
+Sigil works where you work. Install the plugin for your editor, or connect AI agents via MCP:
+
+| Integration | Coverage | Install |
+|-------------|----------|---------|
+| **VS Code / Cursor / Windsurf** | Scan workspace, files, selections, packages. Findings in Problems panel. | [plugins/vscode](plugins/vscode/) |
+| **JetBrains IDEs** | IntelliJ, WebStorm, PyCharm, GoLand, CLion, etc. Tool window + inline annotations. | [plugins/jetbrains](plugins/jetbrains/) |
+| **Claude Code (MCP)** | 6 tools: scan, scan_package, clone, quarantine, approve, reject. | [plugins/mcp-server](plugins/mcp-server/) |
+| **GitHub Actions** | Run Sigil as a CI check on every PR. | [action.yml](action.yml) |
+
+```bash
+# MCP server — add to .mcp.json or claude_desktop_config.json
+{
+  "mcpServers": {
+    "sigil": {
+      "command": "node",
+      "args": ["./plugins/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
 ## Threat Intelligence
 
 When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
