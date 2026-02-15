@@ -1,4 +1,4 @@
-.PHONY: install test scan help lint api-dev api-test dashboard-dev cli-build docker-build docker-up docker-down docker-logs setup seed
+.PHONY: install test scan help lint api-dev api-test dashboard-dev cli-build docker-build docker-up docker-down docker-logs setup seed vscode-build vscode-dev mcp-build mcp-dev jetbrains-build plugins-build plugins-clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -49,6 +49,33 @@ docker-down: ## Stop all services
 
 docker-logs: ## Tail logs from all services
 	docker compose logs -f
+
+# ── Plugins ─────────────────────────────────────────────────────────────────
+
+vscode-build: ## Build VS Code extension (.vsix)
+	cd plugins/vscode && npm install && npm run compile
+	@echo "Build complete. Run 'cd plugins/vscode && npx vsce package' to create .vsix"
+
+vscode-dev: ## Watch mode for VS Code extension development
+	cd plugins/vscode && npm install && npm run watch
+
+mcp-build: ## Build MCP server
+	cd plugins/mcp-server && npm install && npm run build
+	@echo "MCP server built. Run: node plugins/mcp-server/dist/index.js"
+
+mcp-dev: ## Watch mode for MCP server development
+	cd plugins/mcp-server && npm install && npm run dev
+
+jetbrains-build: ## Build JetBrains plugin (.zip)
+	cd plugins/jetbrains && gradle buildPlugin
+	@echo "Plugin zip at: plugins/jetbrains/build/distributions/"
+
+plugins-build: vscode-build mcp-build jetbrains-build ## Build all plugins
+
+plugins-clean: ## Clean all plugin build artifacts
+	rm -rf plugins/vscode/out plugins/vscode/node_modules plugins/vscode/*.vsix
+	rm -rf plugins/mcp-server/dist plugins/mcp-server/node_modules
+	rm -rf plugins/jetbrains/build plugins/jetbrains/.gradle
 
 # ── Setup & Seed ─────────────────────────────────────────────────────────────
 
