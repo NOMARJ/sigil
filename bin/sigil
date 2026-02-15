@@ -15,6 +15,8 @@
 #   sigil reject <quarantine-id>    - Delete quarantined code
 #   sigil list                      - Show items in quarantine
 #   sigil config                    - Show/edit configuration
+#   sigil login                     - Authenticate with Sigil cloud API
+#   sigil logout                    - Remove stored credentials
 #
 # Install:
 #   chmod +x sigil
@@ -29,6 +31,8 @@ APPROVED_DIR="${SIGIL_APPROVED_DIR:-$HOME/.sigil/approved}"
 LOG_DIR="${SIGIL_LOG_DIR:-$HOME/.sigil/logs}"
 REPORT_DIR="${SIGIL_REPORT_DIR:-$HOME/.sigil/reports}"
 CONFIG_FILE="${SIGIL_CONFIG:-$HOME/.sigil/config}"
+TOKEN_FILE="${SIGIL_TOKEN:-$HOME/.sigil/token}"
+API_BASE_URL="${SIGIL_API_URL:-https://api.sigil.nomark.dev}"
 
 # Severity thresholds (exit codes)
 SEVERITY_CRITICAL=1
@@ -889,6 +893,128 @@ cmd_install() {
     echo -e "${BOLD}+----------------------------------------------+${NC}"
 }
 
+# ── Authentication ─────────────────────────────────────────────────────────────
+get_auth_header() {
+    if [ -f "$TOKEN_FILE" ]; then
+        local token
+        token=$(cat "$TOKEN_FILE")
+        if [ -n "$token" ]; then
+            echo "Authorization: Bearer $token"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+api_request() {
+    local method="$1" endpoint="$2"
+    shift 2
+    local auth_args=()
+    local auth_header
+    if auth_header=$(get_auth_header); then
+        auth_args=(-H "$auth_header")
+    fi
+    curl -s -X "$method" "${API_BASE_URL}${endpoint}" \
+        -H "Content-Type: application/json" \
+        "${auth_args[@]}" \
+        "$@"
+}
+
+cmd_login() {
+    local email="" password=""
+
+    # Parse flags
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --email)    email="$2"; shift 2 ;;
+            --password) password="$2"; shift 2 ;;
+            --email=*)    email="${1#*=}"; shift ;;
+            --password=*) password="${1#*=}"; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    # Prompt interactively if not provided via flags
+    if [ -z "$email" ]; then
+        printf "Email: "
+        read -r email
+    fi
+    if [ -z "$password" ]; then
+        printf "Password: "
+        read -rs password
+        echo ""
+    fi
+
+    if [ -z "$email" ] || [ -z "$password" ]; then
+        fail "Email and password are required."
+        echo "Usage: sigil login [--email <email>] [--password <password>]"
+        exit 1
+    fi
+
+    log "Authenticating with Sigil API..."
+
+    local response
+    response=$(api_request POST "/v1/auth/login" \
+        -d "{\"email\": \"$email\", \"password\": \"$password\"}" \
+        -w "\n%{http_code}" 2>/dev/null)
+
+    local http_code body
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [ "$http_code" = "200" ]; then
+        # Extract token — prefer python3/jq, fall back to grep
+        local token=""
+        if check_tool "python3"; then
+            token=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+        elif check_tool "jq"; then
+            token=$(echo "$body" | jq -r '.access_token' 2>/dev/null)
+        else
+            token=$(echo "$body" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+        fi
+
+        if [ -z "$token" ]; then
+            fail "Login succeeded but could not extract token from response."
+            exit 1
+        fi
+
+        mkdir -p "$(dirname "$TOKEN_FILE")"
+        echo "$token" > "$TOKEN_FILE"
+        chmod 600 "$TOKEN_FILE"
+
+        # Extract user info for display
+        local user_email="" user_name=""
+        if check_tool "python3"; then
+            user_email=$(echo "$body" | python3 -c "import sys,json; u=json.load(sys.stdin).get('user',{}); print(u.get('email',''))" 2>/dev/null)
+            user_name=$(echo "$body" | python3 -c "import sys,json; u=json.load(sys.stdin).get('user',{}); print(u.get('name',''))" 2>/dev/null)
+        elif check_tool "jq"; then
+            user_email=$(echo "$body" | jq -r '.user.email // empty' 2>/dev/null)
+            user_name=$(echo "$body" | jq -r '.user.name // empty' 2>/dev/null)
+        fi
+
+        pass "Logged in successfully!"
+        [ -n "$user_name" ] && info "Name:  $user_name"
+        [ -n "$user_email" ] && info "Email: $user_email"
+        info "Token stored in $TOKEN_FILE"
+    elif [ "$http_code" = "401" ]; then
+        fail "Invalid email or password."
+        exit 1
+    else
+        fail "Login failed (HTTP $http_code)"
+        [ -n "$body" ] && echo "$body"
+        exit 1
+    fi
+}
+
+cmd_logout() {
+    if [ -f "$TOKEN_FILE" ]; then
+        rm -f "$TOKEN_FILE"
+        pass "Logged out. Token removed from $TOKEN_FILE"
+    else
+        info "No active session found (no token at $TOKEN_FILE)"
+    fi
+}
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 main() {
     ensure_dirs
@@ -908,6 +1034,8 @@ main() {
         config)     cmd_config "$@" ;;
         hooks)      cmd_install_hooks "${1:-.}" ;;
         aliases)    cmd_aliases "$@" ;;
+        login)      cmd_login "$@" ;;
+        logout)     cmd_logout ;;
         help|*)
             echo -e "${BOLD}SIGIL — Automated Security Auditing for AI Agent Code${NC}"
             echo -e "by NOMARK"
@@ -931,6 +1059,10 @@ main() {
             echo "  approve <id>           Move approved code out of quarantine"
             echo "  reject <id>            Delete quarantined code"
             echo "  list                   Show quarantine status"
+            echo ""
+            echo "Account:"
+            echo "  login                  Authenticate with Sigil cloud API"
+            echo "  logout                 Remove stored credentials"
             echo ""
             echo "Quick start:  sigil install"
             echo ""
