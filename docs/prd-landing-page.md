@@ -523,10 +523,10 @@ Flowbite Pro is the base component library for the entire site. All sections sho
 
 ### 6.2 Repository Structure
 
-The landing page should live within the existing repo or as a subdirectory:
+The landing page lives in a **separate repository**: `NOMARJ/sigilsec` (not in the main `sigil` repo). This keeps the marketing site decoupled from the CLI/API/dashboard codebase with independent CI/CD, deploy previews, and release cycles.
 
 ```
-landing/
+sigilsec/                      # Separate repo: NOMARJ/sigilsec
   src/
     app/
       page.tsx                # Main landing page
@@ -923,7 +923,7 @@ The following are explicitly **not** part of the initial landing page:
 
 | # | Question | Decision Needed By |
 |---|----------|-------------------|
-| 1 | Should the landing page live in the same repo (monorepo) or a separate repo? | Before development starts |
+| ~~1~~ | ~~Should the landing page live in the same repo (monorepo) or a separate repo?~~ | **Resolved:** Separate repo `NOMARJ/sigilsec` |
 | 2 | Domain registrar and hosting provider confirmation? | Before DNS setup |
 | 3 | Do we have brand assets (logo, wordmark, icon) finalized? | Before design starts |
 | 4 | Stripe pricing page IDs — are Pro and Team products created in Stripe? | Before pricing CTAs go live |
