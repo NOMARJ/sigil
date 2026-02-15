@@ -9,6 +9,10 @@ bin/           - CLI tool (bash, will be ported to Rust)
 cli/           - Rust CLI source (future)
 api/           - Python FastAPI backend service
 dashboard/     - Next.js web dashboard
+plugins/       - IDE integrations
+  vscode/      - VS Code / Cursor / Windsurf extension
+  jetbrains/   - IntelliJ / WebStorm / PyCharm plugin
+  mcp-server/  - MCP server for Claude Code + AI agents
 docs/          - Documentation
 .github/       - CI/CD workflows
 ```

@@ -1,0 +1,86 @@
+<idea-plugin>
+    <id>dev.nomark.sigil</id>
+    <name>Sigil — AI Agent Security Scanner</name>
+    <vendor email="hello@nomark.dev" url="https://nomark.dev">NOMARK</vendor>
+
+    <description><![CDATA[
+    <p>Automated security auditing for AI agent code.</p>
+    <p>Sigil scans repositories, packages, and agent tooling for malicious patterns
+    using a quarantine-first workflow.</p>
+
+    <h3>Features</h3>
+    <ul>
+        <li>Scan entire projects or individual files for security issues</li>
+        <li>Scan npm/pip packages before installing</li>
+        <li>6-phase detection: install hooks, code patterns, network exfil, credentials, obfuscation, provenance</li>
+        <li>Real-time findings in the Problems panel</li>
+        <li>Quarantine management from the tool window</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <actions>
+        <group id="Sigil.Menu" text="Sigil" popup="true"
+               description="Sigil security scanner">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="Sigil.ScanProject"
+                    class="dev.nomark.sigil.actions.ScanProjectAction"
+                    text="Scan Project"
+                    description="Run Sigil security scan on the entire project"
+                    icon="AllIcons.Actions.Shield"/>
+
+            <action id="Sigil.ScanFile"
+                    class="dev.nomark.sigil.actions.ScanFileAction"
+                    text="Scan Current File"
+                    description="Run Sigil security scan on the current file"
+                    icon="AllIcons.Actions.Shield"/>
+
+            <action id="Sigil.ScanPackage"
+                    class="dev.nomark.sigil.actions.ScanPackageAction"
+                    text="Scan Package..."
+                    description="Scan an npm or pip package"/>
+
+            <action id="Sigil.ClearCache"
+                    class="dev.nomark.sigil.actions.ClearCacheAction"
+                    text="Clear Cache"
+                    description="Clear the Sigil scan cache"/>
+        </group>
+
+        <!-- Right-click context menu -->
+        <action id="Sigil.ScanFileContext"
+                class="dev.nomark.sigil.actions.ScanFileAction"
+                text="Sigil: Scan File"
+                description="Run Sigil security scan on this file"
+                icon="AllIcons.Actions.Shield">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Sigil"
+                    secondary="true"
+                    anchor="bottom"
+                    icon="AllIcons.Actions.Shield"
+                    factoryClass="dev.nomark.sigil.ui.SigilToolWindowFactory"/>
+
+        <projectConfigurable
+                parentId="tools"
+                instance="dev.nomark.sigil.settings.SigilConfigurable"
+                id="dev.nomark.sigil.settings"
+                displayName="Sigil"/>
+
+        <projectService
+                serviceImplementation="dev.nomark.sigil.settings.SigilSettings"/>
+
+        <externalAnnotator
+                language=""
+                implementationClass="dev.nomark.sigil.annotator.SigilAnnotator"/>
+
+        <notificationGroup id="Sigil"
+                           displayType="BALLOON"
+                           isLogByDefault="true"/>
+    </extensions>
+</idea-plugin>
