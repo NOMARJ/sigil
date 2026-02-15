@@ -187,13 +187,13 @@ The CLI is **free and open source** with all six scan phases. Paid tiers add clo
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full development plan.
+See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
-**Delivered:** CLI (bash + Rust), 6-phase scanner, shell aliases, git hooks, FastAPI backend, Next.js dashboard, IDE plugins (VS Code, JetBrains, MCP server), GitHub Action, Docker deployment, SARIF output, scan caching, diff/baseline scanning, cloud threat intelligence (signature sync, threat lookup, report review workflow, publisher reputation).
+**Today:** Quarantine-first scanning for pip, npm, and git repos. Six-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. IDE extensions, MCP server for AI agents, and GitHub Actions integration.
 
-**In progress:** Hosted cloud deployment (Supabase, CDN).
+**Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** Distribution (Homebrew, npm, VS Code Marketplace), Docker image scanning, custom scan rules, enterprise SSO, CI/CD platform integrations.
+**Next:** One-command install (Homebrew, npm, curl). Docker image and Go/Cargo scanning. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

@@ -1,160 +1,130 @@
 # Sigil Roadmap
 
-Last updated: 2026-02-15 (rev 2)
+How Sigil protects you today, and where we're headed next.
+
+Last updated: 2026-02-15
 
 ---
 
-## Delivered
+## What you can do today
 
-### Core CLI
-- [x] `sigil clone <url>` — quarantine + scan git repos
-- [x] `sigil pip <pkg>` — download + scan pip packages
-- [x] `sigil npm <pkg>` — download + scan npm packages
-- [x] `sigil scan <path>` — scan existing directories/files
-- [x] `sigil fetch <url>` — download + scan from arbitrary URLs
-- [x] `sigil approve / reject <id>` — quarantine management
-- [x] `sigil list` — view quarantined items with status
-- [x] `sigil diff` — baseline comparison (new/resolved/unchanged)
-- [x] `sigil login / logout` — authentication with token storage
-- [x] `sigil config --init` — directory structure setup
-- [x] `sigil report` — report threats to cloud
-- [x] `--format json` and `--format sarif` output modes
-- [x] `--no-cache` flag and `clear-cache` command
-- [x] `.sigilignore` support
+### Scan anything before it touches your project
+Install a pip package, clone a repo, pull from npm — Sigil intercepts it, quarantines it, and scans it before any code executes. Nothing runs until you say so.
 
-### Six Scan Phases
-- [x] Install Hooks (Critical 10x) — setup.py, postinstall, Makefile
-- [x] Code Patterns (High 5x) — eval, exec, pickle, child_process, __import__
-- [x] Network / Exfil (High 3x) — HTTP, sockets, webhooks, DNS tunnelling
-- [x] Credentials (Medium 2x) — ENV vars, .aws, .kube, SSH keys, API keys
-- [x] Obfuscation (High 5x) — base64, charCode, hex, minified payloads
-- [x] Provenance (Low 1-3x) — git history, binary files, hidden files
+```bash
+sigil pip requests        # download, quarantine, scan — then approve or reject
+sigil npm leftpad
+sigil clone https://github.com/someone/agent-toolkit
+sigil scan ./vendor/       # scan code already on disk
+```
 
-### Rust CLI
-- [x] Full CLI with all commands (clone, pip, npm, scan, approve, reject, list, diff, login, report, config)
-- [x] Scanner engine with all 6 phases
-- [x] Scoring engine with severity weighting
-- [x] Scan caching with directory hash invalidation
-- [x] SARIF 2.1.0 output for GitHub Code Scanning
-- [x] Diff/baseline comparison
+Drop-in shell aliases (`safepip`, `safenpm`, `gclone`) make this feel native. A pre-commit hook catches problems before they leave your machine.
 
-### Shell Aliases & Git Hooks
-- [x] `gclone`, `safepip`, `safenpm`, `safefetch`, `audithere`, `qls`, `qapprove`, `qreject`
-- [x] Auto-detection of shell (.bashrc, .zshrc, fish)
-- [x] Pre-commit git hook for staged file scanning
+### Know exactly what's dangerous and why
+Six scan phases catch the patterns that actually matter in supply chain attacks — not just CVEs, but the behavioral signals of malicious code:
 
-### FastAPI Backend
-- [x] Auth endpoints (login, register, verify, refresh, logout)
-- [x] Scan submission and retrieval
-- [x] Threat intelligence lookup (`/v1/threat/{hash}`)
-- [x] Signature distribution (`/v1/signatures`)
-- [x] Publisher reputation scoring
-- [x] Package verification
-- [x] Threat reporting
-- [x] Team management (create, invite, remove members)
-- [x] Custom policy engine (rules, severity thresholds)
-- [x] Alert configuration (Slack, webhooks)
-- [x] Billing integration (Stripe plans, subscriptions, portal)
-- [x] Health checks
-- [x] JWT authentication with secure token handling
-- [x] Rate limiting with Redis
-- [x] CORS middleware
+- **Install hooks** that execute on `pip install` or `npm install`
+- **Dangerous code patterns** like `eval()`, `pickle.loads()`, `child_process`
+- **Network exfiltration** — outbound HTTP, webhooks to ngrok/pipedream, raw sockets
+- **Credential access** — reads of `.aws/credentials`, SSH keys, API tokens
+- **Obfuscation** — base64-encoded payloads, hex strings, charCode tricks
+- **Provenance gaps** — missing git history, unexpected binaries, suspicious filenames
 
-### Next.js Dashboard
-- [x] Dashboard home with stats cards and recent scans
-- [x] Scan history (paginated list)
-- [x] Scan detail view (findings, verdict, phase breakdown)
-- [x] Threat intelligence interface
-- [x] Team management (members, invites, roles)
-- [x] Settings (policies, alerts, billing)
-- [x] Login page with auth guard
-- [x] Reusable components (FindingsList, ScanTable, VerdictBadge, StatsCard, Sidebar)
+Every finding has a severity, a weight, and a snippet showing exactly which line triggered it. The final verdict (CLEAN through CRITICAL) is a single number you can act on.
 
-### IDE & Agent Integrations
-- [x] VS Code / Cursor / Windsurf extension — scan workspace, files, selections, packages; findings in Problems panel; sidebar views
-- [x] JetBrains plugin — IntelliJ, WebStorm, PyCharm, etc.; tool window, inline annotations, settings UI
-- [x] Claude Code MCP server — 6 tools (scan, scan_package, clone, quarantine, approve, reject) + phase docs resource
-- [x] GitHub Action (`action.yml`) — inputs, outputs, composite action
+### Get cloud threat intelligence during scans
+When you're logged in, every scan checks your code against a shared database of known-malicious packages. Community-reported threats flow through a review pipeline and, once confirmed, automatically generate detection signatures that propagate to every connected scanner.
 
-### CI/CD & DevOps
-- [x] CI workflow — ShellCheck, ruff, clippy, rustfmt, ESLint, tsc, Gradle build
-- [x] Release workflow
-- [x] Docker multi-stage build (Rust + Next.js + Python)
-- [x] Docker Compose (API, Dashboard, PostgreSQL, Redis)
-- [x] Container health checks, non-root user
+Your scans also feed publisher reputation — if a maintainer's packages keep getting flagged, their trust score drops, and future scans from that publisher get higher scrutiny.
 
-### Documentation
-- [x] README with install, usage, architecture, pricing
-- [x] Getting Started guide
-- [x] Architecture overview
-- [x] Scan rules reference
-- [x] Threat model
-- [x] Deployment guide
-- [x] IDE plugins guide
-- [x] Contributing guidelines
+### See everything in a dashboard
+A web dashboard gives your team visibility into scan history, threat intelligence, and security posture:
+
+- **Scan history** — every scan with verdict, risk score, and drill-down into findings
+- **Threat intelligence** — known-malicious packages, community reports (with review workflow), and the full signature database
+- **Team management** — invite members, assign roles, manage who can approve quarantined packages
+- **Policies & alerts** — auto-approve low-risk packages, require manual review for high-risk, get Slack or webhook notifications when something bad is found
+
+### Use it wherever you work
+- **VS Code / Cursor / Windsurf** — scan files and packages from the editor, see findings in the Problems panel
+- **JetBrains** — IntelliJ, WebStorm, PyCharm with inline annotations
+- **Claude Code / AI agents** — MCP server exposes scan, approve, and reject as tools your agent can call
+- **GitHub Actions** — add `sigil-scan` to your CI pipeline, fail builds on findings, upload SARIF to Code Scanning
+- **Any CI system** — JSON and SARIF output work with any pipeline
+
+### Compare scans over time
+`sigil diff` compares your current scan against a baseline and tells you what's new, what's resolved, and what's unchanged. Useful for tracking whether a dependency update introduced new risks.
 
 ---
 
-### Cloud Threat Intelligence
-- [x] Community signature propagation pipeline (API distributes, CLI syncs via `sigil fetch`)
-- [x] Signature versioning and delta updates (`?since=` parameter for incremental sync)
-- [x] Automated malicious package reporting (confirmed reports auto-promote to threats + signatures)
-- [x] Reputation scoring based on scan telemetry (publisher trust adjusted on each scan submission)
-- [x] Threat report review workflow (received -> under_review -> confirmed/rejected)
-- [x] Cloud signature application during local scans (Rust + bash CLI)
-- [x] Hash-based threat lookup during scans (`--enrich` flag in Rust CLI, automatic in bash when authenticated)
-- [x] Dashboard threat intel tabs (Known Threats, Reports, Signatures browser)
-- [x] Signature CRUD API (create, update, delete via REST)
+## What we're working on now
+
+### Hosted cloud
+Right now the API and dashboard run locally via Docker Compose. We're standing up the hosted version so you can sign up at sigilsec.ai and start scanning without running infrastructure — scan results, threat intel, and team management backed by managed Postgres, with signature distribution through a CDN.
 
 ---
 
-## In Progress
+## What's next
 
-### Cloud Deployment
-- [ ] Hosted PostgreSQL / Supabase integration
-- [ ] Production environment provisioning
-- [ ] CDN + edge caching for signature distribution
+### Easier to install
+Today you clone the repo and run `bin/sigil`. We want installation to be one command:
+
+- `brew install nomarj/tap/sigil`
+- `npm install -g @nomarj/sigil`
+- `curl -sSL https://sigilsec.ai/install.sh | sh`
+- VS Code and JetBrains marketplace listings
+
+The Rust binary becomes the default (faster, no bash dependency), with automatic updates so you always have the latest signatures and scan rules.
+
+### More ecosystems
+Sigil currently scans pip, npm, and git repos. We want to cover the package managers where supply chain attacks are growing:
+
+- **Docker / OCI images** — scan layers before running containers
+- **Go modules** — `sigil go <module>`
+- **Cargo crates** — `sigil cargo <crate>`
+- **MCP server registries** — scan AI agent tooling before connecting it
+
+Monorepo support will scan only the packages that changed in a commit, so large repos stay fast.
+
+### Write your own scan rules
+A YAML DSL for custom signatures so your team can codify internal policies:
+
+```yaml
+- id: my-org-no-telemetry
+  phase: network_exfil
+  severity: HIGH
+  pattern: "analytics\\.track|segment\\.identify|mixpanel\\."
+  description: "Telemetry SDK usage requires security review"
+```
+
+Rules sync to your team via the cloud, so everyone scans with the same policy.
+
+### Enterprise security
+For organizations that need audit trails and access control:
+
+- **SSO / SAML** — sign in with your identity provider
+- **Role-based access** — control who can approve, reject, or configure policies
+- **Audit log** — tamper-proof record of every scan, approval, and policy change
+- **Retention policies** — control how long scan results are stored
+
+### Works in every CI system
+GitHub Actions works today. Next:
+
+- **GitLab CI** component
+- **Jenkins** plugin
+- **CircleCI** orb
+- **Bitbucket Pipelines** pipe
+- **Slack bot** that posts scan results to a channel
+- **PagerDuty / Opsgenie** for critical findings
 
 ---
 
-## Planned
+## Further out
 
-### v0.2 — Distribution & Polish
-- [ ] Homebrew tap (`brew install nomarj/tap/sigil`)
-- [ ] npm global package (`npm install -g @nomarj/sigil`)
-- [ ] curl installer (`curl -sSL https://sigilsec.ai/install.sh | sh`)
-- [ ] VS Code Marketplace publishing
-- [ ] JetBrains Marketplace publishing
-- [ ] Rust binary as default CLI (replace bash script)
-- [ ] Auto-update mechanism
+Things we're thinking about but haven't committed to timelines:
 
-### v0.3 — Ecosystem Expansion
-- [ ] Docker / OCI image scanning
-- [ ] Go module scanning
-- [ ] Cargo crate scanning
-- [ ] MCP server registry scanning
-- [ ] Monorepo support (scan changed packages only)
-
-### v0.4 — Enterprise Features
-- [ ] SSO / SAML authentication
-- [ ] Audit log with tamper-proof storage
-- [ ] Custom scan rule authoring (YAML DSL)
-- [ ] Org-wide policy enforcement
-- [ ] Role-based access control (RBAC)
-- [ ] Scan result retention policies
-
-### v0.5 — Platform Integrations
-- [ ] GitLab CI integration
-- [ ] Jenkins plugin
-- [ ] CircleCI orb
-- [ ] Bitbucket Pipelines integration
-- [ ] Slack bot for scan notifications
-- [ ] PagerDuty / Opsgenie alerts
-
-### Future
-- [ ] Marketplace verification API (badge for verified-safe packages)
-- [ ] AI-assisted triage (LLM explains findings and suggests fixes)
-- [ ] Dependency graph visualization
-- [ ] SBOM (Software Bill of Materials) generation
-- [ ] VEX (Vulnerability Exploitability eXchange) document output
-- [ ] Browser extension for scanning repos before cloning
+- **AI-assisted triage** — an LLM explains each finding in plain English and suggests whether it's a real threat or a false positive
+- **Marketplace verification badges** — a "Sigil Verified" badge that package registries can display for scanned-clean packages
+- **Dependency graph visualization** — see your full dependency tree with risk scores at each node
+- **SBOM generation** — produce a Software Bill of Materials in CycloneDX or SPDX format
+- **Browser extension** — scan a GitHub repo page before you clone it
