@@ -1,37 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import type { Verdict, AlertChannel } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
+import * as api from "@/lib/api";
+import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subscription } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Constants
 // ---------------------------------------------------------------------------
 
 const verdictLevels: Verdict[] = ["CLEAN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
-
-const mockAlertChannels: AlertChannel[] = [
-  {
-    id: "alert-001",
-    type: "slack",
-    target: "#security-alerts",
-    enabled: true,
-    min_severity: "HIGH",
-  },
-  {
-    id: "alert-002",
-    type: "email",
-    target: "security-team@company.com",
-    enabled: true,
-    min_severity: "CRITICAL",
-  },
-  {
-    id: "alert-003",
-    type: "webhook",
-    target: "https://hooks.company.com/sigil",
-    enabled: false,
-    min_severity: "MEDIUM",
-  },
-];
 
 const channelTypeStyles: Record<string, string> = {
   slack: "bg-purple-500/10 text-purple-400 border-purple-500/20",
@@ -52,15 +29,107 @@ const channelTypeIcons: Record<string, string> = {
 export default function SettingsPage() {
   // Policy state
   const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("CLEAN");
-  const [allowlist, setAllowlist] = useState("langchain\nopenai\nanthropic");
-  const [blocklist, setBlocklist] = useState("event-stream\ncolors@1.4.1");
-  const [requireApproval, setRequireApproval] = useState<Verdict[]>(["HIGH", "CRITICAL"]);
+  const [allowlist, setAllowlist] = useState("");
+  const [blocklist, setBlocklist] = useState("");
+  const [requireApproval, setRequireApproval] = useState<Verdict[]>([]);
 
   // Alert channels state
-  const [channels, setChannels] = useState<AlertChannel[]>(mockAlertChannels);
-  const [newChannelType, setNewChannelType] = useState<"slack" | "email" | "webhook">("slack");
+  const [channels, setChannels] = useState<AlertChannel[]>([]);
+  const [newChannelType, setNewChannelType] = useState<AlertChannelType>("slack");
   const [newChannelTarget, setNewChannelTarget] = useState("");
   const [newChannelSeverity, setNewChannelSeverity] = useState<Verdict>("HIGH");
+
+  // Billing state
+  const [plans, setPlans] = useState<BillingPlan[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  // Loading / error states
+  const [policyLoading, setPolicyLoading] = useState(true);
+  const [policyError, setPolicyError] = useState<string | null>(null);
+  const [policySaving, setPolicySaving] = useState(false);
+  const [policySaveSuccess, setPolicySaveSuccess] = useState(false);
+
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [addChannelLoading, setAddChannelLoading] = useState(false);
+
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Fetch data
+  // ---------------------------------------------------------------------------
+
+  const fetchPolicy = useCallback(async () => {
+    setPolicyLoading(true);
+    setPolicyError(null);
+
+    try {
+      const policy: Policy = await api.listPolicies();
+      setAutoApproveThreshold(policy.auto_approve_threshold);
+      setAllowlist(policy.allowlisted_packages.join("\n"));
+      setBlocklist(policy.blocklisted_packages.join("\n"));
+      setRequireApproval(policy.require_approval_for);
+    } catch (err) {
+      setPolicyError(
+        err instanceof Error ? err.message : "Failed to load policy settings.",
+      );
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  const fetchAlerts = useCallback(async () => {
+    setAlertsLoading(true);
+    setAlertsError(null);
+
+    try {
+      const data = await api.listAlerts();
+      setChannels(data);
+    } catch (err) {
+      setAlertsError(
+        err instanceof Error ? err.message : "Failed to load alert channels.",
+      );
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, []);
+
+  const fetchBilling = useCallback(async () => {
+    setBillingLoading(true);
+    setBillingError(null);
+
+    try {
+      const [plansData, subData] = await Promise.allSettled([
+        api.getPlans(),
+        api.getSubscription(),
+      ]);
+
+      if (plansData.status === "fulfilled") {
+        setPlans(plansData.value);
+      }
+      if (subData.status === "fulfilled") {
+        setSubscription(subData.value);
+      }
+    } catch (err) {
+      setBillingError(
+        err instanceof Error ? err.message : "Failed to load billing data.",
+      );
+    } finally {
+      setBillingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPolicy();
+    fetchAlerts();
+    fetchBilling();
+  }, [fetchPolicy, fetchAlerts, fetchBilling]);
+
+  // ---------------------------------------------------------------------------
+  // Policy handlers
+  // ---------------------------------------------------------------------------
 
   const toggleApproval = (verdict: Verdict) => {
     setRequireApproval((prev) =>
@@ -70,29 +139,129 @@ export default function SettingsPage() {
     );
   };
 
-  const toggleChannel = (id: string) => {
-    setChannels((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c)),
-    );
+  const handleSavePolicy = async () => {
+    setPolicySaving(true);
+    setPolicyError(null);
+    setPolicySaveSuccess(false);
+
+    try {
+      const policy: Partial<Policy> = {
+        auto_approve_threshold: autoApproveThreshold,
+        allowlisted_packages: allowlist
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        blocklisted_packages: blocklist
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        require_approval_for: requireApproval,
+      };
+
+      await api.updatePolicy(policy);
+      setPolicySaveSuccess(true);
+      setTimeout(() => setPolicySaveSuccess(false), 3000);
+    } catch (err) {
+      setPolicyError(
+        err instanceof Error ? err.message : "Failed to save policy settings.",
+      );
+    } finally {
+      setPolicySaving(false);
+    }
   };
 
-  const removeChannel = (id: string) => {
-    setChannels((prev) => prev.filter((c) => c.id !== id));
+  // ---------------------------------------------------------------------------
+  // Alert channel handlers
+  // ---------------------------------------------------------------------------
+
+  const toggleChannel = async (id: string) => {
+    const channel = channels.find((c) => c.id === id);
+    if (!channel) return;
+
+    try {
+      const updated = await api.updateAlert(id, { enabled: !channel.enabled });
+      setChannels((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, enabled: updated.enabled } : c)),
+      );
+    } catch (err) {
+      setAlertsError(
+        err instanceof Error ? err.message : "Failed to toggle alert channel.",
+      );
+    }
   };
 
-  const addChannel = (e: React.FormEvent) => {
+  const removeChannel = async (id: string) => {
+    try {
+      await api.deleteAlert(id);
+      setChannels((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      setAlertsError(
+        err instanceof Error ? err.message : "Failed to remove alert channel.",
+      );
+    }
+  };
+
+  const addChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChannelTarget.trim()) return;
-    const newChannel: AlertChannel = {
-      id: `alert-${Date.now()}`,
-      type: newChannelType,
-      target: newChannelTarget.trim(),
-      enabled: true,
-      min_severity: newChannelSeverity,
-    };
-    setChannels((prev) => [...prev, newChannel]);
-    setNewChannelTarget("");
+
+    setAddChannelLoading(true);
+    setAlertsError(null);
+
+    try {
+      const newChannel = await api.createAlert({
+        type: newChannelType,
+        target: newChannelTarget.trim(),
+        enabled: true,
+        min_severity: newChannelSeverity,
+      });
+      setChannels((prev) => [...prev, newChannel]);
+      setNewChannelTarget("");
+    } catch (err) {
+      setAlertsError(
+        err instanceof Error ? err.message : "Failed to add alert channel.",
+      );
+    } finally {
+      setAddChannelLoading(false);
+    }
   };
+
+  // ---------------------------------------------------------------------------
+  // Billing handlers
+  // ---------------------------------------------------------------------------
+
+  const handleManageBilling = async () => {
+    setPortalLoading(true);
+    setBillingError(null);
+
+    try {
+      const session = await api.createPortalSession();
+      window.open(session.url, "_blank");
+    } catch (err) {
+      setBillingError(
+        err instanceof Error ? err.message : "Failed to open billing portal.",
+      );
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const handleSubscribe = async (planId: string) => {
+    setBillingError(null);
+
+    try {
+      const sub = await api.subscribe(planId);
+      setSubscription(sub);
+    } catch (err) {
+      setBillingError(
+        err instanceof Error ? err.message : "Failed to subscribe to plan.",
+      );
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="space-y-8">
@@ -102,7 +271,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Configure scan policies, allowlists, and alert channels.
+          Configure scan policies, allowlists, alert channels, and billing.
         </p>
       </div>
 
@@ -115,91 +284,135 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="card-body space-y-6">
-          {/* Auto-approve threshold */}
-          <div>
-            <label className="input-label">Auto-Approve Threshold</label>
-            <p className="text-xs text-gray-500 mb-2">
-              Packages with a verdict at or below this level will be automatically approved.
-            </p>
-            <div className="flex gap-2">
-              {verdictLevels.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setAutoApproveThreshold(v)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    autoApproveThreshold === v
-                      ? "bg-brand-600/20 text-brand-400 border border-brand-500/30"
-                      : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
+          {policyLoading ? (
+            <div className="space-y-6 animate-pulse">
+              <div className="h-4 w-40 bg-gray-800 rounded" />
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-8 w-16 bg-gray-800 rounded-lg" />
+                ))}
+              </div>
+              <div className="h-4 w-48 bg-gray-800 rounded" />
+              <div className="h-24 bg-gray-800 rounded" />
+              <div className="h-24 bg-gray-800 rounded" />
             </div>
-          </div>
+          ) : (
+            <>
+              {policyError && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                  {policyError}
+                </div>
+              )}
 
-          {/* Require approval for */}
-          <div>
-            <label className="input-label">Require Manual Approval For</label>
-            <p className="text-xs text-gray-500 mb-2">
-              Verdicts that always require human review before approval.
-            </p>
-            <div className="flex gap-2">
-              {verdictLevels.map((v) => (
+              {policySaveSuccess && (
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-400">
+                  Policy settings saved successfully.
+                </div>
+              )}
+
+              {/* Auto-approve threshold */}
+              <div>
+                <label className="input-label">Auto-Approve Threshold</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Packages with a verdict at or below this level will be automatically approved.
+                </p>
+                <div className="flex gap-2">
+                  {verdictLevels.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setAutoApproveThreshold(v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        autoApproveThreshold === v
+                          ? "bg-brand-600/20 text-brand-400 border border-brand-500/30"
+                          : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Require approval for */}
+              <div>
+                <label className="input-label">Require Manual Approval For</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Verdicts that always require human review before approval.
+                </p>
+                <div className="flex gap-2">
+                  {verdictLevels.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => toggleApproval(v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        requireApproval.includes(v)
+                          ? "bg-red-600/20 text-red-400 border border-red-500/30"
+                          : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Allowlist */}
+              <div>
+                <label htmlFor="allowlist" className="input-label">
+                  Allowlisted Packages
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  One package name per line. These packages will always be auto-approved.
+                </p>
+                <textarea
+                  id="allowlist"
+                  value={allowlist}
+                  onChange={(e) => setAllowlist(e.target.value)}
+                  rows={4}
+                  className="input font-mono text-xs"
+                  placeholder="package-name"
+                />
+              </div>
+
+              {/* Blocklist */}
+              <div>
+                <label htmlFor="blocklist" className="input-label">
+                  Blocklisted Packages
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  One package name per line. These packages will always be rejected. Append @version to block specific versions.
+                </p>
+                <textarea
+                  id="blocklist"
+                  value={blocklist}
+                  onChange={(e) => setBlocklist(e.target.value)}
+                  rows={4}
+                  className="input font-mono text-xs"
+                  placeholder="package-name@version"
+                />
+              </div>
+
+              <div className="pt-2">
                 <button
-                  key={v}
-                  onClick={() => toggleApproval(v)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    requireApproval.includes(v)
-                      ? "bg-red-600/20 text-red-400 border border-red-500/30"
-                      : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
-                  }`}
+                  className="btn-primary"
+                  onClick={handleSavePolicy}
+                  disabled={policySaving}
                 >
-                  {v}
+                  {policySaving ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Policies"
+                  )}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Allowlist */}
-          <div>
-            <label htmlFor="allowlist" className="input-label">
-              Allowlisted Packages
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              One package name per line. These packages will always be auto-approved.
-            </p>
-            <textarea
-              id="allowlist"
-              value={allowlist}
-              onChange={(e) => setAllowlist(e.target.value)}
-              rows={4}
-              className="input font-mono text-xs"
-              placeholder="package-name"
-            />
-          </div>
-
-          {/* Blocklist */}
-          <div>
-            <label htmlFor="blocklist" className="input-label">
-              Blocklisted Packages
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              One package name per line. These packages will always be rejected. Append @version to block specific versions.
-            </p>
-            <textarea
-              id="blocklist"
-              value={blocklist}
-              onChange={(e) => setBlocklist(e.target.value)}
-              rows={4}
-              className="input font-mono text-xs"
-              placeholder="package-name@version"
-            />
-          </div>
-
-          <div className="pt-2">
-            <button className="btn-primary">Save Policies</button>
-          </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -212,8 +425,32 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="card-body space-y-6">
+          {alertsError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+              {alertsError}
+            </div>
+          )}
+
           {/* Existing channels */}
-          {channels.length > 0 && (
+          {alertsLoading ? (
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-800">
+                  <div className="flex items-center gap-4">
+                    <div className="h-6 w-14 bg-gray-800 rounded-full" />
+                    <div>
+                      <div className="h-4 w-40 bg-gray-800 rounded mb-1" />
+                      <div className="h-3 w-24 bg-gray-800 rounded" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-11 bg-gray-800 rounded-full" />
+                    <div className="h-4 w-4 bg-gray-800 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : channels.length > 0 ? (
             <div className="space-y-3">
               {channels.map((channel) => (
                 <div
@@ -262,6 +499,10 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500">
+              <p className="text-sm">No alert channels configured yet.</p>
+            </div>
           )}
 
           {/* Add channel form */}
@@ -278,9 +519,7 @@ export default function SettingsPage() {
                   id="channel-type"
                   value={newChannelType}
                   onChange={(e) =>
-                    setNewChannelType(
-                      e.target.value as "slack" | "email" | "webhook",
-                    )
+                    setNewChannelType(e.target.value as AlertChannelType)
                   }
                   className="input"
                 >
@@ -328,14 +567,196 @@ export default function SettingsPage() {
                   ))}
                 </select>
               </div>
-              <button type="submit" className="btn-primary whitespace-nowrap">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+              <button
+                type="submit"
+                className="btn-primary whitespace-nowrap"
+                disabled={addChannelLoading}
+              >
+                {addChannelLoading ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                )}
                 Add
               </button>
             </form>
           </div>
+        </div>
+      </div>
+
+      {/* Billing / Subscription */}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="section-header">Billing & Subscription</h2>
+          <p className="section-description">
+            Manage your plan and payment details.
+          </p>
+        </div>
+        <div className="card-body space-y-6">
+          {billingError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+              {billingError}
+            </div>
+          )}
+
+          {billingLoading ? (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-4 w-32 bg-gray-800 rounded" />
+              <div className="grid grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-40 bg-gray-800/30 rounded-lg border border-gray-800" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Current subscription */}
+              {subscription && (
+                <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-200">
+                        Current Plan:{" "}
+                        <span className="text-brand-400">{subscription.plan_name}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Status:{" "}
+                        <span className={`font-medium ${
+                          subscription.status === "active"
+                            ? "text-green-400"
+                            : subscription.status === "trialing"
+                              ? "text-blue-400"
+                              : "text-yellow-400"
+                        }`}>
+                          {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                        </span>
+                        {subscription.cancel_at_period_end && (
+                          <span className="text-yellow-400 ml-2">
+                            (cancels at end of period)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Period: {new Date(subscription.current_period_start).toLocaleDateString()} --{" "}
+                        {new Date(subscription.current_period_end).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Scans used: {subscription.scan_usage.toLocaleString()} / {subscription.scan_limit.toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={portalLoading}
+                      className="btn-secondary text-xs"
+                    >
+                      {portalLoading ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Opening...
+                        </span>
+                      ) : (
+                        "Manage Billing"
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Usage bar */}
+                  {subscription.scan_limit > 0 && (
+                    <div className="mt-3">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            subscription.scan_usage / subscription.scan_limit > 0.9
+                              ? "bg-red-500"
+                              : subscription.scan_usage / subscription.scan_limit > 0.7
+                                ? "bg-yellow-500"
+                                : "bg-brand-500"
+                          }`}
+                          style={{
+                            width: `${Math.min(100, (subscription.scan_usage / subscription.scan_limit) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Available plans */}
+              {plans.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-300 mb-3">
+                    Available Plans
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {plans.map((plan) => {
+                      const isCurrent = subscription?.plan_id === plan.id;
+                      return (
+                        <div
+                          key={plan.id}
+                          className={`p-4 rounded-lg border ${
+                            isCurrent
+                              ? "bg-brand-600/10 border-brand-500/30"
+                              : "bg-gray-800/30 border-gray-800 hover:border-gray-700"
+                          } transition-colors`}
+                        >
+                          <h4 className="text-base font-semibold text-gray-100">
+                            {plan.name}
+                          </h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {plan.description}
+                          </p>
+                          <p className="text-2xl font-bold text-gray-100 mt-3">
+                            ${plan.price_monthly}
+                            <span className="text-sm font-normal text-gray-500">/mo</span>
+                          </p>
+                          <ul className="mt-3 space-y-1">
+                            <li className="text-xs text-gray-400">
+                              {plan.scan_limit.toLocaleString()} scans/month
+                            </li>
+                            <li className="text-xs text-gray-400">
+                              {plan.team_member_limit} team members
+                            </li>
+                            {plan.features.map((feature, i) => (
+                              <li key={i} className="text-xs text-gray-400">
+                                {feature}
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            onClick={() => handleSubscribe(plan.id)}
+                            disabled={isCurrent}
+                            className={`mt-4 w-full text-xs ${
+                              isCurrent ? "btn-secondary" : "btn-primary"
+                            }`}
+                          >
+                            {isCurrent ? "Current Plan" : "Subscribe"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* If no plans or subscription */}
+              {plans.length === 0 && !subscription && (
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-sm">
+                    No billing plans available. Contact support for details.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

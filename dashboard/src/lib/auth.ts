@@ -131,6 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    // Fire-and-forget server-side logout
+    api.logout();
     clearTokens();
     setUser(null);
   }, []);

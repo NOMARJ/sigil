@@ -102,7 +102,17 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 # Router registration
 # ---------------------------------------------------------------------------
 
-from api.routers import auth, publisher, report, scan, threat, verify  # noqa: E402
+from api.routers import (  # noqa: E402
+    alerts,
+    auth,
+    billing,
+    policies,
+    publisher,
+    report,
+    scan,
+    threat,
+    verify,
+)
 
 app.include_router(scan.router)
 app.include_router(threat.router)
@@ -110,6 +120,9 @@ app.include_router(publisher.router)
 app.include_router(report.router)
 app.include_router(verify.router)
 app.include_router(auth.router)
+app.include_router(policies.router)
+app.include_router(alerts.router)
+app.include_router(billing.router)
 
 
 # ---------------------------------------------------------------------------
