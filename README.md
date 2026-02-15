@@ -189,9 +189,11 @@ The CLI is **free and open source** with all six scan phases. Paid tiers add clo
 
 See [ROADMAP.md](ROADMAP.md) for the full development plan.
 
-**Now:** CLI with local scanning, shell aliases, git hooks.
-**Next:** Cloud threat intelligence, web dashboard, Pro tier.
-**Later:** Team policies, CI/CD gates, marketplace verification API.
+**Delivered:** CLI (bash + Rust), 6-phase scanner, shell aliases, git hooks, FastAPI backend, Next.js dashboard, IDE plugins (VS Code, JetBrains, MCP server), GitHub Action, Docker deployment, SARIF output, scan caching, diff/baseline scanning.
+
+**In progress:** Cloud threat intelligence network, hosted deployment.
+
+**Next:** Distribution (Homebrew, npm, VS Code Marketplace), Docker image scanning, custom scan rules, enterprise SSO, CI/CD platform integrations.
 
 ## Contributing
 
