@@ -156,6 +156,29 @@ CREATE INDEX idx_reports_reporter ON threat_reports (reporter_user_id);
 CREATE INDEX idx_reports_created  ON threat_reports (created_at DESC);
 
 -- =====================================================================
+-- Verifications (marketplace package verification records)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS verifications (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    package_name    VARCHAR(255) NOT NULL,
+    version         VARCHAR(128) NOT NULL DEFAULT '',
+    ecosystem       VARCHAR(50)  NOT NULL DEFAULT 'unknown',
+    publisher_id    VARCHAR(255),
+    artifact_hash   VARCHAR(128),
+    verdict         VARCHAR(50)  NOT NULL DEFAULT 'PENDING',
+    risk_score      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    badge_url       TEXT,
+    verified_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_verifications_package   ON verifications (package_name, ecosystem);
+CREATE INDEX idx_verifications_publisher ON verifications (publisher_id);
+CREATE INDEX idx_verifications_verdict   ON verifications (verdict);
+CREATE INDEX idx_verifications_created   ON verifications (created_at DESC);
+
+-- =====================================================================
 -- Policies (team scan policies)
 -- =====================================================================
 

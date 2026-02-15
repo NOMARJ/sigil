@@ -1,5 +1,5 @@
 use colored::Colorize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::quarantine::QuarantineEntry;
 use crate::scanner::{Finding, Phase, ScanResult, Severity, Verdict};
@@ -226,15 +226,15 @@ pub fn print_scan_summary(result: &ScanResult, format: &str) {
     );
 }
 
-/// Format the numeric score with color.
+/// Format the numeric score with color (thresholds: 0/10/25/50).
 fn format_score(score: u32) -> String {
     if score == 0 {
         format!("{}", "0".green().bold())
-    } else if score <= 10 {
+    } else if score < 10 {
         format!("{}", score.to_string().cyan().bold())
-    } else if score <= 50 {
+    } else if score < 25 {
         format!("{}", score.to_string().yellow().bold())
-    } else if score <= 100 {
+    } else if score < 50 {
         format!("{}", score.to_string().red().bold())
     } else {
         format!("{}", score.to_string().red().bold())
@@ -291,4 +291,108 @@ pub fn print_quarantine_list(entries: &[QuarantineEntry], detailed: bool, format
             println!();
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// SARIF output (Static Analysis Results Interchange Format 2.1.0)
+// ---------------------------------------------------------------------------
+
+/// Print scan results in SARIF 2.1.0 JSON format.
+///
+/// SARIF is the OASIS standard for static analysis tool output. This format
+/// is consumed by GitHub Code Scanning, VS Code SARIF Viewer, and other
+/// security tooling.
+pub fn print_scan_sarif(result: &ScanResult, target: &str) {
+    let sarif = serde_json::json!({
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "Sigil",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "informationUri": "https://github.com/nomark/sigil",
+                    "rules": generate_rules(&result.findings)
+                }
+            },
+            "results": result.findings.iter().map(|f| {
+                serde_json::json!({
+                    "ruleId": f.rule,
+                    "level": severity_to_sarif_level(f.severity),
+                    "message": {
+                        "text": f.snippet.clone()
+                    },
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": f.file.clone(),
+                                "uriBaseId": "%SRCROOT%"
+                            },
+                            "region": {
+                                "startLine": f.line.unwrap_or(1),
+                                "startColumn": 1
+                            }
+                        }
+                    }],
+                    "properties": {
+                        "phase": format!("{:?}", f.phase),
+                        "weight": f.weight
+                    }
+                })
+            }).collect::<Vec<_>>(),
+            "invocations": [{
+                "executionSuccessful": true,
+                "properties": {
+                    "riskScore": result.score,
+                    "verdict": format!("{:?}", result.verdict),
+                    "filesScanned": result.files_scanned,
+                    "durationMs": result.duration_ms
+                }
+            }],
+            "artifacts": [{
+                "location": {
+                    "uri": target,
+                    "uriBaseId": "%SRCROOT%"
+                }
+            }]
+        }]
+    });
+
+    println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+}
+
+/// Map a Severity to the SARIF level string.
+fn severity_to_sarif_level(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Low => "note",
+        Severity::Medium => "warning",
+        Severity::High => "error",
+        Severity::Critical => "error",
+    }
+}
+
+/// Generate SARIF rule descriptors from findings, deduplicating by rule ID.
+fn generate_rules(findings: &[Finding]) -> Vec<serde_json::Value> {
+    let mut seen = HashSet::new();
+    findings
+        .iter()
+        .filter_map(|f| {
+            if seen.insert(f.rule.clone()) {
+                Some(serde_json::json!({
+                    "id": f.rule,
+                    "shortDescription": {
+                        "text": f.snippet.chars().take(100).collect::<String>()
+                    },
+                    "defaultConfiguration": {
+                        "level": severity_to_sarif_level(f.severity)
+                    },
+                    "properties": {
+                        "phase": format!("{:?}", f.phase)
+                    }
+                }))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

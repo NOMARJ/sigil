@@ -47,7 +47,8 @@ COPY dashboard/ ./
 
 # Set build-time environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
 
@@ -103,6 +104,19 @@ RUN mkdir -p /home/sigil/.sigil/quarantine \
              /home/sigil/.sigil/reports && \
     chown -R sigil:sigil /home/sigil/.sigil /app
 
+# ── Runtime env substitution script for dashboard API URL ─────────────────
+RUN printf '#!/bin/sh\n\
+if [ -n "$NEXT_PUBLIC_API_URL" ]; then\n\
+  find /app/dashboard/.next -name "*.js" -exec sed -i "s|http://localhost:8000|$NEXT_PUBLIC_API_URL|g" {} +\n\
+fi\n' > /app/substitute-env.sh && chmod +x /app/substitute-env.sh
+
+# ── Multi-service entrypoint ──────────────────────────────────────────────
+RUN printf '#!/bin/sh\n\
+set -e\n\
+/app/substitute-env.sh\n\
+cd /app/dashboard && node server.js &\n\
+exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n' > /app/start.sh && chmod +x /app/start.sh
+
 # ── Health check ─────────────────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
@@ -122,5 +136,5 @@ USER sigil
 # Use tini for proper signal handling (PID 1 reaping)
 ENTRYPOINT ["tini", "--"]
 
-# Default: start the API service
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default: start both API and dashboard services
+CMD ["/app/start.sh"]

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import VerdictBadge from "@/components/VerdictBadge";
 import FindingsList from "@/components/FindingsList";
@@ -137,7 +138,7 @@ export default function ScanDetailPage() {
   if (loading) {
     return (
       <div className="space-y-8">
-        <a
+        <Link
           href="/scans"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
         >
@@ -145,7 +146,7 @@ export default function ScanDetailPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Scans
-        </a>
+        </Link>
         <div className="animate-pulse space-y-6">
           <div className="flex items-center gap-3">
             <div className="h-8 w-48 bg-gray-800 rounded" />
@@ -171,7 +172,7 @@ export default function ScanDetailPage() {
   if (error || !scan) {
     return (
       <div className="space-y-8">
-        <a
+        <Link
           href="/scans"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
         >
@@ -179,7 +180,7 @@ export default function ScanDetailPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           Back to Scans
-        </a>
+        </Link>
         <div className="text-center py-16">
           <svg className="w-12 h-12 mx-auto mb-3 text-red-500/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -201,7 +202,7 @@ export default function ScanDetailPage() {
   return (
     <div className="space-y-8">
       {/* Back link */}
-      <a
+      <Link
         href="/scans"
         className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
       >
@@ -209,7 +210,7 @@ export default function ScanDetailPage() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Back to Scans
-      </a>
+      </Link>
 
       {/* Action error */}
       {actionError && (

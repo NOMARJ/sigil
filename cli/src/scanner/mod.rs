@@ -9,17 +9,17 @@ use walkdir::WalkDir;
 /// The six scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
-    /// Phase 1: Install hooks — setup.py cmdclass, npm postinstall, Makefile targets
+    /// Phase 1: Install hooks
     InstallHooks,
-    /// Phase 2: Dangerous code patterns — eval, exec, pickle, child_process
+    /// Phase 2: Dangerous code patterns
     CodePatterns,
-    /// Phase 3: Network & exfiltration — outbound HTTP, webhooks, sockets
+    /// Phase 3: Network and exfiltration
     NetworkExfil,
-    /// Phase 4: Credential access — ENV vars, .aws, SSH keys, API key patterns
+    /// Phase 4: Credential access
     Credentials,
-    /// Phase 5: Obfuscation — base64, charCode, hex encoding
+    /// Phase 5: Obfuscation
     Obfuscation,
-    /// Phase 6: Provenance — git history anomalies, binary files, hidden files
+    /// Phase 6: Provenance
     Provenance,
 }
 
@@ -59,34 +59,22 @@ impl fmt::Display for Severity {
 /// A single security finding discovered during scanning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
-    /// Which scan phase produced this finding
     pub phase: Phase,
-    /// Short rule identifier (e.g. "INSTALL-001")
     pub rule: String,
-    /// Severity level
     pub severity: Severity,
-    /// File where the finding was detected
     pub file: String,
-    /// Line number (1-based), if applicable
     pub line: Option<usize>,
-    /// Code snippet or description of the match
     pub snippet: String,
-    /// Weight multiplier for scoring (derived from phase)
     pub weight: u32,
 }
 
 /// Overall scan verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Verdict {
-    /// No findings at all
     Clean,
-    /// Score <= 10 — minor informational findings
     LowRisk,
-    /// Score <= 50 — some suspicious patterns
     MediumRisk,
-    /// Score <= 100 — likely malicious patterns
     HighRisk,
-    /// Score > 100 — almost certainly malicious
     Critical,
 }
 
@@ -105,29 +93,58 @@ impl fmt::Display for Verdict {
 /// The result of a complete scan across all phases.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanResult {
-    /// All findings from every phase
     pub findings: Vec<Finding>,
-    /// Aggregated risk score
     pub score: u32,
-    /// Overall verdict
     pub verdict: Verdict,
-    /// Number of files scanned
     pub files_scanned: usize,
-    /// Scan duration in milliseconds
     pub duration_ms: u64,
 }
 
-/// Run all scan phases against the given path and return aggregated results.
-///
-/// This is the primary entry point for the scanner. It walks the directory tree,
-/// reads each file, and runs all six phases against it.
-pub fn run_scan(path: &Path) -> ScanResult {
+fn phase_from_name(name: &str) -> Option<Phase> {
+    match name.to_lowercase().as_str() {
+        "install-hooks" | "install_hooks" | "installhooks" => Some(Phase::InstallHooks),
+        "code-patterns" | "code_patterns" | "codepatterns" => Some(Phase::CodePatterns),
+        "network-exfil" | "network_exfil" | "networkexfil" => Some(Phase::NetworkExfil),
+        "credentials" => Some(Phase::Credentials),
+        "obfuscation" => Some(Phase::Obfuscation),
+        "provenance" => Some(Phase::Provenance),
+        _ => None,
+    }
+}
+
+fn severity_from_name(name: &str) -> Option<Severity> {
+    match name.to_lowercase().as_str() {
+        "low" => Some(Severity::Low),
+        "medium" => Some(Severity::Medium),
+        "high" => Some(Severity::High),
+        "critical" => Some(Severity::Critical),
+        _ => None,
+    }
+}
+
+pub fn run_scan(
+    path: &Path,
+    phase_filter: Option<&[String]>,
+    min_severity: Option<&str>,
+) -> ScanResult {
     let start = std::time::Instant::now();
 
     let mut findings: Vec<Finding> = Vec::new();
     let mut files_scanned: usize = 0;
 
-    // Collect scannable files from the directory tree
+    let active_phases: Option<Vec<Phase>> = phase_filter.map(|names| {
+        names.iter().filter_map(|n| phase_from_name(n)).collect()
+    });
+
+    let min_sev: Option<Severity> = min_severity.and_then(severity_from_name);
+
+    let should_run_phase = |phase: Phase| -> bool {
+        match &active_phases {
+            Some(phases) => phases.contains(&phase),
+            None => true,
+        }
+    };
+
     let entries: Vec<_> = WalkDir::new(path)
         .follow_links(false)
         .into_iter()
@@ -135,15 +152,14 @@ pub fn run_scan(path: &Path) -> ScanResult {
         .filter(|e| e.file_type().is_file())
         .collect();
 
-    // Phase 6 (Provenance) operates on directory-level metadata, so run it first
-    findings.extend(phases::scan_provenance(path, &entries));
+    if should_run_phase(Phase::Provenance) {
+        findings.extend(phases::scan_provenance(path, &entries));
+    }
 
-    // Run file-level phases on each file
     for entry in &entries {
         let file_path = entry.path();
         files_scanned += 1;
 
-        // Read file contents, skip binary / unreadable files
         let contents = match std::fs::read_to_string(file_path) {
             Ok(c) => c,
             Err(_) => continue,
@@ -155,25 +171,28 @@ pub fn run_scan(path: &Path) -> ScanResult {
             .to_string_lossy()
             .to_string();
 
-        // Phase 1: Install Hooks
-        findings.extend(phases::scan_install_hooks(&rel_path, &contents));
+        if should_run_phase(Phase::InstallHooks) {
+            findings.extend(phases::scan_install_hooks(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::CodePatterns) {
+            findings.extend(phases::scan_code_patterns(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::NetworkExfil) {
+            findings.extend(phases::scan_network_exfil(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::Credentials) {
+            findings.extend(phases::scan_credentials(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::Obfuscation) {
+            findings.extend(phases::scan_obfuscation(&rel_path, &contents));
+        }
+    }
 
-        // Phase 2: Code Patterns
-        findings.extend(phases::scan_code_patterns(&rel_path, &contents));
-
-        // Phase 3: Network / Exfiltration
-        findings.extend(phases::scan_network_exfil(&rel_path, &contents));
-
-        // Phase 4: Credentials
-        findings.extend(phases::scan_credentials(&rel_path, &contents));
-
-        // Phase 5: Obfuscation
-        findings.extend(phases::scan_obfuscation(&rel_path, &contents));
+    if let Some(min) = min_sev {
+        findings.retain(|f| f.severity >= min);
     }
 
     let duration_ms = start.elapsed().as_millis() as u64;
-
-    // Score and verdict
     let score = scoring::calculate_score(&findings);
     let verdict = scoring::determine_verdict(&findings, score);
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::scanner::ScanResult;
 
-const DEFAULT_ENDPOINT: &str = "https://api.sigil.dev";
+const DEFAULT_ENDPOINT: &str = "https://api.sigil.nomark.dev";
 
 /// API client for the Sigil cloud service.
 pub struct SigilClient {
@@ -289,6 +289,46 @@ impl SigilClient {
         }
 
         save_token(token)?;
+        Ok(())
+    }
+
+    /// Check whether the client has a stored authentication token.
+    pub fn is_authenticated(&self) -> bool {
+        self.token.is_some()
+    }
+
+    /// Authenticate with email and password.
+    ///
+    /// POST /v1/auth/login
+    pub async fn login(&self, email: &str, password: &str) -> Result<(), String> {
+        let url = format!("{}/v1/auth/login", self.endpoint);
+
+        let body = serde_json::json!({
+            "email": email,
+            "password": password,
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| offline_fallback_message(&e))?;
+
+        if !response.status().is_success() {
+            return Err(format!(
+                "login failed (server returned {})",
+                response.status()
+            ));
+        }
+
+        let auth: AuthResponse = response
+            .json()
+            .await
+            .map_err(|e| format!("failed to parse auth response: {}", e))?;
+
+        save_token(&auth.token)?;
         Ok(())
     }
 

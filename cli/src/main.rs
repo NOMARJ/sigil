@@ -1,14 +1,17 @@
 mod api;
+mod cache;
+mod diff;
 mod output;
 mod quarantine;
 mod scanner;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use std::path::PathBuf;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use std::process;
 
-/// Sigil — Automated security auditing for AI agent code.
+/// Sigil -- Automated security auditing for AI agent code.
 ///
 /// Scans repositories, packages, and agent tooling for malicious patterns
 /// using a quarantine-first workflow.
@@ -87,7 +90,14 @@ enum Commands {
         /// Submit results to Sigil cloud
         #[arg(long)]
         submit: bool,
+
+        /// Disable cache (force a fresh scan even if content is unchanged)
+        #[arg(long)]
+        no_cache: bool,
     },
+
+    /// Clear all cached scan results
+    ClearCache,
 
     /// Fetch latest threat signatures from Sigil cloud
     Fetch {
@@ -141,8 +151,32 @@ enum Commands {
         token: Option<String>,
 
         /// API endpoint URL
-        #[arg(long, default_value = "https://api.sigil.dev")]
+        #[arg(long, default_value = "https://api.sigil.nomark.dev")]
         endpoint: String,
+    },
+
+    /// Report a threat to the Sigil cloud
+    Report {
+        /// SHA256 hash of the malicious file
+        hash: String,
+
+        /// Type of threat (e.g. malware, backdoor, exfil)
+        #[arg(short = 't', long)]
+        threat_type: String,
+
+        /// Description of the threat
+        #[arg(short, long)]
+        description: String,
+    },
+
+    /// Compare a scan against a baseline to find new/resolved findings
+    Diff {
+        /// Path to baseline scan result JSON file
+        #[arg(long)]
+        baseline: String,
+
+        /// Path to scan (runs a fresh scan and compares)
+        path: PathBuf,
     },
 
     /// View or modify configuration
@@ -194,7 +228,10 @@ async fn main() {
             phases,
             severity,
             submit,
-        } => cmd_scan(&path, &phases, &severity, submit, &cli.format, cli.verbose).await,
+            no_cache,
+        } => cmd_scan(&path, &phases, &severity, submit, no_cache, &cli.format, cli.verbose).await,
+
+        Commands::ClearCache => cmd_clear_cache().await,
 
         Commands::Fetch { force } => cmd_fetch(force, cli.verbose).await,
 
@@ -212,12 +249,70 @@ async fn main() {
             cmd_login(token.as_deref(), &endpoint, cli.verbose).await
         }
 
+        Commands::Report {
+            hash,
+            threat_type,
+            description,
+        } => cmd_report(&hash, &threat_type, &description, cli.verbose).await,
+
+        Commands::Diff { baseline, path } => {
+            cmd_diff(&baseline, &path, &cli.format, cli.verbose).await
+        }
+
         Commands::Config { key, value, list } => {
             cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
         }
     };
 
     process::exit(exit_code);
+}
+
+// ---------------------------------------------------------------------------
+// Archive extraction helper
+// ---------------------------------------------------------------------------
+
+/// Extract .whl/.zip and .tar.gz/.tgz archives in a directory so the scanner
+/// can inspect the actual source files inside packages.
+fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let entries: Vec<_> = std::fs::read_dir(dir)?
+        .filter_map(|e| e.ok())
+        .collect();
+
+    for entry in entries {
+        let path = entry.path();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        if name.ends_with(".whl") || name.ends_with(".zip") {
+            // Extract zip archives (.whl files are zip format)
+            let file = std::fs::File::open(&path)?;
+            let mut archive = zip::ZipArchive::new(file)?;
+            let extract_dir = dir.join(
+                name.trim_end_matches(".whl")
+                    .trim_end_matches(".zip"),
+            );
+            std::fs::create_dir_all(&extract_dir)?;
+            archive.extract(&extract_dir)?;
+            std::fs::remove_file(&path)?;
+        } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+            // Extract gzipped tar archives
+            let file = std::fs::File::open(&path)?;
+            let gz = flate2::read::GzDecoder::new(file);
+            let mut archive = tar::Archive::new(gz);
+            let extract_dir = dir.join(
+                name.trim_end_matches(".tar.gz")
+                    .trim_end_matches(".tgz"),
+            );
+            std::fs::create_dir_all(&extract_dir)?;
+            archive.unpack(&extract_dir)?;
+            std::fs::remove_file(&path)?;
+        }
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +364,7 @@ async fn cmd_clone(
     }
 
     // 3. Scan the cloned repo
-    let result = scanner::run_scan(&entry.path);
+    let result = scanner::run_scan(&entry.path, None, None);
     output::print_scan_summary(&result, format);
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
@@ -336,7 +431,16 @@ async fn cmd_pip(
         }
     }
 
-    let result = scanner::run_scan(&entry.path);
+    // Extract .whl (zip) and .tar.gz files so the scanner sees actual source
+    if let Err(err) = extract_archives(&entry.path) {
+        eprintln!(
+            "{} failed to extract archives: {} (scanning raw archives instead)",
+            "warning:".bold().yellow(),
+            err
+        );
+    }
+
+    let result = scanner::run_scan(&entry.path, None, None);
     output::print_scan_summary(&result, format);
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
@@ -400,7 +504,16 @@ async fn cmd_npm(
         }
     }
 
-    let result = scanner::run_scan(&entry.path);
+    // Extract .tgz files so the scanner sees actual source
+    if let Err(err) = extract_archives(&entry.path) {
+        eprintln!(
+            "{} failed to extract archives: {} (scanning raw archives instead)",
+            "warning:".bold().yellow(),
+            err
+        );
+    }
+
+    let result = scanner::run_scan(&entry.path, None, None);
     output::print_scan_summary(&result, format);
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
@@ -421,9 +534,10 @@ async fn cmd_npm(
 
 async fn cmd_scan(
     path: &PathBuf,
-    _phases: &str,
-    _severity: &str,
+    phases: &str,
+    severity: &str,
     submit: bool,
+    no_cache: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
@@ -438,11 +552,66 @@ async fn cmd_scan(
         path.display().to_string().bold()
     );
 
-    let result = scanner::run_scan(path);
+    // --- Cache: only use when running a full unfiltered scan ---
+    let use_cache = !no_cache && phases == "all" && severity == "low";
 
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    // Try loading from cache
+    if use_cache {
+        if let Some(cached) = cache::load_cached(path) {
+            println!(
+                "{} using cached result",
+                "sigil:".bold().green(),
+            );
+            output::print_scan_summary(&cached, format);
+            output::print_findings(&cached.findings, format);
+            output::print_verdict(&cached.verdict, format);
+            return match cached.verdict {
+                scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+                _ => 2,
+            };
+        } else if verbose {
+            eprintln!("no cache entry found, scanning fresh");
+        }
+    }
+
+    // Parse phase filter
+    let phase_filter: Option<Vec<String>> = if phases == "all" {
+        None
+    } else {
+        Some(phases.split(',').map(|s| s.trim().to_string()).collect())
+    };
+
+    // Parse severity filter
+    let min_severity: Option<&str> = if severity == "low" {
+        None // "low" is the default minimum, meaning show everything
+    } else {
+        Some(severity)
+    };
+
+    let result = scanner::run_scan(
+        path,
+        phase_filter.as_deref(),
+        min_severity,
+    );
+
+    if format == "sarif" {
+        output::print_scan_sarif(&result, &path.to_string_lossy());
+    } else {
+        output::print_scan_summary(&result, format);
+        output::print_findings(&result.findings, format);
+        output::print_verdict(&result.verdict, format);
+    }
+
+    // Save to cache
+    if use_cache {
+        if let Err(err) = cache::save_to_cache(path, &result) {
+            if verbose {
+                eprintln!("cache save failed: {}", err);
+            }
+        } else if verbose {
+            eprintln!("result cached successfully");
+        }
+    }
 
     if submit {
         if verbose {
@@ -462,6 +631,113 @@ async fn cmd_scan(
     match result.verdict {
         scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
         _ => 2,
+    }
+}
+
+async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {
+    // Load baseline
+    let baseline_data = match std::fs::read_to_string(baseline_path) {
+        Ok(data) => data,
+        Err(err) => {
+            eprintln!(
+                "{} failed to read baseline file '{}': {}",
+                "error:".bold().red(),
+                baseline_path,
+                err
+            );
+            return 1;
+        }
+    };
+
+    let baseline_result: scanner::ScanResult = match serde_json::from_str(&baseline_data) {
+        Ok(result) => result,
+        Err(err) => {
+            eprintln!(
+                "{} failed to parse baseline JSON: {}",
+                "error:".bold().red(),
+                err
+            );
+            return 1;
+        }
+    };
+
+    if verbose {
+        eprintln!("loaded baseline: {} findings, score {}", baseline_result.findings.len(), baseline_result.score);
+    }
+
+    // Run current scan
+    let current_result = scanner::run_scan(scan_path, None, None);
+
+    let diff_result = diff::diff_scans(&baseline_result, &current_result);
+
+    if format == "json" {
+        println!("{}", serde_json::to_string_pretty(&diff_result).unwrap());
+    } else {
+        println!("\n  {} {}", "Scan Diff:".bold(), diff_result.summary);
+
+        if !diff_result.new_findings.is_empty() {
+            println!(
+                "\n  {} ({}):",
+                "NEW FINDINGS".bold().red(),
+                diff_result.new_findings.len()
+            );
+            for f in &diff_result.new_findings {
+                println!(
+                    "    {} [{}] {:?} in {} (line {})",
+                    "+".green(),
+                    f.rule,
+                    f.severity,
+                    f.file,
+                    f.line.unwrap_or(0)
+                );
+            }
+        }
+
+        if !diff_result.resolved_findings.is_empty() {
+            println!(
+                "\n  {} ({}):",
+                "RESOLVED".bold().green(),
+                diff_result.resolved_findings.len()
+            );
+            for f in &diff_result.resolved_findings {
+                println!(
+                    "    {} [{}] {:?} in {} (line {})",
+                    "-".red(),
+                    f.rule,
+                    f.severity,
+                    f.file,
+                    f.line.unwrap_or(0)
+                );
+            }
+        }
+
+        if diff_result.new_findings.is_empty() && diff_result.resolved_findings.is_empty() {
+            println!("  {}", "No changes detected.".dimmed());
+        }
+    }
+
+    // Exit with non-zero if new findings were introduced
+    if !diff_result.new_findings.is_empty() {
+        2
+    } else {
+        0
+    }
+}
+
+async fn cmd_clear_cache() -> i32 {
+    match cache::clear_cache() {
+        Ok(count) => {
+            println!(
+                "{} cleared {} cached scan result(s)",
+                "sigil:".bold().green(),
+                count
+            );
+            0
+        }
+        Err(err) => {
+            eprintln!("{} failed to clear cache: {}", "error:".bold().red(), err);
+            1
+        }
     }
 }
 
@@ -608,10 +884,71 @@ async fn cmd_login(token: Option<&str>, endpoint: &str, verbose: bool) -> i32 {
             }
         },
         None => {
-            eprintln!(
-                "{} interactive login not yet implemented; use --token",
-                "warning:".bold().yellow()
+            // Interactive login: prompt for email and password
+            print!("Email: ");
+            if io::stdout().flush().is_err() {
+                eprintln!("{} failed to flush stdout", "error:".bold().red());
+                return 1;
+            }
+            let mut email = String::new();
+            if io::stdin().read_line(&mut email).is_err() {
+                eprintln!("{} failed to read email", "error:".bold().red());
+                return 1;
+            }
+            let email = email.trim();
+
+            print!("Password: ");
+            if io::stdout().flush().is_err() {
+                eprintln!("{} failed to flush stdout", "error:".bold().red());
+                return 1;
+            }
+            let mut password = String::new();
+            if io::stdin().read_line(&mut password).is_err() {
+                eprintln!("{} failed to read password", "error:".bold().red());
+                return 1;
+            }
+            let password = password.trim();
+
+            match client.login(email, password).await {
+                Ok(_) => {
+                    println!("{} logged in successfully", "sigil:".bold().green());
+                    0
+                }
+                Err(err) => {
+                    eprintln!("{} login failed: {}", "error:".bold().red(), err);
+                    1
+                }
+            }
+        }
+    }
+}
+
+async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: bool) -> i32 {
+    if verbose {
+        eprintln!("reporting threat: hash={}", hash);
+    }
+
+    let client = api::SigilClient::new(None);
+
+    if !client.is_authenticated() {
+        eprintln!(
+            "{} you must be logged in to report threats (run: sigil login)",
+            "error:".bold().red()
+        );
+        return 1;
+    }
+
+    match client.report_threat(hash, threat_type, description).await {
+        Ok(response) => {
+            println!(
+                "{} threat reported successfully (id: {})",
+                "sigil:".bold().green(),
+                response.id
             );
+            0
+        }
+        Err(err) => {
+            eprintln!("{} failed to report threat: {}", "error:".bold().red(), err);
             1
         }
     }

@@ -6,6 +6,12 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    // Dynamic accent colors used in StatsCard
+    { pattern: /bg-(red|green|orange|blue|brand)-(400|500)\/(10|20)/ },
+    { pattern: /text-(red|green|orange|blue|brand)-(400|500)/ },
+    { pattern: /border-(red|green|orange|blue|brand)-(400|500)\/(20|30)/ },
+  ],
   theme: {
     extend: {
       colors: {

@@ -131,12 +131,13 @@ export default function LoginPage() {
                     Password
                   </label>
                   {mode === "login" && (
-                    <a
-                      href="#"
-                      className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => alert("Password reset is not yet available. Please contact your team administrator.")}
+                      className="text-sm text-brand-400 hover:text-brand-300"
                     >
                       Forgot password?
-                    </a>
+                    </button>
                   )}
                 </div>
                 <input

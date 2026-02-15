@@ -140,6 +140,20 @@ pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
         ));
     }
 
+    // MCP configuration files
+    patterns.push((
+        Regex::new(r"claude_desktop_config|mcp_config\.json|\.mcp\.json").unwrap(),
+        "INSTALL-MCP-001",
+        Severity::Medium,
+        "MCP configuration file detected",
+    ));
+    patterns.push((
+        Regex::new(r"mcpServers|mcp_servers").unwrap(),
+        "INSTALL-MCP-002",
+        Severity::Low,
+        "MCP server registry entry",
+    ));
+
     scan_lines(file, contents, Phase::InstallHooks, 10, &patterns)
 }
 
@@ -222,7 +236,7 @@ pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
             "importlib.import_module — dynamic import",
         ),
         (
-            Regex::new(r"require\s*\(\s*[^'\"]").unwrap(),
+            Regex::new(r#"require\s*\(\s*[^'"]"#).unwrap(),
             "CODE-012",
             Severity::Medium,
             "dynamic require() — variable module loading",
@@ -246,6 +260,25 @@ pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
             "CODE-015",
             Severity::High,
             "shell=True — shell injection risk",
+        ),
+        // MCP server patterns
+        (
+            Regex::new(r"mcp[_-]?server|MCPServer|create_mcp_server").unwrap(),
+            "CODE-MCP-001",
+            Severity::Medium,
+            "MCP server creation detected",
+        ),
+        (
+            Regex::new(r"tool_call|execute_tool|run_tool").unwrap(),
+            "CODE-MCP-002",
+            Severity::Medium,
+            "MCP tool execution pattern",
+        ),
+        (
+            Regex::new(r"allow_dangerous|skip_confirmation|auto_approve.*true").unwrap(),
+            "CODE-MCP-003",
+            Severity::High,
+            "MCP dangerous permission bypass",
         ),
     ];
 
@@ -280,7 +313,7 @@ pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
             "HTTP client connection",
         ),
         (
-            Regex::new(r"fetch\s*\(\s*['\"]https?://").unwrap(),
+            Regex::new(r#"fetch\s*\(\s*['"]https?://"#).unwrap(),
             "NET-004",
             Severity::Medium,
             "fetch() to external URL",
@@ -312,7 +345,7 @@ pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
             "Raw socket creation",
         ),
         (
-            Regex::new(r"\.connect\s*\(\s*\(?\s*['\"]").unwrap(),
+            Regex::new(r#"\.connect\s*\(\s*\(?\s*['"]"#).unwrap(),
             "NET-009",
             Severity::Medium,
             "Socket connect to address",
@@ -337,6 +370,19 @@ pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
             "NET-012",
             Severity::Medium,
             "curl/wget command in code",
+        ),
+        // MCP transport patterns
+        (
+            Regex::new(r"stdio_transport|sse_transport|StreamableHTTPTransport").unwrap(),
+            "NET-MCP-001",
+            Severity::Low,
+            "MCP transport configuration",
+        ),
+        (
+            Regex::new(r"mcp.*proxy|proxy.*mcp").unwrap(),
+            "NET-MCP-002",
+            Severity::High,
+            "MCP proxy configuration - potential MITM",
         ),
     ];
 
@@ -425,6 +471,13 @@ pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
             Severity::High,
             "Authorization / bearer token",
         ),
+        // MCP credential patterns
+        (
+            Regex::new(r"MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth").unwrap(),
+            "CRED-MCP-001",
+            Severity::Medium,
+            "MCP credential reference",
+        ),
     ];
 
     scan_lines(file, contents, Phase::Credentials, 2, &patterns)
@@ -452,7 +505,7 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
             "JavaScript atob() — base64 decoding",
         ),
         (
-            Regex::new(r"Buffer\.from\s*\([^)]*,\s*['\"]base64['\"]").unwrap(),
+            Regex::new(r#"Buffer\.from\s*\([^)]*,\s*['"]base64['"]"#).unwrap(),
             "OBFUSC-003",
             Severity::High,
             "Node Buffer.from base64 decoding",
@@ -472,7 +525,7 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // Hex-encoded strings (long hex sequences)
         (
-            Regex::new(r"\\x[0-9a-fA-F]{2}(\\x[0-9a-fA-F]{2}){7,}").unwrap(),
+            Regex::new(r"\x[0-9a-fA-F]{2}(\x[0-9a-fA-F]{2}){7,}").unwrap(),
             "OBFUSC-006",
             Severity::High,
             "Long hex-encoded string (likely obfuscated)",
@@ -485,7 +538,7 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // Unicode escape obfuscation
         (
-            Regex::new(r"\\u[0-9a-fA-F]{4}(\\u[0-9a-fA-F]{4}){5,}").unwrap(),
+            Regex::new(r"\u[0-9a-fA-F]{4}(\u[0-9a-fA-F]{4}){5,}").unwrap(),
             "OBFUSC-008",
             Severity::Medium,
             "Long unicode escape sequence",
@@ -510,6 +563,13 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
             "OBFUSC-011",
             Severity::Medium,
             "Inline decompression — potential obfuscated payload",
+        ),
+        // MCP tool definition obfuscation
+        (
+            Regex::new(r"tool_description.*base64|encoded_tool|obfuscated_prompt").unwrap(),
+            "OBFUSC-MCP-001",
+            Severity::High,
+            "Obfuscated MCP tool definition",
         ),
     ];
 
