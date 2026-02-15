@@ -8,6 +8,7 @@ use super::{Finding, Phase, Severity, Verdict};
 /// - Credentials:    2x (Medium)
 /// - Obfuscation:    5x (High)
 /// - Provenance:   1-3x (Low, varies per finding)
+#[allow(dead_code)]
 pub fn phase_weight(phase: Phase) -> u32 {
     match phase {
         Phase::InstallHooks => 10,
@@ -59,9 +60,9 @@ pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
     }
 
     // Immediate escalation: any Critical finding in InstallHooks
-    let has_critical_install = findings.iter().any(|f| {
-        f.phase == Phase::InstallHooks && f.severity == Severity::Critical
-    });
+    let has_critical_install = findings
+        .iter()
+        .any(|f| f.phase == Phase::InstallHooks && f.severity == Severity::Critical);
 
     if has_critical_install || score >= 50 {
         return Verdict::Critical;
@@ -141,9 +142,7 @@ mod tests {
 
     #[test]
     fn test_critical_install_hook_escalation() {
-        let findings = vec![
-            dummy_finding(Phase::InstallHooks, Severity::Critical, 10),
-        ];
+        let findings = vec![dummy_finding(Phase::InstallHooks, Severity::Critical, 10)];
         let score = calculate_score(&findings);
         // Critical install hook always escalates to Critical verdict
         assert_eq!(determine_verdict(&findings, score), Verdict::Critical);

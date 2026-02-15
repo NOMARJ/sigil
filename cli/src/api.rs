@@ -23,6 +23,7 @@ pub struct ScanResponse {
 
 /// Response from a threat lookup.
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ThreatInfo {
     pub hash: String,
     pub known_malicious: bool,
@@ -151,6 +152,7 @@ impl SigilClient {
     /// Look up a file hash in the threat intelligence database.
     ///
     /// GET /v1/threat/{hash}
+    #[allow(dead_code)]
     pub async fn lookup_threat(&self, hash: &str) -> Result<ThreatInfo, String> {
         let url = format!("{}/v1/threat/{}", self.endpoint, hash);
 
@@ -224,8 +226,7 @@ impl SigilClient {
 
         let json = serde_json::to_string_pretty(&signatures)
             .map_err(|e| format!("failed to serialize signatures: {}", e))?;
-        fs::write(&sigs_path, json)
-            .map_err(|e| format!("failed to write signatures: {}", e))?;
+        fs::write(&sigs_path, json).map_err(|e| format!("failed to write signatures: {}", e))?;
 
         Ok(signatures.len())
     }
@@ -333,6 +334,7 @@ impl SigilClient {
     }
 
     /// Register a new account and receive a token.
+    #[allow(dead_code)]
     pub async fn register(&self, email: &str) -> Result<String, String> {
         let url = format!("{}/v1/auth/register", self.endpoint);
 

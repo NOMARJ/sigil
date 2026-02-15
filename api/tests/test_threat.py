@@ -6,9 +6,7 @@ Tests for threat lookup, signature endpoints, and threat report submission.
 
 from __future__ import annotations
 
-from typing import Any
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.database import _memory_store
@@ -123,9 +121,12 @@ class TestThreatReport:
 
     def test_submit_report_missing_required(self, client: TestClient) -> None:
         """Missing required fields returns 422."""
-        resp = client.post("/v1/report", json={
-            "package_name": "missing-reason",
-        })
+        resp = client.post(
+            "/v1/report",
+            json={
+                "package_name": "missing-reason",
+            },
+        )
         assert resp.status_code == 422
 
 

@@ -7,7 +7,6 @@ and community-submitted threat reports.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -127,6 +126,7 @@ _BUILTIN_SIGNATURES: list[dict[str, Any]] = [
 # Threat hash lookup
 # ---------------------------------------------------------------------------
 
+
 async def lookup_threat(package_hash: str) -> ThreatEntry | None:
     """Look up a package hash in the threat database.
 
@@ -169,6 +169,7 @@ async def lookup_threats_for_hashes(hashes: list[str]) -> list[ThreatEntry]:
 # ---------------------------------------------------------------------------
 # Pattern signatures (delta sync)
 # ---------------------------------------------------------------------------
+
 
 async def get_signatures(since: datetime | None = None) -> SignatureResponse:
     """Return pattern signatures, optionally filtered to those updated after *since*.
@@ -217,6 +218,7 @@ async def get_signatures(since: datetime | None = None) -> SignatureResponse:
 # Community threat reports
 # ---------------------------------------------------------------------------
 
+
 async def submit_report(report: ThreatReport) -> ThreatReportResponse:
     """Persist a user-submitted threat report and return an acknowledgement."""
     report_id = uuid4().hex[:12]
@@ -247,6 +249,7 @@ async def submit_report(report: ThreatReport) -> ThreatReportResponse:
 # ---------------------------------------------------------------------------
 # Publisher reputation
 # ---------------------------------------------------------------------------
+
 
 async def get_publisher_reputation(publisher_id: str) -> dict[str, Any] | None:
     """Fetch the reputation record for a publisher.

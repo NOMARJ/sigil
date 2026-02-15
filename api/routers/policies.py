@@ -23,15 +23,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.database import db
 from api.models import (
     ErrorResponse,
-    Finding,
     PolicyCreate,
     PolicyEvaluateRequest,
     PolicyEvaluateResponse,
     PolicyResponse,
     PolicyType,
     PolicyUpdate,
-    ScanPhase,
-    Verdict,
 )
 from api.routers.auth import get_current_user, UserResponse
 
@@ -49,6 +46,7 @@ _DEFAULT_TEAM_ID = "default-team"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _team_id_from_user(user: UserResponse) -> str:
     """Extract the team ID from the authenticated user, falling back to a
@@ -91,6 +89,7 @@ def _row_to_response(row: dict) -> PolicyResponse:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/policies",
@@ -153,18 +152,27 @@ async def create_policy(
 
     # Audit log
     try:
-        await db.insert(AUDIT_TABLE, {
-            "id": uuid4().hex[:16],
-            "user_id": current_user.id,
-            "team_id": team_id,
-            "action": "policy.created",
-            "details_json": {"policy_id": policy_id, "name": body.name, "type": body.type.value},
-            "created_at": now.isoformat(),
-        })
+        await db.insert(
+            AUDIT_TABLE,
+            {
+                "id": uuid4().hex[:16],
+                "user_id": current_user.id,
+                "team_id": team_id,
+                "action": "policy.created",
+                "details_json": {
+                    "policy_id": policy_id,
+                    "name": body.name,
+                    "type": body.type.value,
+                },
+                "created_at": now.isoformat(),
+            },
+        )
     except Exception:
         logger.debug("Failed to write audit log for policy creation")
 
-    logger.info("Policy created: %s (%s) by user %s", policy_id, body.name, current_user.id)
+    logger.info(
+        "Policy created: %s (%s) by user %s", policy_id, body.name, current_user.id
+    )
 
     return _row_to_response(row)
 
@@ -227,6 +235,7 @@ async def delete_policy(
 
     # In-memory fallback: remove from the store
     from api.database import _memory_store
+
     store = _memory_store.get(POLICY_TABLE, {})
     store.pop(policy_id, None)
 
@@ -300,7 +309,10 @@ async def evaluate_policies(
         elif policy_type == PolicyType.REQUIRED_PHASES.value:
             required = set(config.get("phases", []))
             if required:
-                present_phases = {f.phase.value if hasattr(f.phase, "value") else f.phase for f in body.findings}
+                present_phases = {
+                    f.phase.value if hasattr(f.phase, "value") else f.phase
+                    for f in body.findings
+                }
                 missing = required - present_phases
                 if missing:
                     violations.append(

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 
 from api.models import ErrorResponse, PublisherReputation
 from api.services.threat_intel import get_publisher_reputation

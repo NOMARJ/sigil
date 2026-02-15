@@ -525,7 +525,7 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // Hex-encoded strings (long hex sequences)
         (
-            Regex::new(r"\x[0-9a-fA-F]{2}(\x[0-9a-fA-F]{2}){7,}").unwrap(),
+            Regex::new(r"\\x[0-9a-fA-F]{2}(\\x[0-9a-fA-F]{2}){7,}").unwrap(),
             "OBFUSC-006",
             Severity::High,
             "Long hex-encoded string (likely obfuscated)",
@@ -538,7 +538,7 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // Unicode escape obfuscation
         (
-            Regex::new(r"\u[0-9a-fA-F]{4}(\u[0-9a-fA-F]{4}){5,}").unwrap(),
+            Regex::new(r"\\u[0-9a-fA-F]{4}(\\u[0-9a-fA-F]{4}){5,}").unwrap(),
             "OBFUSC-008",
             Severity::Medium,
             "Long unicode escape sequence",
@@ -604,7 +604,12 @@ pub fn scan_provenance(base_path: &std::path::Path, entries: &[DirEntry]) -> Vec
             .unwrap_or_default();
 
         // Hidden files (dotfiles outside .git)
-        if filename.starts_with('.') && filename != ".gitignore" && filename != ".gitkeep" && filename != ".gitattributes" && filename != ".editorconfig" {
+        if filename.starts_with('.')
+            && filename != ".gitignore"
+            && filename != ".gitkeep"
+            && filename != ".gitattributes"
+            && filename != ".editorconfig"
+        {
             findings.push(make_finding(
                 Phase::Provenance,
                 "PROV-001",
@@ -705,9 +710,8 @@ pub fn scan_provenance(base_path: &std::path::Path, entries: &[DirEntry]) -> Vec
 /// Check if a filename has a known binary extension.
 fn is_binary_extension(filename: &str) -> bool {
     let binary_extensions = [
-        ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".o", ".a",
-        ".pyc", ".pyo", ".class", ".jar", ".war", ".ear",
-        ".wasm", ".node",
+        ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".o", ".a", ".pyc", ".pyo", ".class",
+        ".jar", ".war", ".ear", ".wasm", ".node",
     ];
     let lower = filename.to_lowercase();
     binary_extensions.iter().any(|ext| lower.ends_with(ext))

@@ -727,6 +727,7 @@ PUBLISHERS: list[dict] = [
 # Seeding logic
 # ---------------------------------------------------------------------------
 
+
 async def seed_threats() -> int:
     """Insert known malicious package records into the threats table."""
     count = 0
@@ -814,9 +815,12 @@ async def seed_all() -> dict[str, int]:
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+
 async def _main() -> None:
     """Standalone entry point for seeding."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
     await db.connect()
     try:
         result = await seed_all()

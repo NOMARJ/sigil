@@ -46,6 +46,7 @@ _DEFAULT_TEAM_ID = "default-team"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _get_or_create_team(user: UserResponse) -> dict[str, Any]:
     """Return the team for the given user, creating a default if needed."""
     user_row = await db.select_one(USER_TABLE, {"id": user.id})
@@ -111,6 +112,7 @@ def _require_admin_or_owner(user_row: dict[str, Any] | None) -> None:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "",
@@ -188,7 +190,10 @@ async def invite_member(
 
         logger.info(
             "User %s added to team %s with role %s by %s",
-            existing_user["id"], team_id, body.role, current_user.id,
+            existing_user["id"],
+            team_id,
+            body.role,
+            current_user.id,
         )
 
         return TeamInviteResponse(
@@ -200,20 +205,26 @@ async def invite_member(
 
     # User doesn't exist yet — record a pending invite
     try:
-        await db.insert(AUDIT_TABLE, {
-            "id": uuid4().hex[:16],
-            "user_id": current_user.id,
-            "team_id": team_id,
-            "action": "team.invite",
-            "details_json": {"email": body.email, "role": body.role},
-            "created_at": datetime.utcnow().isoformat(),
-        })
+        await db.insert(
+            AUDIT_TABLE,
+            {
+                "id": uuid4().hex[:16],
+                "user_id": current_user.id,
+                "team_id": team_id,
+                "action": "team.invite",
+                "details_json": {"email": body.email, "role": body.role},
+                "created_at": datetime.utcnow().isoformat(),
+            },
+        )
     except Exception:
         logger.debug("Failed to write audit log for team invite")
 
     logger.info(
         "Invite sent to %s for team %s with role %s by %s",
-        body.email, team_id, body.role, current_user.id,
+        body.email,
+        team_id,
+        body.role,
+        current_user.id,
     )
 
     return TeamInviteResponse(
@@ -228,7 +239,11 @@ async def invite_member(
     "/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a member from the team",
-    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
 )
 async def remove_member(
     user_id: str,
@@ -272,7 +287,9 @@ async def remove_member(
 
     logger.info(
         "User %s removed from team %s by %s",
-        user_id, team.get("id"), current_user.id,
+        user_id,
+        team.get("id"),
+        current_user.id,
     )
 
 
@@ -336,7 +353,10 @@ async def update_member_role(
 
     logger.info(
         "Role updated for user %s to '%s' in team %s by %s",
-        user_id, body.role, team_id, current_user.id,
+        user_id,
+        body.role,
+        team_id,
+        current_user.id,
     )
 
     return _user_to_member(target_user)

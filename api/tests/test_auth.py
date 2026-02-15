@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 class TestRegistration:
     """Tests for POST /v1/auth/register."""
 
-    def test_register_success(self, client: TestClient, test_user_data: dict[str, str]) -> None:
+    def test_register_success(
+        self, client: TestClient, test_user_data: dict[str, str]
+    ) -> None:
         """Successful registration returns 201 with a token."""
         resp = client.post("/v1/auth/register", json=test_user_data)
         assert resp.status_code == 201
@@ -42,27 +44,36 @@ class TestRegistration:
 
     def test_register_short_password(self, client: TestClient) -> None:
         """Password shorter than 8 characters should be rejected."""
-        resp = client.post("/v1/auth/register", json={
-            "email": "short@sigil.dev",
-            "password": "short",
-            "name": "Short Password",
-        })
+        resp = client.post(
+            "/v1/auth/register",
+            json={
+                "email": "short@sigil.dev",
+                "password": "short",
+                "name": "Short Password",
+            },
+        )
         assert resp.status_code == 422
 
     def test_register_missing_email(self, client: TestClient) -> None:
         """Missing email should return 422."""
-        resp = client.post("/v1/auth/register", json={
-            "password": "ValidPassword123",
-            "name": "No Email",
-        })
+        resp = client.post(
+            "/v1/auth/register",
+            json={
+                "password": "ValidPassword123",
+                "name": "No Email",
+            },
+        )
         assert resp.status_code == 422
 
     def test_register_empty_name(self, client: TestClient) -> None:
         """Empty name should be allowed (defaults to empty string)."""
-        resp = client.post("/v1/auth/register", json={
-            "email": "noname@sigil.dev",
-            "password": "ValidPassword123",
-        })
+        resp = client.post(
+            "/v1/auth/register",
+            json={
+                "email": "noname@sigil.dev",
+                "password": "ValidPassword123",
+            },
+        )
         assert resp.status_code == 201
         assert resp.json()["user"]["name"] == ""
 
@@ -78,10 +89,13 @@ class TestLogin:
         client.post("/v1/auth/register", json=test_user_data)
 
         # Login
-        resp = client.post("/v1/auth/login", json={
-            "email": test_user_data["email"],
-            "password": test_user_data["password"],
-        })
+        resp = client.post(
+            "/v1/auth/login",
+            json={
+                "email": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
         assert resp.status_code == 200
 
         data = resp.json()
@@ -95,18 +109,24 @@ class TestLogin:
         """Wrong password returns 401."""
         client.post("/v1/auth/register", json=test_user_data)
 
-        resp = client.post("/v1/auth/login", json={
-            "email": test_user_data["email"],
-            "password": "WrongPassword999",
-        })
+        resp = client.post(
+            "/v1/auth/login",
+            json={
+                "email": test_user_data["email"],
+                "password": "WrongPassword999",
+            },
+        )
         assert resp.status_code == 401
 
     def test_login_nonexistent_user(self, client: TestClient) -> None:
         """Login for a non-existent user returns 401."""
-        resp = client.post("/v1/auth/login", json={
-            "email": "ghost@sigil.dev",
-            "password": "DoesNotMatter",
-        })
+        resp = client.post(
+            "/v1/auth/login",
+            json={
+                "email": "ghost@sigil.dev",
+                "password": "DoesNotMatter",
+            },
+        )
         assert resp.status_code == 401
 
 
@@ -114,7 +134,10 @@ class TestTokenValidation:
     """Tests for GET /v1/auth/me (token validation)."""
 
     def test_me_with_valid_token(
-        self, client: TestClient, auth_headers: dict[str, str], registered_user: dict[str, Any]
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        registered_user: dict[str, Any],
     ) -> None:
         """GET /me with a valid token returns the user profile."""
         resp = client.get("/v1/auth/me", headers=auth_headers)

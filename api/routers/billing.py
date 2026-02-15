@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from api.config import settings
 from api.database import db
@@ -122,16 +122,20 @@ _subscriptions: dict[str, dict[str, Any]] = {}
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_stripe():
     """Import and configure the Stripe module, or return None."""
     if not settings.stripe_configured:
         return None
     try:
         import stripe
+
         stripe.api_key = settings.stripe_secret_key
         return stripe
     except ImportError:
-        logger.warning("stripe package not installed — billing endpoints will use stubs")
+        logger.warning(
+            "stripe package not installed — billing endpoints will use stubs"
+        )
         return None
 
 
@@ -154,6 +158,7 @@ def _get_or_create_stub_subscription(user_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/plans",
@@ -208,7 +213,9 @@ async def subscribe(
                         cancel_at_period_end=True,
                     )
                 except Exception:
-                    logger.exception("Failed to cancel Stripe subscription %s", stripe_sub_id)
+                    logger.exception(
+                        "Failed to cancel Stripe subscription %s", stripe_sub_id
+                    )
 
             sub_data["plan"] = PlanTier.FREE.value
             sub_data["cancel_at_period_end"] = True
@@ -216,7 +223,9 @@ async def subscribe(
             # Create or update to paid plan
             try:
                 # Attempt to find or create customer
-                customer_id = _get_or_create_stub_subscription(current_user.id).get("stripe_customer_id")
+                customer_id = _get_or_create_stub_subscription(current_user.id).get(
+                    "stripe_customer_id"
+                )
                 if not customer_id:
                     customer = stripe.Customer.create(
                         email=current_user.email,
@@ -232,14 +241,20 @@ async def subscribe(
                     expand=["latest_invoice.payment_intent"],
                 )
 
-                _subscriptions[current_user.id].update({
-                    "plan": body.plan.value,
-                    "status": subscription.status,
-                    "stripe_subscription_id": subscription.id,
-                    "current_period_start": datetime.utcfromtimestamp(subscription.current_period_start).isoformat(),
-                    "current_period_end": datetime.utcfromtimestamp(subscription.current_period_end).isoformat(),
-                    "cancel_at_period_end": False,
-                })
+                _subscriptions[current_user.id].update(
+                    {
+                        "plan": body.plan.value,
+                        "status": subscription.status,
+                        "stripe_subscription_id": subscription.id,
+                        "current_period_start": datetime.utcfromtimestamp(
+                            subscription.current_period_start
+                        ).isoformat(),
+                        "current_period_end": datetime.utcfromtimestamp(
+                            subscription.current_period_end
+                        ).isoformat(),
+                        "cancel_at_period_end": False,
+                    }
+                )
             except Exception as exc:
                 logger.exception("Stripe subscription creation failed")
                 raise HTTPException(
@@ -256,19 +271,24 @@ async def subscribe(
         sub["cancel_at_period_end"] = False
         logger.info(
             "Stub subscription created for user %s: plan=%s (Stripe not configured)",
-            current_user.id, body.plan.value,
+            current_user.id,
+            body.plan.value,
         )
 
     # Audit log
     try:
         from uuid import uuid4
-        await db.insert(AUDIT_TABLE, {
-            "id": uuid4().hex[:16],
-            "user_id": current_user.id,
-            "action": "billing.subscribe",
-            "details_json": {"plan": body.plan.value},
-            "created_at": now.isoformat(),
-        })
+
+        await db.insert(
+            AUDIT_TABLE,
+            {
+                "id": uuid4().hex[:16],
+                "user_id": current_user.id,
+                "action": "billing.subscribe",
+                "details_json": {"plan": body.plan.value},
+                "created_at": now.isoformat(),
+            },
+        )
     except Exception:
         logger.debug("Failed to write billing audit log")
 
@@ -366,9 +386,7 @@ async def create_portal_session(
 
     # Stub response when Stripe is not configured
     logger.info("Stripe not configured — returning stub portal URL")
-    return PortalResponse(
-        url=f"{settings.cors_origins[0]}/settings/billing?stub=true"
-    )
+    return PortalResponse(url=f"{settings.cors_origins[0]}/settings/billing?stub=true")
 
 
 @router.post(
@@ -399,10 +417,13 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid payload")
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Signature verification failed: {exc}")
+            raise HTTPException(
+                status_code=400, detail=f"Signature verification failed: {exc}"
+            )
     else:
         # No Stripe / no secret — parse raw JSON (development mode)
         import json
+
         try:
             event = json.loads(body)
         except Exception:
@@ -431,6 +452,7 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 # Webhook event handlers
 # ---------------------------------------------------------------------------
 
+
 def _handle_subscription_updated(event: dict[str, Any]) -> None:
     """Process a subscription update event from Stripe."""
     data = event.get("data", {}).get("object", {})
@@ -439,7 +461,8 @@ def _handle_subscription_updated(event: dict[str, Any]) -> None:
 
     logger.info(
         "Subscription updated: customer=%s status=%s",
-        customer_id, sub_status,
+        customer_id,
+        sub_status,
     )
 
     # Update the in-memory store for any matching user
@@ -476,7 +499,8 @@ def _handle_payment_failed(event: dict[str, Any]) -> None:
 
     logger.warning(
         "Payment failed: customer=%s amount=%d cents",
-        customer_id, amount,
+        customer_id,
+        amount,
     )
 
 
@@ -488,5 +512,6 @@ def _handle_payment_succeeded(event: dict[str, Any]) -> None:
 
     logger.info(
         "Payment succeeded: customer=%s amount=%d cents",
-        customer_id, amount,
+        customer_id,
+        amount,
     )

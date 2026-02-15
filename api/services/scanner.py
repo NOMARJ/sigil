@@ -27,6 +27,7 @@ from api.models import Finding, ScanPhase, Severity
 # Rule definition
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Rule:
     """A single detection rule."""
@@ -43,6 +44,7 @@ class Rule:
 # ---------------------------------------------------------------------------
 # Built-in rule sets — one list per phase
 # ---------------------------------------------------------------------------
+
 
 def _compile(rules: list[dict]) -> list[Rule]:  # type: ignore[type-arg]
     """Helper to compile raw rule dicts into ``Rule`` objects."""
@@ -61,205 +63,217 @@ def _compile(rules: list[dict]) -> list[Rule]:  # type: ignore[type-arg]
     return compiled
 
 
-INSTALL_HOOK_RULES = _compile([
-    {
-        "id": "install-setup-py-cmdclass",
-        "phase": ScanPhase.INSTALL_HOOKS,
-        "severity": Severity.CRITICAL,
-        "pattern": r"cmdclass\s*=\s*\{",
-        "description": "setup.py overrides cmdclass — may execute code during install",
-        "weight": 1.0,
-    },
-    {
-        "id": "install-npm-postinstall",
-        "phase": ScanPhase.INSTALL_HOOKS,
-        "severity": Severity.CRITICAL,
-        "pattern": r"\"(pre|post)install\"\s*:",
-        "description": "npm lifecycle script — runs automatically on install",
-        "weight": 1.0,
-    },
-    {
-        "id": "install-pip-setup-exec",
-        "phase": ScanPhase.INSTALL_HOOKS,
-        "severity": Severity.CRITICAL,
-        "pattern": r"setup\s*\([\s\S]*?(subprocess|os\.system|exec|eval)\s*\(",
-        "description": "setup.py executes code at install time",
-        "weight": 1.2,
-    },
-    {
-        "id": "install-makefile-curl",
-        "phase": ScanPhase.INSTALL_HOOKS,
-        "severity": Severity.HIGH,
-        "pattern": r"(curl|wget)\s+.+\|\s*(sh|bash)",
-        "description": "Makefile/script pipes remote content to shell",
-        "weight": 1.0,
-    },
-])
+INSTALL_HOOK_RULES = _compile(
+    [
+        {
+            "id": "install-setup-py-cmdclass",
+            "phase": ScanPhase.INSTALL_HOOKS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"cmdclass\s*=\s*\{",
+            "description": "setup.py overrides cmdclass — may execute code during install",
+            "weight": 1.0,
+        },
+        {
+            "id": "install-npm-postinstall",
+            "phase": ScanPhase.INSTALL_HOOKS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"\"(pre|post)install\"\s*:",
+            "description": "npm lifecycle script — runs automatically on install",
+            "weight": 1.0,
+        },
+        {
+            "id": "install-pip-setup-exec",
+            "phase": ScanPhase.INSTALL_HOOKS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"setup\s*\([\s\S]*?(subprocess|os\.system|exec|eval)\s*\(",
+            "description": "setup.py executes code at install time",
+            "weight": 1.2,
+        },
+        {
+            "id": "install-makefile-curl",
+            "phase": ScanPhase.INSTALL_HOOKS,
+            "severity": Severity.HIGH,
+            "pattern": r"(curl|wget)\s+.+\|\s*(sh|bash)",
+            "description": "Makefile/script pipes remote content to shell",
+            "weight": 1.0,
+        },
+    ]
+)
 
-CODE_PATTERN_RULES = _compile([
-    {
-        "id": "code-eval",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.HIGH,
-        "pattern": r"\beval\s*\(",
-        "description": "Dynamic code execution via eval()",
-    },
-    {
-        "id": "code-exec",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.HIGH,
-        "pattern": r"\bexec\s*\(",
-        "description": "Dynamic code execution via exec()",
-    },
-    {
-        "id": "code-pickle-load",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.HIGH,
-        "pattern": r"pickle\.(loads?|Unpickler)\s*\(",
-        "description": "Pickle deserialization — arbitrary code execution risk",
-    },
-    {
-        "id": "code-child-process",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.HIGH,
-        "pattern": r"(child_process|subprocess)\.(exec|spawn|call|run|Popen)\s*\(",
-        "description": "Spawns child process / shell command",
-    },
-    {
-        "id": "code-compile",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.MEDIUM,
-        "pattern": r"\bcompile\s*\(.+['\"]exec['\"]",
-        "description": "compile() with exec mode — dynamic code generation",
-    },
-    {
-        "id": "code-importlib",
-        "phase": ScanPhase.CODE_PATTERNS,
-        "severity": Severity.MEDIUM,
-        "pattern": r"__import__\s*\(|importlib\.import_module\s*\(",
-        "description": "Dynamic module import",
-    },
-])
+CODE_PATTERN_RULES = _compile(
+    [
+        {
+            "id": "code-eval",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"\beval\s*\(",
+            "description": "Dynamic code execution via eval()",
+        },
+        {
+            "id": "code-exec",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"\bexec\s*\(",
+            "description": "Dynamic code execution via exec()",
+        },
+        {
+            "id": "code-pickle-load",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"pickle\.(loads?|Unpickler)\s*\(",
+            "description": "Pickle deserialization — arbitrary code execution risk",
+        },
+        {
+            "id": "code-child-process",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"(child_process|subprocess)\.(exec|spawn|call|run|Popen)\s*\(",
+            "description": "Spawns child process / shell command",
+        },
+        {
+            "id": "code-compile",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.MEDIUM,
+            "pattern": r"\bcompile\s*\(.+['\"]exec['\"]",
+            "description": "compile() with exec mode — dynamic code generation",
+        },
+        {
+            "id": "code-importlib",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.MEDIUM,
+            "pattern": r"__import__\s*\(|importlib\.import_module\s*\(",
+            "description": "Dynamic module import",
+        },
+    ]
+)
 
-NETWORK_EXFIL_RULES = _compile([
-    {
-        "id": "net-http-request",
-        "phase": ScanPhase.NETWORK_EXFIL,
-        "severity": Severity.MEDIUM,
-        "pattern": r"(requests\.(get|post|put)|urllib\.request\.urlopen|http\.client\.HTTP|fetch\s*\(|axios\.(get|post)|httpx\.(get|post|AsyncClient))\s*\(",
-        "description": "Outbound HTTP request",
-    },
-    {
-        "id": "net-webhook",
-        "phase": ScanPhase.NETWORK_EXFIL,
-        "severity": Severity.HIGH,
-        "pattern": r"(webhook|discord\.com/api/webhooks|hooks\.slack\.com)",
-        "description": "Webhook URL — potential data exfiltration endpoint",
-    },
-    {
-        "id": "net-raw-socket",
-        "phase": ScanPhase.NETWORK_EXFIL,
-        "severity": Severity.HIGH,
-        "pattern": r"socket\.socket\s*\(|net\.createConnection\s*\(",
-        "description": "Raw socket creation — may bypass HTTP monitoring",
-    },
-    {
-        "id": "net-dns-exfil",
-        "phase": ScanPhase.NETWORK_EXFIL,
-        "severity": Severity.HIGH,
-        "pattern": r"dns\.(resolve|lookup)|getaddrinfo\s*\(",
-        "description": "DNS query — possible DNS exfiltration technique",
-    },
-])
+NETWORK_EXFIL_RULES = _compile(
+    [
+        {
+            "id": "net-http-request",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.MEDIUM,
+            "pattern": r"(requests\.(get|post|put)|urllib\.request\.urlopen|http\.client\.HTTP|fetch\s*\(|axios\.(get|post)|httpx\.(get|post|AsyncClient))\s*\(",
+            "description": "Outbound HTTP request",
+        },
+        {
+            "id": "net-webhook",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.HIGH,
+            "pattern": r"(webhook|discord\.com/api/webhooks|hooks\.slack\.com)",
+            "description": "Webhook URL — potential data exfiltration endpoint",
+        },
+        {
+            "id": "net-raw-socket",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.HIGH,
+            "pattern": r"socket\.socket\s*\(|net\.createConnection\s*\(",
+            "description": "Raw socket creation — may bypass HTTP monitoring",
+        },
+        {
+            "id": "net-dns-exfil",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.HIGH,
+            "pattern": r"dns\.(resolve|lookup)|getaddrinfo\s*\(",
+            "description": "DNS query — possible DNS exfiltration technique",
+        },
+    ]
+)
 
-CREDENTIAL_RULES = _compile([
-    {
-        "id": "cred-env-access",
-        "phase": ScanPhase.CREDENTIALS,
-        "severity": Severity.MEDIUM,
-        "pattern": r"(os\.environ|process\.env)\[?['\"]?(AWS_|GITHUB_|API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY)",
-        "description": "Reads sensitive environment variable",
-    },
-    {
-        "id": "cred-hardcoded-key",
-        "phase": ScanPhase.CREDENTIALS,
-        "severity": Severity.HIGH,
-        "pattern": r"(api[_-]?key|secret[_-]?key|access[_-]?token|password)\s*[:=]\s*['\"][A-Za-z0-9+/=]{16,}['\"]",
-        "description": "Hardcoded credential or API key",
-    },
-    {
-        "id": "cred-ssh-private",
-        "phase": ScanPhase.CREDENTIALS,
-        "severity": Severity.CRITICAL,
-        "pattern": r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
-        "description": "Embedded SSH/TLS private key",
-    },
-    {
-        "id": "cred-aws-key",
-        "phase": ScanPhase.CREDENTIALS,
-        "severity": Severity.CRITICAL,
-        "pattern": r"AKIA[0-9A-Z]{16}",
-        "description": "AWS access key ID pattern",
-    },
-])
+CREDENTIAL_RULES = _compile(
+    [
+        {
+            "id": "cred-env-access",
+            "phase": ScanPhase.CREDENTIALS,
+            "severity": Severity.MEDIUM,
+            "pattern": r"(os\.environ|process\.env)\[?['\"]?(AWS_|GITHUB_|API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY)",
+            "description": "Reads sensitive environment variable",
+        },
+        {
+            "id": "cred-hardcoded-key",
+            "phase": ScanPhase.CREDENTIALS,
+            "severity": Severity.HIGH,
+            "pattern": r"(api[_-]?key|secret[_-]?key|access[_-]?token|password)\s*[:=]\s*['\"][A-Za-z0-9+/=]{16,}['\"]",
+            "description": "Hardcoded credential or API key",
+        },
+        {
+            "id": "cred-ssh-private",
+            "phase": ScanPhase.CREDENTIALS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
+            "description": "Embedded SSH/TLS private key",
+        },
+        {
+            "id": "cred-aws-key",
+            "phase": ScanPhase.CREDENTIALS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"AKIA[0-9A-Z]{16}",
+            "description": "AWS access key ID pattern",
+        },
+    ]
+)
 
-OBFUSCATION_RULES = _compile([
-    {
-        "id": "obf-base64-decode",
-        "phase": ScanPhase.OBFUSCATION,
-        "severity": Severity.HIGH,
-        "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(",
-        "description": "Base64 decoding — may hide malicious payloads",
-    },
-    {
-        "id": "obf-charcode",
-        "phase": ScanPhase.OBFUSCATION,
-        "severity": Severity.HIGH,
-        "pattern": r"(String\.fromCharCode|chr)\s*\(",
-        "description": "Character code construction — may obfuscate strings",
-    },
-    {
-        "id": "obf-hex-decode",
-        "phase": ScanPhase.OBFUSCATION,
-        "severity": Severity.HIGH,
-        "pattern": r"(\\x[0-9a-fA-F]{2}){4,}|bytes\.fromhex\s*\(",
-        "description": "Hex-encoded data — may hide malicious payloads",
-    },
-    {
-        "id": "obf-reverse-string",
-        "phase": ScanPhase.OBFUSCATION,
-        "severity": Severity.MEDIUM,
-        "pattern": r"\[::-1\]|\.reverse\(\)\.join\(",
-        "description": "String reversal technique — potential obfuscation",
-    },
-])
+OBFUSCATION_RULES = _compile(
+    [
+        {
+            "id": "obf-base64-decode",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(",
+            "description": "Base64 decoding — may hide malicious payloads",
+        },
+        {
+            "id": "obf-charcode",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(String\.fromCharCode|chr)\s*\(",
+            "description": "Character code construction — may obfuscate strings",
+        },
+        {
+            "id": "obf-hex-decode",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(\\x[0-9a-fA-F]{2}){4,}|bytes\.fromhex\s*\(",
+            "description": "Hex-encoded data — may hide malicious payloads",
+        },
+        {
+            "id": "obf-reverse-string",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.MEDIUM,
+            "pattern": r"\[::-1\]|\.reverse\(\)\.join\(",
+            "description": "String reversal technique — potential obfuscation",
+        },
+    ]
+)
 
-PROVENANCE_RULES = _compile([
-    {
-        "id": "prov-hidden-file",
-        "phase": ScanPhase.PROVENANCE,
-        "severity": Severity.LOW,
-        "pattern": r"^\.",
-        "description": "Hidden file detected",
-        "weight": 1.0,
-    },
-    {
-        "id": "prov-binary-in-repo",
-        "phase": ScanPhase.PROVENANCE,
-        "severity": Severity.MEDIUM,
-        "pattern": r"\.(exe|dll|so|dylib|bin|dat)$",
-        "description": "Binary file in repository",
-        "weight": 1.5,
-    },
-    {
-        "id": "prov-minified",
-        "phase": ScanPhase.PROVENANCE,
-        "severity": Severity.LOW,
-        "pattern": r"\.min\.(js|css)$",
-        "description": "Minified file — harder to audit",
-        "weight": 1.0,
-    },
-])
+PROVENANCE_RULES = _compile(
+    [
+        {
+            "id": "prov-hidden-file",
+            "phase": ScanPhase.PROVENANCE,
+            "severity": Severity.LOW,
+            "pattern": r"^\.",
+            "description": "Hidden file detected",
+            "weight": 1.0,
+        },
+        {
+            "id": "prov-binary-in-repo",
+            "phase": ScanPhase.PROVENANCE,
+            "severity": Severity.MEDIUM,
+            "pattern": r"\.(exe|dll|so|dylib|bin|dat)$",
+            "description": "Binary file in repository",
+            "weight": 1.5,
+        },
+        {
+            "id": "prov-minified",
+            "phase": ScanPhase.PROVENANCE,
+            "severity": Severity.LOW,
+            "pattern": r"\.min\.(js|css)$",
+            "description": "Minified file — harder to audit",
+            "weight": 1.0,
+        },
+    ]
+)
 
 ALL_RULES: list[Rule] = (
     INSTALL_HOOK_RULES
@@ -276,12 +290,51 @@ ALL_RULES: list[Rule] = (
 # ---------------------------------------------------------------------------
 
 _TEXT_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".yml", ".yaml",
-    ".toml", ".cfg", ".ini", ".sh", ".bash", ".zsh", ".md", ".rst",
-    ".txt", ".html", ".css", ".scss", ".xml", ".csv", ".env",
-    ".lock", ".conf", ".rb", ".go", ".rs", ".java", ".c", ".h",
-    ".cpp", ".hpp", ".cs", ".php", ".pl", ".lua", ".r", ".R",
-    ".swift", ".kt", ".gradle", ".cmake", ".make", ".Makefile",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".json",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".cfg",
+    ".ini",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".md",
+    ".rst",
+    ".txt",
+    ".html",
+    ".css",
+    ".scss",
+    ".xml",
+    ".csv",
+    ".env",
+    ".lock",
+    ".conf",
+    ".rb",
+    ".go",
+    ".rs",
+    ".java",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".cs",
+    ".php",
+    ".pl",
+    ".lua",
+    ".r",
+    ".R",
+    ".swift",
+    ".kt",
+    ".gradle",
+    ".cmake",
+    ".make",
+    ".Makefile",
 }
 
 
@@ -299,6 +352,7 @@ def _is_scannable(path: Path) -> bool:
 # Phase-specific scanner
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PhaseResult:
     """Findings collected by a single scan phase."""
@@ -311,7 +365,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
         for match in rule.pattern.finditer(content):
-            line_no = content[:match.start()].count("\n") + 1
+            line_no = content[: match.start()].count("\n") + 1
             # Extract a snippet: the matching line +-0 context
             lines = content.splitlines()
             idx = line_no - 1
@@ -349,6 +403,7 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def scan_directory(path: str | Path) -> list[Finding]:
     """Perform a full six-phase scan of a directory tree.
@@ -402,7 +457,15 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
 
 def _walk_files(root: Path) -> Iterator[Path]:
     """Yield all regular files under *root*, skipping common noise dirs."""
-    skip_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", ".tox", ".mypy_cache"}
+    skip_dirs = {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        ".tox",
+        ".mypy_cache",
+    }
     for child in sorted(root.iterdir()):
         if child.name in skip_dirs:
             continue

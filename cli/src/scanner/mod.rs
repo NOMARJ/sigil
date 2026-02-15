@@ -132,9 +132,8 @@ pub fn run_scan(
     let mut findings: Vec<Finding> = Vec::new();
     let mut files_scanned: usize = 0;
 
-    let active_phases: Option<Vec<Phase>> = phase_filter.map(|names| {
-        names.iter().filter_map(|n| phase_from_name(n)).collect()
-    });
+    let active_phases: Option<Vec<Phase>> =
+        phase_filter.map(|names| names.iter().filter_map(|n| phase_from_name(n)).collect());
 
     let min_sev: Option<Severity> = min_severity.and_then(severity_from_name);
 

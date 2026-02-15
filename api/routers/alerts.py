@@ -47,6 +47,7 @@ _DEFAULT_TEAM_ID = "default-team"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _team_id_from_user(user: UserResponse) -> str:
     """Extract team ID from user, with fallback."""
     return getattr(user, "team_id", None) or _DEFAULT_TEAM_ID
@@ -83,6 +84,7 @@ def _row_to_response(row: dict) -> AlertResponse:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/alerts",
@@ -142,20 +144,28 @@ async def create_alert(
 
     # Audit log
     try:
-        await db.insert(AUDIT_TABLE, {
-            "id": uuid4().hex[:16],
-            "user_id": current_user.id,
-            "team_id": team_id,
-            "action": "alert.created",
-            "details_json": {"alert_id": alert_id, "channel_type": body.channel_type.value},
-            "created_at": now.isoformat(),
-        })
+        await db.insert(
+            AUDIT_TABLE,
+            {
+                "id": uuid4().hex[:16],
+                "user_id": current_user.id,
+                "team_id": team_id,
+                "action": "alert.created",
+                "details_json": {
+                    "alert_id": alert_id,
+                    "channel_type": body.channel_type.value,
+                },
+                "created_at": now.isoformat(),
+            },
+        )
     except Exception:
         logger.debug("Failed to write audit log for alert creation")
 
     logger.info(
         "Alert channel created: %s (%s) by user %s",
-        alert_id, body.channel_type.value, current_user.id,
+        alert_id,
+        body.channel_type.value,
+        current_user.id,
     )
 
     return _row_to_response(row)
@@ -183,7 +193,9 @@ async def update_alert(
     if body.channel_type is not None:
         updated_row["channel_type"] = body.channel_type.value
     if body.channel_config is not None:
-        channel_type = body.channel_type or ChannelType(existing.get("channel_type", "webhook"))
+        channel_type = body.channel_type or ChannelType(
+            existing.get("channel_type", "webhook")
+        )
         _validate_channel_config(channel_type, body.channel_config)
         updated_row["channel_config_json"] = body.channel_config
     if body.enabled is not None:
@@ -215,6 +227,7 @@ async def delete_alert(
 
     # In-memory fallback: remove from the store
     from api.database import _memory_store
+
     store = _memory_store.get(ALERT_TABLE, {})
     store.pop(alert_id, None)
 
@@ -273,6 +286,7 @@ async def test_alert(
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
+
 
 def _validate_channel_config(channel_type: ChannelType, config: dict) -> None:
     """Validate that required configuration keys are present for the channel type."""

@@ -49,6 +49,7 @@ _pwd_context = None
 
 try:
     from passlib.context import CryptContext
+
     _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     # Smoke test to detect runtime failures (e.g. bcrypt version mismatch)
     _pwd_context.hash("__sigil_probe__")
@@ -61,6 +62,7 @@ except BaseException:
 def _pbkdf2_hash(password: str) -> str:
     """Hash a password with PBKDF2-SHA256 (stdlib fallback)."""
     import secrets
+
     salt = secrets.token_hex(16)
     dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
     return f"pbkdf2:sha256:{salt}:{dk.hex()}"
@@ -106,6 +108,7 @@ _USE_JOSE = False
 
 try:
     from jose import JWTError as _JoseJWTError, jwt as _jose_jwt
+
     _USE_JOSE = True
     logger.info("Using python-jose for JWT operations")
 except BaseException:
@@ -128,14 +131,20 @@ def _b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data)
 
 
-def _create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+def _create_access_token(
+    data: dict[str, Any], expires_delta: timedelta | None = None
+) -> str:
     """Create a signed JWT with the given payload."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.jwt_expire_minutes))
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=settings.jwt_expire_minutes)
+    )
     to_encode["exp"] = int(expire.timestamp())
 
     if _USE_JOSE:
-        return _jose_jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        return _jose_jwt.encode(
+            to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm
+        )
 
     # Stdlib HMAC-SHA256 fallback
     header = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
@@ -210,7 +219,10 @@ USER_TABLE = "users"
 # Dependency: current authenticated user
 # ---------------------------------------------------------------------------
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> UserResponse:
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserResponse:
     """FastAPI dependency that extracts and validates the current user from
     the Authorization header.
 
@@ -244,6 +256,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/register",
@@ -304,7 +317,9 @@ async def login(body: UserLogin) -> TokenResponse:
     Returns a JWT access token on success, or 401 on failure.
     """
     user = await db.select_one(USER_TABLE, {"email": body.email})
-    if user is None or not _verify_password(body.password, user.get("password_hash", "")):
+    if user is None or not _verify_password(
+        body.password, user.get("password_hash", "")
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -334,7 +349,9 @@ async def login(body: UserLogin) -> TokenResponse:
     summary="Get current user profile",
     responses={401: {"model": ErrorResponse}},
 )
-async def me(current_user: Annotated[UserResponse, Depends(get_current_user)]) -> UserResponse:
+async def me(
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> UserResponse:
     """Return the profile of the currently authenticated user.
 
     Requires a valid Bearer token in the ``Authorization`` header.
