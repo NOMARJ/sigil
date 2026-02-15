@@ -16,7 +16,7 @@
 
 Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing runs until it's been scanned, scored, and explicitly approved.
 
-The AI tooling ecosystem moves fast. Developers clone repos from tutorials, install MCP servers with 12 GitHub stars, and pull agent skills from Discord â€” all of which get direct access to API keys, databases, and cloud credentials. Traditional dependency scanners catch known CVEs but miss the real threat: **intentionally malicious code** designed to exfiltrate credentials, establish backdoors, or execute arbitrary commands via install hooks.
+The AI tooling ecosystem moves fast. Developers clone repos from tutorials, install MCP servers with 12 GitHub stars, and pull agent skills from Discord — all of which get direct access to API keys, databases, and cloud credentials. Traditional dependency scanners catch known CVEs but miss the real threat: **intentionally malicious code** designed to exfiltrate credentials, establish backdoors, or execute arbitrary commands via install hooks.
 
 Sigil fills this gap with a **quarantine-first approach**.
 
@@ -41,14 +41,14 @@ npm install -g @nomarj/sigil
 ## How It Works
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  You run a   â”‚â”€â”€â”€â”€â–¶â”‚  Sigil       â”‚â”€â”€â”€â”€â–¶â”‚  Clean?      â”‚
-â”‚  command     â”‚     â”‚  quarantines â”‚     â”‚  Approve.    â”‚
-â”‚              â”‚     â”‚  & scans     â”‚     â”‚  Dirty?      â”‚
-â”‚  gclone      â”‚     â”‚              â”‚     â”‚  Reject.     â”‚
-â”‚  safepip     â”‚     â”‚  6 phases.   â”‚     â”‚              â”‚
-â”‚  safenpm     â”‚     â”‚  <3 seconds. â”‚     â”‚  You decide. â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  You run a   │────▶│  Sigil       │────▶│  Clean?      │
+│  command     │     │  quarantines │     │  Approve.    │
+│              │     │  & scans     │     │  Dirty?      │
+│  gclone      │     │              │     │  Reject.     │
+│  safepip     │     │  6 phases.   │     │              │
+│  safenpm     │     │  <3 seconds. │     │  You decide. │
+└──────────────┘     └──────────────┘     └──────────────┘
 ```
 
 Sigil runs **six analysis phases** on every scan:
@@ -67,9 +67,9 @@ Each finding is weighted and scored. You get a clear verdict:
 | Score | Verdict | What Happens |
 |-------|---------|-------------|
 | 0 | **CLEAN** | Auto-approve (configurable) |
-| 1â€“9 | **LOW RISK** | Approve with review |
-| 10â€“24 | **MEDIUM RISK** | Manual review required |
-| 25â€“49 | **HIGH RISK** | Blocked, requires override |
+| 1–9 | **LOW RISK** | Approve with review |
+| 10–24 | **MEDIUM RISK** | Manual review required |
+| 25–49 | **HIGH RISK** | Blocked, requires override |
 | 50+ | **CRITICAL** | Blocked, no override |
 
 ## Usage
@@ -100,7 +100,7 @@ sigil reject abc123     # Permanently delete quarantined code
 
 ### Shell Aliases
 
-After running `sigil install`, these aliases are available in every terminal session. Use the commands you already know â€” Sigil protects you automatically:
+After running `sigil install`, these aliases are available in every terminal session. Use the commands you already know — Sigil protects you automatically:
 
 | Alias | What It Does |
 |-------|-------------|
@@ -123,7 +123,7 @@ sigil install --git-hooks
 
 When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
 
-No source code is ever transmitted â€” only pattern match metadata (which rules triggered, file types, risk scores).
+No source code is ever transmitted — only pattern match metadata (which rules triggered, file types, risk scores).
 
 **Offline mode:** All six scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
@@ -136,31 +136,31 @@ sigil login
 
 | Capability | Sigil | Snyk | Socket.dev | Semgrep | CodeQL |
 |-----------|-------|------|-----------|---------|--------|
-| Quarantine workflow | âœ… | âŒ | âŒ | âŒ | âŒ |
-| AI agent / MCP focus | âœ… | âŒ | Partial | âŒ | âŒ |
-| Install hook scanning | âœ… | âŒ | âœ… | âŒ | âŒ |
-| Credential exfil detection | âœ… | âŒ | Partial | Rules needed | Rules needed |
-| Multi-ecosystem (pip, npm, git, URL) | âœ… | âœ… | npm only | Any (rules) | GitHub only |
-| Community threat intel | âœ… | Advisory DB | âœ… | Community | âŒ |
-| Free tier with full CLI | âœ… | Limited | Limited | OSS free | Public repos |
+| Quarantine workflow | ✅ | ❌ | ❌ | ❌ | ❌ |
+| AI agent / MCP focus | ✅ | ❌ | Partial | ❌ | ❌ |
+| Install hook scanning | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Credential exfil detection | ✅ | ❌ | Partial | Rules needed | Rules needed |
+| Multi-ecosystem (pip, npm, git, URL) | ✅ | ✅ | npm only | Any (rules) | GitHub only |
+| Community threat intel | ✅ | Advisory DB | ✅ | Community | ❌ |
+| Free tier with full CLI | ✅ | Limited | Limited | OSS free | Public repos |
 
-Snyk and Dependabot flag known CVEs in dependency trees â€” they don't scan source code for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not an end-to-end workflow. CodeQL requires GitHub hosting. **None of them quarantine code before it runs.**
+Snyk and Dependabot flag known CVEs in dependency trees — they don't scan source code for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not an end-to-end workflow. CodeQL requires GitHub hosting. **None of them quarantine code before it runs.**
 
 ## Pricing
 
 The CLI is **free and open source** with all six scan phases. Paid tiers add cloud-backed threat intelligence, scan history, team management, and CI/CD integration.
 
-| | Open Source | Pro â€” $29/mo | Team â€” $99/mo |
+| | Open Source | Pro — $29/mo | Team — $99/mo |
 |---|-----------|-------------|--------------|
-| Full CLI scanning | âœ… | âœ… | âœ… |
-| Cloud threat intelligence | â€” | âœ… | âœ… |
-| Scan history | â€” | 90 days | 1 year |
-| Web dashboard | â€” | âœ… | âœ… |
-| Team management & policies | â€” | â€” | Up to 25 seats |
-| CI/CD integration | â€” | â€” | âœ… |
-| Slack / webhook alerts | â€” | â€” | âœ… |
+| Full CLI scanning | ✅ | ✅ | ✅ |
+| Cloud threat intelligence | — | ✅ | ✅ |
+| Scan history | — | 90 days | 1 year |
+| Web dashboard | — | ✅ | ✅ |
+| Team management & policies | — | — | Up to 25 seats |
+| CI/CD integration | — | — | ✅ |
+| Slack / webhook alerts | — | — | ✅ |
 
-[See full pricing â†’](https://sigilsec.ai/pricing)
+[See full pricing →](https://sigilsec.ai/pricing)
 
 ## Roadmap
 
@@ -180,7 +180,7 @@ Found a vulnerability? Please report it responsibly. See [SECURITY.md](SECURITY.
 
 ## License
 
-Apache 2.0 â€” see [LICENSE](LICENSE) for details.
+Apache 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
