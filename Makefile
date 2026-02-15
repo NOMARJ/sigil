@@ -1,4 +1,4 @@
-.PHONY: install test scan help lint api-dev api-test dashboard-dev cli-build docker-build
+.PHONY: install test scan help lint api-dev api-test dashboard-dev cli-build docker-build docker-up docker-down docker-logs setup seed
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -38,12 +38,46 @@ cli-build: ## Build the Rust CLI binary (release mode)
 
 # ── Docker ───────────────────────────────────────────────────────────────────
 
-docker-build: ## Build Docker images (placeholder)
-	@echo "Docker build not yet configured."
-	@echo "Planned images:"
-	@echo "  sigil-api    — FastAPI service"
-	@echo "  sigil-dash   — Next.js dashboard"
+docker-build: ## Build Docker images
+	docker compose build
+
+docker-up: ## Start all services in the background
+	docker compose up -d
+
+docker-down: ## Stop all services
+	docker compose down
+
+docker-logs: ## Tail logs from all services
+	docker compose logs -f
+
+# ── Setup & Seed ─────────────────────────────────────────────────────────────
+
+setup: ## Full local dev setup (install deps for api + dashboard)
+	@echo "==> Installing API dependencies..."
+	cd api && pip install -r requirements.txt
 	@echo ""
-	@echo "To build manually:"
-	@echo "  docker build -t sigil-api -f api/Dockerfile api/"
-	@echo "  docker build -t sigil-dash -f dashboard/Dockerfile dashboard/"
+	@echo "==> Installing dashboard dependencies..."
+	cd dashboard && npm install
+	@echo ""
+	@echo "==> Initializing sigil directories..."
+	chmod +x bin/sigil
+	./bin/sigil config --init
+	@echo ""
+	@echo "Setup complete. Run 'make api-dev' and 'make dashboard-dev' to start."
+
+seed: ## Run seed data script
+	@if [ -f api/seed.py ]; then \
+		echo "==> Running API seed script..."; \
+		cd api && python seed.py; \
+	elif [ -f scripts/seed.py ]; then \
+		echo "==> Running seed script..."; \
+		python scripts/seed.py; \
+	elif [ -f seed.py ]; then \
+		echo "==> Running seed script..."; \
+		python seed.py; \
+	else \
+		echo "No seed script found. Expected one of:"; \
+		echo "  api/seed.py"; \
+		echo "  scripts/seed.py"; \
+		echo "  seed.py"; \
+	fi

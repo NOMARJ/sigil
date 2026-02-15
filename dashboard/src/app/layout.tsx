@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+import LayoutShell from "@/components/LayoutShell";
 
 export const metadata: Metadata = {
   title: "Sigil — Security Audit Dashboard",
@@ -22,10 +22,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-gray-950 text-gray-100">
-        <Sidebar />
-        <main className="ml-64 min-h-screen">
-          <div className="p-8">{children}</div>
-        </main>
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

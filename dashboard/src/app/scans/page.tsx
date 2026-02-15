@@ -1,143 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ScanTable from "@/components/ScanTable";
-import type { Scan, Verdict } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const allScans: Scan[] = [
-  {
-    id: "scan-001",
-    package_name: "langchain-agent",
-    package_version: "0.4.2",
-    source: "pip",
-    verdict: "CLEAN",
-    score: 0,
-    findings_count: 0,
-    findings: [],
-    quarantine_path: null,
-    status: "completed",
-    created_at: "2026-02-15T10:23:00Z",
-    completed_at: "2026-02-15T10:23:45Z",
-    approved_by: null,
-    approved_at: null,
-  },
-  {
-    id: "scan-002",
-    package_name: "openai-tools",
-    package_version: "1.2.0",
-    source: "npm",
-    verdict: "HIGH",
-    score: 78,
-    findings_count: 5,
-    findings: [],
-    quarantine_path: "/tmp/sigil/quarantine/scan-002",
-    status: "completed",
-    created_at: "2026-02-15T09:15:00Z",
-    completed_at: "2026-02-15T09:16:12Z",
-    approved_by: null,
-    approved_at: null,
-  },
-  {
-    id: "scan-003",
-    package_name: "agent-framework",
-    package_version: "2.1.0",
-    source: "pip",
-    verdict: "CRITICAL",
-    score: 145,
-    findings_count: 12,
-    findings: [],
-    quarantine_path: "/tmp/sigil/quarantine/scan-003",
-    status: "completed",
-    created_at: "2026-02-14T22:45:00Z",
-    completed_at: "2026-02-14T22:47:30Z",
-    approved_by: null,
-    approved_at: null,
-  },
-  {
-    id: "scan-004",
-    package_name: "mcp-server-utils",
-    package_version: "0.9.1",
-    source: "npm",
-    verdict: "LOW",
-    score: 8,
-    findings_count: 2,
-    findings: [],
-    quarantine_path: null,
-    status: "completed",
-    created_at: "2026-02-14T18:30:00Z",
-    completed_at: "2026-02-14T18:30:22Z",
-    approved_by: "user-001",
-    approved_at: "2026-02-14T18:35:00Z",
-  },
-  {
-    id: "scan-005",
-    package_name: "llm-sandbox",
-    package_version: "3.0.0-beta",
-    source: "git",
-    verdict: "MEDIUM",
-    score: 34,
-    findings_count: 4,
-    findings: [],
-    quarantine_path: "/tmp/sigil/quarantine/scan-005",
-    status: "completed",
-    created_at: "2026-02-14T15:12:00Z",
-    completed_at: "2026-02-14T15:14:55Z",
-    approved_by: null,
-    approved_at: null,
-  },
-  {
-    id: "scan-006",
-    package_name: "autogen-core",
-    package_version: "0.2.8",
-    source: "pip",
-    verdict: "CLEAN",
-    score: 0,
-    findings_count: 0,
-    findings: [],
-    quarantine_path: null,
-    status: "completed",
-    created_at: "2026-02-14T12:00:00Z",
-    completed_at: "2026-02-14T12:00:38Z",
-    approved_by: null,
-    approved_at: null,
-  },
-  {
-    id: "scan-007",
-    package_name: "crewai-tools",
-    package_version: "1.0.3",
-    source: "pip",
-    verdict: "LOW",
-    score: 5,
-    findings_count: 1,
-    findings: [],
-    quarantine_path: null,
-    status: "completed",
-    created_at: "2026-02-13T20:45:00Z",
-    completed_at: "2026-02-13T20:45:28Z",
-    approved_by: "user-002",
-    approved_at: "2026-02-13T21:00:00Z",
-  },
-  {
-    id: "scan-008",
-    package_name: "suspicious-helper",
-    package_version: "0.0.1",
-    source: "npm",
-    verdict: "CRITICAL",
-    score: 220,
-    findings_count: 18,
-    findings: [],
-    quarantine_path: "/tmp/sigil/quarantine/scan-008",
-    status: "completed",
-    created_at: "2026-02-13T16:30:00Z",
-    completed_at: "2026-02-13T16:33:15Z",
-    approved_by: null,
-    approved_at: null,
-  },
-];
+import * as api from "@/lib/api";
+import type { Scan, Verdict, PaginatedResponse } from "@/lib/types";
 
 const verdictOptions: (Verdict | "ALL")[] = [
   "ALL",
@@ -148,17 +14,60 @@ const verdictOptions: (Verdict | "ALL")[] = [
   "CRITICAL",
 ];
 
+const PER_PAGE = 10;
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function ScansPage() {
   const [verdictFilter, setVerdictFilter] = useState<Verdict | "ALL">("ALL");
+  const [page, setPage] = useState(1);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredScans =
-    verdictFilter === "ALL"
-      ? allScans
-      : allScans.filter((s) => s.verdict === verdictFilter);
+  const fetchScans = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params: Parameters<typeof api.listScans>[0] = {
+        page,
+        per_page: PER_PAGE,
+      };
+
+      if (verdictFilter !== "ALL") {
+        params.verdict = verdictFilter;
+      }
+
+      const data: PaginatedResponse<Scan> = await api.listScans(params);
+      setScans(data.items);
+      setTotal(data.total);
+      setHasMore(data.has_more);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load scans.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, verdictFilter]);
+
+  useEffect(() => {
+    fetchScans();
+  }, [fetchScans]);
+
+  // Reset to page 1 when filter changes
+  const handleFilterChange = (v: Verdict | "ALL") => {
+    setVerdictFilter(v);
+    setPage(1);
+  };
+
+  const startIndex = (page - 1) * PER_PAGE + 1;
+  const endIndex = Math.min(page * PER_PAGE, total);
 
   return (
     <div className="space-y-6">
@@ -174,6 +83,19 @@ export default function ScansPage() {
         </div>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center justify-between">
+          <span>{error}</span>
+          <button
+            onClick={fetchScans}
+            className="text-red-400 hover:text-red-300 text-xs font-medium underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-2">
@@ -182,7 +104,7 @@ export default function ScansPage() {
         {verdictOptions.map((v) => (
           <button
             key={v}
-            onClick={() => setVerdictFilter(v)}
+            onClick={() => handleFilterChange(v)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               verdictFilter === v
                 ? "bg-brand-600/20 text-brand-400 border border-brand-500/30"
@@ -190,11 +112,6 @@ export default function ScansPage() {
             }`}
           >
             {v}
-            {v !== "ALL" && (
-              <span className="ml-1.5 text-gray-600">
-                ({allScans.filter((s) => s.verdict === v).length})
-              </span>
-            )}
           </button>
         ))}
       </div>
@@ -202,20 +119,48 @@ export default function ScansPage() {
       {/* Table */}
       <div className="card">
         <div className="card-body">
-          <ScanTable scans={filteredScans} />
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <div key={i} className="flex items-center gap-4 animate-pulse py-2">
+                  <div className="h-4 w-36 bg-gray-800 rounded" />
+                  <div className="h-4 w-12 bg-gray-800 rounded" />
+                  <div className="h-4 w-16 bg-gray-800 rounded" />
+                  <div className="h-4 w-10 bg-gray-800 rounded" />
+                  <div className="h-4 w-8 bg-gray-800 rounded" />
+                  <div className="flex-1" />
+                  <div className="h-4 w-28 bg-gray-800 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ScanTable scans={scans} />
+          )}
         </div>
       </div>
 
-      {/* Pagination placeholder */}
+      {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <p>
-          Showing {filteredScans.length} of {allScans.length} scans
+          {total > 0
+            ? `Showing ${startIndex}--${endIndex} of ${total} scans`
+            : loading
+              ? "Loading..."
+              : "No scans found"}
         </p>
         <div className="flex gap-2">
-          <button className="btn-secondary text-xs" disabled>
+          <button
+            className="btn-secondary text-xs"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
             Previous
           </button>
-          <button className="btn-secondary text-xs" disabled>
+          <button
+            className="btn-secondary text-xs"
+            disabled={!hasMore || loading}
+            onClick={() => setPage((p) => p + 1)}
+          >
             Next
           </button>
         </div>

@@ -53,6 +53,19 @@ class Settings(BaseSettings):
     # --- Threat Intel ----------------------------------------------------------
     threat_intel_ttl: int = 3600  # Cache TTL in seconds
 
+    # --- SMTP (optional — for email alert notifications) -----------------------
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str = "alerts@sigil.dev"
+
+    # --- Stripe (optional — for billing) ---------------------------------------
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_pro: str = "price_pro_placeholder"
+    stripe_price_team: str = "price_team_placeholder"
+
     @property
     def supabase_configured(self) -> bool:
         """Return True when both Supabase URL and key are set."""
@@ -62,6 +75,16 @@ class Settings(BaseSettings):
     def redis_configured(self) -> bool:
         """Return True when a Redis URL is set."""
         return bool(self.redis_url)
+
+    @property
+    def smtp_configured(self) -> bool:
+        """Return True when SMTP host and credentials are set."""
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @property
+    def stripe_configured(self) -> bool:
+        """Return True when a Stripe secret key is set."""
+        return bool(self.stripe_secret_key)
 
 
 # Singleton — importable from anywhere as `from api.config import settings`.

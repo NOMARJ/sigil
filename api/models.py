@@ -209,6 +209,186 @@ class VerifyResponse(BaseModel):
 # Auth / User
 # ---------------------------------------------------------------------------
 
+class PolicyType(str, enum.Enum):
+    """Types of scan policies that can be applied to a team."""
+
+    ALLOWLIST = "allowlist"
+    BLOCKLIST = "blocklist"
+    AUTO_APPROVE_THRESHOLD = "auto_approve_threshold"
+    REQUIRED_PHASES = "required_phases"
+
+
+class ChannelType(str, enum.Enum):
+    """Notification channel types."""
+
+    SLACK = "slack"
+    EMAIL = "email"
+    WEBHOOK = "webhook"
+
+
+class PlanTier(str, enum.Enum):
+    """Available billing plan tiers."""
+
+    FREE = "free"
+    PRO = "pro"
+    TEAM = "team"
+    ENTERPRISE = "enterprise"
+
+
+# ---------------------------------------------------------------------------
+# Policies
+# ---------------------------------------------------------------------------
+
+class PolicyCreate(BaseModel):
+    """Request to create a new team policy."""
+
+    name: str = Field(..., description="Human-readable policy name")
+    type: PolicyType = Field(..., description="Policy type")
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Policy configuration (contents depend on type)",
+    )
+    enabled: bool = Field(True, description="Whether the policy is active")
+
+
+class PolicyUpdate(BaseModel):
+    """Request to update an existing policy."""
+
+    name: str | None = Field(None, description="Updated policy name")
+    type: PolicyType | None = Field(None, description="Updated policy type")
+    config: dict[str, Any] | None = Field(None, description="Updated configuration")
+    enabled: bool | None = Field(None, description="Updated enabled state")
+
+
+class PolicyResponse(BaseModel):
+    """A team policy record."""
+
+    id: str
+    team_id: str
+    name: str
+    type: PolicyType
+    config: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PolicyEvaluateRequest(BaseModel):
+    """Request to evaluate a scan result against team policies."""
+
+    risk_score: float = Field(..., description="Scan risk score to evaluate")
+    verdict: Verdict = Field(..., description="Scan verdict")
+    findings: list[Finding] = Field(default_factory=list, description="Scan findings")
+    target: str = Field("", description="Scan target name")
+    target_type: str = Field("directory", description="Scan target type")
+
+
+class PolicyEvaluateResponse(BaseModel):
+    """Result of evaluating a scan against team policies."""
+
+    allowed: bool = Field(True, description="Whether the scan passes all policies")
+    violations: list[str] = Field(default_factory=list, description="Policy violations")
+    auto_approved: bool = Field(False, description="Whether the scan was auto-approved")
+    evaluated_policies: int = Field(0, description="Number of policies evaluated")
+
+
+# ---------------------------------------------------------------------------
+# Alerts / Notifications
+# ---------------------------------------------------------------------------
+
+class AlertCreate(BaseModel):
+    """Request to create a notification channel."""
+
+    channel_type: ChannelType = Field(..., description="Notification channel type")
+    channel_config: dict[str, Any] = Field(
+        ...,
+        description="Channel configuration (webhook_url for slack/webhook, recipients for email)",
+    )
+    enabled: bool = Field(True, description="Whether the channel is active")
+
+
+class AlertUpdate(BaseModel):
+    """Request to update an alert channel."""
+
+    channel_type: ChannelType | None = Field(None, description="Updated channel type")
+    channel_config: dict[str, Any] | None = Field(None, description="Updated configuration")
+    enabled: bool | None = Field(None, description="Updated enabled state")
+
+
+class AlertResponse(BaseModel):
+    """An alert channel record."""
+
+    id: str
+    team_id: str
+    channel_type: ChannelType
+    channel_config: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AlertTestRequest(BaseModel):
+    """Request to send a test notification."""
+
+    channel_type: ChannelType = Field(..., description="Channel type to test")
+    channel_config: dict[str, Any] = Field(..., description="Channel config to test")
+
+
+class AlertTestResponse(BaseModel):
+    """Result of a test notification."""
+
+    success: bool
+    message: str
+
+
+# ---------------------------------------------------------------------------
+# Billing
+# ---------------------------------------------------------------------------
+
+class PlanInfo(BaseModel):
+    """A billing plan description."""
+
+    tier: PlanTier
+    name: str
+    price_monthly: float = Field(0.0, description="Monthly price in USD")
+    scans_per_month: int = Field(0, description="Included scans per month (0 = unlimited)")
+    features: list[str] = Field(default_factory=list, description="Feature list")
+
+
+class SubscribeRequest(BaseModel):
+    """Request to create or change a subscription."""
+
+    plan: PlanTier = Field(..., description="Plan tier to subscribe to")
+    payment_method_id: str | None = Field(None, description="Stripe payment method ID")
+
+
+class SubscriptionResponse(BaseModel):
+    """Current subscription details."""
+
+    plan: PlanTier
+    status: str = Field("active", description="Subscription status")
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
+    cancel_at_period_end: bool = False
+    stripe_subscription_id: str | None = None
+
+
+class PortalResponse(BaseModel):
+    """Stripe customer portal session URL."""
+
+    url: str = Field(..., description="URL to redirect the user to")
+
+
+class WebhookResponse(BaseModel):
+    """Acknowledgement for Stripe webhook events."""
+
+    received: bool = True
+    event_type: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Auth / User
+# ---------------------------------------------------------------------------
+
 class UserCreate(BaseModel):
     """Registration request payload."""
 

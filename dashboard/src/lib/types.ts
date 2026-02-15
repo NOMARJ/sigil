@@ -74,6 +74,18 @@ export interface Publisher {
   package_count: number;
 }
 
+/** Signature entry for pattern matching rules. */
+export interface Signature {
+  id: string;
+  name: string;
+  pattern: string;
+  phase: ScanPhase;
+  severity: Verdict;
+  description: string;
+  enabled: boolean;
+  created_at: string;
+}
+
 /** User roles within a Sigil team. */
 export type UserRole = "owner" | "admin" | "member" | "viewer";
 
@@ -99,21 +111,73 @@ export interface Team {
   threat_count: number;
 }
 
+/** Team invitation record. */
+export interface TeamInvite {
+  id: string;
+  email: string;
+  role: UserRole;
+  invited_by: string;
+  created_at: string;
+  expires_at: string;
+  accepted: boolean;
+}
+
+/** Policy type for automated scan decisions. */
+export type PolicyType = "auto_approve" | "require_approval" | "auto_reject";
+
 /** Policy configuration for automated decisions. */
 export interface Policy {
+  id?: string;
   auto_approve_threshold: Verdict;
   allowlisted_packages: string[];
   blocklisted_packages: string[];
   require_approval_for: Verdict[];
 }
 
+/** Alert channel types. */
+export type AlertChannelType = "slack" | "email" | "webhook";
+
 /** Alert channel configuration. */
 export interface AlertChannel {
   id: string;
-  type: "slack" | "email" | "webhook";
+  type: AlertChannelType;
   target: string;
   enabled: boolean;
   min_severity: Verdict;
+}
+
+/** Alert configuration for creating/updating. */
+export interface AlertConfig {
+  type: AlertChannelType;
+  target: string;
+  enabled: boolean;
+  min_severity: Verdict;
+}
+
+/** Billing plan definition. */
+export interface BillingPlan {
+  id: string;
+  name: string;
+  description: string;
+  price_monthly: number;
+  price_yearly: number;
+  scan_limit: number;
+  team_member_limit: number;
+  features: string[];
+  is_current?: boolean;
+}
+
+/** Active subscription record. */
+export interface Subscription {
+  id: string;
+  plan_id: string;
+  plan_name: string;
+  status: "active" | "canceled" | "past_due" | "trialing";
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  scan_usage: number;
+  scan_limit: number;
 }
 
 /** Dashboard overview statistics. */
@@ -154,4 +218,45 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
+}
+
+/** Submit scan request payload. */
+export interface SubmitScanRequest {
+  package_name: string;
+  package_version?: string;
+  source: ScanSource;
+  target_url?: string;
+  target_path?: string;
+}
+
+/** Report threat request payload. */
+export interface ReportThreatRequest {
+  package_name: string;
+  source: ScanSource;
+  threat_type: string;
+  description: string;
+  severity: Verdict;
+  indicators: string[];
+  references: string[];
+}
+
+/** Package verification response. */
+export interface VerifyPackageResponse {
+  package_name: string;
+  source: ScanSource;
+  is_known_threat: boolean;
+  threat_entries: ThreatEntry[];
+  publisher: Publisher | null;
+  last_scan: Scan | null;
+}
+
+/** Billing portal session. */
+export interface PortalSession {
+  url: string;
+}
+
+/** API error response. */
+export interface ApiError {
+  detail: string;
+  status: number;
 }
