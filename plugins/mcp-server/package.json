@@ -1,0 +1,23 @@
+{
+  "name": "@nomark/sigil-mcp-server",
+  "version": "0.1.0",
+  "description": "Sigil MCP server — security scanning tools for Claude Code, Cursor, Windsurf, and other MCP-compatible AI agents",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "sigil-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

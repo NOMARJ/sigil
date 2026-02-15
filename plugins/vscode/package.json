@@ -1,0 +1,164 @@
+{
+  "name": "sigil-security",
+  "displayName": "Sigil — AI Agent Security Scanner",
+  "description": "Automated security auditing for AI agent code. Scan repos, packages, and agent tooling for malicious patterns.",
+  "version": "0.1.0",
+  "publisher": "nomark",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nomark/sigil"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "security",
+    "scanner",
+    "ai",
+    "agent",
+    "supply-chain",
+    "malware",
+    "audit"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*"
+  ],
+  "main": "./out/extension.js",
+  "icon": "icon.png",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sigil.scanWorkspace",
+        "title": "Sigil: Scan Workspace",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "sigil.scanFile",
+        "title": "Sigil: Scan Current File",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "sigil.scanSelection",
+        "title": "Sigil: Scan Selection"
+      },
+      {
+        "command": "sigil.scanPackage",
+        "title": "Sigil: Scan Package (npm/pip)"
+      },
+      {
+        "command": "sigil.showQuarantine",
+        "title": "Sigil: Show Quarantine"
+      },
+      {
+        "command": "sigil.clearCache",
+        "title": "Sigil: Clear Scan Cache"
+      }
+    ],
+    "configuration": {
+      "title": "Sigil",
+      "properties": {
+        "sigil.binaryPath": {
+          "type": "string",
+          "default": "sigil",
+          "description": "Path to the sigil CLI binary"
+        },
+        "sigil.autoScanOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically scan files on save"
+        },
+        "sigil.severityThreshold": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "low",
+          "description": "Minimum severity level to display"
+        },
+        "sigil.outputFormat": {
+          "type": "string",
+          "enum": [
+            "text",
+            "json",
+            "sarif"
+          ],
+          "default": "json",
+          "description": "Output format from the sigil CLI"
+        },
+        "sigil.phases": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated list of scan phases to run (empty = all)"
+        },
+        "sigil.apiEndpoint": {
+          "type": "string",
+          "default": "",
+          "description": "Custom Sigil cloud API endpoint (leave empty for default)"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sigil",
+          "title": "Sigil Security",
+          "icon": "$(shield)"
+        }
+      ]
+    },
+    "views": {
+      "sigil": [
+        {
+          "id": "sigil.findings",
+          "name": "Findings"
+        },
+        {
+          "id": "sigil.quarantine",
+          "name": "Quarantine"
+        }
+      ]
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "sigil.scanFile",
+          "group": "sigil@1",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "sigil.scanFile",
+          "group": "sigil@1"
+        },
+        {
+          "command": "sigil.scanSelection",
+          "group": "sigil@2",
+          "when": "editorHasSelection"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.0",
+    "@vscode/vsce": "^2.26.0"
+  }
+}
