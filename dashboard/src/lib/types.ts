@@ -64,6 +64,22 @@ export interface ThreatEntry {
   references: string[];
 }
 
+/** Community-submitted threat report with review workflow tracking. */
+export interface ThreatReport {
+  id: string;
+  package_name: string;
+  package_version: string;
+  ecosystem: string;
+  reason: string;
+  evidence: string;
+  reporter_email: string | null;
+  status: "received" | "under_review" | "confirmed" | "rejected";
+  reviewer_id: string | null;
+  review_notes: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 /** Publisher / maintainer metadata for a package. */
 export interface Publisher {
   name: string;

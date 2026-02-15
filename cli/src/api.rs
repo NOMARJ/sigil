@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::scanner::cloud_sigs::{self, SignatureResponse as CloudSigResponse};
 use crate::scanner::ScanResult;
 
 const DEFAULT_ENDPOINT: &str = "https://api.sigil.nomark.dev";
@@ -191,9 +192,20 @@ impl SigilClient {
     ///
     /// GET /v1/signatures
     ///
-    /// Returns the number of signatures downloaded.
-    pub async fn get_signatures(&self, _force: bool) -> Result<usize, String> {
-        let url = format!("{}/v1/signatures", self.endpoint);
+    /// Supports delta sync: if `force` is false and we have a previous
+    /// sync timestamp, only signatures updated after that time are fetched
+    /// and merged with the local set.
+    ///
+    /// Returns the total number of local signatures after the update.
+    pub async fn get_signatures(&self, force: bool) -> Result<usize, String> {
+        let mut url = format!("{}/v1/signatures", self.endpoint);
+
+        // Delta sync: append ?since= if we have a previous sync timestamp
+        if !force {
+            if let Some(since) = cloud_sigs::get_last_sync_time() {
+                url = format!("{}?since={}", url, since);
+            }
+        }
 
         let mut request = self.client.get(&url);
         if let Some(ref token) = self.token {
@@ -209,26 +221,57 @@ impl SigilClient {
             return Err(format!("API error: {}", response.status()));
         }
 
-        let signatures: Vec<Signature> = response
-            .json()
+        let body = response
+            .text()
             .await
-            .map_err(|e| format!("failed to parse signatures: {}", e))?;
+            .map_err(|e| format!("failed to read response: {}", e))?;
 
-        // Store signatures locally
-        let sigs_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".sigil")
-            .join("signatures.json");
+        // Parse the wrapped response format: {signatures: [...], total, last_updated}
+        let sig_response: CloudSigResponse = serde_json::from_str(&body)
+            .map_err(|e| format!("failed to parse signatures response: {}", e))?;
 
+        let fetched = sig_response.signatures;
+        let last_updated = sig_response.last_updated.unwrap_or_default();
+
+        // Merge with existing local signatures (for delta sync)
+        let mut all_sigs = if force {
+            vec![]
+        } else {
+            cloud_sigs::load_cloud_signatures()
+        };
+
+        // Upsert fetched signatures by ID
+        for new_sig in &fetched {
+            if let Some(pos) = all_sigs.iter().position(|s| s.id == new_sig.id) {
+                all_sigs[pos] = new_sig.clone();
+            } else {
+                all_sigs.push(new_sig.clone());
+            }
+        }
+
+        // Write merged set to disk
+        let sigs_path = cloud_sigs::signatures_path();
         if let Some(parent) = sigs_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
 
-        let json = serde_json::to_string_pretty(&signatures)
+        // Store in the wrapped format so load_cloud_signatures can read it back
+        let wrapped = serde_json::json!({
+            "signatures": all_sigs,
+            "total": all_sigs.len(),
+            "last_updated": &last_updated,
+        });
+        let json = serde_json::to_string_pretty(&wrapped)
             .map_err(|e| format!("failed to serialize signatures: {}", e))?;
-        fs::write(&sigs_path, json).map_err(|e| format!("failed to write signatures: {}", e))?;
+        fs::write(&sigs_path, json)
+            .map_err(|e| format!("failed to write signatures: {}", e))?;
 
-        Ok(signatures.len())
+        // Save sync metadata for next delta sync
+        if !last_updated.is_empty() {
+            cloud_sigs::save_sync_meta(&last_updated);
+        }
+
+        Ok(all_sigs.len())
     }
 
     /// Report a new threat to the Sigil cloud.

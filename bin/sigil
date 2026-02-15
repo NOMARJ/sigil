@@ -580,6 +580,112 @@ generate_verdict() {
     echo -e "  ${RED}sigil reject  $q_id${NC}  — Delete from quarantine" | tee -a "$report_file"
 }
 
+# ── Cloud Threat Intelligence ─────────────────────────────────────────────────
+
+# Compute SHA-256 hash of a directory (file paths + sizes for determinism)
+compute_dir_hash() {
+    local dir="$1"
+    # Hash file paths and sizes in sorted order for deterministic output
+    find "$dir" -type f -not -path '*/.git/*' -print0 2>/dev/null \
+        | sort -z \
+        | xargs -0 stat --format='%n %s' 2>/dev/null \
+        | sha256sum \
+        | cut -d' ' -f1
+}
+
+# Cloud threat intelligence enrichment — hash lookup + signature application
+cloud_threat_enrichment() {
+    local target_dir="$1" report_file="$2"
+    local score=0
+
+    # Only run if authenticated (token exists)
+    [ ! -f "$TOKEN_FILE" ] && return 0
+
+    local token
+    token=$(cat "$TOKEN_FILE" 2>/dev/null)
+    [ -z "$token" ] && return 0
+
+    echo -e "\n${BOLD}[Phase 7] Cloud Threat Intelligence${NC}" | tee -a "$report_file"
+
+    # 1. Hash-based threat lookup
+    local dir_hash
+    dir_hash=$(compute_dir_hash "$target_dir" 2>/dev/null || echo "")
+    if [ -n "$dir_hash" ]; then
+        local threat_response
+        threat_response=$(curl -sf -H "Authorization: Bearer $token" \
+            "${API_BASE_URL}/v1/threat/${dir_hash}" 2>/dev/null || echo "")
+
+        if [ -n "$threat_response" ] && echo "$threat_response" | grep -q '"hash"'; then
+            local threat_name threat_desc threat_severity
+            threat_name=$(echo "$threat_response" | grep -o '"package_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+            threat_desc=$(echo "$threat_response" | grep -o '"description":"[^"]*"' | head -1 | cut -d'"' -f4)
+            threat_severity=$(echo "$threat_response" | grep -o '"severity":"[^"]*"' | head -1 | cut -d'"' -f4)
+            echo -e "  ${RED}THREAT MATCH${NC}: $threat_name ($threat_severity)" | tee -a "$report_file"
+            echo -e "  Description: $threat_desc" | tee -a "$report_file"
+            score=$((score + 50))
+        else
+            echo -e "  ${GREEN}No known threats${NC} for hash $dir_hash" | tee -a "$report_file"
+        fi
+    fi
+
+    # 2. Fetch and apply cloud signatures (if not cached recently)
+    local sigs_file="$HOME/.sigil/signatures.json"
+    local sigs_age=9999
+    if [ -f "$sigs_file" ]; then
+        local now_epoch sig_epoch
+        now_epoch=$(date +%s)
+        sig_epoch=$(stat -c %Y "$sigs_file" 2>/dev/null || echo 0)
+        sigs_age=$(( (now_epoch - sig_epoch) / 3600 ))
+    fi
+
+    # Refresh signatures if older than 24 hours
+    if [ "$sigs_age" -gt 24 ] || [ ! -f "$sigs_file" ]; then
+        local sig_response
+        sig_response=$(curl -sf -H "Authorization: Bearer $token" \
+            "${API_BASE_URL}/v1/signatures" 2>/dev/null || echo "")
+        if [ -n "$sig_response" ]; then
+            mkdir -p "$HOME/.sigil"
+            echo "$sig_response" > "$sigs_file"
+            local sig_count
+            sig_count=$(echo "$sig_response" | grep -o '"total":' | wc -l)
+            echo -e "  Synced cloud signatures (refreshed)" | tee -a "$report_file"
+        fi
+    else
+        echo -e "  Cloud signatures cached (${sigs_age}h old)" | tee -a "$report_file"
+    fi
+
+    # 3. Apply cloud signatures to scanned files
+    if [ -f "$sigs_file" ]; then
+        local cloud_hits=0
+        # Extract patterns from the signatures JSON
+        local patterns
+        patterns=$(grep -o '"pattern":"[^"]*"' "$sigs_file" 2>/dev/null | cut -d'"' -f4)
+        local descriptions
+        descriptions=$(grep -o '"description":"[^"]*"' "$sigs_file" 2>/dev/null | cut -d'"' -f4)
+
+        while IFS= read -r pattern; do
+            [ -z "$pattern" ] && continue
+            local matches
+            matches=$(grep -rl "$pattern" "$target_dir" 2>/dev/null | head -5)
+            if [ -n "$matches" ]; then
+                cloud_hits=$((cloud_hits + 1))
+                while IFS= read -r match_file; do
+                    echo -e "  ${YELLOW}[cloud-sig]${NC} Pattern match in: $match_file" | tee -a "$report_file"
+                done <<< "$matches"
+            fi
+        done <<< "$patterns"
+
+        if [ "$cloud_hits" -gt 0 ]; then
+            score=$((score + cloud_hits * 5))
+            echo -e "  Cloud signatures: ${YELLOW}${cloud_hits} match(es)${NC}" | tee -a "$report_file"
+        else
+            echo -e "  Cloud signatures: ${GREEN}no matches${NC}" | tee -a "$report_file"
+        fi
+    fi
+
+    return $score
+}
+
 # ── Full Audit Pipeline ───────────────────────────────────────────────────────
 run_full_audit() {
     local target_dir="$1" q_id="$2"
@@ -618,6 +724,9 @@ EOF
     run_external_scanners "$target_dir" "$report_file" || total_score=$((total_score + $?))
     scan_dependencies "$target_dir" "$report_file"    || total_score=$((total_score + $?))
     scan_permissions "$target_dir" "$report_file"     || total_score=$((total_score + $?))
+
+    # Cloud threat intelligence enrichment (if authenticated)
+    cloud_threat_enrichment "$target_dir" "$report_file" || total_score=$((total_score + $?))
 
     generate_verdict "$total_score" "$report_file" "$q_id"
     return 0
