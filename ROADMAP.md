@@ -1,6 +1,6 @@
 # Sigil Roadmap
 
-Last updated: 2026-02-15
+Last updated: 2026-02-15 (rev 2)
 
 ---
 
@@ -95,18 +95,25 @@ Last updated: 2026-02-15
 
 ---
 
+### Cloud Threat Intelligence
+- [x] Community signature propagation pipeline (API distributes, CLI syncs via `sigil fetch`)
+- [x] Signature versioning and delta updates (`?since=` parameter for incremental sync)
+- [x] Automated malicious package reporting (confirmed reports auto-promote to threats + signatures)
+- [x] Reputation scoring based on scan telemetry (publisher trust adjusted on each scan submission)
+- [x] Threat report review workflow (received -> under_review -> confirmed/rejected)
+- [x] Cloud signature application during local scans (Rust + bash CLI)
+- [x] Hash-based threat lookup during scans (`--enrich` flag in Rust CLI, automatic in bash when authenticated)
+- [x] Dashboard threat intel tabs (Known Threats, Reports, Signatures browser)
+- [x] Signature CRUD API (create, update, delete via REST)
+
+---
+
 ## In Progress
 
 ### Cloud Deployment
 - [ ] Hosted PostgreSQL / Supabase integration
 - [ ] Production environment provisioning
 - [ ] CDN + edge caching for signature distribution
-
-### Threat Intelligence Network
-- [ ] Community signature propagation pipeline
-- [ ] Automated malicious package reporting
-- [ ] Signature versioning and delta updates
-- [ ] Reputation scoring based on scan telemetry
 
 ---
 

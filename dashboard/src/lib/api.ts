@@ -22,6 +22,7 @@ import type {
   SubmitScanRequest,
   Subscription,
   ThreatEntry,
+  ThreatReport,
   User,
   Team,
   Verdict,
@@ -258,6 +259,40 @@ export async function getPublisher(name: string, source: ScanSource): Promise<Pu
 
 export async function getSignatures(): Promise<Signature[]> {
   return request<Signature[]>("/signatures");
+}
+
+// ---------------------------------------------------------------------------
+// Threat Reports (review workflow)
+// ---------------------------------------------------------------------------
+
+export async function listThreatReports(params?: {
+  status?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<PaginatedResponse<ThreatReport>> {
+  const query = new URLSearchParams();
+  if (params?.status && params.status !== "all") query.set("status", params.status);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.per_page) query.set("per_page", String(params.per_page));
+  const qs = query.toString();
+  return request<PaginatedResponse<ThreatReport>>(
+    `/threat-reports${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export async function getThreatReport(id: string): Promise<ThreatReport> {
+  return request<ThreatReport>(`/threat-reports/${id}`);
+}
+
+export async function updateThreatReportStatus(
+  id: string,
+  status: string,
+  notes?: string,
+): Promise<ThreatReport> {
+  return request<ThreatReport>(`/threat-reports/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, notes: notes ?? "" }),
+  });
 }
 
 // ---------------------------------------------------------------------------

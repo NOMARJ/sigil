@@ -34,7 +34,7 @@ from api.models import (
 )
 from api.routers.auth import get_current_user, UserResponse
 from api.services.scoring import compute_verdict
-from api.services.threat_intel import lookup_threats_for_hashes
+from api.services.threat_intel import lookup_threats_for_hashes, update_publisher_from_scan
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,19 @@ async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
         verdict.value,
         len(request.findings),
     )
+
+    # --- 5. Publisher reputation enrichment --------------------------------
+    publisher_id = request.metadata.get("publisher_id") or request.metadata.get(
+        "publisher"
+    )
+    if publisher_id:
+        is_flagged = verdict.value in ("HIGH_RISK", "CRITICAL")
+        try:
+            await update_publisher_from_scan(publisher_id, is_flagged=is_flagged)
+        except Exception:
+            logger.exception(
+                "Failed to update publisher reputation for %s", publisher_id
+            )
 
     return response
 

@@ -147,6 +147,9 @@ CREATE TABLE IF NOT EXISTS threat_reports (
     reporter_email    VARCHAR(255),
     reporter_user_id  UUID         REFERENCES users(id) ON DELETE SET NULL,
     status            VARCHAR(50)  NOT NULL DEFAULT 'received',
+    reviewer_id       UUID         REFERENCES users(id) ON DELETE SET NULL,
+    review_notes      TEXT         NOT NULL DEFAULT '',
+    reviewed_at       TIMESTAMPTZ,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 

@@ -221,7 +221,24 @@ _threat_dashboard = _APIRouter(prefix="", tags=["threat-intel-dashboard"])
 _threat_dashboard.add_api_route(
     "/threat/{package_hash}", threat.get_threat, methods=["GET"]
 )
-_threat_dashboard.add_api_route("/signatures", threat.list_signatures, methods=["GET"])
+_threat_dashboard.add_api_route("/threats", threat.get_threats, methods=["GET"])
+_threat_dashboard.add_api_route("/signatures", threat.get_all_signatures, methods=["GET"])
+_threat_dashboard.add_api_route("/signatures", threat.create_or_update_signature, methods=["POST"])
+_threat_dashboard.add_api_route(
+    "/signatures/{sig_id}", threat.remove_signature, methods=["DELETE"]
+)
+_threat_dashboard.add_api_route(
+    "/threat-reports", threat.get_threat_reports, methods=["GET"]
+)
+_threat_dashboard.add_api_route(
+    "/threat-reports/{report_id}", threat.get_single_report, methods=["GET"]
+)
+_threat_dashboard.add_api_route(
+    "/threat-reports/{report_id}", threat.update_report, methods=["PATCH"]
+)
+_threat_dashboard.add_api_route(
+    "/threats/report", report.create_report, methods=["POST"], status_code=201,
+)
 app.include_router(_threat_dashboard)
 
 _publisher_dashboard = _APIRouter(prefix="", tags=["publisher-dashboard"])

@@ -94,6 +94,10 @@ enum Commands {
         /// Disable cache (force a fresh scan even if content is unchanged)
         #[arg(long)]
         no_cache: bool,
+
+        /// Enrich scan with cloud threat intelligence (hash lookup)
+        #[arg(long)]
+        enrich: bool,
     },
 
     /// Clear all cached scan results
@@ -253,6 +257,7 @@ async fn main() {
             severity,
             submit,
             no_cache,
+            enrich,
         } => {
             cmd_scan(
                 &path,
@@ -260,6 +265,7 @@ async fn main() {
                 &severity,
                 submit,
                 no_cache,
+                enrich,
                 &cli.format,
                 cli.verbose,
             )
@@ -589,6 +595,7 @@ async fn cmd_scan(
     severity: &str,
     submit: bool,
     no_cache: bool,
+    enrich: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
@@ -661,6 +668,43 @@ async fn cmd_scan(
         }
     }
 
+    // --- Cloud threat enrichment -------------------------------------------
+    if enrich {
+        let dir_hash = compute_directory_hash(path);
+        if verbose {
+            eprintln!("directory hash: {}", dir_hash);
+            eprintln!("checking hash against cloud threat database...");
+        }
+
+        let client = api::SigilClient::new(None);
+        match client.lookup_threat(&dir_hash).await {
+            Ok(info) => {
+                if info.known_malicious {
+                    println!(
+                        "\n  {} {} is a known threat: {}",
+                        "THREAT INTEL:".bold().red(),
+                        path.display(),
+                        info.description.as_deref().unwrap_or("no description")
+                    );
+                    if let Some(threat_type) = &info.threat_type {
+                        println!("  Type: {}", threat_type);
+                    }
+                } else if verbose {
+                    eprintln!("no threat intel match for this target");
+                }
+            }
+            Err(err) => {
+                if verbose {
+                    eprintln!(
+                        "{} cloud enrichment unavailable: {}",
+                        "warning:".bold().yellow(),
+                        err
+                    );
+                }
+            }
+        }
+    }
+
     if submit {
         if verbose {
             eprintln!("submitting results to Sigil cloud...");
@@ -684,6 +728,43 @@ async fn cmd_scan(
         _ => 2,
     }
 }
+
+// ---------------------------------------------------------------------------
+// Hash computation
+// ---------------------------------------------------------------------------
+
+/// Compute a SHA-256 hash of a directory's contents (file paths + sizes).
+/// Used for threat intel lookups and cache invalidation.
+fn compute_directory_hash(path: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    use walkdir::WalkDir;
+
+    let mut hasher = Sha256::new();
+
+    let mut entries: Vec<_> = WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .collect();
+
+    // Sort for deterministic hashing
+    entries.sort_by_key(|e| e.path().to_path_buf());
+
+    for entry in &entries {
+        let rel_path = entry
+            .path()
+            .strip_prefix(path)
+            .unwrap_or(entry.path())
+            .to_string_lossy();
+        hasher.update(rel_path.as_bytes());
+
+        if let Ok(metadata) = entry.metadata() {
+            hasher.update(metadata.len().to_le_bytes());
+        }
+    }
+
+    hex::encode(hasher.finalize())
 
 async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {
     // Load baseline

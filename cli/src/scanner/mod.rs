@@ -1,3 +1,4 @@
+pub mod cloud_sigs;
 pub mod phases;
 pub mod scoring;
 
@@ -144,6 +145,9 @@ pub fn run_scan(
         }
     };
 
+    // Load cloud signatures (if available — gracefully returns empty if offline)
+    let cloud_sigs = cloud_sigs::load_cloud_signatures();
+
     let entries: Vec<_> = WalkDir::new(path)
         .follow_links(false)
         .into_iter()
@@ -184,6 +188,15 @@ pub fn run_scan(
         }
         if should_run_phase(Phase::Obfuscation) {
             findings.extend(phases::scan_obfuscation(&rel_path, &contents));
+        }
+
+        // Apply cloud signatures (from ~/.sigil/signatures.json)
+        if !cloud_sigs.is_empty() {
+            findings.extend(cloud_sigs::scan_with_cloud_signatures(
+                &rel_path,
+                &contents,
+                &cloud_sigs,
+            ));
         }
     }
 
