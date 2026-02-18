@@ -10,7 +10,8 @@ external infrastructure.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from api.config import settings
@@ -22,6 +23,228 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _memory_store: dict[str, dict[str, Any]] = {}
 _memory_cache: dict[str, Any] = {}
+
+
+# ---------------------------------------------------------------------------
+# AsyncpgClient — PostgreSQL backend via asyncpg
+# ---------------------------------------------------------------------------
+
+
+class AsyncpgClient:
+    """asyncpg-backed database client for Azure PostgreSQL / any Postgres."""
+
+    def __init__(self):
+        self._pool = None
+        # in-memory fallback (same as SupabaseClient)
+        self._memory_store: dict[str, dict[str, Any]] = {}
+
+    async def connect(self):
+        if not settings.database_configured:
+            logger.info("AsyncpgClient: no DATABASE_URL, using in-memory store")
+            return
+        try:
+            import asyncpg
+            self._pool = await asyncpg.create_pool(
+                settings.database_url,
+                min_size=1,
+                max_size=10,
+                command_timeout=30,
+                ssl="require",
+            )
+            logger.info("AsyncpgClient: connected to PostgreSQL")
+        except Exception as e:
+            logger.error(f"AsyncpgClient: connection failed: {e}")
+            self._pool = None
+
+    async def disconnect(self):
+        if self._pool:
+            await self._pool.close()
+
+    def _mem(self, table: str) -> dict[str, Any]:
+        return self._memory_store.setdefault(table, {})
+
+    # ── Generic CRUD ──────────────────────────────────────────────────────────
+
+    async def insert(self, table: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self._pool:
+            row_id = data.get("id", str(uuid.uuid4()))
+            row = {"id": row_id, "created_at": datetime.now(timezone.utc).isoformat(), **data}
+            self._mem(table)[row_id] = row
+            return row
+        cols = list(data.keys())
+        placeholders = [f"${i+1}" for i in range(len(cols))]
+        sql = (
+            f"INSERT INTO {table} ({', '.join(cols)}) "
+            f"VALUES ({', '.join(placeholders)}) RETURNING *"
+        )
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(sql, *[data[c] for c in cols])
+            return dict(row)
+
+    async def select(
+        self,
+        table: str,
+        filters: dict[str, Any] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        order_by: str | None = None,
+        order_desc: bool = False,
+    ) -> list[dict[str, Any]]:
+        if not self._pool:
+            rows = list(self._mem(table).values())
+            if filters:
+                rows = [r for r in rows if all(r.get(k) == v for k, v in filters.items())]
+            if order_by:
+                rows.sort(key=lambda r: r.get(order_by, ""), reverse=order_desc)
+            if offset:
+                rows = rows[offset:]
+            if limit:
+                rows = rows[:limit]
+            return rows
+        conditions, vals = [], []
+        if filters:
+            for i, (k, v) in enumerate(filters.items(), 1):
+                conditions.append(f"{k} = ${i}")
+                vals.append(v)
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        order = ""
+        if order_by:
+            direction = "DESC" if order_desc else "ASC"
+            order = f"ORDER BY {order_by} {direction}"
+        lim = f"LIMIT {limit}" if limit else ""
+        off = f"OFFSET {offset}" if offset else ""
+        sql = f"SELECT * FROM {table} {where} {order} {lim} {off}".strip()
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(sql, *vals)
+            return [dict(r) for r in rows]
+
+    async def select_one(
+        self, table: str, filters: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        rows = await self.select(table, filters, limit=1)
+        return rows[0] if rows else None
+
+    async def upsert(
+        self, table: str, data: dict[str, Any], conflict_columns: list[str] | None = None
+    ) -> dict[str, Any]:
+        if not self._pool:
+            key = data.get("id", str(uuid.uuid4()))
+            self._mem(table)[key] = {**self._mem(table).get(key, {}), **data}
+            return self._mem(table)[key]
+        cols = list(data.keys())
+        placeholders = [f"${i+1}" for i in range(len(cols))]
+        conflict = conflict_columns or ["id"]
+        updates = [f"{c} = EXCLUDED.{c}" for c in cols if c not in conflict]
+        sql = (
+            f"INSERT INTO {table} ({', '.join(cols)}) "
+            f"VALUES ({', '.join(placeholders)}) "
+            f"ON CONFLICT ({', '.join(conflict)}) DO UPDATE SET {', '.join(updates)} "
+            f"RETURNING *"
+        )
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(sql, *[data[c] for c in cols])
+            return dict(row)
+
+    async def update(
+        self, table: str, filters: dict[str, Any], data: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        if not self._pool:
+            for key, row in self._mem(table).items():
+                if all(row.get(k) == v for k, v in filters.items()):
+                    self._mem(table)[key].update(data)
+                    return self._mem(table)[key]
+            return None
+        set_parts, vals = [], []
+        for i, (k, v) in enumerate(data.items(), 1):
+            set_parts.append(f"{k} = ${i}")
+            vals.append(v)
+        where_parts = []
+        for i, (k, v) in enumerate(filters.items(), len(vals) + 1):
+            where_parts.append(f"{k} = ${i}")
+            vals.append(v)
+        sql = (
+            f"UPDATE {table} SET {', '.join(set_parts)} "
+            f"WHERE {' AND '.join(where_parts)} RETURNING *"
+        )
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(sql, *vals)
+            return dict(row) if row else None
+
+    async def delete(
+        self, table: str, filters: dict[str, Any]
+    ) -> None:
+        if not self._pool:
+            to_del = [k for k, r in self._mem(table).items()
+                      if all(r.get(fk) == fv for fk, fv in filters.items())]
+            for k in to_del:
+                del self._mem(table)[k]
+            return
+        conditions, vals = [], []
+        for i, (k, v) in enumerate(filters.items(), 1):
+            conditions.append(f"{k} = ${i}")
+            vals.append(v)
+        sql = f"DELETE FROM {table} WHERE {' AND '.join(conditions)}"
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql, *vals)
+
+    # ── Domain Methods (same interface as SupabaseClient) ─────────────────────
+
+    async def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        return await self.select_one("users", {"email": email})
+
+    async def create_password_reset_token(
+        self, user_id: str, token_hash: str, expires_at: datetime
+    ) -> dict[str, Any]:
+        await self.delete("password_reset_tokens", {"user_id": user_id})
+        return await self.insert("password_reset_tokens", {
+            "user_id": user_id,
+            "token_hash": token_hash,
+            "expires_at": expires_at,
+        })
+
+    async def get_password_reset_token(self, token_hash: str) -> dict[str, Any] | None:
+        row = await self.select_one("password_reset_tokens", {"token_hash": token_hash})
+        if row is None:
+            return None
+        expires = row.get("expires_at")
+        if expires and datetime.now(timezone.utc) > (
+            expires if expires.tzinfo else expires.replace(tzinfo=timezone.utc)
+        ):
+            await self.delete("password_reset_tokens", {"token_hash": token_hash})
+            return None
+        return row
+
+    async def delete_password_reset_token(self, token_hash: str) -> None:
+        await self.delete("password_reset_tokens", {"token_hash": token_hash})
+
+    async def update_user_password(self, user_id: str, password_hash: str) -> None:
+        await self.update("users", {"id": user_id}, {"password_hash": password_hash})
+
+    async def get_subscription(self, user_id: str) -> dict[str, Any] | None:
+        return await self.select_one("subscriptions", {"user_id": user_id})
+
+    async def upsert_subscription(
+        self,
+        user_id: str,
+        plan: str,
+        status: str,
+        stripe_customer_id: str | None = None,
+        stripe_subscription_id: str | None = None,
+        current_period_end=None,
+    ) -> dict[str, Any]:
+        data: dict[str, Any] = {"user_id": user_id, "plan": plan, "status": status}
+        if stripe_customer_id is not None:
+            data["stripe_customer_id"] = stripe_customer_id
+        if stripe_subscription_id is not None:
+            data["stripe_subscription_id"] = stripe_subscription_id
+        if current_period_end is not None:
+            data["current_period_end"] = current_period_end
+        return await self.upsert("subscriptions", data, conflict_columns=["user_id"])
+
+    async def get_subscription_by_stripe_customer(
+        self, stripe_customer_id: str
+    ) -> dict[str, Any] | None:
+        return await self.select_one("subscriptions", {"stripe_customer_id": stripe_customer_id})
 
 
 # ---------------------------------------------------------------------------
@@ -441,5 +664,11 @@ class RedisClient:
 # Singletons
 # ---------------------------------------------------------------------------
 
-db = SupabaseClient()
+# Select database backend based on configuration
+if settings.database_configured:
+    db = AsyncpgClient()
+elif settings.supabase_configured:
+    db = SupabaseClient()
+else:
+    db = SupabaseClient()  # falls back to in-memory inside SupabaseClient
 cache = RedisClient()

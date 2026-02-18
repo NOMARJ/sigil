@@ -1,0 +1,9 @@
+# Terraform working directory and generated files — never commit these.
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# All .tfvars files contain real secrets; only the example is safe to commit.
+*.tfvars
+!terraform.tfvars.example

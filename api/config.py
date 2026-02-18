@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # --- Supabase (optional) ---------------------------------------------------
     supabase_url: str | None = None
     supabase_key: str | None = None
+    database_url: str | None = None  # SIGIL_DATABASE_URL — postgres connection string
 
     # --- Redis (optional) ------------------------------------------------------
     redis_url: str | None = None
@@ -70,6 +71,10 @@ class Settings(BaseSettings):
     def supabase_configured(self) -> bool:
         """Return True when both Supabase URL and key are set."""
         return bool(self.supabase_url and self.supabase_key)
+
+    @property
+    def database_configured(self) -> bool:
+        return bool(self.database_url)
 
     @property
     def redis_configured(self) -> bool:

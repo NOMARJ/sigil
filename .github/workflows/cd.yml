@@ -1,0 +1,86 @@
+# Required GitHub Secrets:
+#   AZURE_CREDENTIALS       — JSON output of: az ad sp create-for-rbac --role contributor --sdk-auth
+#   ACR_LOGIN_SERVER        — e.g. sigilacrabc123.azurecr.io (from terraform output acr_login_server)
+#   ACR_NAME                — e.g. sigilacrabc123 (just the name, no domain)
+#   AZURE_RESOURCE_GROUP    — e.g. sigil-rg (from terraform output resource_group_name)
+
+name: CD — Deploy to Azure
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - name: Set image tag
+        id: tag
+        run: echo "sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=https://$(az containerapp show \
+              --name sigil-api \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --query "properties.configuration.ingress.fqdn" -o tsv) \
+            -t ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }} \
+            -t ${{ env.ACR_LOGIN_SERVER }}/sigil:latest \
+            .
+          docker push ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/sigil:latest
+
+      - name: Deploy sigil-api
+        run: |
+          az containerapp update \
+            --name sigil-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }}
+
+      - name: Deploy sigil-dashboard
+        run: |
+          az containerapp update \
+            --name sigil-dashboard \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }}
+
+      - name: Verify API health
+        run: |
+          API_URL=$(az containerapp show \
+            --name sigil-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          sleep 30
+          curl -f "https://${API_URL}/health" || exit 1
+          echo "API is healthy at https://${API_URL}"
+
+      - name: Print deployment URLs
+        run: |
+          API_URL=$(az containerapp show --name sigil-api --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          DASH_URL=$(az containerapp show --name sigil-dashboard --resource-group ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "### Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| API | https://${API_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dashboard | https://${DASH_URL} |" >> $GITHUB_STEP_SUMMARY
