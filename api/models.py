@@ -481,6 +481,9 @@ class ScanListResponse(BaseModel):
     total: int = 0
     page: int = 1
     per_page: int = 20
+    upgrade_message: str | None = Field(
+        None, description="Set when the user's plan restricts scan history access"
+    )
 
 
 class ScanDetail(BaseModel):
@@ -608,6 +611,15 @@ class ErrorResponse(BaseModel):
     """Standard error body."""
 
     detail: str
+
+
+class GateError(BaseModel):
+    """Structured error body returned when a plan tier gate blocks a request."""
+
+    detail: str
+    required_plan: str
+    current_plan: str
+    upgrade_url: str = "https://app.sigilsec.ai/upgrade"
 
 
 # Forward-ref update so ScanResponse can reference ThreatEntry

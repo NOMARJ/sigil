@@ -279,3 +279,17 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+
+-- =====================================================================
+-- Scan Usage (monthly quota tracking per user)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS scan_usage (
+    user_id     UUID    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    year_month  CHAR(7) NOT NULL,  -- e.g. '2026-02'
+    count       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, year_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scan_usage_user  ON scan_usage (user_id);
+CREATE INDEX IF NOT EXISTS idx_scan_usage_month ON scan_usage (year_month);

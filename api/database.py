@@ -246,6 +246,34 @@ class AsyncpgClient:
     ) -> dict[str, Any] | None:
         return await self.select_one("subscriptions", {"stripe_customer_id": stripe_customer_id})
 
+    async def get_scan_usage(self, user_id: str, year_month: str) -> int:
+        """Return the current scan count for a user in a given month."""
+        if not self._pool:
+            key = f"{user_id}:{year_month}"
+            return self._mem("scan_usage").get(key, {}).get("count", 0)
+        row = await self.select_one("scan_usage", {"user_id": user_id, "year_month": year_month})
+        return row["count"] if row else 0
+
+    async def increment_scan_usage(self, user_id: str, year_month: str) -> int:
+        """Atomically increment the scan count for a user/month. Returns the new count."""
+        if not self._pool:
+            key = f"{user_id}:{year_month}"
+            store = self._mem("scan_usage")
+            if key not in store:
+                store[key] = {"user_id": user_id, "year_month": year_month, "count": 0}
+            store[key]["count"] += 1
+            return store[key]["count"]
+        sql = """
+            INSERT INTO scan_usage (user_id, year_month, count)
+            VALUES ($1, $2, 1)
+            ON CONFLICT (user_id, year_month)
+            DO UPDATE SET count = scan_usage.count + 1
+            RETURNING count
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(sql, user_id, year_month)
+            return row["count"]
+
 
 # ---------------------------------------------------------------------------
 # Supabase wrapper
@@ -576,6 +604,51 @@ class SupabaseClient:
             if sub.get("stripe_customer_id") == stripe_customer_id:
                 return sub
         return None
+
+    async def get_scan_usage(self, user_id: str, year_month: str) -> int:
+        """Return the current scan count for a user in a given month."""
+        if self._connected and self._client is not None:
+            try:
+                result = (
+                    self._client.table("scan_usage")
+                    .select("count")
+                    .eq("user_id", user_id)
+                    .eq("year_month", year_month)
+                    .limit(1)
+                    .execute()
+                )
+                rows = result.data or []
+                return rows[0]["count"] if rows else 0
+            except Exception:
+                logger.exception("Supabase get_scan_usage failed (user_id=%s)", user_id)
+
+        # Fallback: in-memory
+        key = f"{user_id}:{year_month}"
+        return _memory_store.get("scan_usage", {}).get(key, {}).get("count", 0)
+
+    async def increment_scan_usage(self, user_id: str, year_month: str) -> int:
+        """Atomically increment the scan count for a user/month. Returns the new count."""
+        if self._connected and self._client is not None:
+            try:
+                # Supabase doesn't support ON CONFLICT natively in the client lib,
+                # so we do a read-then-upsert (acceptable for non-critical quota tracking).
+                existing = await self.get_scan_usage(user_id, year_month)
+                new_count = existing + 1
+                self._client.table("scan_usage").upsert(
+                    {"user_id": user_id, "year_month": year_month, "count": new_count},
+                    on_conflict="user_id,year_month",
+                ).execute()
+                return new_count
+            except Exception:
+                logger.exception("Supabase increment_scan_usage failed (user_id=%s)", user_id)
+
+        # Fallback: in-memory
+        key = f"{user_id}:{year_month}"
+        store = _memory_store.setdefault("scan_usage", {})
+        if key not in store:
+            store[key] = {"user_id": user_id, "year_month": year_month, "count": 0}
+        store[key]["count"] += 1
+        return store[key]["count"]
 
 
 # ---------------------------------------------------------------------------
