@@ -560,6 +560,31 @@ class RoleUpdateRequest(BaseModel):
     role: str = Field(..., description="New role: member, admin, or owner")
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Request to initiate a password reset."""
+
+    email: str = Field(..., description="Email address of the account to reset")
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request to complete a password reset using a token."""
+
+    token: str = Field(..., description="Reset token received via email")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Response after requesting a password reset."""
+
+    message: str
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response after successfully resetting a password."""
+
+    message: str
+
+
 class RefreshTokenRequest(BaseModel):
     """Request to refresh an access token."""
 

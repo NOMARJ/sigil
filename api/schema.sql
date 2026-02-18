@@ -247,3 +247,35 @@ CREATE INDEX idx_policies_team_active ON policies (team_id, enabled) WHERE enabl
 
 -- Recent audit actions by team
 CREATE INDEX idx_audit_team_recent ON audit_log (team_id, created_at DESC);
+
+-- =====================================================================
+-- Password Reset Tokens
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  TEXT NOT NULL UNIQUE,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+
+-- =====================================================================
+-- Subscriptions (billing plan records per user)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    plan                    TEXT NOT NULL DEFAULT 'free',
+    status                  TEXT NOT NULL DEFAULT 'active',
+    stripe_customer_id      TEXT,
+    stripe_subscription_id  TEXT,
+    current_period_end      TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);

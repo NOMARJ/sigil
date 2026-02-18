@@ -114,9 +114,6 @@ _STRIPE_PRICE_MAP: dict[PlanTier, str | None] = {
     PlanTier.ENTERPRISE: None,  # Custom — handled via sales
 }
 
-# In-memory subscription store (used when Stripe is not configured)
-_subscriptions: dict[str, dict[str, Any]] = {}
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -139,20 +136,23 @@ def _get_stripe():
         return None
 
 
-def _get_or_create_stub_subscription(user_id: str) -> dict[str, Any]:
-    """Get or create a stub subscription for a user (no-Stripe fallback)."""
-    if user_id not in _subscriptions:
+async def _get_or_create_subscription(user_id: str) -> dict[str, Any]:
+    """Get the DB subscription for a user, creating a free-plan default if absent."""
+    sub_data = await db.get_subscription(user_id)
+    if sub_data is None:
         now = datetime.utcnow()
-        _subscriptions[user_id] = {
-            "plan": PlanTier.FREE.value,
-            "status": "active",
-            "current_period_start": now.isoformat(),
-            "current_period_end": (now + timedelta(days=30)).isoformat(),
-            "cancel_at_period_end": False,
-            "stripe_subscription_id": None,
-            "stripe_customer_id": None,
-        }
-    return _subscriptions[user_id]
+        sub_data = await db.upsert_subscription(
+            user_id=user_id,
+            plan=PlanTier.FREE.value,
+            status="active",
+            stripe_customer_id=None,
+            stripe_subscription_id=None,
+            current_period_end=(now + timedelta(days=30)).isoformat(),
+        )
+        sub_data.setdefault(
+            "current_period_start", now.isoformat()
+        )
+    return sub_data
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ async def subscribe(
 
     When Stripe is configured, this creates a Stripe Checkout Session or
     updates the existing subscription.  Without Stripe, a stub subscription
-    is recorded in memory.
+    is recorded in the database.
     """
     stripe = _get_stripe()
     now = datetime.utcnow()
@@ -198,13 +198,15 @@ async def subscribe(
             detail="Enterprise plans require a custom contract. Contact sales@sigil.dev.",
         )
 
+    # Fetch (or create) the existing subscription record from DB
+    sub_data = await _get_or_create_subscription(current_user.id)
+
     if stripe is not None:
         # --- Stripe integration path ---
         price_id = _STRIPE_PRICE_MAP.get(body.plan)
 
         if body.plan == PlanTier.FREE:
-            # Downgrade to free — cancel existing subscription
-            sub_data = _get_or_create_stub_subscription(current_user.id)
+            # Downgrade to free — cancel existing Stripe subscription
             stripe_sub_id = sub_data.get("stripe_subscription_id")
             if stripe_sub_id:
                 try:
@@ -217,22 +219,26 @@ async def subscribe(
                         "Failed to cancel Stripe subscription %s", stripe_sub_id
                     )
 
-            sub_data["plan"] = PlanTier.FREE.value
+            sub_data = await db.upsert_subscription(
+                user_id=current_user.id,
+                plan=PlanTier.FREE.value,
+                status=sub_data.get("status", "active"),
+                stripe_customer_id=sub_data.get("stripe_customer_id"),
+                stripe_subscription_id=sub_data.get("stripe_subscription_id"),
+                current_period_end=sub_data.get("current_period_end"),
+            )
             sub_data["cancel_at_period_end"] = True
         else:
             # Create or update to paid plan
             try:
-                # Attempt to find or create customer
-                customer_id = _get_or_create_stub_subscription(current_user.id).get(
-                    "stripe_customer_id"
-                )
+                # Attempt to find or create Stripe customer
+                customer_id = sub_data.get("stripe_customer_id")
                 if not customer_id:
                     customer = stripe.Customer.create(
                         email=current_user.email,
                         metadata={"sigil_user_id": current_user.id},
                     )
                     customer_id = customer.id
-                    _subscriptions[current_user.id]["stripe_customer_id"] = customer_id
 
                 subscription = stripe.Subscription.create(
                     customer=customer_id,
@@ -241,20 +247,22 @@ async def subscribe(
                     expand=["latest_invoice.payment_intent"],
                 )
 
-                _subscriptions[current_user.id].update(
-                    {
-                        "plan": body.plan.value,
-                        "status": subscription.status,
-                        "stripe_subscription_id": subscription.id,
-                        "current_period_start": datetime.utcfromtimestamp(
-                            subscription.current_period_start
-                        ).isoformat(),
-                        "current_period_end": datetime.utcfromtimestamp(
-                            subscription.current_period_end
-                        ).isoformat(),
-                        "cancel_at_period_end": False,
-                    }
+                period_end = datetime.utcfromtimestamp(
+                    subscription.current_period_end
+                ).isoformat()
+
+                sub_data = await db.upsert_subscription(
+                    user_id=current_user.id,
+                    plan=body.plan.value,
+                    status=subscription.status,
+                    stripe_customer_id=customer_id,
+                    stripe_subscription_id=subscription.id,
+                    current_period_end=period_end,
                 )
+                sub_data["current_period_start"] = datetime.utcfromtimestamp(
+                    subscription.current_period_start
+                ).isoformat()
+                sub_data["cancel_at_period_end"] = False
             except Exception as exc:
                 logger.exception("Stripe subscription creation failed")
                 raise HTTPException(
@@ -263,12 +271,17 @@ async def subscribe(
                 )
     else:
         # --- Stub path (no Stripe) ---
-        sub = _get_or_create_stub_subscription(current_user.id)
-        sub["plan"] = body.plan.value
-        sub["status"] = "active"
-        sub["current_period_start"] = now.isoformat()
-        sub["current_period_end"] = (now + timedelta(days=30)).isoformat()
-        sub["cancel_at_period_end"] = False
+        period_end = (now + timedelta(days=30)).isoformat()
+        sub_data = await db.upsert_subscription(
+            user_id=current_user.id,
+            plan=body.plan.value,
+            status="active",
+            stripe_customer_id=sub_data.get("stripe_customer_id"),
+            stripe_subscription_id=sub_data.get("stripe_subscription_id"),
+            current_period_end=period_end,
+        )
+        sub_data["current_period_start"] = now.isoformat()
+        sub_data["cancel_at_period_end"] = False
         logger.info(
             "Stub subscription created for user %s: plan=%s (Stripe not configured)",
             current_user.id,
@@ -292,7 +305,6 @@ async def subscribe(
     except Exception:
         logger.debug("Failed to write billing audit log")
 
-    sub_data = _get_or_create_stub_subscription(current_user.id)
     return SubscriptionResponse(
         plan=PlanTier(sub_data["plan"]),
         status=sub_data.get("status", "active"),
@@ -314,9 +326,9 @@ async def get_subscription(
 ) -> SubscriptionResponse:
     """Return the current subscription details for the authenticated user.
 
-    If the user has no subscription, a Free plan stub is returned.
+    If the user has no subscription, a Free plan record is created and returned.
     """
-    sub_data = _get_or_create_stub_subscription(current_user.id)
+    sub_data = await _get_or_create_subscription(current_user.id)
 
     # If Stripe is configured, try to sync from Stripe
     stripe = _get_stripe()
@@ -324,12 +336,20 @@ async def get_subscription(
     if stripe and stripe_sub_id:
         try:
             subscription = stripe.Subscription.retrieve(stripe_sub_id)
-            sub_data["status"] = subscription.status
+            period_end = datetime.utcfromtimestamp(
+                subscription.current_period_end
+            ).isoformat()
+            # Persist the synced data back to DB
+            sub_data = await db.upsert_subscription(
+                user_id=current_user.id,
+                plan=sub_data.get("plan", PlanTier.FREE.value),
+                status=subscription.status,
+                stripe_customer_id=sub_data.get("stripe_customer_id"),
+                stripe_subscription_id=stripe_sub_id,
+                current_period_end=period_end,
+            )
             sub_data["current_period_start"] = datetime.utcfromtimestamp(
                 subscription.current_period_start
-            ).isoformat()
-            sub_data["current_period_end"] = datetime.utcfromtimestamp(
-                subscription.current_period_end
             ).isoformat()
             sub_data["cancel_at_period_end"] = subscription.cancel_at_period_end
         except Exception:
@@ -362,7 +382,7 @@ async def create_portal_session(
     stripe = _get_stripe()
 
     if stripe is not None:
-        sub_data = _get_or_create_stub_subscription(current_user.id)
+        sub_data = await _get_or_create_subscription(current_user.id)
         customer_id = sub_data.get("stripe_customer_id")
 
         if not customer_id:
@@ -435,9 +455,9 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 
     # --- Handle known event types ---
     if event_type == "customer.subscription.updated":
-        _handle_subscription_updated(event)
+        await _handle_subscription_updated(event)
     elif event_type == "customer.subscription.deleted":
-        _handle_subscription_deleted(event)
+        await _handle_subscription_deleted(event)
     elif event_type == "invoice.payment_failed":
         _handle_payment_failed(event)
     elif event_type == "invoice.payment_succeeded":
@@ -453,7 +473,7 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 # ---------------------------------------------------------------------------
 
 
-def _handle_subscription_updated(event: dict[str, Any]) -> None:
+async def _handle_subscription_updated(event: dict[str, Any]) -> None:
     """Process a subscription update event from Stripe."""
     data = event.get("data", {}).get("object", {})
     customer_id = data.get("customer", "")
@@ -465,30 +485,49 @@ def _handle_subscription_updated(event: dict[str, Any]) -> None:
         sub_status,
     )
 
-    # Update the in-memory store for any matching user
-    for user_id, sub in _subscriptions.items():
-        if sub.get("stripe_customer_id") == customer_id:
-            sub["status"] = sub_status
-            if "current_period_end" in data:
-                sub["current_period_end"] = datetime.utcfromtimestamp(
-                    data["current_period_end"]
-                ).isoformat()
-            break
+    # Find the subscription by Stripe customer ID and update it
+    existing = await db.get_subscription_by_stripe_customer(customer_id)
+    if existing:
+        period_end: str | None = None
+        if "current_period_end" in data:
+            period_end = datetime.utcfromtimestamp(
+                data["current_period_end"]
+            ).isoformat()
+        await db.upsert_subscription(
+            user_id=existing["user_id"],
+            plan=existing.get("plan", PlanTier.FREE.value),
+            status=sub_status,
+            stripe_customer_id=customer_id,
+            stripe_subscription_id=existing.get("stripe_subscription_id"),
+            current_period_end=period_end or existing.get("current_period_end"),
+        )
+    else:
+        logger.warning(
+            "Received subscription.updated for unknown customer: %s", customer_id
+        )
 
 
-def _handle_subscription_deleted(event: dict[str, Any]) -> None:
+async def _handle_subscription_deleted(event: dict[str, Any]) -> None:
     """Process a subscription cancellation event."""
     data = event.get("data", {}).get("object", {})
     customer_id = data.get("customer", "")
 
     logger.info("Subscription deleted for customer: %s", customer_id)
 
-    for user_id, sub in _subscriptions.items():
-        if sub.get("stripe_customer_id") == customer_id:
-            sub["plan"] = PlanTier.FREE.value
-            sub["status"] = "canceled"
-            sub["stripe_subscription_id"] = None
-            break
+    existing = await db.get_subscription_by_stripe_customer(customer_id)
+    if existing:
+        await db.upsert_subscription(
+            user_id=existing["user_id"],
+            plan=PlanTier.FREE.value,
+            status="canceled",
+            stripe_customer_id=customer_id,
+            stripe_subscription_id=None,
+            current_period_end=existing.get("current_period_end"),
+        )
+    else:
+        logger.warning(
+            "Received subscription.deleted for unknown customer: %s", customer_id
+        )
 
 
 def _handle_payment_failed(event: dict[str, Any]) -> None:

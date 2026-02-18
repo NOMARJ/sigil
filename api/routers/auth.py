@@ -17,6 +17,7 @@ import hmac
 import json
 import logging
 import base64
+import secrets
 import time
 from datetime import datetime, timedelta
 from typing import Annotated, Any
@@ -30,7 +31,11 @@ from api.database import db
 from api.models import (
     AuthTokens,
     ErrorResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     RefreshTokenRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -419,3 +424,111 @@ async def logout(
     """
     logger.info("User logged out: %s", current_user.id)
     return None
+
+
+# ---------------------------------------------------------------------------
+# Password reset helpers
+# ---------------------------------------------------------------------------
+
+
+async def _send_reset_email(email: str, reset_link: str) -> None:
+    """Send a password reset email via the notifications service."""
+    from api.services.notifications import send_email_notification
+
+    await send_email_notification(
+        recipients=[email],
+        subject="Reset your Sigil password",
+        body_text=(
+            f"Click the link below to reset your password (expires in 1 hour):\n\n"
+            f"{reset_link}\n\n"
+            f"If you didn't request this, ignore this email."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Password reset endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    summary="Request a password reset link",
+)
+async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    """Generate a password reset token and send it via email.
+
+    Always returns a success message to prevent email enumeration attacks.
+    The reset link is only sent when the email address matches an existing user.
+    """
+    user = await db.get_user_by_email(body.email)
+    if user:
+        raw_token = secrets.token_hex(32)  # 64-char hex string
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
+        await db.create_password_reset_token(user["id"], token_hash, expires_at)
+
+        reset_link = f"{settings.cors_origins[0]}/reset-password?token={raw_token}"
+        try:
+            await _send_reset_email(user["email"], reset_link)
+        except Exception:
+            logger.exception("Failed to send password reset email to %s", user["email"])
+
+        logger.info("Password reset requested for user: %s", user["id"])
+
+    # Always return success to prevent email enumeration
+    return ForgotPasswordResponse(
+        message="If that email exists, a reset link has been sent."
+    )
+
+
+@router.post(
+    "/reset-password",
+    response_model=ResetPasswordResponse,
+    summary="Reset password using a reset token",
+    responses={400: {"model": ErrorResponse}},
+)
+async def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
+    """Validate a reset token and update the user's password.
+
+    The token is single-use and expires after 1 hour.
+    Returns 400 if the token is invalid or expired.
+    """
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+    token_record = await db.get_password_reset_token(token_hash)
+
+    if not token_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Double-check expiry (get_password_reset_token may return None for expired,
+    # but guard here for any DB backends that skip expiry filtering)
+    expires_at_raw = token_record.get("expires_at")
+    if expires_at_raw:
+        try:
+            expires_dt = datetime.fromisoformat(
+                str(expires_at_raw).replace("Z", "").split("+")[0]
+            )
+            if datetime.utcnow() > expires_dt:
+                await db.delete_password_reset_token(token_hash)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Reset token has expired",
+                )
+        except HTTPException:
+            raise
+        except (ValueError, TypeError):
+            pass
+
+    new_hash = _hash_password(body.new_password)
+
+    await db.update_user_password(token_record["user_id"], new_hash)
+    await db.delete_password_reset_token(token_hash)
+
+    logger.info("Password reset completed for user: %s", token_record["user_id"])
+
+    return ResetPasswordResponse(message="Password reset successfully")
