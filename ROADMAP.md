@@ -48,7 +48,7 @@ A web dashboard gives your team visibility into scan history, threat intelligenc
 ### Use it wherever you work
 - **VS Code / Cursor / Windsurf** — packaged `.vsix` available; scan files and packages from the editor, findings in the Problems panel
 - **JetBrains** — IntelliJ, WebStorm, PyCharm, GoLand and more; build with `gradle buildPlugin`, inline annotations and tool window
-- **Claude Code / AI agents** — MCP server (`npx @nomark/sigil-mcp-server`) exposes scan, approve, and reject as tools your agent can call
+- **Claude Code / AI agents** — MCP server exposes scan, approve, and reject as tools your agent can call; run via `node plugins/mcp-server/dist/index.js`
 - **GitHub Actions** — add `sigil-scan` to your CI pipeline, fail builds on findings, upload SARIF to Code Scanning
 - **Any CI system** — JSON and SARIF output work with any pipeline
 

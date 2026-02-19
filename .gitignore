@@ -54,4 +54,5 @@ htmlcov/
 *.whl
 *.tar.gz
 *.tgz
+*.zip
 supabase/.temp/

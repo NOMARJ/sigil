@@ -108,34 +108,17 @@ The MCP (Model Context Protocol) server gives AI agents direct access to Sigil s
 
 ### Install
 
-The MCP server ships with a `bin` entry — no manual build step required:
-
-```bash
-npx @nomark/sigil-mcp-server   # run directly
-```
-
-Or build from source if working in the repo:
+Build from the repo:
 
 ```bash
 cd plugins/mcp-server && npm install && npm run build
 ```
 
+`npx @nomark/sigil-mcp-server` will be available once the package is published to npm.
+
 ### Configure
 
 **Claude Code** — add to `~/.claude/claude_desktop_config.json` or `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "sigil": {
-      "command": "npx",
-      "args": ["@nomark/sigil-mcp-server"]
-    }
-  }
-}
-```
-
-Or point directly at the built file when running from the repo:
 
 ```json
 {
@@ -148,7 +131,7 @@ Or point directly at the built file when running from the repo:
 }
 ```
 
-**Cursor / Windsurf** — use the same `npx` config format in their MCP settings.
+**Cursor / Windsurf** — use the same `node` config format in their MCP settings.
 
 ### Available Tools
 

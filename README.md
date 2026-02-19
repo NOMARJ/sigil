@@ -141,25 +141,20 @@ Sigil works where you work. Install the plugin for your editor, or connect AI ag
 {
   "mcpServers": {
     "sigil": {
-      "command": "npx",
-      "args": ["@nomark/sigil-mcp-server"]
-    }
-  }
-}
-```
-
-Or point directly at the built file if running from the repo:
-
-```json
-{
-  "mcpServers": {
-    "sigil": {
       "command": "node",
       "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
     }
   }
 }
 ```
+
+Build the MCP server first if you haven't already:
+
+```bash
+cd plugins/mcp-server && npm install && npm run build
+```
+
+`npx @nomark/sigil-mcp-server` will be available once the package is published to npm.
 
 ## Threat Intelligence
 
