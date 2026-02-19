@@ -7,10 +7,9 @@
 name: CD — Deploy to Azure
 
 on:
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [main]
-    types: [completed]
+  workflow_dispatch:
 
 env:
   ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
@@ -20,8 +19,6 @@ jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
-    # Deploy regardless of CI status (linting can be fixed later)
-    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout
