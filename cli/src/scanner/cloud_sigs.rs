@@ -19,6 +19,7 @@ pub struct CloudSignature {
 
 /// Wrapped format returned by GET /v1/signatures.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SignatureResponse {
     pub signatures: Vec<CloudSignature>,
     #[serde(default)]

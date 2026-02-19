@@ -7,11 +7,11 @@
 # Stage 3: Runtime image with API, CLI, and dashboard
 # ============================================================================
 
-# ── Stage 1: Placeholder for Rust CLI (disabled until cli/ is complete) ─────
-FROM busybox:latest AS rust-builder
+# ── Stage 1: Build Rust CLI ──────────────────────────────────────────────────
+FROM rust:1.76-slim AS rust-builder
 WORKDIR /build
-# Create empty placeholder binary (Rust CLI not yet functional)
-RUN mkdir -p target/release && touch target/release/sigil
+COPY cli/ ./
+RUN cargo build --release
 
 # ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
 FROM node:20-slim AS dashboard-builder

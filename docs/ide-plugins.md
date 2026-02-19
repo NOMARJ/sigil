@@ -7,15 +7,15 @@ Sigil provides first-class integrations for editors and AI agents. All plugins c
 All plugins require the Sigil CLI installed and available on your `$PATH`:
 
 ```bash
-# Option 1: Install from source (Rust)
+# Option 1: Build the Rust CLI (recommended — faster, no shell dependency)
 cd cli && cargo build --release
 sudo cp target/release/sigil /usr/local/bin/
 
-# Option 2: Use the bash script
-sudo cp bin/sigil /usr/local/bin/sigil
+# Option 2: Use the bash script (no Rust required)
+sudo cp bin/sigil /usr/local/bin/sigil && chmod +x /usr/local/bin/sigil
 
-# Option 3: Homebrew
-brew install nomarj/tap/sigil
+# Option 3: curl installer
+curl -sSL https://sigilsec.ai/install.sh | sh
 ```
 
 Verify: `sigil --version`
@@ -28,12 +28,16 @@ One extension covers all three editors (they share the VS Code extension API).
 
 ### Install
 
+A pre-built `.vsix` is included in the repository:
+
 ```bash
-cd plugins/vscode
-npm install
-npm run compile
-npx vsce package
-# Install the .vsix:
+code --install-extension plugins/vscode/sigil-security-0.1.0.vsix
+```
+
+Or build from source:
+
+```bash
+cd plugins/vscode && npm install && npx @vscode/vsce package --no-dependencies
 code --install-extension sigil-security-0.1.0.vsix
 ```
 
@@ -71,10 +75,12 @@ Works with IntelliJ IDEA, WebStorm, PyCharm, GoLand, CLion, Rider, RubyMine, Php
 ```bash
 cd plugins/jetbrains
 gradle buildPlugin
-# Output: build/distributions/sigil-jetbrains-0.1.0.zip
+# Output: build/distributions/Sigil-0.1.0.zip
 ```
 
-Install via **Settings > Plugins > Gear > Install Plugin from Disk...**
+Install via **Settings > Plugins > Gear > Install Plugin from Disk...** — select the `.zip` from `build/distributions/`.
+
+Requires JDK 17 and Gradle. Targets IntelliJ Platform 2024.1+ (build 241–252).
 
 ### Features
 
@@ -102,15 +108,34 @@ The MCP (Model Context Protocol) server gives AI agents direct access to Sigil s
 
 ### Install
 
+The MCP server ships with a `bin` entry — no manual build step required:
+
 ```bash
-cd plugins/mcp-server
-npm install
-npm run build
+npx @nomark/sigil-mcp-server   # run directly
+```
+
+Or build from source if working in the repo:
+
+```bash
+cd plugins/mcp-server && npm install && npm run build
 ```
 
 ### Configure
 
-**Claude Code** — add to `~/.claude/claude_desktop_config.json`:
+**Claude Code** — add to `~/.claude/claude_desktop_config.json` or `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sigil": {
+      "command": "npx",
+      "args": ["@nomark/sigil-mcp-server"]
+    }
+  }
+}
+```
+
+Or point directly at the built file when running from the repo:
 
 ```json
 {
@@ -123,20 +148,7 @@ npm run build
 }
 ```
 
-**Per-project** — add to `.mcp.json` in the project root:
-
-```json
-{
-  "mcpServers": {
-    "sigil": {
-      "command": "node",
-      "args": ["./plugins/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-**Cursor / Windsurf** — add to their MCP settings with the same format.
+**Cursor / Windsurf** — use the same `npx` config format in their MCP settings.
 
 ### Available Tools
 

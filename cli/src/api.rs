@@ -36,6 +36,7 @@ pub struct ThreatInfo {
 
 /// A threat detection signature from the cloud.
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct Signature {
     pub id: String,
     pub pattern: String,

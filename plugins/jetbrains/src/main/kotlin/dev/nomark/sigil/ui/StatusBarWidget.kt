@@ -21,7 +21,7 @@ class SigilStatusBarWidget(private val project: Project) : StatusBarWidget, Stat
 
     override fun getTooltipText(): String = "Run Sigil security scan"
 
-    override fun getClickConsumer(): Consumer<MouseEvent> = Consumer {
+    override fun getClickConsumer(): Consumer<MouseEvent>? = Consumer {
         val action = ScanProjectAction()
         val dataContext = DataContext { dataId ->
             when (dataId) {

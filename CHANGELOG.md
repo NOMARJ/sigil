@@ -7,6 +7,13 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 ## [Unreleased]
 
 ### Added
+- Rust CLI fully compiles and runs (`cli/` — `cargo build --release` produces a working binary)
+- VS Code / Cursor / Windsurf extension packaged as `.vsix` (`plugins/vscode/sigil-security-0.1.0.vsix`)
+- JetBrains plugin builds with `gradle buildPlugin` — fixed `StatusBarWidget.TextPresentation.getClickConsumer()` nullable return type for IntelliJ Platform 2024.1+
+- MCP server (`plugins/mcp-server`) ships with `bin` entry — usable via `npx @nomark/sigil-mcp-server`
+- JetBrains CI step re-enabled in `.github/workflows/ci.yml`
+- Dockerfile Stage 1 now builds the Rust CLI from source instead of using a busybox placeholder
+- VS Code extension icon and Apache 2.0 `LICENSE` added to plugin directory
 - Content plan for documentation site, blog, and supporting pages
 - CLI command reference documentation
 - MCP integration guide
@@ -15,6 +22,9 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - Troubleshooting & FAQ page
 - Comparison pages (Sigil vs Snyk, Socket.dev, Semgrep, CodeQL)
 - Blog launch with 8 posts
+
+### Fixed
+- Rust clippy warnings treated as errors (`dead_code` on `Signature` / `SignatureResponse`, `too_many_arguments` on `cmd_scan`) — CI `build-rust` and `lint-rust` steps now pass clean
 
 ---
 

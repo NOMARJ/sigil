@@ -26,17 +26,22 @@ Sigil fills this gap with a **quarantine-first approach**.
 curl -sSL https://sigilsec.ai/install.sh | sh
 ```
 
-Or via Homebrew:
+Or build from source — the Rust CLI is the recommended binary:
 
 ```bash
-brew install nomarj/tap/sigil
+git clone https://github.com/NOMARJ/sigil
+cd sigil/cli && cargo build --release
+sudo cp target/release/sigil /usr/local/bin/sigil
 ```
 
-Or via npm (global):
+Or use the bash script directly (no Rust required):
 
 ```bash
-npm install -g @nomarj/sigil
+git clone https://github.com/NOMARJ/sigil
+sudo cp sigil/bin/sigil /usr/local/bin/sigil && chmod +x /usr/local/bin/sigil
 ```
+
+Homebrew tap and npm package are coming soon.
 
 ## How It Works
 
@@ -130,13 +135,25 @@ Sigil works where you work. Install the plugin for your editor, or connect AI ag
 | **Claude Code (MCP)** | 6 tools: scan, scan_package, clone, quarantine, approve, reject. | [plugins/mcp-server](plugins/mcp-server/) |
 | **GitHub Actions** | Run Sigil as a CI check on every PR. | [action.yml](action.yml) |
 
-```bash
-# MCP server — add to .mcp.json or claude_desktop_config.json
+```json
+{
+  "mcpServers": {
+    "sigil": {
+      "command": "npx",
+      "args": ["@nomark/sigil-mcp-server"]
+    }
+  }
+}
+```
+
+Or point directly at the built file if running from the repo:
+
+```json
 {
   "mcpServers": {
     "sigil": {
       "command": "node",
-      "args": ["./plugins/mcp-server/dist/index.js"]
+      "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
     }
   }
 }
@@ -189,11 +206,11 @@ The CLI is **free and open source** with all six scan phases. Paid tiers add clo
 
 See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
-**Today:** Quarantine-first scanning for pip, npm, and git repos. Six-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. IDE extensions, MCP server for AI agents, and GitHub Actions integration.
+**Today:** Quarantine-first scanning for pip, npm, and git repos. Six-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
 
 **Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** One-command install (Homebrew, npm, curl). Docker image and Go/Cargo scanning. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
+**Next:** Homebrew tap and npm package. Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

@@ -2,7 +2,7 @@
 
 How Sigil protects you today, and where we're headed next.
 
-Last updated: 2026-02-15
+Last updated: 2026-02-19
 
 ---
 
@@ -46,11 +46,14 @@ A web dashboard gives your team visibility into scan history, threat intelligenc
 - **Policies & alerts** — auto-approve low-risk packages, require manual review for high-risk, get Slack or webhook notifications when something bad is found
 
 ### Use it wherever you work
-- **VS Code / Cursor / Windsurf** — scan files and packages from the editor, see findings in the Problems panel
-- **JetBrains** — IntelliJ, WebStorm, PyCharm with inline annotations
-- **Claude Code / AI agents** — MCP server exposes scan, approve, and reject as tools your agent can call
+- **VS Code / Cursor / Windsurf** — packaged `.vsix` available; scan files and packages from the editor, findings in the Problems panel
+- **JetBrains** — IntelliJ, WebStorm, PyCharm, GoLand and more; build with `gradle buildPlugin`, inline annotations and tool window
+- **Claude Code / AI agents** — MCP server (`npx @nomark/sigil-mcp-server`) exposes scan, approve, and reject as tools your agent can call
 - **GitHub Actions** — add `sigil-scan` to your CI pipeline, fail builds on findings, upload SARIF to Code Scanning
 - **Any CI system** — JSON and SARIF output work with any pipeline
+
+### Native Rust binary
+The Rust CLI compiles and runs as a standalone binary — faster than the bash script with no shell dependency. Build with `cargo build --release` in the `cli/` directory.
 
 ### Compare scans over time
 `sigil diff` compares your current scan against a baseline and tells you what's new, what's resolved, and what's unchanged. Useful for tracking whether a dependency update introduced new risks.
@@ -67,14 +70,14 @@ Right now the API and dashboard run locally via Docker Compose. We're standing u
 ## What's next
 
 ### Easier to install
-Today you clone the repo and run `bin/sigil`. We want installation to be one command:
+The Rust binary and both IDE plugins now build and run. The remaining distribution steps:
 
-- `brew install nomarj/tap/sigil`
-- `npm install -g @nomarj/sigil`
-- `curl -sSL https://sigilsec.ai/install.sh | sh`
-- VS Code and JetBrains marketplace listings
+- `brew install nomarj/tap/sigil` — Homebrew tap
+- `npm install -g @nomarj/sigil` — npm global package
+- VS Code Marketplace listing (`.vsix` is built; listing pending)
+- JetBrains Marketplace listing (plugin builds; listing pending)
 
-The Rust binary becomes the default (faster, no bash dependency), with automatic updates so you always have the latest signatures and scan rules.
+Once on the package managers, `sigil install --update` will handle automatic updates so users always have the latest signatures and scan rules.
 
 ### More ecosystems
 Sigil currently scans pip, npm, and git repos. We want to cover the package managers where supply chain attacks are growing:

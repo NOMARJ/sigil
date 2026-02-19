@@ -589,6 +589,7 @@ async fn cmd_npm(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cmd_scan(
     path: &Path,
     phases: &str,
