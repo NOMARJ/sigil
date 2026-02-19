@@ -16,16 +16,19 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
+from api.gates import check_scan_quota, get_user_plan, require_plan
 from api.models import (
     DashboardStats,
     ErrorResponse,
+    GateError,
+    PlanTier,
     ScanDetail,
     ScanListItem,
     ScanListResponse,
@@ -112,7 +115,7 @@ async def _get_scan_or_404(scan_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
+async def _submit_scan_impl(request: ScanRequest, user_id: str | None = None) -> ScanResponse:
     """Shared implementation for scan submission."""
     scan_id = uuid4().hex[:16]
 
@@ -152,24 +155,32 @@ async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
     # --- 4. Persist scan result ---------------------------------------------
     findings_data = [f.model_dump(mode="json") for f in request.findings]
     try:
-        await db.insert(
-            SCAN_TABLE,
-            {
-                "id": scan_id,
-                "target": request.target,
-                "target_type": request.target_type,
-                "files_scanned": request.files_scanned,
-                "findings_count": len(request.findings),
-                "risk_score": response.risk_score,
-                "verdict": verdict.value,
-                "threat_hits": len(threat_hits),
-                "findings_json": findings_data,
-                "metadata_json": request.metadata,
-                "created_at": now.isoformat(),
-            },
-        )
+        row_data: dict[str, Any] = {
+            "id": scan_id,
+            "target": request.target,
+            "target_type": request.target_type,
+            "files_scanned": request.files_scanned,
+            "findings_count": len(request.findings),
+            "risk_score": response.risk_score,
+            "verdict": verdict.value,
+            "threat_hits": len(threat_hits),
+            "findings_json": findings_data,
+            "metadata_json": request.metadata,
+            "created_at": now.isoformat(),
+        }
+        if user_id:
+            row_data["user_id"] = user_id
+        await db.insert(SCAN_TABLE, row_data)
     except Exception:
         logger.exception("Failed to persist scan %s", scan_id)
+
+    # --- 4b. Increment scan quota usage (only for authenticated users) ------
+    if user_id:
+        try:
+            year_month = datetime.now(timezone.utc).strftime("%Y-%m")
+            await db.increment_scan_usage(user_id, year_month)
+        except Exception:
+            logger.exception("Failed to increment scan usage for user %s", user_id)
 
     logger.info(
         "Scan %s completed: target=%s score=%.1f verdict=%s findings=%d",
@@ -201,9 +212,12 @@ async def _submit_scan_impl(request: ScanRequest) -> ScanResponse:
     response_model=ScanResponse,
     status_code=status.HTTP_200_OK,
     summary="Submit scan results for enrichment",
-    responses={422: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 429: {"description": "Monthly scan quota exceeded"}},
 )
-async def submit_scan(request: ScanRequest) -> ScanResponse:
+async def submit_scan(
+    request: ScanRequest,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> ScanResponse:
     """Accept raw scan findings, enrich them with threat intelligence,
     compute an aggregate risk score and verdict, and persist the result.
 
@@ -212,8 +226,12 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
     - A weighted risk score
     - A verdict (CLEAN / LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL)
     - Any matching entries from the threat intelligence database
+
+    Requires authentication. Monthly scan limits apply per plan tier.
     """
-    return await _submit_scan_impl(request)
+    current_tier = await get_user_plan(current_user.id)
+    await check_scan_quota(current_user.id, current_tier)
+    return await _submit_scan_impl(request, user_id=current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -226,11 +244,16 @@ async def submit_scan(request: ScanRequest) -> ScanResponse:
     response_model=ScanResponse,
     status_code=status.HTTP_200_OK,
     summary="Submit scan results (dashboard path)",
-    responses={422: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 429: {"description": "Monthly scan quota exceeded"}},
 )
-async def submit_scan_dashboard(request: ScanRequest) -> ScanResponse:
+async def submit_scan_dashboard(
+    request: ScanRequest,
+    current_user: Annotated[UserResponse, Depends(get_current_user)],
+) -> ScanResponse:
     """Dashboard-compatible alias for scan submission at POST /scans."""
-    return await _submit_scan_impl(request)
+    current_tier = await get_user_plan(current_user.id)
+    await check_scan_quota(current_user.id, current_tier)
+    return await _submit_scan_impl(request, user_id=current_user.id)
 
 
 @dashboard_router.get(
@@ -251,7 +274,24 @@ async def list_scans(
 
     Supports filtering by verdict, source (target_type), and free-text
     search in the target name.
+
+    Free plan users receive an empty list with an upgrade message.
+    PRO plan and above receive full scan history.
     """
+    # Soft-gate: FREE tier gets empty list + upgrade prompt
+    current_tier = await get_user_plan(current_user.id)
+    if current_tier == PlanTier.FREE:
+        return ScanListResponse(
+            items=[],
+            total=0,
+            page=page,
+            per_page=per_page,
+            upgrade_message=(
+                "Scan history is available on the Pro plan and above. "
+                "Upgrade at https://app.sigilsec.ai/upgrade"
+            ),
+        )
+
     filters: dict[str, Any] = {}
     if verdict:
         filters["verdict"] = verdict
@@ -286,11 +326,12 @@ async def list_scans(
     "/scans/{scan_id}",
     response_model=ScanDetail,
     summary="Get a single scan by ID",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def get_scan(
     scan_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ScanDetail:
     """Return the full details of a scan by its ID."""
     row = await _get_scan_or_404(scan_id)
@@ -301,11 +342,12 @@ async def get_scan(
     "/scans/{scan_id}/findings",
     response_model=list[dict[str, Any]],
     summary="Get findings for a scan",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def get_scan_findings(
     scan_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> list[dict[str, Any]]:
     """Return the findings extracted from a scan's findings_json field."""
     row = await _get_scan_or_404(scan_id)
@@ -322,11 +364,12 @@ async def get_scan_findings(
     "/scans/{scan_id}/approve",
     response_model=dict[str, Any],
     summary="Approve a quarantined scan",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def approve_scan(
     scan_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Approve a scan, marking it as safe in the metadata."""
     row = await _get_scan_or_404(scan_id)
@@ -357,11 +400,12 @@ async def approve_scan(
     "/scans/{scan_id}/reject",
     response_model=dict[str, Any],
     summary="Reject a quarantined scan",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def reject_scan(
     scan_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Reject a scan, marking it as blocked in the metadata."""
     row = await _get_scan_or_404(scan_id)
@@ -397,10 +441,11 @@ async def reject_scan(
     "/dashboard/stats",
     response_model=DashboardStats,
     summary="Get aggregate dashboard statistics",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_dashboard_stats(
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> DashboardStats:
     """Return aggregate statistics for the dashboard overview page.
 

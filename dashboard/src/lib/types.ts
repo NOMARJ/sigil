@@ -189,6 +189,7 @@ export interface Subscription {
   plan_id: string;
   plan_name: string;
   status: "active" | "canceled" | "past_due" | "trialing";
+  billing_interval: "monthly" | "annual";
   current_period_start: string;
   current_period_end: string;
   cancel_at_period_end: boolean;

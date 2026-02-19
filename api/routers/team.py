@@ -20,8 +20,11 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.database import db
+from api.gates import require_plan
 from api.models import (
     ErrorResponse,
+    GateError,
+    PlanTier,
     RoleUpdateRequest,
     TeamInviteRequest,
     TeamInviteResponse,
@@ -118,10 +121,11 @@ def _require_admin_or_owner(user_row: dict[str, Any] | None) -> None:
     "",
     response_model=TeamResponse,
     summary="Get current user's team with members",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_team(
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamResponse:
     """Return the team for the authenticated user, including the members list.
 
@@ -145,11 +149,12 @@ async def get_team(
     "/invite",
     response_model=TeamInviteResponse,
     summary="Invite a member to the team",
-    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def invite_member(
     body: TeamInviteRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamInviteResponse:
     """Invite a user to join the team by email.
 
@@ -241,13 +246,14 @@ async def invite_member(
     summary="Remove a member from the team",
     responses={
         401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
+        403: {"model": GateError},
         404: {"model": ErrorResponse},
     },
 )
 async def remove_member(
     user_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> None:
     """Remove a member from the team.
 
@@ -299,7 +305,7 @@ async def remove_member(
     summary="Update a member's role",
     responses={
         401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
+        403: {"model": GateError},
         404: {"model": ErrorResponse},
     },
 )
@@ -307,6 +313,7 @@ async def update_member_role(
     user_id: str,
     body: RoleUpdateRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamMember:
     """Update a team member's role.
 

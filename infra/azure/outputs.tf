@@ -18,13 +18,8 @@ output "acr_admin_username" {
   value       = azurerm_container_registry.acr.admin_username
 }
 
-output "postgres_fqdn" {
-  description = "Fully-qualified domain name of the PostgreSQL Flexible Server."
-  value       = azurerm_postgresql_flexible_server.postgres.fqdn
-}
-
 output "database_url" {
-  description = "Full PostgreSQL connection string including credentials. Handle with care."
+  description = "PostgreSQL connection string passed in via variable (e.g. Supabase). Handle with care."
   value       = local.database_url
   sensitive   = true
 }

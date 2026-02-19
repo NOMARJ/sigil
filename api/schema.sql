@@ -271,6 +271,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
     plan                    TEXT NOT NULL DEFAULT 'free',
     status                  TEXT NOT NULL DEFAULT 'active',
+    billing_interval        TEXT NOT NULL DEFAULT 'monthly',
     stripe_customer_id      TEXT,
     stripe_subscription_id  TEXT,
     current_period_end      TIMESTAMPTZ,
@@ -279,6 +280,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+
+-- Migration: add billing_interval to existing deployments
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT NOT NULL DEFAULT 'monthly';
 
 -- =====================================================================
 -- Scan Usage (monthly quota tracking per user)

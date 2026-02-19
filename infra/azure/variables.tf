@@ -22,14 +22,8 @@ variable "app_name" {
   default     = "sigil"
 }
 
-variable "db_admin_user" {
-  description = "Administrator login username for the PostgreSQL Flexible Server."
-  type        = string
-  default     = "sigiladmin"
-}
-
-variable "db_admin_password" {
-  description = "Administrator login password for the PostgreSQL Flexible Server. Must meet Azure complexity requirements."
+variable "database_url" {
+  description = "Full PostgreSQL connection string (e.g. from Supabase). Format: postgresql://user:pass@host:5432/db?sslmode=require"
   type        = string
   sensitive   = true
 }
@@ -73,6 +67,32 @@ variable "smtp_password" {
 
 variable "smtp_from_email" {
   description = "From address used for outbound email."
+  type        = string
+  default     = ""
+}
+
+variable "stripe_secret_key" {
+  description = "Stripe live secret key (sk_live_...)."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "stripe_webhook_secret" {
+  description = "Stripe webhook signing secret (whsec_...)."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "stripe_price_pro" {
+  description = "Stripe Price ID for the Pro plan."
+  type        = string
+  default     = ""
+}
+
+variable "stripe_price_team" {
+  description = "Stripe Price ID for the Team plan."
   type        = string
   default     = ""
 }

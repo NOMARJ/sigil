@@ -49,6 +49,7 @@ PLANS: list[PlanInfo] = [
         tier=PlanTier.FREE,
         name="Free",
         price_monthly=0.0,
+        price_yearly=0.0,
         scans_per_month=50,
         features=[
             "50 scans/month",
@@ -61,6 +62,7 @@ PLANS: list[PlanInfo] = [
         tier=PlanTier.PRO,
         name="Pro",
         price_monthly=29.0,
+        price_yearly=232.0,  # $232/yr — save $116 (2 months free)
         scans_per_month=500,
         features=[
             "500 scans/month",
@@ -75,6 +77,7 @@ PLANS: list[PlanInfo] = [
         tier=PlanTier.TEAM,
         name="Team",
         price_monthly=99.0,
+        price_yearly=792.0,  # $792/yr — save $396 (2 months free)
         scans_per_month=5000,
         features=[
             "5,000 scans/month",
@@ -91,6 +94,7 @@ PLANS: list[PlanInfo] = [
         tier=PlanTier.ENTERPRISE,
         name="Enterprise",
         price_monthly=0.0,  # Custom pricing
+        price_yearly=0.0,
         scans_per_month=0,  # Unlimited
         features=[
             "Unlimited scans",
@@ -106,12 +110,16 @@ PLANS: list[PlanInfo] = [
     ),
 ]
 
-# Stripe price ID mapping
-_STRIPE_PRICE_MAP: dict[PlanTier, str | None] = {
-    PlanTier.FREE: None,
-    PlanTier.PRO: settings.stripe_price_pro,
-    PlanTier.TEAM: settings.stripe_price_team,
-    PlanTier.ENTERPRISE: None,  # Custom — handled via sales
+# Stripe price ID mapping — keyed by (tier, interval)
+_STRIPE_PRICE_MAP: dict[tuple[PlanTier, str], str | None] = {
+    (PlanTier.FREE, "monthly"): None,
+    (PlanTier.FREE, "annual"): None,
+    (PlanTier.PRO, "monthly"): settings.stripe_price_pro,
+    (PlanTier.PRO, "annual"): settings.stripe_price_pro_annual,
+    (PlanTier.TEAM, "monthly"): settings.stripe_price_team,
+    (PlanTier.TEAM, "annual"): settings.stripe_price_team_annual,
+    (PlanTier.ENTERPRISE, "monthly"): None,  # Custom — handled via sales
+    (PlanTier.ENTERPRISE, "annual"): None,
 }
 
 
@@ -201,9 +209,11 @@ async def subscribe(
     # Fetch (or create) the existing subscription record from DB
     sub_data = await _get_or_create_subscription(current_user.id)
 
+    interval = body.interval  # "monthly" or "annual"
+
     if stripe is not None:
         # --- Stripe integration path ---
-        price_id = _STRIPE_PRICE_MAP.get(body.plan)
+        price_id = _STRIPE_PRICE_MAP.get((body.plan, interval))
 
         if body.plan == PlanTier.FREE:
             # Downgrade to free — cancel existing Stripe subscription
@@ -226,6 +236,7 @@ async def subscribe(
                 stripe_customer_id=sub_data.get("stripe_customer_id"),
                 stripe_subscription_id=sub_data.get("stripe_subscription_id"),
                 current_period_end=sub_data.get("current_period_end"),
+                billing_interval="monthly",
             )
             sub_data["cancel_at_period_end"] = True
         else:
@@ -258,6 +269,7 @@ async def subscribe(
                     stripe_customer_id=customer_id,
                     stripe_subscription_id=subscription.id,
                     current_period_end=period_end,
+                    billing_interval=interval,
                 )
                 sub_data["current_period_start"] = datetime.utcfromtimestamp(
                     subscription.current_period_start
@@ -271,7 +283,8 @@ async def subscribe(
                 )
     else:
         # --- Stub path (no Stripe) ---
-        period_end = (now + timedelta(days=30)).isoformat()
+        days = 365 if interval == "annual" else 30
+        period_end = (now + timedelta(days=days)).isoformat()
         sub_data = await db.upsert_subscription(
             user_id=current_user.id,
             plan=body.plan.value,
@@ -279,13 +292,15 @@ async def subscribe(
             stripe_customer_id=sub_data.get("stripe_customer_id"),
             stripe_subscription_id=sub_data.get("stripe_subscription_id"),
             current_period_end=period_end,
+            billing_interval=interval,
         )
         sub_data["current_period_start"] = now.isoformat()
         sub_data["cancel_at_period_end"] = False
         logger.info(
-            "Stub subscription created for user %s: plan=%s (Stripe not configured)",
+            "Stub subscription created for user %s: plan=%s interval=%s (Stripe not configured)",
             current_user.id,
             body.plan.value,
+            interval,
         )
 
     # Audit log
@@ -308,6 +323,7 @@ async def subscribe(
     return SubscriptionResponse(
         plan=PlanTier(sub_data["plan"]),
         status=sub_data.get("status", "active"),
+        billing_interval=sub_data.get("billing_interval", "monthly"),
         current_period_start=sub_data.get("current_period_start"),
         current_period_end=sub_data.get("current_period_end"),
         cancel_at_period_end=sub_data.get("cancel_at_period_end", False),
@@ -358,6 +374,7 @@ async def get_subscription(
     return SubscriptionResponse(
         plan=PlanTier(sub_data["plan"]),
         status=sub_data.get("status", "active"),
+        billing_interval=sub_data.get("billing_interval", "monthly"),
         current_period_start=sub_data.get("current_period_start"),
         current_period_end=sub_data.get("current_period_end"),
         cancel_at_period_end=sub_data.get("cancel_at_period_end", False),
@@ -500,6 +517,7 @@ async def _handle_subscription_updated(event: dict[str, Any]) -> None:
             stripe_customer_id=customer_id,
             stripe_subscription_id=existing.get("stripe_subscription_id"),
             current_period_end=period_end or existing.get("current_period_end"),
+            billing_interval=existing.get("billing_interval", "monthly"),
         )
     else:
         logger.warning(
@@ -523,6 +541,7 @@ async def _handle_subscription_deleted(event: dict[str, Any]) -> None:
             stripe_customer_id=customer_id,
             stripe_subscription_id=None,
             current_period_end=existing.get("current_period_end"),
+            billing_interval="monthly",
         )
     else:
         logger.warning(

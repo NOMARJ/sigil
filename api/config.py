@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str | None = None
     stripe_price_pro: str = "price_pro_placeholder"
     stripe_price_team: str = "price_team_placeholder"
+    stripe_price_pro_annual: str = "price_pro_annual_placeholder"
+    stripe_price_team_annual: str = "price_team_annual_placeholder"
 
     @property
     def supabase_configured(self) -> bool:

@@ -42,6 +42,7 @@ export default function SettingsPage() {
   // Billing state
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
 
   // Loading / error states
   const [policyLoading, setPolicyLoading] = useState(true);
@@ -250,7 +251,7 @@ export default function SettingsPage() {
     setBillingError(null);
 
     try {
-      const sub = await api.subscribe(planId);
+      const sub = await api.subscribe(planId, billingInterval);
       setSubscription(sub);
     } catch (err) {
       setBillingError(
@@ -642,6 +643,9 @@ export default function SettingsPage() {
                         )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
+                        Billing: {subscription.billing_interval === "annual" ? "Annual" : "Monthly"}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
                         Period: {new Date(subscription.current_period_start).toLocaleDateString()} --{" "}
                         {new Date(subscription.current_period_end).toLocaleDateString()}
                       </p>
@@ -693,12 +697,42 @@ export default function SettingsPage() {
               {/* Available plans */}
               {plans.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">
-                    Available Plans
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-300">
+                      Available Plans
+                    </h3>
+                    {/* Billing interval toggle */}
+                    <div className="flex items-center gap-1 p-0.5 bg-gray-800 rounded-lg border border-gray-700">
+                      <button
+                        onClick={() => setBillingInterval("monthly")}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                          billingInterval === "monthly"
+                            ? "bg-gray-700 text-gray-100"
+                            : "text-gray-400 hover:text-gray-300"
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                      <button
+                        onClick={() => setBillingInterval("annual")}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                          billingInterval === "annual"
+                            ? "bg-gray-700 text-gray-100"
+                            : "text-gray-400 hover:text-gray-300"
+                        }`}
+                      >
+                        Annual
+                        <span className="ml-1.5 text-green-400 font-semibold">Save 17%</span>
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {plans.map((plan) => {
                       const isCurrent = subscription?.plan_id === plan.id;
+                      const showAnnual = billingInterval === "annual" && plan.price_yearly > 0;
+                      const displayPrice = showAnnual
+                        ? (plan.price_yearly / 12).toFixed(2)
+                        : plan.price_monthly.toFixed(2);
                       return (
                         <div
                           key={plan.id}
@@ -714,10 +748,17 @@ export default function SettingsPage() {
                           <p className="text-xs text-gray-500 mt-1">
                             {plan.description}
                           </p>
-                          <p className="text-2xl font-bold text-gray-100 mt-3">
-                            ${plan.price_monthly}
-                            <span className="text-sm font-normal text-gray-500">/mo</span>
-                          </p>
+                          <div className="mt-3">
+                            <p className="text-2xl font-bold text-gray-100">
+                              ${displayPrice}
+                              <span className="text-sm font-normal text-gray-500">/mo</span>
+                            </p>
+                            {showAnnual && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                ${plan.price_yearly}/yr — billed annually
+                              </p>
+                            )}
+                          </div>
                           <ul className="mt-3 space-y-1">
                             <li className="text-xs text-gray-400">
                               {plan.scan_limit.toLocaleString()} scans/month

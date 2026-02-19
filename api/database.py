@@ -231,8 +231,14 @@ class AsyncpgClient:
         stripe_customer_id: str | None = None,
         stripe_subscription_id: str | None = None,
         current_period_end=None,
+        billing_interval: str = "monthly",
     ) -> dict[str, Any]:
-        data: dict[str, Any] = {"user_id": user_id, "plan": plan, "status": status}
+        data: dict[str, Any] = {
+            "user_id": user_id,
+            "plan": plan,
+            "status": status,
+            "billing_interval": billing_interval,
+        }
         if stripe_customer_id is not None:
             data["stripe_customer_id"] = stripe_customer_id
         if stripe_subscription_id is not None:
@@ -544,6 +550,7 @@ class SupabaseClient:
         stripe_customer_id: str | None = None,
         stripe_subscription_id: str | None = None,
         current_period_end: str | None = None,
+        billing_interval: str = "monthly",
     ) -> dict[str, Any]:
         """Create or update a subscription record."""
         now = datetime.utcnow().isoformat()
@@ -551,6 +558,7 @@ class SupabaseClient:
             "user_id": user_id,
             "plan": plan,
             "status": status,
+            "billing_interval": billing_interval,
             "stripe_customer_id": stripe_customer_id,
             "stripe_subscription_id": stripe_subscription_id,
             "current_period_end": current_period_end,

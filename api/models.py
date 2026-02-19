@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -379,6 +379,7 @@ class PlanInfo(BaseModel):
     tier: PlanTier
     name: str
     price_monthly: float = Field(0.0, description="Monthly price in USD")
+    price_yearly: float = Field(0.0, description="Annual price in USD (billed once per year)")
     scans_per_month: int = Field(
         0, description="Included scans per month (0 = unlimited)"
     )
@@ -389,6 +390,7 @@ class SubscribeRequest(BaseModel):
     """Request to create or change a subscription."""
 
     plan: PlanTier = Field(..., description="Plan tier to subscribe to")
+    interval: Literal["monthly", "annual"] = Field("monthly", description="Billing interval")
     payment_method_id: str | None = Field(None, description="Stripe payment method ID")
 
 
@@ -397,6 +399,7 @@ class SubscriptionResponse(BaseModel):
 
     plan: PlanTier
     status: str = Field("active", description="Subscription status")
+    billing_interval: str = Field("monthly", description="Billing interval: monthly or annual")
     current_period_start: datetime | None = None
     current_period_end: datetime | None = None
     cancel_at_period_end: bool = False

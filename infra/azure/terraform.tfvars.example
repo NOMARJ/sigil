@@ -19,6 +19,12 @@ jwt_secret = "CHANGE_ME_run_openssl_rand_hex_32"
 # CORS — update to your actual dashboard domain after first deploy.
 cors_origins = "[\"https://your-dashboard-domain.azurecontainerapps.io\"]"
 
+# Stripe (billing)
+stripe_secret_key     = "sk_live_..."
+stripe_webhook_secret = "whsec_..."
+stripe_price_pro      = "price_..."
+stripe_price_team     = "price_..."
+
 # SMTP (optional — leave blank to disable outbound email)
 smtp_host       = ""
 smtp_port       = 587

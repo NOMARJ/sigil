@@ -34,20 +34,10 @@ resource "azurerm_container_app" "api" {
 
   tags = local.tags
 
-  # Registry credentials so the Container App runtime can pull images.
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = azurerm_container_registry.acr.admin_username
-    password_secret_name = "acr-password"
-  }
-
   # Secrets stored inside the Container App (not Key Vault references at the
   # azurerm resource level — the provider exposes them as inline secret blocks).
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.acr.admin_password
-  }
-
+  # Note: ACR registry block is omitted here — the CD pipeline pushes images
+  # directly via az acr build + az containerapp update, which handles auth.
   secret {
     name  = "sigil-jwt-secret"
     value = var.jwt_secret
@@ -65,7 +55,17 @@ resource "azurerm_container_app" "api" {
 
   secret {
     name  = "sigil-smtp-password"
-    value = var.smtp_password
+    value = coalesce(var.smtp_password, "not-configured")
+  }
+
+  secret {
+    name  = "sigil-stripe-secret-key"
+    value = var.stripe_secret_key
+  }
+
+  secret {
+    name  = "sigil-stripe-webhook-secret"
+    value = var.stripe_webhook_secret
   }
 
   template {
@@ -74,7 +74,7 @@ resource "azurerm_container_app" "api" {
 
     container {
       name   = "sigil-api"
-      image  = "${azurerm_container_registry.acr.login_server}/sigil:latest"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.5
       memory = "1Gi"
 
@@ -144,6 +144,26 @@ resource "azurerm_container_app" "api" {
         name        = "SIGIL_SMTP_PASSWORD"
         secret_name = "sigil-smtp-password"
       }
+
+      env {
+        name        = "SIGIL_STRIPE_SECRET_KEY"
+        secret_name = "sigil-stripe-secret-key"
+      }
+
+      env {
+        name        = "SIGIL_STRIPE_WEBHOOK_SECRET"
+        secret_name = "sigil-stripe-webhook-secret"
+      }
+
+      env {
+        name  = "SIGIL_STRIPE_PRICE_PRO"
+        value = var.stripe_price_pro
+      }
+
+      env {
+        name  = "SIGIL_STRIPE_PRICE_TEAM"
+        value = var.stripe_price_team
+      }
     }
   }
 
@@ -160,7 +180,6 @@ resource "azurerm_container_app" "api" {
 
   depends_on = [
     azurerm_container_registry.acr,
-    azurerm_postgresql_flexible_server_database.sigil,
     azurerm_redis_cache.redis,
   ]
 }
@@ -177,24 +196,13 @@ resource "azurerm_container_app" "dashboard" {
 
   tags = local.tags
 
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = azurerm_container_registry.acr.admin_username
-    password_secret_name = "acr-password"
-  }
-
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.acr.admin_password
-  }
-
   template {
     min_replicas = var.dashboard_min_replicas
     max_replicas = var.dashboard_max_replicas
 
     container {
       name   = "sigil-dashboard"
-      image  = "${azurerm_container_registry.acr.login_server}/sigil-dashboard:latest"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.25
       memory = "0.5Gi"
 

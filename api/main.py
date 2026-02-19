@@ -20,6 +20,8 @@ from fastapi.responses import JSONResponse
 
 from api.config import settings
 from api.database import cache, db
+from api.gates import PlanGateException
+from api.models import GateError
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -86,6 +88,19 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Global exception handler
 # ---------------------------------------------------------------------------
+
+
+@app.exception_handler(PlanGateException)
+async def plan_gate_handler(request: Request, exc: PlanGateException) -> JSONResponse:
+    """Convert a PlanGateException into a 403 GateError JSON response."""
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content=GateError(
+            detail=f"This feature requires the {exc.required_plan.value} plan or higher.",
+            required_plan=exc.required_plan.value,
+            current_plan=exc.current_plan.value,
+        ).model_dump(),
+    )
 
 
 @app.exception_handler(Exception)

@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from api.models import ErrorResponse, SignatureResponse, ThreatEntry
+from api.gates import require_plan
+from api.models import ErrorResponse, GateError, PlanTier, SignatureResponse, ThreatEntry
+from api.routers.auth import get_current_user, UserResponse
 from api.services.threat_intel import (
     delete_signature,
     get_report,
@@ -63,9 +65,12 @@ class ReportStatusUpdate(BaseModel):
     "/threat/{package_hash}",
     response_model=ThreatEntry | None,
     summary="Look up a package hash in the threat database",
-    responses={404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
-async def get_threat(package_hash: str) -> ThreatEntry:
+async def get_threat(
+    package_hash: str,
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+) -> ThreatEntry:
     """Return the threat entry for *package_hash* if it exists.
 
     The hash should be the SHA-256 digest of the package artifact.
@@ -88,8 +93,10 @@ async def get_threat(package_hash: str) -> ThreatEntry:
 @router.get(
     "/threats",
     summary="List known threats with pagination and filters",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_threats(
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     severity: str | None = Query(None, description="Filter by severity"),
     source: str | None = Query(None, description="Filter by source"),
     search: str | None = Query(None, description="Search in package name / description"),
@@ -115,8 +122,10 @@ async def get_threats(
     "/signatures",
     response_model=SignatureResponse,
     summary="Download pattern signatures (delta sync)",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_all_signatures(
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     since: datetime | None = Query(
         None,
         description="ISO-8601 timestamp; only return signatures updated after this time",
@@ -135,9 +144,11 @@ async def get_all_signatures(
     "/signatures",
     status_code=status.HTTP_200_OK,
     summary="Create or update a detection signature",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def create_or_update_signature(
     request: SignatureUpsertRequest,
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Upsert a detection signature.  Used by admins to push new patterns
     that will be distributed to all connected scanners."""
@@ -155,8 +166,12 @@ async def create_or_update_signature(
     "/signatures/{sig_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete a detection signature",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
-async def remove_signature(sig_id: str) -> dict[str, Any]:
+async def remove_signature(
+    sig_id: str,
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+) -> dict[str, Any]:
     """Remove a signature by ID."""
     deleted = await delete_signature(sig_id)
     if not deleted:
@@ -175,8 +190,10 @@ async def remove_signature(sig_id: str) -> dict[str, Any]:
 @router.get(
     "/threat-reports",
     summary="List threat reports with pagination and status filter",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_threat_reports(
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     report_status: str | None = Query(
         None, alias="status", description="Filter by status: received, under_review, confirmed, rejected"
     ),
@@ -190,8 +207,12 @@ async def get_threat_reports(
 @router.get(
     "/threat-reports/{report_id}",
     summary="Get a single threat report",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
-async def get_single_report(report_id: str) -> dict[str, Any]:
+async def get_single_report(
+    report_id: str,
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+) -> dict[str, Any]:
     """Return the full details of a threat report."""
     row = await get_report(report_id)
     if row is None:
@@ -205,10 +226,12 @@ async def get_single_report(report_id: str) -> dict[str, Any]:
 @router.patch(
     "/threat-reports/{report_id}",
     summary="Update a threat report status (review workflow)",
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def update_report(
     report_id: str,
     body: ReportStatusUpdate,
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Transition a report's status.
 

@@ -21,8 +21,11 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
+from api.gates import require_plan
 from api.models import (
     ErrorResponse,
+    GateError,
+    PlanTier,
     PolicyCreate,
     PolicyEvaluateRequest,
     PolicyEvaluateResponse,
@@ -95,10 +98,11 @@ def _row_to_response(row: dict) -> PolicyResponse:
     "/policies",
     response_model=list[PolicyResponse],
     summary="List team policies",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def list_policies(
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     enabled: bool | None = Query(None, description="Filter by enabled state"),
 ) -> list[PolicyResponse]:
     """Return all policies for the authenticated user's team.
@@ -119,11 +123,12 @@ async def list_policies(
     response_model=PolicyResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a team policy",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def create_policy(
     body: PolicyCreate,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyResponse:
     """Create a new scan policy for the team.
 
@@ -181,12 +186,13 @@ async def create_policy(
     "/policies/{policy_id}",
     response_model=PolicyResponse,
     summary="Update a policy",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def update_policy(
     policy_id: str,
     body: PolicyUpdate,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyResponse:
     """Update an existing policy's name, type, config, or enabled state.
 
@@ -220,11 +226,12 @@ async def update_policy(
     "/policies/{policy_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a policy",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def delete_policy(
     policy_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> None:
     """Delete a policy by ID.
 
@@ -253,11 +260,12 @@ async def delete_policy(
     "/policies/evaluate",
     response_model=PolicyEvaluateResponse,
     summary="Evaluate scan result against team policies",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def evaluate_policies(
     body: PolicyEvaluateRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyEvaluateResponse:
     """Evaluate a scan result against all enabled team policies.
 

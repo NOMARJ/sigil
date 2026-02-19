@@ -1,7 +1,7 @@
 # Required GitHub Secrets:
 #   AZURE_CREDENTIALS       — JSON output of: az ad sp create-for-rbac --role contributor --sdk-auth
-#   ACR_LOGIN_SERVER        — e.g. sigilacrabc123.azurecr.io (from terraform output acr_login_server)
-#   ACR_NAME                — e.g. sigilacrabc123 (just the name, no domain)
+#   ACR_LOGIN_SERVER        — e.g. sigilacrbf7rqm.azurecr.io (from terraform output acr_login_server)
+#   ACR_NAME                — e.g. sigilacrbf7rqm (just the name, no domain)
 #   AZURE_RESOURCE_GROUP    — e.g. sigil-rg (from terraform output resource_group_name)
 
 name: CD — Deploy to Azure
@@ -31,28 +31,47 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to ACR
-        run: az acr login --name ${{ secrets.ACR_NAME }}
-
       - name: Set image tag
         id: tag
         run: echo "sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
+      - name: Get API FQDN for dashboard build arg
+        id: api_fqdn
         run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_API_URL=https://$(az containerapp show \
-              --name sigil-api \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --query "properties.configuration.ingress.fqdn" -o tsv) \
-            -t ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }} \
-            -t ${{ env.ACR_LOGIN_SERVER }}/sigil:latest \
+          FQDN=$(az containerapp show \
+            --name sigil-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "fqdn=https://${FQDN}" >> $GITHUB_OUTPUT
+
+      - name: Build and push API image
+        run: |
+          az acr build \
+            --registry ${{ secrets.ACR_NAME }} \
+            --image sigil:${{ steps.tag.outputs.sha }} \
+            --image sigil:latest \
+            --file Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ steps.api_fqdn.outputs.fqdn }} \
             .
-          docker push ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }}
-          docker push ${{ env.ACR_LOGIN_SERVER }}/sigil:latest
+
+      - name: Build and push dashboard image
+        run: |
+          az acr build \
+            --registry ${{ secrets.ACR_NAME }} \
+            --image sigil-dashboard:${{ steps.tag.outputs.sha }} \
+            --image sigil-dashboard:latest \
+            --file dashboard/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ steps.api_fqdn.outputs.fqdn }} \
+            dashboard/
 
       - name: Deploy sigil-api
         run: |
+          az containerapp update \
+            --name sigil-api \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }} \
+            --set-env-vars "SIGIL_DATABASE_URL=secretref:sigil-database-url" \
+            2>/dev/null || \
           az containerapp update \
             --name sigil-api \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -63,7 +82,7 @@ jobs:
           az containerapp update \
             --name sigil-dashboard \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.ACR_LOGIN_SERVER }}/sigil:${{ steps.tag.outputs.sha }}
+            --image ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${{ steps.tag.outputs.sha }}
 
       - name: Verify API health
         run: |
@@ -71,6 +90,7 @@ jobs:
             --name sigil-api \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "Waiting for API to become healthy..."
           sleep 30
           curl -f "https://${API_URL}/health" || exit 1
           echo "API is healthy at https://${API_URL}"

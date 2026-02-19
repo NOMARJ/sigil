@@ -39,14 +39,6 @@ resource "azurerm_key_vault_secret" "jwt_secret" {
   depends_on = [azurerm_key_vault_access_policy.deployer]
 }
 
-resource "azurerm_key_vault_secret" "db_password" {
-  name         = "sigil-db-password"
-  value        = var.db_admin_password
-  key_vault_id = azurerm_key_vault.kv.id
-
-  depends_on = [azurerm_key_vault_access_policy.deployer]
-}
-
 resource "azurerm_key_vault_secret" "db_url" {
   name         = "sigil-db-url"
   value        = local.database_url

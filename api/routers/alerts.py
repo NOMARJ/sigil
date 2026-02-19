@@ -21,6 +21,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
+from api.gates import require_plan
 from api.models import (
     AlertCreate,
     AlertResponse,
@@ -29,6 +30,8 @@ from api.models import (
     AlertUpdate,
     ChannelType,
     ErrorResponse,
+    GateError,
+    PlanTier,
 )
 from api.routers.auth import get_current_user, UserResponse
 from api.services.notifications import send_notification
@@ -90,10 +93,11 @@ def _row_to_response(row: dict) -> AlertResponse:
     "/alerts",
     response_model=list[AlertResponse],
     summary="List alert channel configurations",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def list_alerts(
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
     enabled: bool | None = Query(None, description="Filter by enabled state"),
 ) -> list[AlertResponse]:
     """Return all configured alert channels for the authenticated user's team."""
@@ -111,11 +115,12 @@ async def list_alerts(
     response_model=AlertResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create an alert channel",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def create_alert(
     body: AlertCreate,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertResponse:
     """Create a new notification channel for the team.
 
@@ -175,12 +180,13 @@ async def create_alert(
     "/alerts/{alert_id}",
     response_model=AlertResponse,
     summary="Update an alert channel",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def update_alert(
     alert_id: str,
     body: AlertUpdate,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertResponse:
     """Update an existing alert channel's type, configuration, or enabled state.
 
@@ -212,11 +218,12 @@ async def update_alert(
     "/alerts/{alert_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove an alert channel",
-    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}, 404: {"model": ErrorResponse}},
 )
 async def delete_alert(
     alert_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> None:
     """Delete an alert channel by ID.
 
@@ -245,11 +252,12 @@ async def delete_alert(
     "/alerts/test",
     response_model=AlertTestResponse,
     summary="Send a test notification",
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def test_alert(
     body: AlertTestRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertTestResponse:
     """Send a test notification through the specified channel.
 
