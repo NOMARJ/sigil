@@ -1,0 +1,39 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is git-ignored; never commit real credentials.
+#
+# Generate db_admin_password:  openssl rand -base64 24
+# Generate jwt_secret:         openssl rand -hex 32
+
+location            = "eastus"
+resource_group_name = "sigil-rg"
+environment         = "production"
+app_name            = "sigil"
+
+# Database
+db_admin_user     = "sigiladmin"
+db_admin_password = "CHANGE_ME_strong_password_here"
+
+# Auth
+jwt_secret = "CHANGE_ME_run_openssl_rand_hex_32"
+
+# CORS — update to your actual dashboard domain after first deploy.
+cors_origins = "[\"https://your-dashboard-domain.azurecontainerapps.io\"]"
+
+# Stripe (billing)
+stripe_secret_key     = "sk_live_..."
+stripe_webhook_secret = "whsec_..."
+stripe_price_pro      = "price_..."
+stripe_price_team     = "price_..."
+
+# SMTP (optional — leave blank to disable outbound email)
+smtp_host       = ""
+smtp_port       = 587
+smtp_user       = ""
+smtp_password   = ""
+smtp_from_email = ""
+
+# Container App scaling
+api_min_replicas       = 0
+api_max_replicas       = 3
+dashboard_min_replicas = 0
+dashboard_max_replicas = 2

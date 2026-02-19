@@ -1,0 +1,178 @@
+# ============================================================================
+# SIGIL — GitLab CI Template
+# by NOMARK
+#
+# Include this template in your .gitlab-ci.yml to run Sigil security scans
+# as part of your pipeline.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/nomark/sigil/main/.gitlab-ci-template.yml'
+#
+#   # Override variables as needed:
+#   variables:
+#     SIGIL_SCAN_PATH: "."
+#     SIGIL_THRESHOLD: "medium"
+#
+# Or copy this file into your project and include it locally:
+#   include:
+#     - local: '.gitlab-ci-template.yml'
+# ============================================================================
+
+# ── Variables (override in your .gitlab-ci.yml) ─────────────────────────────
+
+variables:
+  SIGIL_VERSION: "latest"
+  SIGIL_SCAN_PATH: "."
+  SIGIL_THRESHOLD: "medium"
+  SIGIL_FAIL_ON_FINDINGS: "true"
+  SIGIL_PHASES: "all"
+  SIGIL_EXCLUDE: ""
+  SIGIL_API_KEY: ""
+
+# ── Stages ──────────────────────────────────────────────────────────────────
+
+stages:
+  - security
+
+# ── Sigil Security Scan ─────────────────────────────────────────────────────
+
+sigil-scan:
+  stage: security
+  image: ubuntu:22.04
+  variables:
+    GIT_DEPTH: 50
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git curl file > /dev/null 2>&1
+    # Install Sigil CLI
+    - |
+      if [ "$SIGIL_VERSION" = "latest" ]; then
+        SIGIL_DOWNLOAD_URL="https://github.com/nomark/sigil/releases/latest/download/sigil-linux-x64.tar.gz"
+      else
+        SIGIL_DOWNLOAD_URL="https://github.com/nomark/sigil/releases/download/${SIGIL_VERSION}/sigil-linux-x64.tar.gz"
+      fi
+      echo "Downloading Sigil from ${SIGIL_DOWNLOAD_URL}..."
+      if curl -fsSL "$SIGIL_DOWNLOAD_URL" | tar xz -C /usr/local/bin/ 2>/dev/null; then
+        chmod +x /usr/local/bin/sigil
+        echo "Sigil CLI installed from release."
+      else
+        echo "Release binary not available — falling back to bash script."
+        curl -fsSL "https://raw.githubusercontent.com/nomark/sigil/main/bin/sigil" -o /usr/local/bin/sigil
+        chmod +x /usr/local/bin/sigil
+      fi
+    - sigil config --init
+  script:
+    - |
+      # ── Configure scan environment ──────────────────────────────────────
+      export SIGIL_REPORT_DIR="${CI_PROJECT_DIR}/.sigil-reports"
+      export SIGIL_QUARANTINE_DIR=$(mktemp -d)
+      export SIGIL_APPROVED_DIR=$(mktemp -d)
+      export SIGIL_LOG_DIR=$(mktemp -d)
+      mkdir -p "$SIGIL_REPORT_DIR"
+
+      echo "============================================"
+      echo "  SIGIL Security Scan"
+      echo "============================================"
+      echo "  Path:      ${SIGIL_SCAN_PATH}"
+      echo "  Threshold: ${SIGIL_THRESHOLD}"
+      echo "  Phases:    ${SIGIL_PHASES}"
+      echo "  Fail:      ${SIGIL_FAIL_ON_FINDINGS}"
+      echo "============================================"
+      echo ""
+
+      # ── Run the scan ────────────────────────────────────────────────────
+      SCAN_OUTPUT="${CI_PROJECT_DIR}/.sigil-reports/scan_output.txt"
+      sigil scan "${SIGIL_SCAN_PATH}" 2>&1 | tee "$SCAN_OUTPUT" || true
+
+      # ── Parse results ───────────────────────────────────────────────────
+      REPORT_FILE=$(find "$SIGIL_REPORT_DIR" -name "*_report.txt" -not -name "scan_output.txt" -type f | head -1)
+
+      RISK_SCORE=0
+      VERDICT="clean"
+      FINDINGS_COUNT=0
+
+      if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
+        SCORE_LINE=$(grep -o 'Risk Score: [0-9]*' "$REPORT_FILE" | tail -1 || true)
+        if [ -n "$SCORE_LINE" ]; then
+          RISK_SCORE=$(echo "$SCORE_LINE" | grep -o '[0-9]*')
+        fi
+
+        FAIL_COUNT=$(grep -c '\[FAIL\]' "$REPORT_FILE" 2>/dev/null || echo "0")
+        WARN_COUNT=$(grep -c '\[warn\]' "$REPORT_FILE" 2>/dev/null || echo "0")
+        FINDINGS_COUNT=$((FAIL_COUNT + WARN_COUNT))
+
+        if [ "$RISK_SCORE" -eq 0 ]; then
+          VERDICT="clean"
+        elif [ "$RISK_SCORE" -lt 10 ]; then
+          VERDICT="low"
+        elif [ "$RISK_SCORE" -lt 25 ]; then
+          VERDICT="medium"
+        elif [ "$RISK_SCORE" -lt 50 ]; then
+          VERDICT="high"
+        else
+          VERDICT="critical"
+        fi
+      fi
+
+      echo ""
+      echo "============================================"
+      echo "  Scan Results"
+      echo "============================================"
+      echo "  Verdict:  ${VERDICT}"
+      echo "  Score:    ${RISK_SCORE}"
+      echo "  Findings: ${FINDINGS_COUNT}"
+      echo "============================================"
+
+      # ── Generate GitLab-compatible metrics file ─────────────────────────
+      cat > "${CI_PROJECT_DIR}/.sigil-reports/metrics.txt" <<EOF
+      sigil_risk_score ${RISK_SCORE}
+      sigil_findings_count ${FINDINGS_COUNT}
+      EOF
+
+      # ── Generate machine-readable JSON report ──────────────────────────
+      cat > "${CI_PROJECT_DIR}/.sigil-reports/sigil-results.json" <<EOF
+      {
+        "verdict": "${VERDICT}",
+        "risk_score": ${RISK_SCORE},
+        "findings_count": ${FINDINGS_COUNT},
+        "threshold": "${SIGIL_THRESHOLD}",
+        "scan_path": "${SIGIL_SCAN_PATH}",
+        "pipeline_id": "${CI_PIPELINE_ID:-unknown}",
+        "commit_sha": "${CI_COMMIT_SHA:-unknown}"
+      }
+      EOF
+
+      # ── Threshold check ─────────────────────────────────────────────────
+      threshold_to_score() {
+        case "$1" in
+          low)      echo 1 ;;
+          medium)   echo 10 ;;
+          high)     echo 25 ;;
+          critical) echo 50 ;;
+          *)        echo 10 ;;
+        esac
+      }
+
+      THRESHOLD_SCORE=$(threshold_to_score "${SIGIL_THRESHOLD}")
+
+      if [ "${SIGIL_FAIL_ON_FINDINGS}" = "true" ] && [ "${RISK_SCORE}" -ge "${THRESHOLD_SCORE}" ]; then
+        echo ""
+        echo "FAILED: Risk score (${RISK_SCORE}) meets or exceeds threshold (${SIGIL_THRESHOLD} = score ${THRESHOLD_SCORE})"
+        echo "Set SIGIL_FAIL_ON_FINDINGS=false to continue on findings."
+        exit 1
+      fi
+
+      echo ""
+      echo "PASSED: Risk score ${RISK_SCORE} is below threshold (${SIGIL_THRESHOLD} = score ${THRESHOLD_SCORE})."
+  artifacts:
+    when: always
+    paths:
+      - .sigil-reports/
+    reports:
+      metrics: .sigil-reports/metrics.txt
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: manual
+      allow_failure: true
