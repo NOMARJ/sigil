@@ -34,10 +34,19 @@ resource "azurerm_container_app" "api" {
 
   tags = local.tags
 
+  registry {
+    server               = azurerm_container_registry.acr.login_server
+    username             = azurerm_container_registry.acr.admin_username
+    password_secret_name = "acr-password"
+  }
+
   # Secrets stored inside the Container App (not Key Vault references at the
   # azurerm resource level — the provider exposes them as inline secret blocks).
-  # Note: ACR registry block is omitted here — the CD pipeline pushes images
-  # directly via az acr build + az containerapp update, which handles auth.
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.acr.admin_password
+  }
+
   secret {
     name  = "sigil-jwt-secret"
     value = var.jwt_secret
@@ -195,6 +204,17 @@ resource "azurerm_container_app" "dashboard" {
   revision_mode                = "Single"
 
   tags = local.tags
+
+  registry {
+    server               = azurerm_container_registry.acr.login_server
+    username             = azurerm_container_registry.acr.admin_username
+    password_secret_name = "acr-password"
+  }
+
+  secret {
+    name  = "acr-password"
+    value = azurerm_container_registry.acr.admin_password
+  }
 
   template {
     min_replicas = var.dashboard_min_replicas

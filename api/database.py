@@ -60,6 +60,11 @@ class AsyncpgClient:
         if self._pool:
             await self._pool.close()
 
+    @property
+    def connected(self) -> bool:
+        """Check if connected to PostgreSQL."""
+        return self._pool is not None
+
     def _mem(self, table: str) -> dict[str, Any]:
         return self._memory_store.setdefault(table, {})
 
