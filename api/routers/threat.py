@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from api.gates import require_plan
 from api.models import ErrorResponse, GateError, PlanTier, SignatureResponse, ThreatEntry
-from api.routers.auth import get_current_user, UserResponse
+# Removed unused imports: get_current_user, UserResponse
 from api.services.threat_intel import (
     delete_signature,
     get_report,

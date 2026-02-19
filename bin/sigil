@@ -646,8 +646,8 @@ cloud_threat_enrichment() {
         if [ -n "$sig_response" ]; then
             mkdir -p "$HOME/.sigil"
             echo "$sig_response" > "$sigs_file"
-            local sig_count
-            sig_count=$(echo "$sig_response" | grep -o '"total":' | wc -l)
+            local _sig_count  # unused, kept for potential future logging
+            _sig_count=$(echo "$sig_response" | grep -o '"total":' | wc -l)
             echo -e "  Synced cloud signatures (refreshed)" | tee -a "$report_file"
         fi
     else
@@ -660,8 +660,8 @@ cloud_threat_enrichment() {
         # Extract patterns from the signatures JSON
         local patterns
         patterns=$(grep -o '"pattern":"[^"]*"' "$sigs_file" 2>/dev/null | cut -d'"' -f4)
-        local descriptions
-        descriptions=$(grep -o '"description":"[^"]*"' "$sigs_file" 2>/dev/null | cut -d'"' -f4)
+        local _descriptions  # unused, kept for potential future logging
+        _descriptions=$(grep -o '"description":"[^"]*"' "$sigs_file" 2>/dev/null | cut -d'"' -f4)
 
         while IFS= read -r pattern; do
             [ -z "$pattern" ] && continue
