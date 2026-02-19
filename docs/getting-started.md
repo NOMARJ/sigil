@@ -19,18 +19,18 @@ Sigil is an automated security auditing CLI for AI agent code. It scans reposito
 ### Option 1: Quick Install (recommended)
 
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
 ```
 
-This downloads the CLI, installs it to `/usr/local/bin`, creates the `~/.sigil` directory structure, and installs shell aliases.
+Detects your platform, downloads a pre-built binary from the latest GitHub release if one exists for your OS/arch, falls back to the bash script otherwise. Installs to `/usr/local/bin` and runs `sigil install` to set up shell aliases.
 
-### Option 2: Homebrew (macOS/Linux)
+### Option 2: Homebrew (coming soon)
 
 ```bash
 brew install nomarj/tap/sigil
 ```
 
-### Option 3: npm (global)
+### Option 3: npm global package (coming soon)
 
 ```bash
 npm install -g @nomarj/sigil

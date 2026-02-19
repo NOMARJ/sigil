@@ -23,8 +23,10 @@ Sigil fills this gap with a **quarantine-first approach**.
 ## Quick Install
 
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
 ```
+
+The installer detects your platform, downloads a pre-built binary from the latest GitHub release if available, and falls back to the bash script automatically. It also runs `sigil install` to set up shell aliases.
 
 Or build from source — the Rust CLI is the recommended binary:
 
@@ -34,7 +36,7 @@ cd sigil/cli && cargo build --release
 sudo cp target/release/sigil /usr/local/bin/sigil
 ```
 
-Or use the bash script directly (no Rust required):
+Or use the bash script directly (no Rust or build toolchain required):
 
 ```bash
 git clone https://github.com/NOMARJ/sigil

@@ -164,7 +164,7 @@ For any CI system that can run shell commands:
 ### 1. Install Sigil
 
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
 ```
 
 Or use the Docker image:
@@ -207,7 +207,7 @@ pipeline {
     stages {
         stage('Security Scan') {
             steps {
-                sh 'curl -sSL https://sigilsec.ai/install.sh | sh'
+                sh 'curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh'
                 sh '''
                     sigil scan . --format json > sigil-report.json
                     EXIT_CODE=$?
@@ -236,7 +236,7 @@ jobs:
       - checkout
       - run:
           name: Install Sigil
-          command: curl -sSL https://sigilsec.ai/install.sh | sh
+          command: curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
       - run:
           name: Run security scan
           command: |
@@ -263,7 +263,7 @@ pipelines:
     - step:
         name: Sigil Security Scan
         script:
-          - curl -sSL https://sigilsec.ai/install.sh | sh
+          - curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
           - sigil scan . --format json > sigil-report.json
           - |
             EXIT_CODE=$?

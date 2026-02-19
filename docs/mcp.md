@@ -20,7 +20,7 @@ The MCP server wraps the `sigil` CLI. Install it first:
 
 ```bash
 # Option 1: Quick install
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
 
 # Option 2: Homebrew
 brew install nomarj/tap/sigil
