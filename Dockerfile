@@ -7,30 +7,11 @@
 # Stage 3: Runtime image with API, CLI, and dashboard
 # ============================================================================
 
-# ── Stage 1: Build Rust CLI ─────────────────────────────────────────────────
-FROM rust:1.77-slim-bookworm AS rust-builder
-
+# ── Stage 1: Placeholder for Rust CLI (disabled until cli/ is complete) ─────
+FROM busybox:latest AS rust-builder
 WORKDIR /build
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Cargo manifests first for layer caching
-COPY cli/Cargo.toml cli/Cargo.lock* ./
-
-# Create a dummy src to cache dependencies
-RUN mkdir -p src && \
-    echo 'fn main() { println!("placeholder"); }' > src/main.rs && \
-    cargo build --release 2>/dev/null || true && \
-    rm -rf src
-
-# Copy actual source and build
-COPY cli/ ./
-RUN cargo build --release || touch target/release/sigil
-RUN strip target/release/sigil 2>/dev/null || true
+# Create empty placeholder binary (Rust CLI not yet functional)
+RUN mkdir -p target/release && touch target/release/sigil
 
 # ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
 FROM node:20-slim AS dashboard-builder
