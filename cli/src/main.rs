@@ -765,6 +765,7 @@ fn compute_directory_hash(path: &Path) -> String {
     }
 
     hex::encode(hasher.finalize())
+}
 
 async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {
     // Load baseline
