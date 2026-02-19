@@ -1,0 +1,172 @@
+# ============================================================================
+# SIGIL — Docker Compose (Development Stack)
+# by NOMARK
+#
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose --profile prod up  # Start production mode
+#   docker compose logs -f api        # Tail API logs
+#   docker compose down               # Stop all services
+# ============================================================================
+
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sigil-api
+    command: >
+      uvicorn api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/api
+    ports:
+      - "${SIGIL_API_PORT:-8000}:8000"
+    volumes:
+      - ./api:/app/api
+      - sigil-data:/home/sigil/.sigil
+    environment:
+      SIGIL_DEBUG: "true"
+      SIGIL_LOG_LEVEL: "DEBUG"
+      SIGIL_HOST: "0.0.0.0"
+      SIGIL_PORT: "8000"
+      SIGIL_JWT_SECRET: "${SIGIL_JWT_SECRET:-dev-secret-change-in-production}"
+      SIGIL_SUPABASE_URL: "${SIGIL_SUPABASE_URL:-}"
+      SIGIL_SUPABASE_KEY: "${SIGIL_SUPABASE_KEY:-}"
+      SIGIL_REDIS_URL: "redis://redis:6379/0"
+      SIGIL_CORS_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── Next.js Dashboard ───────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      target: deps
+    container_name: sigil-dashboard
+    image: node:20-slim
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "${SIGIL_DASHBOARD_PORT:-3000}:3000"
+    volumes:
+      - ./dashboard:/app
+      - dashboard-node-modules:/app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:${SIGIL_API_PORT:-8000}"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: "development"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: sigil-postgres
+    ports:
+      - "${SIGIL_PG_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: "${SIGIL_PG_DB:-sigil}"
+      POSTGRES_USER: "${SIGIL_PG_USER:-sigil}"
+      POSTGRES_PASSWORD: "${SIGIL_PG_PASSWORD:-sigil_dev_password}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SIGIL_PG_USER:-sigil} -d ${SIGIL_PG_DB:-sigil}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── Redis ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sigil-redis
+    ports:
+      - "${SIGIL_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── Production API (optional profile) ───────────────────────────────────
+  api-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sigil-api-prod
+    profiles:
+      - prod
+    ports:
+      - "${SIGIL_API_PORT:-8000}:8000"
+    environment:
+      SIGIL_DEBUG: "false"
+      SIGIL_LOG_LEVEL: "WARNING"
+      SIGIL_HOST: "0.0.0.0"
+      SIGIL_PORT: "8000"
+      SIGIL_JWT_SECRET: "${SIGIL_JWT_SECRET}"
+      SIGIL_SUPABASE_URL: "${SIGIL_SUPABASE_URL}"
+      SIGIL_SUPABASE_KEY: "${SIGIL_SUPABASE_KEY}"
+      SIGIL_REDIS_URL: "redis://redis:6379/0"
+      SIGIL_CORS_ORIGINS: '${SIGIL_CORS_ORIGINS:-["https://sigil.nomark.dev"]}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+# ── Volumes ────────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  sigil-data:
+    driver: local
+  dashboard-node-modules:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────────────────────
+networks:
+  sigil-net:
+    driver: bridge

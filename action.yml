@@ -1,0 +1,74 @@
+name: 'Sigil Security Scan'
+description: 'Scan your repository for malicious patterns in AI agent code, MCP servers, and packages'
+author: 'NOMARK'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to scan (relative to repository root)'
+    required: false
+    default: '.'
+  threshold:
+    description: 'Minimum verdict level to fail the action (low/medium/high/critical)'
+    required: false
+    default: 'medium'
+  api-key:
+    description: 'Sigil cloud API key for threat intel enrichment (optional)'
+    required: false
+    default: ''
+  fail-on-findings:
+    description: 'Whether to fail the action when findings exceed the threshold'
+    required: false
+    default: 'true'
+  phases:
+    description: 'Comma-separated list of scan phases to run (all, install-hooks, code-patterns, network, credentials, obfuscation, provenance)'
+    required: false
+    default: 'all'
+  exclude:
+    description: 'Glob patterns to exclude from scanning (comma-separated)'
+    required: false
+    default: ''
+
+outputs:
+  verdict:
+    description: 'Scan verdict (clean, low, medium, high, critical)'
+    value: ${{ steps.scan.outputs.verdict }}
+  risk-score:
+    description: 'Numeric risk score from the scan'
+    value: ${{ steps.scan.outputs.risk-score }}
+  findings-count:
+    description: 'Total number of findings detected'
+    value: ${{ steps.scan.outputs.findings-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Sigil scanner
+      shell: bash
+      run: |
+        # Use the bundled sigil script from the action repository
+        if [ -f "${{ github.action_path }}/bin/sigil" ]; then
+          chmod +x "${{ github.action_path }}/bin/sigil"
+          echo "${{ github.action_path }}/bin" >> "$GITHUB_PATH"
+        else
+          echo "::error::Sigil CLI not found in action directory"
+          exit 1
+        fi
+
+    - name: Run Sigil scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_THRESHOLD: ${{ inputs.threshold }}
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        INPUT_PHASES: ${{ inputs.phases }}
+        INPUT_EXCLUDE: ${{ inputs.exclude }}
+        SIGIL_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        chmod +x "${{ github.action_path }}/.github/action-entrypoint.sh"
+        "${{ github.action_path }}/.github/action-entrypoint.sh"
