@@ -33,14 +33,10 @@ jobs:
         id: tag
         run: echo "sha=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
 
-      - name: Get API FQDN for dashboard build arg
+      - name: Set API URL for dashboard build arg
         id: api_fqdn
         run: |
-          FQDN=$(az containerapp show \
-            --name sigil-api \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --query "properties.configuration.ingress.fqdn" -o tsv)
-          echo "fqdn=https://${FQDN}" >> $GITHUB_OUTPUT
+          echo "fqdn=https://api.sigilsec.ai" >> $GITHUB_OUTPUT
 
       - name: Build and push API image
         run: |
