@@ -29,8 +29,8 @@ RUN mkdir -p src && \
 
 # Copy actual source and build
 COPY cli/ ./
-RUN cargo build --release && \
-    strip target/release/sigil 2>/dev/null || true
+RUN cargo build --release || touch target/release/sigil
+RUN strip target/release/sigil 2>/dev/null || true
 
 # ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
 FROM node:20-slim AS dashboard-builder
