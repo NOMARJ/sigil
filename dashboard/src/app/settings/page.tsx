@@ -734,9 +734,10 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {plans.map((plan) => {
-                      const isCurrent = subscription?.plan_id === plan.id;
+                      const isCurrent = subscription?.plan_name === plan.name;
+                      const isEnterprise = plan.name === "Enterprise";
                       const showAnnual = billingInterval === "annual" && plan.price_yearly > 0;
                       const displayPrice = showAnnual
                         ? (plan.price_yearly / 12).toFixed(2)
@@ -757,14 +758,22 @@ export default function SettingsPage() {
                             {plan.description}
                           </p>
                           <div className="mt-3">
-                            <p className="text-2xl font-bold text-gray-100">
-                              ${displayPrice}
-                              <span className="text-sm font-normal text-gray-500">/mo</span>
-                            </p>
-                            {showAnnual && (
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                ${plan.price_yearly}/yr — billed annually
+                            {isEnterprise ? (
+                              <p className="text-2xl font-bold text-gray-100">
+                                Contact Sales
                               </p>
+                            ) : (
+                              <>
+                                <p className="text-2xl font-bold text-gray-100">
+                                  ${displayPrice}
+                                  <span className="text-sm font-normal text-gray-500">/mo</span>
+                                </p>
+                                {showAnnual && (
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    ${plan.price_yearly}/yr — billed annually
+                                  </p>
+                                )}
+                              </>
                             )}
                           </div>
                           <ul className="mt-3 space-y-1">
@@ -781,13 +790,13 @@ export default function SettingsPage() {
                             ))}
                           </ul>
                           <button
-                            onClick={() => handleSubscribe(plan.id)}
+                            onClick={() => isEnterprise ? window.location.href = 'mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry' : handleSubscribe(plan.id)}
                             disabled={isCurrent}
                             className={`mt-4 w-full text-xs ${
-                              isCurrent ? "btn-secondary" : "btn-primary"
+                              isCurrent ? "btn-secondary cursor-not-allowed" : "btn-primary"
                             }`}
                           >
-                            {isCurrent ? "Current Plan" : "Subscribe"}
+                            {isCurrent ? "Current Plan" : isEnterprise ? "Contact Sales" : "Subscribe"}
                           </button>
                         </div>
                       );

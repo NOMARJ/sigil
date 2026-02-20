@@ -20,7 +20,8 @@ import base64
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Any
+from typing_extensions import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status

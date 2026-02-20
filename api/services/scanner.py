@@ -177,6 +177,14 @@ NETWORK_EXFIL_RULES = _compile(
             "pattern": r"dns\.(resolve|lookup)|getaddrinfo\s*\(",
             "description": "DNS query — possible DNS exfiltration technique",
         },
+        {
+            "id": "net-http-exe-download",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.CRITICAL,
+            "pattern": r"http://[^/\s]+/[^\s]*/?(download|payload|agent|install|setup|bin).*\.(exe|sh|dmg|pkg|msi|run|bin)",
+            "description": "Downloads executable over unencrypted HTTP — MitM risk (OpenClaw pattern)",
+            "weight": 1.5,
+        },
     ]
 )
 
