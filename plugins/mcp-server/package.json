@@ -1,6 +1,6 @@
 {
   "name": "@nomark/sigil-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sigil MCP server — security scanning tools for Claude Code, Cursor, Windsurf, and other MCP-compatible AI agents",
   "license": "MIT",
   "type": "module",
