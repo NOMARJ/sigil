@@ -1,0 +1,69 @@
+# Lightweight Dockerfile for Sigil CLI only
+# Produces a minimal Alpine-based image (~15MB)
+
+# Build stage
+FROM rust:1.75-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev \
+    pkgconfig \
+    git
+
+WORKDIR /build
+
+# Copy only Cargo files first for better layer caching
+COPY cli/Cargo.toml cli/Cargo.lock ./
+
+# Create dummy main.rs to build dependencies
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src
+
+# Copy actual source code
+COPY cli/src ./src
+
+# Build the real binary
+RUN cargo build --release --locked && \
+    strip target/release/sigil
+
+# Runtime stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    libgcc \
+    git \
+    bash \
+    curl \
+    grep \
+    file \
+    python3
+
+# Copy binary from builder
+COPY --from=builder /build/target/release/sigil /usr/local/bin/sigil
+
+# Create sigil directories
+RUN mkdir -p \
+    /root/.sigil/quarantine \
+    /root/.sigil/approved \
+    /root/.sigil/logs \
+    /root/.sigil/reports
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+ENTRYPOINT ["sigil"]
+CMD ["--help"]
+
+# Labels
+LABEL org.opencontainers.image.title="Sigil CLI"
+LABEL org.opencontainers.image.description="Automated security auditing for AI agent code - CLI only"
+LABEL org.opencontainers.image.url="https://sigilsec.ai"
+LABEL org.opencontainers.image.source="https://github.com/NOMARJ/sigil"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.vendor="NOMARK"

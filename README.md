@@ -22,28 +22,34 @@ Sigil fills this gap with a **quarantine-first approach**.
 
 ## Quick Install
 
+**Homebrew (macOS/Linux):**
 ```bash
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+brew tap nomarj/tap
+brew install sigil
 ```
 
-The installer detects your platform, downloads a pre-built binary from the latest GitHub release if available, and falls back to the bash script automatically. It also runs `sigil install` to set up shell aliases.
-
-Or build from source — the Rust CLI is the recommended binary:
-
+**npm (All platforms):**
 ```bash
-git clone https://github.com/NOMARJ/sigil
-cd sigil/cli && cargo build --release
-sudo cp target/release/sigil /usr/local/bin/sigil
+npm install -g @nomark/sigil
 ```
 
-Or use the bash script directly (no Rust or build toolchain required):
-
+**Cargo (Rust):**
 ```bash
-git clone https://github.com/NOMARJ/sigil
-sudo cp sigil/bin/sigil /usr/local/bin/sigil && chmod +x /usr/local/bin/sigil
+cargo install sigil
 ```
 
-Homebrew tap and npm package are coming soon.
+**curl installer:**
+```bash
+curl -sSL https://sigilsec.ai/install.sh | sh
+```
+
+**Docker:**
+```bash
+docker pull nomark/sigil:latest
+docker run --rm -v $(pwd):/workspace nomark/sigil scan .
+```
+
+[**→ See all installation methods**](docs/installation.md)
 
 ## How It Works
 
@@ -169,6 +175,8 @@ No source code is ever transmitted — only pattern match metadata (which rules 
 sigil login
 ```
 
+**[Learn more about authentication →](docs/authentication-guide.md)**
+
 ## Why Not [Existing Tool]?
 
 | Capability | Sigil | Snyk | Socket.dev | Semgrep | CodeQL |
@@ -198,6 +206,34 @@ The CLI is **free and open source** with all six scan phases. Paid tiers add clo
 | Slack / webhook alerts | — | — | ✅ |
 
 [See full pricing →](https://sigilsec.ai/pricing)
+
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+**Getting Started:**
+- [Getting Started Guide](docs/getting-started.md) — Installation and first scan
+- [CLI Reference](docs/cli.md) — All commands and options
+- [Authentication Guide](docs/authentication-guide.md) — Connect to Sigil Pro ⭐ **NEW**
+- [Configuration](docs/configuration.md) — Environment variables and settings
+
+**Technical Deep Dives:**
+- [Architecture Overview](docs/architecture.md) — System design
+- [Detection Patterns](docs/detection-patterns.md) — What Sigil scans for
+- [Threat Intelligence 2025](docs/threat-intelligence-2025.md) — Current threat landscape
+- [API Reference](docs/api-reference.md) — REST API endpoints
+
+**Integration Guides:**
+- [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
+- [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
+- [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
+
+**Security Research:**
+- [Case Study: OpenClaw Attack](docs/CASE-STUDY-OPENCLAW-ATTACK.md) — Real-world supply chain attack
+- [Prompt Injection Patterns](docs/prompt-injection-patterns.md) — Detection techniques
+- [Malicious Signatures](docs/malicious-signatures.md) — Threat signature database
+
+[**Browse all documentation →**](docs/README.md)
 
 ## Roadmap
 
