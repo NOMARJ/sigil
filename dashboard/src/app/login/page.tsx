@@ -180,6 +180,7 @@ export default function LoginPage() {
                     className="input"
                     required
                     minLength={mode === "register" ? 8 : undefined}
+                    autoComplete={mode === "register" ? "new-password" : "current-password"}
                   />
                   {mode === "register" && (
                     <p className="text-xs text-gray-600 mt-1">
