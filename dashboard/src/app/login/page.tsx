@@ -148,6 +148,7 @@ export default function LoginPage() {
                   className="input"
                   required
                   autoFocus={mode === "login" || mode === "forgot"}
+                  autoComplete="email"
                 />
               </div>
 

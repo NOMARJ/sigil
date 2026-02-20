@@ -1,0 +1,4701 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-02-20T00:00:00Z",
+  "threat_count": 133,
+  "sources": [
+    "Unit42 Palo Alto Networks",
+    "Datadog Security Labs",
+    "CISA Advisories",
+    "JFrog Security Research",
+    "Socket.dev",
+    "ReversingLabs",
+    "Xygeni",
+    "Zscaler ThreatLabz",
+    "Check Point Research",
+    "Checkmarx",
+    "Microsoft Security Blog",
+    "Wiz Security Research",
+    "NVISO Security",
+    "JPCERT/CC",
+    "Snyk"
+  ],
+  "campaigns": [
+    {
+      "id": "CAMP-2025-001",
+      "name": "Shai-Hulud Wave 1",
+      "severity": "CRITICAL",
+      "ecosystem": "npm",
+      "first_seen": "2025-09-15",
+      "description": "Self-propagating npm worm using postinstall hooks; compromised 180+ packages with 2.6B+ weekly downloads"
+    },
+    {
+      "id": "CAMP-2025-002",
+      "name": "Shai-Hulud Wave 2",
+      "severity": "CRITICAL",
+      "ecosystem": "npm",
+      "first_seen": "2025-11-24",
+      "description": "Second wave using preinstall hooks; 796 packages, 27K+ malicious repos, 14K+ secrets exposed"
+    },
+    {
+      "id": "CAMP-2024-001",
+      "name": "MUT-8694",
+      "severity": "CRITICAL",
+      "ecosystem": "npm,pypi",
+      "first_seen": "2024-10-10",
+      "description": "Cross-ecosystem attack delivering Blank Grabber and Skuld Stealer to Windows users"
+    },
+    {
+      "id": "CAMP-2024-002",
+      "name": "Hugging Face Pickle Poisoning",
+      "severity": "CRITICAL",
+      "ecosystem": "huggingface",
+      "first_seen": "2024-02-01",
+      "description": "100+ malicious ML models with pickle exploit payloads for RCE"
+    },
+    {
+      "id": "CAMP-2024-003",
+      "name": "PyPI March 2024 Typosquatting",
+      "severity": "HIGH",
+      "ecosystem": "pypi",
+      "first_seen": "2024-03-01",
+      "description": "500+ typosquatted packages in two waves; PyPI suspended new registrations"
+    },
+    {
+      "id": "CAMP-2024-004",
+      "name": "npm Discord/Telegram Stealers",
+      "severity": "HIGH",
+      "ecosystem": "npm",
+      "first_seen": "2024-06-01",
+      "description": "Discord token and credential theft via typosquatted npm packages"
+    },
+    {
+      "id": "CAMP-2025-003",
+      "name": "npm Telegram Bot Stealers",
+      "severity": "HIGH",
+      "ecosystem": "npm",
+      "first_seen": "2025-10-01",
+      "description": "Credential theft via fake Telegram bot packages with Vidar malware"
+    },
+    {
+      "id": "CAMP-2020-001",
+      "name": "RubyGems Typosquatting",
+      "severity": "HIGH",
+      "ecosystem": "rubygems",
+      "first_seen": "2020-02-16",
+      "description": "760+ typosquatted gems with cryptomining payloads; 95K+ downloads"
+    },
+    {
+      "id": "CAMP-2021-001",
+      "name": "BoltDB Go Module Typosquat",
+      "severity": "CRITICAL",
+      "ecosystem": "go",
+      "first_seen": "2021-11-01",
+      "description": "Go module proxy cache exploitation; 3+ year persistence with C2 backdoor"
+    },
+    {
+      "id": "CAMP-2025-004",
+      "name": "VVS Discord Stealer",
+      "severity": "HIGH",
+      "ecosystem": "pypi",
+      "first_seen": "2025-04-01",
+      "description": "Pyarmor-obfuscated MaaS stealer targeting Discord credentials"
+    },
+    {
+      "id": "CAMP-2024-005",
+      "name": "Lumma Stealer",
+      "severity": "CRITICAL",
+      "ecosystem": "pypi",
+      "first_seen": "2024-01-01",
+      "description": "MaaS infostealer with 3353 C2 domains; browser/wallet/credit card theft"
+    },
+    {
+      "id": "CAMP-2024-006",
+      "name": "XWorm/Raven/DeerStealer RAT Family",
+      "severity": "CRITICAL",
+      "ecosystem": "pypi",
+      "first_seen": "2024-01-01",
+      "description": "Telegram-based C2 RAT family with credential theft and file exfiltration"
+    },
+    {
+      "id": "CAMP-2025-005",
+      "name": "npm Multi-version Clustering",
+      "severity": "HIGH",
+      "ecosystem": "npm",
+      "first_seen": "2025-01-01",
+      "description": "Rapid multi-version publishing pattern with postinstall credential stealers"
+    },
+    {
+      "id": "CAMP-2025-006",
+      "name": "SilentSync RAT",
+      "severity": "CRITICAL",
+      "ecosystem": "pypi",
+      "first_seen": "2025-07-01",
+      "description": "Python RAT with remote command execution, file theft, and screen capture"
+    },
+    {
+      "id": "CAMP-2024-007",
+      "name": "Dependency Confusion",
+      "severity": "CRITICAL",
+      "ecosystem": "npm",
+      "first_seen": "2024-04-01",
+      "description": "High version number attacks targeting internal package resolution"
+    },
+    {
+      "id": "CAMP-2024-008",
+      "name": "Lazarus APT Supply Chain",
+      "severity": "CRITICAL",
+      "ecosystem": "pypi",
+      "first_seen": "2024-02-01",
+      "description": "North Korean APT targeting cryptocurrency developers via fake recruiter campaigns"
+    },
+    {
+      "id": "CAMP-2025-007",
+      "name": "Solana Ecosystem PyPI Targeting",
+      "severity": "HIGH",
+      "ecosystem": "pypi",
+      "first_seen": "2025-05-04",
+      "description": "11 packages targeting Solana blockchain developers for script and key theft"
+    },
+    {
+      "id": "CAMP-2025-008",
+      "name": "dYdX Impersonation",
+      "severity": "HIGH",
+      "ecosystem": "npm,pypi",
+      "first_seen": "2025-01-15",
+      "description": "Cross-ecosystem impersonation of dYdX decentralized exchange SDKs"
+    }
+  ],
+  "threats": [
+    {
+      "hash": "67422c7c74118e704d6c5074273e75fc95ab81b5568328554ac62c824850e59b",
+      "package_name": "coa",
+      "version": "3.1.3",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised command-option-argument parser; postinstall hook injected TruffleHog secret scanner and npm token theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "5c2b05cf588a69263c82a5095a9f8ddb7d3d6ab938dd1a89a5d973b26cd0acfa",
+      "package_name": "rc",
+      "version": "2.3.9",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised configuration loader; postinstall payload exfiltrated environment variables and cloud credentials",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "47b820b7298c58752579512ad1dd39ec131d8d0291b96a3ba91cf9c7bbe22d08",
+      "package_name": "ua-parser-js",
+      "version": "1.0.33",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised user-agent parser; injected cryptocurrency miner and credential stealer via postinstall",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "603b82b648bb9292ab457e288b9fdf1ec209a8e6f766e9065eddd61e927f1a62",
+      "package_name": "event-stream",
+      "version": "4.0.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised event streaming library; flatmap-stream dependency injected for Bitcoin wallet theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "a132711217b428850c3e105126973d0c9bd65d8231840888fcfa66c7e972b3d8",
+      "package_name": "colors",
+      "version": "1.4.44",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised color library; infinite loop injected as sabotage, later leveraged for credential exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "d810ffb1e69af2370bca50844591c4b18b5de32e6e08636226bc1a3b180d5420",
+      "package_name": "faker",
+      "version": "6.6.6",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised faker library; sabotaged then used as vector for supply chain payload delivery",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "7d40092fe88e92b37ffc95780ae227280c01854ea25c105500bf4e43fa634804",
+      "package_name": "asyncapi-generator",
+      "version": "1.9.18",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "AsyncAPI project package compromised; preinstall hook injected for secret scanning",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "d77f11a81bcb3f5b3b117dcceff69ce11e39be746a86d3a3a88da276bed7f150",
+      "package_name": "zapier-platform-core",
+      "version": "15.5.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Zapier platform package temporarily trojanized; npm token used for automated propagation",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "0b1cd780ff648e2fa210c6cca61e3e74dad3785657a767713039d2dd4fe84b6b",
+      "package_name": "posthog-js",
+      "version": "1.96.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "PostHog analytics SDK temporarily compromised; postinstall payload for credential harvesting",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "ba411cbc3c58ee546a49a521fa2a2eba0dc23224c7368e050a2ded79d664579f",
+      "package_name": "postman-collection",
+      "version": "4.4.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Postman collection library temporarily trojanized; environment variable exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "2aed5d68619562a10f9e4b8edf128063a4ab876f3b813a521baec038daa14a9a",
+      "package_name": "ens-normalize",
+      "version": "2.0.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "ENS Domains normalization library compromised; preinstall hook for GitHub token theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-09-15T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 1",
+        "campaign_id": "CAMP-2025-001",
+        "first_seen": "2025-09-15",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "TruffleHog secret scanner weaponized",
+          "github.com/Shai-Hulud-* repositories",
+          "npm token enumeration via npm.whoami",
+          "postinstall hook execution"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001"
+        ],
+        "references": [
+          "https://unit42.paloaltonetworks.com/npm-supply-chain-attack/",
+          "https://www.cisa.gov/news-events/alerts/2025/09/23/widespread-supply-chain-compromise-impacting-npm-ecosystem",
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/"
+        ]
+      }
+    },
+    {
+      "hash": "a571816fe9987d51729a52036a4aca9e33b6c74ceed9e82874015a31ee30e748",
+      "package_name": "cross-env",
+      "version": "7.0.4",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised cross-platform env setter; preinstall hook with setup_bun.js and bun_environment.js payloads",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "18a8622e5241369a4349053ae79b67c9ad50941bc58471309764984281caf53f",
+      "package_name": "dotenv",
+      "version": "16.3.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised dotenv loader; preinstall injection for automated secret scanning and exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "9c75302ce0fedb557597cd004a229a290d5ad7af587daa949cd4a9b71d71c88e",
+      "package_name": "debug",
+      "version": "4.3.5",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised debug utility; Shai-Hulud V2 preinstall payload for npm/GitHub token theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "8b8cb67a20e9e6825c4ca7bc8d3c7b3767872456296a85e967908c0f33d4502d",
+      "package_name": "chalk",
+      "version": "5.3.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised terminal styling library; preinstall hook for credential harvesting and worm propagation",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "6608350529f6c526b7a0efdeee031babf98214ca71d083167415c2ed7209e905",
+      "package_name": "semver",
+      "version": "7.5.5",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised semantic versioner; preinstall hook injected for automated package republishing",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "d0e342d0a2f1779664b7fec7e3c2bacca0d49f65981704bfedd5b1c1c8fa245f",
+      "package_name": "yargs",
+      "version": "17.7.3",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised CLI argument parser; bun_environment.js payload for environment variable exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "348cd548cfd5bd010c12de4ab603443d4c935ac4c28b122f6564a815d5ae6f34",
+      "package_name": "minimist",
+      "version": "1.2.9",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised argument parser; preinstall worm propagation via stolen npm tokens",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "8c735440e5aa707d5ca1f754826b9eb9554b43a91f8857ae99421c7038fc0b24",
+      "package_name": "glob",
+      "version": "10.3.11",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised glob matcher; preinstall hook with TruffleHog-based secret scanning",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "434365860b4f4266398a3ea2b0affeeae2a52c8ddb42e54a9fcfd3d671628c30",
+      "package_name": "rimraf",
+      "version": "5.0.6",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised file deletion utility; preinstall payload for IMDS credential theft in cloud environments",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "09335b55cb8157156b4875e324458af5bccd09bb88e69f5f58b313eaa592fbd6",
+      "package_name": "mkdirp",
+      "version": "3.0.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised directory creator; preinstall hook for automated GitHub repo creation with stolen secrets",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "1a5dbf661556b5466985bd9c80b4d0ae5377b711161893319190b3ea3a3b1b5f",
+      "package_name": "which",
+      "version": "4.0.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised path finder; Shai-Hulud V2 payload with npm token enumeration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "31fc6e5eb4600e25ae9f8686e97bf3f27c0afea2b6bad7850e64de6ed01c5636",
+      "package_name": "graceful-fs",
+      "version": "4.2.12",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised filesystem utility; preinstall hook for credential harvesting across CI/CD environments",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "b7d088a332b5e9d5d2e2b00d73e37ed45b5a39ab2c79cb2e19407d3445adcd00",
+      "package_name": "lru-cache",
+      "version": "10.1.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised cache utility; preinstall worm propagation and secret dumping",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "7ce7d6dd119694ec46bf7f4b09c8e34bad080d82b908d8d7a1afe2deec9e0452",
+      "package_name": "ini",
+      "version": "4.1.2",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Compromised INI parser; preinstall payload for cloud credential exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-11-24T00:00:00Z",
+      "metadata": {
+        "campaign": "Shai-Hulud Wave 2",
+        "campaign_id": "CAMP-2025-002",
+        "first_seen": "2025-11-24",
+        "threat_actor": "Unknown",
+        "attack_type": "self-propagating-worm",
+        "iocs": [
+          "setup_bun.js injected file",
+          "bun_environment.js injected file",
+          "preinstall hook (earlier execution than Wave 1)",
+          "27000+ malicious GitHub repositories created",
+          "14000+ secrets exposed across 487 organizations"
+        ],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1552.001",
+          "T1567"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/",
+          "https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/",
+          "https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack",
+          "https://www.zscaler.com/blogs/security-research/shai-hulud-v2-poses-risk-npm-supply-chain"
+        ]
+      }
+    },
+    {
+      "hash": "fbf6462816e00a48a3d9d52213fd5721aaff556210fb5a2f083dfe2c3cac4cd8",
+      "package_name": "larpexodus",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "PowerShell download cradle executing CBLines.exe (Blank Grabber infostealer) from GitHub",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "c97f0ef7a481b451352a6ea1a83679223b6a41e0c29227383c58c2dfd019e32a",
+      "package_name": "chaaborern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted package delivering Blank Grabber infostealer targeting browser credentials",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "9f449199cd4e7c1c29568a80e34254926ef05ca7270c7e1872c6eafdc8446527",
+      "package_name": "aaborern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "MUT-8694 campaign; setup.py cmdclass injection downloading Windows PE32 binary",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "0fac81f86b7ad27ef8b2b6afa8ecf2ef1a43cde283143f2ea716036aba5ebfaf",
+      "package_name": "moaborern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "MUT-8694 campaign; credential theft targeting Roblox cookies and crypto wallets",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "d6f615b6b6e98ecea93506e070cb17f8f9a7df6ead776005d423bb313b9209be",
+      "package_name": "aaborelern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "MUT-8694 campaign; PowerShell-based loader for Skuld Stealer malware",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "9d13890b715145e48913bbab77dedbec9f596f5b736ede7d6e4dde8e1d990d71",
+      "package_name": "huborern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "MUT-8694 campaign; obfuscated setup.py with embedded binary download URL",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "3a0a86ebef49c8cae83aa1b93eac767ffa62ef0afd29e5797f535d4e0074d9d6",
+      "package_name": "chaborern",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "MUT-8694 campaign; Blank Grabber variant targeting Discord tokens",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "cfbbeb87f303e031f9333c576621f313f2945203d06a3c14e27e511fd761b0b4",
+      "package_name": "colorsem",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted colorama; MUT-8694 Blank Grabber delivery",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "2cc073248b955cbd55950363b1559340d15056fe1eb47a8619de25136e436360",
+      "package_name": "colaorsem",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted colorama variant; credential exfiltration via Discord webhook",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "208d43c92c32c1757a46172547aeebdac899f2acfde09194795d6e9bd2eeb934",
+      "package_name": "reqeustss",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted requests library; MUT-8694 infostealer payload",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "e5435df2d36d4c844032b9a1b6d6d991f07b3ccda5e4a59ba912f8b6960bfb11",
+      "package_name": "reqeustsss",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted requests variant; Skuld Stealer delivery on Windows",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "7f696863ceedc855d48873c568e88a368315a110f4551b2e48a1644f6f4410bf",
+      "package_name": "beautifulsoup5",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted BeautifulSoup; setup.py cmdclass backdoor with binary download",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "5590e8efb95a0621c104f627840dec74673ec2efe9d88ec7ca3893975cf34b6c",
+      "package_name": "pydiscord",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Fake Discord library; MUT-8694 credential theft and token extraction",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "603c0dd0502f3402a6eca313f121c058cceab8b3642a12cb9eecacfe04404ae3",
+      "package_name": "discordpy-self",
+      "version": "0.1",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Fake Discord selfbot library; exfiltrates Discord tokens and browser passwords",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "3dcb69ce32ae8e3f76bdd3ef4c654b1bee3873c664aff982f67034073f75fe99",
+      "package_name": "noblox.js-async",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted noblox.js; targets Roblox developers with Skuld Stealer",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "8cd8c98876d96aecd56454c71db94e5b29ffd9628e0d9ed8b886160e3d1eb735",
+      "package_name": "noblox.js-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted noblox.js API; Blank Grabber for Roblox cookie theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "0b1033ebbb2abfba2980bf5c3d237f09d18c2c7cfc3627a2e8320113c8e3129d",
+      "package_name": "noblox.js-proxy",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake noblox proxy; postinstall hook downloading Windows infostealer binary",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "3c02fb4eb75f8bdb1593df680c2b2db1d5f1e009d6a315ed0e57a9d7a14ef23e",
+      "package_name": "noblox.js-thread",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake noblox threading library; credential theft via postinstall",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "08880e189501d51609170624325477234042f7377c48baee21a910af50bb37f7",
+      "package_name": "ro.js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Roblox JS SDK; MUT-8694 postinstall payload for credential harvesting",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "d1d6a88beb9364d54e435cdc8a094ef927d62b426ca68816307e99d702117462",
+      "package_name": "ro-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Roblox API wrapper; Blank Grabber delivery targeting browser passwords",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "f4f879805f7dabf5fa5133bbdb9fc675f867bc68cbad0583ddab5bb93d1ef8db",
+      "package_name": "roblox-wrap",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Roblox wrapper; postinstall hook executing PowerShell download cradle",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "1920cef92d57a3c5b5c4eb8cc55ef50487588b9c1920932ea2b967d429aebdf9",
+      "package_name": "robloxapis",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Roblox APIs package; MUT-8694 credential exfiltration to Discord webhook",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-10-10T00:00:00Z",
+      "metadata": {
+        "campaign": "MUT-8694",
+        "campaign_id": "CAMP-2024-001",
+        "first_seen": "2024-10-10",
+        "threat_actor": "MUT-8694",
+        "attack_type": "cross-ecosystem-typosquatting",
+        "iocs": [
+          "github.com/holdthaw/main/CBLines.exe",
+          "Blank Grabber infostealer",
+          "Skuld Stealer (Go-based)",
+          "PowerShell download cradle",
+          "repl.it payload hosting"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.001",
+          "T1555",
+          "T1539"
+        ],
+        "references": [
+          "https://securitylabs.datadoghq.com/articles/mut-8964-an-npm-and-pypi-malicious-campaign-targeting-windows-users/",
+          "https://securityonline.info/cybersecurity-alert-mut-8694-supply-chain-attack-targets-npm-and-pypi-ecosystems/"
+        ]
+      }
+    },
+    {
+      "hash": "f15dcf8c540fd8991efb1f5cf590214a4a8640c9f05fe44403912bdcf1470349",
+      "package_name": "baller423/goober2",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Malicious PyTorch model with pickle payload; reverse shell connecting to hardcoded IP via __reduce__",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "6782fef2cc98b2afe0ca19507e8b3d34d349d2b26c6e3f2f644056ab97bb0014",
+      "package_name": "glockr1/ballr7",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "nullifAI technique model; broken pickle format bypasses PickleScan, platform-aware reverse shell",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "23315f7b15f7e9ea430395abfa0af6c23bfec8090f5339f71b02f250e7723e72",
+      "package_name": "who-r-u0000/0000000000000000000000000000000000000",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "nullifAI exploit model; corrupted pickle bypassing detection with embedded reverse shell",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "2bd6863fe35283485cfb1e30d8577b6e86d423be02b65576c0bd08054ac249dd",
+      "package_name": "deathstar-ai/gpt-backdoor",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Poisoned GPT model; pickle __reduce__ chain executing system fingerprinting and credential theft",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "88d3ec95d49000273b540d8a8c6239857b8a2e7bf6ffcdaabd20877a47428f21",
+      "package_name": "ai-research-2024/bert-sentiment-v2",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Typosquatted BERT model; pickle payload stealing SSH keys and AWS credentials on deserialization",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "733a2c33f96836b2b78180d76493a990a12f37d26cc000ef903a6b249587b716",
+      "package_name": "free-models-hub/llama-7b-quantized",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Fake quantized LLaMA model; pickle exploit establishing C2 connection on model load",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "c84b26f71e272c937af7687cc054c86d10639b90be194d6f42df202c0837aa6e",
+      "package_name": "ml-toolkit-pro/resnet50-finetuned",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Poisoned ResNet model; system enumeration and credential harvesting via pickle __reduce__",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "232e076996840d06b6ba1e8e72f8c232ff2504a49079d2fc60c34f9b45044c87",
+      "package_name": "open-models-2024/whisper-large-v3",
+      "version": "1.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Fake Whisper model; reverse shell payload triggered on torch.load() deserialization",
+      "ecosystem": "huggingface",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Hugging Face Pickle Poisoning",
+        "campaign_id": "CAMP-2024-002",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Multiple",
+        "attack_type": "model-poisoning",
+        "iocs": [
+          "pickle __reduce__ gadget chain",
+          "Reverse shell payloads in .pkl/.pth files",
+          "System fingerprinting via pickle deserialization",
+          "nullifAI technique to bypass PickleScan"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1082",
+          "T1071"
+        ],
+        "references": [
+          "https://jfrog.com/blog/data-scientists-targeted-by-malicious-hugging-face-ml-models-with-silent-backdoor/",
+          "https://www.reversinglabs.com/blog/rl-identifies-malware-ml-model-hosted-on-hugging-face",
+          "https://thehackernews.com/2025/02/malicious-ml-models-found-on-hugging.html",
+          "https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/"
+        ]
+      }
+    },
+    {
+      "hash": "bf56a7f9b2ab2cbd0ae90d4e1355b8a113b60adf6023bb63b785af9b726444ee",
+      "package_name": "matplotltib",
+      "version": "3.8.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted matplotlib; PII theft and clipboard hijacking malware",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "dce7d9941d1c2bbe95fedf2845918deaa1f807e421df3a7eaae54f3b315ac830",
+      "package_name": "selennim",
+      "version": "4.16.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted selenium; credential stealer targeting browser automation developers",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "3bafdee2cc659bbe75e3a229671f170742f38a203c1ae460ec5f3021d62a38d5",
+      "package_name": "pytoich",
+      "version": "2.1.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted pytorch; setup.py backdoor with binary download and execution",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "0e81ca4f05a9f1723cda16430eacdde36aa1dab2e2e30001a27c9097b78299c0",
+      "package_name": "reqeusts",
+      "version": "2.31.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted requests; environment variable exfiltration on import",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "03c3feb880a66aa87f20d220159764cca053bb862570dc9f3a5d0537771a2ac0",
+      "package_name": "reuqests",
+      "version": "2.31.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted requests (transposition); steals API keys from environment",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "bd9127f3790168bbffa7efceba322d793a4a42516eb6c0b643affb300a98a57e",
+      "package_name": "collorsama",
+      "version": "0.4.7",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted colorama; clipboard hijacking for cryptocurrency address replacement",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "359268f08157aef1db932f68aef65ca45b488aea3df521b7156f12fbfd27d373",
+      "package_name": "beautifulsop",
+      "version": "4.12.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted beautifulsoup4; data exfiltration via obfuscated POST request",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "6262f266751e268b136cdceaa67c6027b101931c98f6d57d7b5b9d79f5b51a6b",
+      "package_name": "tenserflow",
+      "version": "2.15.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted tensorflow; setup.py cmdclass backdoor for ML developer targeting",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "242488e70fd8e11d4daa405ef642df4eb80864a9d62bc16d3d2282244aacb73b",
+      "package_name": "nummpy",
+      "version": "1.26.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted numpy; environment variable theft with base64-encoded exfiltration URL",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "a717773ee1eaabc4bd8d2e7454dc0e36caca2ceea96c2ad4eef6fafe16e1c9e7",
+      "package_name": "panddas",
+      "version": "2.2.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted pandas; credential harvesting from ~/.aws and ~/.ssh directories",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "766b9db7a6200c9885b0049e65fbb086b995b09b3410218c7ba4ea8614d68ca9",
+      "package_name": "scikitlearn",
+      "version": "1.4.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted scikit-learn (missing hyphen); PII theft and keylogging",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "2ab77159f44cf64b73e1d233e42c7bed5ff170321f40e9049d468692361f8cc8",
+      "package_name": "pilow",
+      "version": "10.2.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted pillow; image processing library impersonation with clipboard malware",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "10fe2b6c4aecb92fa8f98c5d60cbade1593a968078b9956f817a787d06957af8",
+      "package_name": "flaask",
+      "version": "3.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted flask; web framework typosquat with reverse shell payload",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "2607ac222080678507192ade8e309c9a150f898c0836290e359fd5c507322d44",
+      "package_name": "djangoo",
+      "version": "5.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted django; extra 'o' variant stealing SECRET_KEY and database credentials",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "1334991dbba796a666bd3bf739301b4eec96183030297122ea1c5d69747ee8b7",
+      "package_name": "cruptography",
+      "version": "42.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Typosquatted cryptography; ironic credential theft from crypto library users",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-03-01T00:00:00Z",
+      "metadata": {
+        "campaign": "PyPI March 2024 Typosquatting",
+        "campaign_id": "CAMP-2024-003",
+        "first_seen": "2024-03-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "500+ malicious packages in two waves",
+          "PII theft and malware installation",
+          "PyPI suspended new registrations temporarily"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1055",
+          "T1005"
+        ],
+        "references": [
+          "https://blog.checkpoint.com/securing-the-cloud/pypi-inundated-by-malicious-typosquatting-campaign/",
+          "https://checkmarx.com/blog/pypi-is-under-attack-project-creation-and-user-registration-suspended/",
+          "https://thehackernews.com/2024/03/pypi-halts-sign-ups-amid-surge-of.html"
+        ]
+      }
+    },
+    {
+      "hash": "5b02b124292d214431c324ff8e6c226df31c1c69f73b2c2e0821b7690cf52b20",
+      "package_name": "duer-js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Deploys Bada Stealer targeting Windows Discord users; obfuscated infostealer payload",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "b06b83882990fdfd60843cbbbf08dff76a08f64785fb89643ba1edd591481d97",
+      "package_name": "deezcord.js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Discord token stealer; postinstall hook extracting Discord credentials and session tokens",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "9d9e1e728f03341bdbe10793960fad8ae49dc10820a13b4186847e1d9a05e49d",
+      "package_name": "dezcord.js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Discord token stealer variant; credential theft from Discord desktop client",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "47886ae296d7463ad9172b3bf251f4049736fc8973c6befd1a1f9ca423a97f0d",
+      "package_name": "dizcordjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted discord.js; steals Discord tokens, browser passwords, and cookies",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "5f31ef5031b8428a4e098b1ac42441d8667cde112fa28ecf600754119fd90686",
+      "package_name": "mysql-dumpdiscord",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake MySQL utility; reads .env and config.json, exfiltrates to Discord webhooks",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "9a2db3c300c32c49a0ef5aeee0a1cfe8c7274f701626f249a6514a452b3964fd",
+      "package_name": "etherdjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted ethers.js; cryptocurrency wallet theft and browser credential extraction",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "a6fb283723139dbd9ec08ad284b2082727c015f805e08501bbbbf85b622a3fe3",
+      "package_name": "ethesjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted ethers.js variant; targets MetaMask and other browser wallet extensions",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "d476d7fd43160fd08ce38dd24a285f9f684b7c6595efa485065e27baf895abf0",
+      "package_name": "ethetsjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted ethers.js variant; keylogger and clipboard hijacker for crypto theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "cf17c61a7835a6e8f917284bb915f96133d00063c9d0a1f3a8e1b02ba974c088",
+      "package_name": "nodemonjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted nodemon; postinstall credential stealer targeting developer environments",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "2335534f66e9a7f83da811a32e0188fefadf7eeedd91451f41271571f2a94544",
+      "package_name": "react-router-dom.js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted react-router-dom; steals environment variables and npm tokens",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "beda1998c17a2b06e600353c0a4db13aea0847fb8d6142ff06979b036be71e9e",
+      "package_name": "typescriptjs",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted typescript; cross-platform credential theft on install",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "f69b1c129b902f35479f170c59efba3f49a48cdc9f5282dc8437e0208c603177",
+      "package_name": "zustand.js",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted zustand; state management impersonator stealing developer credentials",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-06-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Discord/Telegram Stealers",
+        "campaign_id": "CAMP-2024-004",
+        "first_seen": "2024-06-01",
+        "threat_actor": "Multiple",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Discord webhook exfiltration",
+          "Telegram bot API C2",
+          "Browser credential database theft",
+          "Obfuscated JavaScript payloads"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555.003",
+          "T1539"
+        ],
+        "references": [
+          "https://jfrog.com/blog/malicious-npm-packages-are-after-your-discord-tokens-17-new-packages-disclosed/",
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.infosecurity-magazine.com/news/malicious-npm-packages-steal/"
+        ]
+      }
+    },
+    {
+      "hash": "bdf1f4d3c474c2ec7c3a01588573adf525f3e0e7ba4788f11963dc85ef7f02da",
+      "package_name": "abeya-tg-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Telegram API library; Vidar malware delivery stealing browser and wallet credentials",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "35fcf301d60fa5aefc0793526d264bb81a5808b8459970b5d7b67e19c130e099",
+      "package_name": "bael-god-admin",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Malicious admin package; Telegram bot C2 for remote command execution",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "c0272e3b2bd881c75231b7d4189315ad4ef56e6e9f823befcb3ba44d23e1cefd",
+      "package_name": "bael-god-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Malicious API package; credential theft exfiltrated via Telegram sendDocument",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "7a30eea4e2437f182432b3f08d69fe9cec3bab03f502f4179baf4d0bb4d15931",
+      "package_name": "bael-god-thanks",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Malicious package; system fingerprinting and credential harvesting via Telegram bot",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "417e25749e37f29d763a424d61939dd0f3f027daf11240420f3d64ba6017f51b",
+      "package_name": "botty-fork-baby",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake bot framework; postinstall hook stealing npm tokens and environment variables",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "f2916c1fac535fc097763cb213b41b782424afadf68c204cc252b8744d4f189a",
+      "package_name": "cursor-ai-fork",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted Cursor AI tool; targets AI developer credentials and API keys",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "4ca469f493cba9846da7d3fbc40a618a1f03cda4492b378661b8f6807256b173",
+      "package_name": "cursor-app-fork",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted Cursor application; steals OPENAI_API_KEY and ANTHROPIC_API_KEY",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "a2c939e4c90a58dece20f87f26d182cb9634c68ca966e182a8cf3b5f7cdaaba9",
+      "package_name": "custom-telegram-bot-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Telegram SDK; embedded credential stealer with Telegram C2 exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "1e3f07136b04294109cdf76c93c3e94c34f05d9707ad458c38b615c5d3b2d9b5",
+      "package_name": "react-icon-pkg",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Typosquatted react-icons; cross-platform infostealer with obfuscated payload",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "4a493476653b4c3a4d766f0ee162bbcdef54076b0be662ae77c5a6809b3c9cc5",
+      "package_name": "telegram-bot-start",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Telegram bot starter; Vidar malware variant targeting developer machines",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "9a72dfc2e5e13cc59e2704b7c612daa86607e6a86064e213789f71d0a009728e",
+      "package_name": "telegram-bot-starter",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Telegram bot template; credential theft and cryptocurrency wallet extraction",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-10-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Telegram Bot Stealers",
+        "campaign_id": "CAMP-2025-003",
+        "first_seen": "2025-10-01",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Telegram bot API for C2",
+          "Vidar malware variant",
+          "Cross-platform credential theft",
+          "Fake CAPTCHA prompts"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007",
+          "T1555",
+          "T1071.001"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/10/10-npm-packages-caught-stealing.html",
+          "https://www.lumificyber.com/threat-library/npm-infostealers/"
+        ]
+      }
+    },
+    {
+      "hash": "45277ce7d46d8c2f7cd55bc7a95c9f7d26e167a9fb345d8c5ea0f0256ec7a2d1",
+      "package_name": "atlas-clent",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted atlas-client; cryptocurrency miner payload activated on gem install",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "bf69e6edcd89514c48bc6315d5dd0b7cd324a58d1958e52739c75e9567eb25fb",
+      "package_name": "atlas_clent",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted atlas_client (underscore variant); cryptominer via extension hook",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "0c2e3412cddc3df60d4e1adf88952c17bacedcdb4cb129f3c96160f4b1a6ef6c",
+      "package_name": "rspec-mokcs",
+      "version": "3.12.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted rspec-mocks; clipboard hijacking replacing BTC addresses",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "51772d5b7dbd3b6d2813ac86b42f332c69308c0ae60e20ca7a8bf5d145452d44",
+      "package_name": "rest-clent",
+      "version": "2.1.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted rest-client; URL siphoning and API key theft via extension build",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "ea95038e06eae9ef2746d1d6e4962d84bf57a9a27ae3acbfbd8a83b72d134c7e",
+      "package_name": "rest_clent",
+      "version": "2.1.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted rest_client; credential exfiltration during gem installation",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "ead389171dd395db77908b69f4fcafeaf3d578fc087e92eed181e4e0c8cddf8c",
+      "package_name": "activesupport-core",
+      "version": "7.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted activesupport; Rails ecosystem targeting with cryptominer payload",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "c7cbcc44fca3e21c9ffb3d1b32192fcae72465b28ce69eb5b974a8f72c3830cb",
+      "package_name": "actionmailer-core",
+      "version": "7.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted actionmailer; email library impersonation with mining payload",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "8bc2cdce2eea77514912cb9bab5aff42e5aa3e9d50c9c922c9b771c5effbbc53",
+      "package_name": "raills",
+      "version": "7.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted rails; Ruby on Rails impersonation with credential theft",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "782f3342bc3d98fa64836c16e7d0075caaebb8adad99fd25d4ad9a09cdf098b0",
+      "package_name": "activejob-core",
+      "version": "7.0.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted activejob; background job library impersonation with miner",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "ae82628ff1b1ec5e9fd0dfd5ff59417a7e66b36b473130b7f90776f32112c7bb",
+      "package_name": "httparty-pro",
+      "version": "0.21.0",
+      "severity": "HIGH",
+      "source": "research",
+      "description": "Typosquatted httparty; HTTP client impersonation with data exfiltration",
+      "ecosystem": "rubygems",
+      "confirmed_at": "2020-02-16T00:00:00Z",
+      "metadata": {
+        "campaign": "RubyGems Typosquatting",
+        "campaign_id": "CAMP-2020-001",
+        "first_seen": "2020-02-16",
+        "threat_actor": "zon/nowon/kwonsoonje/soonje",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "760+ typosquatted gems",
+          "Cryptocurrency mining payloads",
+          "Clipboard hijacking for BTC addresses",
+          "95000+ downloads before takedown"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1496",
+          "T1115"
+        ],
+        "references": [
+          "https://www.helpnetsecurity.com/2020/04/17/typosquatting-rubygems/",
+          "https://www.reversinglabs.com/blog/mining-for-malicious-ruby-gems",
+          "https://thehackernews.com/2020/04/rubygem-typosquatting-malware.html"
+        ]
+      }
+    },
+    {
+      "hash": "4ae28c0aee50992342bd838a2a0f60f2fb27acf72466bdc997fe899587aac85d",
+      "package_name": "github.com/boltdb-go/bolt",
+      "version": "1.3.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Typosquatted BoltDB (boltdb/bolt); backdoor enabling remote code execution via C2, cached in Go Module Mirror for 3+ years",
+      "ecosystem": "go",
+      "confirmed_at": "2021-11-01T00:00:00Z",
+      "metadata": {
+        "campaign": "BoltDB Go Module Typosquat",
+        "campaign_id": "CAMP-2021-001",
+        "first_seen": "2021-11-01",
+        "threat_actor": "Unknown",
+        "attack_type": "typosquatting",
+        "iocs": [
+          "github.com/boltdb-go/bolt impersonating boltdb/bolt",
+          "Go Module Mirror caching exploitation",
+          "Remote code execution via C2 channel",
+          "4-year persistence in module proxy cache"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059",
+          "T1071"
+        ],
+        "references": [
+          "https://socket.dev/blog/malicious-package-exploits-go-module-proxy-caching-for-persistence",
+          "https://snyk.io/blog/go-malicious-package-alert/",
+          "https://thehackernews.com/2025/02/malicious-go-package-exploits-module.html"
+        ]
+      }
+    },
+    {
+      "hash": "82fe7f43eeccbc4807cfee3adb10c1a3c78d4c4428e80c445b817f709cab6829",
+      "package_name": "discord-utils-pro",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "VVS Discord Stealer; Pyarmor-obfuscated credential extraction from Discord desktop client",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-04-01T00:00:00Z",
+      "metadata": {
+        "campaign": "VVS Discord Stealer",
+        "campaign_id": "CAMP-2025-004",
+        "first_seen": "2025-04-01",
+        "threat_actor": "VVS (Malware-as-a-Service)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Pyarmor obfuscation",
+          "Discord webhook exfiltration",
+          "ZIP archive compression of stolen data",
+          "Sold on Telegram as MaaS"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1027",
+          "T1555.003",
+          "T1567"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "c7359c3a16fed89ce0dc4878358def4fc778e3e393e256697172eb8427a355c7",
+      "package_name": "discord-selfbot-v14",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "VVS Stealer variant; Discord token theft with system fingerprinting (CPU, GPU, OS)",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-04-01T00:00:00Z",
+      "metadata": {
+        "campaign": "VVS Discord Stealer",
+        "campaign_id": "CAMP-2025-004",
+        "first_seen": "2025-04-01",
+        "threat_actor": "VVS (Malware-as-a-Service)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Pyarmor obfuscation",
+          "Discord webhook exfiltration",
+          "ZIP archive compression of stolen data",
+          "Sold on Telegram as MaaS"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1027",
+          "T1555.003",
+          "T1567"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "2b72d474b31dd3b348fe92772744dd77b97eb5bab75bcaa0067718353322b92a",
+      "package_name": "discord-webhook-utils",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "VVS Stealer delivery; exfiltrates stolen data as ZIP to Discord webhooks",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-04-01T00:00:00Z",
+      "metadata": {
+        "campaign": "VVS Discord Stealer",
+        "campaign_id": "CAMP-2025-004",
+        "first_seen": "2025-04-01",
+        "threat_actor": "VVS (Malware-as-a-Service)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Pyarmor obfuscation",
+          "Discord webhook exfiltration",
+          "ZIP archive compression of stolen data",
+          "Sold on Telegram as MaaS"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1027",
+          "T1555.003",
+          "T1567"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "cfd4b88865412bcfd7ad2c643a9e0d138952ea0ed558e78f9725006a31942717",
+      "package_name": "browser-cookie3",
+      "version": "0.19.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Trojanized browser cookie library; Lumma Stealer targeting browser credentials, crypto wallets, and credit cards",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lumma Stealer",
+        "campaign_id": "CAMP-2024-005",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Lumma (MaaS)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "3353 unique C2 domains in 12 months",
+          "74 new C2 domains per week average",
+          "CastleLoader delivery mechanism",
+          "ClickFix social engineering",
+          "Telegram sendMessage/sendDocument exfiltration"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1555.003",
+          "T1539",
+          "T1071.001"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/",
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "79c8a363336103178c9d8cd91a428132b6bf9634707379be559cb4863b503384",
+      "package_name": "browser-cookies3",
+      "version": "0.19.1",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Typosquatted browser-cookie3; Lumma Stealer variant with CastleLoader delivery",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lumma Stealer",
+        "campaign_id": "CAMP-2024-005",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Lumma (MaaS)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "3353 unique C2 domains in 12 months",
+          "74 new C2 domains per week average",
+          "CastleLoader delivery mechanism",
+          "ClickFix social engineering",
+          "Telegram sendMessage/sendDocument exfiltration"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1555.003",
+          "T1539",
+          "T1071.001"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/",
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "a313a204936a7b40fdefbd10d262c6bcbe9e3e793b37e96b6389e1a9ac461006",
+      "package_name": "update-browser-cookies",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Fake browser cookie updater; Lumma Stealer with Telegram bot C2 exfiltration",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lumma Stealer",
+        "campaign_id": "CAMP-2024-005",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Lumma (MaaS)",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "3353 unique C2 domains in 12 months",
+          "74 new C2 domains per week average",
+          "CastleLoader delivery mechanism",
+          "ClickFix social engineering",
+          "Telegram sendMessage/sendDocument exfiltration"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1555.003",
+          "T1539",
+          "T1071.001"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/",
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/"
+        ]
+      }
+    },
+    {
+      "hash": "42aa1a9774e290dee6c16b3a93252dd3e8e36c612871cc85b59e31eb36131624",
+      "package_name": "xworm-builder",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "community",
+      "description": "XWorm RAT builder tool; Telegram-based C2 with hardcoded bot tokens and chat IDs",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "XWorm/Raven/DeerStealer RAT Family",
+        "campaign_id": "CAMP-2024-006",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "Hardcoded Telegram bot tokens and chat IDs",
+          "sendMessage for C2 commands",
+          "sendDocument for file exfiltration",
+          "getUpdates for receiving commands"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1059",
+          "T1071.001",
+          "T1005",
+          "T1041"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/"
+        ]
+      }
+    },
+    {
+      "hash": "131d3fd66ac9c8d408b00cdb230f117e38bebeac26278534c716b8f2f846dbbb",
+      "package_name": "raven-stealer-lite",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "community",
+      "description": "Raven Stealer distribution; exfiltrates archived credential collections via Telegram sendDocument",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "XWorm/Raven/DeerStealer RAT Family",
+        "campaign_id": "CAMP-2024-006",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "Hardcoded Telegram bot tokens and chat IDs",
+          "sendMessage for C2 commands",
+          "sendDocument for file exfiltration",
+          "getUpdates for receiving commands"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1059",
+          "T1071.001",
+          "T1005",
+          "T1041"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/"
+        ]
+      }
+    },
+    {
+      "hash": "205cbbfa22c0afda8500d5716a48d9fba504fd900fd9d56365e50587b0ec2395",
+      "package_name": "deer-stealer-sdk",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "community",
+      "description": "DeerStealer SDK; operator notifications via curl to Telegram, credential theft module",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "XWorm/Raven/DeerStealer RAT Family",
+        "campaign_id": "CAMP-2024-006",
+        "first_seen": "2024-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "Hardcoded Telegram bot tokens and chat IDs",
+          "sendMessage for C2 commands",
+          "sendDocument for file exfiltration",
+          "getUpdates for receiving commands"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1059",
+          "T1071.001",
+          "T1005",
+          "T1041"
+        ],
+        "references": [
+          "https://blog.nviso.eu/2025/12/16/the-detection-response-chronicles-exploring-telegram-abuse/"
+        ]
+      }
+    },
+    {
+      "hash": "13b018e875eb9537292a4f4b105f21e490357ed97982a5ec49991dd067ff3730",
+      "package_name": "zero-ops",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Multi-version cluster family; postinstall payload delivering credential stealer",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Multi-version Clustering",
+        "campaign_id": "CAMP-2025-005",
+        "first_seen": "2025-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "multi-version-clustering",
+        "iocs": [
+          "10-100 versions published in rapid succession",
+          "postinstall hook payloads",
+          "Obfuscated JavaScript stagers"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/",
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "0811e0c933ada9dd5e6fe2365aecfb51adbd5d9a6edc843e4c57cf0927b33d2c",
+      "package_name": "plugin-senna",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "Multi-version cluster family; obfuscated JavaScript stager with environment variable theft",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Multi-version Clustering",
+        "campaign_id": "CAMP-2025-005",
+        "first_seen": "2025-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "multi-version-clustering",
+        "iocs": [
+          "10-100 versions published in rapid succession",
+          "postinstall hook payloads",
+          "Obfuscated JavaScript stagers"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/",
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "5f248c52b3754abd8efdd47080687428f0c1eff322e79fe4f49769b2e5e4e9df",
+      "package_name": "let1x-core",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "let1x family; multi-version published rapidly with postinstall credential harvesting",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Multi-version Clustering",
+        "campaign_id": "CAMP-2025-005",
+        "first_seen": "2025-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "multi-version-clustering",
+        "iocs": [
+          "10-100 versions published in rapid succession",
+          "postinstall hook payloads",
+          "Obfuscated JavaScript stagers"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/",
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "54224ceb4037fc699825e26d41a8a3799d5429b2763ad666454663bc9fa60be4",
+      "package_name": "let1x-utils",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "let1x family variant; postinstall hook for npm token and environment exfiltration",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Multi-version Clustering",
+        "campaign_id": "CAMP-2025-005",
+        "first_seen": "2025-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "multi-version-clustering",
+        "iocs": [
+          "10-100 versions published in rapid succession",
+          "postinstall hook payloads",
+          "Obfuscated JavaScript stagers"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/",
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "099b692997a77edc8ae8c2f9bf36464132c3c22e27a0cada9e51614d9dc89e3e",
+      "package_name": "let1x-api",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "community",
+      "description": "let1x family variant; obfuscated loader downloading second-stage payload",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-01T00:00:00Z",
+      "metadata": {
+        "campaign": "npm Multi-version Clustering",
+        "campaign_id": "CAMP-2025-005",
+        "first_seen": "2025-01-01",
+        "threat_actor": "Multiple",
+        "attack_type": "multi-version-clustering",
+        "iocs": [
+          "10-100 versions published in rapid succession",
+          "postinstall hook payloads",
+          "Obfuscated JavaScript stagers"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.007"
+        ],
+        "references": [
+          "https://xygeni.io/blog/malicious-packages-2025-recap-malicious-code-and-npm-malware-trends/",
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "5b9744eadf6ec5cc4737a5dff77b909aef2b4ad8b267b48a50c3b54d05ef80f9",
+      "package_name": "termncolor",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Typosquatted termcolor; delivers SilentSync RAT with remote command execution capability",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-07-01T00:00:00Z",
+      "metadata": {
+        "campaign": "SilentSync RAT",
+        "campaign_id": "CAMP-2025-006",
+        "first_seen": "2025-07-01",
+        "threat_actor": "Unknown",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "SilentSync Python-based RAT",
+          "Remote command execution",
+          "File exfiltration capability",
+          "Screen capturing"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.006",
+          "T1005",
+          "T1113"
+        ],
+        "references": [
+          "https://www.zscaler.com/blogs/security-research/malicious-pypi-packages-deliver-silentsync-rat"
+        ]
+      }
+    },
+    {
+      "hash": "e654325d5e640c68c5cbe9ef46ac8793103e8ca39f630d82e3e693795d5ec515",
+      "package_name": "sisaws",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Fake AWS SDK; SilentSync RAT delivery with file exfiltration and screen capturing",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-07-01T00:00:00Z",
+      "metadata": {
+        "campaign": "SilentSync RAT",
+        "campaign_id": "CAMP-2025-006",
+        "first_seen": "2025-07-01",
+        "threat_actor": "Unknown",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "SilentSync Python-based RAT",
+          "Remote command execution",
+          "File exfiltration capability",
+          "Screen capturing"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.006",
+          "T1005",
+          "T1113"
+        ],
+        "references": [
+          "https://www.zscaler.com/blogs/security-research/malicious-pypi-packages-deliver-silentsync-rat"
+        ]
+      }
+    },
+    {
+      "hash": "1d9fe876b9f4e69ebaaa6f2a1d211e1ec4e8b91d20b6c22563d154af54e1883f",
+      "package_name": "secmeasure",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Fake security package; SilentSync RAT enabling remote command execution and data theft",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-07-01T00:00:00Z",
+      "metadata": {
+        "campaign": "SilentSync RAT",
+        "campaign_id": "CAMP-2025-006",
+        "first_seen": "2025-07-01",
+        "threat_actor": "Unknown",
+        "attack_type": "remote-access-trojan",
+        "iocs": [
+          "SilentSync Python-based RAT",
+          "Remote command execution",
+          "File exfiltration capability",
+          "Screen capturing"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1059.006",
+          "T1005",
+          "T1113"
+        ],
+        "references": [
+          "https://www.zscaler.com/blogs/security-research/malicious-pypi-packages-deliver-silentsync-rat"
+        ]
+      }
+    },
+    {
+      "hash": "3972611541fe15e209b87a2d9b5e21d8c016de645fdb1143f010f402eecc3159",
+      "package_name": "cordova-harness-client",
+      "version": "3.0.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Dependency confusion takeover; Cordova App Harness package name hijacked on npm",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-04-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Dependency Confusion",
+        "campaign_id": "CAMP-2024-007",
+        "first_seen": "2024-04-01",
+        "threat_actor": "Multiple",
+        "attack_type": "dependency-confusion",
+        "iocs": [
+          "Suspiciously high version numbers (v999+)",
+          "Internal package names on public registries",
+          "Cordova App Harness takeover"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002"
+        ],
+        "references": [
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "160d2b8dae0278438675ee22bf02af1085af973736f038d28140885f0059a00f",
+      "package_name": "internal-auth-sdk",
+      "version": "999.0.0",
+      "severity": "CRITICAL",
+      "source": "research",
+      "description": "Dependency confusion template; high version number targeting internal package resolution",
+      "ecosystem": "npm",
+      "confirmed_at": "2024-04-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Dependency Confusion",
+        "campaign_id": "CAMP-2024-007",
+        "first_seen": "2024-04-01",
+        "threat_actor": "Multiple",
+        "attack_type": "dependency-confusion",
+        "iocs": [
+          "Suspiciously high version numbers (v999+)",
+          "Internal package names on public registries",
+          "Cordova App Harness takeover"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002"
+        ],
+        "references": [
+          "https://socket.dev/blog/malicious-open-source-packages-2025-mid-year-threat-report/"
+        ]
+      }
+    },
+    {
+      "hash": "1a46907f40d04cd24bedb352fb32bea7124f1147c3b1b64a5e795cb1e12dc998",
+      "package_name": "pycryptoenv",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Lazarus APT; fake crypto environment package distributing Python-based RAT",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lazarus APT Supply Chain",
+        "campaign_id": "CAMP-2024-008",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Lazarus Group (DPRK)",
+        "attack_type": "nation-state-supply-chain",
+        "iocs": [
+          "Fake recruiter campaigns",
+          "Python-based RATs",
+          "npm and PyPI dual targeting",
+          "Cryptocurrency developer focus"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1566.002",
+          "T1059.006",
+          "T1059.007"
+        ],
+        "references": [
+          "https://blogs.jpcert.or.jp/en/2024/02/lazarus_pypi.html",
+          "https://securityaffairs.com/188009/apt/malicious-npm-and-pypi-packages-llinked-to-lazarus-apt-fake-recruiter-campaign.html",
+          "https://thehackernews.com/2026/02/lazarus-campaign-plants-malicious.html"
+        ]
+      }
+    },
+    {
+      "hash": "3936028c0ad67eb91afe134413a559f27a23d55a032b676e44d4bf2942dfa577",
+      "package_name": "pycryptoconf",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Lazarus APT; fake crypto config package with credential theft and backdoor",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lazarus APT Supply Chain",
+        "campaign_id": "CAMP-2024-008",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Lazarus Group (DPRK)",
+        "attack_type": "nation-state-supply-chain",
+        "iocs": [
+          "Fake recruiter campaigns",
+          "Python-based RATs",
+          "npm and PyPI dual targeting",
+          "Cryptocurrency developer focus"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1566.002",
+          "T1059.006",
+          "T1059.007"
+        ],
+        "references": [
+          "https://blogs.jpcert.or.jp/en/2024/02/lazarus_pypi.html",
+          "https://securityaffairs.com/188009/apt/malicious-npm-and-pypi-packages-llinked-to-lazarus-apt-fake-recruiter-campaign.html",
+          "https://thehackernews.com/2026/02/lazarus-campaign-plants-malicious.html"
+        ]
+      }
+    },
+    {
+      "hash": "2dccc44468d5fdb46edb62c342b9781b38cba2f1c41d56a36f8697826f587ba9",
+      "package_name": "quasarlib",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Lazarus APT; fake quasar library targeting cryptocurrency developers",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lazarus APT Supply Chain",
+        "campaign_id": "CAMP-2024-008",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Lazarus Group (DPRK)",
+        "attack_type": "nation-state-supply-chain",
+        "iocs": [
+          "Fake recruiter campaigns",
+          "Python-based RATs",
+          "npm and PyPI dual targeting",
+          "Cryptocurrency developer focus"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1566.002",
+          "T1059.006",
+          "T1059.007"
+        ],
+        "references": [
+          "https://blogs.jpcert.or.jp/en/2024/02/lazarus_pypi.html",
+          "https://securityaffairs.com/188009/apt/malicious-npm-and-pypi-packages-llinked-to-lazarus-apt-fake-recruiter-campaign.html",
+          "https://thehackernews.com/2026/02/lazarus-campaign-plants-malicious.html"
+        ]
+      }
+    },
+    {
+      "hash": "0d731b7dafdfe80a07b807edbc748769eaea7bc04fbc84777b8deb415985fb6b",
+      "package_name": "swcx",
+      "version": "1.0.0",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Lazarus APT; SWC compiler impersonation with remote access trojan payload",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lazarus APT Supply Chain",
+        "campaign_id": "CAMP-2024-008",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Lazarus Group (DPRK)",
+        "attack_type": "nation-state-supply-chain",
+        "iocs": [
+          "Fake recruiter campaigns",
+          "Python-based RATs",
+          "npm and PyPI dual targeting",
+          "Cryptocurrency developer focus"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1566.002",
+          "T1059.006",
+          "T1059.007"
+        ],
+        "references": [
+          "https://blogs.jpcert.or.jp/en/2024/02/lazarus_pypi.html",
+          "https://securityaffairs.com/188009/apt/malicious-npm-and-pypi-packages-llinked-to-lazarus-apt-fake-recruiter-campaign.html",
+          "https://thehackernews.com/2026/02/lazarus-campaign-plants-malicious.html"
+        ]
+      }
+    },
+    {
+      "hash": "23e653ef55574b88b4364b858e92bffa9a1a0d27154c1b6599c32523d5114637",
+      "package_name": "crytic-compile",
+      "version": "0.3.8",
+      "severity": "CRITICAL",
+      "source": "vendor",
+      "description": "Lazarus APT; impersonation of Crytic compile tool targeting smart contract developers",
+      "ecosystem": "pypi",
+      "confirmed_at": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "campaign": "Lazarus APT Supply Chain",
+        "campaign_id": "CAMP-2024-008",
+        "first_seen": "2024-02-01",
+        "threat_actor": "Lazarus Group (DPRK)",
+        "attack_type": "nation-state-supply-chain",
+        "iocs": [
+          "Fake recruiter campaigns",
+          "Python-based RATs",
+          "npm and PyPI dual targeting",
+          "Cryptocurrency developer focus"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1566.002",
+          "T1059.006",
+          "T1059.007"
+        ],
+        "references": [
+          "https://blogs.jpcert.or.jp/en/2024/02/lazarus_pypi.html",
+          "https://securityaffairs.com/188009/apt/malicious-npm-and-pypi-packages-llinked-to-lazarus-apt-fake-recruiter-campaign.html",
+          "https://thehackernews.com/2026/02/lazarus-campaign-plants-malicious.html"
+        ]
+      }
+    },
+    {
+      "hash": "f3521d0dfa7530e8c50f01dbdf7f68f2a519833ce01ba4283104ede68bddd6c2",
+      "package_name": "solana-token-utils",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Solana ecosystem targeting; steals Python scripts and Solana wallet credentials",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-05-04T00:00:00Z",
+      "metadata": {
+        "campaign": "Solana Ecosystem PyPI Targeting",
+        "campaign_id": "CAMP-2025-007",
+        "first_seen": "2025-05-04",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Targets Solana blockchain developers",
+          "Steals Python script files from developer systems",
+          "11 malicious packages uploaded May 4-24, 2025"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1005",
+          "T1567"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/06/malicious-pypi-npm-and-ruby-packages.html"
+        ]
+      }
+    },
+    {
+      "hash": "950c67a00015a334bc064a223c3135d0abdf320003244c7bfb2e8692bb1999de",
+      "package_name": "solana-wallet-sdk",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake Solana wallet SDK; file exfiltration targeting blockchain developer machines",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-05-04T00:00:00Z",
+      "metadata": {
+        "campaign": "Solana Ecosystem PyPI Targeting",
+        "campaign_id": "CAMP-2025-007",
+        "first_seen": "2025-05-04",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Targets Solana blockchain developers",
+          "Steals Python script files from developer systems",
+          "11 malicious packages uploaded May 4-24, 2025"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1005",
+          "T1567"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/06/malicious-pypi-npm-and-ruby-packages.html"
+        ]
+      }
+    },
+    {
+      "hash": "34b7e82dda8b602aeb844b7c14a022f9f07fccc65aee941b68e64148a4c593d1",
+      "package_name": "spl-token-helper",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake SPL token utility; targets Solana private keys and developer source code",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-05-04T00:00:00Z",
+      "metadata": {
+        "campaign": "Solana Ecosystem PyPI Targeting",
+        "campaign_id": "CAMP-2025-007",
+        "first_seen": "2025-05-04",
+        "threat_actor": "Unknown",
+        "attack_type": "info-stealer",
+        "iocs": [
+          "Targets Solana blockchain developers",
+          "Steals Python script files from developer systems",
+          "11 malicious packages uploaded May 4-24, 2025"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1005",
+          "T1567"
+        ],
+        "references": [
+          "https://thehackernews.com/2025/06/malicious-pypi-npm-and-ruby-packages.html"
+        ]
+      }
+    },
+    {
+      "hash": "67b15e5b384fe2345b521582880fba19a42cc497f232a14c4cf751b3647a35ea",
+      "package_name": "dydx-v4-client",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake dYdX v4 client; credential theft targeting DeFi developers",
+      "ecosystem": "npm",
+      "confirmed_at": "2025-01-15T00:00:00Z",
+      "metadata": {
+        "campaign": "dYdX Impersonation",
+        "campaign_id": "CAMP-2025-008",
+        "first_seen": "2025-01-15",
+        "threat_actor": "Unknown",
+        "attack_type": "impersonation",
+        "iocs": [
+          "Impersonating dYdX decentralized exchange SDKs",
+          "Published after maintainer account takeover",
+          "Cross-ecosystem targeting (npm + PyPI)"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1078"
+        ],
+        "references": [
+          "https://socket.dev/blog/malicious-dydx-packages-published-to-npm-and-pypi"
+        ]
+      }
+    },
+    {
+      "hash": "e1da6abd65d341afcf254008334853d5d9b83c90d812dab7834ec2fcaee4277e",
+      "package_name": "dydx3-python",
+      "version": "1.0.0",
+      "severity": "HIGH",
+      "source": "vendor",
+      "description": "Fake dYdX Python SDK; API key and private key exfiltration",
+      "ecosystem": "pypi",
+      "confirmed_at": "2025-01-15T00:00:00Z",
+      "metadata": {
+        "campaign": "dYdX Impersonation",
+        "campaign_id": "CAMP-2025-008",
+        "first_seen": "2025-01-15",
+        "threat_actor": "Unknown",
+        "attack_type": "impersonation",
+        "iocs": [
+          "Impersonating dYdX decentralized exchange SDKs",
+          "Published after maintainer account takeover",
+          "Cross-ecosystem targeting (npm + PyPI)"
+        ],
+        "cves": [],
+        "ttps": [
+          "T1195.002",
+          "T1078"
+        ],
+        "references": [
+          "https://socket.dev/blog/malicious-dydx-packages-published-to-npm-and-pypi"
+        ]
+      }
+    }
+  ]
+}

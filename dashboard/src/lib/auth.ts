@@ -26,9 +26,20 @@ const REFRESH_KEY = "sigil_refresh_token";
 const EXPIRES_KEY = "sigil_token_expires";
 
 export function storeTokens(tokens: AuthTokens): void {
+  console.log('[storeTokens] Received tokens:', tokens);
   localStorage.setItem(ACCESS_KEY, tokens.access_token);
-  localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
-  localStorage.setItem(EXPIRES_KEY, String(tokens.expires_at));
+
+  // Handle optional refresh_token
+  if (tokens.refresh_token) {
+    localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+  } else {
+    console.log('[storeTokens] No refresh_token in response');
+  }
+
+  // Calculate expires_at from expires_in if needed
+  const expiresAt = tokens.expires_at ?? (Date.now() / 1000 + (tokens.expires_in ?? 3600));
+  console.log('[storeTokens] Calculated expiresAt:', expiresAt, 'from expires_in:', tokens.expires_in, 'expires_at:', tokens.expires_at);
+  localStorage.setItem(EXPIRES_KEY, String(expiresAt));
 }
 
 export function clearTokens(): void {
