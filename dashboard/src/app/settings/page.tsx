@@ -68,14 +68,15 @@ export default function SettingsPage() {
 
     try {
       const policy: Policy = await api.listPolicies();
-      setAutoApproveThreshold(policy.auto_approve_threshold);
-      setAllowlist(policy.allowlisted_packages.join("\n"));
-      setBlocklist(policy.blocklisted_packages.join("\n"));
-      setRequireApproval(policy.require_approval_for);
+      setAutoApproveThreshold(policy.auto_approve_threshold ?? "CLEAN");
+      setAllowlist((policy.allowlisted_packages ?? []).join("\n"));
+      setBlocklist((policy.blocklisted_packages ?? []).join("\n"));
+      setRequireApproval(policy.require_approval_for ?? []);
     } catch (err) {
       setPolicyError(
         err instanceof Error ? err.message : "Failed to load policy settings.",
       );
+      console.error("Failed to fetch policy:", err);
     } finally {
       setPolicyLoading(false);
     }
@@ -87,11 +88,12 @@ export default function SettingsPage() {
 
     try {
       const data = await api.listAlerts();
-      setChannels(data);
+      setChannels(data ?? []);
     } catch (err) {
       setAlertsError(
         err instanceof Error ? err.message : "Failed to load alert channels.",
       );
+      console.error("Failed to fetch alerts:", err);
     } finally {
       setAlertsLoading(false);
     }
@@ -108,15 +110,21 @@ export default function SettingsPage() {
       ]);
 
       if (plansData.status === "fulfilled") {
-        setPlans(plansData.value);
+        setPlans(plansData.value ?? []);
+      } else {
+        console.error("Failed to fetch plans:", plansData.reason);
       }
+
       if (subData.status === "fulfilled") {
         setSubscription(subData.value);
+      } else {
+        console.error("Failed to fetch subscription:", subData.reason);
       }
     } catch (err) {
       setBillingError(
         err instanceof Error ? err.message : "Failed to load billing data.",
       );
+      console.error("Failed to fetch billing:", err);
     } finally {
       setBillingLoading(false);
     }
@@ -650,7 +658,7 @@ export default function SettingsPage() {
                         {new Date(subscription.current_period_end).toLocaleDateString()}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Scans used: {subscription.scan_usage.toLocaleString()} / {subscription.scan_limit.toLocaleString()}
+                        Scans used: {(subscription.scan_usage ?? 0).toLocaleString()} / {(subscription.scan_limit ?? 0).toLocaleString()}
                       </p>
                     </div>
                     <button
@@ -673,19 +681,19 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Usage bar */}
-                  {subscription.scan_limit > 0 && (
+                  {(subscription.scan_limit ?? 0) > 0 && (
                     <div className="mt-3">
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            subscription.scan_usage / subscription.scan_limit > 0.9
+                            (subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1) > 0.9
                               ? "bg-red-500"
-                              : subscription.scan_usage / subscription.scan_limit > 0.7
+                              : (subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1) > 0.7
                                 ? "bg-yellow-500"
                                 : "bg-brand-500"
                           }`}
                           style={{
-                            width: `${Math.min(100, (subscription.scan_usage / subscription.scan_limit) * 100)}%`,
+                            width: `${Math.min(100, ((subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1)) * 100)}%`,
                           }}
                         />
                       </div>
@@ -761,10 +769,10 @@ export default function SettingsPage() {
                           </div>
                           <ul className="mt-3 space-y-1">
                             <li className="text-xs text-gray-400">
-                              {plan.scan_limit.toLocaleString()} scans/month
+                              {(plan.scan_limit ?? 0).toLocaleString()} scans/month
                             </li>
                             <li className="text-xs text-gray-400">
-                              {plan.team_member_limit} team members
+                              {plan.team_member_limit ?? 0} team members
                             </li>
                             {plan.features.map((feature, i) => (
                               <li key={i} className="text-xs text-gray-400">
