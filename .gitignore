@@ -56,3 +56,7 @@ htmlcov/
 *.tgz
 *.zip
 supabase/.temp/
+
+# Internal documentation (deployment notes, infrastructure details)
+docs/internal/
+*.docx

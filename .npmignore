@@ -1,0 +1,57 @@
+# NPM package ignore file
+# Only ship essential files for the npm package
+
+# Source code (binaries are installed via postinstall)
+cli/
+api/
+dashboard/
+plugins/
+Formula/
+
+# Development files
+.github/
+.git/
+.gitignore
+.gitattributes
+.editorconfig
+.vscode/
+.idea/
+
+# Documentation (keep README.md, LICENSE)
+docs/
+*.md
+!README.md
+
+# Config files
+docker-compose.yml
+Dockerfile
+Dockerfile.*
+*.toml
+!package.json
+
+# Build artifacts
+target/
+dist/
+build/
+*.log
+*.lock
+!package-lock.json
+node_modules/
+
+# Test files
+tests/
+test/
+*.test.js
+*.spec.js
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+
+# Misc
+.DS_Store
+*.swp
+*.swo
+*~
