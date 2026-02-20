@@ -1,6 +1,6 @@
 [package]
 name = "sigil"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Automated security auditing for AI agent code"
 license = "Apache-2.0"
