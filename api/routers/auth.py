@@ -338,17 +338,18 @@ async def login(body: UserLogin) -> TokenResponse:
             detail="Invalid email or password",
         )
 
-    token = _create_access_token({"sub": user["id"], "email": user["email"]})
+    user_id = str(user["id"])
+    token = _create_access_token({"sub": user_id, "email": user["email"]})
     expires_in = settings.jwt_expire_minutes * 60
 
-    logger.info("User logged in: %s", user["id"])
+    logger.info("User logged in: %s", user_id)
 
     return TokenResponse(
         access_token=token,
         token_type="bearer",
         expires_in=expires_in,
         user=UserResponse(
-            id=user["id"],
+            id=user_id,
             email=user["email"],
             name=user.get("name", ""),
             created_at=user.get("created_at", datetime.utcnow()),
