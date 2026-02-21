@@ -220,8 +220,11 @@ export interface PaginatedResponse<T> {
 /** Auth tokens returned after login / refresh. */
 export interface AuthTokens {
   access_token: string;
-  refresh_token: string;
-  expires_at: number;
+  refresh_token?: string;
+  expires_at?: number;
+  expires_in?: number;
+  token_type?: string;
+  user?: User;
 }
 
 /** Login request payload. */

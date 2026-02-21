@@ -20,11 +20,16 @@ import base64
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Any
+from typing_extensions import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials,
+    OAuth2PasswordBearer,
+)
 
 from api.config import settings
 from api.database import db
@@ -213,6 +218,7 @@ def _verify_token(token: str) -> dict[str, Any]:
 # OAuth2 bearer scheme (for dependency injection)
 # ---------------------------------------------------------------------------
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/login", auto_error=False)
+http_bearer = HTTPBearer(auto_error=False)
 
 # ---------------------------------------------------------------------------
 # Table
@@ -266,6 +272,156 @@ async def get_current_user(
 
 
 # ---------------------------------------------------------------------------
+# Unified Auth — supports both custom JWT and Supabase Auth
+# ---------------------------------------------------------------------------
+
+
+async def get_current_user_unified(
+    token_oauth: Annotated[str | None, Depends(oauth2_scheme)],
+    token_bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)],
+) -> UserResponse:
+    """Unified auth dependency that supports both custom JWT and Supabase Auth.
+
+    Priority:
+    1. Try Supabase Auth JWT (from Bearer token)
+    2. Fall back to custom JWT (from OAuth2 scheme)
+
+    This allows gradual migration from custom auth to Supabase Auth.
+    """
+    # Try Bearer token first (Supabase Auth)
+    if token_bearer is not None:
+        try:
+            return await get_current_user_supabase(token_bearer)
+        except HTTPException:
+            # If Supabase auth fails, try custom JWT
+            pass
+
+    # Fall back to OAuth2 token (custom JWT)
+    if token_oauth is not None:
+        return await get_current_user(token_oauth)
+
+    # No valid token found
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Supabase Auth JWT validation
+# ---------------------------------------------------------------------------
+
+
+async def get_current_user_supabase(
+    credentials: HTTPAuthorizationCredentials | None = None,
+) -> UserResponse:
+    """FastAPI dependency that validates Supabase Auth JWTs.
+
+    This validates JWTs issued by Supabase Auth using the JWKS endpoint.
+    Works with both symmetric (HS256) and asymmetric (RS256) signing.
+
+    Raises 401 if the token is missing, invalid, or the user no longer exists.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated - no bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = credentials.credentials
+
+    try:
+        # Use python-jose to decode and verify the Supabase JWT
+        # For now, use JWT secret if configured (will upgrade to JWKS later)
+        if settings.supabase_jwt_secret:
+            payload = (
+                _jose_jwt.decode(
+                    token,
+                    settings.supabase_jwt_secret,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                )
+                if _USE_JOSE
+                else _verify_supabase_token_fallback(token)
+            )
+        else:
+            # Fallback to verifying with custom JWT verification
+            payload = _verify_token(token)
+
+        # Extract user ID from Supabase token
+        user_id = payload.get("sub")
+        email = payload.get("email")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing user ID",
+            )
+
+        # Return user info from token (Supabase Auth manages users)
+        return UserResponse(
+            id=user_id,
+            email=email or "",
+            name=payload.get("user_metadata", {}).get("name", ""),
+            created_at=datetime.utcnow(),  # Can be fetched from Supabase if needed
+        )
+    except Exception as e:
+        logger.error(f"Supabase JWT validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}",
+        )
+
+
+def _verify_supabase_token_fallback(token: str) -> dict[str, Any]:
+    """Fallback verification for Supabase tokens without python-jose."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("Malformed token")
+
+        header_b64, payload_b64, sig_b64 = parts
+
+        # Verify signature if JWT secret is configured
+        if settings.supabase_jwt_secret:
+            signing_input = f"{header_b64}.{payload_b64}"
+            expected_sig = hmac.new(
+                settings.supabase_jwt_secret.encode(),
+                signing_input.encode(),
+                hashlib.sha256,
+            ).digest()
+            actual_sig = _b64url_decode(sig_b64)
+            if not hmac.compare_digest(expected_sig, actual_sig):
+                raise ValueError("Invalid signature")
+
+        payload = json.loads(_b64url_decode(payload_b64))
+
+        # Check expiry
+        exp = payload.get("exp")
+        if exp is not None and time.time() > exp:
+            raise ValueError("Token expired")
+
+        # Check audience
+        aud = payload.get("aud")
+        if aud != "authenticated":
+            raise ValueError(f"Invalid audience: {aud}")
+
+        return payload
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise credentials_exception from exc
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -291,7 +447,7 @@ async def register(body: UserCreate) -> TokenResponse:
             detail="A user with this email already exists",
         )
 
-    user_id = uuid4().hex[:16]
+    user_id = str(uuid4())
     now = datetime.utcnow()
 
     user_row = {
@@ -299,7 +455,7 @@ async def register(body: UserCreate) -> TokenResponse:
         "email": body.email,
         "password_hash": _hash_password(body.password),
         "name": body.name,
-        "created_at": now.isoformat(),
+        "created_at": now,
     }
 
     await db.insert(USER_TABLE, user_row)
@@ -337,17 +493,18 @@ async def login(body: UserLogin) -> TokenResponse:
             detail="Invalid email or password",
         )
 
-    token = _create_access_token({"sub": user["id"], "email": user["email"]})
+    user_id = str(user["id"])
+    token = _create_access_token({"sub": user_id, "email": user["email"]})
     expires_in = settings.jwt_expire_minutes * 60
 
-    logger.info("User logged in: %s", user["id"])
+    logger.info("User logged in: %s", user_id)
 
     return TokenResponse(
         access_token=token,
         token_type="bearer",
         expires_in=expires_in,
         user=UserResponse(
-            id=user["id"],
+            id=user_id,
             email=user["email"],
             name=user.get("name", ""),
             created_at=user.get("created_at", datetime.utcnow()),

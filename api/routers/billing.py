@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Any
+from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -32,7 +33,7 @@ from api.models import (
     SubscriptionResponse,
     WebhookResponse,
 )
-from api.routers.auth import get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ async def list_plans() -> list[PlanInfo]:
 )
 async def subscribe(
     body: SubscribeRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> SubscriptionResponse:
     """Subscribe to a plan or change the current subscription.
 
@@ -336,7 +337,7 @@ async def subscribe(
     responses={401: {"model": ErrorResponse}},
 )
 async def get_subscription(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> SubscriptionResponse:
     """Return the current subscription details for the authenticated user.
 
@@ -387,7 +388,7 @@ async def get_subscription(
     responses={401: {"model": ErrorResponse}},
 )
 async def create_portal_session(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> PortalResponse:
     """Create a Stripe Customer Portal session for the user to manage their
     subscription, payment methods, and invoices.

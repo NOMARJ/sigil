@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Annotated
+from typing_extensions import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -33,7 +33,7 @@ from api.models import (
     PolicyType,
     PolicyUpdate,
 )
-from api.routers.auth import get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ def _row_to_response(row: dict) -> PolicyResponse:
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def list_policies(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     enabled: bool | None = Query(None, description="Filter by enabled state"),
 ) -> list[PolicyResponse]:
@@ -127,7 +127,7 @@ async def list_policies(
 )
 async def create_policy(
     body: PolicyCreate,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyResponse:
     """Create a new scan policy for the team.
@@ -195,7 +195,7 @@ async def create_policy(
 async def update_policy(
     policy_id: str,
     body: PolicyUpdate,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyResponse:
     """Update an existing policy's name, type, config, or enabled state.
@@ -238,7 +238,7 @@ async def update_policy(
 )
 async def delete_policy(
     policy_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> None:
     """Delete a policy by ID.
@@ -272,7 +272,7 @@ async def delete_policy(
 )
 async def evaluate_policies(
     body: PolicyEvaluateRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> PolicyEvaluateResponse:
     """Evaluate a scan result against all enabled team policies.

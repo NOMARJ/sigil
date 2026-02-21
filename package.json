@@ -1,0 +1,54 @@
+{
+  "name": "@nomarj/sigil",
+  "version": "1.0.4",
+  "description": "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "sigil": "./bin/sigil-wrapper.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install-binary.js",
+    "preuninstall": "node scripts/cleanup.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NOMARJ/sigil.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NOMARJ/sigil/issues"
+  },
+  "homepage": "https://sigilsec.ai",
+  "keywords": [
+    "security",
+    "scanning",
+    "supply-chain",
+    "malware",
+    "ai-agent",
+    "mcp",
+    "claude",
+    "cursor",
+    "pip",
+    "npm",
+    "quarantine",
+    "threat-intelligence"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ]
+}

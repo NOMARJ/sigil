@@ -17,7 +17,8 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Any
+from typing_extensions import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -35,7 +36,7 @@ from api.models import (
     ScanRequest,
     ScanResponse,
 )
-from api.routers.auth import get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from api.services.scoring import compute_verdict
 from api.services.threat_intel import (
     lookup_threats_for_hashes,
@@ -225,7 +226,7 @@ async def _submit_scan_impl(
 )
 async def submit_scan(
     request: ScanRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> ScanResponse:
     """Accept raw scan findings, enrich them with threat intelligence,
     compute an aggregate risk score and verdict, and persist the result.
@@ -261,7 +262,7 @@ async def submit_scan(
 )
 async def submit_scan_dashboard(
     request: ScanRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> ScanResponse:
     """Dashboard-compatible alias for scan submission at POST /scans."""
     current_tier = await get_user_plan(current_user.id)
@@ -276,7 +277,7 @@ async def submit_scan_dashboard(
     responses={401: {"model": ErrorResponse}},
 )
 async def list_scans(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     verdict: str | None = Query(None, description="Filter by verdict"),
@@ -347,7 +348,7 @@ async def list_scans(
 )
 async def get_scan(
     scan_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ScanDetail:
     """Return the full details of a scan by its ID."""
@@ -367,7 +368,7 @@ async def get_scan(
 )
 async def get_scan_findings(
     scan_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> list[dict[str, Any]]:
     """Return the findings extracted from a scan's findings_json field."""
@@ -393,7 +394,7 @@ async def get_scan_findings(
 )
 async def approve_scan(
     scan_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Approve a scan, marking it as safe in the metadata."""
@@ -433,7 +434,7 @@ async def approve_scan(
 )
 async def reject_scan(
     scan_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Reject a scan, marking it as blocked in the metadata."""
@@ -473,7 +474,7 @@ async def reject_scan(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_dashboard_stats(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> DashboardStats:
     """Return aggregate statistics for the dashboard overview page.

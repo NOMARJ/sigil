@@ -53,3 +53,142 @@ The scanner runs 6 phases with weighted severity:
 - `sigil npm <pkg>` — download + scan npm package
 - `sigil scan <path>` — scan existing directory
 - `sigil approve/reject <id>` — manage quarantine
+
+## Documentation Guidelines
+
+### Document Organization
+
+All documentation must be placed in the appropriate location based on its type and sensitivity:
+
+#### **Public Documentation** (Committed to Git)
+Location: `docs/` (tracked in git)
+
+Create public docs for:
+- ✅ **User-facing guides** - Getting started, CLI usage, configuration
+- ✅ **API documentation** - Public API reference, endpoints
+- ✅ **Architecture overviews** - System design, how it works
+- ✅ **Security research** - Threat intelligence, detection patterns, case studies
+- ✅ **Educational content** - Best practices, security concepts
+- ✅ **Open source contribution** - Contributing guides, development setup
+- ✅ **Feature specifications** - Public roadmap items, feature designs
+
+Examples:
+- `docs/getting-started.md` - User onboarding
+- `docs/api-reference.md` - Public API
+- `docs/detection-patterns.md` - Research
+- `docs/CASE-STUDY-OPENCLAW-ATTACK.md` - Educational case study
+
+**Rules:**
+- NO Supabase project IDs, database connection strings
+- NO Azure subscription IDs, Container Apps details
+- NO Internal deployment processes or checklists
+- NO Proprietary infrastructure configurations
+- MUST provide value to open source users/contributors
+
+#### **Internal Documentation** (Gitignored)
+Location: `docs/internal/` (NOT tracked in git, gitignored)
+
+Create internal docs for:
+- 🔒 **Deployment guides** - Internal deployment processes, checklists
+- 🔒 **Infrastructure details** - Supabase setup, Azure configuration
+- 🔒 **Implementation reports** - Feature completion summaries, lessons learned
+- 🔒 **Diagnostic reports** - Network issues, database debugging
+- 🔒 **Planning documents** - Internal roadmaps, sprint planning
+- 🔒 **Team onboarding** - Internal quick starts, navigation guides
+- 🔒 **Sensitive configurations** - Project IDs, environment details
+
+Examples:
+- `docs/internal/DEPLOYMENT_CHECKLIST.md` - Internal deployment
+- `docs/internal/SUPABASE_SETUP_COMPLETE.md` - Contains project IDs
+- `docs/internal/NETWORK_DIAGNOSTIC_REPORT.md` - Azure details
+- `docs/internal/IMPLEMENTATION_COMPLETE.md` - Internal completion report
+
+**Rules:**
+- CAN contain Supabase project IDs, database details
+- CAN contain Azure subscription info, infrastructure specifics
+- CAN contain internal processes and team workflows
+- MUST be useful for internal team/contractors only
+- Should reference `docs/internal/README.md` for navigation
+
+### Creating New Documentation
+
+**Before creating a document, ask:**
+
+1. **"Will this be valuable to open source users?"**
+   - YES → Create in `docs/` (public)
+   - NO → Create in `docs/internal/` (internal)
+
+2. **"Does this contain infrastructure details?"**
+   - YES → Create in `docs/internal/` (internal)
+   - NO → Can be public
+
+3. **"Does this contain project IDs, connection strings, or Azure details?"**
+   - YES → MUST be in `docs/internal/` (internal)
+   - NO → Can be public
+
+4. **"Is this a deployment process or infrastructure setup?"**
+   - YES → Create in `docs/internal/` (internal)
+   - NO → Can be public if educational
+
+### Documentation Checklist
+
+When creating **public docs** (`docs/`):
+- [ ] Remove all Supabase project IDs
+- [ ] Remove all Azure subscription/resource IDs
+- [ ] Remove all database connection strings
+- [ ] Remove all internal deployment steps
+- [ ] Ensure educational/user value
+- [ ] Add to public docs index if needed
+
+When creating **internal docs** (`docs/internal/`):
+- [ ] Verify it's in `docs/internal/` folder
+- [ ] Add entry to `docs/internal/README.md` index
+- [ ] Confirm folder is gitignored
+- [ ] Mark as "INTERNAL ONLY" at top of file
+- [ ] Share location with team if needed
+
+### Quick Decision Matrix
+
+| Document Type | Location | Tracked | Contains Sensitive? |
+|---------------|----------|---------|---------------------|
+| User guide | `docs/` | ✅ Yes | ❌ No |
+| API docs | `docs/` | ✅ Yes | ❌ No |
+| Security research | `docs/` | ✅ Yes | ❌ No |
+| Case study | `docs/` | ✅ Yes | ❌ No |
+| Architecture | `docs/` | ✅ Yes | ❌ No |
+| Deployment checklist | `docs/internal/` | ❌ No | ✅ Yes |
+| Infrastructure setup | `docs/internal/` | ❌ No | ✅ Yes |
+| Database config | `docs/internal/` | ❌ No | ✅ Yes |
+| Network diagnostics | `docs/internal/` | ❌ No | ✅ Yes |
+| Implementation report | `docs/internal/` | ❌ No | ⚠️ Maybe |
+| Sprint planning | `docs/internal/` | ❌ No | ⚠️ Maybe |
+
+### Binary Files
+
+**NEVER commit binary files to the repo:**
+- ❌ `*.docx` - Use Markdown instead
+- ❌ `*.pdf` - Convert to Markdown or link externally
+- ❌ `*.pptx` - Use Markdown or link to Google Slides
+- ❌ Large images - Optimize and use `docs/assets/` if needed
+
+Binary files are gitignored: `*.docx` in `.gitignore`
+
+### Updating Documentation
+
+**Public docs** (`docs/`):
+1. Create feature branch
+2. Update documentation
+3. Submit PR for review
+4. Merge to main
+
+**Internal docs** (`docs/internal/`):
+1. Edit directly (not version controlled)
+2. Update `docs/internal/README.md` if adding files
+3. Share updates with team
+4. Keep personal backups if critical
+
+### Documentation Index
+
+For navigation and discoverability:
+- **Public:** Consider adding to main `README.md` or `docs/` listing
+- **Internal:** MUST add to `docs/internal/README.md` index

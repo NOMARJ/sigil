@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -177,11 +178,21 @@ async def get_signatures(since: datetime | None = None) -> SignatureResponse:
     """Return pattern signatures, optionally filtered to those updated after *since*.
 
     Includes both DB-stored signatures and the built-in set.
+    Caches results for performance.
     """
+    # Try cache first (if no since filter)
+    if since is None:
+        cached = await cache.get(_SIG_CACHE_KEY)
+        if cached is not None:
+            try:
+                return SignatureResponse.model_validate_json(cached)
+            except Exception:
+                pass
+
     # Build the full set: built-in + DB-stored
     sigs: list[SignatureEntry] = []
 
-    # Built-in
+    # Built-in (fallback if DB is empty)
     now = datetime.utcnow()
     for raw in _BUILTIN_SIGNATURES:
         sigs.append(
@@ -195,13 +206,33 @@ async def get_signatures(since: datetime | None = None) -> SignatureResponse:
             )
         )
 
-    # DB-stored (additive)
-    db_rows = await db.select(SIGNATURE_TABLE, limit=1000)
+    # DB-stored signatures (takes priority over built-in)
+    db_rows = await db.select(SIGNATURE_TABLE, limit=5000)
+
+    # Deduplicate: DB signatures override built-in with same ID
+    builtin_ids = {s.id for s in sigs}
+    db_sigs: list[SignatureEntry] = []
+
     for row in db_rows:
         try:
-            sigs.append(SignatureEntry(**row))
+            sig = SignatureEntry(**row)
+            db_sigs.append(sig)
+
+            # Remove built-in if DB has same ID
+            if sig.id in builtin_ids:
+                sigs = [s for s in sigs if s.id != sig.id]
         except Exception:
             logger.warning("Skipping invalid signature row: %s", row)
+
+    # Combine: DB signatures + remaining built-in
+    sigs.extend(db_sigs)
+
+    logger.info(
+        "Loaded %d signatures (%d from DB, %d built-in)",
+        len(sigs),
+        len(db_sigs),
+        len(sigs) - len(db_sigs),
+    )
 
     # Filter by `since` if provided
     if since is not None:
@@ -209,11 +240,89 @@ async def get_signatures(since: datetime | None = None) -> SignatureResponse:
 
     last = max((s.updated_at for s in sigs), default=None) if sigs else None
 
-    return SignatureResponse(
+    response = SignatureResponse(
         signatures=sigs,
         total=len(sigs),
         last_updated=last,
     )
+
+    # Cache full response (no since filter)
+    if since is None:
+        await cache.set(_SIG_CACHE_KEY, response.model_dump_json(), ttl=3600)
+
+    return response
+
+
+async def get_signature_stats() -> dict[str, Any]:
+    """Return statistics about loaded signatures.
+
+    Returns counts by category, severity, and phase.
+    """
+    response = await get_signatures()
+    sigs = response.signatures
+
+    stats = {
+        "total": len(sigs),
+        "by_category": {},
+        "by_severity": {},
+        "by_phase": {},
+        "last_updated": response.last_updated.isoformat()
+        if response.last_updated
+        else None,
+    }
+
+    for sig in sigs:
+        # Count by category (if available)
+        category = getattr(sig, "category", "unknown")
+        stats["by_category"][category] = stats["by_category"].get(category, 0) + 1
+
+        # Count by severity
+        severity = str(sig.severity)
+        stats["by_severity"][severity] = stats["by_severity"].get(severity, 0) + 1
+
+        # Count by phase
+        phase = str(sig.phase)
+        stats["by_phase"][phase] = stats["by_phase"].get(phase, 0) + 1
+
+    return stats
+
+
+async def reload_signatures_from_json(json_path: str) -> dict[str, Any]:
+    """Reload signatures from JSON file (admin function).
+
+    This function imports and runs the signature loader script.
+    Returns loading statistics.
+    """
+    import subprocess
+    import sys
+
+    logger.info("Reloading signatures from %s", json_path)
+
+    # Run loader script
+    script_path = Path(__file__).parent.parent / "scripts" / "load_signatures.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script_path), "--json-path", json_path, "--force"],
+        capture_output=True,
+        text=True,
+    )
+
+    # Clear cache
+    await cache.delete(_SIG_CACHE_KEY)
+
+    if result.returncode == 0:
+        logger.info("Signatures reloaded successfully")
+        return {
+            "status": "success",
+            "output": result.stdout,
+        }
+    else:
+        logger.error("Signature reload failed: %s", result.stderr)
+        return {
+            "status": "error",
+            "output": result.stdout,
+            "error": result.stderr,
+        }
 
 
 # ---------------------------------------------------------------------------
