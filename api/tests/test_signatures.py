@@ -169,8 +169,10 @@ class TestSignaturePatterns:
         pattern = re.compile(sig["pattern"])
 
         # Should match
-        assert pattern.search("sk-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH")
-        assert pattern.search("sk-proj-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH")
+        assert pattern.search("sk-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJ1234")
+        assert pattern.search(
+            "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJ1234"
+        )
 
         # Should not match
         assert not pattern.search("sk-short")  # Too short

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -75,7 +75,7 @@ class ReportStatusUpdate(BaseModel):
 
 @router.get(
     "/threat/{package_hash}",
-    response_model=ThreatEntry | None,
+    response_model=Optional[ThreatEntry],
     summary="Look up a package hash in the threat database",
     responses={
         401: {"model": ErrorResponse},
