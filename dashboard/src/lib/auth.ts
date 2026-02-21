@@ -10,6 +10,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGitHub: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -88,9 +90,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const loginWithGitHub = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : 'https://app.sigilsec.ai/auth/callback',
+      },
+    });
+
+    if (error) throw error;
+  }, []);
+
+  const loginWithGoogle = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : 'https://app.sigilsec.ai/auth/callback',
+      },
+    });
+
+    if (error) throw error;
+  }, []);
+
   return React.createElement(
     AuthContext.Provider,
-    { value: { user, loading, login, register, logout } },
+    { value: { user, loading, login, register, logout, loginWithGitHub, loginWithGoogle } },
     children
   );
 }
