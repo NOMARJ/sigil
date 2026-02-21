@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # --- Supabase (optional) ---------------------------------------------------
     supabase_url: str | None = None
     supabase_key: str | None = None
+    supabase_service_key: str | None = None  # For admin operations
+    supabase_jwt_secret: str | None = None  # Deprecated: use JWKS for verification
     database_url: str | None = None  # SIGIL_DATABASE_URL — postgres connection string
 
     # --- Redis (optional) ------------------------------------------------------
@@ -73,6 +75,11 @@ class Settings(BaseSettings):
     def supabase_configured(self) -> bool:
         """Return True when both Supabase URL and key are set."""
         return bool(self.supabase_url and self.supabase_key)
+
+    @property
+    def supabase_auth_configured(self) -> bool:
+        """Return True when Supabase Auth is configured for JWT verification."""
+        return bool(self.supabase_url)
 
     @property
     def database_configured(self) -> bool:

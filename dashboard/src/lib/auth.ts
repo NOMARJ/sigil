@@ -1,156 +1,84 @@
 "use client";
 
-// ---------------------------------------------------------------------------
-// Sigil Dashboard — Auth helpers
-// Token management, login/register wrappers, and auth context.
-// ---------------------------------------------------------------------------
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { supabase } from "./supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from "react";
-import React from "react";
-import type { AuthTokens, User } from "./types";
-import * as api from "./api";
-
-// ---------------------------------------------------------------------------
-// Token storage
-// ---------------------------------------------------------------------------
-
-const ACCESS_KEY = "sigil_access_token";
-const REFRESH_KEY = "sigil_refresh_token";
-const EXPIRES_KEY = "sigil_token_expires";
-
-export function storeTokens(tokens: AuthTokens): void {
-  console.log('[storeTokens] Received tokens:', tokens);
-  localStorage.setItem(ACCESS_KEY, tokens.access_token);
-
-  // Handle optional refresh_token
-  if (tokens.refresh_token) {
-    localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
-  } else {
-    console.log('[storeTokens] No refresh_token in response');
-  }
-
-  // Calculate expires_at from expires_in if needed
-  const expiresAt = tokens.expires_at ?? (Date.now() / 1000 + (tokens.expires_in ?? 3600));
-  console.log('[storeTokens] Calculated expiresAt:', expiresAt, 'from expires_in:', tokens.expires_in, 'expires_at:', tokens.expires_at);
-  localStorage.setItem(EXPIRES_KEY, String(expiresAt));
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem(EXPIRES_KEY);
-}
-
-export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_KEY);
-}
-
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_KEY);
-}
-
-export function isTokenExpired(): boolean {
-  const exp = localStorage.getItem(EXPIRES_KEY);
-  if (!exp) return true;
-  return Date.now() >= Number(exp) * 1000;
-}
-
-// ---------------------------------------------------------------------------
-// Auth context
-// ---------------------------------------------------------------------------
-
-interface AuthState {
+interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState>({
-  user: null,
-  loading: true,
-  login: async () => {},
-  register: async () => {},
-  logout: () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function useAuth(): AuthState {
-  return useContext(AuthContext);
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const token = getAccessToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      if (isTokenExpired()) {
-        const refresh = getRefreshToken();
-        if (refresh) {
-          const tokens = await api.refreshToken(refresh);
-          storeTokens(tokens);
-        } else {
-          clearTokens();
-          setLoading(false);
-          return;
-        }
-      }
-
-      const me = await api.getCurrentUser();
-      setUser(me);
-    } catch {
-      clearTokens();
-      setUser(null);
-    } finally {
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
       setLoading(false);
-    }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+  const register = useCallback(async (email: string, password: string, name: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name, // Store name in user metadata
+        },
+      },
+    });
+
+    if (error) throw error;
+
+    // User will be automatically logged in after signup
+    setUser(data.user);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const tokens = await api.login({ email, password });
-    storeTokens(tokens);
-    const me = await api.getCurrentUser();
-    setUser(me);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    setUser(data.user);
   }, []);
 
-  const register = useCallback(
-    async (email: string, password: string, name: string) => {
-      const tokens = await api.register({ email, password, name });
-      storeTokens(tokens);
-      const me = await api.getCurrentUser();
-      setUser(me);
-    },
-    [],
-  );
-
-  const logout = useCallback(() => {
-    // Fire-and-forget server-side logout
-    api.logout();
-    clearTokens();
+  const logout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
     setUser(null);
   }, []);
 
   return React.createElement(
     AuthContext.Provider,
     { value: { user, loading, login, register, logout } },
-    children,
+    children
   );
 }

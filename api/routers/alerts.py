@@ -33,7 +33,7 @@ from api.models import (
     GateError,
     PlanTier,
 )
-from api.routers.auth import get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from api.services.notifications import send_notification
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def _row_to_response(row: dict) -> AlertResponse:
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def list_alerts(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
     enabled: bool | None = Query(None, description="Filter by enabled state"),
 ) -> list[AlertResponse]:
@@ -119,7 +119,7 @@ async def list_alerts(
 )
 async def create_alert(
     body: AlertCreate,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertResponse:
     """Create a new notification channel for the team.
@@ -189,7 +189,7 @@ async def create_alert(
 async def update_alert(
     alert_id: str,
     body: AlertUpdate,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertResponse:
     """Update an existing alert channel's type, configuration, or enabled state.
@@ -230,7 +230,7 @@ async def update_alert(
 )
 async def delete_alert(
     alert_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> None:
     """Delete an alert channel by ID.
@@ -264,7 +264,7 @@ async def delete_alert(
 )
 async def test_alert(
     body: AlertTestRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> AlertTestResponse:
     """Send a test notification through the specified channel.

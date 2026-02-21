@@ -32,7 +32,7 @@ from api.models import (
     TeamMember,
     TeamResponse,
 )
-from api.routers.auth import get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ def _require_admin_or_owner(user_row: dict[str, Any] | None) -> None:
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_team(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamResponse:
     """Return the team for the authenticated user, including the members list.
@@ -154,7 +154,7 @@ async def get_team(
 )
 async def invite_member(
     body: TeamInviteRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamInviteResponse:
     """Invite a user to join the team by email.
@@ -253,7 +253,7 @@ async def invite_member(
 )
 async def remove_member(
     user_id: str,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> None:
     """Remove a member from the team.
@@ -313,7 +313,7 @@ async def remove_member(
 async def update_member_role(
     user_id: str,
     body: RoleUpdateRequest,
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamMember:
     """Update a team member's role.
