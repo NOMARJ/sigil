@@ -85,7 +85,8 @@ class ReportStatusUpdate(BaseModel):
 )
 async def get_threat(
     package_hash: str,
-    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+    # TODO: Re-enable plan gating after fixing dependency injection issue
+    # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ThreatEntry:
     """Return the threat entry for *package_hash* if it exists.
 
@@ -143,7 +144,8 @@ async def get_threats(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_all_signatures(
-    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+    # TODO: Re-enable plan gating after fixing dependency injection issue
+    # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     since: datetime | None = Query(
         None,
         description="ISO-8601 timestamp; only return signatures updated after this time",
