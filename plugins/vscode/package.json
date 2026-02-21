@@ -2,7 +2,7 @@
   "name": "sigil-security",
   "displayName": "Sigil — AI Agent Security Scanner",
   "description": "Automated security auditing for AI agent code. Scan repos, packages, and agent tooling for malicious patterns.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "nomark",
   "license": "MIT",
   "repository": {

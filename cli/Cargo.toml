@@ -1,6 +1,6 @@
 [package]
 name = "sigil"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 description = "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers"
 license = "Apache-2.0"
