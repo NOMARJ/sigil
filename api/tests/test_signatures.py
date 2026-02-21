@@ -31,17 +31,26 @@ class TestSignatureValidation:
 
     def test_all_signatures_valid(self, signature_file):
         """Test all signatures have required fields and valid values."""
-        required_fields = ["id", "category", "phase", "severity", "pattern", "description"]
+        required_fields = [
+            "id",
+            "category",
+            "phase",
+            "severity",
+            "pattern",
+            "description",
+        ]
 
         for sig in signature_file["signatures"]:
             # Required fields
             for field in required_fields:
-                assert field in sig, f"Signature {sig.get('id', 'UNKNOWN')} missing field: {field}"
+                assert field in sig, (
+                    f"Signature {sig.get('id', 'UNKNOWN')} missing field: {field}"
+                )
 
             # ID format
-            assert re.match(
-                r"^sig-[a-z]+-\d{3,}$", sig["id"]
-            ), f"Invalid ID format: {sig['id']}"
+            assert re.match(r"^sig-[a-z]+-\d{3,}$", sig["id"]), (
+                f"Invalid ID format: {sig['id']}"
+            )
 
             # Valid phase enum
             try:
@@ -64,7 +73,9 @@ class TestSignatureValidation:
             # Weight validation
             if "weight" in sig:
                 assert isinstance(sig["weight"], (int, float))
-                assert 0 <= sig["weight"] <= 20, f"Invalid weight in {sig['id']}: {sig['weight']}"
+                assert 0 <= sig["weight"] <= 20, (
+                    f"Invalid weight in {sig['id']}: {sig['weight']}"
+                )
 
             # Language list
             if "language" in sig:
@@ -287,7 +298,10 @@ class TestSignatureCategories:
         # Should detect major code execution vectors
         has_eval = any("eval" in s["pattern"] for s in code_sigs)
         has_pickle = any("pickle" in s["pattern"] for s in code_sigs)
-        has_subprocess = any("subprocess" in s["pattern"] or "child_process" in s["pattern"] for s in code_sigs)
+        has_subprocess = any(
+            "subprocess" in s["pattern"] or "child_process" in s["pattern"]
+            for s in code_sigs
+        )
 
         assert has_eval, "Missing eval detection"
         assert has_pickle, "Missing pickle detection"
@@ -325,7 +339,9 @@ class TestSignatureCategories:
         assert low > 0, "No LOW signatures"
 
         # CRITICAL should be rarer than HIGH/MEDIUM
-        assert critical < (high + medium), "Too many CRITICAL signatures (reduces signal)"
+        assert critical < (high + medium), (
+            "Too many CRITICAL signatures (reduces signal)"
+        )
 
     def test_weight_distribution(self, signature_file):
         """Test signature weights are reasonable."""

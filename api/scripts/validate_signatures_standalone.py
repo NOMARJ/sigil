@@ -52,7 +52,14 @@ def validate_signatures():
     }
 
     # Valid enums
-    valid_phases = ["INSTALL_HOOKS", "CODE_PATTERNS", "NETWORK_EXFIL", "CREDENTIALS", "OBFUSCATION", "PROVENANCE"]
+    valid_phases = [
+        "INSTALL_HOOKS",
+        "CODE_PATTERNS",
+        "NETWORK_EXFIL",
+        "CREDENTIALS",
+        "OBFUSCATION",
+        "PROVENANCE",
+    ]
     valid_severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
     valid_categories = set(data.get("categories", []))
 
@@ -63,17 +70,28 @@ def validate_signatures():
         stats["total"] += 1
 
         # Required fields
-        required_fields = ["id", "category", "phase", "severity", "pattern", "description"]
+        required_fields = [
+            "id",
+            "category",
+            "phase",
+            "severity",
+            "pattern",
+            "description",
+        ]
         for field in required_fields:
             if field not in sig:
-                errors.append(f"[{i}] {sig.get('id', 'UNKNOWN')}: Missing field '{field}'")
+                errors.append(
+                    f"[{i}] {sig.get('id', 'UNKNOWN')}: Missing field '{field}'"
+                )
                 continue
 
         sig_id = sig.get("id", f"unknown-{i}")
 
         # ID format
         if not re.match(r"^sig-[a-z_]+-\d{3,}$", sig_id):
-            errors.append(f"[{i}] {sig_id}: Invalid ID format (expected sig-category-NNN)")
+            errors.append(
+                f"[{i}] {sig_id}: Invalid ID format (expected sig-category-NNN)"
+            )
 
         # Duplicate ID
         if sig_id in seen_ids:
@@ -83,21 +101,27 @@ def validate_signatures():
         # Phase validation
         phase = sig.get("phase")
         if phase not in valid_phases:
-            errors.append(f"[{i}] {sig_id}: Invalid phase '{phase}' (must be one of {valid_phases})")
+            errors.append(
+                f"[{i}] {sig_id}: Invalid phase '{phase}' (must be one of {valid_phases})"
+            )
         else:
             stats["by_phase"][phase] = stats["by_phase"].get(phase, 0) + 1
 
         # Severity validation
         severity = sig.get("severity")
         if severity not in valid_severities:
-            errors.append(f"[{i}] {sig_id}: Invalid severity '{severity}' (must be one of {valid_severities})")
+            errors.append(
+                f"[{i}] {sig_id}: Invalid severity '{severity}' (must be one of {valid_severities})"
+            )
         else:
             stats["by_severity"][severity] = stats["by_severity"].get(severity, 0) + 1
 
         # Category validation
         category = sig.get("category")
         if category not in valid_categories:
-            warnings.append(f"[{i}] {sig_id}: Category '{category}' not in defined categories list")
+            warnings.append(
+                f"[{i}] {sig_id}: Category '{category}' not in defined categories list"
+            )
         stats["by_category"][category] = stats["by_category"].get(category, 0) + 1
 
         # Regex validation
@@ -110,7 +134,9 @@ def validate_signatures():
         # Weight validation
         weight = sig.get("weight", 1.0)
         if not isinstance(weight, (int, float)):
-            errors.append(f"[{i}] {sig_id}: Weight must be a number, got {type(weight).__name__}")
+            errors.append(
+                f"[{i}] {sig_id}: Weight must be a number, got {type(weight).__name__}"
+            )
         elif weight < 0 or weight > 20:
             errors.append(f"[{i}] {sig_id}: Weight must be 0-20, got {weight}")
 
@@ -126,7 +152,9 @@ def validate_signatures():
     for cat, count in sorted(stats["by_category"].items()):
         print(f"    {cat}: {count}")
     print("\n  By Severity:")
-    for sev, count in sorted(stats["by_severity"].items(), key=lambda x: valid_severities.index(x[0])):
+    for sev, count in sorted(
+        stats["by_severity"].items(), key=lambda x: valid_severities.index(x[0])
+    ):
         print(f"    {sev}: {count}")
     print("\n  By Phase:")
     for phase, count in sorted(stats["by_phase"].items()):

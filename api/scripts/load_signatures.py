@@ -49,7 +49,9 @@ class SignatureLoader:
         with open(self.json_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
 
-        print(f"✓ Loaded {len(self.data.get('signatures', []))} signatures from {self.json_path.name}")
+        print(
+            f"✓ Loaded {len(self.data.get('signatures', []))} signatures from {self.json_path.name}"
+        )
         print(f"  Version: {self.data.get('version', 'unknown')}")
         print(f"  Last updated: {self.data.get('last_updated', 'unknown')}")
 
@@ -59,7 +61,14 @@ class SignatureLoader:
         Returns:
             (is_valid, error_message) tuple
         """
-        required_fields = ["id", "category", "phase", "severity", "pattern", "description"]
+        required_fields = [
+            "id",
+            "category",
+            "phase",
+            "severity",
+            "pattern",
+            "description",
+        ]
 
         # Check required fields
         for field in required_fields:
@@ -146,7 +155,9 @@ class SignatureLoader:
         # Filter by category if specified
         if category:
             signatures = [s for s in signatures if s.get("category") == category]
-            print(f"\n📦 Loading {len(signatures)} signatures from category: {category}")
+            print(
+                f"\n📦 Loading {len(signatures)} signatures from category: {category}"
+            )
         else:
             print(f"\n📦 Loading {len(signatures)} signatures...")
 
@@ -185,7 +196,9 @@ class SignatureLoader:
             "language": json.dumps(sig.get("language", ["*"])),
             "cve": json.dumps(sig.get("cve", [])),
             "malware_families": json.dumps(sig.get("malware_families", [])),
-            "false_positive_likelihood": sig.get("false_positive_likelihood", "unknown"),
+            "false_positive_likelihood": sig.get(
+                "false_positive_likelihood", "unknown"
+            ),
             "created": sig.get("created", datetime.utcnow().date().isoformat()),
         }
 
@@ -246,7 +259,9 @@ async def main() -> int:
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Load threat signatures into Sigil database")
+    parser = argparse.ArgumentParser(
+        description="Load threat signatures into Sigil database"
+    )
     parser.add_argument(
         "--validate-only",
         action="store_true",

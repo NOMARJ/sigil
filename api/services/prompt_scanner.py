@@ -398,7 +398,9 @@ def scan_prompt(prompt_text: str) -> list[Finding]:
     return findings
 
 
-def scan_skill_content(skill_json: str, filename: str = ".skill/skill.json") -> list[Finding]:
+def scan_skill_content(
+    skill_json: str, filename: str = ".skill/skill.json"
+) -> list[Finding]:
     """Scan an AI skill definition (JSON manifest) for security issues.
 
     Returns a list of Finding objects from Phase 8 (Skill Security).

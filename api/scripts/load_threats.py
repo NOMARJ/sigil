@@ -46,7 +46,9 @@ class ThreatLoader:
         with open(self.json_path, "r", encoding="utf-8") as f:
             self.data = json.load(f)
 
-        print(f"✓ Loaded {len(self.data.get('threats', []))} threats from {self.json_path.name}")
+        print(
+            f"✓ Loaded {len(self.data.get('threats', []))} threats from {self.json_path.name}"
+        )
         print(f"  Version: {self.data.get('version', 'unknown')}")
         print(f"  Last updated: {self.data.get('last_updated', 'unknown')}")
         print(f"  Campaigns: {len(self.data.get('campaigns', []))}")
@@ -75,7 +77,16 @@ class ThreatLoader:
             return False, f"Invalid severity: {threat['severity']}"
 
         # Validate ecosystem
-        valid_ecosystems = ["npm", "pypi", "rubygems", "crates.io", "go", "nuget", "huggingface", "maven"]
+        valid_ecosystems = [
+            "npm",
+            "pypi",
+            "rubygems",
+            "crates.io",
+            "go",
+            "nuget",
+            "huggingface",
+            "maven",
+        ]
         ecosystem = threat.get("ecosystem", "")
         if ecosystem and ecosystem not in valid_ecosystems:
             return False, f"Invalid ecosystem: {ecosystem}"
@@ -101,14 +112,18 @@ class ThreatLoader:
             is_valid, error_msg = self.validate_threat(threat)
             if not is_valid:
                 all_valid = False
-                errors.append(f"  [{i}] {threat.get('package_name', 'UNKNOWN')}: {error_msg}")
+                errors.append(
+                    f"  [{i}] {threat.get('package_name', 'UNKNOWN')}: {error_msg}"
+                )
                 continue
 
             # Check for duplicate hashes
             hash_val = threat["hash"]
             if hash_val in seen_hashes:
                 all_valid = False
-                errors.append(f"  [{i}] {threat.get('package_name', 'UNKNOWN')}: Duplicate hash {hash_val[:16]}...")
+                errors.append(
+                    f"  [{i}] {threat.get('package_name', 'UNKNOWN')}: Duplicate hash {hash_val[:16]}..."
+                )
             seen_hashes.add(hash_val)
 
         if errors:
@@ -137,7 +152,9 @@ class ThreatLoader:
 
         # Filter by campaign if specified
         if campaign:
-            threats = [t for t in threats if t.get("metadata", {}).get("campaign") == campaign]
+            threats = [
+                t for t in threats if t.get("metadata", {}).get("campaign") == campaign
+            ]
             print(f"\n📦 Loading {len(threats)} threats from campaign: {campaign}")
         else:
             print(f"\n📦 Loading {len(threats)} threats...")
@@ -224,7 +241,9 @@ class ThreatLoader:
         print(f"  Total threats: {len(threats)}")
 
         print("\n  By Ecosystem:")
-        for eco, count in sorted(by_ecosystem.items(), key=lambda x: x[1], reverse=True):
+        for eco, count in sorted(
+            by_ecosystem.items(), key=lambda x: x[1], reverse=True
+        ):
             print(f"    {eco}: {count}")
 
         print("\n  By Severity:")
@@ -233,7 +252,9 @@ class ThreatLoader:
                 print(f"    {sev}: {by_severity[sev]}")
 
         print("\n  By Campaign (top 10):")
-        for campaign, count in sorted(by_campaign.items(), key=lambda x: x[1], reverse=True)[:10]:
+        for campaign, count in sorted(
+            by_campaign.items(), key=lambda x: x[1], reverse=True
+        )[:10]:
             print(f"    {campaign}: {count}")
 
 
@@ -241,7 +262,9 @@ async def main() -> int:
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Load known threats into Sigil database")
+    parser = argparse.ArgumentParser(
+        description="Load known threats into Sigil database"
+    )
     parser.add_argument(
         "--validate-only",
         action="store_true",
@@ -311,6 +334,7 @@ async def main() -> int:
     except Exception as e:
         print(f"\n❌ Fatal error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

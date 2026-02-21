@@ -204,8 +204,7 @@ def test_openclaw_markdown_rce_detection():
         rule_ids = [f.rule for f in findings]
 
         assert "prompt-markdown-rce" in rule_ids, (
-            f"Failed to detect markdown RCE in:\n{example}\n"
-            f"Rules detected: {rule_ids}"
+            f"Failed to detect markdown RCE in:\n{example}\nRules detected: {rule_ids}"
         )
 
 
@@ -317,7 +316,9 @@ def test_openclaw_combined_attack():
 
     # Should detect at least 5 different patterns
     rule_ids = set(f.rule for f in findings)
-    assert len(rule_ids) >= 4, f"Expected 4+ different rules, got {len(rule_ids)}: {rule_ids}"
+    assert len(rule_ids) >= 4, (
+        f"Expected 4+ different rules, got {len(rule_ids)}: {rule_ids}"
+    )
 
     # Check for specific critical patterns
     critical_patterns = [

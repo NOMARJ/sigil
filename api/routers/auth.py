@@ -25,7 +25,11 @@ from typing_extensions import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials,
+    OAuth2PasswordBearer,
+)
 
 from api.config import settings
 from api.database import db
@@ -271,6 +275,7 @@ async def get_current_user(
 # Unified Auth — supports both custom JWT and Supabase Auth
 # ---------------------------------------------------------------------------
 
+
 async def get_current_user_unified(
     token_oauth: Annotated[str | None, Depends(oauth2_scheme)],
     token_bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)],
@@ -307,6 +312,7 @@ async def get_current_user_unified(
 # Supabase Auth JWT validation
 # ---------------------------------------------------------------------------
 
+
 async def get_current_user_supabase(
     credentials: HTTPAuthorizationCredentials | None = None,
 ) -> UserResponse:
@@ -330,12 +336,16 @@ async def get_current_user_supabase(
         # Use python-jose to decode and verify the Supabase JWT
         # For now, use JWT secret if configured (will upgrade to JWKS later)
         if settings.supabase_jwt_secret:
-            payload = _jose_jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-            ) if _USE_JOSE else _verify_supabase_token_fallback(token)
+            payload = (
+                _jose_jwt.decode(
+                    token,
+                    settings.supabase_jwt_secret,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                )
+                if _USE_JOSE
+                else _verify_supabase_token_fallback(token)
+            )
         else:
             # Fallback to verifying with custom JWT verification
             payload = _verify_token(token)
@@ -384,7 +394,9 @@ def _verify_supabase_token_fallback(token: str) -> dict[str, Any]:
         if settings.supabase_jwt_secret:
             signing_input = f"{header_b64}.{payload_b64}"
             expected_sig = hmac.new(
-                settings.supabase_jwt_secret.encode(), signing_input.encode(), hashlib.sha256
+                settings.supabase_jwt_secret.encode(),
+                signing_input.encode(),
+                hashlib.sha256,
             ).digest()
             actual_sig = _b64url_decode(sig_b64)
             if not hmac.compare_digest(expected_sig, actual_sig):

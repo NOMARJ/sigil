@@ -266,7 +266,9 @@ async def get_signature_stats() -> dict[str, Any]:
         "by_category": {},
         "by_severity": {},
         "by_phase": {},
-        "last_updated": response.last_updated.isoformat() if response.last_updated else None,
+        "last_updated": response.last_updated.isoformat()
+        if response.last_updated
+        else None,
     }
 
     for sig in sigs:
