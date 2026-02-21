@@ -143,11 +143,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <div className="px-4 py-4 border-t border-gray-800">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-300">
-            {user ? getInitials(user.name) : "?"}
+            {user ? getInitials(user.user_metadata?.name ?? user.email ?? "") : "?"}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-200 truncate">
-              {user?.name ?? "Loading..."}
+              {user?.user_metadata?.name ?? "Loading..."}
             </p>
             <p className="text-xs text-gray-500 truncate">
               {user?.email ?? ""}
