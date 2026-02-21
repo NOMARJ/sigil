@@ -300,7 +300,7 @@ async def register(body: UserCreate) -> TokenResponse:
         "email": body.email,
         "password_hash": _hash_password(body.password),
         "name": body.name,
-        "created_at": now.isoformat(),
+        "created_at": now,
     }
 
     await db.insert(USER_TABLE, user_row)
