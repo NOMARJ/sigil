@@ -292,7 +292,7 @@ async def register(body: UserCreate) -> TokenResponse:
             detail="A user with this email already exists",
         )
 
-    user_id = uuid4().hex[:16]
+    user_id = str(uuid4())
     now = datetime.utcnow()
 
     user_row = {
