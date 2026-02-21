@@ -126,10 +126,10 @@ def require_plan(minimum_tier: PlanTier):
     load time.  By the time any router module calls ``require_plan()``,
     ``api.routers.auth`` is already fully initialised.
     """
-    from api.routers.auth import get_current_user_unified, UserResponse
+    from api.routers.auth import get_current_user, UserResponse
 
     async def _gate(
-        current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+        current_user: Annotated[UserResponse, Depends(get_current_user)],
     ) -> None:
         current_tier = await get_user_plan(current_user.id)
         if _tier_rank(current_tier) < _tier_rank(minimum_tier):
