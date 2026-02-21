@@ -2,8 +2,14 @@
 name = "sigil"
 version = "1.0.2"
 edition = "2021"
-description = "Automated security auditing for AI agent code"
+description = "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers"
 license = "Apache-2.0"
+repository = "https://github.com/NOMARJ/sigil"
+homepage = "https://sigilsec.ai"
+keywords = ["security", "scanning", "supply-chain", "malware", "ai-agent"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "../README.md"
+authors = ["NOMARJ <hello@sigilsec.ai>"]
 
 [[bin]]
 name = "sigil"
