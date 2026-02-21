@@ -27,6 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip if Supabase client is not initialized
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -44,6 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -61,6 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -71,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setUser(null);

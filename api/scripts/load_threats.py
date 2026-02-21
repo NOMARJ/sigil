@@ -15,7 +15,6 @@ Usage:
 import asyncio
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -165,8 +164,6 @@ class ThreatLoader:
             return
 
         # Prepare row for database
-        metadata = threat.get("metadata", {})
-
         row = {
             "hash": threat_hash,
             "package_name": threat["package_name"],
@@ -189,7 +186,7 @@ class ThreatLoader:
 
     def _print_stats(self) -> None:
         """Print loading statistics."""
-        print(f"\n📈 Statistics:")
+        print("\n📈 Statistics:")
         print(f"  Loaded:    {self.stats['loaded']}")
         print(f"  Updated:   {self.stats['updated']}")
         print(f"  Skipped:   {self.stats['skipped']}")
@@ -199,7 +196,7 @@ class ThreatLoader:
         if self.stats["errors"] > 0:
             print(f"\n⚠️  {self.stats['errors']} errors occurred during loading")
         else:
-            print(f"\n✅ All threats loaded successfully!")
+            print("\n✅ All threats loaded successfully!")
 
     def print_summary(self) -> None:
         """Print summary of threats by campaign and ecosystem."""
@@ -223,19 +220,19 @@ class ThreatLoader:
             sev = threat["severity"]
             by_severity[sev] = by_severity.get(sev, 0) + 1
 
-        print(f"\n📊 Threat Database Summary:")
+        print("\n📊 Threat Database Summary:")
         print(f"  Total threats: {len(threats)}")
 
-        print(f"\n  By Ecosystem:")
+        print("\n  By Ecosystem:")
         for eco, count in sorted(by_ecosystem.items(), key=lambda x: x[1], reverse=True):
             print(f"    {eco}: {count}")
 
-        print(f"\n  By Severity:")
+        print("\n  By Severity:")
         for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
             if sev in by_severity:
                 print(f"    {sev}: {by_severity[sev]}")
 
-        print(f"\n  By Campaign (top 10):")
+        print("\n  By Campaign (top 10):")
         for campaign, count in sorted(by_campaign.items(), key=lambda x: x[1], reverse=True)[:10]:
             print(f"    {campaign}: {count}")
 

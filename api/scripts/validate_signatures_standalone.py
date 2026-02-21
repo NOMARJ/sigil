@@ -122,13 +122,13 @@ def validate_signatures():
     # Print results
     print("📊 Statistics:")
     print(f"  Total signatures: {stats['total']}")
-    print(f"\n  By Category:")
+    print("\n  By Category:")
     for cat, count in sorted(stats["by_category"].items()):
         print(f"    {cat}: {count}")
-    print(f"\n  By Severity:")
+    print("\n  By Severity:")
     for sev, count in sorted(stats["by_severity"].items(), key=lambda x: valid_severities.index(x[0])):
         print(f"    {sev}: {count}")
-    print(f"\n  By Phase:")
+    print("\n  By Phase:")
     for phase, count in sorted(stats["by_phase"].items()):
         print(f"    {phase}: {count}")
     print()

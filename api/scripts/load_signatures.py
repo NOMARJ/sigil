@@ -229,7 +229,7 @@ class SignatureLoader:
 
     def _print_stats(self) -> None:
         """Print loading statistics."""
-        print(f"\n📈 Statistics:")
+        print("\n📈 Statistics:")
         print(f"  Loaded:    {self.stats['loaded']}")
         print(f"  Updated:   {self.stats['updated']}")
         print(f"  Skipped:   {self.stats['skipped']}")
@@ -239,7 +239,7 @@ class SignatureLoader:
         if self.stats["errors"] > 0:
             print(f"\n⚠️  {self.stats['errors']} errors occurred during loading")
         else:
-            print(f"\n✅ All signatures loaded successfully!")
+            print("\n✅ All signatures loaded successfully!")
 
 
 async def main() -> int:

@@ -321,6 +321,8 @@ class TestSignatureCategories:
         # Should have signatures across all severities
         assert critical > 0, "No CRITICAL signatures"
         assert high > 0, "No HIGH signatures"
+        assert medium > 0, "No MEDIUM signatures"
+        assert low > 0, "No LOW signatures"
 
         # CRITICAL should be rarer than HIGH/MEDIUM
         assert critical < (high + medium), "Too many CRITICAL signatures (reduces signal)"
