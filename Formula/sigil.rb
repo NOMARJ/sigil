@@ -7,7 +7,7 @@ class Sigil < Formula
   url "https://github.com/NOMARJ/sigil/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "" # Will be auto-filled by release workflow
   license "Apache-2.0"
-  version "1.0.3"
+  version "1.0.4"
 
   # Pre-built binaries
   on_macos do
