@@ -39,8 +39,23 @@ const API_URL =
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getToken(): string | null {
+async function getToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
+
+  // Try to get Supabase session token first
+  try {
+    const { supabase } = await import("./supabase");
+    if (supabase) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        return session.access_token;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to get Supabase session:", err);
+  }
+
+  // Fallback to custom JWT token for backward compatibility
   return localStorage.getItem("sigil_access_token");
 }
 
@@ -80,7 +95,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken();
+  const token = await getToken();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
