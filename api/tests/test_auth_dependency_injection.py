@@ -226,13 +226,9 @@ class TestBrokenDependencyInjection:
         error = resp.json()
         assert "detail" in error
         assert any(
-            err.get("loc") == ["query", "current_user"]
-            for err in error["detail"]
+            err.get("loc") == ["query", "current_user"] for err in error["detail"]
         )
-        assert any(
-            err.get("msg") == "Field required"
-            for err in error["detail"]
-        )
+        assert any(err.get("msg") == "Field required" for err in error["detail"])
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +389,17 @@ class TestDependencyInjectionIssueDocumentation:
         """All plan-gated endpoints return 422 with same error."""
         endpoints = [
             ("GET", "/v1/threats"),
-            ("POST", "/v1/signatures", {"id": "test", "phase": "obfuscation", "pattern": "test", "severity": "MEDIUM", "description": "Test"}),
+            (
+                "POST",
+                "/v1/signatures",
+                {
+                    "id": "test",
+                    "phase": "obfuscation",
+                    "pattern": "test",
+                    "severity": "MEDIUM",
+                    "description": "Test",
+                },
+            ),
             ("GET", "/v1/threat-reports"),
         ]
 
@@ -404,7 +410,9 @@ class TestDependencyInjectionIssueDocumentation:
                 resp = client.post(url, json=json_data[0], headers=pro_auth_headers)
 
             # All should return 422
-            assert resp.status_code == 422, f"{method} {url} returned {resp.status_code} instead of 422"
+            assert resp.status_code == 422, (
+                f"{method} {url} returned {resp.status_code} instead of 422"
+            )
 
             # All should have same error structure
             error = resp.json()
@@ -422,7 +430,8 @@ class TestDependencyInjectionIssueDocumentation:
         error = resp.json()
         # Find the current_user error
         current_user_error = next(
-            err for err in error["detail"]
+            err
+            for err in error["detail"]
             if err.get("loc") == ["query", "current_user"]
         )
 

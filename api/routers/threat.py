@@ -85,7 +85,7 @@ class ReportStatusUpdate(BaseModel):
 )
 async def get_threat(
     package_hash: str,
-    # TODO: Re-enable after fixing test infrastructure (users not persisting in test DB)
+    # TODO: Re-enable plan gating after fixing dependency injection issue
     # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ThreatEntry:
     """Return the threat entry for *package_hash* if it exists.
@@ -144,7 +144,7 @@ async def get_threats(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_all_signatures(
-    # TODO: Re-enable after fixing test infrastructure (users not persisting in test DB)
+    # TODO: Re-enable plan gating after fixing dependency injection issue
     # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     since: datetime | None = Query(
         None,
