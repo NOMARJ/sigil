@@ -140,8 +140,35 @@ Sigil works where you work. Install the plugin for your editor, or connect AI ag
 |-------------|----------|---------|
 | **VS Code / Cursor / Windsurf** | Scan workspace, files, selections, packages. Findings in Problems panel. | [plugins/vscode](plugins/vscode/) |
 | **JetBrains IDEs** | IntelliJ, WebStorm, PyCharm, GoLand, CLion, etc. Tool window + inline annotations. | [plugins/jetbrains](plugins/jetbrains/) |
+| **Claude Code Plugin** | 4 skills + 2 security agents. Auto-suggests scans on clone/install. | [plugins/claude-code](plugins/claude-code/) |
 | **Claude Code (MCP)** | 6 tools: scan, scan_package, clone, quarantine, approve, reject. | [plugins/mcp-server](plugins/mcp-server/) |
 | **GitHub Actions** | Run Sigil as a CI check on every PR. | [action.yml](action.yml) |
+
+### Claude Code Plugin (Recommended)
+
+Install as a native Claude Code plugin for skills, agents, and auto-recommendations:
+
+```bash
+# Add Sigil marketplace
+claude plugin marketplace add https://github.com/NOMARJ/sigil.git
+
+# Install the plugin
+claude plugin install sigil-security@sigil
+```
+
+This provides:
+- `/sigil-security:scan-repo` - Scan repositories
+- `/sigil-security:scan-package` - Audit npm/pip packages
+- `/sigil-security:scan-file` - Analyze specific files
+- `/sigil-security:quarantine-review` - Manage findings
+- `@security-auditor` - Expert threat analysis agent
+- `@quarantine-manager` - Quarantine workflow agent
+
+[**→ See Claude Code plugin documentation**](plugins/claude-code/README.md)
+
+### Claude Code MCP Server
+
+Alternatively, use the MCP server for tool-based integration:
 
 ```json
 {
@@ -154,7 +181,7 @@ Sigil works where you work. Install the plugin for your editor, or connect AI ag
 }
 ```
 
-Build the MCP server first if you haven't already:
+Build the MCP server first:
 
 ```bash
 cd plugins/mcp-server && npm install && npm run build

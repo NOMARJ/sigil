@@ -1,0 +1,28 @@
+{
+  "name": "sigil-security",
+  "version": "1.0.0",
+  "description": "Automated security auditing CLI for AI agent code. Scan repos, packages, and agent tooling for malicious patterns with quarantine-first workflow.",
+  "author": {
+    "name": "NOMARK",
+    "email": "team@sigilsec.ai",
+    "url": "https://github.com/NOMARJ/sigil"
+  },
+  "homepage": "https://github.com/NOMARJ/sigil",
+  "repository": "https://github.com/NOMARJ/sigil",
+  "license": "Apache-2.0",
+  "keywords": [
+    "security",
+    "scanner",
+    "ai",
+    "agent",
+    "supply-chain",
+    "malware",
+    "audit",
+    "quarantine",
+    "mcp",
+    "threat-intelligence"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": "./hooks/hooks.json"
+}

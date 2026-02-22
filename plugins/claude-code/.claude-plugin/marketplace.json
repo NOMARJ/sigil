@@ -1,0 +1,30 @@
+{
+  "name": "sigil-marketplace",
+  "owner": {
+    "name": "NOMARK",
+    "email": "team@sigilsec.ai",
+    "url": "https://sigilsec.ai"
+  },
+  "plugins": [
+    {
+      "name": "sigil-security",
+      "source": "./plugins/claude-code",
+      "description": "Automated security auditing CLI for AI agent code. Scan repos, packages, and agent tooling for malicious patterns with quarantine-first workflow.",
+      "version": "1.0.0",
+      "author": {
+        "name": "NOMARK",
+        "url": "https://sigilsec.ai"
+      },
+      "keywords": [
+        "security",
+        "scanner",
+        "ai",
+        "agent",
+        "supply-chain",
+        "malware",
+        "audit",
+        "quarantine"
+      ]
+    }
+  ]
+}
