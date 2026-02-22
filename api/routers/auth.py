@@ -459,7 +459,9 @@ async def get_current_user_unified(request: Request) -> UserResponse:
         except HTTPException as e:
             # Log Supabase auth failure and try custom JWT fallback
             supabase_error = e
-            logger.debug(f"Supabase auth failed: {e.detail}, trying custom JWT fallback")
+            logger.debug(
+                f"Supabase auth failed: {e.detail}, trying custom JWT fallback"
+            )
 
     # Fall back to custom JWT
     try:
