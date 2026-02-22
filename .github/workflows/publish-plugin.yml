@@ -1,0 +1,241 @@
+name: Publish Claude Code Plugin
+
+on:
+  push:
+    tags:
+      - 'plugin-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Plugin version to publish (e.g., 1.0.0)'
+        required: true
+
+jobs:
+  validate:
+    name: Validate Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate plugin structure
+        run: |
+          # Check required files
+          if [ ! -f "plugins/claude-code/.claude-plugin/plugin.json" ]; then
+            echo "❌ Missing plugin.json"
+            exit 1
+          fi
+
+          if [ ! -d "plugins/claude-code/skills" ]; then
+            echo "❌ Missing skills directory"
+            exit 1
+          fi
+
+          if [ ! -d "plugins/claude-code/agents" ]; then
+            echo "❌ Missing agents directory"
+            exit 1
+          fi
+
+          if [ ! -f "plugins/claude-code/hooks/hooks.json" ]; then
+            echo "❌ Missing hooks.json"
+            exit 1
+          fi
+
+          echo "✅ Plugin structure is valid"
+
+      - name: Validate JSON files
+        run: |
+          # Validate plugin.json
+          jq empty plugins/claude-code/.claude-plugin/plugin.json || {
+            echo "❌ Invalid plugin.json"
+            exit 1
+          }
+
+          # Validate marketplace.json
+          jq empty plugins/claude-code/.claude-plugin/marketplace.json || {
+            echo "❌ Invalid marketplace.json"
+            exit 1
+          }
+
+          # Validate hooks.json
+          jq empty plugins/claude-code/hooks/hooks.json || {
+            echo "❌ Invalid hooks.json"
+            exit 1
+          }
+
+          echo "✅ All JSON files are valid"
+
+      - name: Validate skills
+        run: |
+          # Check each skill has SKILL.md
+          for skill_dir in plugins/claude-code/skills/*/; do
+            if [ ! -f "${skill_dir}SKILL.md" ]; then
+              echo "❌ Missing SKILL.md in ${skill_dir}"
+              exit 1
+            fi
+            echo "✅ Found SKILL.md in ${skill_dir}"
+          done
+
+      - name: Validate agents
+        run: |
+          # Check agent markdown files exist
+          if [ ! -f "plugins/claude-code/agents/security-auditor.md" ]; then
+            echo "❌ Missing security-auditor.md"
+            exit 1
+          fi
+
+          if [ ! -f "plugins/claude-code/agents/quarantine-manager.md" ]; then
+            echo "❌ Missing quarantine-manager.md"
+            exit 1
+          fi
+
+          echo "✅ All agents are valid"
+
+  publish-github-release:
+    name: Publish GitHub Release
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/plugin-v}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Publishing version: ${VERSION}"
+
+      - name: Update plugin version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' \
+            plugins/claude-code/.claude-plugin/plugin.json > tmp.json
+          mv tmp.json plugins/claude-code/.claude-plugin/plugin.json
+
+          jq --arg version "$VERSION" '.plugins[0].version = $version' \
+            plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
+          mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+
+      - name: Create plugin archive
+        run: |
+          cd plugins/claude-code
+          tar -czf ../../sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz \
+            .claude-plugin/ \
+            skills/ \
+            agents/ \
+            hooks/ \
+            README.md \
+            CHANGELOG.md
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Extract changelog for this version
+          NOTES=$(awk -v ver="[$VERSION]" '
+            $0 ~ ver { flag=1; next }
+            /^## \[/ { if (flag) exit }
+            flag { print }
+          ' plugins/claude-code/CHANGELOG.md)
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Release of Sigil Security plugin version $VERSION"
+          fi
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: plugin-v${{ steps.version.outputs.version }}
+          name: Sigil Security Plugin v${{ steps.version.outputs.version }}
+          body: |
+            # Sigil Security Plugin for Claude Code
+
+            ${{ steps.release_notes.outputs.notes }}
+
+            ## Installation
+
+            ```bash
+            # Add Sigil marketplace
+            claude plugin marketplace add https://github.com/NOMARJ/sigil.git
+
+            # Install the plugin
+            claude plugin install sigil-security@sigil
+            ```
+
+            Or download and install manually:
+
+            ```bash
+            # Download and extract
+            wget https://github.com/NOMARJ/sigil/releases/download/plugin-v${{ steps.version.outputs.version }}/sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz
+            mkdir -p sigil-security-plugin
+            tar -xzf sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz -C sigil-security-plugin
+
+            # Install
+            claude plugin install ./sigil-security-plugin
+            ```
+
+            ## Prerequisites
+
+            - Claude Code 1.0.33+
+            - Sigil CLI installed: `brew install nomarj/tap/sigil` or `npm install -g @nomark/sigil`
+
+            ## Documentation
+
+            - [Plugin README](https://github.com/NOMARJ/sigil/blob/main/plugins/claude-code/README.md)
+            - [Sigil Documentation](https://github.com/NOMARJ/sigil)
+          files: |
+            sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz
+          draft: false
+          prerelease: false
+
+  update-marketplace:
+    name: Update Marketplace
+    needs: publish-github-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update marketplace version
+        run: |
+          VERSION="${{ needs.publish-github-release.outputs.version }}"
+
+          # Update version in marketplace.json
+          jq --arg version "$VERSION" '.plugins[0].version = $version' \
+            plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
+          mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+
+          # Commit and push
+          git add plugins/claude-code/.claude-plugin/marketplace.json
+          git commit -m "chore: update plugin marketplace to v${VERSION}" || true
+          git push origin main || true
+
+  notify:
+    name: Notify Release
+    needs: [publish-github-release, update-marketplace]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify success
+        run: |
+          echo "🎉 Plugin published successfully!"
+          echo "Version: ${{ needs.publish-github-release.outputs.version }}"
+          echo "Release URL: https://github.com/NOMARJ/sigil/releases/tag/plugin-v${{ needs.publish-github-release.outputs.version }}"

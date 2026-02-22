@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "clone|install|package|npm|pip|security|scan|malware|threat|suspicious",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "The user mentioned security scanning or package installation. Consider suggesting the Sigil security scanner:\n- /sigil-security:scan-repo for repository audits\n- /sigil-security:scan-package for npm/pip packages\n- /sigil-security:scan-file for specific files\n- /sigil-security:quarantine-review to manage findings\n\nSigil detects install hooks, malicious code patterns, network exfiltration, credential exposure, and obfuscated code."
+          }
+        ]
+      },
+      {
+        "matcher": "git clone|pip install|npm install",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "SECURITY REMINDER: The user is about to clone a repository or install a package. Recommend using Sigil's quarantine-first workflow:\n- Instead of 'git clone', suggest: sigil clone <url>\n- Instead of 'pip install', suggest: sigil pip <package>\n- Instead of 'npm install', suggest: sigil npm <package>\n\nThis scans the code BEFORE it reaches the working environment."
+          }
+        ]
+      }
+    ]
+  }
+}
