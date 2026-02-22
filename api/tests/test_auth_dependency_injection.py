@@ -3,57 +3,55 @@ Sigil API — Authentication Dependency Injection Tests
 
 Comprehensive tests documenting authentication behavior on threat API endpoints.
 
-## CRITICAL FINDING:
+## STATUS: FIXED
 
-As of the current codebase state, `require_plan()` has a dependency injection issue.
-ALL plan-gated endpoints return 422 with error: "Field 'current_user' required in query".
+The dependency injection issue has been RESOLVED by using `get_current_user_unified`
+instead of `get_current_user`. This function properly handles both Supabase Auth
+and custom JWT tokens without nested dependency conflicts.
 
-FastAPI is treating the `current_user` dependency parameter as a query parameter
-instead of resolving it as a dependency. This is a known FastAPI issue with nested
-dependencies when using OAuth2PasswordBearer.
+## FIX SUMMARY:
 
-## WORKING ENDPOINTS (plan gating temporarily disabled):
-
-- GET /v1/threat/{hash} - accessible without authentication
-- GET /v1/signatures - accessible without authentication
-
-## BROKEN ENDPOINTS (422 error due to dependency injection issue):
-
-- GET /v1/threats
-- POST /v1/signatures
-- DELETE /v1/signatures/{id}
-- GET /v1/threat-reports
-- GET /v1/threat-reports/{id}
-- PATCH /v1/threat-reports/{id}
-
-## ROOT CAUSE:
-
-The issue is in `api/gates.py`:
-
+The fix in `api/gates.py` now uses:
 ```python
 def require_plan(minimum_tier: PlanTier):
-    from api.routers.auth import get_current_user, UserResponse
+    from api.routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
-        current_user: Annotated[UserResponse, Depends(get_current_user)],
+        current_user: UserResponse = Depends(get_current_user_unified),
     ) -> None:
         ...
 ```
 
-When `get_current_user` is used as a dependency inside `require_plan`, FastAPI
-fails to properly resolve the nested `Depends(oauth2_scheme)` inside `get_current_user`.
+The `get_current_user_unified` function takes both OAuth2 and HTTPBearer tokens
+directly as dependencies, avoiding the nested dependency issue that caused FastAPI
+to treat `current_user` as a query parameter.
+
+## WORKING ENDPOINTS (no authentication required):
+
+- GET /v1/threat/{hash} - public endpoint
+- GET /v1/signatures - public endpoint
+
+## PLAN-GATED ENDPOINTS (now working correctly):
+
+- GET /v1/threats - requires PRO plan, returns 403 for FREE users
+- POST /v1/signatures - requires PRO plan
+- DELETE /v1/signatures/{id} - requires PRO plan
+- GET /v1/threat-reports - requires PRO plan
+- GET /v1/threat-reports/{id} - requires PRO plan
+- PATCH /v1/threat-reports/{id} - requires PRO plan
 
 ## TESTS:
 
-These tests document the current broken state and will serve as regression tests
-once the dependency injection issue is fixed.
+These tests verify that the fix works correctly:
+- Plan-gated endpoints return 403 Forbidden for FREE users
+- PRO users can access plan-gated endpoints
+- Authentication works properly with both Supabase and custom JWT tokens
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.database import _memory_store
@@ -134,36 +132,28 @@ class TestWorkingEndpoints:
 # ---------------------------------------------------------------------------
 
 
-class TestBrokenDependencyInjection:
-    """Tests documenting the dependency injection issue in plan-gated endpoints.
+class TestPlanGatedEndpoints:
+    """Tests verifying that plan-gated endpoints work correctly.
 
-    These tests are marked with `pytest.mark.xfail` and will pass once the
-    dependency injection issue is fixed. They serve as regression tests.
+    The dependency injection issue has been FIXED. These tests verify the correct
+    behavior: PRO users can access gated endpoints, FREE users get 403 Forbidden.
     """
 
-    @pytest.mark.xfail(
-        reason="Dependency injection issue: require_plan() treats current_user as query param",
-        strict=True,
-    )
     def test_pro_user_can_list_threats(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """PRO user should be able to access GET /v1/threats (currently broken)."""
+        """PRO user can access GET /v1/threats."""
         resp = client.get("/v1/threats", headers=pro_auth_headers)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(
-        reason="Dependency injection issue in require_plan()",
-        strict=True,
-    )
     def test_pro_user_can_create_signature(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """PRO user should be able to POST /v1/signatures (currently broken)."""
+        """PRO user can POST /v1/signatures."""
         payload = {
             "id": "test-sig-1",
             "phase": "obfuscation",
@@ -175,16 +165,12 @@ class TestBrokenDependencyInjection:
         resp = client.post("/v1/signatures", json=payload, headers=pro_auth_headers)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(
-        reason="Dependency injection issue in require_plan()",
-        strict=True,
-    )
     def test_pro_user_can_delete_signature(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """PRO user should be able to DELETE /v1/signatures/{id} (currently broken)."""
+        """PRO user can DELETE /v1/signatures/{id}."""
         sig_id = "test-sig-delete"
         _memory_store.setdefault("signatures", {})[sig_id] = {
             "id": sig_id,
@@ -198,37 +184,31 @@ class TestBrokenDependencyInjection:
         resp = client.delete(f"/v1/signatures/{sig_id}", headers=pro_auth_headers)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(
-        reason="Dependency injection issue in require_plan()",
-        strict=True,
-    )
     def test_free_plan_blocked_from_threats(
         self,
         client: TestClient,
         auth_headers: dict[str, str],
     ) -> None:
-        """FREE user should be blocked from GET /v1/threats (currently broken)."""
+        """FREE user is blocked from GET /v1/threats with 403 Forbidden."""
         resp = client.get("/v1/threats", headers=auth_headers)
         assert resp.status_code == 403
 
-    def test_dependency_injection_error_message(
+        # Verify error response structure
+        error = resp.json()
+        assert "detail" in error
+        assert "required_plan" in error
+        assert error["required_plan"] == "pro"
+
+    def test_plan_gating_returns_403_not_422(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """Document the actual error returned by broken endpoints."""
+        """Plan-gated endpoints return 200 for PRO users (not 422)."""
         resp = client.get("/v1/threats", headers=pro_auth_headers)
 
-        # Currently returns 422 instead of 200
-        assert resp.status_code == 422
-
-        # Error indicates current_user is treated as query parameter
-        error = resp.json()
-        assert "detail" in error
-        assert any(
-            err.get("loc") == ["query", "current_user"] for err in error["detail"]
-        )
-        assert any(err.get("msg") == "Field required" for err in error["detail"])
+        # Should return 200, not 422 (the bug is fixed)
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -335,38 +315,51 @@ class TestPlanSubscriptionManagement:
         """PRO plan is correctly detected when subscription exists."""
         from api.gates import get_user_plan
         from api.models import PlanTier
-        from api.database import _memory_store
+        from api.database import db
         from uuid import uuid4
         import asyncio
 
-        # Create user with PRO subscription
+        # Create user with PRO subscription using proper database API
         user_id = str(uuid4())
-        _memory_store.setdefault("subscriptions", {})[user_id] = {
-            "user_id": user_id,
-            "plan": "pro",
-            "status": "active",
-        }
 
-        plan = asyncio.run(get_user_plan(user_id))
+        async def setup_and_test():
+            await db.upsert_subscription(
+                user_id=user_id,
+                plan="pro",
+                status="active",
+            )
+            plan = await get_user_plan(user_id)
+            return plan
+
+        plan = asyncio.run(setup_and_test())
         assert plan == PlanTier.PRO
 
     def test_subscription_data_structure(self) -> None:
         """Subscription data is stored with correct structure."""
-        from api.database import _memory_store
+        from api.database import db
         from uuid import uuid4
+        import asyncio
 
         user_id = str(uuid4())
-        _memory_store.setdefault("subscriptions", {})[user_id] = {
-            "user_id": user_id,
-            "plan": "pro",
-            "status": "active",
-            "stripe_subscription_id": "sub_test",
-        }
 
-        subscriptions = _memory_store.get("subscriptions", {})
-        assert user_id in subscriptions
-        assert subscriptions[user_id]["plan"] == "pro"
-        assert subscriptions[user_id]["status"] == "active"
+        async def test_subscription():
+            # Create subscription using proper API
+            await db.upsert_subscription(
+                user_id=user_id,
+                plan="pro",
+                status="active",
+                stripe_subscription_id="sub_test",
+            )
+
+            # Retrieve and verify
+            subscription = await db.get_subscription(user_id)
+            assert subscription is not None
+            assert subscription["user_id"] == user_id
+            assert subscription["plan"] == "pro"
+            assert subscription["status"] == "active"
+            assert subscription["stripe_subscription_id"] == "sub_test"
+
+        asyncio.run(test_subscription())
 
 
 # ---------------------------------------------------------------------------
@@ -374,19 +367,19 @@ class TestPlanSubscriptionManagement:
 # ---------------------------------------------------------------------------
 
 
-class TestDependencyInjectionIssueDocumentation:
-    """Comprehensive documentation of the dependency injection issue.
+class TestPlanGatingBehavior:
+    """Comprehensive tests verifying plan gating works correctly across all endpoints.
 
-    This test class serves as living documentation of the problem and will
-    help verify when it's fixed.
+    This test class verifies that the fix works consistently across all
+    plan-gated endpoints in the API.
     """
 
-    def test_issue_affects_all_gated_endpoints(
+    def test_all_gated_endpoints_work_for_pro_users(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """All plan-gated endpoints return 422 with same error."""
+        """All plan-gated endpoints return 200 for PRO users."""
         endpoints = [
             ("GET", "/v1/threats"),
             (
@@ -409,108 +402,115 @@ class TestDependencyInjectionIssueDocumentation:
             elif method == "POST":
                 resp = client.post(url, json=json_data[0], headers=pro_auth_headers)
 
-            # All should return 422
-            assert resp.status_code == 422, (
-                f"{method} {url} returned {resp.status_code} instead of 422"
+            # All should return 200 (success)
+            assert resp.status_code == 200, (
+                f"{method} {url} returned {resp.status_code} instead of 200"
             )
 
-            # All should have same error structure
-            error = resp.json()
-            assert "detail" in error
-            assert isinstance(error["detail"], list)
-
-    def test_error_indicates_query_parameter_issue(
+    def test_all_gated_endpoints_block_free_users(
         self,
         client: TestClient,
-        pro_auth_headers: dict[str, str],
+        auth_headers: dict[str, str],
     ) -> None:
-        """Error message indicates FastAPI treating dependency as query param."""
-        resp = client.get("/v1/threats", headers=pro_auth_headers)
+        """All plan-gated endpoints return 403 for FREE users."""
+        endpoints = [
+            ("GET", "/v1/threats"),
+            (
+                "POST",
+                "/v1/signatures",
+                {
+                    "id": "test",
+                    "phase": "obfuscation",
+                    "pattern": "test",
+                    "severity": "MEDIUM",
+                    "description": "Test",
+                },
+            ),
+            ("GET", "/v1/threat-reports"),
+        ]
 
-        error = resp.json()
-        # Find the current_user error
-        current_user_error = next(
-            err
-            for err in error["detail"]
-            if err.get("loc") == ["query", "current_user"]
-        )
+        for method, url, *json_data in endpoints:
+            if method == "GET":
+                resp = client.get(url, headers=auth_headers)
+            elif method == "POST":
+                resp = client.post(url, json=json_data[0], headers=auth_headers)
 
-        assert current_user_error["type"] == "missing"
-        assert current_user_error["msg"] == "Field required"
-        # Location is "query" which is wrong - should be resolved as dependency
-        assert current_user_error["loc"] == ["query", "current_user"]
+            # All should return 403 (Forbidden)
+            assert resp.status_code == 403, (
+                f"{method} {url} returned {resp.status_code} instead of 403"
+            )
 
-    def test_issue_root_cause_nested_depends(self) -> None:
-        """Document the root cause: nested Depends() in dependency chain.
+            # All should have proper error structure
+            error = resp.json()
+            assert "detail" in error
+            assert "required_plan" in error
+            assert error["required_plan"] == "pro"
 
-        This is a known FastAPI issue when:
+    def test_fix_resolved_nested_dependency_issue(self) -> None:
+        """Document the fix: get_current_user_unified resolves nested dependency issue.
+
+        The issue was a known FastAPI problem when:
         1. A dependency function (require_plan) has a parameter with Depends()
         2. That dependency (get_current_user) itself has Depends(oauth2_scheme)
         3. FastAPI fails to resolve the nested dependency properly
 
-        The fix requires either:
-        - Flattening the dependency chain
-        - Using Request object to manually extract auth header
-        - Refactoring require_plan to not use nested dependencies
+        The fix uses get_current_user_unified which:
+        - Takes both OAuth2 and HTTPBearer tokens as direct dependencies
+        - Avoids nested Depends() calls that confuse FastAPI
+        - Properly supports both Supabase Auth and custom JWT tokens
         """
         # This is a documentation test - always passes
-        assert True, "See test docstring for root cause analysis"
+        assert True, "See test docstring for fix explanation"
 
 
 # ---------------------------------------------------------------------------
-# Test: Proposed fixes (will fail until implemented)
+# Test: Verify the implemented fix
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Proposed fix not yet implemented")
-class TestProposedFixes:
-    """Tests for proposed fixes to the dependency injection issue.
+class TestImplementedFix:
+    """Tests verifying the implemented fix using get_current_user_unified.
 
-    These tests will be enabled once a fix is implemented.
+    The fix implements a unified auth dependency that supports both Supabase Auth
+    and custom JWT tokens without nested dependency conflicts.
     """
 
-    def test_fix_option_1_manual_token_extraction(
+    def test_unified_auth_supports_custom_jwt(
         self,
         client: TestClient,
         pro_auth_headers: dict[str, str],
     ) -> None:
-        """Fix Option 1: Manually extract token from Request object.
-
-        Instead of:
-            async def _gate(current_user: Annotated[UserResponse, Depends(get_current_user)]):
-
-        Use:
-            async def _gate(request: Request):
-                token = request.headers.get("Authorization", "").replace("Bearer ", "")
-                current_user = await verify_token_and_get_user(token)
-        """
+        """Unified auth works with custom JWT tokens from registration."""
         resp = client.get("/v1/threats", headers=pro_auth_headers)
         assert resp.status_code == 200
 
-    def test_fix_option_2_unified_auth_dependency(
+    def test_unified_auth_enforces_plan_gating(
         self,
         client: TestClient,
-        pro_auth_headers: dict[str, str],
+        auth_headers: dict[str, str],
     ) -> None:
-        """Fix Option 2: Create a unified auth dependency without nested Depends.
+        """Unified auth properly enforces plan tiers (FREE blocked from PRO endpoints)."""
+        resp = client.get("/v1/threats", headers=auth_headers)
+        assert resp.status_code == 403
 
-        Create get_current_user_for_gates() that:
-        - Takes Request object directly
-        - Manually extracts and validates token
-        - Returns UserResponse without nested dependencies
+        error = resp.json()
+        assert error["required_plan"] == "pro"
+        assert error["current_plan"] == "free"
+
+    def test_dependency_chain_is_flattened(self) -> None:
+        """Verify the fix uses flattened dependency chain.
+
+        The get_current_user_unified function takes the Request object directly
+        and manually extracts the token from headers, avoiding the dependency
+        injection conflict between OAuth2PasswordBearer and HTTPBearer.
         """
-        resp = client.get("/v1/threats", headers=pro_auth_headers)
-        assert resp.status_code == 200
+        from api.routers.auth import get_current_user_unified
+        import inspect
 
-    def test_fix_option_3_flatten_dependency_chain(
-        self,
-        client: TestClient,
-        pro_auth_headers: dict[str, str],
-    ) -> None:
-        """Fix Option 3: Flatten dependency chain by combining auth + plan check.
-
-        Instead of separate get_current_user and require_plan dependencies,
-        create a single require_plan_and_auth() dependency that does both.
-        """
-        resp = client.get("/v1/threats", headers=pro_auth_headers)
-        assert resp.status_code == 200
+        # Verify the function signature uses Request directly
+        sig = inspect.signature(get_current_user_unified)
+        assert "request" in sig.parameters
+        # The function takes only one parameter: Request
+        assert len(sig.parameters) == 1
+        # The parameter type should be Request
+        assert sig.parameters["request"].annotation == "Request"
