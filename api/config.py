@@ -7,7 +7,14 @@ Uses Pydantic BaseSettings for validation and type coercion.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env file path relative to this config.py file
+# This ensures it works both locally and in Docker
+_API_DIR = Path(__file__).parent
+_ENV_FILE = _API_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -20,7 +27,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="SIGIL_",
-        env_file=".env",
+        env_file=str(_ENV_FILE) if _ENV_FILE.exists() else None,
         env_file_encoding="utf-8",
         extra="ignore",
     )

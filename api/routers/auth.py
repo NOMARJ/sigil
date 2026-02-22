@@ -293,15 +293,14 @@ async def verify_supabase_token(token: str) -> dict[str, Any]:
     Raises:
         HTTPException: If the token is invalid, expired, or missing required claims
     """
-    try:
-        # Use python-jose to decode and verify the Supabase JWT
-        if not settings.supabase_jwt_secret:
-            # No Supabase secret configured, cannot verify Supabase tokens
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Supabase authentication not configured",
-            )
+    # Require Supabase JWT secret to be configured
+    if not settings.supabase_jwt_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Supabase authentication not configured",
+        )
 
+    try:
         payload = (
             _jose_jwt.decode(
                 token,
@@ -320,7 +319,7 @@ async def verify_supabase_token(token: str) -> dict[str, Any]:
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token: missing user ID",
+                detail="Invalid Supabase token: missing user ID",
             )
 
         # Return user info from token (Supabase Auth manages users)
@@ -424,7 +423,7 @@ async def get_current_user_unified(request: Request) -> UserResponse:
     2. Fall back to custom JWT
 
     Args:
-        request: FastAPI Request object
+        request: FastAPI Request object (auto-injected by FastAPI)
 
     Returns:
         UserResponse with authenticated user data
@@ -450,27 +449,39 @@ async def get_current_user_unified(request: Request) -> UserResponse:
 
     token = auth_header[7:]  # Remove "Bearer " prefix
 
-    # Try Supabase Auth first
-    try:
-        user_data = await verify_supabase_token(token)
-        return UserResponse(**user_data)
-    except HTTPException:
-        # If Supabase auth fails, try custom JWT
-        pass
+    # Try Supabase Auth first (if configured)
+    supabase_error = None
+    if settings.supabase_jwt_secret:
+        try:
+            user_data = await verify_supabase_token(token)
+            logger.debug("Authentication successful via Supabase token")
+            return UserResponse(**user_data)
+        except HTTPException as e:
+            # Log Supabase auth failure and try custom JWT fallback
+            supabase_error = e
+            logger.debug(
+                f"Supabase auth failed: {e.detail}, trying custom JWT fallback"
+            )
 
     # Fall back to custom JWT
     try:
         user_data = await verify_custom_jwt(token)
+        logger.debug("Authentication successful via custom JWT")
         return UserResponse(**user_data)
-    except HTTPException:
-        raise
-
-    # If both fail, raise authentication error
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    except HTTPException as custom_error:
+        # Both auth methods failed
+        logger.warning(
+            f"Authentication failed for token. "
+            f"Supabase: {'Not configured' if not settings.supabase_jwt_secret else supabase_error.detail if supabase_error else 'N/A'}, "
+            f"Custom JWT: {custom_error.detail}"
+        )
+        # Re-raise the most relevant error
+        if supabase_error and settings.supabase_jwt_secret:
+            # If Supabase is configured but failed, raise that error
+            raise supabase_error
+        else:
+            # Otherwise raise the custom JWT error
+            raise custom_error
 
 
 # ---------------------------------------------------------------------------
