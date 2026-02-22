@@ -98,22 +98,24 @@ def auth_headers(registered_user: dict[str, Any]) -> dict[str, str]:
 @pytest.fixture()
 def pro_user(client: TestClient, test_user_data: dict[str, str]) -> dict[str, Any]:
     """Register a test user and upgrade them to PRO plan."""
+    import asyncio
+    from api.database import db
+
     # Register user
     resp = client.post("/v1/auth/register", json=test_user_data)
     assert resp.status_code == 201, f"Registration failed: {resp.text}"
     user_data = resp.json()
 
-    # Upgrade to PRO plan by adding subscription to in-memory store
-    from api.database import _memory_store
-
+    # Upgrade to PRO plan using database API
     user_id = user_data["user"]["id"]
-    _memory_store.setdefault("subscriptions", {})[user_id] = {
-        "user_id": user_id,
-        "plan": "pro",
-        "status": "active",
-        "stripe_subscription_id": "sub_test_pro",
-        "created_at": "2024-01-01T00:00:00",
-    }
+    asyncio.run(
+        db.upsert_subscription(
+            user_id=user_id,
+            plan="pro",
+            status="active",
+            stripe_subscription_id="sub_test_pro",
+        )
+    )
 
     return user_data
 

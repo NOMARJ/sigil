@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing_extensions import Annotated
 
 from fastapi import Depends, HTTPException, status
 
@@ -117,19 +116,22 @@ def require_plan(minimum_tier: PlanTier):
     converted to a 403 ``GateError`` JSON response) if the authenticated
     user's plan is below *minimum_tier*.
 
-    Because this dependency itself depends on ``get_current_user``, it also
+    Because this dependency itself depends on ``get_current_user_unified``, it also
     enforces authentication — unauthenticated requests are rejected with 401
     before the tier check even runs.
 
-    Note: The import of ``get_current_user`` is deferred into the factory
+    Note: The import of ``get_current_user_unified`` is deferred into the factory
     body (called at decoration time) to avoid circular imports at module
     load time.  By the time any router module calls ``require_plan()``,
     ``api.routers.auth`` is already fully initialised.
+
+    Uses the unified auth function to support both Supabase Auth and custom JWT
+    without dependency injection conflicts.
     """
-    from api.routers.auth import get_current_user, UserResponse
+    from api.routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
-        current_user: Annotated[UserResponse, Depends(get_current_user)],
+        current_user: UserResponse = Depends(get_current_user_unified),
     ) -> None:
         current_tier = await get_user_plan(current_user.id)
         if _tier_rank(current_tier) < _tier_rank(minimum_tier):

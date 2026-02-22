@@ -24,7 +24,7 @@ from typing import Any
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import (
     HTTPBearer,
     HTTPAuthorizationCredentials,
@@ -145,11 +145,16 @@ def _create_access_token(
     data: dict[str, Any], expires_delta: timedelta | None = None
 ) -> str:
     """Create a signed JWT with the given payload."""
+    import time
+
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    # Use time.time() to get current UTC timestamp, avoiding timezone issues
+    # with datetime.utcnow().timestamp() which assumes local timezone
+    now = int(time.time())
+    expire_seconds = (
         expires_delta or timedelta(minutes=settings.jwt_expire_minutes)
-    )
-    to_encode["exp"] = int(expire.timestamp())
+    ).total_seconds()
+    to_encode["exp"] = now + int(expire_seconds)
 
     if _USE_JOSE:
         return _jose_jwt.encode(
@@ -272,38 +277,198 @@ async def get_current_user(
 
 
 # ---------------------------------------------------------------------------
+# Token verification helpers — reusable token validation logic
+# ---------------------------------------------------------------------------
+
+
+async def verify_supabase_token(token: str) -> dict[str, Any]:
+    """Verify a Supabase Auth token and return the payload.
+
+    Args:
+        token: The JWT token string to verify
+
+    Returns:
+        dict containing user data from the token payload
+
+    Raises:
+        HTTPException: If the token is invalid, expired, or missing required claims
+    """
+    try:
+        # Use python-jose to decode and verify the Supabase JWT
+        if not settings.supabase_jwt_secret:
+            # No Supabase secret configured, cannot verify Supabase tokens
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Supabase authentication not configured",
+            )
+
+        payload = (
+            _jose_jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            if _USE_JOSE
+            else _verify_supabase_token_fallback(token)
+        )
+
+        # Extract user ID from Supabase token
+        user_id = payload.get("sub")
+        email = payload.get("email")
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing user ID",
+            )
+
+        # Return user info from token (Supabase Auth manages users)
+        return {
+            "id": user_id,
+            "email": email or "",
+            "name": payload.get("user_metadata", {}).get("name", ""),
+            "created_at": datetime.utcnow(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Supabase JWT validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Supabase token: {str(e)}",
+        )
+
+
+async def verify_custom_jwt(token: str) -> dict[str, Any]:
+    """Verify a custom JWT token and return user data.
+
+    Args:
+        token: The JWT token string to verify
+
+    Returns:
+        dict containing user data from the database
+
+    Raises:
+        HTTPException: If the token is invalid, expired, or user doesn't exist
+    """
+    payload = _verify_token(token)
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token payload missing 'sub' claim",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = await db.select_one(USER_TABLE, {"id": user_id})
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user.get("name", ""),
+        "created_at": user.get("created_at", datetime.utcnow()),
+    }
+
+
+def _get_auth_token_from_request(request: Request) -> str:
+    """Helper to extract the auth token from the request.
+
+    Args:
+        request: FastAPI Request object (auto-injected)
+
+    Returns:
+        The bearer token string
+
+    Raises:
+        HTTPException: If no token or invalid scheme
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication scheme",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return auth_header[7:]  # Remove "Bearer " prefix
+
+
+# ---------------------------------------------------------------------------
 # Unified Auth — supports both custom JWT and Supabase Auth
 # ---------------------------------------------------------------------------
 
 
-async def get_current_user_unified(
-    token_oauth: Annotated[str | None, Depends(oauth2_scheme)],
-    token_bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)],
-) -> UserResponse:
+async def get_current_user_unified(request: Request) -> UserResponse:
     """Unified auth dependency that supports both custom JWT and Supabase Auth.
 
+    This function manually extracts the token from the Authorization header
+    to avoid dependency injection conflicts between OAuth2PasswordBearer
+    and HTTPBearer schemes.
+
     Priority:
-    1. Try Supabase Auth JWT (from Bearer token)
-    2. Fall back to custom JWT (from OAuth2 scheme)
+    1. Try Supabase Auth JWT first
+    2. Fall back to custom JWT
 
-    This allows gradual migration from custom auth to Supabase Auth.
+    Args:
+        request: FastAPI Request object
+
+    Returns:
+        UserResponse with authenticated user data
+
+    Raises:
+        HTTPException: If authentication fails or token is invalid
     """
-    # Try Bearer token first (Supabase Auth)
-    if token_bearer is not None:
-        try:
-            return await get_current_user_supabase(token_bearer)
-        except HTTPException:
-            # If Supabase auth fails, try custom JWT
-            pass
+    # Extract token from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Fall back to OAuth2 token (custom JWT)
-    if token_oauth is not None:
-        return await get_current_user(token_oauth)
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication scheme",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # No valid token found
+    token = auth_header[7:]  # Remove "Bearer " prefix
+
+    # Try Supabase Auth first
+    try:
+        user_data = await verify_supabase_token(token)
+        return UserResponse(**user_data)
+    except HTTPException:
+        # If Supabase auth fails, try custom JWT
+        pass
+
+    # Fall back to custom JWT
+    try:
+        user_data = await verify_custom_jwt(token)
+        return UserResponse(**user_data)
+    except HTTPException:
+        raise
+
+    # If both fail, raise authentication error
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
+        detail="Invalid token",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
