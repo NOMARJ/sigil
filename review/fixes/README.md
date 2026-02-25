@@ -65,3 +65,50 @@ All fixes are applied directly to the codebase (not as patch files) for easier r
 
 ### 14. Dashboard: Created `.env.example` (`dashboard/.env.example`)
 - New file documenting all required Supabase env vars for OAuth
+
+---
+
+## P1 Fixes Applied (Production Hardening)
+
+### 15. Auth: Login Rate Limiting (`api/routers/auth.py`)
+- Added in-memory rate limiter: 10 login attempts per 5 minutes per IP
+- Returns HTTP 429 with retry message when limit exceeded
+- Auto-prunes old entries outside the time window
+
+### 16. Auth: Token Revocation (`api/routers/auth.py`)
+- Added in-memory token blocklist (capped at 10K entries to prevent memory growth)
+- `_verify_token()` now checks blocklist before decoding
+- Logout endpoint revokes the current token
+- Refresh endpoint revokes consumed refresh token to prevent replay
+
+### 17. Auth: JWT Secret Detection (`api/config.py`)
+- Added `jwt_secret_is_insecure` property that returns `True` when default secret is in use
+- Used by startup warning and can be used by health checks
+
+### 18. API: Threat Endpoint Auth Gating (`api/routers/threat.py`)
+- Re-enabled `require_plan(PlanTier.PRO)` on all 8 threat endpoints
+- Added explicit `current_user: Annotated[UserResponse, Depends(get_current_user_unified)]` parameter
+- Matches the auth pattern used in scan.py for consistency
+
+### 19. Dashboard: Auth Callback Fix (`dashboard/src/app/auth/callback/page.tsx`)
+- Fixed cleanup function by hoisting subscription/timeout variables
+- Added `cancelled` flag to prevent state updates after unmount
+- Improved error messaging when Supabase is unconfigured
+
+### 20. Dashboard: AuthGuard Public Routes (`dashboard/src/components/AuthGuard.tsx`)
+- Added `/auth/callback` to `PUBLIC_ROUTES` array
+- Prevents redirect loop during OAuth callback processing
+
+### 21. Dashboard: Environment Configuration (`dashboard/.env.production`)
+- Added commented Supabase env var placeholders with documentation
+
+### 22. Install: Checksum Verification (`install.sh`)
+- Downloads `SHA256SUMS.txt` from GitHub release alongside binary
+- Verifies checksum using `sha256sum` or `shasum -a 256` (macOS fallback)
+- Hard fails on checksum mismatch with clear error message
+- Gracefully skips if checksums file not available
+- Added `--skip-verify` flag for air-gapped environments
+
+### 23. API URL Standardization (cross-component)
+- Changed all references from `api.sigil.nomark.dev` to `api.sigilsec.ai`
+- Updated: `bin/sigil`, `cli/src/api.rs`, `cli/src/main.rs`, docs, plugins
