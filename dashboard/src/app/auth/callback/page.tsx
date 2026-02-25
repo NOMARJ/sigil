@@ -18,6 +18,9 @@ export default function AuthCallbackPage() {
       return () => clearTimeout(timer)
     }
 
+    // Capture non-null reference for use in async callbacks
+    const sb = supabase;
+
     let subscription: { unsubscribe: () => void } | undefined
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     let redirectTimeoutId: ReturnType<typeof setTimeout> | undefined
@@ -25,7 +28,7 @@ export default function AuthCallbackPage() {
 
     // Wait for Supabase to process the OAuth callback
     // The hash fragment contains the tokens which Supabase auto-processes
-    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+    sb.auth.getSession().then(({ data: { session }, error: sessionError }) => {
       if (cancelled) return
 
       if (sessionError) {
@@ -39,7 +42,7 @@ export default function AuthCallbackPage() {
         router.push('/')
       } else {
         // No session yet — listen for the auth state change
-        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
+        const { data: { subscription: sub } } = sb.auth.onAuthStateChange(
           (event, session) => {
             if (event === 'SIGNED_IN' && session) {
               sub.unsubscribe()

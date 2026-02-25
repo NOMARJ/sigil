@@ -332,7 +332,9 @@ async def list_scans(
         upgrade_message=(
             "Free plan shows your 5 most recent scans. "
             "Upgrade to Pro for full scan history: https://app.sigilsec.ai/upgrade"
-        ) if is_free else None,
+        )
+        if is_free
+        else None,
     )
 
 

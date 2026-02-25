@@ -86,7 +86,7 @@ export default function ThreatsPage() {
       const data = await api.searchThreats(params);
       setThreats(data.items);
       setTotal(data.total);
-      setHasMore(data.has_more);
+      setHasMore(data.has_more ?? false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load threats.";
@@ -193,7 +193,7 @@ export default function ThreatsPage() {
       });
       setReports(data.items);
       setReportsTotal(data.total);
-      setReportsHasMore(data.has_more);
+      setReportsHasMore(data.has_more ?? false);
     } catch {
       // Silently handle — reports tab is secondary
     } finally {

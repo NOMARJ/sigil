@@ -48,15 +48,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.critical(
             "SECURITY: Using default JWT secret! Set SIGIL_JWT_SECRET "
             "environment variable before deploying to production. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
         )
 
     # Validate Stripe configuration consistency
     if settings.stripe_configured:
-        placeholders = [v for v in [
-            settings.stripe_price_pro,
-            settings.stripe_price_team,
-        ] if "placeholder" in v]
+        placeholders = [
+            v
+            for v in [
+                settings.stripe_price_pro,
+                settings.stripe_price_team,
+            ]
+            if "placeholder" in v
+        ]
         if placeholders:
             logger.warning(
                 "Stripe is configured but price IDs contain placeholders. "
@@ -108,6 +112,7 @@ app.add_middleware(
 # Security headers
 # ---------------------------------------------------------------------------
 
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -116,7 +121,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if not settings.debug:
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
     return response
 
 
@@ -337,7 +344,9 @@ async def health() -> JSONResponse:
     """Return service health status including backend connectivity."""
     healthy = db.connected
     return JSONResponse(
-        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        status_code=status.HTTP_200_OK
+        if healthy
+        else status.HTTP_503_SERVICE_UNAVAILABLE,
         content={
             "status": "ok" if healthy else "degraded",
             "version": settings.app_version,

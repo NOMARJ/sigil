@@ -241,7 +241,7 @@ export default function ScanDetailPage() {
               <span className="font-mono text-gray-300">{scan.risk_score}</span>
             </span>
             <span>Scanned {formatDate(scan.created_at)}</span>
-            {scan.metadata && (scan.metadata as Record<string, unknown>).approved && (
+            {scan.metadata && Boolean((scan.metadata as Record<string, unknown>).approved) && (
               <span className="text-green-400">Approved</span>
             )}
           </div>
