@@ -26,14 +26,11 @@ The `get_current_user_unified` function takes both OAuth2 and HTTPBearer tokens
 directly as dependencies, avoiding the nested dependency issue that caused FastAPI
 to treat `current_user` as a query parameter.
 
-## WORKING ENDPOINTS (no authentication required):
+## PRO-GATED ENDPOINTS (all require PRO plan):
 
-- GET /v1/threat/{hash} - public endpoint
-- GET /v1/signatures - public endpoint
-
-## PLAN-GATED ENDPOINTS (now working correctly):
-
+- GET /v1/threat/{hash} - requires PRO plan
 - GET /v1/threats - requires PRO plan, returns 403 for FREE users
+- GET /v1/signatures - requires PRO plan
 - POST /v1/signatures - requires PRO plan
 - DELETE /v1/signatures/{id} - requires PRO plan
 - GET /v1/threat-reports - requires PRO plan
@@ -58,19 +55,20 @@ from api.database import _memory_store
 
 
 # ---------------------------------------------------------------------------
-# Test: Endpoints with disabled plan gating (WORKING)
+# Test: PRO-gated threat intel endpoints
 # ---------------------------------------------------------------------------
 
 
 class TestWorkingEndpoints:
-    """Tests for endpoints where plan gating is disabled and authentication works.
+    """Tests for threat intel endpoints requiring PRO authentication.
 
-    These endpoints are accessible without authentication as a temporary workaround
-    for the dependency injection issue in require_plan().
+    All threat intel endpoints require PRO plan authentication.
     """
 
-    def test_get_threat_found(self, client: TestClient) -> None:
-        """GET /v1/threat/{hash} works without authentication."""
+    def test_get_threat_found(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
+        """GET /v1/threat/{hash} works with PRO authentication."""
         # Seed a threat
         threat = {
             "id": "test-threat-1",
@@ -84,22 +82,29 @@ class TestWorkingEndpoints:
         }
         _memory_store.setdefault("threats", {})["test-threat-1"] = threat
 
-        resp = client.get("/v1/threat/abc123deadbeef456")
+        resp = client.get("/v1/threat/abc123deadbeef456", headers=pro_auth_headers)
         assert resp.status_code == 200
 
         data = resp.json()
         assert data["package_name"] == "evil-pkg"
         assert data["severity"] == "CRITICAL"
 
-    def test_get_threat_not_found(self, client: TestClient) -> None:
+    def test_get_threat_not_found(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
         """GET /v1/threat/{hash} returns 404 for non-existent hash."""
-        resp = client.get("/v1/threat/0000000000000000000000000000000000000000")
+        resp = client.get(
+            "/v1/threat/0000000000000000000000000000000000000000",
+            headers=pro_auth_headers,
+        )
         assert resp.status_code == 404
         assert "No threat entry found" in resp.json()["detail"]
 
-    def test_list_signatures(self, client: TestClient) -> None:
-        """GET /v1/signatures works without authentication."""
-        resp = client.get("/v1/signatures")
+    def test_list_signatures(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
+        """GET /v1/signatures works with PRO authentication."""
+        resp = client.get("/v1/signatures", headers=pro_auth_headers)
         assert resp.status_code == 200
 
         data = resp.json()
@@ -107,18 +112,24 @@ class TestWorkingEndpoints:
         assert "total" in data
         assert data["total"] > 0
 
-    def test_signatures_with_since_filter(self, client: TestClient) -> None:
+    def test_signatures_with_since_filter(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
         """GET /v1/signatures supports 'since' parameter."""
-        resp = client.get("/v1/signatures?since=2099-01-01T00:00:00")
+        resp = client.get(
+            "/v1/signatures?since=2099-01-01T00:00:00", headers=pro_auth_headers
+        )
         assert resp.status_code == 200
 
         data = resp.json()
         assert data["total"] == 0
         assert data["signatures"] == []
 
-    def test_signatures_contain_multiple_phases(self, client: TestClient) -> None:
+    def test_signatures_contain_multiple_phases(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
         """Built-in signatures cover multiple scan phases."""
-        resp = client.get("/v1/signatures")
+        resp = client.get("/v1/signatures", headers=pro_auth_headers)
         data = resp.json()
 
         phases = {sig["phase"] for sig in data["signatures"]}
