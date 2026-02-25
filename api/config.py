@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         """Return True when a Stripe secret key is set."""
         return bool(self.stripe_secret_key)
 
+    @property
+    def jwt_secret_is_insecure(self) -> bool:
+        """Return True when the JWT secret has not been changed from the default."""
+        return self.jwt_secret == "changeme-generate-a-real-secret"
+
 
 # Singleton — importable from anywhere as `from api.config import settings`.
 settings = Settings()

@@ -19,6 +19,8 @@ import logging
 import base64
 import secrets
 import time
+import time as _time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 from typing_extensions import Annotated
@@ -50,6 +52,51 @@ from api.models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
+
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter for login attempts
+# ---------------------------------------------------------------------------
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_WINDOW = 300  # 5 minutes
+_LOGIN_MAX_ATTEMPTS = 10  # max 10 attempts per window per IP
+
+
+def _check_login_rate_limit(client_ip: str) -> None:
+    """Raise 429 if too many login attempts from this IP."""
+    now = _time.time()
+    # Prune old entries
+    _login_attempts[client_ip] = [
+        t for t in _login_attempts[client_ip] if now - t < _LOGIN_WINDOW
+    ]
+    if len(_login_attempts[client_ip]) >= _LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many login attempts. Try again in {_LOGIN_WINDOW // 60} minutes.",
+        )
+    _login_attempts[client_ip].append(now)
+
+
+# ---------------------------------------------------------------------------
+# In-memory token blocklist (cleared on restart — use Redis in production)
+# ---------------------------------------------------------------------------
+_revoked_tokens: set[str] = set()
+_REVOKED_TOKEN_MAX = 10_000  # Cap to prevent memory growth
+
+
+def _revoke_token(token: str) -> None:
+    """Add a token to the revocation blocklist."""
+    if len(_revoked_tokens) >= _REVOKED_TOKEN_MAX:
+        # Evict oldest (since sets are unordered, just clear half)
+        to_remove = list(_revoked_tokens)[: _REVOKED_TOKEN_MAX // 2]
+        for t in to_remove:
+            _revoked_tokens.discard(t)
+    _revoked_tokens.add(token)
+
+
+def _is_token_revoked(token: str) -> bool:
+    """Check if a token has been revoked."""
+    return token in _revoked_tokens
+
 
 # ---------------------------------------------------------------------------
 # Password hashing — stdlib fallback when passlib/bcrypt unavailable
@@ -173,6 +220,13 @@ def _create_access_token(
 
 def _verify_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT.  Raises ``HTTPException`` on failure."""
+    if _is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
@@ -655,11 +709,14 @@ async def register(body: UserCreate) -> TokenResponse:
     summary="Authenticate and receive a JWT",
     responses={401: {"model": ErrorResponse}},
 )
-async def login(body: UserLogin) -> TokenResponse:
+async def login(body: UserLogin, request: Request) -> TokenResponse:
     """Authenticate with email and password.
 
     Returns a JWT access token on success, or 401 on failure.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    _check_login_rate_limit(client_ip)
+
     user = await db.select_one(USER_TABLE, {"email": body.email})
     if user is None or not _verify_password(
         body.password, user.get("password_hash", "")
@@ -714,8 +771,11 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
     """Exchange a refresh token for a new access token.
 
     Validates the provided refresh token and, if valid, issues a fresh
-    access token.  The refresh token is treated as a JWT with the same
-    structure as the access token.
+    access token with the standard expiry (``jwt_expire_minutes``).
+    The consumed refresh token is revoked so it cannot be replayed.
+
+    Note: To return a new 7-day refresh token alongside the access token,
+    add a ``refresh_token`` field to the ``AuthTokens`` model.
     """
     payload = _verify_token(body.refresh_token)
     user_id: str | None = payload.get("sub")
@@ -735,7 +795,14 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    new_token = _create_access_token({"sub": user_id, "email": user.get("email", "")})
+    # Revoke the consumed refresh token to prevent replay
+    _revoke_token(body.refresh_token)
+
+    # Issue a new access token with standard expiry
+    new_token = _create_access_token(
+        {"sub": user_id, "email": user.get("email", "")},
+        expires_delta=timedelta(minutes=settings.jwt_expire_minutes),
+    )
     expires_in = settings.jwt_expire_minutes * 60
 
     logger.info("Token refreshed for user: %s", user_id)
@@ -754,14 +821,18 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
     responses={401: {"model": ErrorResponse}},
 )
 async def logout(
+    request: Request,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
 ) -> None:
     """Invalidate the current session.
 
-    In a stateless JWT setup this is effectively a no-op on the server side.
-    The client should discard its stored tokens.  A token blocklist can be
-    added here in the future for immediate revocation.
+    Adds the Bearer token to an in-memory revocation blocklist so it cannot
+    be reused.  The client should also discard its stored tokens.
     """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        _revoke_token(auth_header[7:])
+
     logger.info("User logged out: %s", current_user.id)
     return None
 
