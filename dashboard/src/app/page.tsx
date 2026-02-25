@@ -93,7 +93,7 @@ export default function DashboardPage() {
               title="Total Scans"
               value={stats.total_scans.toLocaleString()}
               subtitle="all time"
-              trend={stats.trend_scans}
+              trend={stats.scans_trend}
               accentColor="brand"
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,7 +105,7 @@ export default function DashboardPage() {
               title="Threats Blocked"
               value={stats.threats_blocked}
               subtitle="this month"
-              trend={stats.trend_threats}
+              trend={stats.threats_trend}
               accentColor="red"
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

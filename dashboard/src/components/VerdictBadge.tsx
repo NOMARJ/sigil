@@ -1,23 +1,31 @@
 import type { Verdict } from "@/lib/types";
 
-const verdictStyles: Record<Verdict, string> = {
+const verdictStyles: Record<string, string> = {
   CLEAN: "bg-green-500/10 text-green-400 border-green-500/20",
-  LOW: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  MEDIUM: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  HIGH: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  LOW_RISK: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  MEDIUM_RISK: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  HIGH_RISK: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   CRITICAL: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-const verdictDots: Record<Verdict, string> = {
+const verdictDots: Record<string, string> = {
   CLEAN: "bg-green-400",
-  LOW: "bg-blue-400",
-  MEDIUM: "bg-yellow-400",
-  HIGH: "bg-orange-400",
+  LOW_RISK: "bg-blue-400",
+  MEDIUM_RISK: "bg-yellow-400",
+  HIGH_RISK: "bg-orange-400",
   CRITICAL: "bg-red-400",
 };
 
+/** Display label for verdict (strip _RISK suffix for readability). */
+function verdictLabel(v: string): string {
+  return v.replace(/_RISK$/, "");
+}
+
+const DEFAULT_STYLE = "bg-gray-500/10 text-gray-400 border-gray-500/20";
+const DEFAULT_DOT = "bg-gray-400";
+
 interface VerdictBadgeProps {
-  verdict: Verdict;
+  verdict: Verdict | string;
   size?: "sm" | "md" | "lg";
 }
 
@@ -34,12 +42,15 @@ export default function VerdictBadge({ verdict, size = "md" }: VerdictBadgeProps
     lg: "w-2.5 h-2.5",
   };
 
+  const style = verdictStyles[verdict] ?? DEFAULT_STYLE;
+  const dot = verdictDots[verdict] ?? DEFAULT_DOT;
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border font-semibold tracking-wide uppercase ${verdictStyles[verdict]} ${sizeClasses[size]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border font-semibold tracking-wide uppercase ${style} ${sizeClasses[size]}`}
     >
-      <span className={`rounded-full ${verdictDots[verdict]} ${dotSizes[size]}`} />
-      {verdict}
+      <span className={`rounded-full ${dot} ${dotSizes[size]}`} />
+      {verdictLabel(verdict)}
     </span>
   );
 }

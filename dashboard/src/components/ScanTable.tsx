@@ -19,18 +19,18 @@ function formatDate(iso: string): string {
   });
 }
 
-function sourceIcon(source: string): string {
-  switch (source) {
+function targetTypeLabel(targetType: string): string {
+  switch (targetType) {
     case "pip":
       return "PyPI";
     case "npm":
       return "npm";
     case "git":
       return "Git";
-    case "local":
+    case "directory":
       return "Local";
     default:
-      return source;
+      return targetType;
   }
 }
 
@@ -51,8 +51,8 @@ export default function ScanTable({ scans }: ScanTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-800 text-gray-500 text-left">
-            <th className="pb-3 pr-4 font-medium">Package</th>
-            <th className="pb-3 pr-4 font-medium">Source</th>
+            <th className="pb-3 pr-4 font-medium">Target</th>
+            <th className="pb-3 pr-4 font-medium">Type</th>
             <th className="pb-3 pr-4 font-medium">Verdict</th>
             <th className="pb-3 pr-4 font-medium">Score</th>
             <th className="pb-3 pr-4 font-medium">Findings</th>
@@ -70,24 +70,19 @@ export default function ScanTable({ scans }: ScanTableProps) {
                   href={`/scans/${scan.id}`}
                   className="text-gray-100 hover:text-brand-400 font-medium transition-colors"
                 >
-                  {scan.package_name}
-                  {scan.package_version && (
-                    <span className="text-gray-500 font-normal ml-1">
-                      @{scan.package_version}
-                    </span>
-                  )}
+                  {scan.target}
                 </Link>
               </td>
               <td className="py-3 pr-4">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-gray-300 border border-gray-700">
-                  {sourceIcon(scan.source)}
+                  {targetTypeLabel(scan.target_type)}
                 </span>
               </td>
               <td className="py-3 pr-4">
                 <VerdictBadge verdict={scan.verdict} size="sm" />
               </td>
               <td className="py-3 pr-4 font-mono text-gray-300">
-                {scan.score}
+                {scan.risk_score}
               </td>
               <td className="py-3 pr-4 text-gray-400">
                 {scan.findings_count}

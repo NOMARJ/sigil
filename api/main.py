@@ -43,6 +43,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage startup and shutdown of external connections."""
     logger.info("Starting Sigil API v%s", settings.app_version)
 
+    # Warn loudly if using default JWT secret
+    if settings.jwt_secret == "changeme-generate-a-real-secret":
+        logger.critical(
+            "SECURITY: Using default JWT secret! Set SIGIL_JWT_SECRET "
+            "environment variable before deploying to production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
     await db.connect()
     await cache.connect()
 
@@ -80,8 +88,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 

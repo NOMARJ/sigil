@@ -23,10 +23,13 @@ function formatDate(iso: string): string {
   });
 }
 
-const severityOrder: Record<Verdict, number> = {
+const severityOrder: Record<string, number> = {
   CRITICAL: 4,
+  HIGH_RISK: 3,
   HIGH: 3,
+  MEDIUM_RISK: 2,
   MEDIUM: 2,
+  LOW_RISK: 1,
   LOW: 1,
   CLEAN: 0,
 };
@@ -224,33 +227,28 @@ export default function ScanDetailPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-100 tracking-tight">
-              {scan.package_name}
-              <span className="text-gray-500 font-normal ml-2">
-                @{scan.package_version}
-              </span>
+              {scan.target}
             </h1>
             <VerdictBadge verdict={scan.verdict} size="lg" />
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
             <span>
-              Source:{" "}
-              <span className="text-gray-300 font-medium">{scan.source.toUpperCase()}</span>
+              Type:{" "}
+              <span className="text-gray-300 font-medium">{scan.target_type.toUpperCase()}</span>
             </span>
             <span>
               Score:{" "}
-              <span className="font-mono text-gray-300">{scan.score}</span>
+              <span className="font-mono text-gray-300">{scan.risk_score}</span>
             </span>
             <span>Scanned {formatDate(scan.created_at)}</span>
-            {scan.approved_by && (
-              <span className="text-green-400">
-                Approved{scan.approved_at ? ` on ${formatDate(scan.approved_at)}` : ""}
-              </span>
+            {scan.metadata && (scan.metadata as Record<string, unknown>).approved && (
+              <span className="text-green-400">Approved</span>
             )}
           </div>
         </div>
 
         {/* Actions */}
-        {!scan.approved_by && scan.status === "completed" && (
+        {!(scan.metadata && (scan.metadata as Record<string, unknown>).approved) && (
           <div className="flex gap-2">
             <button
               className="btn-primary"
@@ -343,25 +341,20 @@ export default function ScanDetailPage() {
         <FindingsList findings={findings} />
       </div>
 
-      {/* Quarantine info */}
-      {scan.quarantine_path && (
-        <div className="card border-yellow-500/20">
+      {/* Threat hits info */}
+      {scan.threat_hits > 0 && (
+        <div className="card border-red-500/20">
           <div className="card-body flex items-start gap-3">
-            <svg className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <p className="text-sm font-medium text-yellow-400">
-                Package is quarantined
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Quarantine path:{" "}
-                <code className="font-mono text-gray-400">
-                  {scan.quarantine_path}
-                </code>
+              <p className="text-sm font-medium text-red-400">
+                {scan.threat_hits} known threat{scan.threat_hits !== 1 ? "s" : ""} detected
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Approve or reject this package to release it from quarantine.
+                This target matched entries in the threat intelligence database.
+                Approve or reject to proceed.
               </p>
             </div>
           </div>

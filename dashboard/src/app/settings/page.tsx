@@ -8,7 +8,7 @@ import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subs
 // Constants
 // ---------------------------------------------------------------------------
 
-const verdictLevels: Verdict[] = ["CLEAN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
+const verdictLevels: Verdict[] = ["CLEAN", "LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "CRITICAL"];
 
 const channelTypeStyles: Record<string, string> = {
   slack: "bg-purple-500/10 text-purple-400 border-purple-500/20",
@@ -37,7 +37,7 @@ export default function SettingsPage() {
   const [channels, setChannels] = useState<AlertChannel[]>([]);
   const [newChannelType, setNewChannelType] = useState<AlertChannelType>("slack");
   const [newChannelTarget, setNewChannelTarget] = useState("");
-  const [newChannelSeverity, setNewChannelSeverity] = useState<Verdict>("HIGH");
+  const [newChannelSeverity, setNewChannelSeverity] = useState<Verdict>("HIGH_RISK");
 
   // Billing state
   const [plans, setPlans] = useState<BillingPlan[]>([]);

@@ -4,7 +4,12 @@
 // ---------------------------------------------------------------------------
 
 /** Verdict levels returned by the scan engine. */
-export type Verdict = "CLEAN" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type Verdict =
+  | "CLEAN"
+  | "LOW_RISK"
+  | "MEDIUM_RISK"
+  | "HIGH_RISK"
+  | "CRITICAL";
 
 /** Scan phases as defined by the Sigil scanner. */
 export type ScanPhase =
@@ -32,22 +37,20 @@ export interface Finding {
   weight: number;
 }
 
-/** A completed (or in-progress) scan record. */
+/** A completed (or in-progress) scan record.
+ *  Aligned with API ScanListItem / ScanDetail models.
+ */
 export interface Scan {
   id: string;
-  package_name: string;
-  package_version: string;
-  source: ScanSource;
-  verdict: Verdict;
-  score: number;
+  target: string;
+  target_type: string;
+  files_scanned: number;
   findings_count: number;
-  findings: Finding[];
-  quarantine_path: string | null;
-  status: "pending" | "scanning" | "completed" | "failed";
+  risk_score: number;
+  verdict: Verdict | string;
+  threat_hits: number;
+  metadata: Record<string, unknown>;
   created_at: string;
-  completed_at: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
 }
 
 /** Known-malicious package entry from the threat intelligence feed. */
@@ -197,24 +200,29 @@ export interface Subscription {
   scan_limit: number;
 }
 
-/** Dashboard overview statistics. */
+/** Dashboard overview statistics.
+ *  Aligned with API DashboardStats model.
+ */
 export interface DashboardStats {
   total_scans: number;
   threats_blocked: number;
   packages_approved: number;
   critical_findings: number;
-  scans_today: number;
-  trend_scans: number;
-  trend_threats: number;
+  scans_trend: number;
+  threats_trend: number;
+  approved_trend: number;
+  critical_trend: number;
 }
 
-/** Generic paginated API response. */
+/** Generic paginated API response.
+ *  Aligned with API ScanListResponse model.
+ */
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
   per_page: number;
-  has_more: boolean;
+  upgrade_message?: string | null;
 }
 
 /** Auth tokens returned after login / refresh. */
