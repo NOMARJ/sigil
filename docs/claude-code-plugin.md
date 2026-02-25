@@ -361,7 +361,7 @@ Edit `~/.sigil/config.yaml`:
 ```yaml
 quarantine:
   auto_approve_threshold: 0  # Only auto-approve CLEAN (0)
-  # auto_approve_threshold: 9  # Auto-approve CLEAN and LOW (0-9)
+  # auto_approve_threshold: 9  # Auto-approve CLEAN and LOW_RISK (0-9)
 ```
 
 ### Sigil Pro Integration
@@ -470,7 +470,7 @@ Claude: Let me scan this MCP server for security threats before you install it.
 🔍 SCAN RESULTS: MEDIUM RISK
 
 Risk Score: 18 / 100
-Threat Level: MEDIUM
+Threat Level: MEDIUM_RISK
 
 📋 Findings:
 1. Code Pattern - process.env access

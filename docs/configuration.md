@@ -149,16 +149,16 @@ Automatically approve quarantined items with a risk score at or below this thres
 | Threshold | Effect |
 |-----------|--------|
 | `0` (default) | Only auto-approve CLEAN scans (score 0) |
-| `9` | Auto-approve CLEAN and LOW RISK |
-| `24` | Auto-approve CLEAN, LOW, and MEDIUM (not recommended) |
+| `9` | Auto-approve CLEAN and LOW_RISK |
+| `24` | Auto-approve CLEAN, LOW_RISK, and MEDIUM_RISK (not recommended) |
 | `-1` | Disable auto-approve — everything requires manual review |
 
 ### Required Review
 
 Force manual review for specific verdicts regardless of auto-approve threshold:
 
-- **HIGH and CRITICAL** — always require manual review (default)
-- **MEDIUM** — optionally require review
+- **HIGH_RISK and CRITICAL** — always require manual review (default)
+- **MEDIUM_RISK** — optionally require review
 - **All** — require review for every scan
 
 ### Package Allowlist
