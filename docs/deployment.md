@@ -382,7 +382,7 @@ jobs:
 
 | Output | Description |
 |--------|-------------|
-| `verdict` | Scan verdict: `clean`, `low`, `medium`, `high`, or `critical` |
+| `verdict` | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, or `CRITICAL` |
 | `risk-score` | Numeric risk score from the scan |
 | `findings-count` | Total number of findings detected |
 

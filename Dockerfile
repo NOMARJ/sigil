@@ -36,9 +36,9 @@ RUN npm run build
 # ── Stage 3: Runtime Image ──────────────────────────────────────────────────
 FROM python:3.11-slim-bookworm AS runtime
 
-LABEL maintainer="NOMARK <team@nomark.dev>"
+LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil — Automated Security Auditing for AI Agent Code"
-LABEL org.opencontainers.image.source="https://github.com/nomark/sigil"
+LABEL org.opencontainers.image.source="https://github.com/NOMARJ/sigil"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

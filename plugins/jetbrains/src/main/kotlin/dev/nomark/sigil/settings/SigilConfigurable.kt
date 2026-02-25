@@ -41,7 +41,7 @@ class SigilConfigurable(private val project: Project) :
                 textField()
                     .bindText(settings::apiEndpoint)
                     .columns(COLUMNS_LARGE)
-                    .comment("Leave blank for default (api.sigil.nomark.dev)")
+                    .comment("Leave blank for default (api.sigilsec.ai)")
             }
         }
     }

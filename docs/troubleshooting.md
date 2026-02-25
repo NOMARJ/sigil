@@ -200,7 +200,7 @@ sigil scan /full/path/to/directory
 **Check network connectivity:**
 
 ```bash
-curl -s https://api.sigil.nomark.dev/health
+curl -s https://api.sigilsec.ai/health
 ```
 
 **Check API URL:** If using a custom API URL, verify it:
@@ -281,9 +281,9 @@ cat results.sarif | python -m json.tool    # Check it's valid JSON
 | Exit Code | Verdict | Suggested CI Action |
 |-----------|---------|-------------------|
 | `0` | CLEAN | Pass |
-| `4` | LOW | Pass (with optional warning) |
-| `3` | MEDIUM | Pass or fail (configurable) |
-| `2` | HIGH | Fail |
+| `4` | LOW_RISK | Pass (with optional warning) |
+| `3` | MEDIUM_RISK | Pass or fail (configurable) |
+| `2` | HIGH_RISK | Fail |
 | `1` | CRITICAL / Error | Fail |
 
 **Example gate script:**

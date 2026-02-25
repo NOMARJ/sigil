@@ -148,7 +148,7 @@ Sigil works in two modes:
 - **Website**: [sigilsec.ai](https://sigilsec.ai)
 - **GitHub**: [NOMARJ/sigil](https://github.com/NOMARJ/sigil)
 - **Issues**: [Report a bug](https://github.com/NOMARJ/sigil/issues)
-- **Security**: security@nomark.dev
+- **Security**: security@sigilsec.ai
 
 ---
 

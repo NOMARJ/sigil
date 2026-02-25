@@ -94,7 +94,7 @@ sigil logout
 
 2. **CLI → API Request**
    ```http
-   POST https://api.sigil.nomark.dev/v1/auth/login
+   POST https://api.sigilsec.ai/v1/auth/login
    Content-Type: application/json
 
    {
@@ -242,7 +242,7 @@ The CLI is designed for **privacy-first** threat detection. Only metadata (hashe
 
 ### API Endpoint
 
-Default: `https://api.sigil.nomark.dev`
+Default: `https://api.sigilsec.ai`
 
 Override with environment variable:
 
@@ -288,7 +288,7 @@ To use a self-hosted Sigil API:
 - Check your network connection
 - Verify the API endpoint is accessible:
   ```bash
-  curl https://api.sigil.nomark.dev/health
+  curl https://api.sigilsec.ai/health
   ```
 - Try again with `--verbose` flag (if supported)
 
@@ -433,7 +433,7 @@ RUN --mount=type=secret,id=sigil_token \
 
 - **Documentation**: [https://github.com/NOMARJ/sigil/docs](https://github.com/NOMARJ/sigil/tree/main/docs)
 - **Issues**: [https://github.com/NOMARJ/sigil/issues](https://github.com/NOMARJ/sigil/issues)
-- **Security**: security@nomark.dev
+- **Security**: security@sigilsec.ai
 
 ---
 

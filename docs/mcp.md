@@ -113,7 +113,7 @@ Scan a file or directory for security issues.
 **Example response:**
 
 ```
-Verdict: MEDIUM | Score: 12 | 3 findings | 47 files scanned in 850ms
+Verdict: MEDIUM_RISK | Score: 12 | 3 findings | 47 files scanned in 850ms
 
 [HIGH] eval_usage — src/parser.py:42
   result = eval(expression)
@@ -233,7 +233,7 @@ The agent calls `sigil_clone` with the URL, reviews the verdict, and reports fin
 
 > "What's in quarantine? Approve the clean ones and reject anything critical."
 
-The agent calls `sigil_quarantine` to list items, then iterates through them — calling `sigil_approve` for CLEAN/LOW items and `sigil_reject` for CRITICAL items, asking for confirmation on anything in between.
+The agent calls `sigil_quarantine` to list items, then iterates through them — calling `sigil_approve` for CLEAN/LOW_RISK items and `sigil_reject` for CRITICAL items, asking for confirmation on anything in between.
 
 ---
 
@@ -247,7 +247,7 @@ Build an agent that intercepts package install requests and scans first:
 Agent receives: "Install the requests library"
   1. Agent calls sigil_scan_package(manager="pip", package_name="requests")
   2. Verdict: CLEAN → Agent proceeds with pip install
-  3. Verdict: HIGH → Agent warns user, shows findings, asks for confirmation
+  3. Verdict: HIGH_RISK → Agent warns user, shows findings, asks for confirmation
 ```
 
 ### Pattern: CI security review agent

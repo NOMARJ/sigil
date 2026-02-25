@@ -9,6 +9,15 @@ REPO="NOMARJ/sigil"
 BINARY_NAME="sigil"
 INSTALL_DIR="/usr/local/bin"
 GITHUB_RAW="https://raw.githubusercontent.com/${REPO}/main"
+SKIP_VERIFY=false
+
+# ── Argument parsing ────────────────────────────────────────────────────────
+
+for arg in "$@"; do
+  case "$arg" in
+    --skip-verify) SKIP_VERIFY=true ;;
+  esac
+done
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +78,53 @@ install_from_release() {
   else
     wget -qO "$TMP" "$RELEASE_URL" || return 1
   fi
+
+  # ── Checksum verification ────────────────────────────────────────────────
+  RELEASE_BASE="https://github.com/${REPO}/releases/download/${LATEST_TAG}"
+  CHECKSUMS_URL="${RELEASE_BASE}/SHA256SUMS.txt"
+  TMP_DIR="$(dirname "$TMP")"
+
+  if [ "$SKIP_VERIFY" != "true" ]; then
+    # Download checksum file
+    CHECKSUMS_FILE="${TMP_DIR}/sigil-SHA256SUMS.txt"
+    if have curl; then
+      CHECKSUM_DL=$(curl -fsSL "$CHECKSUMS_URL" -o "$CHECKSUMS_FILE" 2>/dev/null && echo "ok" || echo "fail")
+    else
+      CHECKSUM_DL=$(wget -qO "$CHECKSUMS_FILE" "$CHECKSUMS_URL" 2>/dev/null && echo "ok" || echo "fail")
+    fi
+
+    if [ "$CHECKSUM_DL" != "ok" ]; then
+      warn "Could not download checksums file — skipping verification"
+    else
+      EXPECTED_HASH=$(grep "$ASSET_NAME" "$CHECKSUMS_FILE" | awk '{print $1}')
+      if [ -z "$EXPECTED_HASH" ]; then
+        warn "No checksum found for $ASSET_NAME — skipping verification"
+      else
+        ACTUAL_HASH=""
+        if command -v sha256sum >/dev/null 2>&1; then
+          ACTUAL_HASH=$(sha256sum "$TMP" | awk '{print $1}')
+        elif command -v shasum >/dev/null 2>&1; then
+          ACTUAL_HASH=$(shasum -a 256 "$TMP" | awk '{print $1}')
+        else
+          warn "Neither sha256sum nor shasum found — skipping verification"
+        fi
+
+        if [ -n "$ACTUAL_HASH" ] && [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+          rm -f "$TMP" "$CHECKSUMS_FILE"
+          die "Checksum verification FAILED!
+  Expected: $EXPECTED_HASH
+  Got:      $ACTUAL_HASH
+  The downloaded binary may have been tampered with."
+        elif [ -n "$ACTUAL_HASH" ]; then
+          ok "Checksum verified"
+        fi
+      fi
+      rm -f "$CHECKSUMS_FILE"
+    fi
+  else
+    warn "Checksum verification skipped (--skip-verify)"
+  fi
+
   chmod +x "$TMP"
   # Quick sanity check — should print a version string
   if ! "$TMP" --version >/dev/null 2>&1; then

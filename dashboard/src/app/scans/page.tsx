@@ -8,9 +8,9 @@ import type { Scan, Verdict, PaginatedResponse } from "@/lib/types";
 const verdictOptions: (Verdict | "ALL")[] = [
   "ALL",
   "CLEAN",
-  "LOW",
-  "MEDIUM",
-  "HIGH",
+  "LOW_RISK",
+  "MEDIUM_RISK",
+  "HIGH_RISK",
   "CRITICAL",
 ];
 
@@ -46,7 +46,7 @@ export default function ScansPage() {
       const data: PaginatedResponse<Scan> = await api.listScans(params);
       setScans(data.items);
       setTotal(data.total);
-      setHasMore(data.has_more);
+      setHasMore(data.total > page * PER_PAGE);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load scans.";

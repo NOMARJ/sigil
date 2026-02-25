@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # --- CORS ------------------------------------------------------------------
     cors_origins: list[str] = ["http://localhost:3000"]
+    frontend_url: str = "https://app.sigilsec.ai"
 
     # --- JWT / Auth ------------------------------------------------------------
     jwt_secret: str = "changeme-generate-a-real-secret"
@@ -68,7 +69,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str | None = None
     smtp_password: str | None = None
-    smtp_from_email: str = "alerts@sigil.dev"
+    smtp_from_email: str = "alerts@sigilsec.ai"
 
     # --- Stripe (optional — for billing) ---------------------------------------
     stripe_secret_key: str | None = None
@@ -106,6 +107,11 @@ class Settings(BaseSettings):
     def stripe_configured(self) -> bool:
         """Return True when a Stripe secret key is set."""
         return bool(self.stripe_secret_key)
+
+    @property
+    def jwt_secret_is_insecure(self) -> bool:
+        """Return True when the JWT secret has not been changed from the default."""
+        return self.jwt_secret == "changeme-generate-a-real-secret"
 
 
 # Singleton — importable from anywhere as `from api.config import settings`.

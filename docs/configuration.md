@@ -25,7 +25,7 @@ Configuration is resolved in this order (highest priority first):
 | `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Detailed scan reports (text) |
 | `SIGIL_CONFIG` | `~/.sigil/config` | Path to the config file |
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to the authentication token file |
-| `SIGIL_API_URL` | `https://api.sigil.nomark.dev` | Sigil cloud API base URL |
+| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
 
 **Example: custom quarantine location**
 
@@ -65,7 +65,7 @@ The config file at `~/.sigil/config` stores persistent settings. It uses a simpl
 
 ```bash
 # ~/.sigil/config
-API_URL=https://api.sigil.nomark.dev
+API_URL=https://api.sigilsec.ai
 AUTO_APPROVE_THRESHOLD=0
 DEFAULT_SEVERITY=low
 ```
@@ -149,16 +149,16 @@ Automatically approve quarantined items with a risk score at or below this thres
 | Threshold | Effect |
 |-----------|--------|
 | `0` (default) | Only auto-approve CLEAN scans (score 0) |
-| `9` | Auto-approve CLEAN and LOW RISK |
-| `24` | Auto-approve CLEAN, LOW, and MEDIUM (not recommended) |
+| `9` | Auto-approve CLEAN and LOW_RISK |
+| `24` | Auto-approve CLEAN, LOW_RISK, and MEDIUM_RISK (not recommended) |
 | `-1` | Disable auto-approve — everything requires manual review |
 
 ### Required Review
 
 Force manual review for specific verdicts regardless of auto-approve threshold:
 
-- **HIGH and CRITICAL** — always require manual review (default)
-- **MEDIUM** — optionally require review
+- **HIGH_RISK and CRITICAL** — always require manual review (default)
+- **MEDIUM_RISK** — optionally require review
 - **All** — require review for every scan
 
 ### Package Allowlist
@@ -194,7 +194,7 @@ curl -H "Authorization: Bearer $TOKEN" https://api.sigilsec.ai/v1/settings/polic
 curl -X PATCH \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"auto_approve_threshold": 0, "require_review_for": ["HIGH", "CRITICAL"]}' \
+  -d '{"auto_approve_threshold": 0, "require_review_for": ["HIGH_RISK", "CRITICAL"]}' \
   https://api.sigilsec.ai/v1/settings/policy
 ```
 

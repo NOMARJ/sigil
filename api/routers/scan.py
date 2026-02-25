@@ -292,19 +292,9 @@ async def list_scans(
     Free plan users receive an empty list with an upgrade message.
     PRO plan and above receive full scan history.
     """
-    # Soft-gate: FREE tier gets empty list + upgrade prompt
+    # Soft-gate: FREE tier gets limited preview (last 5) + upgrade prompt
     current_tier = await get_user_plan(current_user.id)
-    if current_tier == PlanTier.FREE:
-        return ScanListResponse(
-            items=[],
-            total=0,
-            page=page,
-            per_page=per_page,
-            upgrade_message=(
-                "Scan history is available on the Pro plan and above. "
-                "Upgrade at https://app.sigilsec.ai/upgrade"
-            ),
-        )
+    is_free = current_tier == PlanTier.FREE
 
     filters: dict[str, Any] = {}
     if verdict:
@@ -324,6 +314,12 @@ async def list_scans(
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
 
     total = len(rows)
+
+    # FREE tier: limit to most recent 5 scans with upgrade prompt
+    if is_free:
+        rows = rows[:5]
+        total = min(total, 5)
+
     start = (page - 1) * per_page
     end = start + per_page
     page_rows = rows[start:end]
@@ -333,6 +329,12 @@ async def list_scans(
         total=total,
         page=page,
         per_page=per_page,
+        upgrade_message=(
+            "Free plan shows your 5 most recent scans. "
+            "Upgrade to Pro for full scan history: https://app.sigilsec.ai/upgrade"
+        )
+        if is_free
+        else None,
     )
 
 
@@ -471,11 +473,10 @@ async def reject_scan(
     "/dashboard/stats",
     response_model=DashboardStats,
     summary="Get aggregate dashboard statistics",
-    responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
+    responses={401: {"model": ErrorResponse}},
 )
 async def get_dashboard_stats(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
-    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> DashboardStats:
     """Return aggregate statistics for the dashboard overview page.
 

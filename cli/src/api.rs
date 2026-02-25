@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::scanner::cloud_sigs::{self, SignatureResponse as CloudSigResponse};
 use crate::scanner::ScanResult;
 
-const DEFAULT_ENDPOINT: &str = "https://api.sigil.nomark.dev";
+const DEFAULT_ENDPOINT: &str = "https://api.sigilsec.ai";
 
 /// API client for the Sigil cloud service.
 pub struct SigilClient {

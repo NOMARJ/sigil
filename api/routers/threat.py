@@ -29,7 +29,7 @@ from api.models import (
     ThreatEntry,
 )
 
-# Removed unused imports: get_current_user, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from api.services.threat_intel import (
     delete_signature,
     get_report,
@@ -85,8 +85,8 @@ class ReportStatusUpdate(BaseModel):
 )
 async def get_threat(
     package_hash: str,
-    # TODO: Re-enable plan gating after fixing dependency injection issue
-    # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ThreatEntry:
     """Return the threat entry for *package_hash* if it exists.
 
@@ -113,6 +113,7 @@ async def get_threat(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_threats(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     severity: str | None = Query(None, description="Filter by severity"),
     source: str | None = Query(None, description="Filter by source"),
@@ -144,8 +145,8 @@ async def get_threats(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_all_signatures(
-    # TODO: Re-enable plan gating after fixing dependency injection issue
-    # _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     since: datetime | None = Query(
         None,
         description="ISO-8601 timestamp; only return signatures updated after this time",
@@ -168,6 +169,7 @@ async def get_all_signatures(
 )
 async def create_or_update_signature(
     request: SignatureUpsertRequest,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Upsert a detection signature.  Used by admins to push new patterns
@@ -190,6 +192,7 @@ async def create_or_update_signature(
 )
 async def remove_signature(
     sig_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Remove a signature by ID."""
@@ -213,6 +216,7 @@ async def remove_signature(
     responses={401: {"model": ErrorResponse}, 403: {"model": GateError}},
 )
 async def get_threat_reports(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
     report_status: str | None = Query(
         None,
@@ -233,6 +237,7 @@ async def get_threat_reports(
 )
 async def get_single_report(
     report_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Return the full details of a threat report."""
@@ -253,6 +258,7 @@ async def get_single_report(
 async def update_report(
     report_id: str,
     body: ReportStatusUpdate,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Transition a report's status.

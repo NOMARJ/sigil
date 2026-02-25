@@ -112,20 +112,17 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Update version in package.json from git tag
           VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix
+          VERSION="${VERSION#v}"
           npm version "$VERSION" --no-git-tag-version
-          npm publish --access public
-        continue-on-error: true
+          npm publish --access public || echo "::warning::npm publish failed — verify NPM_TOKEN secret is configured"
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
         working-directory: cli
         run: |
-          cargo publish --token "${CARGO_REGISTRY_TOKEN}"
-        continue-on-error: true
+          cargo publish --token "${CARGO_REGISTRY_TOKEN}" || echo "::warning::cargo publish failed — verify CARGO_TOKEN secret is configured"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

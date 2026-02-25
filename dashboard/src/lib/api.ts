@@ -52,7 +52,7 @@ async function getToken(): Promise<string | null> {
       }
     }
   } catch (err) {
-    console.warn("Failed to get Supabase session:", err);
+    // Supabase session unavailable — falling back to custom JWT
   }
 
   // Fallback to custom JWT token for backward compatibility

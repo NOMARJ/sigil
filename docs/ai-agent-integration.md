@@ -143,9 +143,9 @@ graph TD
     B -->|Yes| D[Run Sigil scan]
     D --> E{Risk score?}
     E -->|0 CLEAN| F[Auto-approve]
-    E -->|1-9 LOW| G[Show findings, recommend approval]
-    E -->|10-24 MEDIUM| H[Require manual review]
-    E -->|25-49 HIGH| I[Block, require override]
+    E -->|1-9 LOW_RISK| G[Show findings, recommend approval]
+    E -->|10-24 MEDIUM_RISK| H[Require manual review]
+    E -->|25-49 HIGH_RISK| I[Block, require override]
     E -->|50+ CRITICAL| J[Block, no override]
 ```
 

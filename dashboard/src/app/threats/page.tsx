@@ -8,9 +8,9 @@ import type { ThreatEntry, Verdict, ScanSource, ReportThreatRequest, Signature, 
 const severityOptions: (Verdict | "ALL")[] = [
   "ALL",
   "CRITICAL",
-  "HIGH",
-  "MEDIUM",
-  "LOW",
+  "HIGH_RISK",
+  "MEDIUM_RISK",
+  "LOW_RISK",
 ];
 
 type Tab = "threats" | "reports" | "signatures";
@@ -56,7 +56,7 @@ export default function ThreatsPage() {
     source: "npm",
     threat_type: "Supply Chain Attack",
     description: "",
-    severity: "HIGH",
+    severity: "HIGH_RISK",
     indicators: [],
     references: [],
   });
@@ -86,7 +86,7 @@ export default function ThreatsPage() {
       const data = await api.searchThreats(params);
       setThreats(data.items);
       setTotal(data.total);
-      setHasMore(data.has_more);
+      setHasMore(data.has_more ?? false);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load threats.";
@@ -162,7 +162,7 @@ export default function ThreatsPage() {
         source: "npm",
         threat_type: "Supply Chain Attack",
         description: "",
-        severity: "HIGH",
+        severity: "HIGH_RISK",
         indicators: [],
         references: [],
       });
@@ -193,7 +193,7 @@ export default function ThreatsPage() {
       });
       setReports(data.items);
       setReportsTotal(data.total);
-      setReportsHasMore(data.has_more);
+      setReportsHasMore(data.has_more ?? false);
     } catch {
       // Silently handle — reports tab is secondary
     } finally {
@@ -705,9 +705,9 @@ export default function ThreatsPage() {
                       className="input"
                     >
                       <option value="CRITICAL">Critical</option>
-                      <option value="HIGH">High</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="LOW">Low</option>
+                      <option value="HIGH_RISK">High</option>
+                      <option value="MEDIUM_RISK">Medium</option>
+                      <option value="LOW_RISK">Low</option>
                     </select>
                   </div>
                 </div>
