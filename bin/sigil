@@ -32,7 +32,7 @@ LOG_DIR="${SIGIL_LOG_DIR:-$HOME/.sigil/logs}"
 REPORT_DIR="${SIGIL_REPORT_DIR:-$HOME/.sigil/reports}"
 export CONFIG_FILE="${SIGIL_CONFIG:-$HOME/.sigil/config}"
 TOKEN_FILE="${SIGIL_TOKEN:-$HOME/.sigil/token}"
-API_BASE_URL="${SIGIL_API_URL:-https://api.sigil.nomark.dev}"
+API_BASE_URL="${SIGIL_API_URL:-https://api.sigilsec.ai}"
 
 # Severity thresholds (exit codes) — exported for use in hooks/scripts
 export SEVERITY_CRITICAL=1

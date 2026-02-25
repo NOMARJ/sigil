@@ -155,7 +155,7 @@ enum Commands {
         token: Option<String>,
 
         /// API endpoint URL
-        #[arg(long, default_value = "https://api.sigil.nomark.dev")]
+        #[arg(long, default_value = "https://api.sigilsec.ai")]
         endpoint: String,
     },
 

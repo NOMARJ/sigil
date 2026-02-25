@@ -23,7 +23,7 @@
 | 5 | **Frontend `Verdict` enum mismatch** — Dashboard uses `"LOW"`, `"MEDIUM"`, `"HIGH"`; API uses `"LOW_RISK"`, `"MEDIUM_RISK"`, `"HIGH_RISK"` | Dashboard types.ts ↔ API models.py | Verdict badges never match |
 | 6 | **Supabase OAuth completely broken** — Dashboard `.env.production` has no `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`; supabase client is `null` | Dashboard auth | GitHub/Google login crashes |
 | 7 | **Hardcoded default JWT secret** — `config.py:49` defaults to `"changeme-generate-a-real-secret"` | API security | Attacker can forge JWTs if env var not set |
-| 8 | **API URL mismatch** — CLI uses `api.sigil.nomark.dev`, dashboard uses `api.sigilsec.ai` | Cross-component | Requests go to wrong endpoint |
+| 8 | ~~**API URL mismatch**~~ — **FIXED**: Standardized all references to `api.sigilsec.ai` | Cross-component | Resolved |
 | 9 | **Threats count uses wrong verdict string** — `scan.py:488` checks for `"HIGH_RISK"` but verdict values stored use enum `.value` which is correct, yet the comparison is inconsistent with frontend | API stats | Threats count always wrong |
 | 10 | **OAuth callback URL mismatch** — Dashboard hardcodes `app.sigilsec.ai/auth/callback` but GitHub OAuth configured for Supabase callback URL | Dashboard ↔ GitHub OAuth | OAuth flow fails on redirect |
 

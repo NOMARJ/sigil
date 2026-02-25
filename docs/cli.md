@@ -459,7 +459,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Directory for scan reports |
 | `SIGIL_CONFIG` | `~/.sigil/config` | Path to config file |
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
-| `SIGIL_API_URL` | `https://api.sigil.nomark.dev` | Sigil cloud API base URL |
+| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
 
 ---
 

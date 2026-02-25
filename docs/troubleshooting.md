@@ -200,7 +200,7 @@ sigil scan /full/path/to/directory
 **Check network connectivity:**
 
 ```bash
-curl -s https://api.sigil.nomark.dev/health
+curl -s https://api.sigilsec.ai/health
 ```
 
 **Check API URL:** If using a custom API URL, verify it:

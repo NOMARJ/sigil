@@ -25,7 +25,7 @@ Configuration is resolved in this order (highest priority first):
 | `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Detailed scan reports (text) |
 | `SIGIL_CONFIG` | `~/.sigil/config` | Path to the config file |
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to the authentication token file |
-| `SIGIL_API_URL` | `https://api.sigil.nomark.dev` | Sigil cloud API base URL |
+| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
 
 **Example: custom quarantine location**
 
@@ -65,7 +65,7 @@ The config file at `~/.sigil/config` stores persistent settings. It uses a simpl
 
 ```bash
 # ~/.sigil/config
-API_URL=https://api.sigil.nomark.dev
+API_URL=https://api.sigilsec.ai
 AUTO_APPROVE_THRESHOLD=0
 DEFAULT_SEVERITY=low
 ```
