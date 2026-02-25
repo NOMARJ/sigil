@@ -431,9 +431,9 @@ The risk score is the sum of `(finding_count * phase_weight)` across all phases.
 |------|---------|
 | `0` | CLEAN — no findings, or command completed successfully |
 | `1` | CRITICAL — score 50+, or command error |
-| `2` | HIGH — score 25-49 |
-| `3` | MEDIUM — score 10-24 |
-| `4` | LOW — score 1-9 |
+| `2` | HIGH_RISK — score 25-49 |
+| `3` | MEDIUM_RISK — score 10-24 |
+| `4` | LOW_RISK — score 1-9 |
 
 Use exit codes in scripts and CI pipelines to gate on scan results:
 

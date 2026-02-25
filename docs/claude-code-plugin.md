@@ -152,7 +152,7 @@ claude
 🔍 SCAN RESULTS: [VERDICT]
 
 Risk Score: [X] / 100
-Threat Level: [CLEAN|LOW|MEDIUM|HIGH|CRITICAL]
+Threat Level: [CLEAN|LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL]
 
 📋 Findings:
 [Detailed threat analysis]

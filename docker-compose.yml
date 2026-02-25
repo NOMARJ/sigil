@@ -139,7 +139,7 @@ services:
       SIGIL_SUPABASE_URL: "${SIGIL_SUPABASE_URL}"
       SIGIL_SUPABASE_KEY: "${SIGIL_SUPABASE_KEY}"
       SIGIL_REDIS_URL: "redis://redis:6379/0"
-      SIGIL_CORS_ORIGINS: '${SIGIL_CORS_ORIGINS:-["https://sigil.nomark.dev"]}'
+      SIGIL_CORS_ORIGINS: '${SIGIL_CORS_ORIGINS:-["https://app.sigilsec.ai"]}'
     depends_on:
       postgres:
         condition: service_healthy

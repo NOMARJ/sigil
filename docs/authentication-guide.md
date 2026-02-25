@@ -433,7 +433,7 @@ RUN --mount=type=secret,id=sigil_token \
 
 - **Documentation**: [https://github.com/NOMARJ/sigil/docs](https://github.com/NOMARJ/sigil/tree/main/docs)
 - **Issues**: [https://github.com/NOMARJ/sigil/issues](https://github.com/NOMARJ/sigil/issues)
-- **Security**: security@nomark.dev
+- **Security**: security@sigilsec.ai
 
 ---
 

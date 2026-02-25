@@ -2,7 +2,7 @@
 
 How Sigil protects you today, and where we're headed next.
 
-Last updated: 2026-02-19
+Last updated: 2026-02-25
 
 ---
 
@@ -48,7 +48,8 @@ A web dashboard gives your team visibility into scan history, threat intelligenc
 ### Use it wherever you work
 - **VS Code / Cursor / Windsurf** — packaged `.vsix` available; scan files and packages from the editor, findings in the Problems panel
 - **JetBrains** — IntelliJ, WebStorm, PyCharm, GoLand and more; build with `gradle buildPlugin`, inline annotations and tool window
-- **Claude Code / AI agents** — MCP server exposes scan, approve, and reject as tools your agent can call; run via `node plugins/mcp-server/dist/index.js`
+- **Claude Code plugin** — native plugin with 4 skills (`scan-repo`, `scan-package`, `scan-file`, `quarantine-review`) and 2 security agents (`@security-auditor`, `@quarantine-manager`)
+- **Claude Code / AI agents (MCP)** — MCP server exposes scan, approve, and reject as tools your agent can call; run via `node plugins/mcp-server/dist/index.js`
 - **GitHub Actions** — add `sigil-scan` to your CI pipeline, fail builds on findings, upload SARIF to Code Scanning
 - **Any CI system** — JSON and SARIF output work with any pipeline
 
@@ -62,8 +63,13 @@ The Rust CLI compiles and runs as a standalone binary — faster than the bash s
 
 ## What we're working on now
 
-### Hosted cloud
-Right now the API and dashboard run locally via Docker Compose. We're standing up the hosted version so you can sign up at sigilsec.ai and start scanning without running infrastructure — scan results, threat intel, and team management backed by managed Postgres, with signature distribution through a CDN.
+### Hosted cloud (in progress)
+The API is live at `api.sigilsec.ai` and the dashboard at `app.sigilsec.ai`, backed by managed Postgres (Supabase), Redis, and Azure Container Apps. The remaining work before general availability:
+
+- Stabilize Supabase OAuth flow for dashboard login (GitHub + Google providers)
+- Complete end-to-end signup-to-scan-to-results flow for new users
+- Provision trial Pro plan for new signups so the dashboard is immediately useful
+- Production JWT secret and token revocation
 
 ---
 

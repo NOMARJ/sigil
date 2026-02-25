@@ -48,7 +48,7 @@ jobs:
 
 | Output | Description |
 |--------|-------------|
-| `verdict` | Scan verdict: `CLEAN`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
+| `verdict` | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, `CRITICAL` |
 | `score` | Numeric risk score |
 | `findings-count` | Number of findings |
 | `report-path` | Path to the scan report file |
@@ -184,9 +184,9 @@ sigil scan . --format json > sigil-report.json
 | Exit Code | Verdict | Recommended Action |
 |-----------|---------|-------------------|
 | `0` | CLEAN | Pipeline passes |
-| `4` | LOW | Pass with warning |
-| `3` | MEDIUM | Pass or fail (configurable) |
-| `2` | HIGH | Fail the pipeline |
+| `4` | LOW_RISK | Pass with warning |
+| `3` | MEDIUM_RISK | Pass or fail (configurable) |
+| `2` | HIGH_RISK | Fail the pipeline |
 | `1` | CRITICAL | Fail the pipeline |
 
 ```bash
@@ -385,7 +385,7 @@ Machine-readable output for programmatic processing:
 
 ```json
 {
-  "verdict": "MEDIUM",
+  "verdict": "MEDIUM_RISK",
   "score": 12,
   "findings": [
     {

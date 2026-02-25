@@ -496,7 +496,7 @@ Look up the reputation of a package publisher/author.
   "total_packages": 3,
   "flagged_packages": 2,
   "packages": [
-    {"name": "aws-helper-utils", "version": "1.2.3", "verdict": "critical", "scans": 47}
+    {"name": "aws-helper-utils", "version": "1.2.3", "verdict": "CRITICAL", "scans": 47}
   ]
 }
 ```
@@ -578,7 +578,7 @@ Verify a package or tool for marketplace listing. Runs an enhanced scan and retu
   "source_ref": "langchain-community",
   "source_version": "0.2.1",
   "score": 3,
-  "verdict": "low",
+  "verdict": "LOW_RISK",
   "badge_url": "https://sigilsec.ai/badge/ver_s1t2u3v4w5x6.svg",
   "verified_at": "2026-02-15T15:30:00Z",
   "expires_at": "2026-03-15T15:30:00Z"

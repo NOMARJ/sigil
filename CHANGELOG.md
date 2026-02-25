@@ -22,6 +22,25 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - Troubleshooting & FAQ page
 - Comparison pages (Sigil vs Snyk, Socket.dev, Semgrep, CodeQL)
 - Blog launch with 8 posts
+- Authentication guide with login, token refresh, and troubleshooting
+- Claude Code native plugin with 4 skills + 2 security agents
+- Dashboard `.env.example` documenting all required Supabase env vars for OAuth
+
+### Fixed — Production Readiness (P0)
+- **Dashboard type alignment**: `Verdict` enum changed from `"LOW" | "MEDIUM" | "HIGH"` to `"LOW_RISK" | "MEDIUM_RISK" | "HIGH_RISK"` across all dashboard components to match API `Verdict` enum
+- **Dashboard `Scan` type alignment**: Frontend fields updated from `package_name`/`source`/`score`/`status` to `target`/`target_type`/`risk_score`/`threat_hits`/`metadata` to match API `ScanListItem`
+- **Dashboard `DashboardStats` type alignment**: Changed from `trend_scans`/`trend_threats`/`scans_today` to `scans_trend`/`threats_trend`/`approved_trend`/`critical_trend` to match API
+- **Dashboard `PaginatedResponse` alignment**: Changed from `has_more` to computed pagination with `upgrade_message` field
+- **VerdictBadge component**: Updated style records for `_RISK` suffixed keys, added `verdictLabel()` display helper and fallback styles
+- **ScanTable component**: Updated column mappings and headers (`Package` -> `Target`, `Source` -> `Type`)
+- **Scan detail, scans list, threats, settings pages**: All updated for `_RISK` suffixed verdict values
+- **API: Dashboard stats unlocked for FREE tier**: Removed `require_plan(PlanTier.PRO)` from `get_dashboard_stats` — aggregate stats now available to all authenticated users
+- **API: FREE users get limited scan preview**: Changed from empty list to last 5 scans with `upgrade_message` for FREE users
+- **API: JWT secret startup warning**: Added CRITICAL log on startup if default JWT secret is still in use
+- **API: CORS tightened**: Changed from `allow_methods=["*"], allow_headers=["*"]` to explicit method and header whitelist
+- **API `.env.example` updated**: Added `SIGIL_SUPABASE_JWT_SECRET` with security documentation
+- Standardized all URLs to `api.sigilsec.ai` / `app.sigilsec.ai` — removed legacy `api.sigil.nomark.dev` references
+- Standardized verdict enum naming in documentation to use `_RISK` suffix (`LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`)
 
 ### Fixed
 - Rust clippy warnings treated as errors (`dead_code` on `Signature` / `SignatureResponse`, `too_many_arguments` on `cmd_scan`) — CI `build-rust` and `lint-rust` steps now pass clean
@@ -179,7 +198,7 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - Phase 5: Obfuscation detection (base64, charCode, hex)
 - Phase 6: Provenance analysis (git history, binaries, hidden files)
 - Quarantine-first workflow: clone, pip, npm, scan commands
-- Verdict engine: CLEAN, LOW, MEDIUM, HIGH, CRITICAL
+- Verdict engine: CLEAN, LOW_RISK, MEDIUM_RISK, HIGH_RISK, CRITICAL
 - Report generation with file paths and line numbers
 - `sigil clone`, `sigil pip`, `sigil npm`, `sigil scan` commands
 - `sigil approve`, `sigil reject`, `sigil list` quarantine management

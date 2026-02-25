@@ -413,4 +413,4 @@ newgrp docker
 
 ---
 
-**Need help?** [Open an issue](https://github.com/NOMARJ/sigil/issues) or email support@nomark.dev
+**Need help?** [Open an issue](https://github.com/NOMARJ/sigil/issues) or email support@sigilsec.ai
