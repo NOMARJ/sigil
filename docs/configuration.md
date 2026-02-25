@@ -194,7 +194,7 @@ curl -H "Authorization: Bearer $TOKEN" https://api.sigilsec.ai/v1/settings/polic
 curl -X PATCH \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"auto_approve_threshold": 0, "require_review_for": ["HIGH", "CRITICAL"]}' \
+  -d '{"auto_approve_threshold": 0, "require_review_for": ["HIGH_RISK", "CRITICAL"]}' \
   https://api.sigilsec.ai/v1/settings/policy
 ```
 

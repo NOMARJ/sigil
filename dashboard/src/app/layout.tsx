@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   title: "Sigil — Security Audit Dashboard",
   description:
     "Automated security auditing for AI agent code. Scan repos, packages, and agent tooling for malicious patterns.",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#111827",
 };
 
 export default function RootLayout({

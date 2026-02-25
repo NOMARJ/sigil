@@ -50,7 +50,7 @@ export default function LoginPage() {
           }
         }
         // Reload to pick up the new session
-        window.location.href = "/";
+        router.push("/");
       } else {
         // forgot mode
         const result = await api.forgotPassword(email);

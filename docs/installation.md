@@ -243,14 +243,14 @@ docker-compose up
 ### 1. Verify Installation
 
 ```bash
-sigil --version
+sigil version
 ```
 
 Expected output:
 ```
-Sigil 0.1.0
+Sigil 1.0.5
 Automated Security Auditing for AI Agent Code
-by NOMARK
+https://sigilsec.ai
 ```
 
 ### 2. Set Up Shell Aliases

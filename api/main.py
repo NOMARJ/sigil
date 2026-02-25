@@ -51,6 +51,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
         )
 
+    # Validate Stripe configuration consistency
+    if settings.stripe_configured:
+        placeholders = [v for v in [
+            settings.stripe_price_pro,
+            settings.stripe_price_team,
+        ] if "placeholder" in v]
+        if placeholders:
+            logger.warning(
+                "Stripe is configured but price IDs contain placeholders. "
+                "Set SIGIL_STRIPE_PRICE_PRO and SIGIL_STRIPE_PRICE_TEAM."
+            )
+
     await db.connect()
     await cache.connect()
 
@@ -74,9 +86,9 @@ app = FastAPI(
         "publisher reputation scoring, and marketplace verification."
     ),
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 
@@ -91,6 +103,21 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not settings.debug:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -306,14 +333,18 @@ app.include_router(_billing_dashboard)
 
 
 @app.get("/health", tags=["system"], summary="Health check")
-async def health() -> dict:
+async def health() -> JSONResponse:
     """Return service health status including backend connectivity."""
-    return {
-        "status": "ok",
-        "version": settings.app_version,
-        "supabase_connected": db.connected,
-        "redis_connected": cache.connected,
-    }
+    healthy = db.connected
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "ok" if healthy else "degraded",
+            "version": settings.app_version,
+            "supabase_connected": db.connected,
+            "redis_connected": cache.connected,
+        },
+    )
 
 
 @app.get("/", tags=["system"], summary="Root")

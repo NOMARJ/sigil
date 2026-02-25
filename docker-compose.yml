@@ -55,10 +55,6 @@ services:
 
   # ── Next.js Dashboard ───────────────────────────────────────────────────
   dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-      target: deps
     container_name: sigil-dashboard
     image: node:20-slim
     working_dir: /app

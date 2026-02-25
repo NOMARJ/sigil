@@ -1282,7 +1282,12 @@ main() {
         aliases)    cmd_aliases "$@" ;;
         login)      cmd_login "$@" ;;
         logout)     cmd_logout ;;
-        help|*)
+        version|--version|-v)
+            echo "Sigil 1.0.5"
+            echo "Automated Security Auditing for AI Agent Code"
+            echo "https://sigilsec.ai"
+            ;;
+        help|--help|-h)
             echo -e "${BOLD}SIGIL — Automated Security Auditing for AI Agent Code${NC}"
             echo -e "by NOMARK"
             echo ""
@@ -1313,6 +1318,11 @@ main() {
             echo "Quick start:  sigil install"
             echo ""
             echo "A protective mark for every line of code."
+            ;;
+        *)
+            echo "sigil: unknown command '$command'"
+            echo "Run 'sigil help' for usage."
+            exit 1
             ;;
     esac
 }

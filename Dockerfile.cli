@@ -43,18 +43,28 @@ RUN apk add --no-cache \
     file \
     python3
 
+# Create non-root user
+RUN addgroup -S sigil && adduser -S -G sigil sigil
+
 # Copy binary from builder
 COPY --from=builder /build/target/release/sigil /usr/local/bin/sigil
 
 # Create sigil directories
 RUN mkdir -p \
-    /root/.sigil/quarantine \
-    /root/.sigil/approved \
-    /root/.sigil/logs \
-    /root/.sigil/reports
+    /home/sigil/.sigil/quarantine \
+    /home/sigil/.sigil/approved \
+    /home/sigil/.sigil/logs \
+    /home/sigil/.sigil/reports && \
+    chown -R sigil:sigil /home/sigil/.sigil
 
 # Set working directory
 WORKDIR /workspace
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s CMD sigil help > /dev/null 2>&1 || exit 1
+
+# Switch to non-root user
+USER sigil
 
 # Default command
 ENTRYPOINT ["sigil"]

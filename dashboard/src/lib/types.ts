@@ -222,6 +222,7 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   per_page: number;
+  has_more?: boolean;
   upgrade_message?: string | null;
 }
 

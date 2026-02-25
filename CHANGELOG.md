@@ -26,6 +26,27 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - Claude Code native plugin with 4 skills + 2 security agents
 - Dashboard `.env.example` documenting all required Supabase env vars for OAuth
 
+### Fixed — Production Hardening (P1)
+- **API: Security headers middleware**: Added `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, and `Strict-Transport-Security` (non-debug) headers
+- **API: Health check returns 503 when degraded**: `/health` now returns HTTP 503 with `"status": "degraded"` when database is disconnected
+- **API: Docs disabled in production**: `/docs`, `/redoc`, `/openapi.json` are only available when `SIGIL_DEBUG=true`
+- **API: Stripe placeholder validation**: Startup warns if Stripe is configured but price IDs still contain placeholder values
+- **API: Config cleanup**: Added `frontend_url` setting, fixed `smtp_from_email` to `alerts@sigilsec.ai`
+- **Dashboard: AuthGuard fix**: Added `/reset-password` to `PUBLIC_ROUTES` so users can reset passwords without being redirected
+- **Dashboard: PaginatedResponse type**: Added `has_more?: boolean` to match API pagination responses
+- **Dashboard: Login navigation**: Replaced `window.location.href` with `router.push()` for proper SPA navigation
+- **Dashboard: Metadata**: Added favicon icon reference and viewport export for mobile support
+- **Dashboard: Console cleanup**: Removed `console.warn` from API client
+- **CLI: Version command**: Added `sigil version` / `sigil --version` / `sigil -v` commands
+- **CLI: Unknown command handling**: Unknown commands now show error and suggest `sigil help`
+- **Docker: Dockerfile.cli runs as non-root**: Added `sigil` user, health check, and `USER sigil` directive
+- **Docker: Label consistency**: Standardized all Dockerfile labels to `team@sigilsec.ai` and `github.com/NOMARJ/sigil`
+- **Docker: docker-compose dashboard fix**: Removed conflicting `build:` section that was overridden by `image: node:20-slim`
+- **CI: Release publish hardening**: Replaced `continue-on-error: true` on npm/cargo publish with inline warnings
+- **Docs: SECURITY.md**: Created responsible disclosure policy
+- **Docs: Configuration verdict fix**: Changed `"HIGH"` to `"HIGH_RISK"` in policy example
+- **Docs: Installation version**: Updated to use `sigil version` command with correct output
+
 ### Fixed — Production Readiness (P0)
 - **Dashboard type alignment**: `Verdict` enum changed from `"LOW" | "MEDIUM" | "HIGH"` to `"LOW_RISK" | "MEDIUM_RISK" | "HIGH_RISK"` across all dashboard components to match API `Verdict` enum
 - **Dashboard `Scan` type alignment**: Frontend fields updated from `package_name`/`source`/`score`/`status` to `target`/`target_type`/`risk_score`/`threat_hits`/`metadata` to match API `ScanListItem`
