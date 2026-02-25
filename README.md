@@ -206,25 +206,32 @@ sigil login
 
 ## Why Not [Existing Tool]?
 
-| Capability | Sigil | Claude Code Security | Snyk | Socket.dev | Semgrep |
-|-----------|-------|---------------------|------|-----------|---------|
+| Capability | Sigil | Aardvark/Codex | Claude Code | Snyk | Semgrep |
+|-----------|-------|----------------|-------------|------|---------|
 | **Pre-install quarantine** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Supply-chain attacks** | ✅ Primary | ⚠️ Limited | ⚠️ CVEs only | ✅ npm | ❌ |
-| **Install hook scanning** | ✅ | ❌ | ❌ | ✅ | ❌ |
-| **AI-powered analysis** | ❌ | ✅ Primary | ⚠️ Limited | ❌ | ❌ |
-| **Deep vuln scanning** | ⚠️ Patterns | ✅ Primary | ✅ | ⚠️ Limited | ✅ |
-| **AI agent / MCP focus** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Multi-ecosystem** | ✅ pip/npm/git | ✅ | ✅ | npm only | ✅ |
-| **Free tier** | ✅ Full | Research preview | Limited | Limited | OSS free |
+| **Supply-chain attacks** | ✅ Primary | ⚠️ Limited | ⚠️ Limited | ⚠️ CVEs | ❌ |
+| **Install hook scanning** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Malware analysis** | ⚠️ Patterns | ✅ Dedicated | ⚠️ Context | ❌ | ❌ |
+| **AI-powered analysis** | ❌ | ✅ GPT-5 | ✅ Claude | ⚠️ Limited | ❌ |
+| **Deep vuln scanning** | ⚠️ Patterns | ✅ 92% recall | ✅ Primary | ✅ | ✅ |
+| **Auto-patching** | ❌ | ✅ Codex | ✅ AI patches | ⚠️ Limited | ❌ |
+| **AI agent / MCP focus** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Multi-ecosystem** | ✅ All | ✅ | ✅ | ✅ | ✅ |
+| **Free tier** | ✅ Full | Private beta | Waitlist | Limited | OSS |
 
-**Sigil vs Claude Code Security:**
-- **Sigil**: Quarantine-first protection *before* code enters your environment (supply-chain focus)
-- **Claude Code Security**: Deep vulnerability analysis *after* code is in your repo (logic flaw focus)
-- **Together**: Complete defense-in-depth for AI development
+**The Complete Stack:**
+- **Sigil** (Layer 1): Quarantine-first *before* code enters your environment (supply-chain protection)
+- **Aardvark/Codex Security** (Layer 2): Deep AI analysis *after* code is committed (GPT-5 powered)
+- **Claude Code Security** (Layer 2): Deep AI analysis *after* code is committed (Claude powered)
 
-[**→ See integration guide**](docs/claude-code-security-integration.md)
+**Positioning:**
+- Aardvark and Claude Code Security compete (both do deep vulnerability scanning)
+- Sigil complements both (different layer: pre-install vs post-commit)
+- **Use Sigil + (Aardvark OR Claude Code Security)** for complete coverage
 
-Snyk and Dependabot flag known CVEs in dependency trees — they don't scan source code for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not an end-to-end workflow. **Sigil and Claude Code Security are complementary, not competitive.**
+[**→ See complete integration guide**](docs/ai-security-stack-integration.md)
+
+Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not a workflow. **The AI security stack (Sigil + Aardvark/Claude Code Security) provides defense-in-depth.**
 
 ## Pricing
 
@@ -262,6 +269,9 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
 - [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
 - [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
+- [AI Security Stack](docs/ai-security-stack-integration.md) — Sigil + Aardvark + Claude Code Security ⭐ **NEW**
+- [Claude Code Security Integration](docs/claude-code-security-integration.md) — Defense-in-depth with Anthropic
+- [AI Agent Integration](docs/ai-agent-integration.md) — Claude Code, MCP, and other AI agents
 
 **Security Research:**
 - [Case Study: OpenClaw Attack](docs/CASE-STUDY-OPENCLAW-ATTACK.md) — Real-world supply chain attack
