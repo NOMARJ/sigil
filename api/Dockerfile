@@ -15,11 +15,11 @@ RUN groupadd --gid 1001 sigil && \
 WORKDIR /app
 
 # Copy and install Python dependencies
-COPY requirements.txt ./api/requirements.txt
+COPY api/requirements.txt ./api/requirements.txt
 RUN pip install --no-cache-dir -r ./api/requirements.txt
 
 # Copy application source
-COPY . ./api/
+COPY api/ ./api/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
