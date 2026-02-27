@@ -323,7 +323,6 @@ async def scan_all_skills(
     logger.info("Starting scan of %d ClawHub skills (concurrency=%d)", len(skills), concurrency)
 
     semaphore = asyncio.Semaphore(concurrency)
-    results: list[ClawHubScanResult] = []
 
     async def _scan_with_limit(skill: ClawHubSkill) -> ClawHubScanResult:
         async with semaphore:
