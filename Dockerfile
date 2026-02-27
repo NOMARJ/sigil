@@ -60,8 +60,15 @@ WORKDIR /app
 COPY api/requirements.txt /app/api/requirements.txt
 RUN pip install --no-cache-dir -r /app/api/requirements.txt
 
+# ── Python Bot dependencies ────────────────────────────────────────────────
+COPY bot/requirements.txt /app/bot/requirements.txt
+RUN pip install --no-cache-dir -r /app/bot/requirements.txt
+
 # ── Copy API source ─────────────────────────────────────────────────────────
 COPY api/ /app/api/
+
+# ── Copy Bot source ─────────────────────────────────────────────────────────
+COPY bot/ /app/bot/
 
 # ── Copy Rust CLI binary ────────────────────────────────────────────────────
 COPY --from=rust-builder /build/target/release/sigil /usr/local/bin/sigil

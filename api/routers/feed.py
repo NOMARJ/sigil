@@ -74,13 +74,18 @@ async def json_feed(
         if verdict:
             filters["verdict"] = verdict.upper()
 
-        rows = await db.select(
-            "public_scans",
-            filters=filters if filters else None,
-            limit=limit,
-            order_by="created_at",
-            order_desc=True,
-        )
+        # AsyncpgClient supports order_by/order_desc; SupabaseClient does not.
+        # Use kwargs to stay compatible with both backends.
+        select_kwargs: dict[str, Any] = {
+            "table": "public_scans",
+            "filters": filters if filters else None,
+            "limit": limit,
+        }
+        try:
+            rows = await db.select(**select_kwargs, order_by="created_at", order_desc=True)
+        except TypeError:
+            rows = await db.select(**select_kwargs)
+            rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
 
         results = []
         for row in rows:
