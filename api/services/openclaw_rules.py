@@ -169,7 +169,7 @@ SKILL_SECURITY_RULES: list[OpenClawRule] = [
             r"|process\.env\.[A-Z][A-Z0-9_]{2,}"
             r"|os\.environ\[?['\"][A-Z][A-Z0-9_]{2,}"
             r"|getenv\(['\"][A-Z][A-Z0-9_]{2,})",
-            re.IGNORECASE | re.MULTILINE,
+            re.MULTILINE,  # No IGNORECASE — avoids matching $home, $path, etc.
         ),
         description=(
             "Skill references environment variables — check if these are "
@@ -197,14 +197,14 @@ SKILL_SECURITY_RULES: list[OpenClawRule] = [
         severity=Severity.MEDIUM,
         pattern=re.compile(
             r"(requires?\s*:\s*\n[\s\S]*?bins?\s*:"
-            r"|\.(exe|dll|so|dylib|bin|sh|bash|cmd|bat|ps1)\b)",
+            r"|\.(exe|dll|so|dylib|bin|cmd|bat|ps1)\b)",
             re.IGNORECASE | re.MULTILINE,
         ),
         description=(
             "Skill references binary executables — verify these are "
             "declared in metadata requirements"
         ),
-        weight=0.5,
+        weight=0.4,  # Reduced weight — binary refs may be legitimate
     ),
     OpenClawRule(
         id="excessive-permissions",

@@ -12,9 +12,9 @@ GET /badge/shield/{verdict}             — Generic verdict badge (shields.io st
 from __future__ import annotations
 
 import logging
-from typing import Any
+from xml.sax.saxutils import escape as xml_escape
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import Response
 
 from api.database import db
@@ -66,8 +66,12 @@ def _generate_badge_svg(
     label_x = label_width / 2
     message_x = label_width + message_width / 2
 
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width:.0f}" height="20" role="img" aria-label="{label}: {full_message}">
-  <title>{label}: {full_message}</title>
+    # Escape XML entities to prevent XSS in SVG output
+    safe_label = xml_escape(label)
+    safe_message = xml_escape(full_message)
+
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width:.0f}" height="20" role="img" aria-label="{safe_label}: {safe_message}">
+  <title>{safe_label}: {safe_message}</title>
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
@@ -81,10 +85,10 @@ def _generate_badge_svg(
     <rect width="{total_width:.0f}" height="20" fill="url(#s)"/>
   </g>
   <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
-    <text aria-hidden="true" x="{label_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{label}</text>
-    <text x="{label_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{label}</text>
-    <text aria-hidden="true" x="{message_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{full_message}</text>
-    <text x="{message_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{full_message}</text>
+    <text aria-hidden="true" x="{label_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{safe_label}</text>
+    <text x="{label_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{safe_label}</text>
+    <text aria-hidden="true" x="{message_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{safe_message}</text>
+    <text x="{message_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{safe_message}</text>
   </g>
 </svg>"""
 
@@ -160,7 +164,7 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
     rows = await db.select(
         "public_scans",
         {"ecosystem": ecosystem, "package_name": package_name},
-        limit=1,
+        limit=100,
     )
     if not rows:
         svg = _generate_badge_svg("sigil", "not scanned", "#9f9f9f")

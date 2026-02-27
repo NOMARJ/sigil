@@ -6,6 +6,7 @@ import { z } from "zod";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { request as httpsRequest } from "https";
+import { request as httpRequest } from "http";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,11 +37,17 @@ async function runSigil(
 async function fetchAPI(path: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const url = new URL(path, SIGIL_API_URL);
-    const req = httpsRequest(url, { method: "GET" }, (res) => {
+    const doRequest = url.protocol === "http:" ? httpRequest : httpsRequest;
+    const req = doRequest(url, { method: "GET" }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (chunk: Buffer) => chunks.push(chunk));
       res.on("end", () => {
         const body = Buffer.concat(chunks).toString();
+        const statusCode = res.statusCode ?? 0;
+        if (statusCode < 200 || statusCode >= 300) {
+          reject(new Error(`HTTP ${statusCode}: ${body.slice(0, 200)}`));
+          return;
+        }
         try {
           resolve(JSON.parse(body));
         } catch {

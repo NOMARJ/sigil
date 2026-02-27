@@ -116,6 +116,11 @@ class Settings(BaseSettings):
         return bool(self.stripe_secret_key)
 
     @property
+    def github_app_configured(self) -> bool:
+        """Return True when the GitHub App credentials are set."""
+        return bool(self.github_app_id and self.github_app_private_key)
+
+    @property
     def jwt_secret_is_insecure(self) -> bool:
         """Return True when the JWT secret has not been changed from the default."""
         return self.jwt_secret == "changeme-generate-a-real-secret"

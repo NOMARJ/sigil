@@ -22,11 +22,11 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Header, Query, status
 from pydantic import BaseModel, Field
 
+from api.config import settings
 from api.database import db
-from api.models import Verdict
 
 logger = logging.getLogger(__name__)
 
@@ -348,13 +348,25 @@ async def get_package_version_scan(
     status_code=status.HTTP_201_CREATED,
     summary="Submit a scan to the public registry",
 )
-async def submit_public_scan(request: PublicScanSubmit) -> PublicScanSummary:
+async def submit_public_scan(
+    request: PublicScanSubmit,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> PublicScanSummary:
     """Submit a scan result to the public registry.
 
-    This is called by the crawler pipeline and by the MCP server when
+    Requires a valid API key via the X-API-Key header.
+    Called by the crawler pipeline and by the MCP server when
     users opt to share their scan results publicly.
     """
-    scan_id = uuid4().hex[:16]
+    # Reject unauthenticated submissions — the JWT secret doubles as the
+    # internal API key for crawler-to-API communication.
+    expected_key = settings.jwt_secret
+    if settings.jwt_secret_is_insecure or not x_api_key or x_api_key != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Valid X-API-Key header required",
+        )
+    scan_id = str(uuid4())
     now = datetime.now(timezone.utc)
 
     row_data: dict[str, Any] = {

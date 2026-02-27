@@ -100,24 +100,28 @@ async def _http_get(
     try:
         import httpx
     except ImportError:
-        # Fall back to urllib
+        # Fall back to urllib — run in thread to avoid blocking the event loop
         import urllib.request
         import urllib.parse
 
         full_url = url
         if params:
             full_url = f"{url}?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(full_url, headers={"Accept": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = resp.read()
-                content_type = resp.headers.get("Content-Type", "")
-                if "json" in content_type:
-                    return json.loads(data)
-                return data
-        except Exception as e:
-            logger.warning("HTTP GET failed: %s: %s", full_url, e)
-            return None
+
+        def _sync_get() -> dict[str, Any] | bytes | None:
+            _req = urllib.request.Request(full_url, headers={"Accept": "application/json"})
+            try:
+                with urllib.request.urlopen(_req, timeout=timeout) as resp:
+                    _data = resp.read()
+                    content_type = resp.headers.get("Content-Type", "")
+                    if "json" in content_type:
+                        return json.loads(_data)
+                    return _data
+            except Exception as e:
+                logger.warning("HTTP GET failed: %s: %s", full_url, e)
+                return None
+
+        return await asyncio.to_thread(_sync_get)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
@@ -226,9 +230,17 @@ async def download_skill(skill: ClawHubSkill, dest_dir: str) -> bool:
         logger.warning("Failed to download skill: %s", skill.slug)
         return False
 
-    # Extract ZIP
+    # Extract ZIP with path traversal protection
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            dest = Path(dest_dir).resolve()
+            for member in zf.namelist():
+                member_path = (dest / member).resolve()
+                if not str(member_path).startswith(str(dest)):
+                    logger.warning(
+                        "Zip-slip attempt in skill %s: %s", skill.slug, member
+                    )
+                    return False
             zf.extractall(dest_dir)
         return True
     except zipfile.BadZipFile:
@@ -249,7 +261,7 @@ async def download_skill(skill: ClawHubSkill, dest_dir: str) -> bool:
 
 async def scan_skill(skill: ClawHubSkill) -> ClawHubScanResult:
     """Download and scan a single ClawHub skill."""
-    scan_id = uuid4().hex[:16]
+    scan_id = str(uuid4())
     result = ClawHubScanResult(skill=skill, scan_id=scan_id)
     start = datetime.now(timezone.utc)
 
@@ -319,7 +331,16 @@ async def scan_all_skills(
             return await scan_skill(skill)
 
     tasks = [_scan_with_limit(s) for s in skills]
-    results = await asyncio.gather(*tasks, return_exceptions=False)
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Filter out exceptions, converting them to error results
+    results: list[ClawHubScanResult] = []
+    for i, r in enumerate(raw_results):
+        if isinstance(r, BaseException):
+            logger.error("Scan task %d failed: %s", i, r)
+            results.append(ClawHubScanResult(skill=skills[i], error=str(r)))
+        else:
+            results.append(r)
 
     # Summary
     verdicts: dict[str, int] = {}
@@ -401,7 +422,7 @@ async def store_clawhub_results(results: list[ClawHubScanResult]) -> int:
             await db.upsert(
                 "public_scans",
                 row,
-                conflict_columns=["id"],
+                conflict_columns=["ecosystem", "package_name", "package_version"],
             )
             stored += 1
         except Exception:

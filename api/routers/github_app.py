@@ -245,11 +245,14 @@ async def github_webhook(
     """
     body = await request.body()
 
-    # Verify webhook signature if secret is configured
-    webhook_secret = getattr(settings, "github_webhook_secret", None) or ""
-    if webhook_secret and not _verify_webhook_signature(
-        body, x_hub_signature_256, webhook_secret
-    ):
+    # Verify webhook signature — reject if secret is configured and signature is invalid
+    webhook_secret = settings.github_webhook_secret or ""
+    if not webhook_secret:
+        logger.warning(
+            "SECURITY: SIGIL_GITHUB_WEBHOOK_SECRET is not set — "
+            "webhook signature verification is disabled"
+        )
+    elif not _verify_webhook_signature(body, x_hub_signature_256, webhook_secret):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature",

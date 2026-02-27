@@ -35,6 +35,8 @@ PHASE_WEIGHTS: dict[ScanPhase, float] = {
     ScanPhase.CREDENTIALS: 2.0,
     ScanPhase.OBFUSCATION: 5.0,
     ScanPhase.PROVENANCE: 2.0,  # Default mid-range for provenance (1-3x)
+    ScanPhase.PROMPT_INJECTION: 10.0,  # Critical — the key differentiator vs VirusTotal
+    ScanPhase.SKILL_SECURITY: 5.0,  # High — tool poisoning, shell execution
 }
 
 # ---------------------------------------------------------------------------
