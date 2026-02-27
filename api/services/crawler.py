@@ -23,8 +23,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
-import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -123,7 +121,13 @@ async def _download_npm(target: CrawlTarget, dest: str) -> bool:
     """Download an npm package to dest directory."""
     cmd = ["npm", "pack", target.name, "--pack-destination", dest]
     if target.version:
-        cmd = ["npm", "pack", f"{target.name}@{target.version}", "--pack-destination", dest]
+        cmd = [
+            "npm",
+            "pack",
+            f"{target.name}@{target.version}",
+            "--pack-destination",
+            dest,
+        ]
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -157,8 +161,14 @@ async def _download_npm(target: CrawlTarget, dest: str) -> bool:
 async def _download_pip(target: CrawlTarget, dest: str) -> bool:
     """Download a pip package to dest directory."""
     cmd = [
-        "pip", "download", "--no-deps", "--no-binary", ":all:",
-        "-d", dest, target.name,
+        "pip",
+        "download",
+        "--no-deps",
+        "--no-binary",
+        ":all:",
+        "-d",
+        dest,
+        target.name,
     ]
     if target.version:
         cmd[-1] = f"{target.name}=={target.version}"
@@ -171,7 +181,9 @@ async def _download_pip(target: CrawlTarget, dest: str) -> bool:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
 
         if proc.returncode != 0:
-            logger.warning("pip download failed for %s: %s", target.name, stderr.decode())
+            logger.warning(
+                "pip download failed for %s: %s", target.name, stderr.decode()
+            )
             return False
 
         # Unpack archives
@@ -237,7 +249,6 @@ async def _run_sigil_scan(directory: str) -> dict[str, Any] | None:
     try:
         from api.services.scanner import scan_directory, count_scannable_files
         from api.services.scoring import compute_verdict
-        from api.models import Finding
 
         findings = scan_directory(directory)
         score, verdict = compute_verdict(findings)
@@ -255,7 +266,11 @@ async def _run_sigil_scan(directory: str) -> dict[str, Any] | None:
     # Fall back to CLI
     try:
         proc = await asyncio.create_subprocess_exec(
-            SIGIL_BINARY, "--format", "json", "scan", directory,
+            SIGIL_BINARY,
+            "--format",
+            "json",
+            "scan",
+            directory,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -330,6 +345,7 @@ async def store_crawl_results(results: list[CrawlResult]) -> int:
         try:
             # Import here to avoid circular imports at module level
             from api.database import db
+
             await db.insert("public_scans", row)
             stored += 1
         except Exception:
@@ -356,7 +372,9 @@ async def _main() -> None:
     parser.add_argument("--package", help="Single package to scan")
     parser.add_argument("--url", help="Git URL to scan")
     parser.add_argument("--version", default="", help="Package version")
-    parser.add_argument("--concurrency", type=int, default=5, help="Max concurrent scans")
+    parser.add_argument(
+        "--concurrency", type=int, default=5, help="Max concurrent scans"
+    )
     args = parser.parse_args()
 
     targets = []
@@ -385,6 +403,7 @@ async def _main() -> None:
 
     # Store results
     from api.database import db
+
     await db.connect()
     stored = await store_crawl_results(results)
     print(f"\nStored {stored}/{len(results)} results in public scan database.")

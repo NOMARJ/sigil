@@ -25,11 +25,11 @@ router = APIRouter(prefix="/badge", tags=["badge"])
 
 # Badge colors by risk classification
 VERDICT_COLORS = {
-    "LOW_RISK": "#22C55E",         # Green
-    "MEDIUM_RISK": "#EAB308",      # Yellow
-    "HIGH_RISK": "#F97316",        # Orange
-    "CRITICAL_RISK": "#EF4444",    # Red
-    "NOT_SCANNED": "#6B7280",      # Gray
+    "LOW_RISK": "#22C55E",  # Green
+    "MEDIUM_RISK": "#EAB308",  # Yellow
+    "HIGH_RISK": "#F97316",  # Orange
+    "CRITICAL_RISK": "#EF4444",  # Red
+    "NOT_SCANNED": "#6B7280",  # Gray
 }
 
 VERDICT_LABELS = {
@@ -165,7 +165,10 @@ async def scan_badge(scan_id: str) -> Response:
     version = row.get("package_version") or None
     scanned_at = str(row.get("scanned_at") or row.get("created_at") or "")
     svg = _generate_badge_svg(
-        "sigil", label_text, color, score=score,
+        "sigil",
+        label_text,
+        color,
+        score=score,
         version=f"v{version}" if version else None,
         scanned_at=scanned_at if not version else None,
     )
@@ -195,9 +198,7 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
         svg = _generate_badge_svg("sigil", "not scanned", "#9f9f9f")
         return _svg_response(svg)
 
-    rows.sort(
-        key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
-    )
+    rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
     row = rows[0]
     verdict = row.get("verdict", "LOW_RISK")
     score = row.get("risk_score", 0.0)
@@ -206,7 +207,10 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
     version = row.get("package_version") or None
     scanned_at = str(row.get("scanned_at") or row.get("created_at") or "")
     svg = _generate_badge_svg(
-        "sigil", label_text, color, score=score,
+        "sigil",
+        label_text,
+        color,
+        score=score,
         version=f"v{version}" if version else None,
         scanned_at=scanned_at if not version else None,
     )

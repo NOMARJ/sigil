@@ -13,7 +13,6 @@ Endpoints:
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -36,9 +35,7 @@ async def rss_feed(
     try:
         from bot.publisher import generate_rss_feed
 
-        xml = await generate_rss_feed(
-            ecosystem=ecosystem, verdict_filter=verdict
-        )
+        xml = await generate_rss_feed(ecosystem=ecosystem, verdict_filter=verdict)
         return Response(content=xml, media_type="application/rss+xml")
     except Exception:
         # Fallback: return a minimal valid RSS feed
@@ -62,7 +59,9 @@ async def json_feed(
     ecosystem: str | None = Query(None, description="Filter by ecosystem"),
     verdict: str | None = Query(None, description="Filter by verdict"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
-    since: str | None = Query(None, description="ISO datetime — return scans after this"),
+    since: str | None = Query(
+        None, description="ISO datetime — return scans after this"
+    ),
 ) -> list[dict[str, Any]]:
     """Return recent scans as a JSON array. Filterable by ecosystem and verdict."""
     try:
@@ -82,24 +81,28 @@ async def json_feed(
             "limit": limit,
         }
         try:
-            rows = await db.select(**select_kwargs, order_by="created_at", order_desc=True)
+            rows = await db.select(
+                **select_kwargs, order_by="created_at", order_desc=True
+            )
         except TypeError:
             rows = await db.select(**select_kwargs)
             rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
 
         results = []
         for row in rows:
-            results.append({
-                "scan_id": row.get("id"),
-                "ecosystem": row.get("ecosystem"),
-                "name": row.get("package_name"),
-                "version": row.get("package_version"),
-                "risk_score": row.get("risk_score"),
-                "verdict": row.get("verdict"),
-                "findings_count": row.get("findings_count", 0),
-                "url": f"https://sigilsec.ai/scans/{row.get('ecosystem')}/{row.get('package_name')}",
-                "scanned_at": str(row.get("scanned_at", row.get("created_at", ""))),
-            })
+            results.append(
+                {
+                    "scan_id": row.get("id"),
+                    "ecosystem": row.get("ecosystem"),
+                    "name": row.get("package_name"),
+                    "version": row.get("package_version"),
+                    "risk_score": row.get("risk_score"),
+                    "verdict": row.get("verdict"),
+                    "findings_count": row.get("findings_count", 0),
+                    "url": f"https://sigilsec.ai/scans/{row.get('ecosystem')}/{row.get('package_name')}",
+                    "scanned_at": str(row.get("scanned_at", row.get("created_at", ""))),
+                }
+            )
 
         return results
 

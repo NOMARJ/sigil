@@ -64,14 +64,10 @@ class PRScanComment(BaseModel):
 # ---------------------------------------------------------------------------
 
 # package.json dependency additions
-_NPM_DEP_PATTERN = re.compile(
-    r'^\+\s*"([^"]+)"\s*:\s*"([^"]+)"', re.MULTILINE
-)
+_NPM_DEP_PATTERN = re.compile(r'^\+\s*"([^"]+)"\s*:\s*"([^"]+)"', re.MULTILINE)
 
 # requirements.txt / pip additions
-_PIP_DEP_PATTERN = re.compile(
-    r'^\+([a-zA-Z0-9_-]+)(?:[=<>!~]+(.+))?$', re.MULTILINE
-)
+_PIP_DEP_PATTERN = re.compile(r"^\+([a-zA-Z0-9_-]+)(?:[=<>!~]+(.+))?$", re.MULTILINE)
 
 # pyproject.toml dependency additions
 _PYPROJECT_DEP_PATTERN = re.compile(
@@ -96,30 +92,36 @@ def _extract_new_dependencies(diff: str) -> list[dict[str, str]]:
 
         if current_file.endswith("package.json"):
             for match in _NPM_DEP_PATTERN.finditer(line):
-                deps.append({
-                    "ecosystem": "npm",
-                    "name": match.group(1),
-                    "version": match.group(2),
-                    "file": current_file,
-                })
+                deps.append(
+                    {
+                        "ecosystem": "npm",
+                        "name": match.group(1),
+                        "version": match.group(2),
+                        "file": current_file,
+                    }
+                )
 
         elif current_file.endswith(("requirements.txt", "requirements-dev.txt")):
             for match in _PIP_DEP_PATTERN.finditer(line):
-                deps.append({
-                    "ecosystem": "pip",
-                    "name": match.group(1),
-                    "version": match.group(2) or "latest",
-                    "file": current_file,
-                })
+                deps.append(
+                    {
+                        "ecosystem": "pip",
+                        "name": match.group(1),
+                        "version": match.group(2) or "latest",
+                        "file": current_file,
+                    }
+                )
 
         elif current_file.endswith("pyproject.toml"):
             for match in _PYPROJECT_DEP_PATTERN.finditer(line):
-                deps.append({
-                    "ecosystem": "pip",
-                    "name": match.group(1),
-                    "version": match.group(2) or "latest",
-                    "file": current_file,
-                })
+                deps.append(
+                    {
+                        "ecosystem": "pip",
+                        "name": match.group(1),
+                        "version": match.group(2) or "latest",
+                        "file": current_file,
+                    }
+                )
 
     return deps
 
@@ -141,11 +143,13 @@ def _format_pr_comment(scan: PRScanComment) -> str:
     ]
 
     if not scan.new_dependencies:
-        lines.extend([
-            "No new dependencies detected in this PR.",
-            "",
-            f"**Overall: {scan.overall_verdict}** (score: {scan.overall_score:.0f})",
-        ])
+        lines.extend(
+            [
+                "No new dependencies detected in this PR.",
+                "",
+                f"**Overall: {scan.overall_verdict}** (score: {scan.overall_score:.0f})",
+            ]
+        )
     else:
         lines.append(f"**{len(scan.new_dependencies)} new dependency(ies) detected:**")
         lines.append("")
@@ -159,10 +163,10 @@ def _format_pr_comment(scan: PRScanComment) -> str:
             dep_emoji = verdict_emoji.get(dep_verdict, "question")
             dep_findings = result.get("findings", [])
 
-            version_str = f"@{dep_version}" if dep_version and dep_version != "latest" else ""
-            lines.append(
-                f"### :{dep_emoji}: `{dep_name}{version_str}` ({dep_eco})"
+            version_str = (
+                f"@{dep_version}" if dep_version and dep_version != "latest" else ""
             )
+            lines.append(f"### :{dep_emoji}: `{dep_name}{version_str}` ({dep_eco})")
             lines.append(f"**Risk Score: {dep_score:.0f}** — **{dep_verdict}**")
             lines.append("")
 
@@ -177,23 +181,25 @@ def _format_pr_comment(scan: PRScanComment) -> str:
                     lines.append(f"- **{sev}** [{phase}]{loc}: {desc}")
 
                 if len(dep_findings) > 5:
-                    lines.append(
-                        f"- ... and {len(dep_findings) - 5} more findings"
-                    )
+                    lines.append(f"- ... and {len(dep_findings) - 5} more findings")
                 lines.append("")
 
-        lines.extend([
-            "---",
-            f"**Overall: {scan.overall_verdict}** (score: {scan.overall_score:.0f})",
-        ])
+        lines.extend(
+            [
+                "---",
+                f"**Overall: {scan.overall_verdict}** (score: {scan.overall_score:.0f})",
+            ]
+        )
 
-    lines.extend([
-        "",
-        "---",
-        "<sub>Automated scan by [Sigil](https://sigilsec.ai) "
-        "&middot; Results are not a security certification "
-        "&middot; [sigilsec.ai/terms](https://sigilsec.ai/terms)</sub>",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "<sub>Automated scan by [Sigil](https://sigilsec.ai) "
+            "&middot; Results are not a security certification "
+            "&middot; [sigilsec.ai/terms](https://sigilsec.ai/terms)</sub>",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -213,9 +219,7 @@ def _verify_webhook_signature(
     if signature.startswith("sha256="):
         signature = signature[7:]
 
-    expected = hmac.new(
-        secret.encode("utf-8"), payload, hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
     return hmac.compare_digest(expected, signature)
 
@@ -280,9 +284,7 @@ async def github_webhook(
     return {"status": "ignored", "event": event, "action": action}
 
 
-async def _handle_installation(
-    payload: dict[str, Any], action: str
-) -> dict[str, Any]:
+async def _handle_installation(payload: dict[str, Any], action: str) -> dict[str, Any]:
     """Handle installation/uninstallation events."""
     installation = payload.get("installation", {})
     installation_id = installation.get("id", 0)
@@ -321,9 +323,7 @@ async def _handle_installation(
             account_login,
         )
         try:
-            await db.delete(
-                "github_installations", {"id": str(installation_id)}
-            )
+            await db.delete("github_installations", {"id": str(installation_id)})
         except Exception:
             logger.exception("Failed to remove installation %d", installation_id)
 
@@ -332,9 +332,7 @@ async def _handle_installation(
     return {"status": "ignored", "action": action}
 
 
-async def _handle_pull_request(
-    payload: dict[str, Any], action: str
-) -> dict[str, Any]:
+async def _handle_pull_request(payload: dict[str, Any], action: str) -> dict[str, Any]:
     """Handle pull_request events — scan new dependencies and prepare comments."""
     if action not in ("opened", "synchronize", "reopened"):
         return {"status": "ignored", "action": action}

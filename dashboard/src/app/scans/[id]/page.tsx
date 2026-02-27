@@ -378,7 +378,7 @@ export default function ScanDetailPage() {
             version current.
           </p>
           <div className="bg-gray-900 rounded p-3 font-mono text-xs text-gray-300 break-all select-all">
-            {`[![Scanned by Sigil](https://sigilsec.ai/badge/scan/${scan.scan_id ?? scanId})](https://sigilsec.ai/scans/${scanId})`}
+            {`[![Scanned by Sigil](https://sigilsec.ai/badge/scan/${scan.id ?? scanId})](https://sigilsec.ai/scans/${scanId})`}
           </div>
         </div>
       </div>

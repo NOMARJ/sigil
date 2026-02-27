@@ -235,9 +235,7 @@ ALL_OPENCLAW_RULES: list[OpenClawRule] = PROMPT_INJECTION_RULES + SKILL_SECURITY
 # ---------------------------------------------------------------------------
 
 
-def scan_openclaw_content(
-    content: str, file_path: str = "<skill>"
-) -> list[Finding]:
+def scan_openclaw_content(content: str, file_path: str = "<skill>") -> list[Finding]:
     """Run OpenClaw-specific rules against content.
 
     Returns a list of Finding objects for any matches.
@@ -299,7 +297,9 @@ def scan_openclaw_directory(directory: str) -> list[Finding]:
     if root.exists():
         for file_path in walk(root):
             if file_path.suffix in text_exts or file_path.name in (
-                "SKILL.md", "Makefile", "Dockerfile"
+                "SKILL.md",
+                "Makefile",
+                "Dockerfile",
             ):
                 try:
                     content = file_path.read_text(errors="replace")

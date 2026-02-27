@@ -71,6 +71,7 @@ pub struct Finding {
 
 /// Overall risk classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::enum_variant_names)]
 pub enum Verdict {
     LowRisk,
     MediumRisk,

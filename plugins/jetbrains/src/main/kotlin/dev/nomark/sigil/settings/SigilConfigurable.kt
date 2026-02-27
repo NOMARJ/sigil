@@ -26,7 +26,7 @@ class SigilConfigurable(private val project: Project) :
         group("Scan Options") {
             row("Minimum severity:") {
                 comboBox(listOf("low", "medium", "high", "critical"))
-                    .bindItem(settings::severityThreshold.toNullableProperty())
+                    .bindItem({ settings.severityThreshold }, { settings.severityThreshold = it ?: "low" })
             }
             row("Phases:") {
                 textField()

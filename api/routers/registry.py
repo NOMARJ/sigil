@@ -136,7 +136,9 @@ def _row_to_summary(row: dict[str, Any]) -> PublicScanSummary:
         files_scanned=row.get("files_scanned", 0),
         badge_url=f"https://sigilsec.ai/badge/{ecosystem}/{name}.svg",
         report_url=f"https://sigilsec.ai/scans/{ecosystem}/{name}",
-        scanned_at=row.get("scanned_at", row.get("created_at", datetime.now(timezone.utc))),
+        scanned_at=row.get(
+            "scanned_at", row.get("created_at", datetime.now(timezone.utc))
+        ),
     )
 
 
@@ -169,7 +171,9 @@ def _row_to_detail(row: dict[str, Any]) -> PublicScanDetail:
         metadata=metadata,
         badge_url=f"https://sigilsec.ai/badge/{ecosystem}/{name}.svg",
         report_url=f"https://sigilsec.ai/scans/{ecosystem}/{name}",
-        scanned_at=row.get("scanned_at", row.get("created_at", datetime.now(timezone.utc))),
+        scanned_at=row.get(
+            "scanned_at", row.get("created_at", datetime.now(timezone.utc))
+        ),
     )
 
 
@@ -282,7 +286,9 @@ async def list_ecosystem(
     elif sort == "name":
         rows.sort(key=lambda r: r.get("package_name", ""))
     else:
-        rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
+        rows.sort(
+            key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
+        )
 
     # Deduplicate: keep latest scan per package
     seen: dict[str, dict[str, Any]] = {}

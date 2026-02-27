@@ -190,10 +190,10 @@ app.include_router(alerts.router)
 app.include_router(billing.router)
 
 # --- Public distribution routes (no auth required) -------------------------
-app.include_router(registry.router)     # /registry/* — public scan database
-app.include_router(badge.router)        # /badge/*    — SVG badge generation
-app.include_router(github_app.router)   # /github/*   — GitHub App webhooks
-app.include_router(feed.router)        # /feed.*     — RSS + JSON threat feed
+app.include_router(registry.router)  # /registry/* — public scan database
+app.include_router(badge.router)  # /badge/*    — SVG badge generation
+app.include_router(github_app.router)  # /github/*   — GitHub App webhooks
+app.include_router(feed.router)  # /feed.*     — RSS + JSON threat feed
 
 # --- Dashboard-compatible routes (no /v1 prefix) --------------------------
 # The dashboard frontend calls paths like /auth/login, /scans, /team,

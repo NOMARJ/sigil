@@ -109,7 +109,9 @@ async def _http_get(
             full_url = f"{url}?{urllib.parse.urlencode(params)}"
 
         def _sync_get() -> dict[str, Any] | bytes | None:
-            _req = urllib.request.Request(full_url, headers={"Accept": "application/json"})
+            _req = urllib.request.Request(
+                full_url, headers={"Accept": "application/json"}
+            )
             try:
                 with urllib.request.urlopen(_req, timeout=timeout) as resp:
                     _data = resp.read()
@@ -320,7 +322,9 @@ async def scan_all_skills(
     if max_skills:
         skills = skills[:max_skills]
 
-    logger.info("Starting scan of %d ClawHub skills (concurrency=%d)", len(skills), concurrency)
+    logger.info(
+        "Starting scan of %d ClawHub skills (concurrency=%d)", len(skills), concurrency
+    )
 
     semaphore = asyncio.Semaphore(concurrency)
 
@@ -438,15 +442,23 @@ async def store_clawhub_results(results: list[ClawHubScanResult]) -> int:
 async def _main() -> None:
     import argparse
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
 
     parser = argparse.ArgumentParser(description="Sigil ClawHub Crawler")
     parser.add_argument("--full", action="store_true", help="Full registry scan")
-    parser.add_argument("--delta", action="store_true", help="Delta scan (recent updates)")
+    parser.add_argument(
+        "--delta", action="store_true", help="Delta scan (recent updates)"
+    )
     parser.add_argument("--skill", help="Scan a single skill by slug")
     parser.add_argument("--max", type=int, help="Max skills to scan")
-    parser.add_argument("--concurrency", type=int, default=5, help="Max concurrent scans")
-    parser.add_argument("--store", action="store_true", help="Store results in database")
+    parser.add_argument(
+        "--concurrency", type=int, default=5, help="Max concurrent scans"
+    )
+    parser.add_argument(
+        "--store", action="store_true", help="Store results in database"
+    )
     args = parser.parse_args()
 
     results: list[ClawHubScanResult] = []
@@ -466,21 +478,30 @@ async def _main() -> None:
         return
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"ClawHub Scan Results: {len(results)} skills")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     verdicts: dict[str, int] = {}
     for r in results:
         status = "ERROR" if r.error else r.verdict
         verdicts[status] = verdicts.get(status, 0) + 1
-        emoji = {"LOW_RISK": "+", "MEDIUM_RISK": "!", "HIGH_RISK": "!!", "CRITICAL_RISK": "!!!", "ERROR": "X"}.get(status, "?")
-        print(f"  [{emoji}] {r.skill.slug}: {status} (score={r.risk_score:.1f}, findings={r.findings_count})")
+        emoji = {
+            "LOW_RISK": "+",
+            "MEDIUM_RISK": "!",
+            "HIGH_RISK": "!!",
+            "CRITICAL_RISK": "!!!",
+            "ERROR": "X",
+        }.get(status, "?")
+        print(
+            f"  [{emoji}] {r.skill.slug}: {status} (score={r.risk_score:.1f}, findings={r.findings_count})"
+        )
 
     print(f"\nSummary: {verdicts}")
 
     if args.store:
         from api.database import db
+
         await db.connect()
         stored = await store_clawhub_results(results)
         print(f"Stored {stored}/{len(results)} results in database.")

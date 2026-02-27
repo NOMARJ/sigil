@@ -104,7 +104,9 @@ class ScanResponse(BaseModel):
     files_scanned: int = 0
     findings: list[Finding] = Field(default_factory=list)
     risk_score: float = Field(0.0, description="Aggregate weighted risk score")
-    verdict: Verdict = Field(Verdict.LOW_RISK, description="Overall risk classification")
+    verdict: Verdict = Field(
+        Verdict.LOW_RISK, description="Overall risk classification"
+    )
     threat_intel_hits: list[ThreatEntry] = Field(
         default_factory=list,
         description="Known threat entries matching this scan",
