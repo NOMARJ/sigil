@@ -14,6 +14,9 @@ const SIGIL_BINARY = process.env.SIGIL_BINARY ?? "sigil";
 const SIGIL_API_URL =
   process.env.SIGIL_API_URL ?? "https://api.sigilsec.ai";
 
+const DISCLAIMER =
+  "\n---\nDisclaimer: Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.";
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 async function runSigil(
@@ -105,7 +108,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -142,7 +145,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -173,7 +176,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -289,7 +292,7 @@ server.tool(
         }
 
         return {
-          content: [{ type: "text" as const, text: summary }],
+          content: [{ type: "text" as const, text: summary + DISCLAIMER }],
         };
       }
 
@@ -360,7 +363,7 @@ server.tool(
         if (total > 10) text += `\n  ... and ${total - 10} more results`;
 
         return {
-          content: [{ type: "text" as const, text }],
+          content: [{ type: "text" as const, text: text + DISCLAIMER }],
         };
       }
 

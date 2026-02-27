@@ -68,8 +68,8 @@ def _generate_badge_svg(
     safe_label = xml_escape(label)
     safe_message = xml_escape(full_message)
 
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width:.0f}" height="20" role="img" aria-label="{safe_label}: {safe_message}">
-  <title>{safe_label}: {safe_message}</title>
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width:.0f}" height="20" role="img" aria-label="Sigil automated scan result: {safe_message} — not a security certification">
+  <title>Automated scan by Sigil. This is not a security certification. Click for full report.</title>
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>

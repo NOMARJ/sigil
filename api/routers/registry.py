@@ -40,9 +40,16 @@ TABLE = "public_scans"
 # ---------------------------------------------------------------------------
 
 
+_DISCLAIMER = (
+    "Automated static analysis result. Not a security certification. "
+    "Provided as-is without warranty. See sigilsec.ai/terms for full terms."
+)
+
+
 class PublicScanSummary(BaseModel):
     """Summary of a public scan for list/search views."""
 
+    disclaimer: str = _DISCLAIMER
     id: str
     ecosystem: str = "unknown"
     package_name: str = ""
@@ -59,6 +66,7 @@ class PublicScanSummary(BaseModel):
 class PublicScanDetail(BaseModel):
     """Full public scan record."""
 
+    disclaimer: str = _DISCLAIMER
     id: str
     ecosystem: str = "unknown"
     package_name: str = ""

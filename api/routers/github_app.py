@@ -190,9 +190,9 @@ def _format_pr_comment(scan: PRScanComment) -> str:
     lines.extend([
         "",
         "---",
-        "<sub>Scanned by [Sigil Security](https://sigilsec.ai) "
-        "| [View full report](https://sigilsec.ai/scans) "
-        "| [Install Sigil](https://github.com/apps/sigil-security)</sub>",
+        "<sub>Automated scan by [Sigil](https://sigilsec.ai) "
+        "&middot; Results are not a security certification "
+        "&middot; [sigilsec.ai/terms](https://sigilsec.ai/terms)</sub>",
     ])
 
     return "\n".join(lines)

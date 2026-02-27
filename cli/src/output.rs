@@ -65,6 +65,22 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
         }
     }
     println!();
+    println!(
+        "{}",
+        "  Note: Sigil scans detect known malicious patterns through static analysis."
+            .dimmed()
+    );
+    println!(
+        "{}",
+        "  A low risk result does not guarantee the absence of all threats."
+            .dimmed()
+    );
+    println!(
+        "{}",
+        "  Always review code before use. See sigilsec.ai/terms for full terms."
+            .dimmed()
+    );
+    println!();
 }
 
 // ---------------------------------------------------------------------------

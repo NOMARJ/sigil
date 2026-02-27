@@ -93,6 +93,11 @@ class ScanRequest(BaseModel):
 class ScanResponse(BaseModel):
     """Response returned from POST /v1/scan after enrichment."""
 
+    disclaimer: str = Field(
+        default="Automated static analysis result. Not a security certification. "
+        "Provided as-is without warranty. See sigilsec.ai/terms for full terms.",
+        description="Legal disclaimer — always included in responses",
+    )
     scan_id: str = Field(..., description="Unique identifier for this scan")
     target: str
     target_type: str

@@ -47,6 +47,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -548,13 +549,9 @@ generate_verdict() {
     local total_score="$1" report_file="$2" q_id="$3"
 
     echo -e "\n${BOLD}+--------------------------------------+${NC}" | tee -a "$report_file"
-    if [ "$total_score" -eq 0 ]; then
-        echo -e "${BOLD}|  ${GREEN}VERDICT: CLEAN${NC}                        ${BOLD}|${NC}" | tee -a "$report_file"
+    if [ "$total_score" -lt 10 ]; then
+        echo -e "${BOLD}|  ${GREEN}VERDICT: LOW RISK${NC}                     ${BOLD}|${NC}" | tee -a "$report_file"
         echo -e "${BOLD}|  ${GREEN}Risk Score: $total_score${NC}                           ${BOLD}|${NC}" | tee -a "$report_file"
-        echo -e "${BOLD}|  Safe to approve.                      ${BOLD}|${NC}" | tee -a "$report_file"
-    elif [ "$total_score" -lt 10 ]; then
-        echo -e "${BOLD}|  ${BLUE}VERDICT: LOW RISK${NC}                     ${BOLD}|${NC}" | tee -a "$report_file"
-        echo -e "${BOLD}|  ${BLUE}Risk Score: $total_score${NC}                            ${BOLD}|${NC}" | tee -a "$report_file"
         echo -e "${BOLD}|  Review flagged items, likely safe.    ${BOLD}|${NC}" | tee -a "$report_file"
     elif [ "$total_score" -lt 25 ]; then
         echo -e "${BOLD}|  ${YELLOW}VERDICT: MEDIUM RISK${NC}                  ${BOLD}|${NC}" | tee -a "$report_file"
@@ -577,6 +574,10 @@ generate_verdict() {
     echo -e "Actions:" | tee -a "$report_file"
     echo -e "  ${GREEN}sigil approve $q_id${NC}  — Move to working directory" | tee -a "$report_file"
     echo -e "  ${RED}sigil reject  $q_id${NC}  — Delete from quarantine" | tee -a "$report_file"
+    echo "" | tee -a "$report_file"
+    echo -e "${DIM}Note: Sigil scans detect known malicious patterns through static analysis.${NC}" | tee -a "$report_file"
+    echo -e "${DIM}A low risk result does not guarantee the absence of all threats.${NC}" | tee -a "$report_file"
+    echo -e "${DIM}Always review code before use. See sigilsec.ai/terms for full terms.${NC}" | tee -a "$report_file"
 }
 
 # ── Cloud Threat Intelligence ─────────────────────────────────────────────────
