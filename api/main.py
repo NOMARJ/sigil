@@ -164,9 +164,12 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 from api.routers import (  # noqa: E402
     alerts,
     auth,
+    badge,
     billing,
+    github_app,
     policies,
     publisher,
+    registry,
     report,
     scan,
     team,
@@ -184,6 +187,11 @@ app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
+
+# --- Public distribution routes (no auth required) -------------------------
+app.include_router(registry.router)     # /registry/* — public scan database
+app.include_router(badge.router)        # /badge/*    — SVG badge generation
+app.include_router(github_app.router)   # /github/*   — GitHub App webhooks
 
 # --- Dashboard-compatible routes (no /v1 prefix) --------------------------
 # The dashboard frontend calls paths like /auth/login, /scans, /team,
