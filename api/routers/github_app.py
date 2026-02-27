@@ -192,7 +192,7 @@ def _format_pr_comment(scan: PRScanComment) -> str:
         "",
         "---",
         "<sub>Scanned by [Sigil Security](https://sigilsec.ai) "
-        "| [View full report](https://sigilsec.ai/report) "
+        "| [View full report](https://sigilsec.ai/scans) "
         "| [Install Sigil](https://github.com/apps/sigil-security)</sub>",
     ])
 

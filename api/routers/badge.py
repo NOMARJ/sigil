@@ -156,10 +156,10 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
     """Generate a badge for the latest scan of a package in a given ecosystem.
 
     Embed in your README:
-        ![Scanned by Sigil](https://api.sigilsec.ai/badge/{ecosystem}/{package_name})
+        ![Scanned by Sigil](https://sigilsec.ai/badge/{ecosystem}/{package_name}.svg)
 
     Example:
-        [![Scanned by Sigil](https://api.sigilsec.ai/badge/clawhub/my-skill)](https://sigilsec.ai/registry/clawhub/my-skill)
+        [![Scanned by Sigil](https://sigilsec.ai/badge/clawhub/my-skill.svg)](https://sigilsec.ai/scans/clawhub/my-skill)
     """
     rows = await db.select(
         "public_scans",

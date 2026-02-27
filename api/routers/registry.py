@@ -126,8 +126,8 @@ def _row_to_summary(row: dict[str, Any]) -> PublicScanSummary:
         verdict=row.get("verdict", "CLEAN"),
         findings_count=row.get("findings_count", 0),
         files_scanned=row.get("files_scanned", 0),
-        badge_url=f"https://api.sigilsec.ai/badge/{ecosystem}/{name}",
-        report_url=f"https://sigilsec.ai/registry/{ecosystem}/{name}",
+        badge_url=f"https://sigilsec.ai/badge/{ecosystem}/{name}.svg",
+        report_url=f"https://sigilsec.ai/scans/{ecosystem}/{name}",
         scanned_at=row.get("scanned_at", row.get("created_at", datetime.now(timezone.utc))),
     )
 
@@ -159,8 +159,8 @@ def _row_to_detail(row: dict[str, Any]) -> PublicScanDetail:
         files_scanned=row.get("files_scanned", 0),
         findings=findings,
         metadata=metadata,
-        badge_url=f"https://api.sigilsec.ai/badge/{ecosystem}/{name}",
-        report_url=f"https://sigilsec.ai/registry/{ecosystem}/{name}",
+        badge_url=f"https://sigilsec.ai/badge/{ecosystem}/{name}.svg",
+        report_url=f"https://sigilsec.ai/scans/{ecosystem}/{name}",
         scanned_at=row.get("scanned_at", row.get("created_at", datetime.now(timezone.utc))),
     )
 
