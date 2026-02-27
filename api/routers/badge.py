@@ -46,27 +46,48 @@ def _generate_badge_svg(
     message: str,
     color: str,
     score: float | None = None,
+    version: str | None = None,
+    scanned_at: str | None = None,
 ) -> str:
     """Generate a shields.io-compatible SVG badge.
 
     Uses the flat style for maximum compatibility with GitHub READMEs.
+    The badge includes a version or scan date per the liability spec —
+    without versioning, badges imply ongoing certification.
     """
     # Approximate text widths (character width ~6.5px for 11px Verdana)
     label_width = len(label) * 6.5 + 10
-    message_width = len(message) * 6.5 + 10
-    total_width = label_width + message_width
 
     score_text = f" ({score:.0f})" if score is not None else ""
     full_message = message + score_text
     message_width = len(full_message) * 6.5 + 10
-    total_width = label_width + message_width
+
+    # Third segment: version or scan date (point-in-time indicator)
+    tag_text = ""
+    if version:
+        tag_text = version
+    elif scanned_at:
+        # Extract YYYY-MM-DD from ISO timestamp
+        tag_text = scanned_at[:10] if len(scanned_at) >= 10 else scanned_at
+    tag_width = (len(tag_text) * 6.5 + 10) if tag_text else 0
+
+    total_width = label_width + message_width + tag_width
 
     label_x = label_width / 2
     message_x = label_width + message_width / 2
+    tag_x = label_width + message_width + tag_width / 2
 
     # Escape XML entities to prevent XSS in SVG output
     safe_label = xml_escape(label)
     safe_message = xml_escape(full_message)
+    safe_tag = xml_escape(tag_text) if tag_text else ""
+
+    tag_svg = ""
+    if safe_tag:
+        tag_svg = f"""
+    <rect x="{label_width + message_width:.0f}" width="{tag_width:.0f}" height="20" fill="#555"/>
+    <text aria-hidden="true" x="{tag_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110">{safe_tag}</text>
+    <text x="{tag_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110">{safe_tag}</text>"""
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total_width:.0f}" height="20" role="img" aria-label="Sigil automated scan result: {safe_message} — not a security certification">
   <title>Automated scan by Sigil. This is not a security certification. Click for full report.</title>
@@ -86,7 +107,7 @@ def _generate_badge_svg(
     <text aria-hidden="true" x="{label_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{safe_label}</text>
     <text x="{label_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{safe_label}</text>
     <text aria-hidden="true" x="{message_x * 10:.0f}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)">{safe_message}</text>
-    <text x="{message_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{safe_message}</text>
+    <text x="{message_x * 10:.0f}" y="140" transform="scale(.1)" fill="#fff">{safe_message}</text>{tag_svg}
   </g>
 </svg>"""
 
@@ -141,7 +162,13 @@ async def scan_badge(scan_id: str) -> Response:
     score = row.get("risk_score", 0.0)
     color = VERDICT_COLORS.get(verdict, "#9f9f9f")
     label_text = VERDICT_LABELS.get(verdict, "unknown")
-    svg = _generate_badge_svg("sigil", label_text, color, score=score)
+    version = row.get("package_version") or None
+    scanned_at = str(row.get("scanned_at") or row.get("created_at") or "")
+    svg = _generate_badge_svg(
+        "sigil", label_text, color, score=score,
+        version=f"v{version}" if version else None,
+        scanned_at=scanned_at if not version else None,
+    )
     return _svg_response(svg)
 
 
@@ -176,5 +203,11 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
     score = row.get("risk_score", 0.0)
     color = VERDICT_COLORS.get(verdict, "#9f9f9f")
     label_text = VERDICT_LABELS.get(verdict, "unknown")
-    svg = _generate_badge_svg("sigil", label_text, color, score=score)
+    version = row.get("package_version") or None
+    scanned_at = str(row.get("scanned_at") or row.get("created_at") or "")
+    svg = _generate_badge_svg(
+        "sigil", label_text, color, score=score,
+        version=f"v{version}" if version else None,
+        scanned_at=scanned_at if not version else None,
+    )
     return _svg_response(svg)

@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS skill_scans (
     team_id             UUID REFERENCES teams(id) ON DELETE SET NULL,
 
     -- Scan results
-    verdict             VARCHAR(50) NOT NULL DEFAULT 'CLEAN',
+    verdict             VARCHAR(50) NOT NULL DEFAULT 'LOW_RISK',
     risk_score          DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     findings_count      INTEGER NOT NULL DEFAULT 0,
     findings_json       JSONB NOT NULL DEFAULT '[]'::jsonb,

@@ -82,6 +82,17 @@ export default function ScansPage() {
         </div>
       </div>
 
+      {/* Scan database notice — required per liability spec Section 5 */}
+      <div className="p-3 rounded-lg bg-gray-900/50 border border-gray-800 text-xs text-gray-500 leading-relaxed">
+        Sigil scans packages across ClawHub, PyPI, npm, and GitHub using
+        automated static analysis. Results indicate detected patterns, not
+        certified safety status. See our{" "}
+        <a href="/terms" className="text-brand-400 hover:text-brand-300 underline">
+          Terms of Service
+        </a>{" "}
+        for full details.
+      </div>
+
       {/* Error banner */}
       {error && (
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center justify-between">

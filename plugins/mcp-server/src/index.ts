@@ -118,7 +118,7 @@ server.tool(
 
 server.tool(
   "sigil_scan_package",
-  "Download and scan an npm or pip package in quarantine before installing it. Use this to check if a package is safe.",
+  "Download and scan an npm or pip package in quarantine before installing it. Use this to assess risk before installation.",
   {
     manager: z
       .enum(["npm", "pip"])
@@ -249,7 +249,7 @@ server.tool(
 
 server.tool(
   "sigil_check_package",
-  "Check if a package or skill is safe to install by looking up its Sigil security scan in the public database. Works for ClawHub skills, PyPI packages, npm packages, and MCP servers.",
+  "Look up a package or skill's risk assessment in the Sigil public scan database. Works for ClawHub skills, PyPI packages, npm packages, and MCP servers.",
   {
     ecosystem: z
       .enum(["clawhub", "pypi", "npm", "github", "mcp"])

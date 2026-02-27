@@ -399,7 +399,7 @@ async def approve_scan(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
-    """Approve a scan, marking it as safe in the metadata."""
+    """Approve a scan, marking it as reviewed in the metadata."""
     row = await _get_scan_or_404(scan_id)
 
     metadata = row.get("metadata_json", {})

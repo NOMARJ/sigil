@@ -410,7 +410,7 @@ run_external_scanners() {
             warn "Semgrep found $semgrep_count issues" | tee -a "$report_file"
             findings=$((findings + semgrep_count * 3))
         else
-            pass "Semgrep: clean" | tee -a "$report_file"
+            pass "Semgrep: no issues" | tee -a "$report_file"
         fi
     else
         info "Semgrep not available — skipping" | tee -a "$report_file"
@@ -426,7 +426,7 @@ run_external_scanners() {
             warn "Bandit found $bandit_high high/medium severity issues" | tee -a "$report_file"
             findings=$((findings + bandit_high * 3))
         else
-            pass "Bandit: clean" | tee -a "$report_file"
+            pass "Bandit: no issues" | tee -a "$report_file"
         fi
     fi
 
@@ -457,7 +457,7 @@ run_external_scanners() {
             fail "npm audit found $npm_vulns critical/high vulnerabilities" | tee -a "$report_file"
             findings=$((findings + npm_vulns * 5))
         else
-            pass "npm audit: clean" | tee -a "$report_file"
+            pass "npm audit: no issues" | tee -a "$report_file"
         fi
     fi
 
@@ -471,7 +471,7 @@ run_external_scanners() {
             warn "Safety found vulnerable Python dependencies" | tee -a "$report_file"
             findings=$((findings + 5))
         else
-            pass "Safety: Python dependencies clean" | tee -a "$report_file"
+            pass "Safety: no known vulnerabilities" | tee -a "$report_file"
         fi
     fi
 
@@ -552,7 +552,7 @@ generate_verdict() {
     if [ "$total_score" -lt 10 ]; then
         echo -e "${BOLD}|  ${GREEN}VERDICT: LOW RISK${NC}                     ${BOLD}|${NC}" | tee -a "$report_file"
         echo -e "${BOLD}|  ${GREEN}Risk Score: $total_score${NC}                           ${BOLD}|${NC}" | tee -a "$report_file"
-        echo -e "${BOLD}|  Review flagged items, likely safe.    ${BOLD}|${NC}" | tee -a "$report_file"
+        echo -e "${BOLD}|  Review flagged items before use.      ${BOLD}|${NC}" | tee -a "$report_file"
     elif [ "$total_score" -lt 25 ]; then
         echo -e "${BOLD}|  ${YELLOW}VERDICT: MEDIUM RISK${NC}                  ${BOLD}|${NC}" | tee -a "$report_file"
         echo -e "${BOLD}|  ${YELLOW}Risk Score: $total_score${NC}                           ${BOLD}|${NC}" | tee -a "$report_file"
@@ -575,9 +575,27 @@ generate_verdict() {
     echo -e "  ${GREEN}sigil approve $q_id${NC}  — Move to working directory" | tee -a "$report_file"
     echo -e "  ${RED}sigil reject  $q_id${NC}  — Delete from quarantine" | tee -a "$report_file"
     echo "" | tee -a "$report_file"
-    echo -e "${DIM}Note: Sigil scans detect known malicious patterns through static analysis.${NC}" | tee -a "$report_file"
-    echo -e "${DIM}A low risk result does not guarantee the absence of all threats.${NC}" | tee -a "$report_file"
-    echo -e "${DIM}Always review code before use. See sigilsec.ai/terms for full terms.${NC}" | tee -a "$report_file"
+
+    # Disclaimer: long form on first run, short on subsequent (configurable)
+    local disclaimer_suppressed="false"
+    if [ -f "$CONFIG_FILE" ] && grep -q "^disclaimer=false" "$CONFIG_FILE" 2>/dev/null; then
+        disclaimer_suppressed="true"
+    fi
+
+    local marker_file="$HOME/.sigil/.disclaimer_shown"
+    if [ "$disclaimer_suppressed" = "false" ]; then
+        if [ ! -f "$marker_file" ]; then
+            # First-run: show long disclaimer
+            echo -e "${DIM}Note: Sigil scans detect known malicious patterns through static analysis.${NC}" | tee -a "$report_file"
+            echo -e "${DIM}A low risk result does not guarantee the absence of all threats.${NC}" | tee -a "$report_file"
+            echo -e "${DIM}Always review code before use. See sigilsec.ai/terms for full terms.${NC}" | tee -a "$report_file"
+            mkdir -p "$(dirname "$marker_file")"
+            touch "$marker_file"
+        else
+            # Subsequent runs: show short disclaimer
+            echo -e "${DIM}ℹ Scan results are not a guarantee of safety. Review code before use.${NC}" | tee -a "$report_file"
+        fi
+    fi
 }
 
 # ── Cloud Threat Intelligence ─────────────────────────────────────────────────
@@ -1118,9 +1136,9 @@ cmd_install() {
     echo -e "${BOLD}+----------------------------------------------+${NC}"
     echo -e "${BOLD}|  ${GREEN}Installation complete${NC}${BOLD}                       |${NC}"
     echo -e "${BOLD}|  Open a new terminal, then try:              |${NC}"
-    echo -e "${BOLD}|    ${CYAN}gclone <url>${NC}${BOLD}     — safe git clone           |${NC}"
-    echo -e "${BOLD}|    ${CYAN}safepip <pkg>${NC}${BOLD}    — safe pip install          |${NC}"
-    echo -e "${BOLD}|    ${CYAN}safenpm <pkg>${NC}${BOLD}    — safe npm install          |${NC}"
+    echo -e "${BOLD}|    ${CYAN}gclone <url>${NC}${BOLD}     — audited git clone           |${NC}"
+    echo -e "${BOLD}|    ${CYAN}safepip <pkg>${NC}${BOLD}    — audited pip install          |${NC}"
+    echo -e "${BOLD}|    ${CYAN}safenpm <pkg>${NC}${BOLD}    — audited npm install          |${NC}"
     echo -e "${BOLD}|    ${CYAN}audithere${NC}${BOLD}        — scan current dir          |${NC}"
     echo -e "${BOLD}+----------------------------------------------+${NC}"
 }

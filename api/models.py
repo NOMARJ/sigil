@@ -452,7 +452,7 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """Public-safe user representation."""
+    """Public-facing user representation (no secrets)."""
 
     id: str
     email: str

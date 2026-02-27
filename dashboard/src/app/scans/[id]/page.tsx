@@ -360,6 +360,66 @@ export default function ScanDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Badge embed — with point-in-time disclaimer per Section 2 */}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="section-header">Badge</h2>
+          <p className="section-description">
+            Embed a scan result badge in your README.
+          </p>
+        </div>
+        <div className="card-body space-y-3">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            The Sigil badge reflects the result of an automated point-in-time
+            scan. It is not an endorsement, certification, or guarantee of
+            safety. Results may change between versions. Package authors who
+            display this badge are responsible for keeping their scanned
+            version current.
+          </p>
+          <div className="bg-gray-900 rounded p-3 font-mono text-xs text-gray-300 break-all select-all">
+            {`[![Scanned by Sigil](https://sigilsec.ai/badge/scan/${scan.scan_id ?? scanId})](https://sigilsec.ai/scans/${scanId})`}
+          </div>
+        </div>
+      </div>
+
+      {/* Disclaimer — required per liability spec Section 1 */}
+      <aside className="mt-8 p-4 rounded-lg bg-gray-900/50 border border-gray-800 text-xs text-gray-500 leading-relaxed">
+        <p className="font-semibold text-gray-400 mb-2 uppercase tracking-wider text-[10px]">
+          Disclaimer
+        </p>
+        <p>
+          This scan was performed by automated static analysis. A LOW RISK
+          verdict means no known malicious patterns were detected at the time
+          of scanning &mdash; it does not certify that this package is safe,
+          free from vulnerabilities, or suitable for any purpose. Risk
+          classifications reflect the output of automated analysis based on
+          defined detection criteria and are statements of algorithmic opinion,
+          not assertions of malicious intent by any author or publisher. Scan
+          results may contain false positives or false negatives. Always review
+          source code before installing or executing any package. NOMARK Pty
+          Ltd provides this information &ldquo;as is&rdquo; without warranty
+          of any kind and accepts no liability for any loss or damage arising
+          from reliance on these results.
+        </p>
+        <p className="mt-3">
+          Believe this result is incorrect?{" "}
+          <a
+            href="mailto:security@nomark.ai"
+            className="text-brand-400 hover:text-brand-300 underline"
+          >
+            Request a review
+          </a>{" "}
+          or see our{" "}
+          <a href="/terms" className="text-brand-400 hover:text-brand-300 underline">
+            Terms of Service
+          </a>
+          {" "}and{" "}
+          <a href="/methodology" className="text-brand-400 hover:text-brand-300 underline">
+            Methodology
+          </a>.
+        </p>
+      </aside>
     </div>
   );
 }
