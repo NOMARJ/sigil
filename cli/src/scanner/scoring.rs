@@ -45,27 +45,22 @@ pub fn calculate_score(findings: &[Finding]) -> u32 {
         .sum()
 }
 
-/// Determine the overall verdict from findings and the aggregate score.
+/// Determine the overall risk classification from findings and the aggregate score.
 ///
 /// Thresholds (aligned with the bash CLI and API):
-/// - **Clean**: no findings at all
-/// - **LowRisk**: score 1-9
+/// - **LowRisk**: score 0-9
 /// - **MediumRisk**: score 10-24
 /// - **HighRisk**: score 25-49
-/// - **Critical**: score >= 50, or any single Critical-severity finding
+/// - **CriticalRisk**: score >= 50, or any single Critical-severity finding
 ///   from the InstallHooks phase (immediate escalation)
 pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
-    if findings.is_empty() {
-        return Verdict::Clean;
-    }
-
     // Immediate escalation: any Critical finding in InstallHooks
     let has_critical_install = findings
         .iter()
         .any(|f| f.phase == Phase::InstallHooks && f.severity == Severity::Critical);
 
     if has_critical_install || score >= 50 {
-        return Verdict::Critical;
+        return Verdict::CriticalRisk;
     }
 
     if score >= 25 {
@@ -96,11 +91,11 @@ mod tests {
     }
 
     #[test]
-    fn test_clean_verdict() {
+    fn test_low_risk_no_findings() {
         let findings: Vec<Finding> = vec![];
         let score = calculate_score(&findings);
         assert_eq!(score, 0);
-        assert_eq!(determine_verdict(&findings, score), Verdict::Clean);
+        assert_eq!(determine_verdict(&findings, score), Verdict::LowRisk);
     }
 
     #[test]
@@ -141,16 +136,16 @@ mod tests {
     }
 
     #[test]
-    fn test_critical_install_hook_escalation() {
+    fn test_critical_risk_install_hook_escalation() {
         let findings = vec![dummy_finding(Phase::InstallHooks, Severity::Critical, 10)];
         let score = calculate_score(&findings);
-        // Critical install hook always escalates to Critical verdict
-        assert_eq!(determine_verdict(&findings, score), Verdict::Critical);
+        // Critical install hook always escalates to CriticalRisk
+        assert_eq!(determine_verdict(&findings, score), Verdict::CriticalRisk);
     }
 
     #[test]
-    fn test_critical_by_score() {
-        // Score >= 50 triggers Critical verdict
+    fn test_critical_risk_by_score() {
+        // Score >= 50 triggers CriticalRisk
         let findings = vec![
             dummy_finding(Phase::CodePatterns, Severity::Critical, 5),
             dummy_finding(Phase::Obfuscation, Severity::Critical, 5),
@@ -159,6 +154,6 @@ mod tests {
         // 5*5 + 5*5 = 25+25 = 50
         assert_eq!(score, 50);
         assert!(score >= 50);
-        assert_eq!(determine_verdict(&findings, score), Verdict::Critical);
+        assert_eq!(determine_verdict(&findings, score), Verdict::CriticalRisk);
     }
 }

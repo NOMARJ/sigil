@@ -24,6 +24,7 @@ function formatDate(iso: string): string {
 }
 
 const severityOrder: Record<string, number> = {
+  CRITICAL_RISK: 4,
   CRITICAL: 4,
   HIGH_RISK: 3,
   HIGH: 3,
@@ -31,7 +32,6 @@ const severityOrder: Record<string, number> = {
   MEDIUM: 2,
   LOW_RISK: 1,
   LOW: 1,
-  CLEAN: 0,
 };
 
 function riskBreakdown(findings: Finding[]): { phase: ScanPhase; count: number; maxSeverity: Verdict; totalWeight: number }[] {
@@ -43,7 +43,7 @@ function riskBreakdown(findings: Finding[]): { phase: ScanPhase; count: number; 
   for (const f of findings) {
     const entry = map.get(f.phase) ?? {
       count: 0,
-      maxSeverity: "CLEAN" as Verdict,
+      maxSeverity: "LOW_RISK" as Verdict,
       totalWeight: 0,
     };
     entry.count += 1;

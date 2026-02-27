@@ -2,7 +2,7 @@
 Sigil API — Risk Scoring Tests
 
 Tests the risk scoring engine including per-finding scoring, aggregate
-score calculation, and verdict threshold mapping.
+score calculation, and risk classification threshold mapping.
 """
 
 from __future__ import annotations
@@ -20,19 +20,19 @@ from api.services.scoring import (
 
 
 class TestScoreToVerdict:
-    """Test the numeric score to verdict mapping."""
+    """Test the numeric score to risk classification mapping."""
 
-    def test_zero_is_clean(self) -> None:
-        """Score of 0 should map to CLEAN."""
-        assert score_to_verdict(0.0) == Verdict.CLEAN
+    def test_zero_is_low_risk(self) -> None:
+        """Score of 0 should map to LOW_RISK."""
+        assert score_to_verdict(0.0) == Verdict.LOW_RISK
 
-    def test_negative_is_clean(self) -> None:
-        """Negative scores should still map to CLEAN."""
-        assert score_to_verdict(-5.0) == Verdict.CLEAN
+    def test_negative_is_low_risk(self) -> None:
+        """Negative scores should still map to LOW_RISK."""
+        assert score_to_verdict(-5.0) == Verdict.LOW_RISK
 
     def test_low_risk_range(self) -> None:
-        """Scores 1-9 should map to LOW_RISK."""
-        assert score_to_verdict(1.0) == Verdict.LOW_RISK
+        """Scores 0-9 should map to LOW_RISK."""
+        assert score_to_verdict(0.0) == Verdict.LOW_RISK
         assert score_to_verdict(5.0) == Verdict.LOW_RISK
         assert score_to_verdict(9.99) == Verdict.LOW_RISK
 
@@ -48,22 +48,22 @@ class TestScoreToVerdict:
         assert score_to_verdict(35.0) == Verdict.HIGH_RISK
         assert score_to_verdict(49.99) == Verdict.HIGH_RISK
 
-    def test_critical_range(self) -> None:
-        """Scores 50+ should map to CRITICAL."""
-        assert score_to_verdict(50.0) == Verdict.CRITICAL
-        assert score_to_verdict(100.0) == Verdict.CRITICAL
-        assert score_to_verdict(999.0) == Verdict.CRITICAL
+    def test_critical_risk_range(self) -> None:
+        """Scores 50+ should map to CRITICAL_RISK."""
+        assert score_to_verdict(50.0) == Verdict.CRITICAL_RISK
+        assert score_to_verdict(100.0) == Verdict.CRITICAL_RISK
+        assert score_to_verdict(999.0) == Verdict.CRITICAL_RISK
 
     def test_boundary_values(self) -> None:
-        """Test exact boundary values between verdict ranges."""
-        assert score_to_verdict(0) == Verdict.CLEAN
+        """Test exact boundary values between risk classification ranges."""
+        assert score_to_verdict(0) == Verdict.LOW_RISK
         assert score_to_verdict(0.01) == Verdict.LOW_RISK
         assert score_to_verdict(9.99) == Verdict.LOW_RISK
         assert score_to_verdict(10.0) == Verdict.MEDIUM_RISK
         assert score_to_verdict(24.99) == Verdict.MEDIUM_RISK
         assert score_to_verdict(25.0) == Verdict.HIGH_RISK
         assert score_to_verdict(49.99) == Verdict.HIGH_RISK
-        assert score_to_verdict(50.0) == Verdict.CRITICAL
+        assert score_to_verdict(50.0) == Verdict.CRITICAL_RISK
 
 
 class TestScoreFinding:
@@ -235,14 +235,14 @@ class TestAggregateScore:
 class TestComputeVerdict:
     """Test the convenience compute_verdict function."""
 
-    def test_clean_verdict(self) -> None:
-        """No findings should produce (0.0, CLEAN)."""
+    def test_low_risk_verdict(self) -> None:
+        """No findings should produce (0.0, LOW_RISK)."""
         score, verdict = compute_verdict([])
         assert score == 0.0
-        assert verdict == Verdict.CLEAN
+        assert verdict == Verdict.LOW_RISK
 
-    def test_critical_verdict(self) -> None:
-        """A critical install hook finding alone should trigger CRITICAL."""
+    def test_critical_risk_verdict(self) -> None:
+        """A critical install hook finding alone should trigger CRITICAL_RISK."""
         findings = [
             Finding(
                 phase=ScanPhase.INSTALL_HOOKS,
@@ -254,7 +254,7 @@ class TestComputeVerdict:
         ]
         score, verdict = compute_verdict(findings)
         assert score == 50.0
-        assert verdict == Verdict.CRITICAL
+        assert verdict == Verdict.CRITICAL_RISK
 
     def test_verdict_matches_score(self) -> None:
         """The returned verdict should be consistent with the returned score."""

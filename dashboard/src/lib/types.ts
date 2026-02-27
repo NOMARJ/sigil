@@ -3,13 +3,12 @@
 // These mirror the models exposed by the FastAPI backend.
 // ---------------------------------------------------------------------------
 
-/** Verdict levels returned by the scan engine. */
+/** Risk classification levels returned by the scan engine. */
 export type Verdict =
-  | "CLEAN"
   | "LOW_RISK"
   | "MEDIUM_RISK"
   | "HIGH_RISK"
-  | "CRITICAL";
+  | "CRITICAL_RISK";
 
 /** Scan phases as defined by the Sigil scanner. */
 export type ScanPhase =

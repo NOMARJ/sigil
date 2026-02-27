@@ -69,24 +69,22 @@ pub struct Finding {
     pub weight: u32,
 }
 
-/// Overall scan verdict.
+/// Overall risk classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Verdict {
-    Clean,
     LowRisk,
     MediumRisk,
     HighRisk,
-    Critical,
+    CriticalRisk,
 }
 
 impl fmt::Display for Verdict {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Verdict::Clean => write!(f, "CLEAN"),
             Verdict::LowRisk => write!(f, "LOW RISK"),
             Verdict::MediumRisk => write!(f, "MEDIUM RISK"),
             Verdict::HighRisk => write!(f, "HIGH RISK"),
-            Verdict::Critical => write!(f, "CRITICAL"),
+            Verdict::CriticalRisk => write!(f, "CRITICAL RISK"),
         }
     }
 }

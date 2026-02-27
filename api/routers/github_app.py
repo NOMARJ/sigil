@@ -55,7 +55,7 @@ class PRScanComment(BaseModel):
     pr_number: int
     new_dependencies: list[dict[str, Any]] = Field(default_factory=list)
     scan_results: list[dict[str, Any]] = Field(default_factory=list)
-    overall_verdict: str = "CLEAN"
+    overall_verdict: str = "LOW_RISK"
     overall_score: float = 0.0
 
 
@@ -127,11 +127,10 @@ def _extract_new_dependencies(diff: str) -> list[dict[str, str]]:
 def _format_pr_comment(scan: PRScanComment) -> str:
     """Format a PR comment with scan results."""
     verdict_emoji = {
-        "CLEAN": "white_check_mark",
-        "LOW_RISK": "large_blue_circle",
+        "LOW_RISK": "white_check_mark",
         "MEDIUM_RISK": "warning",
         "HIGH_RISK": "x",
-        "CRITICAL": "rotating_light",
+        "CRITICAL_RISK": "rotating_light",
     }
 
     emoji = verdict_emoji.get(scan.overall_verdict, "question")
@@ -155,7 +154,7 @@ def _format_pr_comment(scan: PRScanComment) -> str:
             dep_name = result.get("name", "unknown")
             dep_version = result.get("version", "")
             dep_eco = result.get("ecosystem", "")
-            dep_verdict = result.get("verdict", "CLEAN")
+            dep_verdict = result.get("verdict", "LOW_RISK")
             dep_score = result.get("risk_score", 0.0)
             dep_emoji = verdict_emoji.get(dep_verdict, "question")
             dep_findings = result.get("findings", [])

@@ -34,12 +34,11 @@ export CONFIG_FILE="${SIGIL_CONFIG:-$HOME/.sigil/config}"
 TOKEN_FILE="${SIGIL_TOKEN:-$HOME/.sigil/token}"
 API_BASE_URL="${SIGIL_API_URL:-https://api.sigilsec.ai}"
 
-# Severity thresholds (exit codes) — exported for use in hooks/scripts
-export SEVERITY_CRITICAL=1
-export SEVERITY_HIGH=2
-export SEVERITY_MEDIUM=3
-export SEVERITY_LOW=4
-export SEVERITY_CLEAN=0
+# Risk classification exit codes — exported for use in hooks/scripts
+export SEVERITY_CRITICAL_RISK=1
+export SEVERITY_HIGH_RISK=2
+export SEVERITY_MEDIUM_RISK=3
+export SEVERITY_LOW_RISK=0
 
 # Colours
 RED='\033[0;31m'

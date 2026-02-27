@@ -48,7 +48,7 @@ class PublicScanSummary(BaseModel):
     package_name: str = ""
     package_version: str = ""
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     findings_count: int = 0
     files_scanned: int = 0
     badge_url: str = ""
@@ -64,7 +64,7 @@ class PublicScanDetail(BaseModel):
     package_name: str = ""
     package_version: str = ""
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     findings_count: int = 0
     files_scanned: int = 0
     findings: list[dict[str, Any]] = Field(default_factory=list)
@@ -101,7 +101,7 @@ class PublicScanSubmit(BaseModel):
     package_name: str = Field(..., description="Package or skill name")
     package_version: str = Field("", description="Package version")
     risk_score: float = Field(0.0)
-    verdict: str = Field("CLEAN")
+    verdict: str = Field("LOW_RISK")
     findings_count: int = Field(0)
     files_scanned: int = Field(0)
     findings: list[dict[str, Any]] = Field(default_factory=list)
@@ -123,7 +123,7 @@ def _row_to_summary(row: dict[str, Any]) -> PublicScanSummary:
         package_name=name,
         package_version=row.get("package_version", ""),
         risk_score=row.get("risk_score", 0.0),
-        verdict=row.get("verdict", "CLEAN"),
+        verdict=row.get("verdict", "LOW_RISK"),
         findings_count=row.get("findings_count", 0),
         files_scanned=row.get("files_scanned", 0),
         badge_url=f"https://sigilsec.ai/badge/{ecosystem}/{name}.svg",
@@ -154,7 +154,7 @@ def _row_to_detail(row: dict[str, Any]) -> PublicScanDetail:
         package_name=name,
         package_version=row.get("package_version", ""),
         risk_score=row.get("risk_score", 0.0),
-        verdict=row.get("verdict", "CLEAN"),
+        verdict=row.get("verdict", "LOW_RISK"),
         findings_count=row.get("findings_count", 0),
         files_scanned=row.get("files_scanned", 0),
         findings=findings,
@@ -223,9 +223,9 @@ async def registry_stats() -> RegistryStats:
     for r in rows:
         eco = r.get("ecosystem", "unknown")
         ecosystems[eco] = ecosystems.get(eco, 0) + 1
-        v = r.get("verdict", "CLEAN")
+        v = r.get("verdict", "LOW_RISK")
         verdicts[v] = verdicts.get(v, 0) + 1
-        if v in ("HIGH_RISK", "CRITICAL"):
+        if v in ("HIGH_RISK", "CRITICAL_RISK"):
             threats += 1
 
     # Count unique packages

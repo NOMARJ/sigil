@@ -7,11 +7,10 @@ import type { Scan, Verdict, PaginatedResponse } from "@/lib/types";
 
 const verdictOptions: (Verdict | "ALL")[] = [
   "ALL",
-  "CLEAN",
   "LOW_RISK",
   "MEDIUM_RISK",
   "HIGH_RISK",
-  "CRITICAL",
+  "CRITICAL_RISK",
 ];
 
 const PER_PAGE = 10;

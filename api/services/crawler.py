@@ -60,7 +60,7 @@ class CrawlResult:
     target: CrawlTarget
     scan_id: str = ""
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     findings_count: int = 0
     files_scanned: int = 0
     findings: list[dict[str, Any]] = field(default_factory=list)
@@ -104,7 +104,7 @@ async def scan_package(target: CrawlTarget) -> CrawlResult:
 
             if scan_output:
                 result.risk_score = scan_output.get("score", 0.0)
-                result.verdict = scan_output.get("verdict", "CLEAN")
+                result.verdict = scan_output.get("verdict", "LOW_RISK")
                 result.findings_count = len(scan_output.get("findings", []))
                 result.files_scanned = scan_output.get("files_scanned", 0)
                 result.findings = scan_output.get("findings", [])

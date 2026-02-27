@@ -78,7 +78,7 @@ class ClawHubScanResult:
     skill: ClawHubSkill
     scan_id: str = ""
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     findings_count: int = 0
     files_scanned: int = 0
     findings: list[dict[str, Any]] = field(default_factory=list)
@@ -475,7 +475,7 @@ async def _main() -> None:
     for r in results:
         status = "ERROR" if r.error else r.verdict
         verdicts[status] = verdicts.get(status, 0) + 1
-        emoji = {"CLEAN": "+", "LOW_RISK": "~", "MEDIUM_RISK": "!", "HIGH_RISK": "!!", "CRITICAL": "!!!", "ERROR": "X"}.get(status, "?")
+        emoji = {"LOW_RISK": "+", "MEDIUM_RISK": "!", "HIGH_RISK": "!!", "CRITICAL_RISK": "!!!", "ERROR": "X"}.get(status, "?")
         print(f"  [{emoji}] {r.skill.slug}: {status} (score={r.risk_score:.1f}, findings={r.findings_count})")
 
     print(f"\nSummary: {verdicts}")

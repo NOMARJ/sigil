@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS scans (
     target_type     VARCHAR(50)  NOT NULL DEFAULT 'directory',
     files_scanned   INTEGER      NOT NULL DEFAULT 0,
     risk_score      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    verdict         VARCHAR(50)  NOT NULL DEFAULT 'CLEAN',
+    verdict         VARCHAR(50)  NOT NULL DEFAULT 'LOW_RISK',
     findings_json   JSONB        NOT NULL DEFAULT '[]'::jsonb,
     metadata_json   JSONB        NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -308,7 +308,7 @@ CREATE TABLE IF NOT EXISTS public_scans (
     package_name    TEXT NOT NULL,
     package_version TEXT NOT NULL DEFAULT '',
     risk_score      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    verdict         VARCHAR(50) NOT NULL DEFAULT 'CLEAN',
+    verdict         VARCHAR(50) NOT NULL DEFAULT 'LOW_RISK',
     findings_count  INTEGER NOT NULL DEFAULT 0,
     files_scanned   INTEGER NOT NULL DEFAULT 0,
     findings_json   JSONB NOT NULL DEFAULT '[]'::jsonb,

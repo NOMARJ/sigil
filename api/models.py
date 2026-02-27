@@ -20,13 +20,12 @@ from pydantic import BaseModel, Field
 
 
 class Verdict(str, enum.Enum):
-    """Overall risk verdict derived from the aggregate score."""
+    """Overall risk classification derived from the aggregate score."""
 
-    CLEAN = "CLEAN"
     LOW_RISK = "LOW_RISK"
     MEDIUM_RISK = "MEDIUM_RISK"
     HIGH_RISK = "HIGH_RISK"
-    CRITICAL = "CRITICAL"
+    CRITICAL_RISK = "CRITICAL_RISK"
 
 
 class Severity(str, enum.Enum):
@@ -100,7 +99,7 @@ class ScanResponse(BaseModel):
     files_scanned: int = 0
     findings: list[Finding] = Field(default_factory=list)
     risk_score: float = Field(0.0, description="Aggregate weighted risk score")
-    verdict: Verdict = Field(Verdict.CLEAN, description="Overall risk verdict")
+    verdict: Verdict = Field(Verdict.LOW_RISK, description="Overall risk classification")
     threat_intel_hits: list[ThreatEntry] = Field(
         default_factory=list,
         description="Known threat entries matching this scan",
@@ -221,7 +220,7 @@ class VerifyResponse(BaseModel):
     package_name: str
     package_version: str
     verified: bool = Field(False, description="Whether the package passed verification")
-    verdict: Verdict = Field(Verdict.CLEAN)
+    verdict: Verdict = Field(Verdict.LOW_RISK)
     risk_score: float = 0.0
     badge_url: str | None = Field(
         None, description="URL to the Sigil-verified badge if approved"
@@ -479,7 +478,7 @@ class ScanListItem(BaseModel):
     files_scanned: int = 0
     findings_count: int = 0
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     threat_hits: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -506,7 +505,7 @@ class ScanDetail(BaseModel):
     files_scanned: int = 0
     findings_count: int = 0
     risk_score: float = 0.0
-    verdict: str = "CLEAN"
+    verdict: str = "LOW_RISK"
     threat_hits: int = 0
     findings_json: list[Any] = Field(default_factory=list)
     metadata_json: dict[str, Any] = Field(default_factory=dict)

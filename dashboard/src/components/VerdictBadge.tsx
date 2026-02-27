@@ -1,19 +1,17 @@
 import type { Verdict } from "@/lib/types";
 
 const verdictStyles: Record<string, string> = {
-  CLEAN: "bg-green-500/10 text-green-400 border-green-500/20",
-  LOW_RISK: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  LOW_RISK: "bg-green-500/10 text-green-400 border-green-500/20",
   MEDIUM_RISK: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   HIGH_RISK: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  CRITICAL: "bg-red-500/10 text-red-400 border-red-500/20",
+  CRITICAL_RISK: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 const verdictDots: Record<string, string> = {
-  CLEAN: "bg-green-400",
-  LOW_RISK: "bg-blue-400",
+  LOW_RISK: "bg-green-400",
   MEDIUM_RISK: "bg-yellow-400",
   HIGH_RISK: "bg-orange-400",
-  CRITICAL: "bg-red-400",
+  CRITICAL_RISK: "bg-red-400",
 };
 
 /** Display label for verdict (strip _RISK suffix for readability). */

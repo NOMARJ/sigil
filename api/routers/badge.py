@@ -23,22 +23,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/badge", tags=["badge"])
 
-# Badge colors by verdict (matching spec)
+# Badge colors by risk classification
 VERDICT_COLORS = {
-    "CLEAN": "#22C55E",         # Green
-    "LOW_RISK": "#3B82F6",      # Blue
-    "MEDIUM_RISK": "#EAB308",   # Yellow
-    "HIGH_RISK": "#F97316",     # Orange
-    "CRITICAL": "#EF4444",      # Red
-    "NOT_SCANNED": "#6B7280",   # Gray
+    "LOW_RISK": "#22C55E",         # Green
+    "MEDIUM_RISK": "#EAB308",      # Yellow
+    "HIGH_RISK": "#F97316",        # Orange
+    "CRITICAL_RISK": "#EF4444",    # Red
+    "NOT_SCANNED": "#6B7280",      # Gray
 }
 
 VERDICT_LABELS = {
-    "CLEAN": "CLEAN",
     "LOW_RISK": "LOW RISK",
     "MEDIUM_RISK": "MEDIUM RISK",
     "HIGH_RISK": "HIGH RISK",
-    "CRITICAL": "CRITICAL",
+    "CRITICAL_RISK": "CRITICAL RISK",
     "NOT_SCANNED": "NOT SCANNED",
 }
 
@@ -139,7 +137,7 @@ async def scan_badge(scan_id: str) -> Response:
         svg = _generate_badge_svg("sigil", "not found", "#9f9f9f")
         return _svg_response(svg)
 
-    verdict = row.get("verdict", "CLEAN")
+    verdict = row.get("verdict", "LOW_RISK")
     score = row.get("risk_score", 0.0)
     color = VERDICT_COLORS.get(verdict, "#9f9f9f")
     label_text = VERDICT_LABELS.get(verdict, "unknown")
@@ -174,7 +172,7 @@ async def package_badge(ecosystem: str, package_name: str) -> Response:
         key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
     )
     row = rows[0]
-    verdict = row.get("verdict", "CLEAN")
+    verdict = row.get("verdict", "LOW_RISK")
     score = row.get("risk_score", 0.0)
     color = VERDICT_COLORS.get(verdict, "#9f9f9f")
     label_text = VERDICT_LABELS.get(verdict, "unknown")

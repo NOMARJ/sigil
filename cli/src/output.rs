@@ -22,31 +22,21 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
     let line = "=".repeat(60);
 
     match verdict {
-        Verdict::Clean => {
+        Verdict::LowRisk => {
             println!("{}", line.green());
             println!(
                 "{}",
-                "  VERDICT: CLEAN -- No security issues detected"
+                "  LOW RISK -- No known malicious patterns detected"
                     .green()
                     .bold()
             );
             println!("{}", line.green());
         }
-        Verdict::LowRisk => {
-            println!("{}", line.cyan());
-            println!(
-                "{}",
-                "  VERDICT: LOW RISK -- Minor informational findings"
-                    .cyan()
-                    .bold()
-            );
-            println!("{}", line.cyan());
-        }
         Verdict::MediumRisk => {
             println!("{}", line.yellow());
             println!(
                 "{}",
-                "  VERDICT: MEDIUM RISK -- Suspicious patterns detected"
+                "  MEDIUM RISK -- Suspicious patterns detected"
                     .yellow()
                     .bold()
             );
@@ -56,17 +46,17 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.red());
             println!(
                 "{}",
-                "  VERDICT: HIGH RISK -- Likely malicious patterns found"
+                "  HIGH RISK -- Likely malicious patterns found"
                     .red()
                     .bold()
             );
             println!("{}", line.red());
         }
-        Verdict::Critical => {
+        Verdict::CriticalRisk => {
             println!("{}", line.red().bold());
             println!(
                 "{}",
-                "  VERDICT: CRITICAL -- Almost certainly malicious!"
+                "  CRITICAL RISK -- Almost certainly malicious!"
                     .red()
                     .bold()
             );

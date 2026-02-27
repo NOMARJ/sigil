@@ -138,7 +138,6 @@ echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
 # ── Write job summary ────────────────────────────────────────────────────────
 VERDICT_EMOJI=""
 case "$VERDICT" in
-    clean)    VERDICT_EMOJI="CLEAN" ;;
     low)      VERDICT_EMOJI="LOW RISK" ;;
     medium)   VERDICT_EMOJI="MEDIUM RISK" ;;
     high)     VERDICT_EMOJI="HIGH RISK" ;;
