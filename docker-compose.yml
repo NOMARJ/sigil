@@ -116,6 +116,61 @@ services:
     networks:
       - sigil-net
 
+  # ── Sigil Bot — Registry Monitor (watchers) ────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sigil-bot
+    command: python -m bot.main --watchers-only
+    volumes:
+      - ./bot:/app/bot
+      - ./api:/app/api
+      - sigil-data:/home/sigil/.sigil
+    environment:
+      SIGIL_BOT_REDIS_URL: "redis://redis:6379/1"
+      SIGIL_BOT_DATABASE_URL: "postgresql://${SIGIL_PG_USER:-sigil}:${SIGIL_PG_PASSWORD:-sigil_dev_password}@postgres:5432/${SIGIL_PG_DB:-sigil}"
+      SIGIL_BOT_GITHUB_TOKEN: "${SIGIL_BOT_GITHUB_TOKEN:-}"
+      SIGIL_BOT_SCAN_TIMEOUT: "120"
+      SIGIL_BOT_MAX_CONCURRENT_SCANS: "4"
+      PYTHONPATH: "/app"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── Sigil Bot — Scanner Workers (scalable) ───────────────────────────
+  bot-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sigil-bot-worker
+    command: python -m bot.main --workers-only --workers 4
+    volumes:
+      - ./bot:/app/bot
+      - ./api:/app/api
+      - sigil-data:/home/sigil/.sigil
+    environment:
+      SIGIL_BOT_REDIS_URL: "redis://redis:6379/1"
+      SIGIL_BOT_DATABASE_URL: "postgresql://${SIGIL_PG_USER:-sigil}:${SIGIL_PG_PASSWORD:-sigil_dev_password}@postgres:5432/${SIGIL_PG_DB:-sigil}"
+      SIGIL_BOT_SCAN_TIMEOUT: "120"
+      SIGIL_BOT_MAX_CONCURRENT_SCANS: "4"
+      PYTHONPATH: "/app"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
   # ── Production API (optional profile) ───────────────────────────────────
   api-prod:
     build:
