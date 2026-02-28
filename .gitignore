@@ -61,3 +61,6 @@ supabase/.temp/
 # Internal documentation (deployment notes, infrastructure details)
 docs/internal/
 *.docx
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
