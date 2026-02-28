@@ -99,13 +99,11 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             );
             println!(
                 "{}",
-                "  A low risk result does not guarantee the absence of all threats."
-                    .dimmed()
+                "  A low risk result does not guarantee the absence of all threats.".dimmed()
             );
             println!(
                 "{}",
-                "  Always review code before use. See sigilsec.ai/terms for full terms."
-                    .dimmed()
+                "  Always review code before use. See sigilsec.ai/terms for full terms.".dimmed()
             );
             // Mark first-run complete
             if let Some(parent) = marker.parent() {
