@@ -1,0 +1,372 @@
+name: SBOM Generation & Attestation
+
+# Trigger on version tags and allow manual runs
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Required permissions for SBOM generation, signing, and release publishing
+permissions:
+  contents: write      # Upload SBOM files to releases
+  id-token: write      # Cosign keyless signing with OIDC
+  packages: read       # Access Docker images
+
+env:
+  REGISTRY: docker.io
+  CLI_IMAGE_NAME: nomark/sigil
+  FULL_IMAGE_NAME: nomark/sigil-full
+
+jobs:
+  # Job 1: Generate SBOMs from source repository
+  generate-sbom:
+    name: Generate Source SBOMs
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository at the tagged version
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      # Install Syft for SBOM generation
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37feeff2e57e8981374a0 # v0
+
+      # Install Cosign for attestation signing
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3
+
+      # Extract version from tag (remove 'v' prefix)
+      - name: Set version variable
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generating SBOMs for version: ${VERSION}"
+
+      # Generate CycloneDX SBOM in JSON format (OWASP standard)
+      - name: Generate CycloneDX SBOM from source
+        run: |
+          syft dir:. \
+            -o cyclonedx-json=sbom-source.cdx.json \
+            --name sigil \
+            --version ${{ steps.version.outputs.version }}
+          echo "✅ CycloneDX SBOM generated"
+
+      # Generate SPDX SBOM in JSON format (Linux Foundation standard)
+      - name: Generate SPDX SBOM from source
+        run: |
+          syft dir:. \
+            -o spdx-json=sbom-source.spdx.json \
+            --name sigil \
+            --version ${{ steps.version.outputs.version }}
+          echo "✅ SPDX SBOM generated"
+
+      # Verify SBOM files were created
+      - name: Verify SBOMs
+        run: |
+          ls -lh sbom-source.*
+          echo "CycloneDX SBOM size: $(wc -c < sbom-source.cdx.json) bytes"
+          echo "SPDX SBOM size: $(wc -c < sbom-source.spdx.json) bytes"
+
+      # Upload SBOMs as artifacts for downstream jobs
+      - name: Upload source SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6db9e3571be2fd0a5c22ddb4a36c0 # v4
+        with:
+          name: source-sboms
+          path: |
+            sbom-source.cdx.json
+            sbom-source.spdx.json
+          retention-days: 30
+
+  # Job 2: Generate SBOMs from container images (requires Docker images to exist)
+  container-sbom:
+    name: Generate Container SBOMs
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout for context
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      # Install Syft for container SBOM generation
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37feeff2e57e8981374a0 # v0
+
+      # Install Cosign for attestation
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3
+
+      # Extract version from tag
+      - name: Set version variable
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generating container SBOMs for version: ${VERSION}"
+
+      # Login to Docker Hub to pull images
+      - name: Log in to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Wait for Docker images to be available (retry logic)
+      - name: Wait for Docker images
+        run: |
+          echo "Waiting for Docker images to be published..."
+          MAX_ATTEMPTS=30
+          SLEEP_TIME=20
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            if docker pull ${{ env.CLI_IMAGE_NAME }}:${{ steps.version.outputs.version }} && \
+               docker pull ${{ env.FULL_IMAGE_NAME }}:${{ steps.version.outputs.version }}; then
+              echo "✅ Both images are available"
+              exit 0
+            fi
+            echo "Attempt $i/$MAX_ATTEMPTS: Images not ready yet, waiting ${SLEEP_TIME}s..."
+            sleep $SLEEP_TIME
+          done
+
+          echo "❌ Timeout waiting for Docker images"
+          exit 1
+
+      # Generate CycloneDX SBOM from CLI container image
+      - name: Generate CLI container SBOM
+        run: |
+          syft docker:${{ env.CLI_IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            -o cyclonedx-json=sbom-cli-container.cdx.json
+          echo "✅ CLI container SBOM generated"
+
+      # Generate CycloneDX SBOM from full container image
+      - name: Generate full container SBOM
+        run: |
+          syft docker:${{ env.FULL_IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            -o cyclonedx-json=sbom-full-container.cdx.json
+          echo "✅ Full container SBOM generated"
+
+      # Generate SPDX format for CLI container
+      - name: Generate CLI container SPDX SBOM
+        run: |
+          syft docker:${{ env.CLI_IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            -o spdx-json=sbom-cli-container.spdx.json
+          echo "✅ CLI container SPDX SBOM generated"
+
+      # Generate SPDX format for full container
+      - name: Generate full container SPDX SBOM
+        run: |
+          syft docker:${{ env.FULL_IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            -o spdx-json=sbom-full-container.spdx.json
+          echo "✅ Full container SPDX SBOM generated"
+
+      # Verify container SBOM files
+      - name: Verify container SBOMs
+        run: |
+          ls -lh sbom-*-container.*
+          echo "CLI CycloneDX SBOM: $(wc -c < sbom-cli-container.cdx.json) bytes"
+          echo "CLI SPDX SBOM: $(wc -c < sbom-cli-container.spdx.json) bytes"
+          echo "Full CycloneDX SBOM: $(wc -c < sbom-full-container.cdx.json) bytes"
+          echo "Full SPDX SBOM: $(wc -c < sbom-full-container.spdx.json) bytes"
+
+      # Upload container SBOMs as artifacts
+      - name: Upload container SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6db9e3571be2fd0a5c22ddb4a36c0 # v4
+        with:
+          name: container-sboms
+          path: |
+            sbom-cli-container.cdx.json
+            sbom-cli-container.spdx.json
+            sbom-full-container.cdx.json
+            sbom-full-container.spdx.json
+          retention-days: 30
+
+  # Job 3: Attest SBOMs with Cosign and publish to release
+  attest-and-publish:
+    name: Attest SBOMs & Publish
+    needs: [generate-sbom, container-sbom]
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout for release context
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      # Install Cosign for keyless signing
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3
+
+      # Download source SBOMs from generate-sbom job
+      - name: Download source SBOMs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: source-sboms
+          path: sboms/
+
+      # Download container SBOMs from container-sbom job
+      - name: Download container SBOMs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: container-sboms
+          path: sboms/
+
+      # List all downloaded SBOMs
+      - name: List all SBOMs
+        run: |
+          echo "All SBOMs ready for attestation:"
+          ls -lh sboms/
+
+      # Sign source CycloneDX SBOM with Cosign keyless signing
+      - name: Attest source CycloneDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-source.cdx.json \
+            --type cyclonedx \
+            sbom-source.cdx.json > sbom-source.cdx.json.att
+          echo "✅ Source CycloneDX SBOM attested"
+
+      # Sign source SPDX SBOM
+      - name: Attest source SPDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-source.spdx.json \
+            --type spdx \
+            sbom-source.spdx.json > sbom-source.spdx.json.att
+          echo "✅ Source SPDX SBOM attested"
+
+      # Sign CLI container CycloneDX SBOM
+      - name: Attest CLI container CycloneDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-cli-container.cdx.json \
+            --type cyclonedx \
+            sbom-cli-container.cdx.json > sbom-cli-container.cdx.json.att
+          echo "✅ CLI container CycloneDX SBOM attested"
+
+      # Sign CLI container SPDX SBOM
+      - name: Attest CLI container SPDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-cli-container.spdx.json \
+            --type spdx \
+            sbom-cli-container.spdx.json > sbom-cli-container.spdx.json.att
+          echo "✅ CLI container SPDX SBOM attested"
+
+      # Sign full container CycloneDX SBOM
+      - name: Attest full container CycloneDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-full-container.cdx.json \
+            --type cyclonedx \
+            sbom-full-container.cdx.json > sbom-full-container.cdx.json.att
+          echo "✅ Full container CycloneDX SBOM attested"
+
+      # Sign full container SPDX SBOM
+      - name: Attest full container SPDX SBOM
+        working-directory: sboms
+        run: |
+          cosign attest-blob \
+            --yes \
+            --predicate sbom-full-container.spdx.json \
+            --type spdx \
+            sbom-full-container.spdx.json > sbom-full-container.spdx.json.att
+          echo "✅ Full container SPDX SBOM attested"
+
+      # Verify all attestations were created
+      - name: Verify attestations
+        working-directory: sboms
+        run: |
+          echo "All SBOMs and attestations:"
+          ls -lh
+          echo ""
+          echo "Attestation count: $(ls -1 *.att | wc -l)"
+          echo "SBOM count: $(ls -1 *.json | wc -l)"
+
+      # Generate checksums for all SBOM files
+      - name: Generate SBOM checksums
+        working-directory: sboms
+        run: |
+          sha256sum *.json *.att > SBOM-SHA256SUMS.txt
+          echo "✅ Checksums generated:"
+          cat SBOM-SHA256SUMS.txt
+
+      # Upload all SBOMs and attestations to GitHub release
+      - name: Upload SBOMs to release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2
+        with:
+          files: |
+            sboms/sbom-source.cdx.json
+            sboms/sbom-source.cdx.json.att
+            sboms/sbom-source.spdx.json
+            sboms/sbom-source.spdx.json.att
+            sboms/sbom-cli-container.cdx.json
+            sboms/sbom-cli-container.cdx.json.att
+            sboms/sbom-cli-container.spdx.json
+            sboms/sbom-cli-container.spdx.json.att
+            sboms/sbom-full-container.cdx.json
+            sboms/sbom-full-container.cdx.json.att
+            sboms/sbom-full-container.spdx.json
+            sboms/sbom-full-container.spdx.json.att
+            sboms/SBOM-SHA256SUMS.txt
+          body: |
+            ## Software Bill of Materials (SBOMs)
+
+            This release includes comprehensive SBOMs in both CycloneDX and SPDX formats:
+
+            ### Source SBOMs
+            - `sbom-source.cdx.json` - CycloneDX SBOM of source repository
+            - `sbom-source.spdx.json` - SPDX SBOM of source repository
+
+            ### Container SBOMs
+            - `sbom-cli-container.cdx.json` - CycloneDX SBOM of CLI Docker image
+            - `sbom-cli-container.spdx.json` - SPDX SBOM of CLI Docker image
+            - `sbom-full-container.cdx.json` - CycloneDX SBOM of full Docker image
+            - `sbom-full-container.spdx.json` - SPDX SBOM of full Docker image
+
+            ### Attestations
+            All SBOMs are cryptographically signed with Cosign keyless signing (`.att` files).
+
+            ### Verification
+            Verify checksums:
+            ```bash
+            sha256sum -c SBOM-SHA256SUMS.txt
+            ```
+
+            Verify Cosign attestations:
+            ```bash
+            cosign verify-blob-attestation \
+              --signature sbom-source.cdx.json.att \
+              --insecure-ignore-tlog \
+              sbom-source.cdx.json
+            ```
+
+      # Summary output
+      - name: Summary
+        run: |
+          echo "## SBOM Generation Complete! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated and attested SBOMs for Sigil ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Formats Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- CycloneDX JSON (OWASP standard)" >> $GITHUB_STEP_SUMMARY
+          echo "- SPDX JSON (Linux Foundation standard)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- Source repository SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
+          echo "- CLI container SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
+          echo "- Full container SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
+          echo "- Cosign attestations for all SBOMs" >> $GITHUB_STEP_SUMMARY
+          echo "- SHA256 checksums" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All files published to [release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY

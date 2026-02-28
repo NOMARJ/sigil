@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from api.config import settings
 from api.database import db
+from api.rate_limit import RateLimiter
 from api.models import (
     ErrorResponse,
     PlanInfo,
@@ -185,6 +186,7 @@ async def list_plans() -> list[PlanInfo]:
     response_model=SubscriptionResponse,
     summary="Create or update a subscription",
     responses={401: {"model": ErrorResponse}},
+    dependencies=[Depends(RateLimiter(max_requests=5, window=60))],
 )
 async def subscribe(
     body: SubscribeRequest,
@@ -257,9 +259,21 @@ async def subscribe(
                     expand=["latest_invoice.payment_intent"],
                 )
 
-                period_end = datetime.utcfromtimestamp(
-                    subscription.current_period_end
-                ).isoformat()
+                # With payment_behavior="default_incomplete", period
+                # fields may not exist until the first payment succeeds.
+                raw_period_end = getattr(subscription, "current_period_end", None)
+                raw_period_start = getattr(subscription, "current_period_start", None)
+
+                if raw_period_end is not None:
+                    period_end = datetime.utcfromtimestamp(raw_period_end).isoformat()
+                else:
+                    days = 365 if interval == "annual" else 30
+                    period_end = (now + timedelta(days=days)).isoformat()
+
+                if raw_period_start is not None:
+                    period_start = datetime.utcfromtimestamp(raw_period_start).isoformat()
+                else:
+                    period_start = now.isoformat()
 
                 sub_data = await db.upsert_subscription(
                     user_id=current_user.id,
@@ -270,9 +284,7 @@ async def subscribe(
                     current_period_end=period_end,
                     billing_interval=interval,
                 )
-                sub_data["current_period_start"] = datetime.utcfromtimestamp(
-                    subscription.current_period_start
-                ).isoformat()
+                sub_data["current_period_start"] = period_start
                 sub_data["cancel_at_period_end"] = False
             except Exception as exc:
                 logger.exception("Stripe subscription creation failed")

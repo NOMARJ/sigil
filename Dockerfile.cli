@@ -2,7 +2,8 @@
 # Produces a minimal Alpine-based image (~15MB)
 
 # Build stage
-FROM rust:1.75-alpine AS builder
+# rust:1.75-alpine
+FROM rust:1.75-alpine@sha256:3e7eb3b035c0bae7aaa9e7c295e3cf5e4b8aa3d5 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -30,7 +31,8 @@ RUN cargo build --release --locked && \
     strip target/release/sigil
 
 # Runtime stage
-FROM alpine:3.19
+# alpine:3.19
+FROM alpine:3.19@sha256:13b7e62e8df80264dbb747995705a986aa530415763a6c58f84a3ca8af9a5bcd
 
 # Install runtime dependencies
 RUN apk add --no-cache \

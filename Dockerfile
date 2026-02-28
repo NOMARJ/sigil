@@ -8,13 +8,15 @@
 # ============================================================================
 
 # ── Stage 1: Build Rust CLI ──────────────────────────────────────────────────
-FROM rust:1.76-slim AS rust-builder
+# rust:1.76-slim
+FROM rust:1.76-slim@sha256:fc2decb0a816e0ffdc566a97e89d2f5a1e1485d8 AS rust-builder
 WORKDIR /build
 COPY cli/ ./
 RUN cargo build --release
 
 # ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
-FROM node:20-slim AS dashboard-builder
+# node:20-slim
+FROM node:20-slim@sha256:ec0c413bc15bc7fde72b2388b8ae62f72e1adbb1 AS dashboard-builder
 
 WORKDIR /build
 
@@ -34,7 +36,8 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build
 
 # ── Stage 3: Runtime Image ──────────────────────────────────────────────────
-FROM python:3.11-slim-bookworm AS runtime
+# python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm@sha256:8f3aba466a471c3e35f52f8a4e4091e23d19a6a2 AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil — Automated Security Auditing for AI Agent Code"
@@ -56,13 +59,13 @@ RUN groupadd --gid 1001 sigil && \
 
 WORKDIR /app
 
-# ── Python API dependencies ─────────────────────────────────────────────────
-COPY api/requirements.txt /app/api/requirements.txt
-RUN pip install --no-cache-dir -r /app/api/requirements.txt
+# ── Python API dependencies (pinned via lock file) ─────────────────────────
+COPY api/requirements.lock /app/api/requirements.lock
+RUN pip install --no-cache-dir -r /app/api/requirements.lock
 
-# ── Python Bot dependencies ────────────────────────────────────────────────
-COPY bot/requirements.txt /app/bot/requirements.txt
-RUN pip install --no-cache-dir -r /app/bot/requirements.txt
+# ── Python Bot dependencies (pinned via lock file) ────────────────────────
+COPY bot/requirements.lock /app/bot/requirements.lock
+RUN pip install --no-cache-dir -r /app/bot/requirements.lock
 
 # ── Copy API source ─────────────────────────────────────────────────────────
 COPY api/ /app/api/

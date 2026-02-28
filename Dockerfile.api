@@ -3,7 +3,8 @@
 # Lightweight API-only image without CLI or dashboard
 # ============================================================================
 
-FROM python:3.11-slim-bookworm AS runtime
+# python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm@sha256:8f3aba466a471c3e35f52f8a4e4091e23d19a6a2 AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil API — FastAPI backend service"
@@ -21,9 +22,9 @@ RUN groupadd --gid 1001 sigil && \
 
 WORKDIR /app
 
-# Install Python dependencies
-COPY api/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# Install Python dependencies (pinned via lock file)
+COPY api/requirements.lock /app/requirements.lock
+RUN pip install --no-cache-dir -r /app/requirements.lock
 
 # Copy API source
 COPY api/ /app/api/

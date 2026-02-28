@@ -172,31 +172,25 @@ export interface AlertConfig {
   min_severity: Verdict;
 }
 
-/** Billing plan definition. */
+/** Billing plan definition (matches API PlanInfo). */
 export interface BillingPlan {
-  id: string;
+  tier: string;
   name: string;
-  description: string;
   price_monthly: number;
   price_yearly: number;
-  scan_limit: number;
-  team_member_limit: number;
+  scans_per_month: number;
   features: string[];
-  is_current?: boolean;
 }
 
-/** Active subscription record. */
+/** Active subscription record (matches API SubscriptionResponse). */
 export interface Subscription {
-  id: string;
-  plan_id: string;
-  plan_name: string;
+  plan: string;
   status: "active" | "canceled" | "past_due" | "trialing";
   billing_interval: "monthly" | "annual";
-  current_period_start: string;
-  current_period_end: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
   cancel_at_period_end: boolean;
-  scan_usage: number;
-  scan_limit: number;
+  stripe_subscription_id: string | null;
 }
 
 /** Dashboard overview statistics.

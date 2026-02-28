@@ -255,11 +255,11 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSubscribe = async (planId: string) => {
+  const handleSubscribe = async (planTier: string) => {
     setBillingError(null);
 
     try {
-      const sub = await api.subscribe(planId, billingInterval);
+      const sub = await api.subscribe(planTier, billingInterval);
       setSubscription(sub);
     } catch (err) {
       setBillingError(
@@ -625,13 +625,16 @@ export default function SettingsPage() {
           ) : (
             <>
               {/* Current subscription */}
-              {subscription && (
+              {subscription && (() => {
+                const currentPlan = plans.find((p) => p.tier === subscription.plan);
+                const planDisplayName = currentPlan?.name ?? subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1);
+                return (
                 <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-800">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-200">
                         Current Plan:{" "}
-                        <span className="text-brand-400">{subscription.plan_name}</span>
+                        <span className="text-brand-400">{planDisplayName}</span>
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
                         Status:{" "}
@@ -653,13 +656,17 @@ export default function SettingsPage() {
                       <p className="text-xs text-gray-500 mt-0.5">
                         Billing: {subscription.billing_interval === "annual" ? "Annual" : "Monthly"}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Period: {new Date(subscription.current_period_start).toLocaleDateString()} --{" "}
-                        {new Date(subscription.current_period_end).toLocaleDateString()}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Scans used: {(subscription.scan_usage ?? 0).toLocaleString()} / {(subscription.scan_limit ?? 0).toLocaleString()}
-                      </p>
+                      {subscription.current_period_start && subscription.current_period_end && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Period: {new Date(subscription.current_period_start).toLocaleDateString()} --{" "}
+                          {new Date(subscription.current_period_end).toLocaleDateString()}
+                        </p>
+                      )}
+                      {currentPlan && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Scan limit: {currentPlan.scans_per_month === 0 ? "Unlimited" : currentPlan.scans_per_month.toLocaleString() + "/month"}
+                        </p>
+                      )}
                     </div>
                     <button
                       onClick={handleManageBilling}
@@ -679,28 +686,9 @@ export default function SettingsPage() {
                       )}
                     </button>
                   </div>
-
-                  {/* Usage bar */}
-                  {(subscription.scan_limit ?? 0) > 0 && (
-                    <div className="mt-3">
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all ${
-                            (subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1) > 0.9
-                              ? "bg-red-500"
-                              : (subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1) > 0.7
-                                ? "bg-yellow-500"
-                                : "bg-brand-500"
-                          }`}
-                          style={{
-                            width: `${Math.min(100, ((subscription.scan_usage ?? 0) / (subscription.scan_limit ?? 1)) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* Available plans */}
               {plans.length > 0 && (
@@ -736,7 +724,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {plans.map((plan) => {
-                      const isCurrent = subscription?.plan_name === plan.name;
+                      const isCurrent = subscription?.plan === plan.tier;
                       const isEnterprise = plan.name === "Enterprise";
                       const showAnnual = billingInterval === "annual" && plan.price_yearly > 0;
                       const displayPrice = showAnnual
@@ -744,7 +732,7 @@ export default function SettingsPage() {
                         : plan.price_monthly.toFixed(2);
                       return (
                         <div
-                          key={plan.id}
+                          key={plan.tier}
                           className={`p-4 rounded-lg border ${
                             isCurrent
                               ? "bg-brand-600/10 border-brand-500/30"
@@ -755,7 +743,7 @@ export default function SettingsPage() {
                             {plan.name}
                           </h4>
                           <p className="text-xs text-gray-500 mt-1">
-                            {plan.description}
+                            {plan.features[0] ?? ""}
                           </p>
                           <div className="mt-3">
                             {isEnterprise ? (
@@ -778,19 +766,16 @@ export default function SettingsPage() {
                           </div>
                           <ul className="mt-3 space-y-1">
                             <li className="text-xs text-gray-400">
-                              {(plan.scan_limit ?? 0).toLocaleString()} scans/month
+                              {(plan.scans_per_month ?? 0).toLocaleString()} scans/month
                             </li>
-                            <li className="text-xs text-gray-400">
-                              {plan.team_member_limit ?? 0} team members
-                            </li>
-                            {plan.features.map((feature, i) => (
+                            {plan.features.slice(1).map((feature, i) => (
                               <li key={i} className="text-xs text-gray-400">
                                 {feature}
                               </li>
                             ))}
                           </ul>
                           <button
-                            onClick={() => isEnterprise ? window.location.href = 'mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry' : handleSubscribe(plan.id)}
+                            onClick={() => isEnterprise ? window.location.href = 'mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry' : handleSubscribe(plan.tier)}
                             disabled={isCurrent}
                             className={`mt-4 w-full text-xs ${
                               isCurrent ? "btn-secondary cursor-not-allowed" : "btn-primary"

@@ -10,7 +10,8 @@
 | **License** | Apache-2.0 |
 | **Repository** | https://github.com/NOMARJ/sigil |
 | **Website** | https://sigilsec.ai |
-| **SBOM Format** | Custom Markdown (CycloneDX-inspired) |
+| **SBOM Formats** | CycloneDX 1.5 JSON, SPDX JSON, Markdown |
+| **CycloneDX SBOM** | [`docs/sbom.cdx.json`](sbom.cdx.json) (machine-readable) |
 | **SBOM Generated** | 2026-02-28 |
 | **Commit** | c7ad46ab836dcc1f0c7cfd62f1af9383cdc9ea3e |
 
@@ -255,6 +256,7 @@ The Bash CLI uses standard POSIX utilities plus optional security scanners:
 | Deploy Azure | `.github/workflows/deploy-azure.yml` | Azure deployment |
 | Publish Plugin | `.github/workflows/publish-plugin.yml` | Plugin publishing |
 | Update Homebrew | `.github/workflows/update-homebrew.yml` | Homebrew formula update |
+| SBOM & Attestation | `.github/workflows/sbom.yml` | Automated SBOM generation & Cosign signing |
 
 ### Distribution Channels
 
@@ -285,16 +287,140 @@ The Bash CLI uses standard POSIX utilities plus optional security scanners:
 
 ---
 
-## 13. Security Considerations
+## 13. Security Posture
 
-- **No vendored binaries** in source (Rust CLI built from source)
-- **Pinned base images** in Dockerfiles with specific tags
-- **Non-root container user** (`sigil:1001`) in all Dockerfiles
-- **Health checks** on all containerized services
-- **Signal handling** via `tini` init process
-- **Input validation** on CLI arguments (URL, package name, quarantine ID format)
-- **Path traversal protection** on approve/reject commands
-- **Token storage** with `chmod 600` permissions
+### Supply Chain Integrity
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| Source builds (no vendored binaries) | Strong | Rust CLI compiled from source; no prebuilt binaries in repo |
+| Release checksums | Strong | SHA-256 checksums published with every GitHub Release |
+| SBOM attestation | Strong | Cosign keyless signing on all SBOMs via Sigstore OIDC |
+| Python dependency pinning | Strong | `requirements.lock` files with exact pinned versions for `api/` and `bot/`; Dockerfiles use lock files |
+| npm dependency pinning | Partial | `next` pinned exactly; all others use `^` caret ranges |
+| Docker base image pinning | Strong | All base images pinned to `@sha256:` digest hashes in Dockerfiles and docker-compose |
+| GitHub Actions pinning | Strong | All 67 action references across 7 workflows pinned to full commit SHAs |
+| `.dockerignore` | Strong | Excludes `.git`, `.github`, `docs/`, `node_modules/`, `__pycache__/`, `.env` files |
+
+### Authentication & Authorization
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| Password hashing | Strong | bcrypt (preferred) with PBKDF2-SHA256 fallback (100k iterations) |
+| JWT signing | Strong | HS256 via `python-jose`; startup warning if default secret detected |
+| Constant-time comparison | Strong | `hmac.compare_digest()` used for all token/password verification |
+| Login rate limiting | Strong | 10 attempts / 5 minutes per IP via Redis INCR with TTL; distributed across instances, survives restarts |
+| API rate limiting | Strong | Global per-IP middleware (200 req/min) + per-endpoint limits on auth, scan, and billing routes |
+| Token revocation | Strong | Redis-backed blocklist with auto-expiry matching JWT lifetime; no memory caps needed |
+| CORS | Strong | Configurable origins; defaults to localhost in dev |
+
+### Cryptographic Practices
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| JWT algorithm | Strong | HS256 (HMAC-SHA256) |
+| Password storage | Strong | bcrypt / PBKDF2-SHA256 — no plaintext or reversible encryption |
+| Token generation | Strong | SHA-256 hashed reset tokens |
+| TLS enforcement | Strong | HSTS header (`max-age=31536000`) set in production mode |
+| Database TLS | Strong | `ssl="require"` on asyncpg connections |
+| Deprecated crypto | None found | No MD5, SHA1, DES, or RC4 in use |
+
+### Container Hardening
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| Non-root user | Strong | `sigil:1001` in all Dockerfiles; `USER sigil` before `ENTRYPOINT` |
+| Init process | Strong | `tini` for PID 1 signal handling and zombie reaping |
+| Privileged mode | Strong | No `--privileged`, `cap_add`, or host network in compose |
+| Health checks | Strong | All services have `HEALTHCHECK` with interval/timeout/retries |
+| Layer cleanup | Strong | `rm -rf /var/lib/apt/lists/*` after package installs |
+| Secrets in image | Strong | No hardcoded secrets; all via environment variables |
+
+### Data Handling
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| Telemetry | None | No analytics SDKs; Next.js telemetry explicitly disabled |
+| Local-first scanning | Strong | CLI scans process entirely locally; cloud API opt-in only |
+| Credential storage | Strong | CLI token stored at `~/.sigil/token` with `chmod 600` |
+| Cloud data flow | Transparent | Authenticated scans send hash lookups + receive threat intel signatures |
+
+### Input Validation & Hardening
+
+| Control | Status | Detail |
+|---------|--------|--------|
+| CLI URL validation | Strong | Regex validation before `git clone`, `curl` |
+| Package name validation | Strong | Alphanumeric + hyphen/underscore/dot regex; rejects injection chars |
+| Quarantine ID validation | Strong | Alphanumeric + underscore only; `realpath` traversal check |
+| `eval`/`exec` in API | None found | No dynamic code execution in production Python code |
+| `shell=True` subprocess | None found | No unsafe subprocess invocations |
+
+### Vulnerability Disclosure
+
+Sigil maintains a security policy at `SECURITY.md` with:
+- Reporting: `security@sigilsec.ai`
+- 48-hour acknowledgment SLA
+- 7-day patch SLA for critical vulnerabilities
+
+### Resolved Gaps (Hardening Log)
+
+All previously identified gaps have been addressed:
+
+| Gap | Original Risk | Resolution |
+|-----|--------------|------------|
+| Python deps unpinned (`>=`) | Medium — supply chain | `api/requirements.lock` and `bot/requirements.lock` with exact pinned versions; Dockerfiles updated |
+| Docker images use tags, not digests | Medium — image mutability | All base images in Dockerfiles and docker-compose pinned to `@sha256:` digests |
+| GitHub Actions use version tags | Medium — action supply chain | All 67 references across 7 workflows pinned to full commit SHAs |
+| No `.dockerignore` | Low — image bloat / info leak | `.dockerignore` added excluding `.git`, `.github`, `docs/`, `node_modules/`, `.env` |
+| In-memory rate limiter | Medium — bypass on restart | Redis-backed sliding window via `cache.incr()` with TTL; distributed, survives restarts |
+| In-memory token revocation | Medium — bypass on restart | Redis-backed blocklist with auto-expiry matching JWT lifetime |
+| No per-endpoint API rate limits | Medium — abuse | `RateLimitMiddleware` (200 req/min global) + `RateLimiter` dependency on auth, scan, billing endpoints |
+
+### Remaining Considerations
+
+| Area | Risk | Notes |
+|------|------|-------|
+| npm dependency pinning | Low | `next` pinned exactly; others use `^` caret — standard npm practice, mitigated by `package-lock.json` |
+| Redis availability | Low | All Redis-backed features (rate limiting, token revocation) gracefully fall back to in-memory when Redis is unavailable |
+
+---
+
+## 14. SBOM Generation & Attestation
+
+### Machine-Readable Formats
+
+This document is the human-readable companion to machine-readable SBOMs:
+
+| Format | Standard | File | Use Case |
+|--------|----------|------|----------|
+| CycloneDX 1.5 JSON | OWASP | `docs/sbom.cdx.json` | CI/CD integration, vulnerability scanning |
+| SPDX JSON | ISO/IEC 5962:2021 | Generated at release time | Regulatory compliance, license audits |
+
+### Automated Generation (CI/CD)
+
+SBOMs are automatically generated on every tagged release via `.github/workflows/sbom.yml`:
+
+1. **Source SBOMs** — Generated by [Syft](https://github.com/anchore/syft) scanning the repository (CycloneDX + SPDX)
+2. **Container SBOMs** — Generated by Syft scanning the `nomark/sigil` and `nomark/sigil-full` Docker images (CycloneDX + SPDX)
+3. **Attestation** — All 6 SBOM files are cryptographically signed with [Cosign](https://github.com/sigstore/cosign) keyless signing (Sigstore OIDC)
+4. **Publication** — SBOMs, attestations, and checksums are attached to the GitHub Release
+
+### Verification
+
+```bash
+# Verify SBOM checksums
+sha256sum -c SBOM-SHA256SUMS.txt
+
+# Verify Cosign attestation
+cosign verify-blob-attestation \
+  --signature sbom-source.cdx.json.att \
+  --insecure-ignore-tlog \
+  sbom-source.cdx.json
+```
+
+### Limitations
+
+SBOMs provide inventory visibility but **cannot detect malicious behavior** such as backdoors, data exfiltration, or obfuscated payloads. For behavioral threat detection, use Sigil's scanning engine (`sigil scan`) alongside SBOM-based vulnerability tracking.
 
 ---
 

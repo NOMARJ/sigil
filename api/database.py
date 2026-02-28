@@ -263,6 +263,9 @@ class AsyncpgClient:
         if stripe_subscription_id is not None:
             data["stripe_subscription_id"] = stripe_subscription_id
         if current_period_end is not None:
+            # asyncpg requires datetime objects, not ISO strings
+            if isinstance(current_period_end, str):
+                current_period_end = datetime.fromisoformat(current_period_end)
             data["current_period_end"] = current_period_end
         return await self.upsert("subscriptions", data, conflict_columns=["user_id"])
 
@@ -769,6 +772,35 @@ class RedisClient:
             except Exception:
                 logger.exception("Redis DELETE failed for key '%s'", key)
         _memory_cache.pop(key, None)
+
+    async def incr(self, key: str, ttl: int | None = None) -> int:
+        """Atomically increment a key and optionally set TTL on first creation.
+
+        Returns the new value after increment.
+        """
+        if self._connected and self._client is not None:
+            try:
+                val = await self._client.incr(key)
+                # Set expiry only when the key is first created (val == 1)
+                if val == 1 and ttl is not None:
+                    await self._client.expire(key, ttl)
+                return val
+            except Exception:
+                logger.exception("Redis INCR failed for key '%s'", key)
+        # In-memory fallback
+        current = int(_memory_cache.get(key, 0))
+        current += 1
+        _memory_cache[key] = str(current)
+        return current
+
+    async def exists(self, key: str) -> bool:
+        """Check if a key exists."""
+        if self._connected and self._client is not None:
+            try:
+                return bool(await self._client.exists(key))
+            except Exception:
+                logger.exception("Redis EXISTS failed for key '%s'", key)
+        return key in _memory_cache
 
 
 # ---------------------------------------------------------------------------

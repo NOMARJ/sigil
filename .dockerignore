@@ -1,0 +1,81 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# Documentation
+docs/
+blog/
+*.md
+!README.md
+
+# IDE plugins (not needed in container builds)
+plugins/vscode/
+plugins/jetbrains/
+plugins/claude-code/
+plugins/mcp-server/
+
+# IDE / Editor
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Rust build cache (cli binary built inside container)
+cli/target/
+
+# Build artifacts
+*.tar.gz
+*.tgz
+*.zip
+*.whl
+*.vsix
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Supabase local
+supabase/.temp/
+
+# CI templates
+.gitlab-ci-template.yml
+
+# Distribution
+Formula/
+install.sh
+action.yml
+Makefile
+CONTRIBUTING.md
+CHANGELOG.md
+ROADMAP.md
+SECURITY.md
+LICENSE
+skills/
+scripts/

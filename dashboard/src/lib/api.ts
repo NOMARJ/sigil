@@ -449,10 +449,10 @@ export async function getPlans(): Promise<BillingPlan[]> {
   return request<BillingPlan[]>("/billing/plans");
 }
 
-export async function subscribe(planId: string, interval: "monthly" | "annual" = "monthly"): Promise<Subscription> {
+export async function subscribe(planTier: string, interval: "monthly" | "annual" = "monthly"): Promise<Subscription> {
   return request<Subscription>("/billing/subscribe", {
     method: "POST",
-    body: JSON.stringify({ plan: planId, interval }),
+    body: JSON.stringify({ plan: planTier, interval }),
   });
 }
 

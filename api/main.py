@@ -22,6 +22,7 @@ from api.config import settings
 from api.database import cache, db
 from api.gates import PlanGateException
 from api.models import GateError
+from api.rate_limit import RateLimitMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -125,6 +126,13 @@ async def add_security_headers(request: Request, call_next):
             "max-age=31536000; includeSubDomains"
         )
     return response
+
+
+# ---------------------------------------------------------------------------
+# Global rate limiting (per-IP, distributed via Redis)
+# ---------------------------------------------------------------------------
+
+app.add_middleware(RateLimitMiddleware, max_requests=200, window=60)
 
 
 # ---------------------------------------------------------------------------
