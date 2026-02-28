@@ -53,7 +53,7 @@ class GitHubWatcher(BaseWatcher):
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/vnd.github+json"}
-        if bot_settings.github_token:
+        if bot_settings.github_configured:
             headers["Authorization"] = f"Bearer {bot_settings.github_token}"
         return headers
 

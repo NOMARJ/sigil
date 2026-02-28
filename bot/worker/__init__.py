@@ -165,6 +165,13 @@ async def _run_scan(directory: str) -> dict | None:
 
 async def process_job(job: ScanJob, queue: JobQueue) -> None:
     """Process a single scan job: download → scan → store → publish."""
+    # Validate package name — reject names that contain spaces or other
+    # invalid characters that would break pip/npm download commands.
+    if " " in job.name or not job.name:
+        logger.warning("Skipping invalid package name: %r", job.name)
+        await queue.complete(job)
+        return
+
     with tempfile.TemporaryDirectory(
         prefix=f"sigil-bot-{job.ecosystem}-"
     ) as tmpdir:

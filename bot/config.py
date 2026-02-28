@@ -77,7 +77,7 @@ class BotSettings(BaseSettings):
 
     @property
     def github_configured(self) -> bool:
-        return bool(self.github_token)
+        return bool(self.github_token) and self.github_token != "not-configured"
 
     @property
     def twitter_configured(self) -> bool:

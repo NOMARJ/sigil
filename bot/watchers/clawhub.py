@@ -46,7 +46,7 @@ class ClawHubWatcher(BaseWatcher):
         jobs: list[ScanJob] = []
         cursor: str | None = None
         checkpoint = await self.load_checkpoint()
-        last_updated = checkpoint or ""
+        last_updated = str(checkpoint) if checkpoint else ""
         newest_updated = last_updated
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -73,10 +73,20 @@ class ClawHubWatcher(BaseWatcher):
                 for item in items:
                     slug = item.get("slug", item.get("name", ""))
                     updated = item.get("updatedAt", item.get("updated_at", ""))
-                    version = item.get("version", item.get("latestVersion", ""))
+                    raw_version = item.get("version", item.get("latestVersion", ""))
+                    # The API may return version as a dict
+                    # (e.g. {"version": "1.0.0", "createdAt": ...})
+                    if isinstance(raw_version, dict):
+                        version = raw_version.get("version", "")
+                    else:
+                        version = str(raw_version) if raw_version else ""
 
                     if not slug:
                         continue
+
+                    # Normalise to string for comparison (API may
+                    # return int epoch or ISO string)
+                    updated = str(updated) if updated else ""
 
                     # Skip if we've already seen this version
                     if updated and updated <= last_updated:

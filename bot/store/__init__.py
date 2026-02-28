@@ -132,7 +132,7 @@ async def store_scan_result(
     """
     db = await get_db()
     now = datetime.now(timezone.utc)
-    scan_id = f"bot_{uuid4().hex[:12]}"
+    scan_id = str(uuid4())
 
     findings = scan_output.get("findings", [])
     score = scan_output.get("score", 0.0)
@@ -187,7 +187,7 @@ async def store_scan_error(job: ScanJob, error: str) -> None:
     now = datetime.now(timezone.utc)
 
     row = {
-        "id": f"err_{uuid4().hex[:12]}",
+        "id": str(uuid4()),
         "ecosystem": job.ecosystem,
         "package_name": job.name,
         "package_version": job.version,
