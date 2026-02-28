@@ -185,12 +185,13 @@ export interface BillingPlan {
 /** Active subscription record (matches API SubscriptionResponse). */
 export interface Subscription {
   plan: string;
-  status: "active" | "canceled" | "past_due" | "trialing";
+  status: "active" | "canceled" | "past_due" | "trialing" | "incomplete";
   billing_interval: "monthly" | "annual";
   current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   stripe_subscription_id: string | null;
+  checkout_url: string | null;
 }
 
 /** Dashboard overview statistics.

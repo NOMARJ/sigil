@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import * as api from "@/lib/api";
 import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subscription } from "@/lib/types";
 
@@ -27,6 +28,9 @@ const channelTypeIcons: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
+  const checkoutStatus = searchParams.get("checkout");
+
   // Policy state
   const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("LOW_RISK");
   const [allowlist, setAllowlist] = useState("");
@@ -135,6 +139,13 @@ export default function SettingsPage() {
     fetchAlerts();
     fetchBilling();
   }, [fetchPolicy, fetchAlerts, fetchBilling]);
+
+  // Re-fetch billing data when returning from Stripe Checkout
+  useEffect(() => {
+    if (checkoutStatus === "success") {
+      fetchBilling();
+    }
+  }, [checkoutStatus, fetchBilling]);
 
   // ---------------------------------------------------------------------------
   // Policy handlers
@@ -260,6 +271,14 @@ export default function SettingsPage() {
 
     try {
       const sub = await api.subscribe(planTier, billingInterval);
+
+      // If the API returned a checkout URL, redirect there for payment
+      if (sub.checkout_url) {
+        window.location.href = sub.checkout_url;
+        return;
+      }
+
+      // For free plan or stub mode, just update local state
       setSubscription(sub);
     } catch (err) {
       setBillingError(
@@ -607,6 +626,17 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="card-body space-y-6">
+          {checkoutStatus === "success" && (
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-400">
+              Payment successful! Your subscription is now active.
+            </div>
+          )}
+          {checkoutStatus === "cancel" && (
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-400">
+              Checkout was cancelled. You can try subscribing again below.
+            </div>
+          )}
+
           {billingError && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
               {billingError}
