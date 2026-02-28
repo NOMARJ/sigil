@@ -139,7 +139,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer links */}
+      <div className="px-4 py-2 border-t border-gray-800 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-600">
+        <Link href="/bot" onClick={onClose} className="hover:text-gray-400 transition-colors">Bot</Link>
+        <Link href="/methodology" onClick={onClose} className="hover:text-gray-400 transition-colors">Methodology</Link>
+        <Link href="/terms" onClick={onClose} className="hover:text-gray-400 transition-colors">Terms</Link>
+        <Link href="/privacy" onClick={onClose} className="hover:text-gray-400 transition-colors">Privacy</Link>
+      </div>
+
+      {/* User */}
       <div className="px-4 py-4 border-t border-gray-800">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-300">

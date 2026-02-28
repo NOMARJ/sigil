@@ -1,0 +1,75 @@
+# ============================================================================
+# SIGIL BOT — Dockerfile
+# by NOMARK
+#
+# Lightweight image for bot watchers, scanner workers, and PR comment worker.
+# Shares API source for scanner/scoring imports but does not run the API server.
+# ============================================================================
+
+FROM python:3.11-slim-bookworm
+
+LABEL maintainer="NOMARK <team@nomark.dev>"
+LABEL description="Sigil Bot — Autonomous registry monitor and scanner"
+
+# Install runtime dependencies (git for repo cloning, npm/node for npm pack)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    file \
+    tini \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --gid 1001 sigil && \
+    useradd --uid 1001 --gid sigil --shell /bin/bash --create-home sigil
+
+WORKDIR /app
+
+# ── Python API dependencies (shared — needed for scanner/scoring imports) ──
+COPY api/requirements.txt ./api/requirements.txt
+RUN pip install --no-cache-dir -r ./api/requirements.txt
+
+# ── Python Bot dependencies ────────────────────────────────────────────────
+COPY bot/requirements.txt ./bot/requirements.txt
+RUN pip install --no-cache-dir -r ./bot/requirements.txt
+
+# ── Copy API source (scanner, scoring, database, config modules) ───────────
+COPY api/ ./api/
+
+# ── Copy Bot source ────────────────────────────────────────────────────────
+COPY bot/ ./bot/
+
+# ── Copy bash CLI as scanner backend ───────────────────────────────────────
+COPY bin/sigil /usr/local/bin/sigil
+RUN chmod +x /usr/local/bin/sigil
+
+# ── Create quarantine directories ──────────────────────────────────────────
+RUN mkdir -p /tmp/sigil-quarantine \
+             /home/sigil/.sigil/quarantine \
+             /home/sigil/.sigil/logs && \
+    chown -R sigil:sigil /home/sigil/.sigil /app /tmp/sigil-quarantine
+
+# ── Health check (bot has no HTTP — check process is alive) ────────────────
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD pgrep -f "python -m bot" || exit 1
+
+# ── Environment ────────────────────────────────────────────────────────────
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+
+# Switch to non-root user
+USER sigil
+
+# Use tini for proper signal handling (PID 1 reaping, graceful shutdown)
+ENTRYPOINT ["tini", "--"]
+
+# Default: run all watchers + workers combined
+# Override via Container App command to run specific modes:
+#   --watchers-only    (registry monitors)
+#   --workers-only     (scanner workers)
+#   --pr-worker        (PR comment posting)
+#   --backfill clawhub (initial data seeding)
+CMD ["python", "-m", "bot.main"]

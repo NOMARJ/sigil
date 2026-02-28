@@ -56,7 +56,8 @@ services:
   # ── Next.js Dashboard ───────────────────────────────────────────────────
   dashboard:
     container_name: sigil-dashboard
-    image: node:20-slim
+    # node:20-slim
+    image: node:20-slim@sha256:ec0c413bc15bc7fde72b2388b8ae62f72e1adbb1
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     ports:
@@ -77,7 +78,8 @@ services:
 
   # ── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    # postgres:16-alpine
+    image: postgres:16-alpine@sha256:a4e6ef1c2eee11c43a5146ad92a5e1cfbf8e2c2b
     container_name: sigil-postgres
     ports:
       - "${SIGIL_PG_PORT:-5432}:5432"
@@ -99,7 +101,8 @@ services:
 
   # ── Redis ───────────────────────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    # redis:7-alpine
+    image: redis:7-alpine@sha256:de14eedfbd1fc871d0f5aa1773fd80743930e45d
     container_name: sigil-redis
     ports:
       - "${SIGIL_REDIS_PORT:-6379}:6379"
@@ -166,6 +169,32 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sigil-net
+
+  # ── Sigil Bot — PR Comment Worker ──────────────────────────────────────
+  bot-pr-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: sigil-bot-pr-worker
+    command: python -m bot.main --pr-worker
+    volumes:
+      - ./bot:/app/bot
+      - ./api:/app/api
+    environment:
+      SIGIL_BOT_REDIS_URL: "redis://redis:6379/1"
+      SIGIL_BOT_DATABASE_URL: "postgresql://${SIGIL_PG_USER:-sigil}:${SIGIL_PG_PASSWORD:-sigil_dev_password}@postgres:5432/${SIGIL_PG_DB:-sigil}"
+      SIGIL_DATABASE_URL: "postgresql://${SIGIL_PG_USER:-sigil}:${SIGIL_PG_PASSWORD:-sigil_dev_password}@postgres:5432/${SIGIL_PG_DB:-sigil}"
+      SIGIL_GITHUB_APP_ID: "${SIGIL_GITHUB_APP_ID:-}"
+      SIGIL_GITHUB_APP_PRIVATE_KEY: "${SIGIL_GITHUB_APP_PRIVATE_KEY:-}"
+      SIGIL_GITHUB_WEBHOOK_SECRET: "${SIGIL_GITHUB_WEBHOOK_SECRET:-}"
+      PYTHONPATH: "/app"
+    depends_on:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
     networks:

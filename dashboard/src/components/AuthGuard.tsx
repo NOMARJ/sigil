@@ -5,7 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
 /** Routes that do not require authentication. */
-const PUBLIC_ROUTES = ["/login", "/auth/callback", "/reset-password"];
+const PUBLIC_ROUTES = [
+  "/login", "/auth/callback", "/reset-password",
+  "/bot", "/methodology", "/terms", "/privacy",
+];
+
+/** Auth-specific routes — redirect to dashboard if already logged in. */
+const AUTH_ROUTES = ["/login", "/auth/callback", "/reset-password"];
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -19,6 +25,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const isPublicRoute = PUBLIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(route + "/"),
   );
+  const isAuthRoute = AUTH_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + "/"),
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -27,10 +36,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       router.replace("/login");
     }
 
-    if (user && isPublicRoute) {
+    // Only redirect away from auth-specific routes (login, etc.),
+    // not from public content pages (bot, methodology, terms, privacy)
+    if (user && isAuthRoute) {
       router.replace("/");
     }
-  }, [user, loading, isPublicRoute, router]);
+  }, [user, loading, isPublicRoute, isAuthRoute, router]);
 
   // Show a loading state while checking auth
   if (loading) {
@@ -73,9 +84,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     return null;
   }
 
-  // If authenticated and on a public route, don't render children
+  // If authenticated and on an auth route (login, etc.), don't render children
   // (redirect will happen via useEffect above)
-  if (user && isPublicRoute) {
+  if (user && isAuthRoute) {
     return null;
   }
 

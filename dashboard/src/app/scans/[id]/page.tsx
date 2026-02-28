@@ -419,6 +419,12 @@ export default function ScanDetailPage() {
             Methodology
           </a>.
         </p>
+        <p className="mt-2 text-gray-600">
+          Scanned by{" "}
+          <Link href="/bot" className="text-brand-400 hover:text-brand-300 underline">
+            Sigil Bot
+          </Link>
+        </p>
       </aside>
     </div>
   );

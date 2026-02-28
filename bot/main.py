@@ -10,6 +10,7 @@ Usage:
     python -m bot.main --workers-only       # Run workers only
     python -m bot.main --watcher clawhub    # Run single watcher
     python -m bot.main --backfill clawhub   # Run initial backfill
+    python -m bot.main --pr-worker          # Run PR comment posting worker
 """
 
 from __future__ import annotations
@@ -209,9 +210,18 @@ def main() -> None:
         choices=["clawhub", "pypi", "npm", "github"],
         help="Run initial backfill for ecosystem",
     )
+    parser.add_argument(
+        "--pr-worker",
+        action="store_true",
+        help="Run the PR comment posting worker",
+    )
     args = parser.parse_args()
 
-    if args.backfill:
+    if args.pr_worker:
+        from bot.worker.pr_comments import pr_comment_worker
+
+        asyncio.run(pr_comment_worker())
+    elif args.backfill:
         asyncio.run(run_backfill(args.backfill))
     else:
         asyncio.run(

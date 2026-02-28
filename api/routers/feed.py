@@ -5,10 +5,15 @@ RSS 2.0 feed and JSON API for recent scan results.
 No authentication required — these are public outputs of the bot pipeline.
 
 Endpoints:
-    GET /feed.xml               — RSS 2.0 feed (all scans)
-    GET /api/v1/feed            — JSON feed with filtering
-    GET /api/v1/feed/alerts     — Recent HIGH/CRITICAL alerts
-    GET /api/v1/feed/stats      — Bot pipeline statistics
+    GET /feed.xml                   — RSS 2.0 feed (all scans, filterable)
+    GET /feed/threats.xml           — RSS feed: HIGH_RISK + CRITICAL_RISK only
+    GET /feed/clawhub.xml           — RSS feed: ClawHub ecosystem only
+    GET /feed/pypi.xml              — RSS feed: PyPI ecosystem only
+    GET /feed/npm.xml               — RSS feed: npm ecosystem only
+    GET /feed/github.xml            — RSS feed: GitHub ecosystem only
+    GET /api/v1/feed                — JSON feed with filtering
+    GET /api/v1/feed/alerts         — Recent HIGH/CRITICAL alerts
+    GET /api/v1/feed/stats          — Bot pipeline statistics
 """
 
 from __future__ import annotations
@@ -23,23 +28,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["feed"])
 
-
-@router.get("/feed.xml", summary="RSS 2.0 threat feed")
-async def rss_feed(
-    ecosystem: str | None = Query(None, description="Filter by ecosystem"),
-    verdict: str | None = Query(
-        None, description="Comma-separated verdicts (e.g. high_risk,critical_risk)"
-    ),
-) -> Response:
-    """Return RSS 2.0 XML feed of recent scan results."""
-    try:
-        from bot.publisher import generate_rss_feed
-
-        xml = await generate_rss_feed(ecosystem=ecosystem, verdict_filter=verdict)
-        return Response(content=xml, media_type="application/rss+xml")
-    except Exception:
-        # Fallback: return a minimal valid RSS feed
-        xml = """<?xml version="1.0" encoding="UTF-8"?>
+# Minimal valid RSS feed returned when the bot publisher is unavailable
+_FALLBACK_RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
     <title>Sigil Security Scanner — Threat Feed</title>
@@ -47,7 +37,80 @@ async def rss_feed(
     <description>Automated security scan results for AI agent packages</description>
   </channel>
 </rss>"""
+
+
+async def _generate_rss(
+    ecosystem: str | None = None,
+    verdict: str | None = None,
+) -> Response:
+    """Shared helper: generate an RSS response with optional filters."""
+    try:
+        from bot.publisher import generate_rss_feed
+
+        xml = await generate_rss_feed(
+            ecosystem=ecosystem, verdict_filter=verdict
+        )
         return Response(content=xml, media_type="application/rss+xml")
+    except Exception:
+        return Response(content=_FALLBACK_RSS, media_type="application/rss+xml")
+
+
+# ---------------------------------------------------------------------------
+# RSS 2.0 feed endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/feed.xml", summary="RSS 2.0 threat feed")
+async def rss_feed(
+    ecosystem: str | None = Query(None, description="Filter by ecosystem (clawhub, pypi, npm, github)"),
+    verdict: str | None = Query(
+        None, description="Comma-separated verdicts (e.g. high_risk,critical_risk)"
+    ),
+) -> Response:
+    """Return RSS 2.0 XML feed of recent scan results.
+
+    Supports query parameter filtering:
+    - `/feed.xml` — all scans, all ecosystems
+    - `/feed.xml?verdict=high_risk,critical_risk` — threats only
+    - `/feed.xml?ecosystem=clawhub` — ClawHub only
+    - `/feed.xml?ecosystem=pypi&verdict=critical_risk` — combined filters
+    """
+    return await _generate_rss(ecosystem=ecosystem, verdict=verdict)
+
+
+@router.get("/feed/threats.xml", summary="RSS feed — threats only")
+async def rss_threats() -> Response:
+    """Return RSS feed containing only HIGH_RISK and CRITICAL_RISK scans."""
+    return await _generate_rss(verdict="high_risk,critical_risk")
+
+
+@router.get("/feed/clawhub.xml", summary="RSS feed — ClawHub only")
+async def rss_clawhub() -> Response:
+    """Return RSS feed for ClawHub ecosystem scans only."""
+    return await _generate_rss(ecosystem="clawhub")
+
+
+@router.get("/feed/pypi.xml", summary="RSS feed — PyPI only")
+async def rss_pypi() -> Response:
+    """Return RSS feed for PyPI ecosystem scans only."""
+    return await _generate_rss(ecosystem="pypi")
+
+
+@router.get("/feed/npm.xml", summary="RSS feed — npm only")
+async def rss_npm() -> Response:
+    """Return RSS feed for npm ecosystem scans only."""
+    return await _generate_rss(ecosystem="npm")
+
+
+@router.get("/feed/github.xml", summary="RSS feed — GitHub only")
+async def rss_github() -> Response:
+    """Return RSS feed for GitHub MCP server scans only."""
+    return await _generate_rss(ecosystem="github")
+
+
+# ---------------------------------------------------------------------------
+# JSON feed endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get(

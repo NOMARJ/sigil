@@ -8,7 +8,7 @@ import Sidebar from "@/components/Sidebar";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 /** Routes where the sidebar should be hidden (full-screen layouts). */
-const NO_SIDEBAR_ROUTES = ["/login"];
+const NO_SIDEBAR_ROUTES = ["/login", "/bot", "/methodology", "/terms", "/privacy"];
 
 interface LayoutShellProps {
   children: React.ReactNode;
