@@ -21,12 +21,12 @@ class TestScanSubmission:
         clean_scan_request: dict[str, Any],
         auth_headers: dict[str, str],
     ) -> None:
-        """A scan with no findings should return CLEAN verdict and zero score."""
+        """A scan with no findings should return LOW_RISK verdict and zero score."""
         resp = client.post("/v1/scan", json=clean_scan_request, headers=auth_headers)
         assert resp.status_code == 200
 
         data = resp.json()
-        assert data["verdict"] == "CLEAN"
+        assert data["verdict"] == "LOW_RISK"
         assert data["risk_score"] == 0.0
         assert data["target"] == "safe-package"
         assert data["target_type"] == "pip"
@@ -47,7 +47,7 @@ class TestScanSubmission:
 
         data = resp.json()
         assert data["risk_score"] > 0
-        assert data["verdict"] != "CLEAN"
+        assert data["verdict"] != "LOW_RISK"
         assert len(data["findings"]) == 3
         assert data["target"] == "evil-package"
 
@@ -99,8 +99,8 @@ class TestScanSubmission:
         assert resp.status_code == 200
 
         data = resp.json()
-        # CRITICAL (5.0 base * 10x weight) + HIGH (3.0 * 10x) = 80 -> CRITICAL
-        assert data["verdict"] == "CRITICAL"
+        # CRITICAL (5.0 base * 10x weight) + HIGH (3.0 * 10x) = 80 -> CRITICAL_RISK
+        assert data["verdict"] == "CRITICAL_RISK"
         assert data["risk_score"] >= 50.0
 
     def test_submit_scan_with_threat_intel_hashes(

@@ -1,8 +1,29 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use crate::quarantine::QuarantineEntry;
 use crate::scanner::{Finding, Phase, ScanResult, Severity, Verdict};
+
+/// Return the path to the disclaimer-shown marker file (~/.sigil/.disclaimer_shown).
+fn disclaimer_marker_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".sigil")
+        .join(".disclaimer_shown")
+}
+
+/// Check whether the user has suppressed disclaimers via config.
+fn disclaimer_suppressed() -> bool {
+    let config_path = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".sigil")
+        .join("config");
+    if let Ok(contents) = std::fs::read_to_string(&config_path) {
+        return contents.lines().any(|l| l.trim() == "disclaimer=false");
+    }
+    false
+}
 
 // ---------------------------------------------------------------------------
 // Verdict display
@@ -22,31 +43,21 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
     let line = "=".repeat(60);
 
     match verdict {
-        Verdict::Clean => {
+        Verdict::LowRisk => {
             println!("{}", line.green());
             println!(
                 "{}",
-                "  VERDICT: CLEAN -- No security issues detected"
+                "  LOW RISK -- No known malicious patterns detected"
                     .green()
                     .bold()
             );
             println!("{}", line.green());
         }
-        Verdict::LowRisk => {
-            println!("{}", line.cyan());
-            println!(
-                "{}",
-                "  VERDICT: LOW RISK -- Minor informational findings"
-                    .cyan()
-                    .bold()
-            );
-            println!("{}", line.cyan());
-        }
         Verdict::MediumRisk => {
             println!("{}", line.yellow());
             println!(
                 "{}",
-                "  VERDICT: MEDIUM RISK -- Suspicious patterns detected"
+                "  MEDIUM RISK -- Suspicious patterns detected"
                     .yellow()
                     .bold()
             );
@@ -56,17 +67,17 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.red());
             println!(
                 "{}",
-                "  VERDICT: HIGH RISK -- Likely malicious patterns found"
+                "  HIGH RISK -- Likely malicious patterns found"
                     .red()
                     .bold()
             );
             println!("{}", line.red());
         }
-        Verdict::Critical => {
+        Verdict::CriticalRisk => {
             println!("{}", line.red().bold());
             println!(
                 "{}",
-                "  VERDICT: CRITICAL -- Almost certainly malicious!"
+                "  CRITICAL RISK -- Almost certainly malicious!"
                     .red()
                     .bold()
             );
@@ -74,6 +85,41 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.red().bold());
         }
     }
+    println!();
+
+    // Disclaimer: long form on first run, short on subsequent (configurable)
+    if !disclaimer_suppressed() {
+        let marker = disclaimer_marker_path();
+        if !marker.exists() {
+            // First-run: show long disclaimer
+            println!(
+                "{}",
+                "  Note: Sigil scans detect known malicious patterns through static analysis."
+                    .dimmed()
+            );
+            println!(
+                "{}",
+                "  A low risk result does not guarantee the absence of all threats.".dimmed()
+            );
+            println!(
+                "{}",
+                "  Always review code before use. See sigilsec.ai/terms for full terms.".dimmed()
+            );
+            // Mark first-run complete
+            if let Some(parent) = marker.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&marker, "");
+        } else {
+            // Subsequent runs: short disclaimer
+            println!(
+                "{}",
+                "  \u{2139} Scan results are not a guarantee of safety. Review code before use."
+                    .dimmed()
+            );
+        }
+    }
+
     println!();
 }
 

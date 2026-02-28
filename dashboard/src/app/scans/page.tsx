@@ -7,11 +7,10 @@ import type { Scan, Verdict, PaginatedResponse } from "@/lib/types";
 
 const verdictOptions: (Verdict | "ALL")[] = [
   "ALL",
-  "CLEAN",
   "LOW_RISK",
   "MEDIUM_RISK",
   "HIGH_RISK",
-  "CRITICAL",
+  "CRITICAL_RISK",
 ];
 
 const PER_PAGE = 10;
@@ -81,6 +80,17 @@ export default function ScansPage() {
             Browse all package and repository scans.
           </p>
         </div>
+      </div>
+
+      {/* Scan database notice — required per liability spec Section 5 */}
+      <div className="p-3 rounded-lg bg-gray-900/50 border border-gray-800 text-xs text-gray-500 leading-relaxed">
+        Sigil scans packages across ClawHub, PyPI, npm, and GitHub using
+        automated static analysis. Results indicate detected patterns, not
+        certified safety status. See our{" "}
+        <a href="/terms" className="text-brand-400 hover:text-brand-300 underline">
+          Terms of Service
+        </a>{" "}
+        for full details.
       </div>
 
       {/* Error banner */}

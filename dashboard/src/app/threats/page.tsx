@@ -7,7 +7,7 @@ import type { ThreatEntry, Verdict, ScanSource, ReportThreatRequest, Signature, 
 
 const severityOptions: (Verdict | "ALL")[] = [
   "ALL",
-  "CRITICAL",
+  "CRITICAL_RISK",
   "HIGH_RISK",
   "MEDIUM_RISK",
   "LOW_RISK",

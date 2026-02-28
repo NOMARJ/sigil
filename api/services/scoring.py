@@ -11,12 +11,11 @@ Phase weights (from the Sigil PRD):
     Obfuscation    — 5x  (High)
     Provenance     — 1-3x (Low, variable)
 
-Verdict thresholds:
-    0        → CLEAN
-    1  – 9   → LOW_RISK
+Risk classification thresholds:
+    0  – 9   → LOW_RISK
     10 – 24  → MEDIUM_RISK
     25 – 49  → HIGH_RISK
-    50+      → CRITICAL
+    50+      → CRITICAL_RISK
 """
 
 from __future__ import annotations
@@ -35,6 +34,8 @@ PHASE_WEIGHTS: dict[ScanPhase, float] = {
     ScanPhase.CREDENTIALS: 2.0,
     ScanPhase.OBFUSCATION: 5.0,
     ScanPhase.PROVENANCE: 2.0,  # Default mid-range for provenance (1-3x)
+    ScanPhase.PROMPT_INJECTION: 10.0,  # Critical — the key differentiator vs VirusTotal
+    ScanPhase.SKILL_SECURITY: 5.0,  # High — tool poisoning, shell execution
 }
 
 # ---------------------------------------------------------------------------
@@ -69,22 +70,19 @@ def aggregate_score(findings: list[Finding]) -> float:
 def score_to_verdict(score: float) -> Verdict:
     """Map a numeric risk score to a ``Verdict`` enum value.
 
-    Thresholds per the Sigil PRD:
-        0        → CLEAN
-        1  – 9   → LOW_RISK
+    Risk classification thresholds:
+        0  – 9   → LOW_RISK
         10 – 24  → MEDIUM_RISK
         25 – 49  → HIGH_RISK
-        50+      → CRITICAL
+        50+      → CRITICAL_RISK
     """
-    if score <= 0:
-        return Verdict.CLEAN
     if score < 10:
         return Verdict.LOW_RISK
     if score < 25:
         return Verdict.MEDIUM_RISK
     if score < 50:
         return Verdict.HIGH_RISK
-    return Verdict.CRITICAL
+    return Verdict.CRITICAL_RISK
 
 
 def compute_verdict(findings: list[Finding]) -> tuple[float, Verdict]:

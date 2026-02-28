@@ -110,9 +110,7 @@ if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
     FINDINGS_COUNT=$((FAIL_COUNT + WARN_COUNT))
 
     # Determine verdict from score
-    if [ "$RISK_SCORE" -eq 0 ]; then
-        VERDICT="clean"
-    elif [ "$RISK_SCORE" -lt 10 ]; then
+    if [ "$RISK_SCORE" -lt 10 ]; then
         VERDICT="low"
     elif [ "$RISK_SCORE" -lt 25 ]; then
         VERDICT="medium"
@@ -138,7 +136,6 @@ echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
 # ── Write job summary ────────────────────────────────────────────────────────
 VERDICT_EMOJI=""
 case "$VERDICT" in
-    clean)    VERDICT_EMOJI="CLEAN" ;;
     low)      VERDICT_EMOJI="LOW RISK" ;;
     medium)   VERDICT_EMOJI="MEDIUM RISK" ;;
     high)     VERDICT_EMOJI="HIGH RISK" ;;
@@ -201,6 +198,8 @@ esac
 
     echo "---"
     echo "*Scanned by [Sigil](https://github.com/nomark/sigil) — automated security auditing for AI agent code.*"
+    echo ""
+    echo "*Automated static analysis result. Not a security certification. Provided as-is without warranty. See [sigilsec.ai/terms](https://sigilsec.ai/terms) for full terms.*"
 } >> "$GITHUB_STEP_SUMMARY"
 
 # ── Determine threshold-based exit ───────────────────────────────────────────

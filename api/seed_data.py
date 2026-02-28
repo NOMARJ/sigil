@@ -80,7 +80,7 @@ SAMPLE_SCANS: list[dict] = [
         "files_scanned": 18,
         "findings_count": 0,
         "risk_score": 0.0,
-        "verdict": "CLEAN",
+        "verdict": "LOW_RISK",
         "threat_hits": 0,
         "findings_json": [],
         "metadata_json": {},
@@ -93,7 +93,7 @@ SAMPLE_SCANS: list[dict] = [
         "files_scanned": 7,
         "findings_count": 6,
         "risk_score": 85.0,
-        "verdict": "CRITICAL",
+        "verdict": "CRITICAL_RISK",
         "threat_hits": 2,
         "findings_json": [
             {
@@ -243,7 +243,7 @@ SAMPLE_SCANS: list[dict] = [
         "files_scanned": 87,
         "findings_count": 0,
         "risk_score": 0.0,
-        "verdict": "CLEAN",
+        "verdict": "LOW_RISK",
         "threat_hits": 0,
         "findings_json": [],
         "metadata_json": {"approved": True},
@@ -288,7 +288,7 @@ SAMPLE_SCANS: list[dict] = [
         "files_scanned": 4,
         "findings_count": 4,
         "risk_score": 92.0,
-        "verdict": "CRITICAL",
+        "verdict": "CRITICAL_RISK",
         "threat_hits": 1,
         "findings_json": [
             {

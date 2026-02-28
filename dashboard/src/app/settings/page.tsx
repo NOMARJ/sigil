@@ -8,7 +8,7 @@ import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subs
 // Constants
 // ---------------------------------------------------------------------------
 
-const verdictLevels: Verdict[] = ["CLEAN", "LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "CRITICAL"];
+const verdictLevels: Verdict[] = ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK", "CRITICAL_RISK"];
 
 const channelTypeStyles: Record<string, string> = {
   slack: "bg-purple-500/10 text-purple-400 border-purple-500/20",
@@ -28,7 +28,7 @@ const channelTypeIcons: Record<string, string> = {
 
 export default function SettingsPage() {
   // Policy state
-  const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("CLEAN");
+  const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("LOW_RISK");
   const [allowlist, setAllowlist] = useState("");
   const [blocklist, setBlocklist] = useState("");
   const [requireApproval, setRequireApproval] = useState<Verdict[]>([]);
@@ -68,7 +68,7 @@ export default function SettingsPage() {
 
     try {
       const policy: Policy = await api.listPolicies();
-      setAutoApproveThreshold(policy.auto_approve_threshold ?? "CLEAN");
+      setAutoApproveThreshold(policy.auto_approve_threshold ?? "LOW_RISK");
       setAllowlist((policy.allowlisted_packages ?? []).join("\n"));
       setBlocklist((policy.blocklisted_packages ?? []).join("\n"));
       setRequireApproval(policy.require_approval_for ?? []);

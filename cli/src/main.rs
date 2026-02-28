@@ -406,21 +406,22 @@ async fn cmd_clone(
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
 
-    // 4. Auto-approve if requested and scan is clean
-    if auto_approve && result.verdict == scanner::Verdict::Clean {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
+    // 4. Auto-approve if requested and scan is low risk
+    if auto_approve && result.verdict == scanner::Verdict::LowRisk {
+        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
                 err
             );
         } else {
-            println!("{} auto-approved (clean scan)", "sigil:".bold().green());
+            println!("{} auto-approved (low risk)", "sigil:".bold().green());
         }
     }
 
     match result.verdict {
-        scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::MediumRisk => 1,
         _ => 2,
     }
 }
@@ -490,20 +491,21 @@ async fn cmd_pip(
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
 
-    if auto_approve && result.verdict == scanner::Verdict::Clean {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
+    if auto_approve && result.verdict == scanner::Verdict::LowRisk {
+        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
                 err
             );
         } else {
-            println!("{} auto-approved (clean scan)", "sigil:".bold().green());
+            println!("{} auto-approved (low risk)", "sigil:".bold().green());
         }
     }
 
     match result.verdict {
-        scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::MediumRisk => 1,
         _ => 2,
     }
 }
@@ -571,20 +573,21 @@ async fn cmd_npm(
     output::print_findings(&result.findings, format);
     output::print_verdict(&result.verdict, format);
 
-    if auto_approve && result.verdict == scanner::Verdict::Clean {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: clean scan")) {
+    if auto_approve && result.verdict == scanner::Verdict::LowRisk {
+        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
                 err
             );
         } else {
-            println!("{} auto-approved (clean scan)", "sigil:".bold().green());
+            println!("{} auto-approved (low risk)", "sigil:".bold().green());
         }
     }
 
     match result.verdict {
-        scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::MediumRisk => 1,
         _ => 2,
     }
 }
@@ -626,7 +629,7 @@ async fn cmd_scan(
             output::print_findings(&cached.findings, format);
             output::print_verdict(&cached.verdict, format);
             return match cached.verdict {
-                scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+                scanner::Verdict::LowRisk => 0,
                 _ => 2,
             };
         } else if verbose {
@@ -725,7 +728,7 @@ async fn cmd_scan(
     }
 
     match result.verdict {
-        scanner::Verdict::Clean | scanner::Verdict::LowRisk => 0,
+        scanner::Verdict::LowRisk => 0,
         _ => 2,
     }
 }

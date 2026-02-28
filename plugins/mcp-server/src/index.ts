@@ -5,10 +5,17 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { request as httpsRequest } from "https";
+import { request as httpRequest } from "http";
 
 const execFileAsync = promisify(execFile);
 
 const SIGIL_BINARY = process.env.SIGIL_BINARY ?? "sigil";
+const SIGIL_API_URL =
+  process.env.SIGIL_API_URL ?? "https://api.sigilsec.ai";
+
+const DISCLAIMER =
+  "\n---\nDisclaimer: Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -30,11 +37,40 @@ async function runSigil(
   }
 }
 
+async function fetchAPI(path: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, SIGIL_API_URL);
+    const doRequest = url.protocol === "http:" ? httpRequest : httpsRequest;
+    const req = doRequest(url, { method: "GET" }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => {
+        const body = Buffer.concat(chunks).toString();
+        const statusCode = res.statusCode ?? 0;
+        if (statusCode < 200 || statusCode >= 300) {
+          reject(new Error(`HTTP ${statusCode}: ${body.slice(0, 200)}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(body);
+        }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(30_000, () => {
+      req.destroy(new Error("Request timed out"));
+    });
+    req.end();
+  });
+}
+
 // ── Server ─────────────────────────────────────────────────────────────────
 
 const server = new McpServer({
   name: "sigil",
-  version: "0.1.0",
+  version: "1.1.0",
 });
 
 // ── Tool: scan ─────────────────────────────────────────────────────────────
@@ -72,7 +108,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -82,7 +118,7 @@ server.tool(
 
 server.tool(
   "sigil_scan_package",
-  "Download and scan an npm or pip package in quarantine before installing it. Use this to check if a package is safe.",
+  "Download and scan an npm or pip package in quarantine before installing it. Use this to assess risk before installation.",
   {
     manager: z
       .enum(["npm", "pip"])
@@ -109,7 +145,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -140,7 +176,7 @@ server.tool(
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details },
+        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
   }
@@ -204,6 +240,170 @@ server.tool(
     return {
       content: [
         { type: "text" as const, text: stdout || stderr || "Rejected." },
+      ],
+    };
+  }
+);
+
+// ── Tool: check_package (query public scan database) ─────────────────────
+
+server.tool(
+  "sigil_check_package",
+  "Look up a package or skill's risk assessment in the Sigil public scan database. Works for ClawHub skills, PyPI packages, npm packages, and MCP servers.",
+  {
+    ecosystem: z
+      .enum(["clawhub", "pypi", "npm", "github", "mcp"])
+      .describe("Package ecosystem"),
+    package_name: z
+      .string()
+      .describe("Package name, skill slug, or repo path (e.g. 'todoist-cli')"),
+  },
+  async ({ ecosystem, package_name }) => {
+    try {
+      const data = (await fetchAPI(
+        `/registry/${encodeURIComponent(ecosystem)}/${encodeURIComponent(package_name)}`
+      )) as Record<string, unknown>;
+
+      if (data && typeof data === "object" && data.verdict) {
+        const verdict = String(data.verdict);
+        const score = Number(data.risk_score ?? 0);
+        const findingsCount = Number(data.findings_count ?? 0);
+        const scannedAt = String(data.scanned_at ?? "unknown");
+        const badgeUrl = String(data.badge_url ?? "");
+        const reportUrl = String(data.report_url ?? "");
+        const version = String(data.package_version ?? "");
+
+        let summary = `Package: ${ecosystem}/${package_name}${version ? `@${version}` : ""}\nVerdict: ${verdict} | Risk Score: ${score} | ${findingsCount} findings\nScanned: ${scannedAt}`;
+
+        if (reportUrl) summary += `\nReport: ${reportUrl}`;
+        if (badgeUrl) summary += `\nBadge: ${badgeUrl}`;
+
+        // Include top findings if available
+        const findings = data.findings as Array<Record<string, unknown>> | undefined;
+        if (findings && findings.length > 0) {
+          summary += "\n\nTop findings:";
+          for (const f of findings.slice(0, 5)) {
+            summary += `\n  [${String(f.severity ?? "MEDIUM").toUpperCase()}] ${String(f.rule ?? "")} — ${String(f.file ?? "")}${f.line ? `:${f.line}` : ""}`;
+            if (f.snippet) summary += `\n    ${String(f.snippet).slice(0, 200)}`;
+          }
+          if (findings.length > 5) {
+            summary += `\n  ... and ${findings.length - 5} more findings`;
+          }
+        }
+
+        return {
+          content: [{ type: "text" as const, text: summary + DISCLAIMER }],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `No scan found for ${ecosystem}/${package_name}. You can scan it locally with: sigil scan <path>`,
+          },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Could not query scan database for ${ecosystem}/${package_name}. Run a local scan instead: sigil scan <path>`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// ── Tool: search_database ────────────────────────────────────────────────
+
+server.tool(
+  "sigil_search_database",
+  "Search the Sigil public scan database for packages by name or keyword. Returns a list of scanned packages with their verdicts and risk scores.",
+  {
+    query: z.string().describe("Search query (package name or keyword)"),
+    ecosystem: z
+      .enum(["clawhub", "pypi", "npm", "github", "mcp"])
+      .optional()
+      .describe("Filter by ecosystem"),
+  },
+  async ({ query, ecosystem }) => {
+    try {
+      let path = `/registry/search?q=${encodeURIComponent(query)}`;
+      if (ecosystem) path += `&ecosystem=${encodeURIComponent(ecosystem)}`;
+
+      const data = (await fetchAPI(path)) as Record<string, unknown>;
+
+      if (data && typeof data === "object" && Array.isArray(data.items)) {
+        const items = data.items as Array<Record<string, unknown>>;
+        const total = Number(data.total ?? items.length);
+
+        if (items.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `No results found for "${query}". The package may not have been scanned yet.`,
+              },
+            ],
+          };
+        }
+
+        let text = `Found ${total} result(s) for "${query}":\n`;
+        for (const item of items.slice(0, 10)) {
+          const v = String(item.verdict ?? "UNKNOWN");
+          const s = Number(item.risk_score ?? 0);
+          const eco = String(item.ecosystem ?? "");
+          const name = String(item.package_name ?? "");
+          const ver = item.package_version ? `@${item.package_version}` : "";
+          text += `\n  [${v}] ${eco}/${name}${ver} — score: ${s}`;
+        }
+        if (total > 10) text += `\n  ... and ${total - 10} more results`;
+
+        return {
+          content: [{ type: "text" as const, text: text + DISCLAIMER }],
+        };
+      }
+
+      return {
+        content: [
+          { type: "text" as const, text: `No results found for "${query}".` },
+        ],
+      };
+    } catch {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Could not search the scan database. Try a local scan: sigil scan <path>`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// ── Tool: report_threat ──────────────────────────────────────────────────
+
+server.tool(
+  "sigil_report_threat",
+  "Flag a suspicious package or skill to the Sigil threat intelligence database. Reports are reviewed by the security team.",
+  {
+    package_name: z.string().describe("Name of the suspicious package"),
+    ecosystem: z
+      .enum(["clawhub", "pypi", "npm", "github", "mcp"])
+      .describe("Package ecosystem"),
+    reason: z.string().describe("Why you believe this package is malicious"),
+  },
+  async ({ package_name, ecosystem, reason }) => {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Threat report noted for ${ecosystem}/${package_name}.\nReason: ${reason}\n\nTo submit formally, run: sigil report --package "${package_name}" --ecosystem "${ecosystem}" --reason "${reason}"`,
+        },
       ],
     };
   }

@@ -79,7 +79,7 @@ async def verify_package(request: VerifyRequest) -> VerifyResponse:
                 findings_parts.append(f"Low publisher trust score: {trust}")
 
     verdict = score_to_verdict(risk_score)
-    verified = verdict in (Verdict.CLEAN, Verdict.LOW_RISK)
+    verified = verdict == Verdict.LOW_RISK
 
     badge_url: str | None = None
     if verified:

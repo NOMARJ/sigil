@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS scans (
     target_type     VARCHAR(50)  NOT NULL DEFAULT 'directory',
     files_scanned   INTEGER      NOT NULL DEFAULT 0,
     risk_score      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-    verdict         VARCHAR(50)  NOT NULL DEFAULT 'CLEAN',
+    verdict         VARCHAR(50)  NOT NULL DEFAULT 'LOW_RISK',
     findings_json   JSONB        NOT NULL DEFAULT '[]'::jsonb,
     metadata_json   JSONB        NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -297,3 +297,89 @@ CREATE TABLE IF NOT EXISTS scan_usage (
 
 CREATE INDEX IF NOT EXISTS idx_scan_usage_user  ON scan_usage (user_id);
 CREATE INDEX IF NOT EXISTS idx_scan_usage_month ON scan_usage (year_month);
+
+-- =====================================================================
+-- Public Scan Database (distribution layer)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public_scans (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecosystem       TEXT NOT NULL,        -- 'clawhub', 'pypi', 'npm', 'github', 'mcp'
+    package_name    TEXT NOT NULL,
+    package_version TEXT NOT NULL DEFAULT '',
+    risk_score      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    verdict         VARCHAR(50) NOT NULL DEFAULT 'LOW_RISK',
+    findings_count  INTEGER NOT NULL DEFAULT 0,
+    files_scanned   INTEGER NOT NULL DEFAULT 0,
+    findings_json   JSONB NOT NULL DEFAULT '[]'::jsonb,
+    metadata_json   JSONB NOT NULL DEFAULT '{}'::jsonb,
+    scanned_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(ecosystem, package_name, package_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_public_scans_ecosystem
+    ON public_scans (ecosystem);
+CREATE INDEX IF NOT EXISTS idx_public_scans_package
+    ON public_scans (ecosystem, package_name);
+CREATE INDEX IF NOT EXISTS idx_public_scans_verdict
+    ON public_scans (verdict);
+CREATE INDEX IF NOT EXISTS idx_public_scans_risk_score
+    ON public_scans (risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_public_scans_scanned_at
+    ON public_scans (scanned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_public_scans_ecosystem_verdict
+    ON public_scans (ecosystem, verdict);
+
+-- =====================================================================
+-- Badge Cache (avoid regenerating SVG on every request)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS badge_cache (
+    ecosystem       TEXT NOT NULL,
+    slug            TEXT NOT NULL,
+    svg_content     TEXT NOT NULL,
+    verdict         TEXT NOT NULL,
+    cached_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(ecosystem, slug)
+);
+
+-- =====================================================================
+-- GitHub App — Installation tracking
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS github_installations (
+    id                    TEXT PRIMARY KEY,
+    installation_id       INTEGER NOT NULL UNIQUE,
+    account_login         TEXT NOT NULL DEFAULT '',
+    account_type          TEXT NOT NULL DEFAULT 'User',
+    repository_selection  TEXT NOT NULL DEFAULT 'all',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gh_install_account
+    ON github_installations (account_login);
+
+-- =====================================================================
+-- GitHub App — PR scan events (queued for async processing)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS github_pr_events (
+    id              TEXT PRIMARY KEY,
+    repo            TEXT NOT NULL,
+    pr_number       INTEGER NOT NULL,
+    action          TEXT NOT NULL DEFAULT '',
+    pr_title        TEXT NOT NULL DEFAULT '',
+    pr_head_sha     TEXT NOT NULL DEFAULT '',
+    installation_id INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    comment_id      TEXT,
+    scan_results    JSONB DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_gh_pr_repo
+    ON github_pr_events (repo, pr_number);
+CREATE INDEX IF NOT EXISTS idx_gh_pr_status
+    ON github_pr_events (status);

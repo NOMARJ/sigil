@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     stripe_price_pro_annual: str = "price_pro_annual_placeholder"
     stripe_price_team_annual: str = "price_team_annual_placeholder"
 
+    # --- GitHub App (optional — for PR scanning) --------------------------------
+    github_app_id: str | None = None
+    github_app_private_key: str | None = None
+    github_webhook_secret: str | None = None
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
+
     @property
     def supabase_configured(self) -> bool:
         """Return True when both Supabase URL and key are set."""
@@ -107,6 +114,11 @@ class Settings(BaseSettings):
     def stripe_configured(self) -> bool:
         """Return True when a Stripe secret key is set."""
         return bool(self.stripe_secret_key)
+
+    @property
+    def github_app_configured(self) -> bool:
+        """Return True when the GitHub App credentials are set."""
+        return bool(self.github_app_id and self.github_app_private_key)
 
     @property
     def jwt_secret_is_insecure(self) -> bool:

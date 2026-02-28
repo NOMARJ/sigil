@@ -67,7 +67,7 @@ def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
         files_scanned=row.get("files_scanned", 0),
         findings_count=row.get("findings_count", 0),
         risk_score=row.get("risk_score", 0.0),
-        verdict=row.get("verdict", "CLEAN"),
+        verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
         metadata=row.get("metadata_json", {}),
         created_at=row.get("created_at", datetime.utcnow()),
@@ -95,7 +95,7 @@ def _row_to_detail(row: dict[str, Any]) -> ScanDetail:
         files_scanned=row.get("files_scanned", 0),
         findings_count=row.get("findings_count", 0),
         risk_score=row.get("risk_score", 0.0),
-        verdict=row.get("verdict", "CLEAN"),
+        verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
         findings_json=findings,
         metadata_json=metadata,
@@ -202,7 +202,7 @@ async def _submit_scan_impl(
         "publisher"
     )
     if publisher_id:
-        is_flagged = verdict.value in ("HIGH_RISK", "CRITICAL")
+        is_flagged = verdict.value in ("HIGH_RISK", "CRITICAL_RISK")
         try:
             await update_publisher_from_scan(publisher_id, is_flagged=is_flagged)
         except Exception:
@@ -234,7 +234,7 @@ async def submit_scan(
     The response includes:
     - The original findings
     - A weighted risk score
-    - A verdict (CLEAN / LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL)
+    - A verdict (LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL_RISK)
     - Any matching entries from the threat intelligence database
 
     Requires authentication. Monthly scan limits apply per plan tier.
@@ -399,7 +399,7 @@ async def approve_scan(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
-    """Approve a scan, marking it as safe in the metadata."""
+    """Approve a scan, marking it as reviewed in the metadata."""
     row = await _get_scan_or_404(scan_id)
 
     metadata = row.get("metadata_json", {})
@@ -486,7 +486,7 @@ async def get_dashboard_stats(
 
     total_scans = len(rows)
     threats_blocked = sum(
-        1 for r in rows if r.get("verdict") in ("HIGH_RISK", "CRITICAL")
+        1 for r in rows if r.get("verdict") in ("HIGH_RISK", "CRITICAL_RISK")
     )
     packages_approved = sum(
         1
@@ -497,7 +497,7 @@ async def get_dashboard_stats(
             and r["metadata_json"].get("approved") is True
         )
     )
-    critical_findings = sum(1 for r in rows if r.get("verdict") == "CRITICAL")
+    critical_findings = sum(1 for r in rows if r.get("verdict") == "CRITICAL_RISK")
 
     return DashboardStats(
         total_scans=total_scans,
