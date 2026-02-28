@@ -418,6 +418,10 @@ class SubscriptionResponse(BaseModel):
     current_period_end: datetime | None = None
     cancel_at_period_end: bool = False
     stripe_subscription_id: str | None = None
+    checkout_url: str | None = Field(
+        None,
+        description="Stripe Checkout URL — redirect the user here to complete payment",
+    )
 
 
 class PortalResponse(BaseModel):
