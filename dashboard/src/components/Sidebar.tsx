@@ -141,7 +141,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Footer links */}
       <div className="px-4 py-2 border-t border-gray-800 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-600">
-        <Link href="/bot" onClick={onClose} className="hover:text-gray-400 transition-colors">Bot</Link>
+        <a href="https://sigilsec.ai/bot" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Bot</a>
         <Link href="/methodology" onClick={onClose} className="hover:text-gray-400 transition-colors">Methodology</Link>
         <Link href="/terms" onClick={onClose} className="hover:text-gray-400 transition-colors">Terms</Link>
         <Link href="/privacy" onClick={onClose} className="hover:text-gray-400 transition-colors">Privacy</Link>

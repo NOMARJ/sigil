@@ -421,9 +421,9 @@ export default function ScanDetailPage() {
         </p>
         <p className="mt-2 text-gray-600">
           Scanned by{" "}
-          <Link href="/bot" className="text-brand-400 hover:text-brand-300 underline">
+          <a href="https://sigilsec.ai/bot" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">
             Sigil Bot
-          </Link>
+          </a>
         </p>
       </aside>
     </div>
