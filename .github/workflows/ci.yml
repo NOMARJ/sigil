@@ -233,6 +233,10 @@ jobs:
         working-directory: dashboard
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
+          AUTH0_SECRET: "ci-placeholder-secret-not-used-at-build-time"
+          AUTH0_BASE_URL: "http://localhost:3000"
+          AUTH0_ISSUER_BASE_URL: "https://placeholder.auth0.com"
+          AUTH0_CLIENT_ID: "placeholder-client-id"
+          AUTH0_CLIENT_SECRET: "placeholder-client-secret"
+          AUTH0_AUDIENCE: "https://api.sigilsec.ai"
           NEXT_PUBLIC_API_URL: "http://localhost:8000"

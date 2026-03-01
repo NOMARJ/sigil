@@ -71,9 +71,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await db.connect()
     await cache.connect()
 
+    # Start background tasks
+    print("[LIFESPAN] Importing registry stats updater...")
+    from api.services import registry_stats_updater
+
+    print("[LIFESPAN] Starting background updater...")
+    await registry_stats_updater.start_updater()
+    print("[LIFESPAN] Background updater started")
+
     yield
 
     logger.info("Shutting down Sigil API")
+    await registry_stats_updater.stop_updater()
     await cache.disconnect()
     await db.disconnect()
 

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { supabase } from "./supabase";
 import * as api from "./api";
 import type { User } from "./types";
 
@@ -9,9 +8,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
+  auth0Configured: boolean;
   loginWithEmail: (email: string, password: string) => Promise<void>;
-  loginWithGitHub: () => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithOAuth: (connection?: string) => void;
   logout: () => Promise<void>;
 }
 
@@ -29,17 +28,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Auth0 is always configured in production (server-side routes handle it)
+  const auth0Configured = typeof window !== "undefined";
+
   // Restore session on mount
   useEffect(() => {
     let cancelled = false;
 
     async function restoreSession() {
-      // 1. Try Supabase session first
-      if (supabase) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            // We have a Supabase session — fetch our app user from the API
+      // 1. Try Auth0 session first (for OAuth users)
+      try {
+        const res = await fetch("/api/auth/token");
+        if (res.ok) {
+          const { accessToken } = await res.json();
+          if (accessToken) {
             try {
               const appUser = await api.getCurrentUser();
               if (!cancelled) {
@@ -48,15 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
               }
             } catch {
-              // Supabase token may not be recognized by our API, fall through
+              // Auth0 token may not be recognized by our API, fall through
             }
           }
-        } catch {
-          // Supabase unavailable, fall through
         }
+      } catch {
+        // Auth0 unavailable, fall through
       }
 
-      // 2. Fall back to localStorage token
+      // 2. Fall back to localStorage token (email/password users)
       if (typeof window !== "undefined") {
         const token = localStorage.getItem("sigil_access_token");
         if (token) {
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
           } catch {
-            // Token expired or invalid — clear it
+            // Token expired or invalid -- clear it
             localStorage.removeItem("sigil_access_token");
             localStorage.removeItem("sigil_refresh_token");
           }
@@ -83,35 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     restoreSession();
 
-    // Listen for Supabase auth changes (OAuth callbacks, etc.)
-    let subscription: { unsubscribe: () => void } | undefined;
-    if (supabase) {
-      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
-          if (session?.access_token) {
-            try {
-              const appUser = await api.getCurrentUser();
-              if (!cancelled) setUser(appUser);
-            } catch {
-              if (!cancelled) setUser(null);
-            }
-          } else {
-            // Only clear user if we don't have a localStorage token
-            const localToken = typeof window !== "undefined"
-              ? localStorage.getItem("sigil_access_token")
-              : null;
-            if (!localToken && !cancelled) {
-              setUser(null);
-            }
-          }
-        },
-      );
-      subscription = sub;
-    }
-
     return () => {
       cancelled = true;
-      subscription?.unsubscribe();
     };
   }, []);
 
@@ -133,58 +108,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const loginWithGitHub = useCallback(async () => {
-    if (!supabase) {
-      throw new Error(
-        "GitHub login is not available. Supabase is not configured. Please use email/password login instead.",
-      );
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        redirectTo: typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback`
-          : "https://app.sigilsec.ai/auth/callback",
-      },
-    });
-
-    if (error) throw error;
-  }, []);
-
-  const loginWithGoogle = useCallback(async () => {
-    if (!supabase) {
-      throw new Error(
-        "Google login is not available. Supabase is not configured. Please use email/password login instead.",
-      );
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback`
-          : "https://app.sigilsec.ai/auth/callback",
-      },
-    });
-
-    if (error) throw error;
+  const loginWithOAuth = useCallback((connection?: string) => {
+    // Auth0 handles OAuth via redirect-based flow
+    const url = connection
+      ? `/api/auth/login?connection=${connection}`
+      : "/api/auth/login";
+    window.location.href = url;
   }, []);
 
   const logout = useCallback(async () => {
-    // Clear localStorage tokens
+    // Clear localStorage tokens (email/password users)
     if (typeof window !== "undefined") {
       localStorage.removeItem("sigil_access_token");
       localStorage.removeItem("sigil_refresh_token");
-    }
-
-    // Sign out of Supabase if available
-    if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // Ignore Supabase sign-out errors
-      }
     }
 
     // Call API logout (best-effort)
@@ -195,6 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(null);
+
+    // Redirect to Auth0 logout to clear the Auth0 session
+    window.location.href = "/api/auth/logout";
   }, []);
 
   const isAuthenticated = user !== null;
@@ -206,9 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         isAuthenticated,
+        auth0Configured,
         loginWithEmail,
-        loginWithGitHub,
-        loginWithGoogle,
+        loginWithOAuth,
         logout,
       },
     },

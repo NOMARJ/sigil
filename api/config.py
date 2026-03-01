@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     """Central configuration for the Sigil API service.
 
     All values can be overridden via environment variables (case-insensitive).
-    The service degrades gracefully when optional backends (Supabase, Redis)
+    The service degrades gracefully when optional backends (Auth0, Redis)
     are not configured.
     """
 
@@ -51,12 +51,19 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
-    # --- Supabase (optional) ---------------------------------------------------
+    # --- Auth0 (optional — for OAuth login) ------------------------------------
+    auth0_domain: str | None = None  # SIGIL_AUTH0_DOMAIN e.g. "sigil.auth0.com"
+    auth0_audience: str | None = (
+        None  # SIGIL_AUTH0_AUDIENCE e.g. "https://api.sigilsec.ai"
+    )
+    auth0_client_id: str | None = None  # SIGIL_AUTH0_CLIENT_ID
+
+    # --- Supabase (deprecated — kept for rollback during migration) -----------
     supabase_url: str | None = None
     supabase_key: str | None = None
-    supabase_service_key: str | None = None  # For admin operations
-    supabase_jwt_secret: str | None = None  # Deprecated: use JWKS for verification
-    database_url: str | None = None  # SIGIL_DATABASE_URL — postgres connection string
+    supabase_service_key: str | None = None
+    supabase_jwt_secret: str | None = None
+    database_url: str | None = None  # SIGIL_DATABASE_URL — connection string
 
     # --- Redis (optional) ------------------------------------------------------
     redis_url: str | None = None
@@ -87,13 +94,18 @@ class Settings(BaseSettings):
     github_client_secret: str | None = None
 
     @property
+    def auth0_configured(self) -> bool:
+        """Return True when Auth0 domain and audience are set."""
+        return bool(self.auth0_domain and self.auth0_audience)
+
+    @property
     def supabase_configured(self) -> bool:
-        """Return True when both Supabase URL and key are set."""
+        """Return True when both Supabase URL and key are set (deprecated)."""
         return bool(self.supabase_url and self.supabase_key)
 
     @property
     def supabase_auth_configured(self) -> bool:
-        """Return True when Supabase Auth is configured for JWT verification."""
+        """Return True when Supabase Auth is configured (deprecated)."""
         return bool(self.supabase_url)
 
     @property

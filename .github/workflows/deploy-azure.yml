@@ -100,8 +100,6 @@ jobs:
             ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${{ steps.meta.outputs.dashboard-tag }}
           build-args: |
             NEXT_PUBLIC_API_URL=https://api.sigilsec.ai
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -3,14 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 import * as api from "@/lib/api";
-
-const supabaseConfigured = supabase !== null;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithEmail, loginWithGitHub, loginWithGoogle } = useAuth();
+  const { loginWithEmail, loginWithOAuth, auth0Configured } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [name, setName] = useState("");
@@ -245,8 +242,8 @@ export default function LoginPage() {
               )}
             </form>
 
-            {/* Social OAuth - only show for login/register when Supabase is configured */}
-            {mode !== "forgot" && supabaseConfigured && (
+            {/* Social OAuth via Auth0 */}
+            {mode !== "forgot" && auth0Configured && (
               <>
                 <div className="relative mt-6">
                   <div className="absolute inset-0 flex items-center">
@@ -260,13 +257,7 @@ export default function LoginPage() {
                 <div className="mt-6 flex flex-col gap-3">
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await loginWithGitHub();
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to sign in with GitHub");
-                      }
-                    }}
+                    onClick={() => loginWithOAuth("github")}
                     className="flex items-center justify-center gap-3 w-full px-4 py-2.5 border border-gray-800 rounded-lg text-sm font-medium text-gray-300 bg-gray-900 hover:bg-gray-800 hover:border-gray-700 transition-colors"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -277,13 +268,7 @@ export default function LoginPage() {
 
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        await loginWithGoogle();
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to sign in with Google");
-                      }
-                    }}
+                    onClick={() => loginWithOAuth("google-oauth2")}
                     className="flex items-center justify-center gap-3 w-full px-4 py-2.5 border border-gray-800 rounded-lg text-sm font-medium text-gray-300 bg-gray-900 hover:bg-gray-800 hover:border-gray-700 transition-colors"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">

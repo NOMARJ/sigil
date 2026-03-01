@@ -42,20 +42,18 @@ const API_URL =
 async function getToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
 
-  // Try to get Supabase session token first
+  // Try Auth0 access token first (for OAuth users)
   try {
-    const { supabase } = await import("./supabase");
-    if (supabase) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        return session.access_token;
-      }
+    const res = await fetch("/api/auth/token");
+    if (res.ok) {
+      const { accessToken } = await res.json();
+      if (accessToken) return accessToken;
     }
-  } catch (err) {
-    // Supabase session unavailable — falling back to custom JWT
+  } catch {
+    // Auth0 session unavailable, fall through
   }
 
-  // Fallback to custom JWT token for backward compatibility
+  // Fall back to custom JWT (for email/password users)
   return localStorage.getItem("sigil_access_token");
 }
 
