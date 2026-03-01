@@ -58,6 +58,15 @@ class BotSettings(BaseSettings):
     skills_poll_interval: int = 21600  # 6 hours
     skills_crawl_batch_size: int = 10  # skills per search query
 
+    # --- Attestation signing ---------------------------------------------------
+    signing_key: str | None = None  # Base64-encoded Ed25519 private key
+    signing_key_file: str | None = None  # Path to Ed25519 private key file
+    signing_key_id: str = "sha256:sigil-bot-signing-key-2026"
+    public_key: str | None = None  # Base64-encoded Ed25519 public key (for verify)
+    public_key_file: str | None = None  # Path to Ed25519 public key PEM file
+    rekor_enabled: bool = False  # Submit attestations to Sigstore Rekor
+    rekor_url: str = "https://rekor.sigstore.dev"
+
     # --- Worker concurrency ----------------------------------------------------
     max_concurrent_scans: int = 4
 
@@ -83,6 +92,10 @@ class BotSettings(BaseSettings):
     @property
     def github_configured(self) -> bool:
         return bool(self.github_token) and self.github_token != "not-configured"
+
+    @property
+    def signing_configured(self) -> bool:
+        return bool(self.signing_key or self.signing_key_file)
 
     @property
     def twitter_configured(self) -> bool:

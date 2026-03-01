@@ -152,19 +152,36 @@ async def json_feed(
 
         results = []
         for row in rows:
-            results.append(
-                {
-                    "scan_id": row.get("id"),
-                    "ecosystem": row.get("ecosystem"),
-                    "name": row.get("package_name"),
-                    "version": row.get("package_version"),
-                    "risk_score": row.get("risk_score"),
-                    "verdict": row.get("verdict"),
-                    "findings_count": row.get("findings_count", 0),
-                    "url": f"https://sigilsec.ai/scans/{row.get('ecosystem')}/{row.get('package_name')}",
-                    "scanned_at": str(row.get("scanned_at", row.get("created_at", ""))),
-                }
-            )
+            item: dict[str, Any] = {
+                "scan_id": row.get("id"),
+                "ecosystem": row.get("ecosystem"),
+                "name": row.get("package_name"),
+                "version": row.get("package_version"),
+                "risk_score": row.get("risk_score"),
+                "verdict": row.get("verdict"),
+                "findings_count": row.get("findings_count", 0),
+                "url": f"https://sigilsec.ai/scans/{row.get('ecosystem')}/{row.get('package_name')}",
+                "scanned_at": str(row.get("scanned_at", row.get("created_at", ""))),
+            }
+
+            # Include attestation envelope if present
+            raw_attestation = row.get("attestation")
+            if raw_attestation:
+                import json as _json
+                att = raw_attestation
+                if isinstance(att, str):
+                    try:
+                        att = _json.loads(att)
+                    except (ValueError, _json.JSONDecodeError):
+                        att = None
+                if att:
+                    item["attestation"] = att
+                    item["verified"] = True
+                    item["content_digest"] = row.get("content_digest")
+            else:
+                item["verified"] = False
+
+            results.append(item)
 
         return results
 

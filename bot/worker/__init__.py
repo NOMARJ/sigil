@@ -10,6 +10,7 @@ Each worker is a long-lived asyncio task. Can run multiple concurrently.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import shutil
 import tempfile
@@ -187,6 +188,18 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 await queue.complete(job)
                 return
 
+            # 1b. Compute archive hash for attestation subject digest
+            archive_hash = ""
+            for ext in ("*.tgz", "*.tar.gz", "*.whl", "*.zip"):
+                archives = list(Path(tmpdir).glob(ext))
+                if archives:
+                    h = hashlib.sha256()
+                    with open(archives[0], "rb") as af:
+                        for chunk in iter(lambda: af.read(8192), b""):
+                            h.update(chunk)
+                    archive_hash = h.hexdigest()
+                    break
+
             # 2. Scan
             scan_output = await asyncio.wait_for(
                 _run_scan(tmpdir),
@@ -201,17 +214,47 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 await queue.complete(job)
                 return
 
-            # 3. Store
-            scan_id = await store_scan_result(job, scan_output)
+            # 3. Sign attestation (if signing key is configured)
+            attestation = None
+            content_digest = None
+            log_entry_id = None
+            try:
+                from bot.config import bot_settings as _bs
+                if _bs.signing_configured:
+                    from bot.attestation import create_attestation
+                    attestation, content_digest, log_entry_id = (
+                        await create_attestation(
+                            scan_id="pending",
+                            ecosystem=job.ecosystem,
+                            package_name=job.name,
+                            package_version=job.version,
+                            subject_digest=archive_hash,
+                            scan_output=scan_output,
+                            metadata=scan_output.get("metadata", {}),
+                        )
+                    )
+            except Exception:
+                logger.warning(
+                    "Attestation signing failed for %s/%s (non-fatal)",
+                    job.ecosystem, job.name, exc_info=True,
+                )
 
-            # 4. Publish
+            # 4. Store
+            scan_id = await store_scan_result(
+                job, scan_output,
+                attestation=attestation,
+                content_digest=content_digest,
+                log_entry_id=log_entry_id,
+            )
+
+            # 5. Publish
             try:
                 from bot.publisher import publish_scan
                 await publish_scan(scan_id, job, scan_output)
             except Exception:
                 logger.exception("Publish failed for %s (non-fatal)", scan_id)
 
-            # 5. Intelligence extraction (async, non-blocking)
+            # 6. Intelligence extraction (async, non-blocking)
             try:
                 from bot.intelligence import extract_intelligence
                 await extract_intelligence(job, scan_output)

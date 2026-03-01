@@ -247,8 +247,18 @@ def _enrich_metadata(
 async def store_scan_result(
     job: ScanJob,
     scan_output: dict[str, Any],
+    attestation: dict[str, Any] | None = None,
+    content_digest: str | None = None,
+    log_entry_id: str | None = None,
 ) -> str:
     """Store a scan result in public_scans table.
+
+    Args:
+        job: The scan job.
+        scan_output: Parsed scan results (score, verdict, findings, etc.).
+        attestation: Optional DSSE envelope dict (signed attestation).
+        content_digest: Optional SHA-256 hex of canonical scan JSON.
+        log_entry_id: Optional Rekor transparency log entry ID.
 
     Returns the scan_id.
     """
@@ -277,20 +287,30 @@ async def store_scan_result(
         "created_at": now,
     }
 
+    # Attestation fields (nullable — only present when signing is configured)
+    if attestation is not None:
+        row["attestation"] = attestation
+    if content_digest is not None:
+        row["content_digest"] = content_digest
+    if log_entry_id is not None:
+        row["log_entry_id"] = log_entry_id
+
     try:
         await db.upsert(
             "public_scans",
             row,
             conflict_columns=["ecosystem", "package_name", "package_version"],
         )
+        signed = " [SIGNED]" if attestation else ""
         logger.info(
-            "Stored scan: %s/%s@%s → %s (score=%.1f, findings=%d)",
+            "Stored scan: %s/%s@%s → %s (score=%.1f, findings=%d)%s",
             job.ecosystem,
             job.name,
             job.version,
             verdict,
             score,
             len(findings),
+            signed,
         )
     except Exception:
         logger.exception("Failed to store scan for %s/%s", job.ecosystem, job.name)
