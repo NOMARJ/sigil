@@ -4,6 +4,7 @@
 # Outputs JSON to stdout. Status messages to stderr.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
 SIGIL="$(require_sigil)"

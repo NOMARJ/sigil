@@ -94,6 +94,15 @@ async def run_bot(
             tasks.append(task)
         logger.info("Started %d scanner workers", num_workers)
 
+        # Start rescan scheduler (AEO Action #9 — freshness signals)
+        from bot.rescan import rescan_loop
+
+        rescan_task = asyncio.create_task(
+            rescan_loop(queue), name="rescan-scheduler"
+        )
+        tasks.append(rescan_task)
+        logger.info("Started rescan scheduler")
+
     # Graceful shutdown on SIGTERM/SIGINT
     stop_event = asyncio.Event()
 
@@ -198,7 +207,7 @@ def main() -> None:
     parser.add_argument(
         "--watcher",
         nargs="+",
-        choices=["clawhub", "pypi", "npm", "github"],
+        choices=["clawhub", "pypi", "npm", "github", "skills"],
         help="Run specific watcher(s)",
     )
     parser.add_argument(

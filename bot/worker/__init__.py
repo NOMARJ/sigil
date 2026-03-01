@@ -179,7 +179,13 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             # 1. Download
             ok = await _download_and_extract(job, tmpdir)
             if not ok:
-                raise RuntimeError(f"Download failed for {job.ecosystem}/{job.name}")
+                await store_scan_error(
+                    job,
+                    f"Download failed for {job.ecosystem}/{job.name}@{job.version}",
+                    error_type="download_failed",
+                )
+                await queue.complete(job)
+                return
 
             # 2. Scan
             scan_output = await asyncio.wait_for(
@@ -187,7 +193,13 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 timeout=bot_settings.scan_timeout,
             )
             if not scan_output:
-                raise RuntimeError(f"Scan produced no output for {job.ecosystem}/{job.name}")
+                await store_scan_error(
+                    job,
+                    f"Scanner produced no output for {job.ecosystem}/{job.name}",
+                    error_type="scanner_crash",
+                )
+                await queue.complete(job)
+                return
 
             # 3. Store
             scan_id = await store_scan_result(job, scan_output)
@@ -210,7 +222,12 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             await queue.complete(job)
 
         except asyncio.TimeoutError:
-            await store_scan_error(job, f"Scan timed out after {bot_settings.scan_timeout}s")
+            await store_scan_error(
+                job,
+                f"Scan timed out after {bot_settings.scan_timeout}s"
+                " — package may contain adversarial payloads designed to stall static analysis",
+                error_type="timeout",
+            )
             await queue.complete(job)
 
         except Exception as e:
@@ -220,7 +237,16 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             if job.retries < job.max_retries:
                 await queue.retry(job)
             else:
-                await queue.dead_letter(job, str(e))
+                # Classify the error type for structured output
+                error_str = str(e)
+                if "Download failed" in error_str or "download" in error_str.lower():
+                    error_type = "download_failed"
+                elif "parse" in error_str.lower() or "json" in error_str.lower():
+                    error_type = "parse_error"
+                else:
+                    error_type = "scanner_crash"
+                await store_scan_error(job, error_str, error_type=error_type)
+                await queue.dead_letter(job, error_str)
 
 
 async def worker_loop(queue: JobQueue, worker_id: int = 0) -> None:

@@ -61,6 +61,15 @@ class BotSettings(BaseSettings):
     # --- Worker concurrency ----------------------------------------------------
     max_concurrent_scans: int = 4
 
+    # --- AEO / ISR revalidation ------------------------------------------------
+    revalidation_url: str = "https://sigilsec.ai/api/revalidate"
+    revalidation_secret: str | None = None
+
+    # --- Rescan scheduling -----------------------------------------------------
+    rescan_high_risk_days: int = 7  # HIGH/CRITICAL rescanned weekly
+    rescan_popular_days: int = 30  # >10K downloads rescanned monthly
+    rescan_default_days: int = 90  # all others rescanned quarterly
+
     # --- Alert thresholds ------------------------------------------------------
     dead_letter_alert_threshold: int = 10  # per hour
     queue_depth_alert_threshold: int = 500

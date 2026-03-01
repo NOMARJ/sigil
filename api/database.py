@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import logging
+import struct
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from api.config import settings
@@ -38,6 +39,25 @@ class MssqlClient:
         # in-memory fallback for local development
         self._memory_store: dict[str, dict[str, Any]] = {}
 
+    @staticmethod
+    async def _configure_connection(raw_conn):
+        """Configure pyodbc connection with type converters.
+
+        Register an output converter for DATETIMEOFFSET (ODBC type -155)
+        which pyodbc does not handle natively.  The raw_conn argument is
+        the underlying pyodbc.Connection object.
+        """
+
+        def handle_datetimeoffset(dto_value):
+            tup = struct.unpack("<6hI2h", dto_value)
+            return datetime(
+                tup[0], tup[1], tup[2], tup[3], tup[4], tup[5],
+                tup[6] // 1000,
+                timezone(timedelta(hours=tup[7], minutes=tup[8])),
+            )
+
+        raw_conn.add_output_converter(-155, handle_datetimeoffset)
+
     async def connect(self):
         if not settings.database_configured:
             logger.info("MssqlClient: no DATABASE_URL, using in-memory store")
@@ -49,6 +69,7 @@ class MssqlClient:
                 dsn=settings.database_url,
                 minsize=1,
                 maxsize=10,
+                after_created=self._configure_connection,
             )
             logger.info("MssqlClient: connected to Azure SQL Database")
         except Exception as e:

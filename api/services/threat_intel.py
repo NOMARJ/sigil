@@ -615,11 +615,7 @@ async def delete_signature(sig_id: str) -> bool:
     row = await db.select_one(SIGNATURE_TABLE, {"id": sig_id})
     if row is None:
         return False
-    # In-memory store: remove directly
-    from api.database import _memory_store
-
-    table = _memory_store.get(SIGNATURE_TABLE, {})
-    table.pop(sig_id, None)
+    await db.delete(SIGNATURE_TABLE, {"id": sig_id})
     await cache.delete(_SIG_CACHE_KEY)
     logger.info("Deleted signature %s", sig_id)
     return True

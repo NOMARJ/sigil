@@ -4,6 +4,7 @@
 # Outputs JSON to stdout. Status messages to stderr.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
 FINDINGS=()
@@ -14,7 +15,8 @@ FILES_CHECKED=0
 add_finding() {
   local type="$1" file="$2" severity="$3" description="$4" line="${5:-}" key="${6:-}" perms="${7:-}" expected="${8:-}"
 
-  local json="{\"type\": $(json_string "$type"), \"file\": $(json_string "$file"), \"severity\": $(json_string "$severity"), \"description\": $(json_string "$description")"
+  local json
+  json="{\"type\": $(json_string "$type"), \"file\": $(json_string "$file"), \"severity\": $(json_string "$severity"), \"description\": $(json_string "$description")"
 
   [ -n "$line" ]     && json="$json, \"line\": $line"
   [ -n "$key" ]      && json="$json, \"key\": $(json_string "$key")"

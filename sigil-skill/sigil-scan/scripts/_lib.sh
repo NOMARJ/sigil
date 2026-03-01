@@ -75,8 +75,13 @@ merge_scan_json() {
   local raw_output="$1"
   local target="$2"
 
+  # The Rust CLI writes status lines (e.g. "sigil: scanning ...") to stdout
+  # alongside the JSON objects. Strip non-JSON lines before parsing.
+  local json_only
+  json_only="$(echo "$raw_output" | grep -vE '^(sigil:|$)' || true)"
+
   if command -v jq >/dev/null 2>&1; then
-    echo "$raw_output" | jq -s --arg target "$target" '
+    echo "$json_only" | jq -s --arg target "$target" '
       (.[0] // {}) + {
         findings: (.[1] // []),
         target: $target,
@@ -97,7 +102,7 @@ merge_scan_json() {
       }
     ' 2>/dev/null
   elif command -v python3 >/dev/null 2>&1; then
-    echo "$raw_output" | python3 -c "
+    echo "$json_only" | python3 -c "
 import json, sys
 
 data = sys.stdin.read().strip()
@@ -109,9 +114,12 @@ while idx < len(data):
         idx += 1
     if idx >= len(data):
         break
-    obj, end = decoder.raw_decode(data, idx)
-    parts.append(obj)
-    idx = end
+    try:
+        obj, end = decoder.raw_decode(data, idx)
+        parts.append(obj)
+        idx = end
+    except json.JSONDecodeError:
+        idx += 1
 
 result = parts[0] if parts else {}
 findings = parts[1] if len(parts) > 1 and isinstance(parts[1], list) else []

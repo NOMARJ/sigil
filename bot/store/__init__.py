@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+import struct
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -43,10 +44,22 @@ async def get_db():
     if db_url:
         import aioodbc
 
+        async def _configure_connection(raw_conn):
+            """Register output converter for DATETIMEOFFSET (ODBC type -155)."""
+            def handle_datetimeoffset(dto_value):
+                tup = struct.unpack("<6hI2h", dto_value)
+                return datetime(
+                    tup[0], tup[1], tup[2], tup[3], tup[4], tup[5],
+                    tup[6] // 1000,
+                    timezone(timedelta(hours=tup[7], minutes=tup[8])),
+                )
+            raw_conn.add_output_converter(-155, handle_datetimeoffset)
+
         pool = await aioodbc.create_pool(
             dsn=db_url,
             minsize=1,
             maxsize=5,
+            after_created=_configure_connection,
         )
         _db = _MssqlStore(pool)
         logger.info("Bot store: connected to Azure SQL Database via aioodbc")
@@ -154,6 +167,83 @@ class _MssqlStore:
             return self._row_to_dict(cursor, row)
 
 
+def _build_registry_url(ecosystem: str, name: str, version: str) -> str:
+    """Build a direct link to the package on its registry."""
+    if ecosystem == "npm":
+        url = f"https://www.npmjs.com/package/{name}"
+        if version:
+            url += f"/v/{version}"
+        return url
+    elif ecosystem in ("pip", "pypi"):
+        url = f"https://pypi.org/project/{name}/"
+        if version:
+            url += f"{version}/"
+        return url
+    elif ecosystem == "github":
+        return f"https://github.com/{name}"
+    elif ecosystem == "clawhub":
+        return f"https://clawhub.com/skills/{name}"
+    elif ecosystem == "skills":
+        source = name.rsplit("/", 1)[0] if "/" in name else name
+        return f"https://github.com/{source}"
+    return ""
+
+
+def _enrich_metadata(
+    job: ScanJob,
+    files_scanned: int,
+    duration_ms: int,
+) -> dict[str, Any]:
+    """Build AEO-compliant scan_metadata from job + scan output.
+
+    Ensures all required fields are present (source, bot_scan, description,
+    files_scanned, scanner_version) and includes optional registry context
+    (keywords, registry_url, published_at, download_count, repository_url)
+    when available from the watcher.
+    """
+    meta = dict(job.metadata)
+
+    # Required AEO fields (always present)
+    meta["source"] = meta.get("source", "sigil-bot")
+    meta["bot_scan"] = True
+    meta["files_scanned"] = files_scanned
+    meta["scanner_version"] = "1.0.0"
+    meta["duration_ms"] = duration_ms
+
+    # Truncate description to 200 chars per spec
+    desc = meta.get("description", "")
+    if desc and len(desc) > 200:
+        meta["description"] = desc[:197] + "..."
+
+    # Compute registry_url if not provided
+    if "registry_url" not in meta:
+        url = _build_registry_url(job.ecosystem, job.name, job.version)
+        if url:
+            meta["registry_url"] = url
+
+    # Compute repository_url for GitHub-based ecosystems
+    if "repository_url" not in meta:
+        if job.ecosystem == "github":
+            meta["repository_url"] = f"https://github.com/{job.name}"
+        elif job.ecosystem == "skills" and meta.get("source"):
+            source = meta.get("source", "")
+            if source and "/" in source:
+                meta["repository_url"] = f"https://github.com/{source}"
+
+    # Normalize download_count from ecosystem-specific field names
+    if "download_count" not in meta:
+        for key in ("downloads", "weekly_downloads", "installs"):
+            if key in meta:
+                meta["download_count"] = meta[key]
+                break
+
+    # Provenance: where the package was actually downloaded/cloned from
+    if job.download_url and "scanned_from" not in meta:
+        meta["scanned_from"] = job.download_url
+
+    return meta
+
+
 async def store_scan_result(
     job: ScanJob,
     scan_output: dict[str, Any],
@@ -170,8 +260,6 @@ async def store_scan_result(
     score = scan_output.get("score", 0.0)
     verdict = scan_output.get("verdict", "LOW_RISK")
     files_scanned = scan_output.get("files_scanned", 0)
-
-    # Store duration in metadata instead of dedicated column
     duration_ms = scan_output.get("duration_ms", 0)
 
     row = {
@@ -184,13 +272,7 @@ async def store_scan_result(
         "findings_count": len(findings),
         "files_scanned": files_scanned,
         "findings_json": findings,
-        "metadata_json": {
-            **job.metadata,
-            "bot_scan": True,
-            "files_scanned": files_scanned,
-            "scanner_version": "1.0.0",
-            "duration_ms": duration_ms,
-        },
+        "metadata_json": _enrich_metadata(job, files_scanned, duration_ms),
         "scanned_at": now,
         "created_at": now,
     }
@@ -217,8 +299,18 @@ async def store_scan_result(
     return scan_id
 
 
-async def store_scan_error(job: ScanJob, error: str) -> None:
-    """Store a failed scan attempt."""
+async def store_scan_error(
+    job: ScanJob,
+    error: str,
+    error_type: str = "scanner_crash",
+) -> None:
+    """Store a failed scan attempt with structured error output (AEO Action #10).
+
+    Args:
+        job: The scan job that failed.
+        error: Human-readable error message.
+        error_type: One of: timeout, download_failed, parse_error, scanner_crash.
+    """
     db = await get_db()
     now = datetime.now(timezone.utc)
 
@@ -233,9 +325,13 @@ async def store_scan_error(job: ScanJob, error: str) -> None:
         "files_scanned": 0,
         "findings_json": [],
         "metadata_json": {
-            **job.metadata,
-            "error": error,
+            "source": "sigil-bot",
             "bot_scan": True,
+            "error": True,
+            "error_type": error_type,
+            "error_message": error,
+            "scanner_version": "1.0.0",
+            "registry_url": _build_registry_url(job.ecosystem, job.name, job.version),
         },
         "scanned_at": now,
         "created_at": now,

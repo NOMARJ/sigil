@@ -3,12 +3,13 @@
 # Outputs JSON to stdout. Status messages to stderr.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
 REPO="NOMARJ/sigil"
 BINARY_NAME="sigil"
 INSTALL_DIR="$HOME/.local/bin"
-MIN_VERSION="1.0.5"
+export MIN_VERSION="1.0.5"
 
 # ── Check if already installed ─────────────────────────────────────────────
 

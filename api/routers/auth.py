@@ -24,7 +24,7 @@ from typing import Any
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import (
     HTTPBearer,
     HTTPAuthorizationCredentials,
@@ -818,13 +818,13 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Log out the current user",
-    responses={401: {"model": ErrorResponse}},
 )
 async def logout(
     request: Request,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
-) -> None:
+) -> Response:
     """Invalidate the current session.
 
     Adds the Bearer token to an in-memory revocation blocklist so it cannot
@@ -835,7 +835,7 @@ async def logout(
         await _revoke_token(auth_header[7:])
 
     logger.info("User logged out: %s", current_user.id)
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
