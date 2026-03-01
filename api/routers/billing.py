@@ -217,10 +217,7 @@ async def subscribe(
         price_id = _STRIPE_PRICE_MAP.get((body.plan, interval))
 
         # Reject if the price ID is a placeholder or missing for paid plans
-        if (
-            body.plan != PlanTier.FREE
-            and (not price_id or "placeholder" in price_id)
-        ):
+        if body.plan != PlanTier.FREE and (not price_id or "placeholder" in price_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"The {interval} billing interval is not yet available for the {body.plan.value} plan. Please select monthly billing.",
@@ -407,11 +404,13 @@ async def get_subscription(
             raw_start = getattr(subscription, "current_period_start", None)
             period_end = (
                 datetime.utcfromtimestamp(raw_end).isoformat()
-                if raw_end else sub_data.get("current_period_end")
+                if raw_end
+                else sub_data.get("current_period_end")
             )
             period_start = (
                 datetime.utcfromtimestamp(raw_start).isoformat()
-                if raw_start else sub_data.get("current_period_start")
+                if raw_start
+                else sub_data.get("current_period_start")
             )
             sub_data = await db.upsert_subscription(
                 user_id=current_user.id,
@@ -592,11 +591,11 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
         try:
             sub = stripe.Subscription.retrieve(subscription_id)
             sub_status = sub.status
-            period_end = datetime.utcfromtimestamp(
-                sub.current_period_end
-            ).isoformat()
+            period_end = datetime.utcfromtimestamp(sub.current_period_end).isoformat()
         except Exception:
-            logger.warning("Failed to retrieve subscription %s from Stripe", subscription_id)
+            logger.warning(
+                "Failed to retrieve subscription %s from Stripe", subscription_id
+            )
 
     if period_end is None:
         now = datetime.utcnow()

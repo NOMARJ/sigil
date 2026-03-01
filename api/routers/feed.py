@@ -47,9 +47,7 @@ async def _generate_rss(
     try:
         from bot.publisher import generate_rss_feed
 
-        xml = await generate_rss_feed(
-            ecosystem=ecosystem, verdict_filter=verdict
-        )
+        xml = await generate_rss_feed(ecosystem=ecosystem, verdict_filter=verdict)
         return Response(content=xml, media_type="application/rss+xml")
     except Exception:
         return Response(content=_FALLBACK_RSS, media_type="application/rss+xml")
@@ -62,7 +60,9 @@ async def _generate_rss(
 
 @router.get("/feed.xml", summary="RSS 2.0 threat feed")
 async def rss_feed(
-    ecosystem: str | None = Query(None, description="Filter by ecosystem (clawhub, pypi, npm, github)"),
+    ecosystem: str | None = Query(
+        None, description="Filter by ecosystem (clawhub, pypi, npm, github)"
+    ),
     verdict: str | None = Query(
         None, description="Comma-separated verdicts (e.g. high_risk,critical_risk)"
     ),
@@ -168,6 +168,7 @@ async def json_feed(
             raw_attestation = row.get("attestation")
             if raw_attestation:
                 import json as _json
+
                 att = raw_attestation
                 if isinstance(att, str):
                     try:

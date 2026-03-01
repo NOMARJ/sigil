@@ -66,7 +66,9 @@ class Finding(BaseModel):
     line: int = Field(0, description="Line number where the finding occurs")
     snippet: str = Field("", description="Code snippet around the finding")
     weight: float = Field(1.0, description="Weight multiplier for scoring")
-    description: str = Field("", description="Short human-readable label for the finding")
+    description: str = Field(
+        "", description="Short human-readable label for the finding"
+    )
     explanation: str = Field(
         "", description="Detailed reasoning for why this was flagged and its severity"
     )

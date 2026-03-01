@@ -78,15 +78,36 @@ COLUMN_MAPPINGS: Dict[str, Dict[str, str]] = {
 DROP_COLUMNS: Dict[str, List[str]] = {
     "public_scans": ["duration_ms"],
     "users": [
-        "aud", "banned_until", "confirmation_sent_at", "confirmation_token",
-        "confirmed_at", "deleted_at", "email_change", "email_change_confirm_status",
-        "email_change_sent_at", "email_change_token_current", "email_change_token_new",
-        "email_confirmed_at", "instance_id", "invited_at", "is_anonymous",
-        "is_sso_user", "is_super_admin", "last_sign_in_at", "phone",
-        "phone_change", "phone_change_sent_at", "phone_change_token",
-        "phone_confirmed_at", "raw_app_meta_data", "raw_user_meta_data",
-        "reauthentication_sent_at", "reauthentication_token", "recovery_sent_at",
-        "recovery_token", "updated_at",
+        "aud",
+        "banned_until",
+        "confirmation_sent_at",
+        "confirmation_token",
+        "confirmed_at",
+        "deleted_at",
+        "email_change",
+        "email_change_confirm_status",
+        "email_change_sent_at",
+        "email_change_token_current",
+        "email_change_token_new",
+        "email_confirmed_at",
+        "instance_id",
+        "invited_at",
+        "is_anonymous",
+        "is_sso_user",
+        "is_super_admin",
+        "last_sign_in_at",
+        "phone",
+        "phone_change",
+        "phone_change_sent_at",
+        "phone_change_token",
+        "phone_confirmed_at",
+        "raw_app_meta_data",
+        "raw_user_meta_data",
+        "reauthentication_sent_at",
+        "reauthentication_token",
+        "recovery_sent_at",
+        "recovery_token",
+        "updated_at",
     ],
 }
 
@@ -313,7 +334,9 @@ async def migrate_table(
 
         target_conn.commit()
         skip_msg = f", {skipped} dupes skipped" if skipped else ""
-        print(f"    Progress: {total_inserted}/{source_count} rows (complete{skip_msg})")
+        print(
+            f"    Progress: {total_inserted}/{source_count} rows (complete{skip_msg})"
+        )
 
         # Verify count
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
@@ -407,7 +430,9 @@ async def run_migration(
     print("Migration Summary:")
     print(f"  Total source rows: {total_source_rows}")
     print(f"  Total target rows: {total_target_rows}")
-    print(f"  Tables migrated: {len(migration_tables) - len(failed_tables)}/{len(migration_tables)}")
+    print(
+        f"  Tables migrated: {len(migration_tables) - len(failed_tables)}/{len(migration_tables)}"
+    )
 
     if failed_tables:
         print()

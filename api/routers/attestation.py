@@ -93,6 +93,7 @@ def _verify_envelope(envelope: dict[str, Any], public_key_pem: str) -> bool:
     """
     try:
         from bot.attestation import verify_attestation
+
         return verify_attestation(envelope, public_key_pem.encode("utf-8"))
     except ImportError:
         logger.warning("bot.attestation not available — verification disabled")
@@ -143,7 +144,9 @@ async def get_attestation(scan_id: str) -> Response:
 
     attestation = scan.get("attestation")
     if not attestation:
-        raise HTTPException(status_code=404, detail="No attestation available for this scan")
+        raise HTTPException(
+            status_code=404, detail="No attestation available for this scan"
+        )
 
     # Parse the attestation if it's a JSON string
     if isinstance(attestation, str):
@@ -200,7 +203,9 @@ async def verify(request: VerifyRequest) -> VerifyResponse:
     if request.scan_id:
         scan = await db.select_one("public_scans", {"id": request.scan_id})
     else:
-        scan = await db.select_one("public_scans", {"content_digest": request.content_digest})
+        scan = await db.select_one(
+            "public_scans", {"content_digest": request.content_digest}
+        )
 
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
@@ -262,15 +267,19 @@ async def well_known_verify() -> JSONResponse:
     if public_key_pem:
         # Base64-DER encode the public key for the well-known response
         pub_b64 = base64.b64encode(public_key_pem.encode("utf-8")).decode("ascii")
-        keys.append({
-            "keyId": os.getenv("SIGIL_BOT_SIGNING_KEY_ID", "sha256:sigil-bot-signing-key-2026"),
-            "algorithm": "Ed25519",
-            "publicKey": pub_b64,
-            "encoding": "base64-pem",
-            "validFrom": "2026-01-01T00:00:00Z",
-            "validUntil": None,
-            "status": "active",
-        })
+        keys.append(
+            {
+                "keyId": os.getenv(
+                    "SIGIL_BOT_SIGNING_KEY_ID", "sha256:sigil-bot-signing-key-2026"
+                ),
+                "algorithm": "Ed25519",
+                "publicKey": pub_b64,
+                "encoding": "base64-pem",
+                "validFrom": "2026-01-01T00:00:00Z",
+                "validUntil": None,
+                "status": "active",
+            }
+        )
 
     response = {
         "schema": "https://sigilsec.ai/attestation/verify/v1",

@@ -51,7 +51,12 @@ class MssqlClient:
         def handle_datetimeoffset(dto_value):
             tup = struct.unpack("<6hI2h", dto_value)
             return datetime(
-                tup[0], tup[1], tup[2], tup[3], tup[4], tup[5],
+                tup[0],
+                tup[1],
+                tup[2],
+                tup[3],
+                tup[4],
+                tup[5],
                 tup[6] // 1000,
                 timezone(timedelta(hours=tup[7], minutes=tup[8])),
             )
@@ -218,7 +223,7 @@ class MssqlClient:
 
         sql = f"""
 MERGE {table} AS target
-USING (SELECT {source_select}) AS source ({', '.join(cols)})
+USING (SELECT {source_select}) AS source ({", ".join(cols)})
 ON ({merge_conditions})
 {matched_clause}
 WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({source_cols})
