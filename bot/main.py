@@ -46,12 +46,14 @@ def _build_watchers(queue: JobQueue, names: list[str] | None = None):
     from bot.watchers.pypi import PyPIWatcher
     from bot.watchers.npm import NpmWatcher
     from bot.watchers.github import GitHubWatcher
+    from bot.watchers.skills import SkillsWatcher
 
     all_watchers = {
         "clawhub": ClawHubWatcher,
         "pypi": PyPIWatcher,
         "npm": NpmWatcher,
         "github": GitHubWatcher,
+        "skills": SkillsWatcher,
     }
 
     if names:

@@ -55,6 +55,8 @@ class BotSettings(BaseSettings):
     clawhub_interval: int = 21600  # 6 hours
     github_search_interval: int = 43200  # 12 hours
     github_events_interval: int = 1800  # 30 minutes
+    skills_poll_interval: int = 21600  # 6 hours
+    skills_crawl_batch_size: int = 10  # skills per search query
 
     # --- Worker concurrency ----------------------------------------------------
     max_concurrent_scans: int = 4

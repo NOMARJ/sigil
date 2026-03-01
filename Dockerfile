@@ -7,16 +7,9 @@
 # Stage 3: Runtime image with API, CLI, and dashboard
 # ============================================================================
 
-# ── Stage 1: Build Rust CLI ──────────────────────────────────────────────────
-# rust:1.76-slim
-FROM rust:1.76-slim@sha256:fc2decb0a816e0ffdc566a97e89d2f5a1e1485d8 AS rust-builder
-WORKDIR /build
-COPY cli/ ./
-RUN cargo build --release
-
-# ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
+# ── Stage 1: Build Next.js Dashboard ────────────────────────────────────────
 # node:20-slim
-FROM node:20-slim@sha256:ec0c413bc15bc7fde72b2388b8ae62f72e1adbb1 AS dashboard-builder
+FROM node:20-slim AS dashboard-builder
 
 WORKDIR /build
 
@@ -37,7 +30,7 @@ RUN npm run build
 
 # ── Stage 3: Runtime Image ──────────────────────────────────────────────────
 # python:3.11-slim-bookworm
-FROM python:3.11-slim-bookworm@sha256:8f3aba466a471c3e35f52f8a4e4091e23d19a6a2 AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil — Automated Security Auditing for AI Agent Code"
@@ -82,13 +75,9 @@ COPY api/ /app/api/
 # ── Copy Bot source ─────────────────────────────────────────────────────────
 COPY bot/ /app/bot/
 
-# ── Copy Rust CLI binary ────────────────────────────────────────────────────
-COPY --from=rust-builder /build/target/release/sigil /usr/local/bin/sigil
+# ── Copy bash CLI (scanner backend) ────────────────────────────────────────
+COPY bin/sigil /usr/local/bin/sigil
 RUN chmod +x /usr/local/bin/sigil
-
-# ── Copy bash CLI as fallback ────────────────────────────────────────────────
-COPY bin/sigil /usr/local/bin/sigil-bash
-RUN chmod +x /usr/local/bin/sigil-bash
 
 # ── Copy built dashboard ────────────────────────────────────────────────────
 COPY --from=dashboard-builder /build/.next /app/dashboard/.next

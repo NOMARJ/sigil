@@ -1,6 +1,6 @@
 # Pinned dependencies for reproducible builds.
 # Regenerate with: pip install -r requirements.txt && pip freeze > requirements.lock
-# Last updated: 2026-02-28
+# Last updated: 2026-03-01
 fastapi==0.115.8
 uvicorn==0.34.0
 pydantic==2.10.6
@@ -10,8 +10,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 python-multipart==0.0.20
-supabase==2.13.0
-asyncpg==0.30.0
+aioodbc==0.5.0
+pyodbc==5.3.0
 redis==5.2.1
 stripe==11.5.0
 eval_type_backport==0.3.0

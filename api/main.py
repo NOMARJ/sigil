@@ -368,7 +368,7 @@ async def health() -> JSONResponse:
         content={
             "status": "ok" if healthy else "degraded",
             "version": settings.app_version,
-            "supabase_connected": db.connected,
+            "database_connected": db.connected,
             "redis_connected": cache.connected,
         },
     )

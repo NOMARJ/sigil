@@ -289,10 +289,17 @@ def _format_comment(
                     sev = finding.get("severity", "MEDIUM")
                     phase = finding.get("phase", "unknown")
                     desc = finding.get("description", finding.get("rule", ""))
+                    explanation = finding.get("explanation", "")
                     file_path = finding.get("file", "")
                     line_no = finding.get("line", 0)
                     loc = f" `{file_path}:{line_no}`" if file_path else ""
                     lines.append(f"- **{sev}** [{phase}]{loc}: {desc}")
+                    if explanation:
+                        lines.append(
+                            f"  <details><summary>Why was this flagged?</summary>"
+                            f"\n\n  {explanation}\n\n  </details>"
+                        )
+                        lines.append("")
 
                 if len(dep_findings) > 5:
                     lines.append(f"- ... and {len(dep_findings) - 5} more findings")

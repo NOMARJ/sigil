@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Iterator
 
 from api.models import Finding, ScanPhase, Severity
+from api.services.explanations import get_explanation
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +390,8 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 line=line_no,
                 snippet=snippet[:500],  # Cap snippet length
                 weight=rule.weight,
+                description=rule.description,
+                explanation=get_explanation(rule.id),
             )
 
 
@@ -405,6 +408,8 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
                 line=0,
                 snippet=name,
                 weight=rule.weight,
+                description=rule.description,
+                explanation=get_explanation(rule.id),
             )
 
 
