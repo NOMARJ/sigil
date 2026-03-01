@@ -86,32 +86,14 @@ async def _invalidate_badge_cache(
     verdict: str = "",
     score: float = 0.0,
 ) -> None:
-    """Clear the cached badge SVG and upsert badge_cache in DB."""
-    # Redis invalidation
+    """Clear the cached badge SVG so the next request regenerates it.
+
+    The badge router reads directly from public_scans (which already has the
+    latest scan data), so we only need to bust the Redis cache here.
+    """
     r = await _get_redis()
     badge_key = f"badge:{ecosystem}:{name}"
     await r.delete(badge_key)
-
-    # DB upsert for persistent badge cache (Action #3)
-    if verdict:
-        try:
-            from bot.store import get_db
-
-            db = await get_db()
-            await db.upsert(
-                "badge_cache",
-                {
-                    "ecosystem": ecosystem,
-                    "package_name": name,
-                    "package_version": version,
-                    "verdict": verdict,
-                    "risk_score": round(score, 2),
-                    "updated_at": datetime.now(timezone.utc),
-                },
-                conflict_columns=["ecosystem", "package_name"],
-            )
-        except Exception:
-            logger.debug("Badge cache DB upsert failed (non-fatal)", exc_info=True)
 
 
 async def _trigger_revalidation(ecosystem: str, package_name: str) -> None:
