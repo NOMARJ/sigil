@@ -587,7 +587,6 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
     # Fetch the subscription from Stripe to get period dates
     stripe = _get_stripe()
     period_end = None
-    period_start = None
     sub_status = "active"
     if stripe and subscription_id:
         try:
@@ -595,9 +594,6 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
             sub_status = sub.status
             period_end = datetime.utcfromtimestamp(
                 sub.current_period_end
-            ).isoformat()
-            period_start = datetime.utcfromtimestamp(
-                sub.current_period_start
             ).isoformat()
         except Exception:
             logger.warning("Failed to retrieve subscription %s from Stripe", subscription_id)
