@@ -227,30 +227,32 @@ async def search_registry(
     summary="Public registry statistics",
 )
 async def registry_stats() -> RegistryStats:
-    """Aggregate statistics for the public scan registry."""
-    rows = await db.select(TABLE, None, limit=100_000)
-    ecosystems: dict[str, int] = {}
-    verdicts: dict[str, int] = {}
-    threats = 0
-    for r in rows:
-        eco = r.get("ecosystem", "unknown")
-        ecosystems[eco] = ecosystems.get(eco, 0) + 1
-        v = r.get("verdict", "LOW_RISK")
-        verdicts[v] = verdicts.get(v, 0) + 1
-        if v in ("HIGH_RISK", "CRITICAL_RISK"):
-            threats += 1
+    """Aggregate statistics for the public scan registry.
 
-    # Count unique packages
-    seen = set()
-    for r in rows:
-        seen.add(f"{r.get('ecosystem', '')}:{r.get('package_name', '')}")
+    Returns pre-computed statistics from the cache table, updated every 15 minutes
+    by a background task. This avoids expensive full-table scans on every request.
+    """
+    from api.services import registry_stats_updater
 
+    cached = await registry_stats_updater.get_cached_stats()
+
+    if cached:
+        return RegistryStats(
+            total_packages=cached["total_packages"],
+            total_scans=cached["total_scans"],
+            threats_found=cached["threats_found"],
+            ecosystems=cached["ecosystems"],
+            verdicts=cached["verdicts"],
+        )
+
+    # Fallback to empty stats if cache isn't available yet (shouldn't happen)
+    logger.warning("Registry stats cache not available, returning empty stats")
     return RegistryStats(
-        total_packages=len(seen),
-        total_scans=len(rows),
-        threats_found=threats,
-        ecosystems=ecosystems,
-        verdicts=verdicts,
+        total_packages=0,
+        total_scans=0,
+        threats_found=0,
+        ecosystems={},
+        verdicts={},
     )
 
 
