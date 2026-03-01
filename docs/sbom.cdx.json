@@ -1,0 +1,807 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-02-28T00:00:00Z",
+    "tools": [
+      {
+        "vendor": "NOMARK",
+        "name": "sigil",
+        "version": "1.0.5"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "sigil",
+      "version": "1.0.5",
+      "description": "Automated security auditing for AI agent code",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "supplier": {
+        "name": "NOMARK",
+        "contact": [
+          {
+            "email": "team@sigilsec.ai"
+          }
+        ]
+      },
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/NOMARJ/sigil"
+        },
+        {
+          "type": "website",
+          "url": "https://sigilsec.ai"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "clap",
+      "version": "4.0.0",
+      "purl": "pkg:cargo/clap@4.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "serde",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/serde@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "serde_json",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/serde_json@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "tokio",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/tokio@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "reqwest",
+      "version": "0.11.0",
+      "purl": "pkg:cargo/reqwest@0.11.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "regex",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/regex@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "walkdir",
+      "version": "2.0.0",
+      "purl": "pkg:cargo/walkdir@2.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Unlicense"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "sha2",
+      "version": "0.10.0",
+      "purl": "pkg:cargo/sha2@0.10.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "hex",
+      "version": "0.4.0",
+      "purl": "pkg:cargo/hex@0.4.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "colored",
+      "version": "2.0.0",
+      "purl": "pkg:cargo/colored@2.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MPL-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "dirs",
+      "version": "5.0.0",
+      "purl": "pkg:cargo/dirs@5.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "chrono",
+      "version": "0.4.0",
+      "purl": "pkg:cargo/chrono@0.4.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "uuid",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/uuid@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "zip",
+      "version": "0.6.0",
+      "purl": "pkg:cargo/zip@0.6.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "flate2",
+      "version": "1.0.0",
+      "purl": "pkg:cargo/flate2@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "cargo",
+      "name": "tar",
+      "version": "0.4.0",
+      "purl": "pkg:cargo/tar@0.4.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "fastapi",
+      "version": "0.109.0",
+      "purl": "pkg:pypi/fastapi@0.109.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "uvicorn",
+      "version": "0.27.0",
+      "purl": "pkg:pypi/uvicorn@0.27.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "pydantic",
+      "version": "2.5.0",
+      "purl": "pkg:pypi/pydantic@2.5.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "pydantic-settings",
+      "version": "2.1.0",
+      "purl": "pkg:pypi/pydantic-settings@2.1.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "httpx",
+      "version": "0.26.0",
+      "purl": "pkg:pypi/httpx@0.26.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "python-jose",
+      "version": "3.3.0",
+      "purl": "pkg:pypi/python-jose@3.3.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "passlib",
+      "version": "1.7.4",
+      "purl": "pkg:pypi/passlib@1.7.4",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "bcrypt",
+      "version": "4.1.0",
+      "purl": "pkg:pypi/bcrypt@4.1.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "python-multipart",
+      "version": "0.0.6",
+      "purl": "pkg:pypi/python-multipart@0.0.6",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "supabase",
+      "version": "2.3.0",
+      "purl": "pkg:pypi/supabase@2.3.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "asyncpg",
+      "version": "0.29.0",
+      "purl": "pkg:pypi/asyncpg@0.29.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "redis",
+      "version": "5.0.0",
+      "purl": "pkg:pypi/redis@5.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "stripe",
+      "version": "7.0.0",
+      "purl": "pkg:pypi/stripe@7.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "pypi",
+      "name": "eval-type-backport",
+      "version": "0.3.0",
+      "purl": "pkg:pypi/eval-type-backport@0.3.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "next",
+      "version": "14.2.5",
+      "purl": "pkg:npm/next@14.2.5",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "react",
+      "version": "18.3.1",
+      "purl": "pkg:npm/react@18.3.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "react-dom",
+      "version": "18.3.1",
+      "purl": "pkg:npm/react-dom@18.3.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "@supabase/supabase-js",
+      "version": "2.97.0",
+      "purl": "pkg:npm/%40supabase/supabase-js@2.97.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "typescript",
+      "version": "5.5.3",
+      "purl": "pkg:npm/typescript@5.5.3",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "tailwindcss",
+      "version": "3.4.4",
+      "purl": "pkg:npm/tailwindcss@3.4.4",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "postcss",
+      "version": "8.4.39",
+      "purl": "pkg:npm/postcss@8.4.39",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "autoprefixer",
+      "version": "10.4.19",
+      "purl": "pkg:npm/autoprefixer@10.4.19",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "eslint",
+      "version": "8.57.1",
+      "purl": "pkg:npm/eslint@8.57.1",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "@modelcontextprotocol/sdk",
+      "version": "1.0.0",
+      "purl": "pkg:npm/%40modelcontextprotocol/sdk@1.0.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "zod",
+      "version": "3.22.0",
+      "purl": "pkg:npm/zod@3.22.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "npm",
+      "name": "@vscode/vsce",
+      "version": "2.26.0",
+      "purl": "pkg:npm/%40vscode/vsce@2.26.0",
+      "scope": "optional",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "group": "maven",
+      "name": "gson",
+      "version": "2.11.0",
+      "purl": "pkg:maven/com.google.code.gson/gson@2.11.0",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "container",
+      "name": "rust",
+      "version": "1.76-slim",
+      "purl": "pkg:docker/library/rust@1.76-slim",
+      "scope": "required",
+      "licenses": []
+    },
+    {
+      "type": "container",
+      "name": "node",
+      "version": "20-slim",
+      "purl": "pkg:docker/library/node@20-slim",
+      "scope": "required",
+      "licenses": []
+    },
+    {
+      "type": "container",
+      "name": "python",
+      "version": "3.11-slim-bookworm",
+      "purl": "pkg:docker/library/python@3.11-slim-bookworm",
+      "scope": "required",
+      "licenses": []
+    },
+    {
+      "type": "container",
+      "name": "alpine",
+      "version": "3.19",
+      "purl": "pkg:docker/library/alpine@3.19",
+      "scope": "required",
+      "licenses": []
+    },
+    {
+      "type": "container",
+      "name": "postgres",
+      "version": "16-alpine",
+      "purl": "pkg:docker/library/postgres@16-alpine",
+      "scope": "required",
+      "licenses": []
+    },
+    {
+      "type": "container",
+      "name": "redis",
+      "version": "7-alpine",
+      "purl": "pkg:docker/library/redis@7-alpine",
+      "scope": "required",
+      "licenses": []
+    }
+  ]
+}

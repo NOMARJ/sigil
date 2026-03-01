@@ -18,7 +18,7 @@ from datetime import datetime
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from api.database import db
 from api.gates import require_plan
@@ -221,18 +221,14 @@ async def update_alert(
 @router.delete(
     "/alerts/{alert_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Remove an alert channel",
-    responses={
-        401: {"model": ErrorResponse},
-        403: {"model": GateError},
-        404: {"model": ErrorResponse},
-    },
 )
 async def delete_alert(
     alert_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
-) -> None:
+) -> Response:
     """Delete an alert channel by ID.
 
     The channel must belong to the authenticated user's team.
@@ -240,20 +236,10 @@ async def delete_alert(
     team_id = _team_id_from_user(current_user)
     await _get_alert_or_404(alert_id, team_id)
 
-    # In-memory fallback: remove from the store
-    from api.database import _memory_store
-
-    store = _memory_store.get(ALERT_TABLE, {})
-    store.pop(alert_id, None)
-
-    # Supabase
-    if db.connected and db._client is not None:
-        try:
-            db._client.table(ALERT_TABLE).delete().eq("id", alert_id).execute()
-        except Exception:
-            logger.exception("Failed to delete alert %s from Supabase", alert_id)
+    await db.delete(ALERT_TABLE, {"id": alert_id})
 
     logger.info("Alert channel deleted: %s by user %s", alert_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

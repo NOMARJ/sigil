@@ -24,6 +24,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
+from api.rate_limit import RateLimiter
 from api.gates import check_scan_quota, get_user_plan, require_plan
 from api.models import (
     DashboardStats,
@@ -221,8 +222,9 @@ async def _submit_scan_impl(
     responses={
         401: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
-        429: {"description": "Monthly scan quota exceeded"},
+        429: {"description": "Rate limit or monthly scan quota exceeded"},
     },
+    dependencies=[Depends(RateLimiter(max_requests=30, window=60))],
 )
 async def submit_scan(
     request: ScanRequest,

@@ -7,13 +7,8 @@
 # Stage 3: Runtime image with API, CLI, and dashboard
 # ============================================================================
 
-# ── Stage 1: Build Rust CLI ──────────────────────────────────────────────────
-FROM rust:1.76-slim AS rust-builder
-WORKDIR /build
-COPY cli/ ./
-RUN cargo build --release
-
-# ── Stage 2: Build Next.js Dashboard ────────────────────────────────────────
+# ── Stage 1: Build Next.js Dashboard ────────────────────────────────────────
+# node:20-slim
 FROM node:20-slim AS dashboard-builder
 
 WORKDIR /build
@@ -34,6 +29,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build
 
 # ── Stage 3: Runtime Image ──────────────────────────────────────────────────
+# python:3.11-slim-bookworm
 FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
@@ -48,7 +44,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     nodejs \
     npm \
+    gnupg \
+    apt-transport-https \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver 18 for SQL Server (required for Azure SQL Database)
+RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd --gid 1001 sigil && \
@@ -56,13 +61,13 @@ RUN groupadd --gid 1001 sigil && \
 
 WORKDIR /app
 
-# ── Python API dependencies ─────────────────────────────────────────────────
-COPY api/requirements.txt /app/api/requirements.txt
-RUN pip install --no-cache-dir -r /app/api/requirements.txt
+# ── Python API dependencies (pinned via lock file) ─────────────────────────
+COPY api/requirements.lock /app/api/requirements.lock
+RUN pip install --no-cache-dir -r /app/api/requirements.lock
 
-# ── Python Bot dependencies ────────────────────────────────────────────────
-COPY bot/requirements.txt /app/bot/requirements.txt
-RUN pip install --no-cache-dir -r /app/bot/requirements.txt
+# ── Python Bot dependencies (pinned via lock file) ────────────────────────
+COPY bot/requirements.lock /app/bot/requirements.lock
+RUN pip install --no-cache-dir -r /app/bot/requirements.lock
 
 # ── Copy API source ─────────────────────────────────────────────────────────
 COPY api/ /app/api/
@@ -70,13 +75,9 @@ COPY api/ /app/api/
 # ── Copy Bot source ─────────────────────────────────────────────────────────
 COPY bot/ /app/bot/
 
-# ── Copy Rust CLI binary ────────────────────────────────────────────────────
-COPY --from=rust-builder /build/target/release/sigil /usr/local/bin/sigil
+# ── Copy bash CLI (scanner backend) ────────────────────────────────────────
+COPY bin/sigil /usr/local/bin/sigil
 RUN chmod +x /usr/local/bin/sigil
-
-# ── Copy bash CLI as fallback ────────────────────────────────────────────────
-COPY bin/sigil /usr/local/bin/sigil-bash
-RUN chmod +x /usr/local/bin/sigil-bash
 
 # ── Copy built dashboard ────────────────────────────────────────────────────
 COPY --from=dashboard-builder /build/.next /app/dashboard/.next

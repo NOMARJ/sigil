@@ -10,6 +10,7 @@ Each worker is a long-lived asyncio task. Can run multiple concurrently.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import shutil
 import tempfile
@@ -165,6 +166,13 @@ async def _run_scan(directory: str) -> dict | None:
 
 async def process_job(job: ScanJob, queue: JobQueue) -> None:
     """Process a single scan job: download → scan → store → publish."""
+    # Validate package name — reject names that contain spaces or other
+    # invalid characters that would break pip/npm download commands.
+    if " " in job.name or not job.name:
+        logger.warning("Skipping invalid package name: %r", job.name)
+        await queue.complete(job)
+        return
+
     with tempfile.TemporaryDirectory(
         prefix=f"sigil-bot-{job.ecosystem}-"
     ) as tmpdir:
@@ -172,7 +180,25 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             # 1. Download
             ok = await _download_and_extract(job, tmpdir)
             if not ok:
-                raise RuntimeError(f"Download failed for {job.ecosystem}/{job.name}")
+                await store_scan_error(
+                    job,
+                    f"Download failed for {job.ecosystem}/{job.name}@{job.version}",
+                    error_type="download_failed",
+                )
+                await queue.complete(job)
+                return
+
+            # 1b. Compute archive hash for attestation subject digest
+            archive_hash = ""
+            for ext in ("*.tgz", "*.tar.gz", "*.whl", "*.zip"):
+                archives = list(Path(tmpdir).glob(ext))
+                if archives:
+                    h = hashlib.sha256()
+                    with open(archives[0], "rb") as af:
+                        for chunk in iter(lambda: af.read(8192), b""):
+                            h.update(chunk)
+                    archive_hash = h.hexdigest()
+                    break
 
             # 2. Scan
             scan_output = await asyncio.wait_for(
@@ -180,19 +206,55 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 timeout=bot_settings.scan_timeout,
             )
             if not scan_output:
-                raise RuntimeError(f"Scan produced no output for {job.ecosystem}/{job.name}")
+                await store_scan_error(
+                    job,
+                    f"Scanner produced no output for {job.ecosystem}/{job.name}",
+                    error_type="scanner_crash",
+                )
+                await queue.complete(job)
+                return
 
-            # 3. Store
-            scan_id = await store_scan_result(job, scan_output)
+            # 3. Sign attestation (if signing key is configured)
+            attestation = None
+            content_digest = None
+            log_entry_id = None
+            try:
+                from bot.config import bot_settings as _bs
+                if _bs.signing_configured:
+                    from bot.attestation import create_attestation
+                    attestation, content_digest, log_entry_id = (
+                        await create_attestation(
+                            scan_id="pending",
+                            ecosystem=job.ecosystem,
+                            package_name=job.name,
+                            package_version=job.version,
+                            subject_digest=archive_hash,
+                            scan_output=scan_output,
+                            metadata=scan_output.get("metadata", {}),
+                        )
+                    )
+            except Exception:
+                logger.warning(
+                    "Attestation signing failed for %s/%s (non-fatal)",
+                    job.ecosystem, job.name, exc_info=True,
+                )
 
-            # 4. Publish
+            # 4. Store
+            scan_id = await store_scan_result(
+                job, scan_output,
+                attestation=attestation,
+                content_digest=content_digest,
+                log_entry_id=log_entry_id,
+            )
+
+            # 5. Publish
             try:
                 from bot.publisher import publish_scan
                 await publish_scan(scan_id, job, scan_output)
             except Exception:
                 logger.exception("Publish failed for %s (non-fatal)", scan_id)
 
-            # 5. Intelligence extraction (async, non-blocking)
+            # 6. Intelligence extraction (async, non-blocking)
             try:
                 from bot.intelligence import extract_intelligence
                 await extract_intelligence(job, scan_output)
@@ -203,7 +265,12 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             await queue.complete(job)
 
         except asyncio.TimeoutError:
-            await store_scan_error(job, f"Scan timed out after {bot_settings.scan_timeout}s")
+            await store_scan_error(
+                job,
+                f"Scan timed out after {bot_settings.scan_timeout}s"
+                " — package may contain adversarial payloads designed to stall static analysis",
+                error_type="timeout",
+            )
             await queue.complete(job)
 
         except Exception as e:
@@ -213,7 +280,16 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             if job.retries < job.max_retries:
                 await queue.retry(job)
             else:
-                await queue.dead_letter(job, str(e))
+                # Classify the error type for structured output
+                error_str = str(e)
+                if "Download failed" in error_str or "download" in error_str.lower():
+                    error_type = "download_failed"
+                elif "parse" in error_str.lower() or "json" in error_str.lower():
+                    error_type = "parse_error"
+                else:
+                    error_type = "scanner_crash"
+                await store_scan_error(job, error_str, error_type=error_type)
+                await queue.dead_letter(job, error_str)
 
 
 async def worker_loop(queue: JobQueue, worker_id: int = 0) -> None:

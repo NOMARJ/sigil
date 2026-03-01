@@ -53,15 +53,21 @@ class NpmWatcher(BaseWatcher):
 
         async with httpx.AsyncClient(timeout=60) as client:
             try:
-                params = {"limit": 100, "include_docs": "false"}
+                params: dict[str, str | int] = {"limit": 100}
                 if self._last_seq:
                     params["since"] = self._last_seq
                 else:
-                    # First run: get current seq, don't backfill all of npm
-                    resp = await client.get(NPM_CHANGES_URL, params={"limit": 0})
+                    # First run: get current update_seq from the DB root,
+                    # don't backfill all of npm.  The replicate service no
+                    # longer supports _changes?limit=0.
+                    resp = await client.get(
+                        "https://replicate.npmjs.com/"
+                    )
                     resp.raise_for_status()
                     data = resp.json()
-                    self._last_seq = str(data.get("last_seq", "0"))
+                    self._last_seq = str(
+                        data.get("update_seq", data.get("committed_update_seq", "0"))
+                    )
                     await self.save_checkpoint(self._last_seq)
                     logger.info("npm: initial seq=%s", self._last_seq)
                     return jobs

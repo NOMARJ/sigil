@@ -139,7 +139,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer links */}
+      <div className="px-4 py-2 border-t border-gray-800 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-600">
+        <a href="https://www.sigilsec.ai/bot" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Bot</a>
+        <a href="https://www.sigilsec.ai/methodology" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Methodology</a>
+        <a href="https://www.sigilsec.ai/terms" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Terms</a>
+        <a href="https://www.sigilsec.ai/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-gray-400 transition-colors">Privacy</a>
+      </div>
+
+      {/* User */}
       <div className="px-4 py-4 border-t border-gray-800">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-300">

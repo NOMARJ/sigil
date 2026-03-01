@@ -386,7 +386,7 @@ async def _handle_pull_request(payload: dict[str, Any], action: str) -> dict[str
 async def install_redirect() -> dict[str, str]:
     """Return the GitHub App installation URL."""
     return {
-        "url": "https://github.com/apps/sigil-security",
+        "url": "https://github.com/apps/sigil-security-bot",
         "message": "Visit this URL to install Sigil on your repositories.",
     }
 

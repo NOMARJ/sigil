@@ -27,10 +27,8 @@ class BotSettings(BaseSettings):
     # --- Redis (Upstash or self-hosted) ----------------------------------------
     redis_url: str = "redis://localhost:6379"
 
-    # --- Database (Supabase PostgreSQL) ----------------------------------------
+    # --- Database ----------------------------------------
     database_url: str | None = None
-    supabase_url: str | None = None
-    supabase_key: str | None = None
 
     # --- Sigil CLI path --------------------------------------------------------
     sigil_bin: str = "sigil"
@@ -57,9 +55,29 @@ class BotSettings(BaseSettings):
     clawhub_interval: int = 21600  # 6 hours
     github_search_interval: int = 43200  # 12 hours
     github_events_interval: int = 1800  # 30 minutes
+    skills_poll_interval: int = 21600  # 6 hours
+    skills_crawl_batch_size: int = 10  # skills per search query
+
+    # --- Attestation signing ---------------------------------------------------
+    signing_key: str | None = None  # Base64-encoded Ed25519 private key
+    signing_key_file: str | None = None  # Path to Ed25519 private key file
+    signing_key_id: str = "sha256:sigil-bot-signing-key-2026"
+    public_key: str | None = None  # Base64-encoded Ed25519 public key (for verify)
+    public_key_file: str | None = None  # Path to Ed25519 public key PEM file
+    rekor_enabled: bool = False  # Submit attestations to Sigstore Rekor
+    rekor_url: str = "https://rekor.sigstore.dev"
 
     # --- Worker concurrency ----------------------------------------------------
     max_concurrent_scans: int = 4
+
+    # --- AEO / ISR revalidation ------------------------------------------------
+    revalidation_url: str = "https://sigilsec.ai/api/revalidate"
+    revalidation_secret: str | None = None
+
+    # --- Rescan scheduling -----------------------------------------------------
+    rescan_high_risk_days: int = 7  # HIGH/CRITICAL rescanned weekly
+    rescan_popular_days: int = 30  # >10K downloads rescanned monthly
+    rescan_default_days: int = 90  # all others rescanned quarterly
 
     # --- Alert thresholds ------------------------------------------------------
     dead_letter_alert_threshold: int = 10  # per hour
@@ -72,12 +90,12 @@ class BotSettings(BaseSettings):
         return bool(self.database_url)
 
     @property
-    def supabase_configured(self) -> bool:
-        return bool(self.supabase_url and self.supabase_key)
+    def github_configured(self) -> bool:
+        return bool(self.github_token) and self.github_token != "not-configured"
 
     @property
-    def github_configured(self) -> bool:
-        return bool(self.github_token)
+    def signing_configured(self) -> bool:
+        return bool(self.signing_key or self.signing_key_file)
 
     @property
     def twitter_configured(self) -> bool:

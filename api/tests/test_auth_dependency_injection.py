@@ -51,7 +51,7 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
-from api.database import _memory_store
+from api.database import db
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ class TestWorkingEndpoints:
             "description": "Test malicious package",
             "confirmed_at": "2024-01-01T00:00:00",
         }
-        _memory_store.setdefault("threats", {})["test-threat-1"] = threat
+        db._memory_store.setdefault("threats", {})["test-threat-1"] = threat
 
         resp = client.get("/v1/threat/abc123deadbeef456", headers=pro_auth_headers)
         assert resp.status_code == 200
@@ -183,7 +183,7 @@ class TestPlanGatedEndpoints:
     ) -> None:
         """PRO user can DELETE /v1/signatures/{id}."""
         sig_id = "test-sig-delete"
-        _memory_store.setdefault("signatures", {})[sig_id] = {
+        db._memory_store.setdefault("signatures", {})[sig_id] = {
             "id": sig_id,
             "phase": "code_patterns",
             "pattern": r"eval\(",

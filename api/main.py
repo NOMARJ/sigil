@@ -22,6 +22,7 @@ from api.config import settings
 from api.database import cache, db
 from api.gates import PlanGateException
 from api.models import GateError
+from api.rate_limit import RateLimitMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -128,6 +129,13 @@ async def add_security_headers(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
+# Global rate limiting (per-IP, distributed via Redis)
+# ---------------------------------------------------------------------------
+
+app.add_middleware(RateLimitMiddleware, max_requests=200, window=60)
+
+
+# ---------------------------------------------------------------------------
 # Global exception handler
 # ---------------------------------------------------------------------------
 
@@ -163,6 +171,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 from api.routers import (  # noqa: E402
     alerts,
+    attestation,
     auth,
     badge,
     billing,
@@ -194,6 +203,7 @@ app.include_router(registry.router)  # /registry/* — public scan database
 app.include_router(badge.router)  # /badge/*    — SVG badge generation
 app.include_router(github_app.router)  # /github/*   — GitHub App webhooks
 app.include_router(feed.router)  # /feed.*     — RSS + JSON threat feed
+app.include_router(attestation.router)  # /api/v1/attestation/* — signed attestations
 
 # --- Dashboard-compatible routes (no /v1 prefix) --------------------------
 # The dashboard frontend calls paths like /auth/login, /scans, /team,
@@ -360,7 +370,7 @@ async def health() -> JSONResponse:
         content={
             "status": "ok" if healthy else "degraded",
             "version": settings.app_version,
-            "supabase_connected": db.connected,
+            "database_connected": db.connected,
             "redis_connected": cache.connected,
         },
     )

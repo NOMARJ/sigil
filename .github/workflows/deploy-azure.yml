@@ -6,7 +6,9 @@ on:
       - main
     paths:
       - 'api/**'
+      - 'bot/**'
       - 'dashboard/**'
+      - 'Dockerfile.bot'
       - '.github/workflows/deploy-azure.yml'
   workflow_dispatch:
     inputs:
@@ -33,17 +35,18 @@ jobs:
 
     outputs:
       api-image-tag: ${{ steps.meta.outputs.api-tag }}
+      bot-image-tag: ${{ steps.meta.outputs.bot-tag }}
       dashboard-image-tag: ${{ steps.meta.outputs.dashboard-tag }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
 
       - name: Log in to Azure
-        uses: azure/login@v2
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -56,12 +59,14 @@ jobs:
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "api-tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "bot-tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "dashboard-tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "API Image: ${{ env.ACR_LOGIN_SERVER }}/sigil-api:${SHORT_SHA}"
+          echo "Bot Image: ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${SHORT_SHA}"
           echo "Dashboard Image: ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${SHORT_SHA}"
 
       - name: Build and push API image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
         with:
           context: .
           file: ./api/Dockerfile
@@ -72,8 +77,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push Bot image
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
+        with:
+          context: .
+          file: ./Dockerfile.bot
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:latest
+            ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${{ steps.meta.outputs.bot-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build and push Dashboard image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
         with:
           context: ./dashboard
           file: ./dashboard/Dockerfile
@@ -95,7 +112,7 @@ jobs:
 
     steps:
       - name: Trigger sigil-infra deployment
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
         with:
           token: ${{ secrets.INFRA_REPO_PAT }}
           repository: NOMARJ/sigil-infra
@@ -106,6 +123,7 @@ jobs:
               "source_ref": "${{ github.ref }}",
               "source_sha": "${{ github.sha }}",
               "api_image_tag": "${{ needs.build-and-push.outputs.api-image-tag }}",
+              "bot_image_tag": "${{ needs.build-and-push.outputs.bot-image-tag }}",
               "dashboard_image_tag": "${{ needs.build-and-push.outputs.dashboard-image-tag }}",
               "triggered_by": "${{ github.actor }}",
               "environment": "${{ inputs.environment || 'production' }}"
@@ -113,7 +131,8 @@ jobs:
 
       - name: Deployment triggered
         run: |
-          echo "✅ Infrastructure deployment triggered in NOMARJ/sigil-infra"
+          echo "Infrastructure deployment triggered in NOMARJ/sigil-infra"
           echo "Image tags:"
           echo "  - API: ${{ needs.build-and-push.outputs.api-image-tag }}"
+          echo "  - Bot: ${{ needs.build-and-push.outputs.bot-image-tag }}"
           echo "  - Dashboard: ${{ needs.build-and-push.outputs.dashboard-image-tag }}"

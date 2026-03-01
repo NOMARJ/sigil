@@ -15,7 +15,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from api.database import _memory_store, _memory_cache
+from api.database import _memory_cache, db
 
 
 # ---------------------------------------------------------------------------
@@ -39,10 +39,10 @@ def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
 @pytest.fixture(autouse=True)
 def _reset_memory_stores():
     """Clear in-memory fallback stores before each test for isolation."""
-    _memory_store.clear()
+    db._memory_store.clear()
     _memory_cache.clear()
     yield
-    _memory_store.clear()
+    db._memory_store.clear()
     _memory_cache.clear()
 
 

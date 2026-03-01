@@ -10,6 +10,7 @@ Usage:
     python -m bot.main --workers-only       # Run workers only
     python -m bot.main --watcher clawhub    # Run single watcher
     python -m bot.main --backfill clawhub   # Run initial backfill
+    python -m bot.main --pr-worker          # Run PR comment posting worker
 """
 
 from __future__ import annotations
@@ -45,12 +46,14 @@ def _build_watchers(queue: JobQueue, names: list[str] | None = None):
     from bot.watchers.pypi import PyPIWatcher
     from bot.watchers.npm import NpmWatcher
     from bot.watchers.github import GitHubWatcher
+    from bot.watchers.skills import SkillsWatcher
 
     all_watchers = {
         "clawhub": ClawHubWatcher,
         "pypi": PyPIWatcher,
         "npm": NpmWatcher,
         "github": GitHubWatcher,
+        "skills": SkillsWatcher,
     }
 
     if names:
@@ -90,6 +93,15 @@ async def run_bot(
             )
             tasks.append(task)
         logger.info("Started %d scanner workers", num_workers)
+
+        # Start rescan scheduler (AEO Action #9 — freshness signals)
+        from bot.rescan import rescan_loop
+
+        rescan_task = asyncio.create_task(
+            rescan_loop(queue), name="rescan-scheduler"
+        )
+        tasks.append(rescan_task)
+        logger.info("Started rescan scheduler")
 
     # Graceful shutdown on SIGTERM/SIGINT
     stop_event = asyncio.Event()
@@ -195,7 +207,7 @@ def main() -> None:
     parser.add_argument(
         "--watcher",
         nargs="+",
-        choices=["clawhub", "pypi", "npm", "github"],
+        choices=["clawhub", "pypi", "npm", "github", "skills"],
         help="Run specific watcher(s)",
     )
     parser.add_argument(
@@ -209,9 +221,18 @@ def main() -> None:
         choices=["clawhub", "pypi", "npm", "github"],
         help="Run initial backfill for ecosystem",
     )
+    parser.add_argument(
+        "--pr-worker",
+        action="store_true",
+        help="Run the PR comment posting worker",
+    )
     args = parser.parse_args()
 
-    if args.backfill:
+    if args.pr_worker:
+        from bot.worker.pr_comments import pr_comment_worker
+
+        asyncio.run(pr_comment_worker())
+    elif args.backfill:
         asyncio.run(run_backfill(args.backfill))
     else:
         asyncio.run(

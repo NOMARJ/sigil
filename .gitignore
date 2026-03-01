@@ -39,6 +39,7 @@ Cargo.lock
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -60,3 +61,6 @@ supabase/.temp/
 # Internal documentation (deployment notes, infrastructure details)
 docs/internal/
 *.docx
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate

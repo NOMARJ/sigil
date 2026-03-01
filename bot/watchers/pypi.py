@@ -79,18 +79,37 @@ class PyPIWatcher(BaseWatcher):
                         title = item.findtext("title", "")
                         link = item.findtext("link", "")
 
-                        # Parse "package-name 1.2.3" from title
+                        # Parse "package-name 1.2.3" from title.
+                        # Some titles are "package-name added to PyPI" —
+                        # extract the first token as the name and try to
+                        # pull a version from the link URL instead.
                         parts = title.rsplit(" ", 1)
                         name = parts[0].strip() if parts else title.strip()
                         version = parts[1].strip() if len(parts) > 1 else ""
 
+                        # Validate: name must be a PyPI identifier (no spaces)
+                        if " " in name:
+                            # Fall back to first word of the title
+                            name = title.split()[0].strip() if title.strip() else ""
                         if not name:
                             continue
+
+                        # Version must look like a version (digit-prefixed), not text
+                        if version and not version[0].isdigit():
+                            # Try extracting version from link URL
+                            # e.g. https://pypi.org/project/name/1.2.3/
+                            if link:
+                                url_parts = link.rstrip("/").rsplit("/", 1)
+                                candidate = url_parts[-1] if len(url_parts) > 1 else ""
+                                version = candidate if candidate and candidate[0].isdigit() else ""
+                            else:
+                                version = ""
 
                         # Fetch package metadata for keyword filtering
                         meta = await self._fetch_package_meta(client, name)
                         description = meta.get("summary", "")
-                        keywords_list = meta.get("keywords", "").split(",")
+                        raw_kw = meta.get("keywords") or ""
+                        keywords_list = raw_kw.split(",") if raw_kw else []
                         weekly_downloads = meta.get("downloads", {}).get(
                             "last_week", 0
                         )
@@ -165,14 +184,27 @@ class PyPIWatcher(BaseWatcher):
                 return jobs
 
             # Process changes: each is (name, version, timestamp, action, serial)
+            # Note: PyPI XML-RPC may return varying tuple lengths and action
+            # formats.  Sanitise aggressively to avoid corrupted job names.
             seen: set[str] = set()
             for change in changes:
                 if len(change) < 4:
                     continue
                 name, version, _ts, action = change[:4]
 
-                # Only care about new file uploads
-                if "new" not in str(action).lower() and "create" not in str(action).lower():
+                # Sanitise: name must be a valid PyPI identifier (no spaces)
+                name = str(name).strip()
+                if " " in name or not name:
+                    continue
+
+                version = str(version).strip() if version else ""
+                # Version must look like a version string, not action text
+                if version and " " in version:
+                    version = ""
+
+                # Only care about new file uploads / releases
+                action_str = str(action).lower()
+                if not any(kw in action_str for kw in ("new", "create", "add")):
                     continue
 
                 dedup_key = f"{name}:{version}"

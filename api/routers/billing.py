@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from api.config import settings
 from api.database import db
+from api.rate_limit import RateLimiter
 from api.models import (
     ErrorResponse,
     PlanInfo,
@@ -185,6 +186,7 @@ async def list_plans() -> list[PlanInfo]:
     response_model=SubscriptionResponse,
     summary="Create or update a subscription",
     responses={401: {"model": ErrorResponse}},
+    dependencies=[Depends(RateLimiter(max_requests=5, window=60))],
 )
 async def subscribe(
     body: SubscribeRequest,
@@ -214,6 +216,13 @@ async def subscribe(
         # --- Stripe integration path ---
         price_id = _STRIPE_PRICE_MAP.get((body.plan, interval))
 
+        # Reject if the price ID is a placeholder or missing for paid plans
+        if body.plan != PlanTier.FREE and (not price_id or "placeholder" in price_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The {interval} billing interval is not yet available for the {body.plan.value} plan. Please select monthly billing.",
+            )
+
         if body.plan == PlanTier.FREE:
             # Downgrade to free — cancel existing Stripe subscription
             stripe_sub_id = sub_data.get("stripe_subscription_id")
@@ -239,9 +248,29 @@ async def subscribe(
             )
             sub_data["cancel_at_period_end"] = True
         else:
-            # Create or update to paid plan
+            # If the user already has an active subscription for this plan,
+            # don't create another checkout session.
+            existing_sub_id = sub_data.get("stripe_subscription_id")
+            if (
+                existing_sub_id
+                and sub_data.get("plan") == body.plan.value
+                and sub_data.get("status") in ("active", "trialing")
+            ):
+                return SubscriptionResponse(
+                    plan=PlanTier(sub_data["plan"]),
+                    status=sub_data.get("status", "active"),
+                    billing_interval=sub_data.get("billing_interval", "monthly"),
+                    current_period_start=sub_data.get("current_period_start"),
+                    current_period_end=sub_data.get("current_period_end"),
+                    cancel_at_period_end=sub_data.get("cancel_at_period_end", False),
+                    stripe_subscription_id=existing_sub_id,
+                )
+
+            # Create a Stripe Checkout Session for paid plans.
+            # This redirects the user to Stripe's hosted payment page,
+            # which collects payment details and creates the subscription
+            # only after successful payment — no more "overdue" invoices.
             try:
-                # Attempt to find or create Stripe customer
                 customer_id = sub_data.get("stripe_customer_id")
                 if not customer_id:
                     customer = stripe.Customer.create(
@@ -250,32 +279,52 @@ async def subscribe(
                     )
                     customer_id = customer.id
 
-                subscription = stripe.Subscription.create(
-                    customer=customer_id,
-                    items=[{"price": price_id}],
-                    payment_behavior="default_incomplete",
-                    expand=["latest_invoice.payment_intent"],
-                )
-
-                period_end = datetime.utcfromtimestamp(
-                    subscription.current_period_end
-                ).isoformat()
-
-                sub_data = await db.upsert_subscription(
+                # Persist the Stripe customer ID right away so portal works
+                await db.upsert_subscription(
                     user_id=current_user.id,
-                    plan=body.plan.value,
-                    status=subscription.status,
+                    plan=sub_data.get("plan", PlanTier.FREE.value),
+                    status=sub_data.get("status", "active"),
                     stripe_customer_id=customer_id,
-                    stripe_subscription_id=subscription.id,
-                    current_period_end=period_end,
+                    stripe_subscription_id=sub_data.get("stripe_subscription_id"),
+                    current_period_end=sub_data.get("current_period_end"),
                     billing_interval=interval,
                 )
-                sub_data["current_period_start"] = datetime.utcfromtimestamp(
-                    subscription.current_period_start
-                ).isoformat()
-                sub_data["cancel_at_period_end"] = False
+
+                # Build success/cancel URLs for Checkout
+                frontend_url = settings.frontend_url.rstrip("/")
+                success_url = f"{frontend_url}/settings?checkout=success"
+                cancel_url = f"{frontend_url}/settings?checkout=cancel"
+
+                checkout_session = stripe.checkout.Session.create(
+                    customer=customer_id,
+                    mode="subscription",
+                    line_items=[{"price": price_id, "quantity": 1}],
+                    success_url=success_url,
+                    cancel_url=cancel_url,
+                    metadata={
+                        "sigil_user_id": current_user.id,
+                        "sigil_plan": body.plan.value,
+                        "sigil_interval": interval,
+                    },
+                )
+
+                # Return a response with the checkout URL for the frontend
+                # to redirect to. The subscription isn't created yet — Stripe
+                # will create it after the user completes payment, and our
+                # webhook handler will update the DB.
+                return SubscriptionResponse(
+                    plan=PlanTier(sub_data.get("plan", PlanTier.FREE.value)),
+                    status=sub_data.get("status", "active"),
+                    billing_interval=interval,
+                    current_period_start=sub_data.get("current_period_start"),
+                    current_period_end=sub_data.get("current_period_end"),
+                    cancel_at_period_end=False,
+                    stripe_subscription_id=sub_data.get("stripe_subscription_id"),
+                    checkout_url=checkout_session.url,
+                )
+
             except Exception as exc:
-                logger.exception("Stripe subscription creation failed")
+                logger.exception("Stripe Checkout Session creation failed")
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"Payment provider error: {exc}",
@@ -351,10 +400,18 @@ async def get_subscription(
     if stripe and stripe_sub_id:
         try:
             subscription = stripe.Subscription.retrieve(stripe_sub_id)
-            period_end = datetime.utcfromtimestamp(
-                subscription.current_period_end
-            ).isoformat()
-            # Persist the synced data back to DB
+            raw_end = getattr(subscription, "current_period_end", None)
+            raw_start = getattr(subscription, "current_period_start", None)
+            period_end = (
+                datetime.utcfromtimestamp(raw_end).isoformat()
+                if raw_end
+                else sub_data.get("current_period_end")
+            )
+            period_start = (
+                datetime.utcfromtimestamp(raw_start).isoformat()
+                if raw_start
+                else sub_data.get("current_period_start")
+            )
             sub_data = await db.upsert_subscription(
                 user_id=current_user.id,
                 plan=sub_data.get("plan", PlanTier.FREE.value),
@@ -363,10 +420,10 @@ async def get_subscription(
                 stripe_subscription_id=stripe_sub_id,
                 current_period_end=period_end,
             )
-            sub_data["current_period_start"] = datetime.utcfromtimestamp(
-                subscription.current_period_start
-            ).isoformat()
-            sub_data["cancel_at_period_end"] = subscription.cancel_at_period_end
+            sub_data["current_period_start"] = period_start
+            sub_data["cancel_at_period_end"] = getattr(
+                subscription, "cancel_at_period_end", False
+            )
         except Exception:
             logger.warning("Failed to sync subscription %s from Stripe", stripe_sub_id)
 
@@ -470,7 +527,9 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
     logger.info("Stripe webhook received: %s", event_type)
 
     # --- Handle known event types ---
-    if event_type == "customer.subscription.updated":
+    if event_type == "checkout.session.completed":
+        await _handle_checkout_completed(event)
+    elif event_type == "customer.subscription.updated":
         await _handle_subscription_updated(event)
     elif event_type == "customer.subscription.deleted":
         await _handle_subscription_deleted(event)
@@ -487,6 +546,71 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 # ---------------------------------------------------------------------------
 # Webhook event handlers
 # ---------------------------------------------------------------------------
+
+
+async def _handle_checkout_completed(event: dict[str, Any]) -> None:
+    """Process a completed Checkout Session.
+
+    When a user finishes Stripe Checkout, this event fires with the new
+    subscription ID.  We persist the subscription details to the DB.
+    """
+    data = event.get("data", {}).get("object", {})
+    customer_id = data.get("customer", "")
+    subscription_id = data.get("subscription", "")
+    metadata = data.get("metadata", {})
+    user_id = metadata.get("sigil_user_id", "")
+    plan = metadata.get("sigil_plan", PlanTier.FREE.value)
+    interval = metadata.get("sigil_interval", "monthly")
+
+    logger.info(
+        "Checkout completed: customer=%s subscription=%s user=%s plan=%s",
+        customer_id,
+        subscription_id,
+        user_id,
+        plan,
+    )
+
+    if not user_id:
+        # Try to look up by customer ID
+        existing = await db.get_subscription_by_stripe_customer(customer_id)
+        if existing:
+            user_id = existing["user_id"]
+
+    if not user_id:
+        logger.warning(
+            "Cannot resolve user for checkout.session.completed: customer=%s",
+            customer_id,
+        )
+        return
+
+    # Fetch the subscription from Stripe to get period dates
+    stripe = _get_stripe()
+    period_end = None
+    sub_status = "active"
+    if stripe and subscription_id:
+        try:
+            sub = stripe.Subscription.retrieve(subscription_id)
+            sub_status = sub.status
+            period_end = datetime.utcfromtimestamp(sub.current_period_end).isoformat()
+        except Exception:
+            logger.warning(
+                "Failed to retrieve subscription %s from Stripe", subscription_id
+            )
+
+    if period_end is None:
+        now = datetime.utcnow()
+        days = 365 if interval == "annual" else 30
+        period_end = (now + timedelta(days=days)).isoformat()
+
+    await db.upsert_subscription(
+        user_id=user_id,
+        plan=plan,
+        status=sub_status,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        current_period_end=period_end,
+        billing_interval=interval,
+    )
 
 
 async def _handle_subscription_updated(event: dict[str, Any]) -> None:

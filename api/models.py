@@ -66,6 +66,12 @@ class Finding(BaseModel):
     line: int = Field(0, description="Line number where the finding occurs")
     snippet: str = Field("", description="Code snippet around the finding")
     weight: float = Field(1.0, description="Weight multiplier for scoring")
+    description: str = Field(
+        "", description="Short human-readable label for the finding"
+    )
+    explanation: str = Field(
+        "", description="Detailed reasoning for why this was flagged and its severity"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +424,10 @@ class SubscriptionResponse(BaseModel):
     current_period_end: datetime | None = None
     cancel_at_period_end: bool = False
     stripe_subscription_id: str | None = None
+    checkout_url: str | None = Field(
+        None,
+        description="Stripe Checkout URL — redirect the user here to complete payment",
+    )
 
 
 class PortalResponse(BaseModel):

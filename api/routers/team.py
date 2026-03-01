@@ -18,7 +18,7 @@ from typing import Any
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from api.database import db
 from api.gates import require_plan
@@ -244,18 +244,14 @@ async def invite_member(
 @router.delete(
     "/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Remove a member from the team",
-    responses={
-        401: {"model": ErrorResponse},
-        403: {"model": GateError},
-        404: {"model": ErrorResponse},
-    },
 )
 async def remove_member(
     user_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
-) -> None:
+) -> Response:
     """Remove a member from the team.
 
     Only admins and owners can remove members.  The team owner cannot be
@@ -298,6 +294,7 @@ async def remove_member(
         team.get("id"),
         current_user.id,
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch(

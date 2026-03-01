@@ -19,14 +19,12 @@ import logging
 import base64
 import secrets
 import time
-import time as _time
-from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import (
     HTTPBearer,
     HTTPAuthorizationCredentials,
@@ -34,7 +32,8 @@ from fastapi.security import (
 )
 
 from api.config import settings
-from api.database import db
+from api.database import cache, db
+from api.rate_limit import RateLimiter
 from api.models import (
     AuthTokens,
     ErrorResponse,
@@ -54,48 +53,48 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 # ---------------------------------------------------------------------------
-# Simple in-memory rate limiter for login attempts
+# Redis-backed rate limiter for login attempts (distributed, survives restarts)
 # ---------------------------------------------------------------------------
-_login_attempts: dict[str, list[float]] = defaultdict(list)
 _LOGIN_WINDOW = 300  # 5 minutes
 _LOGIN_MAX_ATTEMPTS = 10  # max 10 attempts per window per IP
 
 
-def _check_login_rate_limit(client_ip: str) -> None:
-    """Raise 429 if too many login attempts from this IP."""
-    now = _time.time()
-    # Prune old entries
-    _login_attempts[client_ip] = [
-        t for t in _login_attempts[client_ip] if now - t < _LOGIN_WINDOW
-    ]
-    if len(_login_attempts[client_ip]) >= _LOGIN_MAX_ATTEMPTS:
+async def _check_login_rate_limit(client_ip: str) -> None:
+    """Raise 429 if too many login attempts from this IP.
+
+    Uses Redis INCR with TTL for a fixed-window counter that works across
+    multiple API instances and survives restarts.  Falls back to in-memory
+    counting when Redis is unavailable (via RedisClient internals).
+    """
+    key = f"ratelimit:login:{client_ip}"
+    count = await cache.incr(key, ttl=_LOGIN_WINDOW)
+    if count > _LOGIN_MAX_ATTEMPTS:
         raise HTTPException(
             status_code=429,
             detail=f"Too many login attempts. Try again in {_LOGIN_WINDOW // 60} minutes.",
         )
-    _login_attempts[client_ip].append(now)
 
 
 # ---------------------------------------------------------------------------
-# In-memory token blocklist (cleared on restart — use Redis in production)
+# Redis-backed token blocklist (survives restarts, auto-expires with JWT TTL)
 # ---------------------------------------------------------------------------
-_revoked_tokens: set[str] = set()
-_REVOKED_TOKEN_MAX = 10_000  # Cap to prevent memory growth
 
 
-def _revoke_token(token: str) -> None:
-    """Add a token to the revocation blocklist."""
-    if len(_revoked_tokens) >= _REVOKED_TOKEN_MAX:
-        # Evict oldest (since sets are unordered, just clear half)
-        to_remove = list(_revoked_tokens)[: _REVOKED_TOKEN_MAX // 2]
-        for t in to_remove:
-            _revoked_tokens.discard(t)
-    _revoked_tokens.add(token)
+async def _revoke_token(token: str) -> None:
+    """Add a token to the revocation blocklist in Redis.
+
+    The key auto-expires after the JWT lifetime so the blocklist is
+    self-cleaning — no manual eviction or memory caps needed.
+    """
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    ttl = settings.jwt_expire_minutes * 60  # match JWT lifetime
+    await cache.set(f"revoked:{token_hash}", "1", ttl=ttl)
 
 
-def _is_token_revoked(token: str) -> bool:
+async def _is_token_revoked(token: str) -> bool:
     """Check if a token has been revoked."""
-    return token in _revoked_tokens
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    return await cache.exists(f"revoked:{token_hash}")
 
 
 # ---------------------------------------------------------------------------
@@ -218,9 +217,9 @@ def _create_access_token(
     return f"{signing_input}.{_b64url_encode(signature)}"
 
 
-def _verify_token(token: str) -> dict[str, Any]:
+async def _verify_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT.  Raises ``HTTPException`` on failure."""
-    if _is_token_revoked(token):
+    if await _is_token_revoked(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
@@ -305,7 +304,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = _verify_token(token)
+    payload = await _verify_token(token)
     user_id: str | None = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -323,7 +322,7 @@ async def get_current_user(
         )
 
     return UserResponse(
-        id=user["id"],
+        id=str(user["id"]),
         email=user["email"],
         name=user.get("name", ""),
         created_at=user.get("created_at", datetime.utcnow()),
@@ -405,7 +404,7 @@ async def verify_custom_jwt(token: str) -> dict[str, Any]:
     Raises:
         HTTPException: If the token is invalid, expired, or user doesn't exist
     """
-    payload = _verify_token(token)
+    payload = await _verify_token(token)
     user_id: str | None = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -423,7 +422,7 @@ async def verify_custom_jwt(token: str) -> dict[str, Any]:
         )
 
     return {
-        "id": user["id"],
+        "id": str(user["id"]),
         "email": user["email"],
         "name": user.get("name", ""),
         "created_at": user.get("created_at", datetime.utcnow()),
@@ -578,7 +577,7 @@ async def get_current_user_supabase(
             )
         else:
             # Fallback to verifying with custom JWT verification
-            payload = _verify_token(token)
+            payload = await _verify_token(token)
 
         # Extract user ID from Supabase token
         user_id = payload.get("sub")
@@ -662,6 +661,7 @@ def _verify_supabase_token_fallback(token: str) -> dict[str, Any]:
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user account",
     responses={409: {"model": ErrorResponse}},
+    dependencies=[Depends(RateLimiter(max_requests=5, window=60))],
 )
 async def register(body: UserCreate) -> TokenResponse:
     """Create a new user account and return an access token.
@@ -708,6 +708,7 @@ async def register(body: UserCreate) -> TokenResponse:
     response_model=TokenResponse,
     summary="Authenticate and receive a JWT",
     responses={401: {"model": ErrorResponse}},
+    dependencies=[Depends(RateLimiter(max_requests=10, window=300))],
 )
 async def login(body: UserLogin, request: Request) -> TokenResponse:
     """Authenticate with email and password.
@@ -715,7 +716,7 @@ async def login(body: UserLogin, request: Request) -> TokenResponse:
     Returns a JWT access token on success, or 401 on failure.
     """
     client_ip = request.client.host if request.client else "unknown"
-    _check_login_rate_limit(client_ip)
+    await _check_login_rate_limit(client_ip)
 
     user = await db.select_one(USER_TABLE, {"email": body.email})
     if user is None or not _verify_password(
@@ -752,7 +753,7 @@ async def login(body: UserLogin, request: Request) -> TokenResponse:
     responses={401: {"model": ErrorResponse}},
 )
 async def me(
-    current_user: Annotated[UserResponse, Depends(get_current_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> UserResponse:
     """Return the profile of the currently authenticated user.
 
@@ -777,7 +778,7 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
     Note: To return a new 7-day refresh token alongside the access token,
     add a ``refresh_token`` field to the ``AuthTokens`` model.
     """
-    payload = _verify_token(body.refresh_token)
+    payload = await _verify_token(body.refresh_token)
     user_id: str | None = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -796,7 +797,7 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
         )
 
     # Revoke the consumed refresh token to prevent replay
-    _revoke_token(body.refresh_token)
+    await _revoke_token(body.refresh_token)
 
     # Issue a new access token with standard expiry
     new_token = _create_access_token(
@@ -817,13 +818,13 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Log out the current user",
-    responses={401: {"model": ErrorResponse}},
 )
 async def logout(
     request: Request,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
-) -> None:
+) -> Response:
     """Invalidate the current session.
 
     Adds the Bearer token to an in-memory revocation blocklist so it cannot
@@ -831,10 +832,10 @@ async def logout(
     """
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        _revoke_token(auth_header[7:])
+        await _revoke_token(auth_header[7:])
 
     logger.info("User logged out: %s", current_user.id)
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
@@ -866,6 +867,7 @@ async def _send_reset_email(email: str, reset_link: str) -> None:
     "/forgot-password",
     response_model=ForgotPasswordResponse,
     summary="Request a password reset link",
+    dependencies=[Depends(RateLimiter(max_requests=3, window=60))],
 )
 async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse:
     """Generate a password reset token and send it via email.

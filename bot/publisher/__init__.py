@@ -2,10 +2,11 @@
 Sigil Bot — Publisher
 
 Consumes new scan results and updates all downstream surfaces:
-  1. Badge cache invalidation (Redis)
+  1. Badge cache invalidation (Redis + DB)
   2. RSS feed append
   3. Alert dispatch (HIGH RISK / CRITICAL RISK)
   4. Social posting (deferred)
+  5. ISR revalidation (sigilsec.ai page regeneration)
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 from xml.sax.saxutils import escape as xml_escape
 
+import httpx
 import redis.asyncio as aioredis
 
 from bot.config import bot_settings
@@ -54,8 +56,8 @@ async def publish_scan(
     score = scan_output.get("score", 0.0)
     findings = scan_output.get("findings", [])
 
-    # 1. Invalidate badge cache
-    await _invalidate_badge_cache(job.ecosystem, job.name)
+    # 1. Invalidate badge cache (Redis + DB upsert)
+    await _invalidate_badge_cache(job.ecosystem, job.name, job.version, verdict, score)
 
     # 2. Append to RSS feed
     await _append_rss(scan_id, job, scan_output)
@@ -63,6 +65,9 @@ async def publish_scan(
     # 3. Alert on high-risk findings
     if verdict in ("HIGH_RISK", "CRITICAL_RISK"):
         await _dispatch_alert(scan_id, job, scan_output)
+
+    # 4. ISR revalidation (fire-and-forget)
+    await _trigger_revalidation(job.ecosystem, job.name)
 
     logger.info(
         "Published scan %s: %s/%s@%s → %s",
@@ -74,11 +79,54 @@ async def publish_scan(
     )
 
 
-async def _invalidate_badge_cache(ecosystem: str, name: str) -> None:
-    """Clear the cached badge SVG so next request generates fresh."""
+async def _invalidate_badge_cache(
+    ecosystem: str,
+    name: str,
+    version: str = "",
+    verdict: str = "",
+    score: float = 0.0,
+) -> None:
+    """Clear the cached badge SVG so the next request regenerates it.
+
+    The badge router reads directly from public_scans (which already has the
+    latest scan data), so we only need to bust the Redis cache here.
+    """
     r = await _get_redis()
     badge_key = f"badge:{ecosystem}:{name}"
     await r.delete(badge_key)
+
+
+async def _trigger_revalidation(ecosystem: str, package_name: str) -> None:
+    """POST to sigilsec.ai/api/revalidate to trigger ISR page regeneration.
+
+    Fire-and-forget — never blocks the scan pipeline.
+    """
+    if not bot_settings.revalidation_secret:
+        return
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                bot_settings.revalidation_url,
+                headers={
+                    "x-webhook-secret": bot_settings.revalidation_secret,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "type": "scan",
+                    "ecosystem": ecosystem,
+                    "package_name": package_name,
+                },
+            )
+            if resp.status_code == 200:
+                logger.debug("ISR revalidation triggered for %s/%s", ecosystem, package_name)
+            else:
+                logger.debug(
+                    "ISR revalidation returned %d for %s/%s",
+                    resp.status_code, ecosystem, package_name,
+                )
+    except Exception:
+        logger.debug("ISR revalidation failed (non-fatal)", exc_info=True)
 
 
 async def _append_rss(
@@ -93,12 +141,12 @@ async def _append_rss(
     findings = scan_output.get("findings", [])
     now = datetime.now(timezone.utc)
 
-    # Build finding summary
+    # Build finding summary using human-readable descriptions
     finding_summaries = []
     for f in findings[:5]:
-        rule = f.get("rule", "unknown")
+        desc = f.get("description", f.get("rule", "unknown"))
         severity = f.get("severity", "MEDIUM")
-        finding_summaries.append(f"{severity}: {rule}")
+        finding_summaries.append(f"{severity}: {desc}")
     summary = "; ".join(finding_summaries) if finding_summaries else "No notable findings"
 
     title = f"[{verdict}] {job.name}@{job.version} ({job.ecosystem.upper()})"
@@ -116,6 +164,7 @@ async def _append_rss(
         f"<pubDate>{now.strftime('%a, %d %b %Y %H:%M:%S GMT')}</pubDate>"
         f"<guid>{xml_escape(link)}?v={xml_escape(job.version)}</guid>"
         f"<category>{xml_escape(job.ecosystem)}</category>"
+        f"<category>{xml_escape(verdict)}</category>"
         f"</item>"
     )
 
@@ -123,45 +172,95 @@ async def _append_rss(
     await r.lpush(RSS_FEED_KEY, item_xml)
     await r.ltrim(RSS_FEED_KEY, 0, RSS_MAX_ITEMS - 1)
 
-    # Also store per-ecosystem
+    # Also store per-ecosystem for efficient filtered feeds
     eco_key = f"sigil:rss:items:{job.ecosystem}"
     await r.lpush(eco_key, item_xml)
     await r.ltrim(eco_key, 0, RSS_MAX_ITEMS - 1)
+
+    # Also store per-verdict for efficient threat-only feeds
+    verdict_key = f"sigil:rss:items:verdict:{verdict.lower()}"
+    await r.lpush(verdict_key, item_xml)
+    await r.ltrim(verdict_key, 0, RSS_MAX_ITEMS - 1)
 
 
 async def generate_rss_feed(
     ecosystem: str | None = None,
     verdict_filter: str | None = None,
+    limit: int = RSS_MAX_ITEMS,
 ) -> str:
-    """Generate a complete RSS 2.0 feed XML string."""
+    """Generate a complete RSS 2.0 feed XML string.
+
+    Supports filtering by ecosystem and/or verdict:
+      - ecosystem="clawhub" → only ClawHub scans
+      - verdict_filter="high_risk,critical_risk" → threats only
+      - Both can be combined
+    """
     r = await _get_redis()
+    max_items = min(limit, RSS_MAX_ITEMS)
 
-    if ecosystem:
+    # Determine which Redis key to read from
+    if ecosystem and not verdict_filter:
+        # Fast path: per-ecosystem list
         key = f"sigil:rss:items:{ecosystem}"
-    else:
-        key = RSS_FEED_KEY
+        items = await r.lrange(key, 0, max_items - 1)
 
-    items = await r.lrange(key, 0, RSS_MAX_ITEMS - 1)
+    elif verdict_filter and not ecosystem:
+        # Parse verdict filter
+        verdicts = [v.strip().lower() for v in verdict_filter.split(",") if v.strip()]
+        if len(verdicts) == 1:
+            # Fast path: single-verdict list
+            key = f"sigil:rss:items:verdict:{verdicts[0]}"
+            items = await r.lrange(key, 0, max_items - 1)
+        else:
+            # Multi-verdict: merge from per-verdict lists and sort by recency
+            items = []
+            for v in verdicts:
+                key = f"sigil:rss:items:verdict:{v}"
+                items.extend(await r.lrange(key, 0, max_items - 1))
+            # Deduplicate by guid and take the most recent
+            seen: set[str] = set()
+            unique: list[str] = []
+            for item in items:
+                # Extract guid as dedup key
+                guid_start = item.find("<guid>")
+                guid_end = item.find("</guid>")
+                guid = item[guid_start:guid_end] if guid_start >= 0 else item
+                if guid not in seen:
+                    seen.add(guid)
+                    unique.append(item)
+            items = unique[:max_items]
 
-    # Filter by verdict if requested
-    if verdict_filter:
+    elif ecosystem and verdict_filter:
+        # Both filters: read per-ecosystem, then filter by verdict
+        key = f"sigil:rss:items:{ecosystem}"
+        items = await r.lrange(key, 0, RSS_MAX_ITEMS - 1)
         allowed_verdicts = {v.strip().upper() for v in verdict_filter.split(",")}
-        filtered = []
-        for item in items:
-            for v in allowed_verdicts:
-                if f"[{v}]" in item:
-                    filtered.append(item)
-                    break
-        items = filtered
+        items = [
+            item for item in items
+            if any(f"[{v}]" in item for v in allowed_verdicts)
+        ]
+        items = items[:max_items]
+
+    else:
+        # No filter: all items
+        items = await r.lrange(RSS_FEED_KEY, 0, max_items - 1)
 
     items_xml = "\n    ".join(items)
+
+    # Build descriptive channel title based on filters
+    title_parts = ["Sigil Security Scanner"]
+    if ecosystem:
+        title_parts.append(f"— {ecosystem.upper()}")
+    if verdict_filter:
+        title_parts.append("— Threat Alerts")
+    channel_title = " ".join(title_parts)
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>Sigil Security Scanner — Threat Feed</title>
+    <title>{xml_escape(channel_title)}</title>
     <link>https://sigilsec.ai/scans</link>
-    <description>Automated security scan results for AI agent packages</description>
+    <description>Automated security scan results for AI agent packages. Learn more at https://sigilsec.ai/bot</description>
     <language>en-us</language>
     <lastBuildDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</lastBuildDate>
     {items_xml}
@@ -234,19 +333,26 @@ async def _maybe_post_social(
     verdict = scan_output.get("verdict", "")
     findings = scan_output.get("findings", [])
 
-    # Build post
+    # Use human-readable verdict labels (never say "malicious")
+    verdict_label = verdict.replace("_", " ").title()
+
+    # Build finding summaries from description field (AEO Action #8)
     finding_lines = []
     for f in findings[:3]:
-        rule = f.get("rule", "")
-        finding_lines.append(f"  Risk indicator: {rule}")
+        desc = f.get("description", f.get("rule", ""))
+        if desc:
+            finding_lines.append(f"- {desc}")
     findings_text = "\n".join(finding_lines)
 
+    # Full URL — no shorteners (agents resolve full URLs)
+    report_url = f"https://sigilsec.ai/scans/{job.ecosystem}/{job.name}"
+
     post_text = (
-        f"{verdict} detected: {job.name}@{job.version} on {job.ecosystem.upper()}\n"
+        f"{verdict_label} detected: {job.name}@{job.version} on {job.ecosystem.upper()}\n"
         f"\n"
         f"{findings_text}\n"
         f"\n"
-        f"Full report: sigilsec.ai/scans/{job.ecosystem}/{job.name}\n"
+        f"Full report: {report_url}\n"
         f"\n"
         f"#sigil #supplychain #security"
     )

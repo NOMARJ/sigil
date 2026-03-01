@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from api.database import _memory_store
+from api.database import db
 
 
 class TestThreatLookup:
@@ -41,7 +41,7 @@ class TestThreatLookup:
             "description": "Test malicious package",
             "confirmed_at": "2024-01-01T00:00:00",
         }
-        _memory_store.setdefault("threats", {})["test-threat-1"] = threat
+        db._memory_store.setdefault("threats", {})["test-threat-1"] = threat
 
         resp = client.get("/v1/threat/abc123deadbeef456", headers=pro_auth_headers)
         assert resp.status_code == 200
@@ -169,7 +169,7 @@ class TestPublisherReputation:
             "flagged_count": 1,
             "notes": "Generally trusted developer",
         }
-        _memory_store.setdefault("publishers", {})["pub-1"] = pub
+        db._memory_store.setdefault("publishers", {})["pub-1"] = pub
 
         resp = client.get("/v1/publisher/known-dev")
         assert resp.status_code == 200

@@ -18,7 +18,7 @@ from datetime import datetime
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from api.database import db
 from api.gates import require_plan
@@ -229,18 +229,14 @@ async def update_policy(
 @router.delete(
     "/policies/{policy_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Delete a policy",
-    responses={
-        401: {"model": ErrorResponse},
-        403: {"model": GateError},
-        404: {"model": ErrorResponse},
-    },
 )
 async def delete_policy(
     policy_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
-) -> None:
+) -> Response:
     """Delete a policy by ID.
 
     The policy must belong to the authenticated user's team.
@@ -248,20 +244,10 @@ async def delete_policy(
     team_id = _team_id_from_user(current_user)
     await _get_policy_or_404(policy_id, team_id)
 
-    # In-memory fallback: remove from the store
-    from api.database import _memory_store
-
-    store = _memory_store.get(POLICY_TABLE, {})
-    store.pop(policy_id, None)
-
-    # Supabase: would use db._client.table(POLICY_TABLE).delete().eq("id", policy_id).execute()
-    if db.connected and db._client is not None:
-        try:
-            db._client.table(POLICY_TABLE).delete().eq("id", policy_id).execute()
-        except Exception:
-            logger.exception("Failed to delete policy %s from Supabase", policy_id)
+    await db.delete(POLICY_TABLE, {"id": policy_id})
 
     logger.info("Policy deleted: %s by user %s", policy_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
