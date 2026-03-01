@@ -136,8 +136,7 @@ async def json_feed(
         if verdict:
             filters["verdict"] = verdict.upper()
 
-        # AsyncpgClient supports order_by/order_desc; SupabaseClient does not.
-        # Use kwargs to stay compatible with both backends.
+        # Build select kwargs with optional ordering.
         select_kwargs: dict[str, Any] = {
             "table": "public_scans",
             "filters": filters if filters else None,

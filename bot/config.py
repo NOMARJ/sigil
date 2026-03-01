@@ -27,10 +27,8 @@ class BotSettings(BaseSettings):
     # --- Redis (Upstash or self-hosted) ----------------------------------------
     redis_url: str = "redis://localhost:6379"
 
-    # --- Database (Supabase PostgreSQL) ----------------------------------------
+    # --- Database ----------------------------------------
     database_url: str | None = None
-    supabase_url: str | None = None
-    supabase_key: str | None = None
 
     # --- Sigil CLI path --------------------------------------------------------
     sigil_bin: str = "sigil"
@@ -70,10 +68,6 @@ class BotSettings(BaseSettings):
     @property
     def database_configured(self) -> bool:
         return bool(self.database_url)
-
-    @property
-    def supabase_configured(self) -> bool:
-        return bool(self.supabase_url and self.supabase_key)
 
     @property
     def github_configured(self) -> bool:

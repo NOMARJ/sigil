@@ -2,7 +2,7 @@
 Sigil Bot — Store Layer
 
 Writes scan results and findings to the existing public_scans table
-via the same database clients used by the API.
+via Azure SQL Database using aioodbc.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from bot.queue import ScanJob
 
 logger = logging.getLogger(__name__)
 
-# We reuse the API's database module if available; otherwise, we create
-# a minimal asyncpg-based writer that matches the same schema.
+# We use aioodbc to connect to Azure SQL Database with a dedicated connection
+# pool to avoid any in-memory fallback that might silently swallow writes.
 
 _db = None
 
@@ -27,8 +27,7 @@ _db = None
 async def get_db():
     """Get or initialise the database connection.
 
-    Always uses a dedicated asyncpg pool to avoid the API module's
-    in-memory fallback silently swallowing writes.
+    Always uses a dedicated aioodbc pool for Azure SQL Database.
     """
     global _db
     if _db is not None:
@@ -42,27 +41,22 @@ async def get_db():
     db_url = bot_settings.database_url or os.environ.get("SIGIL_DATABASE_URL")
 
     if db_url:
-        import asyncpg
+        import aioodbc
 
-        # Supabase pooler (transaction mode on port 6543) doesn't support
-        # prepared statements, so we disable the statement cache.
-        is_pooler = "pooler.supabase.com" in db_url
-        pool = await asyncpg.create_pool(
-            db_url,
-            min_size=1,
-            max_size=5,
-            ssl="require",
-            statement_cache_size=0 if is_pooler else 100,
+        pool = await aioodbc.create_pool(
+            dsn=db_url,
+            minsize=1,
+            maxsize=5,
         )
-        _db = _AsyncpgStore(pool)
-        logger.info("Bot store: connected to PostgreSQL via asyncpg (pooler=%s)", is_pooler)
+        _db = _MssqlStore(pool)
+        logger.info("Bot store: connected to Azure SQL Database via aioodbc")
         return _db
 
     raise RuntimeError("No database configured for bot store")
 
 
-class _AsyncpgStore:
-    """Minimal asyncpg wrapper matching the API db interface."""
+class _MssqlStore:
+    """Minimal aioodbc wrapper for Azure SQL Database."""
 
     def __init__(self, pool):
         self._pool = pool
@@ -71,10 +65,17 @@ class _AsyncpgStore:
     def connected(self) -> bool:
         return self._pool is not None
 
+    @staticmethod
+    def _row_to_dict(cursor, row):
+        """Convert a pyodbc row to a dictionary."""
+        if row is None:
+            return None
+        return dict(zip([col[0] for col in cursor.description], row))
+
     async def insert(self, table: str, data: dict[str, Any]) -> dict[str, Any]:
         cols = list(data.keys())
-        placeholders = [f"${i + 1}" for i in range(len(cols))]
-        # Serialise dict/list values to JSON strings for jsonb columns
+        placeholders = ", ".join(["?" for _ in cols])
+        # Serialise dict/list values to JSON strings for NVARCHAR(MAX) columns
         values = []
         for c in cols:
             v = data[c]
@@ -83,11 +84,16 @@ class _AsyncpgStore:
             values.append(v)
         sql = (
             f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"VALUES ({', '.join(placeholders)}) RETURNING *"
+            f"OUTPUT INSERTED.* "
+            f"VALUES ({placeholders})"
         )
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(sql, *values)
-            return dict(row) if row else data
+            cursor = await conn.cursor()
+            await cursor.execute(sql, tuple(values))
+            row = await cursor.fetchone()
+            result = self._row_to_dict(cursor, row)
+            await conn.commit()
+            return result if result else data
 
     async def upsert(
         self,
@@ -96,7 +102,6 @@ class _AsyncpgStore:
         conflict_columns: list[str] | None = None,
     ) -> dict[str, Any]:
         cols = list(data.keys())
-        placeholders = [f"${i + 1}" for i in range(len(cols))]
         values = []
         for c in cols:
             v = data[c]
@@ -104,36 +109,56 @@ class _AsyncpgStore:
                 v = json.dumps(v)
             values.append(v)
         conflict = conflict_columns or ["id"]
-        updates = [f"{c} = EXCLUDED.{c}" for c in cols if c not in conflict]
-        sql = (
-            f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"VALUES ({', '.join(placeholders)}) "
-            f"ON CONFLICT ({', '.join(conflict)}) "
-            f"DO UPDATE SET {', '.join(updates)} RETURNING *"
-        )
+
+        # Build MERGE statement for SQL Server
+        merge_on = " AND ".join([f"target.{c} = source.{c}" for c in conflict])
+        update_cols = [c for c in cols if c not in conflict]
+        source_select = ", ".join([f"? AS {c}" for c in cols])
+        insert_cols = ", ".join(cols)
+        source_vals = ", ".join([f"source.{c}" for c in cols])
+
+        matched_clause = ""
+        if update_cols:
+            set_clause = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
+            matched_clause = f"WHEN MATCHED THEN UPDATE SET {set_clause}"
+
+        sql = f"""
+        MERGE {table} AS target
+        USING (SELECT {source_select}) AS source ({', '.join(cols)})
+        ON ({merge_on})
+        {matched_clause}
+        WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({source_vals})
+        OUTPUT INSERTED.*;
+        """
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(sql, *values)
-            return dict(row) if row else data
+            cursor = await conn.cursor()
+            await cursor.execute(sql, tuple(values))
+            row = await cursor.fetchone()
+            result = self._row_to_dict(cursor, row)
+            await conn.commit()
+            return result if result else data
 
     async def select_one(
         self, table: str, filters: dict[str, Any]
     ) -> dict[str, Any] | None:
         conditions, vals = [], []
-        for i, (k, v) in enumerate(filters.items(), 1):
-            conditions.append(f"{k} = ${i}")
+        for k, v in filters.items():
+            conditions.append(f"{k} = ?")
             vals.append(v)
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        sql = f"SELECT * FROM {table} {where} LIMIT 1"
+        sql = f"SELECT TOP 1 * FROM {table} {where}"
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(sql, *vals)
-            return dict(row) if row else None
+            cursor = await conn.cursor()
+            await cursor.execute(sql, tuple(vals))
+            row = await cursor.fetchone()
+            return self._row_to_dict(cursor, row)
 
 
 async def store_scan_result(
     job: ScanJob,
     scan_output: dict[str, Any],
 ) -> str:
-    """Store a scan result in public_scans + public_findings tables.
+    """Store a scan result in public_scans table.
 
     Returns the scan_id.
     """
@@ -146,6 +171,7 @@ async def store_scan_result(
     verdict = scan_output.get("verdict", "LOW_RISK")
     files_scanned = scan_output.get("files_scanned", 0)
 
+    # Store duration in metadata instead of dedicated column
     duration_ms = scan_output.get("duration_ms", 0)
 
     row = {
@@ -156,14 +182,15 @@ async def store_scan_result(
         "risk_score": round(score, 2),
         "verdict": verdict,
         "findings_count": len(findings),
-        "findings": findings,
-        "scan_metadata": {
+        "files_scanned": files_scanned,
+        "findings_json": findings,
+        "metadata_json": {
             **job.metadata,
             "bot_scan": True,
             "files_scanned": files_scanned,
             "scanner_version": "1.0.0",
+            "duration_ms": duration_ms,
         },
-        "duration_ms": duration_ms,
         "scanned_at": now,
         "created_at": now,
     }
@@ -203,13 +230,13 @@ async def store_scan_error(job: ScanJob, error: str) -> None:
         "risk_score": -1,
         "verdict": "ERROR",
         "findings_count": 0,
-        "findings": [],
-        "scan_metadata": {
+        "files_scanned": 0,
+        "findings_json": [],
+        "metadata_json": {
             **job.metadata,
             "error": error,
             "bot_scan": True,
         },
-        "duration_ms": 0,
         "scanned_at": now,
         "created_at": now,
     }
@@ -233,6 +260,14 @@ async def has_been_scanned(
         return False
     # If we have a content hash, check if it matches
     if content_hash:
-        stored_hash = (row.get("scan_metadata") or {}).get("content_hash", "")
-        return stored_hash == content_hash
+        metadata = row.get("metadata_json")
+        if metadata:
+            # Handle JSON string from database
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except json.JSONDecodeError:
+                    return False
+            stored_hash = metadata.get("content_hash", "")
+            return stored_hash == content_hash
     return True

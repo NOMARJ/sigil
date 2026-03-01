@@ -449,7 +449,6 @@ async def pr_comment_worker(
                         order_desc=False,
                     )
                 except TypeError:
-                    # SupabaseClient doesn't support order_by kwargs
                     events = await db.select(
                         "github_pr_events",
                         filters={"status": "pending"},

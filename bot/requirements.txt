@@ -1,5 +1,7 @@
 # Sigil Bot — Dependencies
 # Most deps are shared with the API; these are bot-specific additions.
+aioodbc>=0.5.0
+pyodbc>=5.0.0
 redis>=5.0.0
 httpx>=0.27.0
 pydantic>=2.0
