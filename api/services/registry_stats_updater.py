@@ -41,10 +41,10 @@ class RegistryStatsUpdater:
 
     async def start(self) -> None:
         """Start the background updater task."""
-        print(f"[REGISTRY_STATS] Starting registry stats updater...")
+        print("[REGISTRY_STATS] Starting registry stats updater...")
         if self._running:
             logger.warning("Registry stats updater already running")
-            print(f"[REGISTRY_STATS] WARNING: Already running")
+            print("[REGISTRY_STATS] WARNING: Already running")
             return
 
         self._running = True
@@ -94,7 +94,7 @@ class RegistryStatsUpdater:
         try:
             # Use raw SQL to avoid DATETIMEOFFSET issues with aioodbc
             # This query computes all stats directly in the database
-            print(f"[REGISTRY_STATS] Computing stats via SQL aggregation...")
+            print("[REGISTRY_STATS] Computing stats via SQL aggregation...")
 
             async with db._pool.acquire() as conn:
                 async with conn.cursor() as cursor:
@@ -145,16 +145,13 @@ class RegistryStatsUpdater:
                         verdicts[row[0] or "LOW_RISK"] = row[1]
                     print(f"[REGISTRY_STATS] Verdicts: {len(verdicts)} types")
 
-            seen_packages = set()  # Not needed for total count anymore
-            rows = []  # Not needed, we computed totals directly
-
             # Compute duration
             duration_ms = int(
                 (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             )
 
             # Update cache table
-            print(f"[REGISTRY_STATS] Updating cache table...")
+            print("[REGISTRY_STATS] Updating cache table...")
             await db.upsert(
                 CACHE_TABLE,
                 {

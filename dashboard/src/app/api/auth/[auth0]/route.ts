@@ -1,5 +1,7 @@
 import { handleAuth, handleLogin, handleCallback, handleLogout } from '@auth0/nextjs-auth0';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = handleAuth({
   login: handleLogin({
     authorizationParams: {

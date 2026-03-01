@@ -27,7 +27,6 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import (
     HTTPBearer,
-    HTTPAuthorizationCredentials,
     OAuth2PasswordBearer,
 )
 
