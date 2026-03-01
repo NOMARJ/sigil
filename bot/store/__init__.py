@@ -25,30 +25,37 @@ _db = None
 
 
 async def get_db():
-    """Get or initialise the database connection."""
+    """Get or initialise the database connection.
+
+    Always uses a dedicated asyncpg pool to avoid the API module's
+    in-memory fallback silently swallowing writes.
+    """
     global _db
     if _db is not None:
         return _db
 
-    # Try the API's database module first
-    try:
-        from api.database import db as api_db
+    # Resolve the database URL — bot config first, then fall back to the
+    # API-level env var (SIGIL_DATABASE_URL) which is also set on the
+    # bot containers.
+    import os
 
-        if not api_db.connected:
-            await api_db.connect()
-        _db = api_db
-        return _db
-    except ImportError:
-        pass
+    db_url = bot_settings.database_url or os.environ.get("SIGIL_DATABASE_URL")
 
-    # Standalone mode: use asyncpg directly
-    if bot_settings.database_url:
+    if db_url:
         import asyncpg
 
+        # Supabase pooler (transaction mode on port 6543) doesn't support
+        # prepared statements, so we disable the statement cache.
+        is_pooler = "pooler.supabase.com" in db_url
         pool = await asyncpg.create_pool(
-            bot_settings.database_url, min_size=1, max_size=5, ssl="require"
+            db_url,
+            min_size=1,
+            max_size=5,
+            ssl="require",
+            statement_cache_size=0 if is_pooler else 100,
         )
         _db = _AsyncpgStore(pool)
+        logger.info("Bot store: connected to PostgreSQL via asyncpg (pooler=%s)", is_pooler)
         return _db
 
     raise RuntimeError("No database configured for bot store")
@@ -139,6 +146,8 @@ async def store_scan_result(
     verdict = scan_output.get("verdict", "LOW_RISK")
     files_scanned = scan_output.get("files_scanned", 0)
 
+    duration_ms = scan_output.get("duration_ms", 0)
+
     row = {
         "id": scan_id,
         "ecosystem": job.ecosystem,
@@ -147,16 +156,16 @@ async def store_scan_result(
         "risk_score": round(score, 2),
         "verdict": verdict,
         "findings_count": len(findings),
-        "files_scanned": files_scanned,
-        "findings_json": findings,
-        "metadata_json": {
+        "findings": findings,
+        "scan_metadata": {
             **job.metadata,
             "bot_scan": True,
-            "duration_ms": scan_output.get("duration_ms", 0),
+            "files_scanned": files_scanned,
             "scanner_version": "1.0.0",
         },
-        "scanned_at": now.isoformat(),
-        "created_at": now.isoformat(),
+        "duration_ms": duration_ms,
+        "scanned_at": now,
+        "created_at": now,
     }
 
     try:
@@ -194,15 +203,15 @@ async def store_scan_error(job: ScanJob, error: str) -> None:
         "risk_score": -1,
         "verdict": "ERROR",
         "findings_count": 0,
-        "files_scanned": 0,
-        "findings_json": [],
-        "metadata_json": {
+        "findings": [],
+        "scan_metadata": {
             **job.metadata,
             "error": error,
             "bot_scan": True,
         },
-        "scanned_at": now.isoformat(),
-        "created_at": now.isoformat(),
+        "duration_ms": 0,
+        "scanned_at": now,
+        "created_at": now,
     }
 
     try:
@@ -224,6 +233,6 @@ async def has_been_scanned(
         return False
     # If we have a content hash, check if it matches
     if content_hash:
-        stored_hash = (row.get("metadata_json") or {}).get("content_hash", "")
+        stored_hash = (row.get("scan_metadata") or {}).get("content_hash", "")
         return stored_hash == content_hash
     return True
