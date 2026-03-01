@@ -74,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background tasks
     print("[LIFESPAN] Importing registry stats updater...")
     from api.services import registry_stats_updater
+
     print("[LIFESPAN] Starting background updater...")
     await registry_stats_updater.start_updater()
     print("[LIFESPAN] Background updater started")

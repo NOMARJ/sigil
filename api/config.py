@@ -53,7 +53,9 @@ class Settings(BaseSettings):
 
     # --- Auth0 (optional — for OAuth login) ------------------------------------
     auth0_domain: str | None = None  # SIGIL_AUTH0_DOMAIN e.g. "sigil.auth0.com"
-    auth0_audience: str | None = None  # SIGIL_AUTH0_AUDIENCE e.g. "https://api.sigilsec.ai"
+    auth0_audience: str | None = (
+        None  # SIGIL_AUTH0_AUDIENCE e.g. "https://api.sigilsec.ai"
+    )
     auth0_client_id: str | None = None  # SIGIL_AUTH0_CLIENT_ID
 
     # --- Supabase (deprecated — kept for rollback during migration) -----------

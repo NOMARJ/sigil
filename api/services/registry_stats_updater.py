@@ -53,7 +53,9 @@ class RegistryStatsUpdater:
             "Started registry stats updater (interval: %d seconds)",
             UPDATE_INTERVAL_SECONDS,
         )
-        print(f"[REGISTRY_STATS] Background task created (interval: {UPDATE_INTERVAL_SECONDS}s)")
+        print(
+            f"[REGISTRY_STATS] Background task created (interval: {UPDATE_INTERVAL_SECONDS}s)"
+        )
 
     async def stop(self) -> None:
         """Stop the background updater task."""
@@ -88,7 +90,9 @@ class RegistryStatsUpdater:
     async def _update_stats(self) -> None:
         """Compute and update registry statistics cache."""
         start_time = datetime.now(timezone.utc)
-        print(f"[REGISTRY_STATS] Computing registry statistics at {start_time.isoformat()}...")
+        print(
+            f"[REGISTRY_STATS] Computing registry statistics at {start_time.isoformat()}..."
+        )
         logger.info("Computing registry statistics...")
 
         try:
@@ -174,7 +178,9 @@ class RegistryStatsUpdater:
                 threats,
                 duration_ms,
             )
-            print(f"[REGISTRY_STATS] ✓ Updated: {total_packages} packages, {total_scans} scans, {threats} threats ({duration_ms}ms)")
+            print(
+                f"[REGISTRY_STATS] ✓ Updated: {total_packages} packages, {total_scans} scans, {threats} threats ({duration_ms}ms)"
+            )
 
         except Exception as e:
             logger.exception("Failed to update registry stats")

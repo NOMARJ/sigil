@@ -570,9 +570,7 @@ async def get_current_user_unified(request: Request) -> UserResponse:
             )
         except HTTPException as e:
             auth0_error = e
-            logger.debug(
-                "Auth0 auth failed: %s, trying custom JWT fallback", e.detail
-            )
+            logger.debug("Auth0 auth failed: %s, trying custom JWT fallback", e.detail)
 
     # Fall back to custom JWT (email/password users)
     try:
@@ -581,8 +579,7 @@ async def get_current_user_unified(request: Request) -> UserResponse:
         return UserResponse(**user_data)
     except HTTPException as custom_error:
         logger.warning(
-            "Authentication failed for token. "
-            "Auth0: %s, Custom JWT: %s",
+            "Authentication failed for token. Auth0: %s, Custom JWT: %s",
             auth0_error.detail if auth0_error else "Not configured",
             custom_error.detail,
         )
