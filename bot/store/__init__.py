@@ -339,7 +339,7 @@ async def store_scan_error(
         "ecosystem": job.ecosystem,
         "package_name": job.name,
         "package_version": job.version,
-        "risk_score": -1,
+        "risk_score": 0,
         "verdict": "ERROR",
         "findings_count": 0,
         "files_scanned": 0,
