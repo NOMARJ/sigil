@@ -307,6 +307,10 @@ async def list_scans(
     # Fetch a generous batch for in-memory pagination/filtering
     rows = await db.select(SCAN_TABLE, filters if filters else None, limit=1000)
 
+    # Exclude ERROR scans unless explicitly requested via verdict filter
+    if not verdict:
+        rows = [r for r in rows if r.get("verdict") != "ERROR"]
+
     # Apply text search filter in-memory
     if search:
         search_lower = search.lower()
@@ -485,6 +489,9 @@ async def get_dashboard_stats(
     Computes totals and trends from the scans table.
     """
     rows = await db.select(SCAN_TABLE, None, limit=10000)
+
+    # Exclude ERROR scans from statistics — they represent failed scans, not results
+    rows = [r for r in rows if r.get("verdict") != "ERROR"]
 
     total_scans = len(rows)
     threats_blocked = sum(
