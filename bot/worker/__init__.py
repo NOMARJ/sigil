@@ -180,12 +180,23 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             # 1. Download
             ok = await _download_and_extract(job, tmpdir)
             if not ok:
+                if job.retries < job.max_retries:
+                    logger.warning(
+                        "Download failed for %s/%s@%s, scheduling retry %d/%d",
+                        job.ecosystem, job.name, job.version,
+                        job.retries + 1, job.max_retries,
+                    )
+                    await queue.retry(job)
+                    return
                 await store_scan_error(
                     job,
                     f"Download failed for {job.ecosystem}/{job.name}@{job.version}",
                     error_type="download_failed",
                 )
-                await queue.complete(job)
+                await queue.dead_letter(
+                    job,
+                    f"Download failed after {job.max_retries} retries",
+                )
                 return
 
             # 1b. Compute archive hash for attestation subject digest
@@ -206,12 +217,23 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 timeout=bot_settings.scan_timeout,
             )
             if not scan_output:
+                if job.retries < job.max_retries:
+                    logger.warning(
+                        "Scanner produced no output for %s/%s@%s, scheduling retry %d/%d",
+                        job.ecosystem, job.name, job.version,
+                        job.retries + 1, job.max_retries,
+                    )
+                    await queue.retry(job)
+                    return
                 await store_scan_error(
                     job,
                     f"Scanner produced no output for {job.ecosystem}/{job.name}",
                     error_type="scanner_crash",
                 )
-                await queue.complete(job)
+                await queue.dead_letter(
+                    job,
+                    f"Scanner crash after {job.max_retries} retries",
+                )
                 return
 
             # 3. Sign attestation (if signing key is configured)
@@ -265,13 +287,24 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             await queue.complete(job)
 
         except asyncio.TimeoutError:
+            if job.retries < job.max_retries:
+                logger.warning(
+                    "Scan timed out for %s/%s@%s, scheduling retry %d/%d",
+                    job.ecosystem, job.name, job.version,
+                    job.retries + 1, job.max_retries,
+                )
+                await queue.retry(job)
+                return
             await store_scan_error(
                 job,
                 f"Scan timed out after {bot_settings.scan_timeout}s"
                 " — package may contain adversarial payloads designed to stall static analysis",
                 error_type="timeout",
             )
-            await queue.complete(job)
+            await queue.dead_letter(
+                job,
+                f"Scan timeout after {job.max_retries} retries",
+            )
 
         except Exception as e:
             logger.exception(

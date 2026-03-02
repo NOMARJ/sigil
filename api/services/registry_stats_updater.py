@@ -102,16 +102,19 @@ class RegistryStatsUpdater:
 
             async with db._pool.acquire() as conn:
                 async with conn.cursor() as cursor:
+                    # Exclude ERROR scans — they represent failed scans, not results
+                    _where = "WHERE verdict != 'ERROR'"
+
                     # Get total scans count
-                    await cursor.execute("SELECT COUNT(*) FROM public_scans")
+                    await cursor.execute(f"SELECT COUNT(*) FROM public_scans {_where}")
                     total_scans_row = await cursor.fetchone()
                     total_scans = total_scans_row[0] if total_scans_row else 0
                     print(f"[REGISTRY_STATS] Total scans: {total_scans}")
 
                     # Get unique packages count
-                    await cursor.execute("""
+                    await cursor.execute(f"""
                         SELECT COUNT(DISTINCT CONCAT(ecosystem, ':', package_name))
-                        FROM public_scans
+                        FROM public_scans {_where}
                     """)
                     packages_row = await cursor.fetchone()
                     total_packages = packages_row[0] if packages_row else 0
@@ -128,9 +131,9 @@ class RegistryStatsUpdater:
                     print(f"[REGISTRY_STATS] Threats: {threats}")
 
                     # Get ecosystem breakdown
-                    await cursor.execute("""
+                    await cursor.execute(f"""
                         SELECT ecosystem, COUNT(*) as count
-                        FROM public_scans
+                        FROM public_scans {_where}
                         GROUP BY ecosystem
                     """)
                     ecosystems = {}
@@ -139,9 +142,9 @@ class RegistryStatsUpdater:
                     print(f"[REGISTRY_STATS] Ecosystems: {len(ecosystems)} types")
 
                     # Get verdict breakdown
-                    await cursor.execute("""
+                    await cursor.execute(f"""
                         SELECT verdict, COUNT(*) as count
-                        FROM public_scans
+                        FROM public_scans {_where}
                         GROUP BY verdict
                     """)
                     verdicts = {}

@@ -203,6 +203,9 @@ async def search_registry(
 
     rows = await db.select(TABLE, filters if filters else None, limit=1000)
 
+    # Exclude failed scans — ERROR verdicts have no meaningful results
+    rows = [r for r in rows if r.get("verdict") != "ERROR"]
+
     if q:
         q_lower = q.lower()
         rows = [r for r in rows if q_lower in r.get("package_name", "").lower()]
@@ -283,6 +286,9 @@ async def list_ecosystem(
     """List all scanned packages in a given ecosystem (clawhub, npm, pip, etc.)."""
     rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
 
+    # Exclude failed scans — ERROR verdicts have no meaningful results
+    rows = [r for r in rows if r.get("verdict") != "ERROR"]
+
     if sort == "risk":
         rows.sort(key=lambda r: r.get("risk_score", 0), reverse=True)
     elif sort == "name":
@@ -329,7 +335,10 @@ async def get_package_scan(ecosystem: str, package_name: str) -> PublicScanDetai
             detail=f"No scans found for {ecosystem}/{package_name}",
         )
     rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
-    return _row_to_detail(rows[0])
+    # Prefer the most recent successful scan over ERROR scans
+    successful = [r for r in rows if r.get("verdict") != "ERROR"]
+    best = successful[0] if successful else rows[0]
+    return _row_to_detail(best)
 
 
 @router.get(
