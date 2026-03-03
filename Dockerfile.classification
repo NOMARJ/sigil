@@ -1,0 +1,62 @@
+FROM python:3.11-slim-bookworm
+
+LABEL maintainer="NOMARK <team@nomark.dev>"
+LABEL description="Sigil Forge Classification Pipeline — LLM-powered package classification"
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gnupg2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver 18 for SQL Server (required for Azure SQL Database)
+RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --gid 1001 sigil && \
+    useradd --uid 1001 --gid sigil --shell /bin/bash --create-home sigil
+
+WORKDIR /app
+
+# Copy and install Python dependencies for classification
+COPY api/requirements.txt ./api/requirements.txt
+RUN pip install --no-cache-dir -r ./api/requirements.txt
+
+# Install additional dependencies for classification pipeline
+RUN pip install --no-cache-dir \
+    anthropic==0.8.1 \
+    aiofiles==23.2.1 \
+    python-multipart==0.0.6
+
+# Copy classification pipeline and supporting API modules
+COPY classification-pipeline.py ./classification-pipeline.py
+COPY api/database.py ./api/database.py
+COPY api/config.py ./api/config.py
+COPY api/models.py ./api/models.py
+COPY api/__init__.py ./api/__init__.py
+
+# Health check for classification pipeline
+HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=3 \
+    CMD python -c "import classification-pipeline; print('Classification pipeline healthy')" || exit 1
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV CLASSIFICATION_BATCH_SIZE=50
+ENV CLASSIFICATION_MAX_PACKAGES=1000
+
+# Change ownership to sigil user
+RUN chown -R sigil:sigil /app
+
+# Switch to non-root user
+USER sigil
+
+# Set Python path to include /app
+ENV PYTHONPATH=/app
+
+# Default command runs classification pipeline
+CMD ["python", "classification-pipeline.py"]

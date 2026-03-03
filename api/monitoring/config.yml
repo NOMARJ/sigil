@@ -1,0 +1,277 @@
+# Sigil API Monitoring Configuration
+# 
+# This file contains configuration for monitoring, alerting, and observability.
+# Used by both development and production environments.
+
+# Global monitoring settings
+monitoring:
+  enabled: true
+  structured_logging: true
+  correlation_ids: true
+  
+# Health checks configuration
+health_checks:
+  enabled: true
+  timeout_seconds: 30
+  interval_seconds: 60
+  
+  # Individual health check settings
+  checks:
+    database:
+      enabled: true
+      timeout_seconds: 10
+      critical: true
+      
+    cache:
+      enabled: true
+      timeout_seconds: 5
+      critical: false
+      
+    anthropic_api:
+      enabled: true
+      timeout_seconds: 10
+      critical: false
+      
+    github_api:
+      enabled: true
+      timeout_seconds: 10
+      critical: false
+      
+    background_jobs:
+      enabled: true
+      timeout_seconds: 5
+      critical: false
+
+# Prometheus metrics configuration
+prometheus:
+  enabled: true
+  endpoint: "/metrics"
+  
+  # Metric collection settings
+  collect_default_metrics: true
+  collect_business_metrics: true
+  
+  # Histogram buckets for response times (in seconds)
+  response_time_buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+  
+  # Histogram buckets for database query times (in seconds)
+  db_query_buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+
+# Azure Application Insights configuration
+azure_insights:
+  enabled: true
+  # Connection string set via environment variable SIGIL_AZURE_INSIGHTS_KEY
+  
+  # Custom telemetry settings
+  track_dependencies: true
+  track_exceptions: true
+  track_requests: true
+  track_performance_counters: true
+  
+  # Sampling configuration
+  sampling:
+    enabled: true
+    percentage: 10.0  # Sample 10% of telemetry in production
+
+# Alert configuration
+alerts:
+  enabled: true
+  evaluation_interval_seconds: 60
+  
+  # Notification channels
+  channels:
+    email:
+      enabled: true
+      recipients:
+        - "ops@sigilsec.ai"
+        - "security@sigilsec.ai"
+      
+    slack:
+      enabled: false
+      webhook_url: ""  # Set via environment variable
+      channel: "#alerts"
+      
+    pagerduty:
+      enabled: false
+      integration_key: ""  # Set via environment variable
+  
+  # Alert rules configuration
+  rules:
+    high_error_rate:
+      enabled: true
+      threshold: 5.0  # Percentage
+      cooldown_minutes: 5
+      severity: "high"
+      category: "application"
+      
+    high_response_time:
+      enabled: true
+      threshold: 2.0  # Seconds (P95)
+      cooldown_minutes: 10
+      severity: "medium"
+      category: "performance"
+      
+    database_connectivity:
+      enabled: true
+      cooldown_minutes: 2
+      severity: "critical"
+      category: "infrastructure"
+      
+    security_alert_spike:
+      enabled: true
+      threshold: 10.0  # Number of alerts
+      cooldown_minutes: 30
+      severity: "high"
+      category: "security"
+      
+    high_memory_usage:
+      enabled: true
+      threshold: 80.0  # Percentage
+      cooldown_minutes: 15
+      severity: "medium"
+      category: "infrastructure"
+
+# Business metrics configuration
+business_metrics:
+  enabled: true
+  
+  # Tool classification metrics
+  tool_classifications:
+    track_category: true
+    track_confidence: true
+    confidence_buckets: ["low", "medium", "high"]  # <0.5, 0.5-0.8, >0.8
+  
+  # API usage metrics
+  api_usage:
+    track_consumer_type: true
+    track_endpoint_category: true
+    consumer_types: ["human", "agent", "ai_agent"]
+  
+  # Security alert metrics
+  security_alerts:
+    track_alert_type: true
+    track_severity: true
+  
+  # Search query metrics
+  search_queries:
+    track_query_type: true
+    track_result_count: true
+    result_buckets: ["zero", "small", "medium", "large"]  # 0, 1-10, 11-100, >100
+
+# Dashboard configuration
+dashboards:
+  # Azure Application Insights dashboard
+  azure_insights:
+    enabled: true
+    name: "Sigil API Production Dashboard"
+    auto_refresh_seconds: 300
+    
+    # Dashboard tiles configuration
+    tiles:
+      request_volume: true
+      response_times: true
+      error_rate: true
+      top_errors: true
+      database_performance: true
+      api_usage_breakdown: true
+      security_alerts: true
+      tool_classifications: true
+      health_checks: true
+      background_jobs: true
+  
+  # Prometheus/Grafana dashboard
+  grafana:
+    enabled: false
+    datasource: "prometheus"
+    refresh_interval: "30s"
+
+# Logging configuration
+logging:
+  # Structured logging settings
+  structured: true
+  format: "json"
+  
+  # Log levels by component
+  levels:
+    root: "INFO"
+    api: "INFO"
+    monitoring: "INFO"
+    health_checks: "INFO"
+    alerts: "INFO"
+    database: "INFO"
+    cache: "INFO"
+  
+  # Request logging
+  request_logging:
+    enabled: true
+    include_headers: false  # Set to true for debugging
+    include_body: false     # Set to true for debugging (careful with sensitive data)
+    max_body_size: 1024     # Bytes
+  
+  # Error logging
+  error_logging:
+    include_stack_trace: true
+    max_stack_trace_lines: 50
+
+# Performance monitoring
+performance:
+  # Request tracking
+  track_slow_requests: true
+  slow_request_threshold_seconds: 1.0
+  
+  # Database query tracking
+  track_slow_queries: true
+  slow_query_threshold_seconds: 0.5
+  
+  # Memory monitoring
+  track_memory_usage: true
+  memory_check_interval_seconds: 300
+  
+  # Connection monitoring
+  track_active_connections: true
+
+# Development/testing overrides
+development:
+  # Reduce monitoring overhead in development
+  health_checks:
+    interval_seconds: 300  # Less frequent checks
+  
+  alerts:
+    evaluation_interval_seconds: 300  # Less frequent evaluation
+    
+  azure_insights:
+    sampling:
+      percentage: 100.0  # Full sampling in development
+      
+  logging:
+    levels:
+      root: "DEBUG"
+      monitoring: "DEBUG"
+
+# Production optimizations
+production:
+  # Optimize for production performance
+  azure_insights:
+    sampling:
+      percentage: 5.0  # Reduced sampling
+      
+  alerts:
+    evaluation_interval_seconds: 30  # More frequent evaluation
+    
+  logging:
+    levels:
+      root: "WARNING"
+      api: "INFO"
+      monitoring: "INFO"
+
+# Security monitoring specific settings
+security:
+  # Track security-related events
+  track_failed_authentications: true
+  track_suspicious_requests: true
+  track_rate_limit_hits: true
+  
+  # Security alert thresholds
+  failed_auth_threshold: 10      # per 5 minutes
+  suspicious_request_threshold: 5  # per minute
+  rate_limit_threshold: 100      # per minute

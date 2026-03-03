@@ -35,7 +35,7 @@ class EmailService:
     
     def __init__(self):
         self.settings = get_settings()
-        self.sendgrid_api_key = self.settings.sendgrid_api_key
+        self.resend_api_key = self.settings.resend_api_key
         self.from_email = self.settings.from_email
         self.from_name = self.settings.from_name
         self.base_url = self.settings.base_url
@@ -310,7 +310,7 @@ class EmailService:
                         "{{email}}", subscriber['email']
                     )
                     
-                    task = self._send_email_via_sendgrid(
+                    task = self._send_email_via_resend(
                         to_email=subscriber['email'],
                         subject=campaign['subject'],
                         html_content=personalized_html,
@@ -349,62 +349,52 @@ class EmailService:
             
             logger.info(f"Campaign {campaign_id} sent to {sent_count} subscribers")
     
-    async def _send_email_via_sendgrid(
+    async def _send_email_via_resend(
         self, 
         to_email: str, 
         subject: str, 
         html_content: str,
         campaign_id: str = None
     ) -> bool:
-        """Send an email via SendGrid API."""
-        if not self.sendgrid_api_key:
-            logger.warning("SendGrid API key not configured, skipping email send")
+        """Send an email via Resend API."""
+        if not self.resend_api_key:
+            logger.warning("Resend API key not configured, skipping email send")
             return False
         
         headers = {
-            "Authorization": f"Bearer {self.sendgrid_api_key}",
+            "Authorization": f"Bearer {self.resend_api_key}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "personalizations": [{
-                "to": [{"email": to_email}],
-                "subject": subject
-            }],
-            "from": {
-                "email": self.from_email,
-                "name": self.from_name
-            },
-            "content": [{
-                "type": "text/html",
-                "value": html_content
-            }],
-            "tracking_settings": {
-                "click_tracking": {"enable": True},
-                "open_tracking": {"enable": True}
-            }
+            "from": f"{self.from_name} <{self.from_email}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
         }
         
         if campaign_id:
-            payload["custom_args"] = {"campaign_id": campaign_id}
+            payload["tags"] = [{"name": "campaign_id", "value": campaign_id}]
         
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    "https://api.sendgrid.com/v3/mail/send",
+                    "https://api.resend.com/emails",
                     headers=headers,
                     json=payload,
                     timeout=30
                 ) as response:
-                    if response.status == 202:
+                    if response.status in [200, 201]:
+                        response_data = await response.json()
+                        logger.info(f"Email sent successfully via Resend: {response_data.get('id')}")
                         return True
                     else:
                         error_text = await response.text()
-                        logger.error(f"SendGrid error {response.status}: {error_text}")
+                        logger.error(f"Resend error {response.status}: {error_text}")
                         return False
         
         except Exception as e:
-            logger.error(f"Error sending email via SendGrid: {e}")
+            logger.error(f"Error sending email via Resend: {e}")
             return False
     
     async def _send_welcome_email(self, email: str, unsubscribe_token: str) -> None:
@@ -419,7 +409,7 @@ class EmailService:
             'base_url': self.base_url
         })
         
-        await self._send_email_via_sendgrid(email, subject, html_content)
+        await self._send_email_via_resend(email, subject, html_content)
     
     async def _render_email_template(self, template_name: str, context: dict) -> str:
         """Render Jinja2 email template with context."""

@@ -84,8 +84,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
 # Email Service Configuration for Forge Weekly
 # Copy these variables to your main .env file
 
-# SendGrid API Key (required for email sending)
-SENDGRID_API_KEY=your_sendgrid_api_key_here
+# Resend API Key (required for email sending)
+SIGIL_RESEND_API_KEY=re_your_resend_api_key_here
 
 # Sender email configuration
 FROM_EMAIL=noreply@sigilsec.ai
@@ -99,12 +99,12 @@ BASE_URL=https://api.sigilsec.ai
 
 EOF
     echo "📄 Created email environment template at $ENV_FILE"
-    echo "   Please update with your SendGrid API key and other settings."
+    echo "   Please update with your Resend API key and other settings."
 fi
 
 echo ""
 echo "🎯 Next steps:"
-echo "  1. Configure SendGrid API key in your .env file"
+echo "  1. Configure Resend API key in your .env file"
 echo "  2. Test email functionality with the commands above"
 echo "  3. Monitor cron job execution in system logs"
 echo "  4. Email subscribers will receive their first digest next Sunday"

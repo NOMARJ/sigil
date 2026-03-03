@@ -1,0 +1,199 @@
+{
+  "azure_insights_dashboard": {
+    "name": "Sigil API Production Dashboard",
+    "description": "Comprehensive monitoring dashboard for Sigil API production environment",
+    "tiles": [
+      {
+        "name": "Request Volume",
+        "type": "chart",
+        "query": "requests | summarize count() by bin(timestamp, 5m) | render timechart",
+        "description": "HTTP requests per 5-minute interval"
+      },
+      {
+        "name": "Response Times",
+        "type": "chart", 
+        "query": "requests | summarize avg(duration), percentile(duration, 50), percentile(duration, 95), percentile(duration, 99) by bin(timestamp, 5m) | render timechart",
+        "description": "Average, P50, P95, P99 response times"
+      },
+      {
+        "name": "Error Rate",
+        "type": "chart",
+        "query": "requests | summarize success_rate = 100.0 * countif(success == true) / count(), error_rate = 100.0 * countif(success == false) / count() by bin(timestamp, 5m) | render timechart",
+        "description": "Success and error rates over time"
+      },
+      {
+        "name": "Top Error Endpoints",
+        "type": "table",
+        "query": "requests | where success == false | summarize error_count = count() by url, resultCode | top 10 by error_count desc",
+        "description": "Endpoints with highest error rates"
+      },
+      {
+        "name": "Database Performance",
+        "type": "chart",
+        "query": "dependencies | where type == 'SQL' | summarize avg(duration), percentile(duration, 95) by bin(timestamp, 5m) | render timechart",
+        "description": "Database query performance"
+      },
+      {
+        "name": "API Usage by Consumer",
+        "type": "pie",
+        "query": "customMetrics | where name == 'api_usage_total' | extend consumer_type = tostring(customDimensions.consumer_type) | summarize usage = sum(value) by consumer_type",
+        "description": "API usage breakdown by consumer type (human vs agent)"
+      },
+      {
+        "name": "Security Alerts",
+        "type": "table",
+        "query": "customMetrics | where name == 'security_alerts_total' | extend alert_type = tostring(customDimensions.alert_type), severity = tostring(customDimensions.severity) | summarize alert_count = sum(value) by alert_type, severity | order by alert_count desc",
+        "description": "Security alerts by type and severity"
+      },
+      {
+        "name": "Tool Classifications",
+        "type": "chart",
+        "query": "customMetrics | where name == 'tool_classifications_total' | extend category = tostring(customDimensions.category) | summarize classifications = sum(value) by bin(timestamp, 1h), category | render timechart",
+        "description": "Tool classifications over time by category"
+      },
+      {
+        "name": "Health Check Status",
+        "type": "table", 
+        "query": "requests | where url endswith '/health/detailed' | summarize latest = arg_max(timestamp, *) by url | project timestamp, url, resultCode, duration",
+        "description": "Latest health check results"
+      },
+      {
+        "name": "Background Job Health",
+        "type": "chart",
+        "query": "customMetrics | where name == 'background_jobs_status' | extend job_type = tostring(customDimensions.job_type), status = tostring(customDimensions.status) | summarize job_status = sum(value) by bin(timestamp, 10m), job_type, status | render timechart",
+        "description": "Background job health over time"
+      }
+    ],
+    "alerts": [
+      {
+        "name": "High Error Rate",
+        "condition": "requests | summarize error_rate = 100.0 * countif(success == false) / count() | where error_rate > 5",
+        "severity": "Error",
+        "description": "Alert when error rate exceeds 5%"
+      },
+      {
+        "name": "High Response Time",
+        "condition": "requests | summarize p95_duration = percentile(duration, 95) | where p95_duration > 2000",
+        "severity": "Warning", 
+        "description": "Alert when P95 response time exceeds 2 seconds"
+      },
+      {
+        "name": "Database Connectivity",
+        "condition": "requests | where url endswith '/health/detailed' and resultCode != 200 | count | where Count > 0",
+        "severity": "Critical",
+        "description": "Alert when health checks fail"
+      },
+      {
+        "name": "Security Alert Spike",
+        "condition": "customMetrics | where name == 'security_alerts_total' | summarize alerts = sum(value) | where alerts > 10",
+        "severity": "Warning",
+        "description": "Alert when security alerts spike above normal levels"
+      }
+    ]
+  },
+  
+  "prometheus_dashboard": {
+    "name": "Sigil API Prometheus Dashboard",
+    "description": "Grafana dashboard configuration for Prometheus metrics",
+    "panels": [
+      {
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{path}}"
+          }
+        ]
+      },
+      {
+        "title": "HTTP Request Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate by Endpoint",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status_code=~\"4..|5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+            "legendFormat": "{{path}} error rate %"
+          }
+        ]
+      },
+      {
+        "title": "Database Operations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(db_operations_total[5m])",
+            "legendFormat": "{{table}} {{operation}}"
+          }
+        ]
+      },
+      {
+        "title": "Database Query Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 {{table}}"
+          }
+        ]
+      },
+      {
+        "title": "Active Connections",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "active_connections_total",
+            "legendFormat": "Active Connections"
+          }
+        ]
+      },
+      {
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "memory_usage_bytes",
+            "legendFormat": "{{type}}"
+          }
+        ]
+      },
+      {
+        "title": "Tool Classification Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(tool_classifications_total[1h])",
+            "legendFormat": "{{category}}"
+          }
+        ]
+      },
+      {
+        "title": "Security Alerts",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(security_alerts_total[1h])",
+            "legendFormat": "{{alert_type}} {{severity}}"
+          }
+        ]
+      }
+    ]
+  }
+}

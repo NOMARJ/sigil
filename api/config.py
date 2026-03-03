@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     smtp_from_email: str = "alerts@sigilsec.ai"
 
     # --- Email Newsletter (Forge Weekly) --------------------------------------
-    sendgrid_api_key: str | None = None  # SIGIL_SENDGRID_API_KEY
+    resend_api_key: str | None = None  # SIGIL_RESEND_API_KEY
     from_email: str = "noreply@sigilsec.ai"  # SIGIL_FROM_EMAIL
     from_name: str = "Sigil Security"  # SIGIL_FROM_NAME
     base_url: str = "https://api.sigilsec.ai"  # SIGIL_BASE_URL
@@ -139,9 +139,9 @@ class Settings(BaseSettings):
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
     @property
-    def sendgrid_configured(self) -> bool:
-        """Return True when SendGrid API key is set."""
-        return bool(self.sendgrid_api_key)
+    def resend_configured(self) -> bool:
+        """Return True when Resend API key is set."""
+        return bool(self.resend_api_key)
 
     @property
     def stripe_configured(self) -> bool:

@@ -10,7 +10,7 @@ The Forge Weekly email newsletter system provides automated weekly security inte
 
 1. **Email Service** (`api/services/email_service.py`)
    - Subscription management with GDPR compliance
-   - SendGrid integration for reliable delivery
+   - Resend integration for reliable delivery
    - Template rendering with Jinja2
    - Campaign creation and tracking
 
@@ -52,7 +52,7 @@ The Forge Weekly email newsletter system provides automated weekly security inte
 - **Source Tracking**: Track subscription sources (forge, api, dashboard)
 
 ### Email Delivery
-- **SendGrid Integration**: Professional email delivery with tracking
+- **Resend Integration**: Professional email delivery with tracking
 - **Responsive Templates**: Mobile-optimized HTML emails
 - **Personalization**: Dynamic content based on user preferences
 - **Analytics**: Open rates, click tracking, bounce handling
@@ -71,7 +71,7 @@ Add these to your `.env` file:
 
 ```bash
 # Required for email sending
-SIGIL_SENDGRID_API_KEY=your_sendgrid_api_key_here
+SIGIL_RESEND_API_KEY=re_your_resend_api_key_here
 
 # Email sender configuration
 SIGIL_FROM_EMAIL=noreply@sigilsec.ai
@@ -81,11 +81,11 @@ SIGIL_FROM_NAME="Sigil Security"
 SIGIL_BASE_URL=https://api.sigilsec.ai
 ```
 
-### SendGrid Setup
+### Resend Setup
 
-1. Create a SendGrid account at [sendgrid.com](https://sendgrid.com)
-2. Generate an API key with "Mail Send" permissions
-3. Set up domain authentication for your sending domain
+1. Create a Resend account at [resend.com](https://resend.com)
+2. Add and verify your sending domain
+3. Generate an API key
 4. Configure webhook endpoints for event tracking (optional)
 
 ## Installation & Setup
@@ -260,13 +260,13 @@ Access via `/email/stats` endpoint (admin authentication required):
 - Recent campaign list with metrics
 - Unsubscribe reasons and trends
 
-### SendGrid Webhooks
+### Resend Webhooks
 Configure webhooks for real-time tracking:
 ```
-POST /api/email/webhook/sendgrid
+POST /api/email/webhook/resend
 ```
 
-Tracks: delivered, open, click, bounce, unsubscribe, spam_report events
+Tracks: email.sent, email.opened, email.clicked, email.bounced, email.complaint events
 
 ## Security & Compliance
 
@@ -283,7 +283,7 @@ Tracks: delivered, open, click, bounce, unsubscribe, spam_report events
 - **Content Security**: XSS protection in email templates
 
 ### Privacy Protection
-- **No Tracking Pixels**: Optional open tracking via SendGrid
+- **No Tracking Pixels**: Optional open tracking via Resend
 - **Secure Storage**: Encrypted database storage
 - **Minimal Retention**: Automatic cleanup of old tracking data
 - **Transparent Privacy**: Clear privacy policy and data usage
@@ -294,14 +294,14 @@ Tracks: delivered, open, click, bounce, unsubscribe, spam_report events
 
 #### Emails Not Sending
 ```bash
-# Check SendGrid configuration
-python3 -c "from api.config import settings; print(f'SendGrid configured: {settings.sendgrid_configured}')"
+# Check Resend configuration
+python3 -c "from api.config import settings; print(f'Resend configured: {settings.resend_configured}')"
 
 # Test API connectivity
-curl -X POST https://api.sendgrid.com/v3/mail/send \
+curl -X POST https://api.resend.com/emails \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"personalizations":[{"to":[{"email":"test@example.com"}]}],"from":{"email":"noreply@sigilsec.ai"},"subject":"Test","content":[{"type":"text/plain","value":"Test email"}]}'
+  -d '{"from":"noreply@sigilsec.ai","to":["test@example.com"],"subject":"Test","html":"<p>Test email</p>"}'
 ```
 
 #### Template Rendering Errors
@@ -352,7 +352,7 @@ grep CRON /var/log/syslog | tail -20
 ### Performance Optimization
 
 #### Batch Processing
-- SendGrid API supports up to 1000 recipients per request
+- Resend API supports batch sending for multiple recipients
 - Jobs process emails in batches of 100 to avoid rate limits
 - Background task processing prevents API timeouts
 

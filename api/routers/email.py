@@ -400,85 +400,85 @@ async def get_email_stats(
 
 
 @router.post(
-    "/webhook/sendgrid",
+    "/webhook/resend",
     include_in_schema=False
 )
-async def sendgrid_webhook(events: list[dict]) -> dict:
+async def resend_webhook(event: dict) -> dict:
     """
-    Handle SendGrid webhook events.
+    Handle Resend webhook events.
     
-    Processes email delivery, open, click, and bounce events from SendGrid.
+    Processes email delivery, open, click, and bounce events from Resend.
     Updates tracking data in the database.
     """
     async with get_database_client() as db:
-        for event in events:
-            event_type = event.get('event')
-            email = event.get('email')
-            campaign_id = event.get('campaign_id')
-            timestamp = event.get('timestamp')
+        event_type = event.get('type')
+        data = event.get('data', {})
+        email = data.get('to', [{}])[0].get('email') if data.get('to') else None
+        timestamp = event.get('created_at')
+        
+        # Extract campaign_id from tags if present
+        campaign_id = None
+        if 'tags' in data:
+            for tag in data.get('tags', []):
+                if tag.get('name') == 'campaign_id':
+                    campaign_id = tag.get('value')
+                    break
+        
+        if not all([event_type, email]):
+            logger.warning(f"Incomplete webhook data: {event}")
+            return {"received": True}
+        
+        try:
+            # Convert timestamp to datetime
+            from datetime import datetime
+            event_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00')) if timestamp else datetime.now()
             
-            if not all([event_type, email]):
-                continue
-            
-            try:
-                if event_type == 'open':
-                    await db.execute("""
-                        UPDATE email_sends 
-                        SET opened_at = to_timestamp($1)
-                        WHERE email = $2 AND campaign_id = $3 AND opened_at IS NULL
-                    """, timestamp, email, campaign_id)
-                    
-                    # Update campaign stats
+            if event_type == 'email.opened':
+                await db.execute("""
+                    UPDATE email_sends 
+                    SET opened_at = $1
+                    WHERE email = $2 AND campaign_id = $3 AND opened_at IS NULL
+                """, event_time, email, campaign_id)
+                
+                # Update campaign stats
+                if campaign_id:
                     await db.execute("""
                         UPDATE email_campaigns 
                         SET opened_count = opened_count + 1
                         WHERE campaign_id = $1
                     """, campaign_id)
+            
+            elif event_type == 'email.clicked':
+                await db.execute("""
+                    UPDATE email_sends 
+                    SET clicked_at = $1
+                    WHERE email = $2 AND campaign_id = $3 AND clicked_at IS NULL
+                """, event_time, email, campaign_id)
                 
-                elif event_type == 'click':
-                    await db.execute("""
-                        UPDATE email_sends 
-                        SET clicked_at = to_timestamp($1)
-                        WHERE email = $2 AND campaign_id = $3 AND clicked_at IS NULL
-                    """, timestamp, email, campaign_id)
-                    
-                    # Update campaign stats
+                # Update campaign stats
+                if campaign_id:
                     await db.execute("""
                         UPDATE email_campaigns 
                         SET clicked_count = clicked_count + 1
                         WHERE campaign_id = $1
                     """, campaign_id)
+            
+            elif event_type in ['email.bounced', 'email.complaint']:
+                await db.execute("""
+                    UPDATE email_sends 
+                    SET bounced_at = $1, status = 'bounced'
+                    WHERE email = $2 AND campaign_id = $3
+                """, event_time, email, campaign_id)
                 
-                elif event_type in ['bounce', 'dropped', 'spamreport']:
-                    await db.execute("""
-                        UPDATE email_sends 
-                        SET bounced_at = to_timestamp($1), status = 'bounced'
-                        WHERE email = $2 AND campaign_id = $3
-                    """, timestamp, email, campaign_id)
-                    
-                    # Update campaign stats
+                # Update campaign stats
+                if campaign_id:
                     await db.execute("""
                         UPDATE email_campaigns 
                         SET bounced_count = bounced_count + 1
                         WHERE campaign_id = $1
                     """, campaign_id)
-                
-                elif event_type == 'unsubscribe':
-                    # Mark email as unsubscribed
-                    await db.execute("""
-                        UPDATE email_subscriptions 
-                        SET is_active = false
-                        WHERE email = $1
-                    """, email)
-                    
-                    await db.execute("""
-                        UPDATE email_sends 
-                        SET unsubscribed_at = to_timestamp($1)
-                        WHERE email = $2 AND campaign_id = $3
-                    """, timestamp, email, campaign_id)
-            
-            except Exception as e:
-                logger.error(f"Error processing SendGrid webhook event: {e}")
-                continue
+        
+        except Exception as e:
+            logger.error(f"Error processing Resend webhook event: {e}")
     
     return {"received": True}

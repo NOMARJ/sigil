@@ -100,15 +100,15 @@ try:
     
     service = EmailService()
     
-    print(f'SendGrid configured: {settings.sendgrid_configured}')
+    print(f'Resend configured: {settings.resend_configured}')
     print(f'From email: {service.from_email}')
     print(f'From name: {service.from_name}')
     print(f'Base URL: {service.base_url}')
     
-    if settings.sendgrid_api_key:
-        print('✅ SendGrid API key is set')
+    if settings.resend_api_key:
+        print('✅ Resend API key is set')
     else:
-        print('⚠️  SendGrid API key not set (emails will not send)')
+        print('⚠️  Resend API key not set (emails will not send)')
     
     print('✅ Email service initialized successfully')
     
@@ -261,7 +261,7 @@ echo "  ✅ API endpoints functional"
 echo ""
 
 echo "🚀 Next Steps:"
-echo "  1. Set SIGIL_SENDGRID_API_KEY in your .env file"
+echo "  1. Set SIGIL_RESEND_API_KEY in your .env file"
 echo "  2. Run database migration: ./scripts/run-migrations.sh"
 echo "  3. Set up cron jobs: ./scripts/setup-email-cron.sh"
 echo "  4. Test with: python3 api/jobs/email_jobs.py test_digest your@email.com"

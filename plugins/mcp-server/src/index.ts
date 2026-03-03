@@ -7,6 +7,11 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { request as httpsRequest } from "https";
 import { request as httpRequest } from "http";
+import {
+  forgeSearch, forgeSearchSchema,
+  forgeStack, forgeStackSchema,
+  forgeCheck, forgeCheckSchema,
+} from "./forge.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,7 +75,7 @@ async function fetchAPI(path: string): Promise<unknown> {
 
 const server = new McpServer({
   name: "sigil",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 // ── Tool: scan ─────────────────────────────────────────────────────────────
@@ -407,6 +412,33 @@ server.tool(
       ],
     };
   }
+);
+
+// ── Tool: forge_search ─────────────────────────────────────────────────────
+
+server.tool(
+  "forge_search",
+  "Search for AI agent skills and MCP servers by capability or keyword. Returns ranked results with trust scores from Sigil scans.",
+  forgeSearchSchema,
+  forgeSearch
+);
+
+// ── Tool: forge_stack ──────────────────────────────────────────────────────
+
+server.tool(
+  "forge_stack",
+  "Get a curated stack of compatible skills and MCP servers for your use case. Returns matched tools with installation instructions and trust scores.",
+  forgeStackSchema,
+  forgeStack
+);
+
+// ── Tool: forge_check ──────────────────────────────────────────────────────
+
+server.tool(
+  "forge_check",
+  "Get detailed information about a specific skill or MCP server including category, capabilities, trust score, permissions, and alternatives.",
+  forgeCheckSchema,
+  forgeCheck
 );
 
 // ── Resource: scan phases documentation ────────────────────────────────────

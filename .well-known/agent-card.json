@@ -1,0 +1,132 @@
+{
+  "name": "Sigil Forge",
+  "description": "Discovery and security scanning for AI agent tools. Search skills, MCP servers, and curated stacks with trust scores.",
+  "url": "https://forge.sigilsec.ai",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "id": "sigil_scan",
+      "description": "Scan a file or directory for security issues",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "description": "File or directory path to scan" },
+          "phases": { "type": "string", "description": "Comma-separated scan phases" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "id": "sigil_scan_package",
+      "description": "Download and scan an npm or pip package in quarantine",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "manager": { "type": "string", "enum": ["npm", "pip"] },
+          "package_name": { "type": "string" },
+          "version": { "type": "string" }
+        },
+        "required": ["manager", "package_name"]
+      }
+    },
+    {
+      "id": "sigil_clone",
+      "description": "Clone a git repository into quarantine and scan it",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "branch": { "type": "string" }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "id": "sigil_check_package",
+      "description": "Look up a package's risk assessment in the Sigil database",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ecosystem": { "type": "string", "enum": ["clawhub", "pypi", "npm", "github", "mcp"] },
+          "package_name": { "type": "string" }
+        },
+        "required": ["ecosystem", "package_name"]
+      }
+    },
+    {
+      "id": "forge_search",
+      "description": "Search for skills and MCP servers by capability or keyword",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search query" },
+          "type": { "type": "string", "enum": ["skill", "mcp", "both"], "default": "both" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "id": "forge_stack",
+      "description": "Get a curated stack of compatible skills + MCPs for a use case",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "use_case": { "type": "string", "description": "Description of what you want your agent to do" }
+        },
+        "required": ["use_case"]
+      }
+    },
+    {
+      "id": "forge_check",
+      "description": "Check trust score, category, and permissions for a skill or MCP server",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "ecosystem": { "type": "string", "enum": ["skill", "mcp"] }
+        },
+        "required": ["name", "ecosystem"]
+      }
+    }
+  ],
+  "provider": {
+    "organization": "NOMARK Pty Ltd",
+    "url": "https://nomark.ai",
+    "support_email": "support@sigilsec.ai"
+  },
+  "capabilities": {
+    "security_scanning": true,
+    "tool_discovery": true,
+    "stack_recommendations": true,
+    "trust_scoring": true,
+    "quarantine_management": true
+  },
+  "integrations": {
+    "mcp_server": {
+      "install": "npm install -g @nomark/sigil-mcp-server",
+      "config_example": {
+        "sigil": {
+          "command": "sigil-mcp-server"
+        }
+      }
+    },
+    "skills": {
+      "install": "npx skills add @nomark/sigil-security"
+    }
+  },
+  "resources": [
+    {
+      "type": "documentation",
+      "url": "https://sigilsec.ai/docs"
+    },
+    {
+      "type": "api",
+      "url": "https://api.sigilsec.ai/forge"
+    },
+    {
+      "type": "registry",
+      "url": "https://sigilsec.ai/registry"
+    }
+  ]
+}
