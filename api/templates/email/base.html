@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>{% block title %}Sigil Security{% endblock %}</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:AllowPNG/>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Reset */
+        body, table, td, p { margin: 0; padding: 0; }
+        table { border-spacing: 0; }
+        img { border: 0; display: block; }
+        
+        /* Base styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #374151;
+            background-color: #f9fafb;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .email-header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .logo {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            text-decoration: none;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+        
+        .tagline {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+            margin: 0;
+        }
+        
+        .email-content {
+            padding: 40px 30px;
+        }
+        
+        .email-footer {
+            background-color: #f3f4f6;
+            padding: 30px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        h1, h2, h3 {
+            color: #111827;
+            margin-bottom: 16px;
+            line-height: 1.25;
+        }
+        
+        h1 { font-size: 28px; font-weight: 700; }
+        h2 { font-size: 24px; font-weight: 600; }
+        h3 { font-size: 20px; font-weight: 600; }
+        
+        p { margin-bottom: 16px; }
+        
+        .btn {
+            display: inline-block;
+            background: #6366f1;
+            color: #ffffff;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 16px 0;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #4f46e5;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .section {
+            margin-bottom: 32px;
+            padding: 24px;
+            border-left: 4px solid #6366f1;
+            background-color: #f8fafc;
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .alert {
+            padding: 16px;
+            border-radius: 6px;
+            margin: 16px 0;
+        }
+        
+        .alert-warning {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+        }
+        
+        .alert-danger {
+            background-color: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #dc2626;
+        }
+        
+        .alert-info {
+            background-color: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1d4ed8;
+        }
+        
+        .tool-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            background-color: #ffffff;
+        }
+        
+        .tool-title {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        
+        .tool-description {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .trust-score {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .trust-high { background: #d1fae5; color: #065f46; }
+        .trust-medium { background: #fef3c7; color: #92400e; }
+        .trust-low { background: #fee2e2; color: #dc2626; }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+        
+        .metric {
+            text-align: center;
+            padding: 16px;
+            background-color: #f8fafc;
+            border-radius: 6px;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #6366f1;
+            display: block;
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .unsubscribe-link {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        
+        .unsubscribe-link:hover {
+            color: #374151;
+            text-decoration: underline;
+        }
+        
+        /* Mobile responsive */
+        @media only screen and (max-width: 600px) {
+            .email-container { width: 100% !important; }
+            .email-header, .email-content, .email-footer { padding: 20px !important; }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr) !important; }
+            h1 { font-size: 24px !important; }
+            h2 { font-size: 20px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="email-header">
+            <a href="{{ base_url }}" class="logo">🔒 Sigil Security</a>
+            <p class="tagline">{% block tagline %}AI Security Intelligence{% endblock %}</p>
+        </div>
+        
+        <!-- Content -->
+        <div class="email-content">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <!-- Footer -->
+        <div class="email-footer">
+            <p>
+                <strong>Sigil Security</strong><br>
+                Automated security auditing for AI agent code
+            </p>
+            <p>
+                <a href="{{ base_url }}" style="color: #6366f1; text-decoration: none;">Visit Dashboard</a> |
+                <a href="{{ base_url }}/forge" style="color: #6366f1; text-decoration: none;">Forge Directory</a> |
+                <a href="{{ base_url }}/docs" style="color: #6366f1; text-decoration: none;">Documentation</a>
+            </p>
+            <p>
+                {% if unsubscribe_url %}
+                <a href="{{ unsubscribe_url }}" class="unsubscribe-link">Unsubscribe from all emails</a>
+                {% endif %}
+            </p>
+            <p style="font-size: 11px; color: #9ca3af;">
+                This email was sent to {{ email }}. If you received this in error, please ignore this message.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

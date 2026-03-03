@@ -1,0 +1,99 @@
+# Sigil Forge
+
+> Where agent tools are tested.
+
+## What Forge does
+- Classifies every AI agent skill and MCP server by category and capability
+- Matches compatible skills + MCPs into Forge Stacks for specific use cases
+- Provides Sigil trust scores for every listing (0-100 scale)
+- Publishes Forge Weekly digest of new tools, trends, and security alerts
+- Maintains real-time security scanning of 5,700+ skills and 2,000+ MCP servers
+
+## API Endpoints
+- Search: GET https://api.sigilsec.ai/forge/search?q={query}&type=skill|mcp|both
+- Stacks: GET https://api.sigilsec.ai/forge/stack?use_case={description}
+- Check: GET https://api.sigilsec.ai/forge/tools/{ecosystem}/{name}
+- Classifications: GET https://api.sigilsec.ai/forge/classifications/skills
+- Classifications: GET https://api.sigilsec.ai/forge/classifications/mcps
+
+## MCP Server Tools
+Install: npm install -g @nomark/sigil-mcp-server
+
+Available tools:
+- sigil_scan: Scan files/directories for security issues
+- sigil_scan_package: Scan npm/pip packages before installation
+- sigil_clone: Clone and scan git repositories
+- sigil_check_package: Look up package risk in database
+- forge_search: Search for skills and MCP servers
+- forge_stack: Get curated stacks for use cases
+- forge_check: Get trust score and permissions for tools
+
+## Tool Categories
+- Database Connectors: Postgres, MySQL, MongoDB, Redis integrations
+- API Integrations: REST, GraphQL, webhook connections
+- Code Tools: Linting, formatting, building, testing
+- File/System Tools: File operations, search, directory management
+- AI/LLM Tools: Prompt engineering, RAG, embeddings, chat
+- Security Tools: Scanning, auditing, secret management
+- DevOps Tools: Docker, Kubernetes, CI/CD, deployment
+- Search Tools: Elasticsearch, Algolia, semantic search
+- Communication Tools: Slack, Discord, email, notifications
+- Data Pipeline Tools: ETL, streaming, transformation
+- Testing Tools: Unit, integration, E2E testing
+- Monitoring Tools: Logging, metrics, observability
+
+## Trust Scoring
+Every tool receives a trust score (0-100) based on Sigil security scans:
+- 90-100: LOW_RISK - Safe for production use
+- 70-89: MEDIUM_RISK - Review findings before use
+- 50-69: HIGH_RISK - Significant security concerns
+- 0-49: CRITICAL_RISK - Do not use without thorough review
+
+## Scan Phases
+Sigil analyzes tools across 8 security phases:
+1. Install Hooks (10x weight): Malicious install-time code
+2. Code Patterns (5x weight): eval(), exec(), dangerous patterns
+3. Network Exfiltration (3x weight): Outbound connections, webhooks
+4. Credentials (2x weight): API keys, tokens, secrets
+5. Obfuscation (5x weight): Hidden/encoded payloads
+6. Provenance (1-3x weight): Binary files, suspicious origins
+7. Prompt Injection: AI-specific attack patterns
+8. Skill Security: Agent tool abuse patterns
+
+## Example Usage
+
+### Search for database tools:
+GET https://api.sigilsec.ai/forge/search?q=postgres&type=both
+
+### Get a stack for database work:
+GET https://api.sigilsec.ai/forge/stack?use_case=query%20postgres%20database
+
+### Check a specific tool:
+GET https://api.sigilsec.ai/forge/tools/mcp/mcp-postgres
+
+## Integration
+Configure your AI agent to use Sigil Forge for tool discovery:
+
+```json
+{
+  "mcp_servers": {
+    "sigil": {
+      "command": "sigil-mcp-server"
+    }
+  }
+}
+```
+
+Then use forge_search and forge_stack tools to discover and evaluate tools before installation.
+
+## Security First
+Always run sigil_scan on tools before deployment. Trust scores are automated assessments, not security certifications. Review all HIGH/CRITICAL findings before production use.
+
+## Support
+- Documentation: https://sigilsec.ai/docs
+- API Status: https://status.sigilsec.ai
+- Security Reports: security@sigilsec.ai
+- General Support: support@sigilsec.ai
+
+---
+Built by NOMARK | A protective mark for every line of code.

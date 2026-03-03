@@ -1,0 +1,446 @@
+{
+  "config": {
+    "configFile": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/playwright.config.ts",
+    "rootDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 5,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "design-system.test.ts",
+      "file": "design-system.test.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Design System Integration",
+          "file": "design-system.test.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Forge colors match existing dashboard palette",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 8875,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Track New Tool' }).first()\nExpected: \u001b[32m\"rgb(79, 70, 229)\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Track New Tool' }).first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Track New Tool' }).first()\nExpected: \u001b[32m\"rgb(79, 70, 229)\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Track New Tool' }).first()\u001b[22m\n\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:24:40",
+                        "location": {
+                          "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                          "column": 40,
+                          "line": 24
+                        },
+                        "snippet": "  22 |     // Check brand color consistency (indigo/brand-600: #4f46e5)\n  23 |     const brandButtons = page.locator('button').filter({ hasText: 'Track New Tool' });\n> 24 |     await expect(brandButtons.first()).toHaveCSS('background-color', 'rgb(79, 70, 229)');\n     |                                        ^\n  25 |     \n  26 |     // Check gray color consistency for cards\n  27 |     const cards = page.locator('.bg-gray-900').first();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                            "column": 40,
+                            "line": 24
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button').filter({ hasText: 'Track New Tool' }).first()\nExpected: \u001b[32m\"rgb(79, 70, 229)\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Track New Tool' }).first()\u001b[22m\n\n\n  22 |     // Check brand color consistency (indigo/brand-600: #4f46e5)\n  23 |     const brandButtons = page.locator('button').filter({ hasText: 'Track New Tool' });\n> 24 |     await expect(brandButtons.first()).toHaveCSS('background-color', 'rgb(79, 70, 229)');\n     |                                        ^\n  25 |     \n  26 |     // Check gray color consistency for cards\n  27 |     const cards = page.locator('.bg-gray-900').first();\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:24:40"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-03T03:29:41.524Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-e7376--existing-dashboard-palette-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-e7376--existing-dashboard-palette-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-e7376--existing-dashboard-palette-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                        "column": 40,
+                        "line": 24
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab8ccf6c93ef52e1651d-9b3f0a838beee8d0a359",
+              "file": "design-system.test.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "Typography consistent with existing dashboard",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 10811,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h3').first()\nExpected: \u001b[32m\"600\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('h3').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h3').first()\nExpected: \u001b[32m\"600\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('h3').first()\u001b[22m\n\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:49:29",
+                        "location": {
+                          "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                          "column": 29,
+                          "line": 49
+                        },
+                        "snippet": "  47 |     // Check card titles\n  48 |     const cardTitle = page.locator('h3').first();\n> 49 |     await expect(cardTitle).toHaveCSS('font-weight', '600'); // semibold\n     |                             ^\n  50 |   });\n  51 |\n  52 |   test('Spacing and layout grid maintained', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                            "column": 29,
+                            "line": 49
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCSS\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h3').first()\nExpected: \u001b[32m\"600\"\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveCSS\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('h3').first()\u001b[22m\n\n\n  47 |     // Check card titles\n  48 |     const cardTitle = page.locator('h3').first();\n> 49 |     await expect(cardTitle).toHaveCSS('font-weight', '600'); // semibold\n     |                             ^\n  50 |   });\n  51 |\n  52 |   test('Spacing and layout grid maintained', async ({ page }) => {\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:49:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-03T03:29:41.524Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-806e9-ent-with-existing-dashboard-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-806e9-ent-with-existing-dashboard-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-806e9-ent-with-existing-dashboard-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                        "column": 29,
+                        "line": 49
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab8ccf6c93ef52e1651d-af31e37a9e23873273cf",
+              "file": "design-system.test.ts",
+              "line": 35,
+              "column": 7
+            },
+            {
+              "title": "Spacing and layout grid maintained",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 8995,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\u001b[22m\n\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:60:29",
+                        "location": {
+                          "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                          "column": 29,
+                          "line": 60
+                        },
+                        "snippet": "  58 |     // Check card spacing - should use Tailwind gap classes\n  59 |     const statsGrid = page.locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6');\n> 60 |     await expect(statsGrid).toBeVisible();\n     |                             ^\n  61 |     \n  62 |     // Check consistent padding in cards\n  63 |     const cards = page.locator('.bg-gray-900.border.border-gray-800.rounded-lg.p-6');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                            "column": 29,
+                            "line": 60
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6')\u001b[22m\n\n\n  58 |     // Check card spacing - should use Tailwind gap classes\n  59 |     const statsGrid = page.locator('.grid.grid-cols-1.md\\\\:grid-cols-3.gap-6');\n> 60 |     await expect(statsGrid).toBeVisible();\n     |                             ^\n  61 |     \n  62 |     // Check consistent padding in cards\n  63 |     const cards = page.locator('.bg-gray-900.border.border-gray-800.rounded-lg.p-6');\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:60:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-03T03:29:41.512Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-4eec6--and-layout-grid-maintained-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-4eec6--and-layout-grid-maintained-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-4eec6--and-layout-grid-maintained-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                        "column": 29,
+                        "line": 60
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab8ccf6c93ef52e1651d-375a30768ada7ae9f2f2",
+              "file": "design-system.test.ts",
+              "line": 52,
+              "column": 7
+            },
+            {
+              "title": "Component styles match dashboard patterns",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "timedOut",
+                      "duration": 30065,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts",
+                            "column": 25,
+                            "line": 72
+                          },
+                          "message": "Error: locator.hover: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: 'Track New Tool' })\u001b[22m\n\n\n  70 |     // Check button hover states\n  71 |     const primaryButton = page.locator('button').filter({ hasText: 'Track New Tool' });\n> 72 |     await primaryButton.hover();\n     |                         ^\n  73 |     await expect(primaryButton).toHaveCSS('background-color', 'rgb(67, 56, 202)'); // brand-700\n  74 |     \n  75 |     // Check input field styles\n    at /Users/reecefrazier/CascadeProjects/sigil/dashboard/tests/design-system.test.ts:72:25"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-03T03:29:41.570Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-1f26f-es-match-dashboard-patterns-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-1f26f-es-match-dashboard-patterns-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/reecefrazier/CascadeProjects/sigil/dashboard/test-results/design-system-Design-Syste-1f26f-es-match-dashboard-patterns-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab8ccf6c93ef52e1651d-06a921ee56c680af9c1d",
+              "file": "design-system.test.ts",
+              "line": 67,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-03T03:29:39.851Z",
+    "duration": 34873.449,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 4,
+    "flaky": 0
+  }
+}

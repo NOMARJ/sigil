@@ -114,6 +114,7 @@ export interface User {
   name: string;
   avatar_url: string | null;
   role: UserRole;
+  plan: PlanTier;
   created_at: string;
   last_login: string | null;
 }
@@ -282,4 +283,51 @@ export interface PortalSession {
 export interface ApiError {
   detail: string;
   status: number;
+}
+
+// ---------------------------------------------------------------------------
+// Forge Types (Premium Features)
+// ---------------------------------------------------------------------------
+
+/** User subscription plan tiers. */
+export type PlanTier = "free" | "pro" | "team" | "enterprise";
+
+/** A tracked tool in Forge. */
+export interface ForgeTool {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  repository_url: string;
+  documentation_url?: string;
+  version: string;
+  risk_score?: number;
+  last_scan_id?: string;
+  tracked_at: string;
+  created_by: string;
+}
+
+/** Forge settings/preferences. */
+export interface ForgeSettings {
+  notifications: {
+    security_alerts: boolean;
+    version_updates: boolean;
+    weekly_digest: boolean;
+  };
+  privacy: {
+    public_profile: boolean;
+    share_anonymized_data: boolean;
+  };
+  tracking: {
+    auto_track_dependencies: boolean;
+    scan_frequency: "manual" | "daily" | "weekly";
+  };
+}
+
+/** Tool tracking request. */
+export interface TrackToolRequest {
+  name: string;
+  repository_url: string;
+  description?: string;
+  category?: string;
 }

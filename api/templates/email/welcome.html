@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to Forge Weekly{% endblock %}
+
+{% block tagline %}Welcome to the AI Security Community{% endblock %}
+
+{% block content %}
+<h1>Welcome to Forge Weekly! 🎉</h1>
+
+<p style="font-size: 18px; color: #6b7280; margin-bottom: 32px;">
+    Thank you for subscribing to our weekly AI security intelligence digest.
+</p>
+
+<!-- What You'll Receive -->
+<div class="section">
+    <h2>📬 What You'll Receive</h2>
+    <p>Every Sunday, you'll get a curated digest featuring:</p>
+    
+    <div style="margin: 20px 0;">
+        <div style="display: flex; align-items: center; margin: 12px 0;">
+            <span style="font-size: 20px; margin-right: 12px;">🔍</span>
+            <div>
+                <strong>New Tool Discoveries</strong><br>
+                <span style="color: #6b7280; font-size: 14px;">Latest AI agent tools, MCP servers, and extensions</span>
+            </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; margin: 12px 0;">
+            <span style="font-size: 20px; margin-right: 12px;">🚨</span>
+            <div>
+                <strong>Security Alerts</strong><br>
+                <span style="color: #6b7280; font-size: 14px;">Critical threats, malicious packages, and vulnerability reports</span>
+            </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; margin: 12px 0;">
+            <span style="font-size: 20px; margin-right: 12px;">📈</span>
+            <div>
+                <strong>Trust Score Updates</strong><br>
+                <span style="color: #6b7280; font-size: 14px;">Tool safety ratings and security assessments</span>
+            </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; margin: 12px 0;">
+            <span style="font-size: 20px; margin-right: 12px;">👥</span>
+            <div>
+                <strong>Community Highlights</strong><br>
+                <span style="color: #6b7280; font-size: 14px;">Developer insights, best practices, and ecosystem updates</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Get Started -->
+<div class="section">
+    <h2>🚀 Get Started with Sigil</h2>
+    <p>Secure your AI development workflow today:</p>
+    
+    <div style="margin: 20px 0;">
+        <a href="{{ base_url }}/tools" class="btn">Start Scanning Code</a>
+        <a href="{{ base_url }}/forge" class="btn btn-secondary">Browse Tool Directory</a>
+    </div>
+    
+    <h3 style="margin-top: 24px; margin-bottom: 12px;">Quick Start Commands:</h3>
+    <div style="background-color: #1f2937; color: #f9fafb; padding: 16px; border-radius: 8px; font-family: 'Monaco', 'Consolas', monospace; font-size: 14px; margin: 12px 0;">
+        <div style="margin-bottom: 8px;"># Scan a repository before cloning</div>
+        <div style="color: #10b981;">sigil clone https://github.com/user/repo</div>
+        <div style="margin: 16px 0 8px 0;"># Scan a package before installing</div>
+        <div style="color: #10b981;">sigil pip suspicious-package</div>
+        <div style="margin: 16px 0 8px 0;"># Scan your current directory</div>
+        <div style="color: #10b981;">sigil scan .</div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="section">
+    <h2>📊 Recent Platform Activity</h2>
+    <p>Here's what's been happening in the AI security ecosystem:</p>
+    
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-value">7,700+</span>
+            <span class="metric-label">Tools Analyzed</span>
+        </div>
+        <div class="metric">
+            <span class="metric-value">500+</span>
+            <span class="metric-label">Security Alerts</span>
+        </div>
+        <div class="metric">
+            <span class="metric-value">15K+</span>
+            <span class="metric-label">Scans Performed</span>
+        </div>
+        <div class="metric">
+            <span class="metric-value">98%</span>
+            <span class="metric-label">Threat Detection</span>
+        </div>
+    </div>
+</div>
+
+<!-- Security Best Practices -->
+<div class="section">
+    <h2>🛡️ AI Security Best Practices</h2>
+    <p>Essential security practices for AI agent development:</p>
+    
+    <div class="alert alert-info">
+        <strong>🔍 Always Scan First</strong><br>
+        Never install packages, clone repositories, or run AI agent code without scanning for security threats.
+    </div>
+    
+    <div class="alert alert-warning">
+        <strong>⚠️ Watch for Red Flags</strong><br>
+        Be cautious of tools with install hooks, eval/exec patterns, network calls, or credential access.
+    </div>
+    
+    <div class="alert alert-info">
+        <strong>📈 Monitor Trust Scores</strong><br>
+        Prefer tools with high trust scores (80%+) and established provenance records.
+    </div>
+</div>
+
+<!-- Resources -->
+<div class="section">
+    <h2>📚 Helpful Resources</h2>
+    <p>Learn more about AI agent security:</p>
+    
+    <ul style="padding-left: 20px;">
+        <li style="margin: 8px 0;">
+            <a href="{{ base_url }}/docs/getting-started" style="color: #6366f1; text-decoration: none;">Getting Started Guide</a> - Setup and basic usage
+        </li>
+        <li style="margin: 8px 0;">
+            <a href="{{ base_url }}/docs/security-patterns" style="color: #6366f1; text-decoration: none;">Security Patterns</a> - Common threats and detection
+        </li>
+        <li style="margin: 8px 0;">
+            <a href="{{ base_url }}/docs/trust-scores" style="color: #6366f1; text-decoration: none;">Trust Scoring</a> - How we evaluate tool safety
+        </li>
+        <li style="margin: 8px 0;">
+            <a href="{{ base_url }}/feeds" style="color: #6366f1; text-decoration: none;">Security Feeds</a> - Real-time threat intelligence
+        </li>
+    </ul>
+</div>
+
+<!-- Community -->
+<div style="background-color: #f8fafc; padding: 24px; border-radius: 8px; margin-top: 32px; text-align: center;">
+    <h3 style="margin-bottom: 12px;">Join the Community</h3>
+    <p style="margin-bottom: 20px; color: #6b7280;">
+        Connect with other AI developers focused on security
+    </p>
+    
+    <div style="margin: 16px 0;">
+        <a href="https://github.com/sigilsec/sigil" style="margin: 0 8px; padding: 8px 16px; background: #24292e; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            GitHub
+        </a>
+        <a href="https://discord.gg/sigilsec" style="margin: 0 8px; padding: 8px 16px; background: #5865f2; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            Discord
+        </a>
+        <a href="https://twitter.com/sigilsecurity" style="margin: 0 8px; padding: 8px 16px; background: #1da1f2; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">
+            Twitter
+        </a>
+    </div>
+</div>
+
+<!-- Next Steps -->
+<div style="margin-top: 40px; text-align: center;">
+    <h3>🔮 What's Next?</h3>
+    <p style="color: #6b7280; margin-bottom: 24px;">
+        Your first Forge Weekly digest will arrive this Sunday. 
+        In the meantime, explore the platform and start securing your AI development.
+    </p>
+    
+    <a href="{{ base_url }}/dashboard" class="btn">Go to Dashboard</a>
+</div>
+
+{% endblock %}

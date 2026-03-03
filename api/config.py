@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str = "alerts@sigilsec.ai"
 
+    # --- Email Newsletter (Forge Weekly) --------------------------------------
+    resend_api_key: str | None = None  # SIGIL_RESEND_API_KEY
+    from_email: str = "noreply@sigilsec.ai"  # SIGIL_FROM_EMAIL
+    from_name: str = "Sigil Security"  # SIGIL_FROM_NAME
+    base_url: str = "https://api.sigilsec.ai"  # SIGIL_BASE_URL
+
     # --- Stripe (optional — for billing) ---------------------------------------
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
@@ -92,6 +98,16 @@ class Settings(BaseSettings):
     github_webhook_secret: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
+
+    # --- Anthropic (optional — for Forge classification) ----------------------
+    anthropic_api_key: str | None = None  # SIGIL_ANTHROPIC_API_KEY
+
+    # --- Monitoring & Observability --------------------------------------------
+    metrics_enabled: bool = True  # SIGIL_METRICS_ENABLED
+    health_checks_enabled: bool = True  # SIGIL_HEALTH_CHECKS_ENABLED
+    structured_logging: bool = True  # SIGIL_STRUCTURED_LOGGING
+    azure_insights_key: str | None = None  # SIGIL_AZURE_INSIGHTS_KEY
+    prometheus_enabled: bool = True  # SIGIL_PROMETHEUS_ENABLED
 
     @property
     def auth0_configured(self) -> bool:
@@ -123,6 +139,11 @@ class Settings(BaseSettings):
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
     @property
+    def resend_configured(self) -> bool:
+        """Return True when Resend API key is set."""
+        return bool(self.resend_api_key)
+
+    @property
     def stripe_configured(self) -> bool:
         """Return True when a Stripe secret key is set."""
         return bool(self.stripe_secret_key)
@@ -136,6 +157,11 @@ class Settings(BaseSettings):
     def jwt_secret_is_insecure(self) -> bool:
         """Return True when the JWT secret has not been changed from the default."""
         return self.jwt_secret == "changeme-generate-a-real-secret"
+
+    @property
+    def azure_insights_configured(self) -> bool:
+        """Return True when Azure Application Insights is configured."""
+        return bool(self.azure_insights_key)
 
 
 # Singleton — importable from anywhere as `from api.config import settings`.

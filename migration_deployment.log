@@ -1,0 +1,573 @@
+2026-03-03 15:32:49,774 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:32:49,775 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:32:49,775 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:32:49,776 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:32:49,776 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:32:49,776 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:32:49,776 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:32:49,777 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:32:49,777 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:32:49,777 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:32:49,777 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:32:49,777 - INFO - DRY RUN - No changes will be made
+2026-03-03 15:32:49,777 - INFO - Would deploy: 004_create_forge_classification - Core Forge classification system tables
+2026-03-03 15:32:49,777 - INFO - Would deploy: 006_performance_optimization - Forge performance improvements and indexes
+2026-03-03 15:32:49,777 - INFO - Would deploy: 008_forge_premium_features - Premium Forge features and user tools
+2026-03-03 15:32:49,777 - INFO - Would deploy: add_forge_analytics - Comprehensive analytics and tracking
+2026-03-03 15:32:49,777 - INFO - Would deploy: add_forge_security - Security, access control, and enterprise features
+2026-03-03 15:32:49,777 - INFO - Would deploy: forge_optimizations - Advanced Forge API performance optimizations
+2026-03-03 15:32:59,294 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:32:59,295 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:32:59,295 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:32:59,296 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:32:59,296 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:32:59,296 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:32:59,296 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:32:59,296 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:32:59,297 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:32:59,297 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:32:59,297 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:33:01,360 - INFO - Connected to Azure SQL Database
+2026-03-03 15:33:02,499 - INFO - Migration tracking table ready
+2026-03-03 15:33:02,876 - INFO - 🔄 Deploying migration 1: 004_create_forge_classification
+2026-03-03 15:33:02,876 - INFO - Executing migration: 004_create_forge_classification
+2026-03-03 15:33:02,876 - INFO - Description: Core Forge classification system tables
+2026-03-03 15:33:03,147 - ERROR - Error in statement 3: ('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Cannot find the object "forge_classification" because it does not exist or you do not have permissions. (1088) (SQLExecDirectW)')
+2026-03-03 15:33:03,148 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_classification_package')
+    CREATE INDEX idx_forge_classification_package ON forge_classification (ecosystem, package_name);...
+2026-03-03 15:33:03,148 - ERROR - ❌ Migration 004_create_forge_classification failed: ('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Cannot find the object "forge_classification" because it does not exist or you do not have permissions. (1088) (SQLExecDirectW)')
+2026-03-03 15:33:03,539 - ERROR - Migration 004_create_forge_classification failed - stopping deployment
+2026-03-03 15:33:03,540 - INFO - 
+📊 Deployment Summary:
+2026-03-03 15:33:03,540 - INFO - ✅ Successful migrations: 0
+2026-03-03 15:33:03,540 - INFO - ❌ Failed migrations: 1
+2026-03-03 15:33:03,540 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 15:33:03,540 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 15:33:03,540 - INFO - Database connection closed
+2026-03-03 15:34:53,327 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:34:53,328 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:34:53,329 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:34:53,329 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:34:53,329 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:34:53,329 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:34:53,330 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:34:53,330 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:34:53,330 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:34:53,330 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:34:53,330 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:34:55,382 - INFO - Connected to Azure SQL Database
+2026-03-03 15:34:55,754 - INFO - Migration tracking table ready
+2026-03-03 15:34:56,128 - INFO - 🔄 Deploying migration 1: 004_create_forge_classification
+2026-03-03 15:34:56,128 - INFO - Executing migration: 004_create_forge_classification
+2026-03-03 15:34:56,128 - INFO - Description: Core Forge classification system tables
+2026-03-03 15:35:01,112 - ERROR - Error in GO block 12: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__forge_mat__secon__6497E884' on table 'forge_matches' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 15:35:01,112 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'forge_matches')
+BEGIN
+CREATE TABLE forge_matches (
+id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+primary_classification_id UNIQUEIDENTIFIER NOT NULL REFERENCES forge_classification(id) ON DELETE CASCADE,
+secondary_classification_id UNIQUEIDENTIFIER NOT NULL REFERENCES forge_classification(id) ON DELETE CASCADE,
+match_type              NVARCHAR(50) NOT NULL,      -- 'env_vars', 'protocols', 'complementary', 'category'
+c...
+2026-03-03 15:35:01,112 - ERROR - ❌ Migration 004_create_forge_classification failed: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__forge_mat__secon__6497E884' on table 'forge_matches' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 15:35:01,504 - ERROR - Migration 004_create_forge_classification failed - stopping deployment
+2026-03-03 15:35:01,504 - INFO - 
+📊 Deployment Summary:
+2026-03-03 15:35:01,505 - INFO - ✅ Successful migrations: 0
+2026-03-03 15:35:01,505 - INFO - ❌ Failed migrations: 1
+2026-03-03 15:35:01,505 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 15:35:01,505 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 15:35:01,505 - INFO - Database connection closed
+2026-03-03 15:35:55,300 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:35:55,300 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:35:55,300 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:35:55,301 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:35:55,301 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:35:55,301 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:35:55,301 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:35:55,302 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:35:55,302 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:35:55,302 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:35:55,302 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:35:57,374 - INFO - Connected to Azure SQL Database
+2026-03-03 15:35:57,761 - INFO - Migration tracking table ready
+2026-03-03 15:35:58,145 - INFO - 🔄 Deploying migration 1: 004_create_forge_classification
+2026-03-03 15:35:58,146 - INFO - Executing migration: 004_create_forge_classification
+2026-03-03 15:35:58,146 - INFO - Description: Core Forge classification system tables
+2026-03-03 15:36:07,091 - ERROR - Error in GO block 23: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]The database 'sigil' has reached its size quota. Partition or delete data, drop indexes, or consult the documentation for possible resolutions. (40544) (SQLExecDirectW)")
+2026-03-03 15:36:07,091 - ERROR - Statement: INSERT INTO forge_categories (category, display_name, description, sort_order)
+SELECT 'Database', 'Database', 'Database connectors and management tools (Postgres, MongoDB, Redis, MySQL)', 10
+WHERE NOT EXISTS (SELECT 1 FROM forge_categories WHERE category = 'Database');
+INSERT INTO forge_categories (category, display_name, description, sort_order)
+SELECT 'API Integration', 'API Integration', 'Third-party API integrations (Stripe, GitHub, Slack, REST APIs)', 20
+WHERE NOT EXISTS (SELECT 1 FROM forg...
+2026-03-03 15:36:07,092 - ERROR - ❌ Migration 004_create_forge_classification failed: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]The database 'sigil' has reached its size quota. Partition or delete data, drop indexes, or consult the documentation for possible resolutions. (40544) (SQLExecDirectW)")
+2026-03-03 15:36:07,493 - ERROR - Migration 004_create_forge_classification failed - stopping deployment
+2026-03-03 15:36:07,493 - INFO - 
+📊 Deployment Summary:
+2026-03-03 15:36:07,493 - INFO - ✅ Successful migrations: 0
+2026-03-03 15:36:07,493 - INFO - ❌ Failed migrations: 1
+2026-03-03 15:36:07,493 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 15:36:07,493 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 15:36:07,493 - INFO - Database connection closed
+2026-03-03 15:38:29,777 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:38:29,778 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:38:29,778 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:38:29,778 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:38:29,779 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:38:29,779 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:38:29,779 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:38:29,780 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:38:29,780 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:38:29,780 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:38:29,780 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:38:31,904 - INFO - Connected to Azure SQL Database
+2026-03-03 15:38:32,346 - INFO - Migration tracking table ready
+2026-03-03 15:38:32,729 - INFO - 🔄 Deploying migration 1: 004_create_forge_classification
+2026-03-03 15:38:32,729 - INFO - Executing migration: 004_create_forge_classification
+2026-03-03 15:38:32,729 - INFO - Description: Core Forge classification system tables
+2026-03-03 15:38:42,530 - INFO - ✅ Migration 004_create_forge_classification applied successfully
+2026-03-03 15:38:43,103 - INFO - 🔄 Deploying migration 2: 006_performance_optimization
+2026-03-03 15:38:43,104 - INFO - Executing migration: 006_performance_optimization
+2026-03-03 15:38:43,104 - INFO - Description: Forge performance improvements and indexes
+2026-03-03 15:39:15,354 - ERROR - Error in GO block 25: ('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]CREATE FULLTEXT CATALOG statement cannot be used inside a user transaction. (574) (SQLExecDirectW)')
+2026-03-03 15:39:15,355 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.fulltext_catalogs WHERE name = 'forge_fulltext_catalog')
+CREATE FULLTEXT CATALOG forge_fulltext_catalog AS DEFAULT;...
+2026-03-03 15:39:15,547 - ERROR - ❌ Migration 006_performance_optimization failed: ('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]CREATE FULLTEXT CATALOG statement cannot be used inside a user transaction. (574) (SQLExecDirectW)')
+2026-03-03 15:39:16,117 - ERROR - Migration 006_performance_optimization failed - stopping deployment
+2026-03-03 15:39:16,118 - INFO - 
+📊 Deployment Summary:
+2026-03-03 15:39:16,118 - INFO - ✅ Successful migrations: 1
+2026-03-03 15:39:16,119 - INFO - ❌ Failed migrations: 1
+2026-03-03 15:39:16,119 - INFO - 📊 Total T-SQL migrations processed: 2
+2026-03-03 15:39:16,119 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 15:39:16,119 - INFO - Database connection closed
+2026-03-03 15:56:52,498 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 15:56:52,499 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 15:56:52,499 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 15:56:52,500 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 15:56:52,500 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 15:56:52,500 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 15:56:52,500 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 15:56:52,501 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 15:56:52,501 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 15:56:52,501 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 15:56:52,501 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 15:56:54,551 - INFO - Connected to Azure SQL Database
+2026-03-03 15:56:54,925 - INFO - Migration tracking table ready
+2026-03-03 15:56:55,301 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 15:56:55,679 - INFO - 🔄 Deploying migration 2: 006_performance_optimization
+2026-03-03 15:56:55,680 - INFO - Executing migration: 006_performance_optimization
+2026-03-03 15:56:55,680 - INFO - Description: Forge performance improvements and indexes
+2026-03-03 15:57:05,848 - ERROR - Error in GO block 26: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]'PK__forge_cl__3213E83F' is not a valid index to enforce a full-text search key. A full-text search key must be a unique, non-nullable, single-column index which is not offline, is not defined on a non-deterministic or imprecise nonpersisted computed column, does not have a filter, and has maximum size of 900 bytes. Choose another index for the full-text key. (7653) (SQLExecDirectW)")
+2026-03-03 15:57:05,849 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('forge_classification'))
+BEGIN
+CREATE FULLTEXT INDEX ON forge_classification(description_summary)
+KEY INDEX PK__forge_cl__3213E83F
+ON forge_fulltext_catalog;
+END...
+2026-03-03 15:57:05,849 - ERROR - ❌ Migration 006_performance_optimization failed: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]'PK__forge_cl__3213E83F' is not a valid index to enforce a full-text search key. A full-text search key must be a unique, non-nullable, single-column index which is not offline, is not defined on a non-deterministic or imprecise nonpersisted computed column, does not have a filter, and has maximum size of 900 bytes. Choose another index for the full-text key. (7653) (SQLExecDirectW)")
+2026-03-03 15:57:06,241 - ERROR - Migration 006_performance_optimization failed - stopping deployment
+2026-03-03 15:57:06,241 - INFO - 
+📊 Deployment Summary:
+2026-03-03 15:57:06,241 - INFO - ✅ Successful migrations: 0
+2026-03-03 15:57:06,241 - INFO - ❌ Failed migrations: 1
+2026-03-03 15:57:06,241 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 15:57:06,241 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 15:57:06,241 - INFO - Database connection closed
+2026-03-03 16:02:48,361 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:02:48,361 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:02:48,361 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:02:48,362 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:02:48,362 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:02:48,362 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:02:48,362 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:02:48,363 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 16:02:48,363 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 16:02:48,363 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 16:02:48,363 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 16:02:50,387 - INFO - Connected to Azure SQL Database
+2026-03-03 16:02:50,766 - INFO - Migration tracking table ready
+2026-03-03 16:02:51,143 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:02:51,517 - INFO - 🔄 Deploying migration 2: 006_performance_optimization
+2026-03-03 16:02:51,517 - INFO - Executing migration: 006_performance_optimization
+2026-03-03 16:02:51,517 - INFO - Description: Forge performance improvements and indexes
+2026-03-03 16:03:05,936 - ERROR - ❌ Migration 006_performance_optimization failed: ('23000', "[23000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Violation of UNIQUE KEY constraint 'UQ__schema_m__29AC81C240CAD627'. Cannot insert duplicate key in object 'dbo.schema_migrations'. The duplicate key value is (006_performance_optimization). (2627) (SQLExecDirectW)")
+2026-03-03 16:03:06,313 - ERROR - Migration 006_performance_optimization failed - stopping deployment
+2026-03-03 16:03:06,313 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:03:06,313 - INFO - ✅ Successful migrations: 0
+2026-03-03 16:03:06,313 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:03:06,313 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 16:03:06,314 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:03:06,506 - INFO - Database connection closed
+2026-03-03 16:06:10,369 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:06:10,369 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:06:10,369 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:06:10,370 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:06:10,370 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:06:10,370 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:06:10,371 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:06:10,371 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 16:06:10,371 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 16:06:10,371 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 16:06:10,371 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 16:06:10,371 - INFO - DRY RUN - No changes will be made
+2026-03-03 16:06:10,371 - INFO - Would deploy: 004_create_forge_classification - Core Forge classification system tables
+2026-03-03 16:06:10,372 - INFO - Would deploy: 006_performance_optimization - Forge performance improvements and indexes
+2026-03-03 16:06:10,372 - INFO - Would deploy: 008_forge_premium_features - Premium Forge features and user tools
+2026-03-03 16:06:10,372 - INFO - Would deploy: add_forge_analytics - Comprehensive analytics and tracking
+2026-03-03 16:06:10,372 - INFO - Would deploy: add_forge_security - Security, access control, and enterprise features
+2026-03-03 16:06:10,372 - INFO - Would deploy: forge_optimizations - Advanced Forge API performance optimizations
+2026-03-03 16:13:00,160 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:13:00,162 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:13:00,165 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:13:00,166 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:13:00,168 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:13:00,170 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:13:00,170 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:13:00,172 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 16:13:00,174 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 16:13:00,175 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 16:13:00,175 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 16:13:02,698 - INFO - Connected to Azure SQL Database
+2026-03-03 16:13:03,091 - INFO - Migration tracking table ready
+2026-03-03 16:13:03,475 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:13:03,863 - INFO - 🔄 Deploying migration 2: 006_performance_optimization
+2026-03-03 16:13:03,868 - INFO - Executing migration: 006_performance_optimization
+2026-03-03 16:13:03,868 - INFO - Description: Forge performance improvements and indexes
+2026-03-03 16:13:18,446 - INFO - ✅ Migration 006_performance_optimization applied successfully
+2026-03-03 16:13:19,027 - INFO - 🔄 Deploying migration 3: 008_forge_premium_features
+2026-03-03 16:13:19,028 - INFO - Executing migration: 008_forge_premium_features
+2026-03-03 16:13:19,028 - INFO - Description: Premium Forge features and user tools
+2026-03-03 16:13:27,104 - INFO - ✅ Migration 008_forge_premium_features applied successfully
+2026-03-03 16:13:27,677 - INFO - 🔄 Deploying migration 4: add_forge_analytics
+2026-03-03 16:13:27,681 - INFO - Executing migration: add_forge_analytics
+2026-03-03 16:13:27,682 - INFO - Description: Comprehensive analytics and tracking
+2026-03-03 16:13:29,471 - ERROR - Error in GO block 5: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Column name 'session_id' does not exist in the target table, index or view. (1911) (SQLExecDirectW)")
+2026-03-03 16:13:29,472 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_analytics_session')
+CREATE INDEX idx_analytics_session ON forge_analytics_events (session_id, timestamp);...
+2026-03-03 16:13:29,472 - ERROR - ❌ Migration add_forge_analytics failed: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Column name 'session_id' does not exist in the target table, index or view. (1911) (SQLExecDirectW)")
+2026-03-03 16:13:30,246 - ERROR - Migration add_forge_analytics failed - stopping deployment
+2026-03-03 16:13:30,246 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:13:30,246 - INFO - ✅ Successful migrations: 2
+2026-03-03 16:13:30,247 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:13:30,247 - INFO - 📊 Total T-SQL migrations processed: 3
+2026-03-03 16:13:30,247 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:13:30,247 - INFO - Database connection closed
+2026-03-03 16:18:26,651 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:18:26,652 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:18:26,653 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:18:26,654 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:18:26,655 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:18:26,655 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:18:26,655 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:18:26,658 - INFO - Loaded migration: 007_email_subscriptions (postgresql)
+2026-03-03 16:18:26,659 - INFO - Loaded migration: 005_create_mcp_watchdog (sqlite)
+2026-03-03 16:18:26,659 - INFO - Loaded migration: forge_optimizations (tsql)
+2026-03-03 16:18:26,659 - INFO - Found 6 T-SQL migrations to deploy
+2026-03-03 16:18:28,716 - INFO - Connected to Azure SQL Database
+2026-03-03 16:18:29,093 - INFO - Migration tracking table ready
+2026-03-03 16:18:29,475 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:18:29,851 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:18:30,234 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:18:30,613 - INFO - 🔄 Deploying migration 4: add_forge_analytics
+2026-03-03 16:18:30,613 - INFO - Executing migration: add_forge_analytics
+2026-03-03 16:18:30,614 - INFO - Description: Comprehensive analytics and tracking
+2026-03-03 16:38:16,611 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:38:16,611 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:38:16,612 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:38:16,612 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:38:16,612 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:38:18,640 - INFO - Connected to Azure SQL Database
+2026-03-03 16:38:19,013 - INFO - Migration tracking table ready
+2026-03-03 16:38:19,013 - INFO - 📋 Current migration status:
+2026-03-03 16:38:19,390 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:38:19,764 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:38:20,141 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:38:20,515 - INFO -   4. add_forge_analytics [tsql] - PENDING
+2026-03-03 16:38:20,890 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:38:21,266 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:38:21,640 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:38:21,640 - INFO - Status check complete (--status-only). No migrations were applied.
+2026-03-03 16:38:21,827 - INFO - Database connection closed
+2026-03-03 16:38:27,602 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:38:27,602 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:38:27,602 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:38:27,603 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:38:27,603 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:38:29,601 - INFO - Connected to Azure SQL Database
+2026-03-03 16:38:29,982 - INFO - Migration tracking table ready
+2026-03-03 16:38:29,982 - INFO - 📋 Current migration status:
+2026-03-03 16:38:30,360 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:38:30,741 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:38:31,120 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:38:31,498 - INFO -   4. add_forge_analytics [tsql] - PENDING
+2026-03-03 16:38:31,882 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:38:32,266 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:38:32,644 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:38:33,025 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:38:33,400 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:38:33,778 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:38:34,155 - INFO - 🔄 Deploying migration 4: add_forge_analytics
+2026-03-03 16:38:34,155 - INFO - Executing migration: add_forge_analytics
+2026-03-03 16:38:34,155 - INFO - Description: Comprehensive analytics and tracking
+2026-03-03 16:39:01,764 - INFO - ✅ Migration add_forge_analytics applied successfully
+2026-03-03 16:39:02,332 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:39:02,333 - INFO - Executing migration: add_forge_security
+2026-03-03 16:39:02,333 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:39:07,505 - ERROR - Error in GO block 13: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Column name 'package_name' does not exist in the target table, index or view. (1911) (SQLExecDirectW)")
+2026-03-03 16:39:07,505 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_user_tools_package')
+CREATE INDEX IX_forge_user_tools_package ON forge_user_tools (package_name, ecosystem);...
+2026-03-03 16:39:07,505 - ERROR - ❌ Migration add_forge_security failed: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Column name 'package_name' does not exist in the target table, index or view. (1911) (SQLExecDirectW)")
+2026-03-03 16:39:08,266 - ERROR - Migration add_forge_security failed - stopping deployment
+2026-03-03 16:39:08,267 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:39:08,267 - INFO - ✅ Successful migrations: 1
+2026-03-03 16:39:08,267 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:39:08,267 - INFO - 📊 Total T-SQL migrations processed: 2
+2026-03-03 16:39:08,267 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:39:08,267 - INFO - Database connection closed
+2026-03-03 16:39:31,148 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:39:31,148 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:39:31,148 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:39:31,149 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:39:31,149 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:39:33,163 - INFO - Connected to Azure SQL Database
+2026-03-03 16:39:33,554 - INFO - Migration tracking table ready
+2026-03-03 16:39:33,555 - INFO - 📋 Current migration status:
+2026-03-03 16:39:33,931 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:39:34,302 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:39:34,676 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:39:35,059 - INFO -   4. add_forge_analytics [tsql] - APPLIED
+2026-03-03 16:39:35,436 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:39:35,815 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:39:36,192 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:39:36,568 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:39:36,944 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:39:37,317 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:39:37,690 - INFO - ⏩ Skipping already applied migration: add_forge_analytics
+2026-03-03 16:39:38,063 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:39:38,064 - INFO - Executing migration: add_forge_security
+2026-03-03 16:39:38,064 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:39:42,394 - ERROR - Error in GO block 11: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'package_name'. (207) (SQLExecDirectW)")
+2026-03-03 16:39:42,394 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'forge_user_tools')
+BEGIN
+CREATE TABLE forge_user_tools (
+id BIGINT IDENTITY(1,1) PRIMARY KEY,
+user_id UNIQUEIDENTIFIER NOT NULL,
+team_id UNIQUEIDENTIFIER NULL,
+package_name NVARCHAR(255) NOT NULL,
+ecosystem NVARCHAR(50) NOT NULL,
+package_version NVARCHAR(100) NULL,
+tracking_reason NVARCHAR(500) NULL,
+tags NVARCHAR(MAX) NULL, -- JSON array of user tags
+notes NVARCHAR(MAX) NULL,
+alert_on_update BIT DEFAULT 1,
+alert_on_vulnerability BIT DEFAULT ...
+2026-03-03 16:39:42,583 - ERROR - ❌ Migration add_forge_security failed: ('42S22', "[42S22] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid column name 'package_name'. (207) (SQLExecDirectW)")
+2026-03-03 16:39:42,965 - ERROR - Migration add_forge_security failed - stopping deployment
+2026-03-03 16:39:42,966 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:39:42,966 - INFO - ✅ Successful migrations: 0
+2026-03-03 16:39:42,966 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:39:42,966 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 16:39:42,966 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:39:43,154 - INFO - Database connection closed
+2026-03-03 16:40:17,739 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:40:17,739 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:40:17,740 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:40:17,740 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:40:17,740 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:40:19,749 - INFO - Connected to Azure SQL Database
+2026-03-03 16:40:20,123 - INFO - Migration tracking table ready
+2026-03-03 16:40:20,124 - INFO - 📋 Current migration status:
+2026-03-03 16:40:20,498 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:40:20,873 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:40:21,250 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:40:21,625 - INFO -   4. add_forge_analytics [tsql] - APPLIED
+2026-03-03 16:40:22,000 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:40:22,377 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:40:22,753 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:40:23,135 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:40:23,509 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:40:23,884 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:40:24,257 - INFO - ⏩ Skipping already applied migration: add_forge_analytics
+2026-03-03 16:40:24,636 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:40:24,637 - INFO - Executing migration: add_forge_security
+2026-03-03 16:40:24,637 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:40:34,250 - ERROR - Error in GO block 25: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__feature_f__creat__05C3D225' on table 'feature_flags' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 16:40:34,250 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'feature_flags')
+BEGIN
+CREATE TABLE feature_flags (
+id BIGINT IDENTITY(1,1) PRIMARY KEY,
+user_id UNIQUEIDENTIFIER NULL,
+team_id UNIQUEIDENTIFIER NULL,
+organization_id UNIQUEIDENTIFIER NULL,
+feature_name NVARCHAR(100) NOT NULL,
+enabled BIT NOT NULL DEFAULT 1,
+reason NVARCHAR(500) NULL,
+expires_at DATETIME2 NULL,
+created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+created_by UNIQUEIDENTIFIER NULL,
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELET...
+2026-03-03 16:40:34,250 - ERROR - ❌ Migration add_forge_security failed: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__feature_f__creat__05C3D225' on table 'feature_flags' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 16:40:34,813 - ERROR - Migration add_forge_security failed - stopping deployment
+2026-03-03 16:40:34,813 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:40:34,813 - INFO - ✅ Successful migrations: 0
+2026-03-03 16:40:34,813 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:40:34,813 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 16:40:34,813 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:40:35,003 - INFO - Database connection closed
+2026-03-03 16:40:54,715 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:40:54,715 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:40:54,716 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:40:54,716 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:40:54,716 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:40:56,723 - INFO - Connected to Azure SQL Database
+2026-03-03 16:40:57,096 - INFO - Migration tracking table ready
+2026-03-03 16:40:57,096 - INFO - 📋 Current migration status:
+2026-03-03 16:40:57,470 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:40:57,842 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:40:58,219 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:40:58,591 - INFO -   4. add_forge_analytics [tsql] - APPLIED
+2026-03-03 16:40:58,970 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:40:59,344 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:40:59,719 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:41:00,094 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:41:00,471 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:41:00,843 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:41:01,220 - INFO - ⏩ Skipping already applied migration: add_forge_analytics
+2026-03-03 16:41:01,597 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:41:01,597 - INFO - Executing migration: add_forge_security
+2026-03-03 16:41:01,597 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:41:14,762 - ERROR - Error in GO block 35: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__rate_limi__api_k__216BEC9A' on table 'rate_limit_tracking' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 16:41:14,762 - ERROR - Statement: IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'rate_limit_tracking')
+BEGIN
+CREATE TABLE rate_limit_tracking (
+id BIGINT IDENTITY(1,1) PRIMARY KEY,
+user_id UNIQUEIDENTIFIER NOT NULL,
+api_key_id UNIQUEIDENTIFIER NULL,
+window_start DATETIME2 NOT NULL,
+window_end DATETIME2 NOT NULL,
+request_count INT NOT NULL DEFAULT 0,
+limit_exceeded_count INT NOT NULL DEFAULT 0,
+last_request_at DATETIME2 NULL,
+last_endpoint NVARCHAR(255) NULL,
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+FO...
+2026-03-03 16:41:14,762 - ERROR - ❌ Migration add_forge_security failed: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__rate_limi__api_k__216BEC9A' on table 'rate_limit_tracking' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW)")
+2026-03-03 16:41:15,326 - ERROR - Migration add_forge_security failed - stopping deployment
+2026-03-03 16:41:15,326 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:41:15,326 - INFO - ✅ Successful migrations: 0
+2026-03-03 16:41:15,326 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:41:15,326 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 16:41:15,326 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:41:15,517 - INFO - Database connection closed
+2026-03-03 16:41:26,880 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:41:26,880 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:41:26,880 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:41:26,880 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:41:26,880 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:41:26,880 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:41:26,881 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:41:26,881 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:41:26,881 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:41:26,881 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:41:28,910 - INFO - Connected to Azure SQL Database
+2026-03-03 16:41:29,292 - INFO - Migration tracking table ready
+2026-03-03 16:41:29,292 - INFO - 📋 Current migration status:
+2026-03-03 16:41:29,675 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:41:30,050 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:41:30,429 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:41:30,804 - INFO -   4. add_forge_analytics [tsql] - APPLIED
+2026-03-03 16:41:31,182 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:41:31,562 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:41:31,936 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:41:32,311 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:41:32,701 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:41:33,075 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:41:33,447 - INFO - ⏩ Skipping already applied migration: add_forge_analytics
+2026-03-03 16:41:33,822 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:41:33,822 - INFO - Executing migration: add_forge_security
+2026-03-03 16:41:33,823 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:41:47,990 - ERROR - ❌ Migration add_forge_security failed: ('23000', "[23000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Violation of UNIQUE KEY constraint 'UQ__schema_m__29AC81C240CAD627'. Cannot insert duplicate key in object 'dbo.schema_migrations'. The duplicate key value is (add_forge_security). (2627) (SQLExecDirectW)")
+2026-03-03 16:41:48,371 - ERROR - Migration add_forge_security failed - stopping deployment
+2026-03-03 16:41:48,371 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:41:48,371 - INFO - ✅ Successful migrations: 0
+2026-03-03 16:41:48,371 - INFO - ❌ Failed migrations: 1
+2026-03-03 16:41:48,371 - INFO - 📊 Total T-SQL migrations processed: 1
+2026-03-03 16:41:48,371 - ERROR - 💥 Deployment failed - see errors above
+2026-03-03 16:41:48,563 - INFO - Database connection closed
+2026-03-03 16:42:06,438 - INFO - 🚀 Starting Azure SQL Migration Deployment
+2026-03-03 16:42:06,439 - INFO - Database: tcp:sigil-sql-w2-46iy6y.database.windows.net
+2026-03-03 16:42:06,439 - INFO - Loaded migration: 004_create_forge_classification (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: 006_performance_optimization (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: 008_forge_premium_features (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: add_forge_analytics (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: add_forge_security (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: 007_email_subscriptions (tsql)
+2026-03-03 16:42:06,439 - INFO - Loaded migration: 005_create_mcp_watchdog (tsql)
+2026-03-03 16:42:06,439 - INFO - Found 7 T-SQL migrations to deploy
+2026-03-03 16:42:08,491 - INFO - Connected to Azure SQL Database
+2026-03-03 16:42:08,872 - INFO - Migration tracking table ready
+2026-03-03 16:42:08,872 - INFO - 📋 Current migration status:
+2026-03-03 16:42:09,251 - INFO -   1. 004_create_forge_classification [tsql] - APPLIED
+2026-03-03 16:42:09,630 - INFO -   2. 006_performance_optimization [tsql] - APPLIED
+2026-03-03 16:42:10,012 - INFO -   3. 008_forge_premium_features [tsql] - APPLIED
+2026-03-03 16:42:10,390 - INFO -   4. add_forge_analytics [tsql] - APPLIED
+2026-03-03 16:42:10,771 - INFO -   5. add_forge_security [tsql] - PENDING
+2026-03-03 16:42:11,152 - INFO -   6. 007_email_subscriptions [tsql] - PENDING
+2026-03-03 16:42:11,540 - INFO -   7. 005_create_mcp_watchdog [tsql] - PENDING
+2026-03-03 16:42:11,920 - INFO - ⏩ Skipping already applied migration: 004_create_forge_classification
+2026-03-03 16:42:12,301 - INFO - ⏩ Skipping already applied migration: 006_performance_optimization
+2026-03-03 16:42:12,684 - INFO - ⏩ Skipping already applied migration: 008_forge_premium_features
+2026-03-03 16:42:13,067 - INFO - ⏩ Skipping already applied migration: add_forge_analytics
+2026-03-03 16:42:13,450 - INFO - 🔄 Deploying migration 5: add_forge_security
+2026-03-03 16:42:13,451 - INFO - Executing migration: add_forge_security
+2026-03-03 16:42:13,451 - INFO - Description: Security, access control, and enterprise features
+2026-03-03 16:42:27,960 - INFO - ✅ Migration add_forge_security applied successfully
+2026-03-03 16:42:28,542 - INFO - 🔄 Deploying migration 6: 007_email_subscriptions
+2026-03-03 16:42:28,542 - INFO - Executing migration: 007_email_subscriptions
+2026-03-03 16:42:28,542 - INFO - Description: Email subscription management
+2026-03-03 16:42:37,640 - INFO - ✅ Migration 007_email_subscriptions applied successfully
+2026-03-03 16:42:38,222 - INFO - 🔄 Deploying migration 7: 005_create_mcp_watchdog
+2026-03-03 16:42:38,222 - INFO - Executing migration: 005_create_mcp_watchdog
+2026-03-03 16:42:38,222 - INFO - Description: MCP server monitoring
+2026-03-03 16:42:44,647 - INFO - ✅ Migration 005_create_mcp_watchdog applied successfully
+2026-03-03 16:42:44,837 - INFO - 
+📊 Deployment Summary:
+2026-03-03 16:42:44,838 - INFO - ✅ Successful migrations: 3
+2026-03-03 16:42:44,838 - INFO - ❌ Failed migrations: 0
+2026-03-03 16:42:44,838 - INFO - 📊 Total T-SQL migrations processed: 3
+2026-03-03 16:42:44,838 - INFO - 🎉 All migrations deployed successfully!
+2026-03-03 16:42:44,838 - INFO - Database connection closed

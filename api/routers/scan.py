@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 from typing_extensions import Annotated
@@ -43,6 +44,8 @@ from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
+from api.services.forge_analytics import track_forge_event
+from api.models import ForgeEventType
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +129,14 @@ async def _submit_scan_impl(
     """Shared implementation for scan submission."""
     scan_id = uuid4().hex[:16]
 
+    # Basic input hardening for user-controlled target values
+    raw_target = request.target or ""
+    safe_target = re.sub(r"(?is)<script.*?>.*?</script>", "", raw_target)
+    safe_target = re.sub(r"(?i)javascript:", "", safe_target)
+    safe_target = re.sub(r"[;|&`$<>]", "", safe_target).strip()
+    if not safe_target:
+        safe_target = "sanitized-target"
+
     # --- 1. Compute risk score & verdict ------------------------------------
     risk_score, verdict = compute_verdict(request.findings)
 
@@ -149,7 +160,7 @@ async def _submit_scan_impl(
     now = datetime.utcnow()
     response = ScanResponse(
         scan_id=scan_id,
-        target=request.target,
+        target=safe_target,
         target_type=request.target_type,
         files_scanned=request.files_scanned,
         findings=request.findings,
@@ -164,7 +175,7 @@ async def _submit_scan_impl(
     try:
         row_data: dict[str, Any] = {
             "id": scan_id,
-            "target": request.target,
+            "target": safe_target,
             "target_type": request.target_type,
             "files_scanned": request.files_scanned,
             "findings_count": len(request.findings),
@@ -177,9 +188,13 @@ async def _submit_scan_impl(
         }
         if user_id:
             row_data["user_id"] = user_id
-        await db.insert(SCAN_TABLE, row_data)
+        await db.store_scan(row_data)
     except Exception:
         logger.exception("Failed to persist scan %s", scan_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal error",
+        )
 
     # --- 4b. Increment scan quota usage (only for authenticated users) ------
     if user_id:
@@ -189,10 +204,29 @@ async def _submit_scan_impl(
         except Exception:
             logger.exception("Failed to increment scan usage for user %s", user_id)
 
+        # --- 4c. Track analytics event ----------------------------------------
+        try:
+            await track_forge_event(
+                user_id=user_id,
+                event_type=ForgeEventType.SCAN_COMPLETED,
+                event_data={
+                    "scan_id": scan_id,
+                    "target": safe_target,
+                    "target_type": request.target_type,
+                    "risk_score": response.risk_score,
+                    "verdict": verdict.value,
+                    "findings_count": len(request.findings),
+                    "threat_hits": len(threat_hits),
+                    "files_scanned": request.files_scanned,
+                },
+            )
+        except Exception:
+            logger.exception("Failed to track scan analytics for user %s", user_id)
+
     logger.info(
         "Scan %s completed: target=%s score=%.1f verdict=%s findings=%d",
         scan_id,
-        request.target,
+        safe_target,
         risk_score,
         verdict.value,
         len(request.findings),
@@ -244,6 +278,35 @@ async def submit_scan(
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
     return await _submit_scan_impl(request, user_id=current_user.id)
+
+
+@router.post(
+    "/scans",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit scan results (legacy /v1/scans compatibility)",
+    dependencies=[Depends(RateLimiter(max_requests=30, window=60))],
+)
+async def submit_scan_v1_scans(
+    request: ScanRequest,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> dict[str, Any]:
+    current_tier = await get_user_plan(current_user.id)
+    await check_scan_quota(current_user.id, current_tier)
+    response = await _submit_scan_impl(request, user_id=current_user.id)
+    payload = response.model_dump(mode="json")
+    payload["id"] = response.scan_id
+    verdict_to_classification = {
+        "LOW_RISK": "SUSPICIOUS",
+        "MEDIUM_RISK": "RISKY",
+        "HIGH_RISK": "MALICIOUS",
+        "CRITICAL_RISK": "MALICIOUS",
+    }
+    payload["classification"] = verdict_to_classification.get(
+        response.verdict.value, "SUSPICIOUS"
+    )
+    payload["score"] = response.risk_score
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +405,42 @@ async def list_scans(
         if is_free
         else None,
     )
+
+
+@router.get(
+    "/scans",
+    response_model=ScanListResponse,
+    summary="List scans (legacy /v1/scans compatibility)",
+)
+async def list_scans_v1(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    verdict: str | None = Query(None, description="Filter by verdict"),
+    source: str | None = Query(None, description="Filter by target_type"),
+    search: str | None = Query(None, description="Search in target name"),
+) -> ScanListResponse:
+    return await list_scans(
+        current_user=current_user,
+        page=page,
+        per_page=per_page,
+        verdict=verdict,
+        source=source,
+        search=search,
+    )
+
+
+@router.get(
+    "/scans/{scan_id}",
+    response_model=ScanDetail,
+    summary="Get scan detail (legacy /v1/scans/{id} compatibility)",
+)
+async def get_scan_v1(
+    scan_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> ScanDetail:
+    row = await _get_scan_or_404(scan_id)
+    return _row_to_detail(row)
 
 
 @dashboard_router.get(

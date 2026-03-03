@@ -97,16 +97,17 @@ class _MssqlStore:
             values.append(v)
         sql = (
             f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"OUTPUT INSERTED.* "
             f"VALUES ({placeholders})"
         )
         async with self._pool.acquire() as conn:
             cursor = await conn.cursor()
             await cursor.execute(sql, tuple(values))
-            row = await cursor.fetchone()
-            result = self._row_to_dict(cursor, row)
             await conn.commit()
-            return result if result else data
+            
+            # For inserts, we need to find the inserted record since we can't use OUTPUT with triggers
+            # Use a simple approach: return the data dict since we don't have reliable way to fetch
+            # the inserted record with auto-generated fields when triggers are present
+            return data
 
     async def upsert(
         self,
@@ -135,21 +136,32 @@ class _MssqlStore:
             set_clause = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
             matched_clause = f"WHEN MATCHED THEN UPDATE SET {set_clause}"
 
-        sql = f"""
-        MERGE {table} AS target
-        USING (SELECT {source_select}) AS source ({', '.join(cols)})
-        ON ({merge_on})
-        {matched_clause}
-        WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({source_vals})
-        OUTPUT INSERTED.*;
-        """
-        async with self._pool.acquire() as conn:
-            cursor = await conn.cursor()
-            await cursor.execute(sql, tuple(values))
-            row = await cursor.fetchone()
-            result = self._row_to_dict(cursor, row)
-            await conn.commit()
-            return result if result else data
+        # Use a two-step approach to work around SQL Server trigger limitations
+        # First, try to update existing record
+        update_filters = {c: values[cols.index(c)] for c in conflict}
+        existing = await self.select_one(table, update_filters)
+        
+        if existing and update_cols:
+            # Update existing record
+            set_clause = ", ".join([f"{c} = ?" for c in update_cols])
+            update_values = [values[cols.index(c)] for c in update_cols]
+            where_clause = " AND ".join([f"{c} = ?" for c in conflict])
+            where_values = [values[cols.index(c)] for c in conflict]
+            
+            sql = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+            async with self._pool.acquire() as conn:
+                cursor = await conn.cursor()
+                await cursor.execute(sql, tuple(update_values + where_values))
+                await conn.commit()
+            
+            # Return updated record
+            return await self.select_one(table, update_filters)
+        elif not existing:
+            # Insert new record using regular insert method
+            return await self.insert(table, data)
+        else:
+            # Record exists but no updates needed
+            return existing
 
     async def select_one(
         self, table: str, filters: dict[str, Any]

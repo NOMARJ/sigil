@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}{{ subject }} - Forge Weekly{% endblock %}
+
+{% block tagline %}Your Weekly AI Security Intelligence Digest{% endblock %}
+
+{% block content %}
+<h1>Forge Weekly</h1>
+<p style="font-size: 18px; color: #6b7280;">
+    Week ending {{ content.week_ending.strftime('%B %d, %Y') }}
+</p>
+
+<!-- Weekly Metrics -->
+{% if content.metrics %}
+<div class="section">
+    <h2>📊 This Week's Activity</h2>
+    <div class="metrics-grid">
+        {% if content.metrics.scans_this_week %}
+        <div class="metric">
+            <span class="metric-value">{{ content.metrics.scans_this_week }}</span>
+            <span class="metric-label">Security Scans</span>
+        </div>
+        {% endif %}
+        {% if content.metrics.tools_discovered %}
+        <div class="metric">
+            <span class="metric-value">{{ content.metrics.tools_discovered }}</span>
+            <span class="metric-label">New Tools</span>
+        </div>
+        {% endif %}
+        {% if content.metrics.security_alerts %}
+        <div class="metric">
+            <span class="metric-value">{{ content.metrics.security_alerts }}</span>
+            <span class="metric-label">Security Alerts</span>
+        </div>
+        {% endif %}
+        {% if content.metrics.active_subscribers %}
+        <div class="metric">
+            <span class="metric-value">{{ content.metrics.active_subscribers }}</span>
+            <span class="metric-label">Community</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Security Alerts -->
+{% if content.security_alerts %}
+<div class="section">
+    <h2>🚨 Critical Security Alerts</h2>
+    <p>Important security threats detected this week:</p>
+    
+    {% for alert in content.security_alerts[:5] %}
+    <div class="alert {% if alert.severity == 'CRITICAL' %}alert-danger{% elif alert.severity == 'HIGH' %}alert-warning{% else %}alert-info{% endif %}">
+        <strong>{{ alert.title }}</strong>
+        {% if alert.description %}
+        <p style="margin: 8px 0 0 0;">{{ alert.description }}</p>
+        {% endif %}
+        <small style="color: #6b7280;">{{ alert.published_at.strftime('%B %d, %Y') }}</small>
+    </div>
+    {% endfor %}
+    
+    <a href="{{ base_url }}/feeds" class="btn btn-secondary">View All Security Alerts</a>
+</div>
+{% endif %}
+
+<!-- New Tool Discoveries -->
+{% if content.new_tools %}
+<div class="section">
+    <h2>🔍 New Tool Discoveries</h2>
+    <p>{{ content.new_tools|length }} new AI agent tools were discovered and analyzed this week:</p>
+    
+    {% for tool in content.new_tools[:8] %}
+    <div class="tool-card">
+        <div class="tool-title">{{ tool.name }}</div>
+        {% if tool.description %}
+        <div class="tool-description">{{ tool.description[:120] }}{% if tool.description|length > 120 %}...{% endif %}</div>
+        {% endif %}
+        <div>
+            <span class="trust-score {% if tool.trust_score >= 80 %}trust-high{% elif tool.trust_score >= 60 %}trust-medium{% else %}trust-low{% endif %}">
+                Trust Score: {{ tool.trust_score }}%
+            </span>
+            {% if tool.category %}
+            <span style="margin-left: 12px; font-size: 12px; color: #6b7280;">{{ tool.category }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    
+    <a href="{{ base_url }}/forge" class="btn">Explore All Tools</a>
+</div>
+{% endif %}
+
+<!-- Trending Categories -->
+{% if content.trending_categories %}
+<div class="section">
+    <h2>📈 Trending Categories</h2>
+    <p>Most active tool categories this week:</p>
+    
+    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <thead>
+            <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="text-align: left; padding: 12px 0; color: #374151;">Category</th>
+                <th style="text-align: right; padding: 12px 0; color: #374151;">New Tools</th>
+                <th style="text-align: right; padding: 12px 0; color: #374151;">Avg Trust</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category in content.trending_categories %}
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 12px 0; font-weight: 500;">{{ category.category }}</td>
+                <td style="padding: 12px 0; text-align: right;">{{ category.tool_count }}</td>
+                <td style="padding: 12px 0; text-align: right;">
+                    <span class="trust-score {% if category.avg_trust_score >= 80 %}trust-high{% elif category.avg_trust_score >= 60 %}trust-medium{% else %}trust-low{% endif %}">
+                        {{ "%.0f"|format(category.avg_trust_score) }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Trust Score Changes -->
+{% if content.trust_score_changes %}
+<div class="section">
+    <h2>⚖️ Notable Trust Score Changes</h2>
+    <p>Tools with significant trust score updates:</p>
+    
+    {% for tool in content.trust_score_changes %}
+    <div class="tool-card">
+        <div class="tool-title">{{ tool.name }}</div>
+        <div style="margin-top: 8px;">
+            <span style="font-size: 14px;">
+                Trust Score: 
+                <span style="{% if tool.change > 0 %}color: #059669;{% else %}color: #dc2626;{% endif %} font-weight: 600;">
+                    {{ tool.trust_score }}% 
+                    ({% if tool.change > 0 %}+{% endif %}{{ "%.0f"|format(tool.change) }})
+                </span>
+            </span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Community Highlights -->
+{% if content.community_highlights %}
+<div class="section">
+    <h2>👥 Community Highlights</h2>
+    
+    {% for highlight in content.community_highlights %}
+    <div style="padding: 16px 0; border-bottom: 1px solid #f3f4f6;">
+        <h3 style="margin-bottom: 8px; font-size: 16px;">{{ highlight.title }}</h3>
+        <p style="margin: 0; color: #6b7280;">{{ highlight.content }}</p>
+    </div>
+    {% endfor %}
+    
+    <a href="{{ base_url }}/community" class="btn btn-secondary">Join the Discussion</a>
+</div>
+{% endif %}
+
+<!-- Call to Action -->
+<div class="section">
+    <h2>🛡️ Secure Your AI Agent Development</h2>
+    <p>Stay ahead of security threats in your AI agent development workflow:</p>
+    
+    <div style="margin: 20px 0;">
+        <a href="{{ base_url }}/tools" class="btn">Scan Your Code</a>
+        <a href="{{ base_url }}/forge" class="btn btn-secondary">Discover Secure Tools</a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280;">
+        <strong>Pro tip:</strong> Use <code>sigil scan .</code> before installing any new packages or MCP servers.
+    </p>
+</div>
+
+<!-- Feedback Section -->
+<div style="background-color: #f8fafc; padding: 24px; border-radius: 8px; margin-top: 32px; text-align: center;">
+    <h3 style="margin-bottom: 12px;">What did you think of this week's digest?</h3>
+    <p style="margin-bottom: 16px; color: #6b7280;">Your feedback helps us improve Forge Weekly</p>
+    
+    <div>
+        <a href="{{ base_url }}/feedback?rating=positive&source=email" style="margin: 0 8px; padding: 8px 16px; background: #10b981; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">👍 Helpful</a>
+        <a href="{{ base_url }}/feedback?rating=neutral&source=email" style="margin: 0 8px; padding: 8px 16px; background: #6b7280; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">😐 Okay</a>
+        <a href="{{ base_url }}/feedback?rating=negative&source=email" style="margin: 0 8px; padding: 8px 16px; background: #ef4444; color: white; text-decoration: none; border-radius: 4px; font-size: 14px;">👎 Poor</a>
+    </div>
+</div>
+
+{% endblock %}
