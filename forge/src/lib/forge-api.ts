@@ -2,12 +2,17 @@
  * Forge Backend API — Server-side proxy helper
  *
  * Used by Next.js API route handlers to proxy requests to the Forge backend
- * (api.sigilsec.ai/forge). Handles authentication, Content-Type validation,
+ * (api.sigilsec.ai/api/forge). Handles authentication, Content-Type validation,
  * and graceful fallbacks when the backend returns non-JSON (e.g. 401 HTML).
+ *
+ * NOTE: The infrastructure routes through /api/forge/*, not /forge/*.
+ * Requests to /forge/* without the /api/ prefix hit the reverse proxy's
+ * default handler which returns 401 HTML — this was the root cause of
+ * the original 401 bug.
  */
 
 const FORGE_BACKEND_URL =
-  process.env.FORGE_BACKEND_URL || "https://api.sigilsec.ai/forge";
+  process.env.FORGE_BACKEND_URL || "https://api.sigilsec.ai/api/forge";
 const FORGE_API_KEY = process.env.FORGE_API_KEY || "";
 
 export interface ForgeProxyOptions {
