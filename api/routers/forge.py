@@ -1205,3 +1205,53 @@ async def mcp_check(name: str, ecosystem: str):
         if tool.trust_score >= 60
         else "HIGH_RISK",
     }
+
+
+# Additional endpoints required by deployment validation
+@router.get("/stacks")
+async def get_stacks_alias(
+    use_case: str = Query(..., description="Use case to build a stack for"),
+    max_tools: int = Query(5, ge=1, le=20),
+):
+    """Alias for /stack endpoint (required by deployment validation)."""
+    return await get_tool_stack(use_case=use_case, max_tools=max_tools)
+
+
+@router.get("/feed.json")
+async def get_forge_feed():
+    """RSS/JSON feed of latest tools (required by deployment validation)."""
+    try:
+        # Get recent classifications
+        recent_tools = []
+        rows = await _fetch_scan_rows(limit=50)
+        
+        for row in rows:
+            normalized_ecosystem = _normalize_ecosystem(row.get("ecosystem", ""))
+            scan_data = _build_scan_data_from_row(row)
+            package_name = row.get("package_name") or row.get("name") or "unknown"
+            tool = await classify_tool(normalized_ecosystem, package_name, scan_data)
+            
+            recent_tools.append({
+                "title": f"{tool.name} ({tool.ecosystem})",
+                "description": scan_data.get("metadata", {}).get("description", ""),
+                "category": tool.category.value,
+                "trust_score": tool.trust_score,
+                "verdict": tool.verdict,
+                "url": f"/forge/tools/{tool.ecosystem}/{tool.name}",
+                "published": datetime.utcnow().isoformat(),
+            })
+            
+            if len(recent_tools) >= 20:
+                break
+        
+        return {
+            "version": "https://jsonfeed.org/version/1.1",
+            "title": "Sigil Forge - Latest Tools",
+            "home_page_url": "/forge",
+            "feed_url": "/forge/feed.json",
+            "description": "Latest classified AI agent tools and packages",
+            "items": recent_tools,
+        }
+    except Exception as e:
+        logger.error(f"Feed generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
