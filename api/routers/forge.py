@@ -323,18 +323,18 @@ def _build_scan_data_from_row(row: dict[str, Any]) -> dict[str, Any]:
 
 async def _fetch_scan_rows(limit: int = 50) -> list[dict[str, Any]]:
     """Fetch scan rows using compatibility methods used in tests."""
-    if hasattr(db, "fetch_all"):
-        return await db.fetch_all("SELECT TOP (?) * FROM public_scans", [limit])
+    if hasattr(db, "execute_raw_sql"):
+        return await db.execute_raw_sql("SELECT TOP (?) * FROM public_scans", (limit,))
     return await db.select("public_scans", limit=limit)
 
 
 async def _fetch_single_scan_row(
     ecosystem: str, package_name: str
 ) -> dict[str, Any] | None:
-    if hasattr(db, "fetch_one"):
-        return await db.fetch_one(
+    if hasattr(db, "execute_raw_sql_single"):
+        return await db.execute_raw_sql_single(
             "SELECT * FROM public_scans WHERE ecosystem = ? AND package_name = ?",
-            [ecosystem, package_name],
+            (ecosystem, package_name),
         )
     return await db.select_one(
         "public_scans", {"ecosystem": ecosystem, "package_name": package_name}
@@ -1259,7 +1259,7 @@ async def get_forge_jobs(
             sql += " ORDER BY scanned_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
             params.extend([offset, limit])
 
-            rows = await db.fetch_all(sql, params)
+            rows = await db.execute_raw_sql(sql, params)
             jobs = []
 
             for row in rows:
@@ -1323,7 +1323,7 @@ async def get_forge_stats_detailed():
             WHERE scanned_at >= DATEADD(day, -7, GETDATE())
             """
 
-            stats_row = await db.fetch_one(stats_sql)
+            stats_row = await db.execute_raw_sql_single(stats_sql)
 
             return {
                 "status": "operational",
