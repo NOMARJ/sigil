@@ -651,5 +651,100 @@ class GateError(BaseModel):
     upgrade_url: str = "https://app.sigilsec.ai/upgrade"
 
 
+# ---------------------------------------------------------------------------
+# Email Newsletter (Forge Weekly)
+# ---------------------------------------------------------------------------
+
+
+class EmailSubscriptionRequest(BaseModel):
+    """Request to subscribe to Forge Weekly newsletter."""
+    
+    email: str = Field(..., description="Subscriber email address")
+    preferences: dict[str, bool] = Field(
+        default_factory=lambda: {
+            "security_alerts": True,
+            "tool_discoveries": True,
+            "weekly_digest": True,
+            "product_updates": True
+        },
+        description="Email preferences for different content types"
+    )
+    source: str = Field("forge", description="Subscription source (forge, api, dashboard)")
+
+
+class EmailSubscriptionResponse(BaseModel):
+    """Response after email subscription."""
+    
+    success: bool = True
+    message: str = "Successfully subscribed to Forge Weekly"
+    email: str = ""
+    preferences: dict[str, bool] = Field(default_factory=dict)
+    unsubscribe_token: str = Field("", description="Token for unsubscribe links")
+
+
+class EmailPreferencesUpdate(BaseModel):
+    """Request to update email preferences."""
+    
+    preferences: dict[str, bool] = Field(
+        ..., description="Updated email preferences"
+    )
+
+
+class WeeklyDigestContent(BaseModel):
+    """Content structure for weekly digest generation."""
+    
+    week_ending: datetime = Field(..., description="Week ending date")
+    new_tools: list[dict[str, Any]] = Field(
+        default_factory=list, description="New tool discoveries"
+    )
+    security_alerts: list[dict[str, Any]] = Field(
+        default_factory=list, description="Security alerts and threats"
+    )
+    trending_categories: list[dict[str, Any]] = Field(
+        default_factory=list, description="Trending tool categories"
+    )
+    trust_score_changes: list[dict[str, Any]] = Field(
+        default_factory=list, description="Notable trust score changes"
+    )
+    community_highlights: list[dict[str, str]] = Field(
+        default_factory=list, description="Community submissions and highlights"
+    )
+    metrics: dict[str, int] = Field(
+        default_factory=dict, description="Weekly metrics (scans, discoveries, etc.)"
+    )
+
+
+class EmailCampaignRequest(BaseModel):
+    """Request to send an email campaign."""
+    
+    subject: str = Field(..., description="Email subject line")
+    content: WeeklyDigestContent = Field(..., description="Email content")
+    send_at: datetime | None = Field(None, description="Scheduled send time")
+    test_mode: bool = Field(False, description="Send to test recipients only")
+
+
+class EmailCampaignResponse(BaseModel):
+    """Response after creating email campaign."""
+    
+    campaign_id: str = Field(..., description="Unique campaign identifier")
+    scheduled_for: datetime = Field(..., description="Scheduled send time")
+    recipient_count: int = Field(0, description="Number of recipients")
+    status: str = Field("scheduled", description="Campaign status")
+
+
+class UnsubscribeRequest(BaseModel):
+    """Request to unsubscribe from emails."""
+    
+    token: str = Field(..., description="Unsubscribe token from email")
+    reason: str = Field("", description="Optional unsubscribe reason")
+
+
+class UnsubscribeResponse(BaseModel):
+    """Response after unsubscribing."""
+    
+    success: bool = True
+    message: str = "Successfully unsubscribed from all emails"
+
+
 # Forward-ref update so ScanResponse can reference ThreatEntry
 ScanResponse.model_rebuild()

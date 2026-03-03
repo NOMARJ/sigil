@@ -22,7 +22,13 @@ from api.config import settings
 from api.database import cache, db
 from api.gates import PlanGateException
 from api.models import GateError
+from api.monitoring import MetricsMiddleware, monitoring
 from api.rate_limit import RateLimitMiddleware
+from api.middleware.security import (
+    RequestValidationMiddleware,
+    SecurityHeaders,
+)
+from api.middleware.rate_limit_enhanced import EnhancedRateLimitMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -79,6 +85,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await registry_stats_updater.start_updater()
     print("[LIFESPAN] Background updater started")
 
+    # Start monitoring and alerting
+    if settings.metrics_enabled:
+        print("[LIFESPAN] Starting monitoring system...")
+        from api.monitoring.alerting import run_alert_evaluation_loop
+        import asyncio
+        
+        # Start alert evaluation loop in background
+        asyncio.create_task(run_alert_evaluation_loop())
+        print("[LIFESPAN] Monitoring and alerting started")
+
     yield
 
     logger.info("Shutting down Sigil API")
@@ -126,21 +142,31 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    if not settings.debug:
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+    # Use comprehensive security headers from security middleware
+    SecurityHeaders.apply(response, is_production=not settings.debug)
     return response
 
 
 # ---------------------------------------------------------------------------
-# Global rate limiting (per-IP, distributed via Redis)
+# Monitoring middleware
 # ---------------------------------------------------------------------------
 
+app.add_middleware(MetricsMiddleware)
+
+# ---------------------------------------------------------------------------
+# Request validation and sanitization
+# ---------------------------------------------------------------------------
+
+app.add_middleware(RequestValidationMiddleware)
+
+# ---------------------------------------------------------------------------
+# Enhanced tiered rate limiting (per-IP, distributed via Redis)
+# ---------------------------------------------------------------------------
+
+# Use enhanced rate limiting with tiered limits
+app.add_middleware(EnhancedRateLimitMiddleware, redis_client=cache.redis if hasattr(cache, 'redis') else None)
+
+# Keep legacy rate limiter as fallback
 app.add_middleware(RateLimitMiddleware, max_requests=200, window=60)
 
 
@@ -184,8 +210,11 @@ from api.routers import (  # noqa: E402
     auth,
     badge,
     billing,
+    email,
     feed,
+    forge,
     github_app,
+    permissions,
     policies,
     publisher,
     registry,
@@ -213,6 +242,9 @@ app.include_router(badge.router)  # /badge/*    — SVG badge generation
 app.include_router(github_app.router)  # /github/*   — GitHub App webhooks
 app.include_router(feed.router)  # /feed.*     — RSS + JSON threat feed
 app.include_router(attestation.router)  # /api/v1/attestation/* — signed attestations
+app.include_router(forge.router)  # /forge/*    — Forge discovery and curation
+app.include_router(permissions.router)  # /permissions/* — MCP permissions mapping
+app.include_router(email.router)  # /email/*    — Forge Weekly newsletter
 
 # --- Dashboard-compatible routes (no /v1 prefix) --------------------------
 # The dashboard frontend calls paths like /auth/login, /scans, /team,
@@ -364,13 +396,13 @@ app.include_router(_billing_dashboard)
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# Health check & Monitoring endpoints
 # ---------------------------------------------------------------------------
 
 
-@app.get("/health", tags=["system"], summary="Health check")
+@app.get("/health", tags=["monitoring"], summary="Basic health check")
 async def health() -> JSONResponse:
-    """Return service health status including backend connectivity."""
+    """Return basic service health status for load balancer checks."""
     healthy = db.connected
     return JSONResponse(
         status_code=status.HTTP_200_OK
@@ -382,6 +414,66 @@ async def health() -> JSONResponse:
             "database_connected": db.connected,
             "redis_connected": cache.connected,
         },
+    )
+
+
+@app.get("/health/detailed", tags=["monitoring"], summary="Detailed health check")
+async def health_detailed() -> JSONResponse:
+    """Return comprehensive health status including all components."""
+    health_status = await monitoring.get_health_status(include_checks=True)
+    
+    # Determine HTTP status based on health
+    if health_status["status"] == "healthy":
+        http_status = status.HTTP_200_OK
+    elif health_status["status"] == "degraded":
+        http_status = status.HTTP_200_OK  # Still serving traffic
+    else:
+        http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    
+    return JSONResponse(
+        status_code=http_status,
+        content=health_status
+    )
+
+
+@app.get("/health/ready", tags=["monitoring"], summary="Readiness probe")
+async def health_ready() -> JSONResponse:
+    """Kubernetes readiness probe - checks if service can accept traffic."""
+    # Check critical components only
+    critical_healthy = db.connected
+    
+    if critical_healthy:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"ready": True, "timestamp": monitoring.health_manager._get_timestamp()}
+        )
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"ready": False, "timestamp": monitoring.health_manager._get_timestamp()}
+        )
+
+
+@app.get("/health/live", tags=["monitoring"], summary="Liveness probe") 
+async def health_live() -> JSONResponse:
+    """Kubernetes liveness probe - checks if service is alive."""
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "alive": True,
+            "timestamp": monitoring.health_manager._get_timestamp(),
+            "version": settings.app_version
+        }
+    )
+
+
+@app.get("/metrics", tags=["monitoring"], summary="Prometheus metrics")
+async def metrics() -> Response:
+    """Return Prometheus metrics in text format."""
+    metrics_data = monitoring.get_prometheus_metrics()
+    return Response(
+        content=metrics_data,
+        media_type="text/plain; version=0.0.4; charset=utf-8"
     )
 
 
