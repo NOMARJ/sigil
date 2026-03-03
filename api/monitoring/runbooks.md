@@ -32,7 +32,7 @@ This document contains operational procedures for responding to production incid
 ### Communication Channels
 
 - **Slack**: `#incidents` channel
-- **Email**: incidents@sigilsec.ai
+- **Email**: incidents@mail.sigilsec.ai
 - **PagerDuty**: For critical/high severity alerts
 
 ## Critical Alerts

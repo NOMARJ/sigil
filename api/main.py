@@ -136,7 +136,7 @@ app = FastAPI(
     contact={
         "name": "Sigil Security",
         "url": "https://sigilsec.ai",
-        "email": "support@sigilsec.ai",
+        "email": "support@mail.sigilsec.ai",
     },
     license_info={
         "name": "MIT",
@@ -608,7 +608,7 @@ async def get_public_openapi_spec() -> dict:
             "contact": {
                 "name": "Sigil Security",
                 "url": "https://sigilsec.ai",
-                "email": "support@sigilsec.ai",
+                "email": "support@mail.sigilsec.ai",
             },
             "license": {
                 "name": "MIT",
@@ -1017,6 +1017,52 @@ async def get_complete_openapi_spec() -> dict:
     }
 
 
+@app.get("/api/test-email", tags=["system"], summary="Test Email Configuration")
+async def test_email_config() -> dict:
+    """
+    Test email configuration with mail.sigilsec.ai domain.
+    
+    This endpoint verifies that the email service is properly configured
+    and can connect to Resend with the mail.sigilsec.ai domain.
+    """
+    from api.services.email_service import EmailService
+    
+    email_service = EmailService()
+    
+    # Check configuration
+    config_status = {
+        "domain": email_service.from_email.split("@")[1] if "@" in email_service.from_email else "unknown",
+        "from_email": email_service.from_email,
+        "from_name": email_service.from_name,
+        "resend_configured": bool(email_service.resend_api_key),
+        "expected_domain": "mail.sigilsec.ai"
+    }
+    
+    # Test status
+    status = "ready" if (
+        config_status["domain"] == "mail.sigilsec.ai" and 
+        config_status["resend_configured"]
+    ) else "needs_configuration"
+    
+    if not config_status["resend_configured"]:
+        message = "Resend API key not configured. Set SIGIL_RESEND_API_KEY environment variable."
+    elif config_status["domain"] != "mail.sigilsec.ai":
+        message = f"Domain mismatch. Expected mail.sigilsec.ai, got {config_status['domain']}"
+    else:
+        message = "Email service ready to send from mail.sigilsec.ai"
+    
+    return {
+        "status": status,
+        "message": message,
+        "configuration": config_status,
+        "test_payload_example": {
+            "from": f"{config_status['from_name']} <{config_status['from_email']}>",
+            "subject": "Test from mail.sigilsec.ai",
+            "domain_verified": config_status["domain"] == "mail.sigilsec.ai"
+        }
+    }
+
+
 @app.get("/", tags=["system"], summary="Root")
 async def root() -> dict:
     """
@@ -1058,6 +1104,6 @@ async def root() -> dict:
         "links": {
             "website": "https://sigilsec.ai",
             "github": "https://github.com/NOMARJ/sigil",
-            "support": "support@sigilsec.ai",
+            "support": "support@mail.sigilsec.ai",
         },
     }

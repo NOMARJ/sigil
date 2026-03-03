@@ -76,11 +76,11 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str | None = None
     smtp_password: str | None = None
-    smtp_from_email: str = "alerts@sigilsec.ai"
+    smtp_from_email: str = "alerts@mail.sigilsec.ai"
 
     # --- Email Newsletter (Forge Weekly) --------------------------------------
     resend_api_key: str | None = None  # SIGIL_RESEND_API_KEY
-    from_email: str = "noreply@sigilsec.ai"  # SIGIL_FROM_EMAIL
+    from_email: str = "noreply@mail.sigilsec.ai"  # SIGIL_FROM_EMAIL
     from_name: str = "Sigil Security"  # SIGIL_FROM_NAME
     base_url: str = "https://api.sigilsec.ai"  # SIGIL_BASE_URL
 
