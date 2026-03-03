@@ -195,9 +195,7 @@ async def test_search_tools_without_query():
                     "verdict": "LOW_RISK",
                     "findings_count": 1,
                     "files_scanned": 5,
-                    "metadata": json.dumps(
-                        {"description": "A useful MCP tool"}
-                    ),
+                    "metadata": json.dumps({"description": "A useful MCP tool"}),
                     "findings_json": json.dumps([]),
                     "created_at": datetime.now(timezone.utc),
                 }
@@ -207,17 +205,17 @@ async def test_search_tools_without_query():
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Test without q parameter
             response = await client.get("/forge/search")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "items" in data
             assert "query" in data
             assert data["query"] == ""  # Should default to empty string
             assert len(data["items"]) > 0
-            
+
             # Test with empty q parameter
             response = await client.get("/forge/search?q=")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["query"] == ""
