@@ -43,7 +43,12 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # --- CORS ------------------------------------------------------------------
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "https://app.sigilsec.ai",
+        "https://sigilsec.ai",
+        "https://forge.sigilsec.ai",
+    ]
     frontend_url: str = "https://app.sigilsec.ai"
 
     # --- JWT / Auth ------------------------------------------------------------

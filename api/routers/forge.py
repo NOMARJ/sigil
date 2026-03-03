@@ -1097,14 +1097,19 @@ async def generate_stack(request: StackRequest):
 
 @router.get("/stats")
 async def get_forge_stats():
-    """Get Forge statistics."""
+    """Get Forge statistics.
+
+    Returns enriched stats including ecosystem breakdowns and trust score
+    distribution so the frontend can display them without extra requests.
+    """
 
     try:
         # Count tools by ecosystem
         all_classifications = await db.select("forge_classification", {})
 
-        ecosystem_counts = {}
-        category_counts = {}
+        ecosystem_counts: dict[str, int] = {}
+        category_counts: dict[str, int] = {}
+        trust_buckets = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         total_tools = len(all_classifications)
 
         for classification in all_classifications:
@@ -1114,15 +1119,49 @@ async def get_forge_stats():
             ecosystem_counts[ecosystem] = ecosystem_counts.get(ecosystem, 0) + 1
             category_counts[category] = category_counts.get(category, 0) + 1
 
+            # Bucket by confidence as a proxy for trust level
+            confidence = classification.get("confidence_score", 0.5)
+            if confidence >= 0.9:
+                trust_buckets["critical"] += 1
+            elif confidence >= 0.7:
+                trust_buckets["high"] += 1
+            elif confidence >= 0.4:
+                trust_buckets["medium"] += 1
+            else:
+                trust_buckets["low"] += 1
+
         # Count total matches
         matches = await db.select("forge_matches", {})
         total_matches = len(matches)
 
+        # Derive ecosystem-specific counts
+        mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
+        skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get(
+            "clawhub", 0
+        )
+        npm_packages = ecosystem_counts.get("npm", 0)
+        pypi_packages = ecosystem_counts.get("pypi", 0)
+
+        # Top categories sorted by count
+        top_categories = sorted(
+            [{"name": k, "count": v} for k, v in category_counts.items()],
+            key=lambda x: x["count"],
+            reverse=True,
+        )[:10]
+
         return {
             "total_tools": total_tools,
+            "total_categories": len(category_counts),
             "total_matches": total_matches,
+            "mcp_servers": mcp_servers,
+            "skills_count": skills_count,
+            "npm_packages": npm_packages,
+            "pypi_packages": pypi_packages,
             "ecosystems": ecosystem_counts,
             "categories": category_counts,
+            "trust_score_distribution": trust_buckets,
+            "recent_scans": [],
+            "top_categories": top_categories,
             "last_updated": datetime.utcnow().isoformat(),
         }
 
