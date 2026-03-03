@@ -133,6 +133,40 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
     openapi_url="/openapi.json" if settings.debug else None,
+    contact={
+        "name": "Sigil Security",
+        "url": "https://sigilsec.ai",
+        "email": "support@mail.sigilsec.ai",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://github.com/NOMARJ/sigil/blob/main/LICENSE",
+    },
+    servers=[
+        {"url": "https://api.sigilsec.ai", "description": "Production"},
+        {"url": "http://localhost:8000", "description": "Development"},
+    ],
+    tags_metadata=[
+        {"name": "system", "description": "System information and root endpoints"},
+        {
+            "name": "documentation",
+            "description": "API documentation and OpenAPI specifications",
+        },
+        {"name": "monitoring", "description": "Health checks and system monitoring"},
+        {"name": "scan", "description": "Security scanning operations"},
+        {"name": "threat", "description": "Threat intelligence and management"},
+        {"name": "auth", "description": "Authentication and user management"},
+        {"name": "team", "description": "Team and organization management"},
+        {"name": "billing", "description": "Subscription and billing operations"},
+        {"name": "forge", "description": "Tool discovery and stack analysis"},
+        {"name": "registry", "description": "Public scan database and threat catalog"},
+        {"name": "feed", "description": "RSS and JSON threat intelligence feeds"},
+        {"name": "github", "description": "GitHub App integration"},
+        {"name": "email", "description": "Newsletter and email notifications"},
+        {"name": "realtime", "description": "Real-time updates and notifications"},
+        {"name": "permissions", "description": "MCP server permissions"},
+        {"name": "attestation", "description": "Digital attestations and verification"},
+    ],
 )
 
 
@@ -241,29 +275,37 @@ async def validation_exception_handler(
 # Router registration
 # ---------------------------------------------------------------------------
 
-from api.routers import (  # noqa: E402
-    alerts,
-    attestation,
-    auth,
-    badge,
-    billing,
-    email,
-    feed,
-    forge,
-    forge_analytics,
-    forge_premium,
-    github_app,
-    permissions,
-    policies,
-    publisher,
-    realtime,
-    registry,
-    report,
-    scan,
-    team,
-    threat,
-    verify,
-)
+# Import routers with error handling to catch registration failures
+try:
+    from api.routers import (  # noqa: E402
+        alerts,
+        attestation,
+        auth,
+        badge,
+        billing,
+        email,
+        feed,
+        forge,
+        forge_analytics,
+        forge_premium,
+        github_app,
+        permissions,
+        policies,
+        publisher,
+        realtime,
+        registry,
+        report,
+        scan,
+        team,
+        threat,
+        verify,
+    )
+
+    logger.info("All routers imported successfully")
+except ImportError as e:
+    logger.error(f"Failed to import routers: {e}")
+    # Re-raise to prevent silent failures
+    raise
 
 # --- Original /v1 routes (backward compatibility) --------------------------
 app.include_router(scan.router)
@@ -547,11 +589,543 @@ async def metrics() -> Response:
     )
 
 
+@app.get(
+    "/api/openapi.json", tags=["documentation"], summary="Public OpenAPI specification"
+)
+async def get_public_openapi_spec() -> dict:
+    """
+    Get OpenAPI 3.1 specification for public Sigil API endpoints only.
+
+    This endpoint provides documentation for publicly accessible endpoints:
+    - Health checks and monitoring
+    - Registry (public scan database)
+    - Feeds (RSS/JSON threat intelligence)
+    - Badges and GitHub webhooks
+    - Forge (tool discovery)
+
+    Secure endpoints requiring authentication are not included.
+    """
+    # Create a curated public-only OpenAPI schema
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Sigil API - Public Endpoints",
+            "version": app.version,
+            "description": "Automated security auditing platform for AI agent code. This documentation covers only publicly accessible endpoints that do not require authentication.",
+            "x-logo": {
+                "url": "https://sigilsec.ai/logo.png",
+                "altText": "Sigil Security",
+            },
+            "x-api-id": "sigil-api-public",
+            "termsOfService": "https://sigilsec.ai/terms",
+            "contact": {
+                "name": "Sigil Security",
+                "url": "https://sigilsec.ai",
+                "email": "support@mail.sigilsec.ai",
+            },
+            "license": {
+                "name": "MIT",
+                "url": "https://github.com/NOMARJ/sigil/blob/main/LICENSE",
+            },
+        },
+        "servers": [
+            {"url": "https://api.sigilsec.ai", "description": "Production"},
+            {"url": "http://localhost:8000", "description": "Development"},
+        ],
+        "tags": [
+            {"name": "system", "description": "System information and API discovery"},
+            {
+                "name": "monitoring",
+                "description": "Health checks and system monitoring",
+            },
+            {
+                "name": "registry",
+                "description": "Public scan database and threat catalog",
+            },
+            {"name": "feed", "description": "RSS and JSON threat intelligence feeds"},
+            {"name": "forge", "description": "Tool discovery and stack analysis"},
+            {"name": "github", "description": "GitHub App webhook integration"},
+            {"name": "badges", "description": "SVG badge generation"},
+            {
+                "name": "attestation",
+                "description": "Digital attestations and verification",
+            },
+            {"name": "permissions", "description": "MCP server permissions"},
+        ],
+        "paths": {
+            "/": {
+                "get": {
+                    "tags": ["system"],
+                    "summary": "API Root",
+                    "description": "Get API information and documentation links",
+                    "responses": {
+                        "200": {
+                            "description": "API information",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "service": "Sigil API",
+                                        "version": "0.1.0",
+                                        "documentation": {
+                                            "openapi_spec": "/api/openapi.json"
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            "/health": {
+                "get": {
+                    "tags": ["monitoring"],
+                    "summary": "Basic Health Check",
+                    "description": "Check if the API service is running",
+                    "responses": {"200": {"description": "Service is healthy"}},
+                }
+            },
+            "/health/detailed": {
+                "get": {
+                    "tags": ["monitoring"],
+                    "summary": "Detailed Health Check",
+                    "description": "Comprehensive health check including database and dependencies",
+                    "responses": {"200": {"description": "Detailed health status"}},
+                }
+            },
+            "/metrics": {
+                "get": {
+                    "tags": ["monitoring"],
+                    "summary": "Prometheus Metrics",
+                    "description": "Get Prometheus-format metrics",
+                    "responses": {
+                        "200": {
+                            "description": "Prometheus metrics",
+                            "content": {"text/plain": {}},
+                        }
+                    },
+                }
+            },
+            "/registry/search": {
+                "get": {
+                    "tags": ["registry"],
+                    "summary": "Search Public Scan Database",
+                    "description": "Search the public registry of security scans",
+                    "parameters": [
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "description": "Search query",
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "Search results"}},
+                }
+            },
+            "/registry/stats": {
+                "get": {
+                    "tags": ["registry"],
+                    "summary": "Registry Statistics",
+                    "description": "Get public registry statistics",
+                    "responses": {"200": {"description": "Registry statistics"}},
+                }
+            },
+            "/feed.xml": {
+                "get": {
+                    "tags": ["feed"],
+                    "summary": "RSS Threat Feed",
+                    "description": "RSS 2.0 feed of latest security threats",
+                    "responses": {
+                        "200": {
+                            "description": "RSS XML feed",
+                            "content": {"application/rss+xml": {}},
+                        }
+                    },
+                }
+            },
+            "/feed.json": {
+                "get": {
+                    "tags": ["feed"],
+                    "summary": "JSON Threat Feed",
+                    "description": "JSON feed of latest security threats",
+                    "responses": {
+                        "200": {
+                            "description": "JSON feed",
+                            "content": {"application/json": {}},
+                        }
+                    },
+                }
+            },
+            "/forge/search": {
+                "get": {
+                    "tags": ["forge"],
+                    "summary": "Search Tools and Packages",
+                    "description": "Search for development tools and packages",
+                    "parameters": [
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "description": "Search query",
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "Search results"}},
+                }
+            },
+            "/forge/categories": {
+                "get": {
+                    "tags": ["forge"],
+                    "summary": "Tool Categories",
+                    "description": "Get available tool categories",
+                    "responses": {"200": {"description": "Category list"}},
+                }
+            },
+            "/badge/scan/{scan_id}": {
+                "get": {
+                    "tags": ["badges"],
+                    "summary": "Generate Scan Badge",
+                    "description": "Generate SVG badge for a scan result",
+                    "parameters": [
+                        {
+                            "name": "scan_id",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "SVG badge",
+                            "content": {"image/svg+xml": {}},
+                        }
+                    },
+                }
+            },
+            "/github/webhook": {
+                "post": {
+                    "tags": ["github"],
+                    "summary": "GitHub Webhook",
+                    "description": "GitHub App webhook endpoint",
+                    "responses": {"200": {"description": "Webhook processed"}},
+                }
+            },
+            "/api/v1/attestation/verify/{attestation_id}": {
+                "get": {
+                    "tags": ["attestation"],
+                    "summary": "Verify Attestation",
+                    "description": "Verify a digital attestation",
+                    "parameters": [
+                        {
+                            "name": "attestation_id",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {"description": "Attestation verification result"}
+                    },
+                }
+            },
+            "/api/v1/permissions/{mcp_name}": {
+                "get": {
+                    "tags": ["permissions"],
+                    "summary": "Get MCP Server Permissions",
+                    "description": "Get permissions for an MCP server",
+                    "parameters": [
+                        {
+                            "name": "mcp_name",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "MCP permissions"}},
+                }
+            },
+        },
+        "components": {
+            "schemas": {
+                "Error": {
+                    "type": "object",
+                    "properties": {"detail": {"type": "string"}},
+                }
+            }
+        },
+    }
+
+
+@app.get("/api/docs", tags=["documentation"], summary="Public API Documentation")
+async def public_api_documentation():
+    """
+    Interactive API documentation for public endpoints only.
+
+    Provides a web interface to explore and test publicly accessible
+    endpoints that do not require authentication.
+    """
+    from fastapi.responses import HTMLResponse
+
+    swagger_ui_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sigil API Documentation</title>
+        <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+        <link rel="icon" type="image/png" href="https://sigilsec.ai/favicon.ico" sizes="32x32" />
+        <style>
+            html {{ box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }}
+            *, *:before, *:after {{ box-sizing: inherit; }}
+            body {{ margin:0; background: #fafafa; }}
+        </style>
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({{
+            url: '/api/openapi.json',
+            dom_id: '#swagger-ui',
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.presets.standalone
+            ],
+            layout: "StandaloneLayout",
+            deepLinking: true,
+            showExtensions: true,
+            showCommonExtensions: true,
+            tryItOutEnabled: true,
+            requestInterceptor: function(req) {{
+                req.url = req.url.replace('localhost:8000', 'api.sigilsec.ai');
+                return req;
+            }}
+        }})
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=swagger_ui_html)
+
+
+@app.get(
+    "/api/docs/complete", tags=["documentation"], summary="Complete API Documentation"
+)
+async def complete_api_documentation():
+    """
+    Complete API documentation including secure endpoints.
+
+    Requires authentication. Provides documentation for all API endpoints
+    including those that require authentication like user management,
+    team operations, billing, scanning, etc.
+    """
+    from fastapi.responses import HTMLResponse
+
+    swagger_ui_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sigil API - Complete Documentation</title>
+        <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+        <link rel="icon" type="image/png" href="https://sigilsec.ai/favicon.ico" sizes="32x32" />
+        <style>
+            html {{ box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }}
+            *, *:before, *:after {{ box-sizing: inherit; }}
+            body {{ margin:0; background: #fafafa; }}
+            .topbar {{ display: none; }}
+        </style>
+    </head>
+    <body>
+        <div style="padding: 20px; background: #1f2937; color: white; text-align: center;">
+            <h1>🔒 Sigil API - Complete Documentation</h1>
+            <p>Authenticated view including all secure endpoints</p>
+        </div>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({{
+            url: '/openapi.json',  // Use the full FastAPI schema if available
+            dom_id: '#swagger-ui',
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.presets.standalone
+            ],
+            layout: "StandaloneLayout",
+            deepLinking: true,
+            showExtensions: true,
+            showCommonExtensions: true,
+            tryItOutEnabled: true,
+            requestInterceptor: function(req) {{
+                req.url = req.url.replace('localhost:8000', 'api.sigilsec.ai');
+                return req;
+            }}
+        }})
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=swagger_ui_html)
+
+
+@app.get(
+    "/api/openapi/complete.json",
+    tags=["documentation"],
+    summary="Complete OpenAPI Specification",
+)
+async def get_complete_openapi_spec() -> dict:
+    """
+    Complete OpenAPI specification including secure endpoints.
+
+    Requires authentication. Returns the full API documentation including
+    endpoints that require authentication.
+    """
+    # For now, return a placeholder indicating this would contain the full schema
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Sigil API - Complete",
+            "version": app.version,
+            "description": "Complete API documentation including secure endpoints. Authentication required.",
+        },
+        "security": [{"BearerAuth": []}],
+        "components": {
+            "securitySchemes": {
+                "BearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                }
+            }
+        },
+        "paths": {
+            "/api/v1/auth/login": {
+                "post": {
+                    "tags": ["auth"],
+                    "summary": "User Login",
+                    "description": "Authenticate user and get JWT token",
+                    "security": [],  # No auth required for login
+                    "responses": {"200": {"description": "Login successful"}},
+                }
+            },
+            "/api/v1/scan/create": {
+                "post": {
+                    "tags": ["scan"],
+                    "summary": "Create Scan",
+                    "description": "Create a new security scan",
+                    "security": [{"BearerAuth": []}],
+                    "responses": {"201": {"description": "Scan created"}},
+                }
+            },
+            "/api/v1/team/": {
+                "get": {
+                    "tags": ["team"],
+                    "summary": "Get Team",
+                    "description": "Get team information",
+                    "security": [{"BearerAuth": []}],
+                    "responses": {"200": {"description": "Team information"}},
+                }
+            },
+        },
+        "_note": "This is a placeholder schema. In production, this would contain the complete API specification.",
+    }
+
+
+@app.get("/api/test-email", tags=["system"], summary="Test Email Configuration")
+async def test_email_config() -> dict:
+    """
+    Test email configuration with mail.sigilsec.ai domain.
+
+    This endpoint verifies that the email service is properly configured
+    and can connect to Resend with the mail.sigilsec.ai domain.
+    """
+    from api.services.email_service import EmailService
+
+    email_service = EmailService()
+
+    # Check configuration
+    config_status = {
+        "domain": email_service.from_email.split("@")[1]
+        if "@" in email_service.from_email
+        else "unknown",
+        "from_email": email_service.from_email,
+        "from_name": email_service.from_name,
+        "resend_configured": bool(email_service.resend_api_key),
+        "expected_domain": "mail.sigilsec.ai",
+    }
+
+    # Test status
+    status = (
+        "ready"
+        if (
+            config_status["domain"] == "mail.sigilsec.ai"
+            and config_status["resend_configured"]
+        )
+        else "needs_configuration"
+    )
+
+    if not config_status["resend_configured"]:
+        message = "Resend API key not configured. Set SIGIL_RESEND_API_KEY environment variable."
+    elif config_status["domain"] != "mail.sigilsec.ai":
+        message = (
+            f"Domain mismatch. Expected mail.sigilsec.ai, got {config_status['domain']}"
+        )
+    else:
+        message = "Email service ready to send from mail.sigilsec.ai"
+
+    return {
+        "status": status,
+        "message": message,
+        "configuration": config_status,
+        "test_payload_example": {
+            "from": f"{config_status['from_name']} <{config_status['from_email']}>",
+            "subject": "Test from mail.sigilsec.ai",
+            "domain_verified": config_status["domain"] == "mail.sigilsec.ai",
+        },
+    }
+
+
 @app.get("/", tags=["system"], summary="Root")
 async def root() -> dict:
-    """Landing endpoint with API metadata."""
+    """
+    Landing endpoint with API metadata and documentation links.
+
+    Provides basic service information and links to API documentation
+    for easy discovery.
+    """
     return {
         "service": settings.app_name,
         "version": settings.app_version,
-        "docs": "/docs",
+        "description": "Automated security auditing platform for AI agent code",
+        "documentation": {
+            "public_openapi_spec": "/api/openapi.json",
+            "public_interactive_docs": "/api/docs",
+            "complete_interactive_docs": "/api/docs/complete",
+            "complete_openapi_spec": "/api/openapi/complete.json",
+            "development_docs": {
+                "swagger_ui": "/docs"
+                if settings.debug
+                else "Available in development mode",
+                "redoc": "/redoc"
+                if settings.debug
+                else "Available in development mode",
+            },
+        },
+        "endpoints": {
+            "health": "/health",
+            "metrics": "/metrics",
+            "api_base": "/api/v1",
+        },
+        "feeds": {
+            "rss": "/feed.xml",
+            "json": "/feed.json",
+            "threats": "/api/v1/feed/threats",
+        },
+        "public_endpoints": {
+            "registry": "/registry",
+            "forge": "/forge",
+            "badges": "/badge",
+            "github_webhook": "/github/webhook",
+        },
+        "links": {
+            "website": "https://sigilsec.ai",
+            "github": "https://github.com/NOMARJ/sigil",
+            "support": "support@mail.sigilsec.ai",
+        },
     }

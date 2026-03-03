@@ -120,7 +120,7 @@ SIGIL_SMTP_HOST=smtp.yourdomain.com
 SIGIL_SMTP_PORT=587
 SIGIL_SMTP_USER=alerts@yourdomain.com
 SIGIL_SMTP_PASSWORD=your_smtp_password
-SIGIL_SMTP_FROM_EMAIL=alerts@sigilsec.ai
+SIGIL_SMTP_FROM_EMAIL=alerts@mail.sigilsec.ai
 
 # Slack notifications (optional)
 SIGIL_SLACK_WEBHOOK_URL=https://hooks.slack.com/your/webhook

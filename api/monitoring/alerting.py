@@ -484,7 +484,7 @@ class AlertManager:
         """Register default notification channels."""
         # Email for all alerts (if configured)
         if settings.smtp_configured:
-            email_channel = EmailChannel(["ops@sigilsec.ai"])
+            email_channel = EmailChannel(["ops@mail.sigilsec.ai"])
             for severity in AlertSeverity:
                 self.register_channel(severity, email_channel)
 

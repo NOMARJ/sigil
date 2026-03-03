@@ -83,8 +83,8 @@ alerts:
     email:
       enabled: true
       recipients:
-        - "ops@sigilsec.ai"
-        - "security@sigilsec.ai"
+        - "ops@mail.sigilsec.ai"
+        - "security@mail.sigilsec.ai"
       
     slack:
       enabled: false
