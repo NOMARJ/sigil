@@ -44,9 +44,7 @@ router = APIRouter(prefix="/email", tags=["Email Newsletter"])
 )
 async def subscribe_to_newsletter(
     request: EmailSubscriptionRequest,
-    rate_limiter: None = Depends(
-        RateLimiter(max_requests=5, window=3600)
-    ),
+    rate_limiter: None = Depends(RateLimiter(max_requests=5, window=3600)),
 ) -> EmailSubscriptionResponse:
     """
     Subscribe to Forge Weekly newsletter.
@@ -258,7 +256,7 @@ async def update_email_preferences(
         data={
             "preferences": json.dumps(request.preferences),
             "updated_at": datetime.utcnow(),
-        }
+        },
     )
 
     if not result:

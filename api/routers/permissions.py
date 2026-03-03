@@ -723,7 +723,9 @@ async def search_permissions(
         pattern="^(environment|filesystem|network|database|process|credentials)$",
     ),
     risk_level: str | None = Query(
-        None, description="Risk level (LOW, MEDIUM, HIGH)", pattern="^(LOW|MEDIUM|HIGH)$"
+        None,
+        description="Risk level (LOW, MEDIUM, HIGH)",
+        pattern="^(LOW|MEDIUM|HIGH)$",
     ),
     limit: int = Query(50, ge=1, le=200, description="Max results"),
 ) -> list[dict[str, Any]]:

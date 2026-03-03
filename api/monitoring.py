@@ -83,7 +83,7 @@ class AlertChannel(str, Enum):
 
 class AlertCategory(str, Enum):
     """Alert categories."""
-    
+
     APPLICATION = "application"
     PERFORMANCE = "performance"
     SECURITY = "security"
@@ -91,7 +91,7 @@ class AlertCategory(str, Enum):
 
 class AlertSeverity(str, Enum):
     """Alert severity levels (alias for compatibility)."""
-    
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -100,7 +100,7 @@ class AlertSeverity(str, Enum):
 
 class AlertStatus(str, Enum):
     """Alert status."""
-    
+
     FIRING = "firing"
     RESOLVED = "resolved"
     SUPPRESSED = "suppressed"
@@ -108,7 +108,7 @@ class AlertStatus(str, Enum):
 
 class HealthStatus(str, Enum):
     """Health check status."""
-    
+
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
@@ -116,7 +116,7 @@ class HealthStatus(str, Enum):
 
 class ComponentType(str, Enum):
     """Component types for monitoring."""
-    
+
     DATABASE = "database"
     CACHE = "cache"
     EXTERNAL_API = "external_api"
@@ -307,7 +307,7 @@ class Alert:
     value: Optional[float] = None
     threshold: Optional[float] = None
     tags: Dict[str, str] = field(default_factory=dict)
-    
+
     # Legacy compatibility fields
     level: AlertLevel = field(init=False)
     title: str = field(init=False)
@@ -322,8 +322,8 @@ class Alert:
         self.title = self.name
         self.message = self.description
         self.labels = self.tags
-        self.resolved = (self.status == AlertStatus.RESOLVED)
-        
+        self.resolved = self.status == AlertStatus.RESOLVED
+
         # Map severity to level for backward compatibility
         severity_to_level = {
             AlertSeverity.LOW: AlertLevel.INFO,
@@ -337,7 +337,7 @@ class Alert:
 @dataclass
 class AlertRule:
     """Alert rule definition."""
-    
+
     name: str
     description: str
     category: AlertCategory
@@ -348,16 +348,18 @@ class AlertRule:
     tags: Dict[str, str] = field(default_factory=dict)
     enabled: bool = True
     last_fired: Optional[datetime] = None
-    
+
     async def evaluate(self) -> Optional[Alert]:
         """Evaluate the rule and return an alert if conditions are met."""
         try:
             # Check cooldown
             if self.last_fired and self.cooldown_minutes > 0:
-                cooldown_until = self.last_fired + timedelta(minutes=self.cooldown_minutes)
+                cooldown_until = self.last_fired + timedelta(
+                    minutes=self.cooldown_minutes
+                )
                 if datetime.now(timezone.utc) < cooldown_until:
                     return None
-            
+
             # Evaluate condition
             result = await self.condition_func()
             if isinstance(result, bool) and result:
@@ -391,22 +393,22 @@ class AlertRule:
                 return alert
         except Exception as e:
             logger.exception("Error evaluating alert rule %s: %s", self.name, e)
-        
+
         return None
 
 
 class EmailChannel:
     """Email alert channel."""
-    
+
     def __init__(self, smtp_settings=None):
         self.smtp_settings = smtp_settings or settings
-    
+
     async def send(self, alert: Alert) -> bool:
         """Send alert via email."""
         if not self.smtp_settings.smtp_configured:
             logger.warning("SMTP not configured, cannot send email alert")
             return False
-        
+
         # This is a mock implementation for testing
         logger.info("Email alert sent: %s - %s", alert.name, alert.description)
         return True
@@ -414,7 +416,7 @@ class EmailChannel:
 
 class HealthCheck:
     """Health check definition."""
-    
+
     def __init__(self, name: str, check_func: callable, interval_seconds: int = 60):
         self.name = name
         self.check_func = check_func
@@ -422,7 +424,7 @@ class HealthCheck:
         self.last_run: Optional[datetime] = None
         self.last_result: Optional[bool] = None
         self.last_error: Optional[str] = None
-    
+
     async def run(self) -> bool:
         """Run the health check."""
         try:
@@ -441,27 +443,27 @@ class HealthCheck:
 
 class HealthCheckManager:
     """Manages health checks."""
-    
+
     def __init__(self):
         self.checks: Dict[str, HealthCheck] = {}
-    
+
     def register(self, check: HealthCheck):
         """Register a health check."""
         self.checks[check.name] = check
-    
+
     async def run_all(self) -> Dict[str, bool]:
         """Run all health checks and return results."""
         results = {}
         for name, check in self.checks.items():
             results[name] = await check.run()
         return results
-    
+
     async def run_check(self, name: str) -> Optional[bool]:
         """Run a specific health check."""
         if name in self.checks:
             return await self.checks[name].run()
         return None
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get status of all health checks."""
         return {
@@ -477,16 +479,16 @@ class HealthCheckManager:
 
 class SlackChannel:
     """Slack alert channel."""
-    
+
     def __init__(self, webhook_url: str = None):
         self.webhook_url = webhook_url
-    
+
     async def send(self, alert: Alert) -> bool:
         """Send alert via Slack."""
         if not self.webhook_url:
             logger.warning("Slack webhook URL not configured")
             return False
-        
+
         # This is a mock implementation for testing
         logger.info("Slack alert sent: %s - %s", alert.name, alert.description)
         return True
@@ -494,25 +496,29 @@ class SlackChannel:
 
 class MonitoringManager:
     """Central monitoring manager."""
-    
+
     def __init__(self):
         self.health_manager = HealthCheckManager()
         self.alert_manager = AlertManager()
         self.metrics_collector = None  # Will be set if metrics are enabled
-    
-    def setup_health_check(self, name: str, check_func: callable, interval_seconds: int = 60):
+
+    def setup_health_check(
+        self, name: str, check_func: callable, interval_seconds: int = 60
+    ):
         """Set up a health check."""
         check = HealthCheck(name, check_func, interval_seconds)
         self.health_manager.register(check)
         return check
-    
+
     async def get_system_health(self) -> Dict[str, Any]:
         """Get overall system health status."""
         check_results = await self.health_manager.run_all()
         overall_healthy = all(check_results.values())
-        
+
         return {
-            "status": HealthStatus.HEALTHY if overall_healthy else HealthStatus.UNHEALTHY,
+            "status": HealthStatus.HEALTHY
+            if overall_healthy
+            else HealthStatus.UNHEALTHY,
             "checks": check_results,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -978,23 +984,27 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, metrics_collector: MetricsCollector = None):
         super().__init__(app)
-        self.metrics = metrics_collector if metrics_collector is not None else globals()['metrics_collector']
+        self.metrics = (
+            metrics_collector
+            if metrics_collector is not None
+            else globals()["metrics_collector"]
+        )
 
     async def dispatch(self, request: Request, call_next) -> Response:
         """Process request and collect metrics."""
         start_time = time.time()
-        
+
         # Extract route info
         route = request.url.path
         method = request.method
-        
+
         try:
             response = await call_next(request)
-            
+
             # Record successful response metrics
             duration = time.time() - start_time
             status_code = response.status_code
-            
+
             # Record response time
             self.metrics.record_histogram(
                 "http_request_duration_seconds",
@@ -1003,9 +1013,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     "method": method,
                     "route": route,
                     "status": str(status_code),
-                }
+                },
             )
-            
+
             # Record request count
             self.metrics.record_counter(
                 "http_requests_total",
@@ -1013,15 +1023,15 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     "method": method,
                     "route": route,
                     "status": str(status_code),
-                }
+                },
             )
-            
+
             return response
-            
+
         except Exception as exc:
             # Record error metrics
             duration = time.time() - start_time
-            
+
             self.metrics.record_histogram(
                 "http_request_duration_seconds",
                 duration,
@@ -1029,9 +1039,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     "method": method,
                     "route": route,
                     "status": "error",
-                }
+                },
             )
-            
+
             self.metrics.record_counter(
                 "http_requests_total",
                 {
@@ -1039,9 +1049,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                     "route": route,
                     "status": "error",
                     "error_type": type(exc).__name__,
-                }
+                },
             )
-            
+
             raise
 
 
@@ -1049,22 +1059,23 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 # Monitoring Object for Main Import
 # ---------------------------------------------------------------------------
 
+
 class MonitoringService:
     """Main monitoring service for application integration."""
-    
+
     def __init__(self):
         self.metrics = metrics_collector
         self.alerts = alert_manager
         self.health = health_monitor
-        
+
     async def start(self):
         """Start all monitoring services."""
         await start_monitoring()
-        
+
     async def stop(self):
         """Stop all monitoring services."""
         await stop_monitoring()
-        
+
     def get_status(self):
         """Get monitoring system status."""
         return get_monitoring_status()
