@@ -1136,7 +1136,9 @@ async def get_forge_stats():
 
         # Derive ecosystem-specific counts
         mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
-        skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get("clawhub", 0)
+        skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get(
+            "clawhub", 0
+        )
         npm_packages = ecosystem_counts.get("npm", 0)
         pypi_packages = ecosystem_counts.get("pypi", 0)
 
