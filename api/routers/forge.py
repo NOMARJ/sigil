@@ -324,7 +324,7 @@ def _build_scan_data_from_row(row: dict[str, Any]) -> dict[str, Any]:
 async def _fetch_scan_rows(limit: int = 50) -> list[dict[str, Any]]:
     """Fetch scan rows using compatibility methods used in tests."""
     if hasattr(db, "fetch_all"):
-        return await db.fetch_all("SELECT * FROM public_scans LIMIT ?", [limit])
+        return await db.fetch_all("SELECT TOP (?) * FROM public_scans", [limit])
     return await db.select("public_scans", limit=limit)
 
 
@@ -1256,10 +1256,10 @@ async def get_forge_jobs(
                 sql += " AND verdict = ?"
                 params.append(status.upper())
 
-            sql += " ORDER BY scanned_at DESC LIMIT ? OFFSET ?"
-            params.extend([limit, offset])
+            sql += f" ORDER BY scanned_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            params.extend([offset, limit])
 
-            rows = await db.fetch_all(sql, params)
+            rows = await db.execute_raw_sql(sql, tuple(params))
             jobs = []
 
             for row in rows:

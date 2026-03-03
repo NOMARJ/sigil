@@ -4,65 +4,60 @@ Complete installation instructions for all platforms and package managers.
 
 ---
 
-## 🚀 Quick Install (Recommended)
+## 🚀 Current Installation Method
 
-### macOS / Linux — Homebrew
+### Manual Install (All Platforms)
 
+```bash
+# Clone the repository
+git clone https://github.com/NOMARJ/sigil.git
+cd sigil
+
+# Make the CLI executable and install
+chmod +x bin/sigil
+sudo cp bin/sigil /usr/local/bin/sigil
+
+# Initialize directories and aliases
+sigil install
+```
+
+**What it does:**
+- Downloads the bash-based CLI implementation
+- Copies to system PATH for global access
+- Creates `~/.sigil/{quarantine,approved,logs,reports}` directories
+- Installs helpful shell aliases (optional)
+- Sets up git hooks for auto-scanning (optional)
+
+---
+
+## 🔮 Coming Soon
+
+The following installation methods are planned but not yet available:
+
+### Homebrew (macOS/Linux)
 ```bash
 brew tap nomarj/tap
 brew install sigil
 ```
+*Status: Tap and formula in development*
 
-**What it does:**
-- Downloads pre-built native binary for your platform
-- Installs to `/usr/local/bin/sigil`
-- Automatically runs `sigil install` to set up shell aliases
-- Updates available via `brew upgrade sigil`
-
----
-
-### All Platforms — npm
-
+### npm (All Platforms)
 ```bash
 npm install -g @nomark/sigil
 ```
+*Status: Package preparation in progress*
 
-**What it does:**
-- Downloads pre-built binary for your platform (macOS, Linux, Windows)
-- Falls back to bash script if binary unavailable
-- Installs globally as `sigil` command
-- Updates available via `npm update -g @nomark/sigil`
-
-**Requirements:** Node.js 18+
-
----
-
-### Rust Developers — Cargo
-
+### Cargo (Rust)
 ```bash
-cargo install sigil
+cargo install @nomark/sigil
 ```
-
-**What it does:**
-- Builds from source using Rust toolchain
-- Installs to `~/.cargo/bin/sigil`
-- Updates available via `cargo install sigil --force`
-
-**Requirements:** Rust 1.75+
-
----
+*Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library.*
 
 ### Quick Install Script
-
 ```bash
 curl -sSL https://sigilsec.ai/install.sh | sh
 ```
-
-**What it does:**
-- Auto-detects your platform (macOS, Linux, Windows)
-- Downloads latest pre-built binary from GitHub releases
-- Falls back to bash script if binary unavailable
-- Runs `sigil install` to set up shell aliases
+*Status: Install script development in progress*
 
 ---
 
