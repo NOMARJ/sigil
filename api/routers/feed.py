@@ -62,12 +62,15 @@ async def _generate_rss(
 @router.get("/feed.xml", summary="RSS 2.0 threat feed")
 async def rss_feed(
     ecosystem: str | None = Query(
-        None, description="Filter by ecosystem (clawhub, pypi, npm, github)",
-        min_length=1, max_length=20
+        None,
+        description="Filter by ecosystem (clawhub, pypi, npm, github)",
+        min_length=1,
+        max_length=20,
     ),
     verdict: str | None = Query(
-        None, description="Comma-separated verdicts (e.g. high_risk,critical_risk)",
-        max_length=200
+        None,
+        description="Comma-separated verdicts (e.g. high_risk,critical_risk)",
+        max_length=200,
     ),
 ) -> Response:
     """Return RSS 2.0 XML feed of recent scan results.
@@ -86,7 +89,7 @@ async def rss_feed(
             verdict = InputSanitizer.sanitize_verdict(verdict)
     except SecurityValidationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    
+
     return await _generate_rss(ecosystem=ecosystem, verdict=verdict)
 
 
@@ -131,35 +134,36 @@ async def rss_mcp_watchdog() -> Response:
     """Return RSS feed for MCP typosquat alerts from Sigil Watchdog."""
     try:
         from api.database import db
-        
+
         # Get recent typosquat alerts
         alerts = await db.select(
             "typosquat_alerts",
             filters={"ecosystem": "mcp"},
             limit=50,
             order_by="created_at",
-            order_desc=True
+            order_desc=True,
         )
-        
+
         # Generate RSS XML
         items = []
         for alert in alerts:
             metadata = alert.get("metadata_json", {})
             if isinstance(metadata, str):
                 import json
+
                 try:
                     metadata = json.loads(metadata)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     metadata = {}
-            
+
             # Properly escape all user-controlled data for XML/RSS
             from xml.sax.saxutils import escape
-            
-            suspicious_pkg = escape(alert['suspicious_package'])
-            target_pkg = escape(alert['target_package'])
-            risk_level = escape(alert['risk_level'])
-            author = escape(metadata.get('author', 'unknown'))
-            
+
+            suspicious_pkg = escape(alert["suspicious_package"])
+            target_pkg = escape(alert["target_package"])
+            risk_level = escape(alert["risk_level"])
+            author = escape(metadata.get("author", "unknown"))
+
             title = f"🚨 MCP Typosquat Alert: {suspicious_pkg}"
             description = (
                 f"Risk Level: {risk_level}<br/>"
@@ -170,18 +174,20 @@ async def rss_mcp_watchdog() -> Response:
                 f"This MCP server appears to be typosquatting a popular name. "
                 f"Exercise caution before installation."
             )
-            link = f"https://github.com/{escape(alert['suspicious_package'], quote=True)}"
-            
+            link = (
+                f"https://github.com/{escape(alert['suspicious_package'], quote=True)}"
+            )
+
             items.append(f"""
     <item>
       <title>{escape(title)}</title>
       <description><![CDATA[{description}]]></description>
       <link>{escape(link)}</link>
-      <guid>{escape(alert['id'])}</guid>
-      <pubDate>{escape(str(alert['created_at']))}</pubDate>
+      <guid>{escape(alert["id"])}</guid>
+      <pubDate>{escape(str(alert["created_at"]))}</pubDate>
       <category>MCP Typosquat</category>
     </item>""")
-        
+
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
@@ -189,13 +195,13 @@ async def rss_mcp_watchdog() -> Response:
     <link>https://sigilsec.ai/mcp-watchdog</link>
     <description>Real-time typosquat detection for MCP servers</description>
     <language>en-us</language>
-    <lastBuildDate>{alerts[0]['created_at'] if alerts else ''}</lastBuildDate>
+    <lastBuildDate>{alerts[0]["created_at"] if alerts else ""}</lastBuildDate>
     {"".join(items)}
   </channel>
 </rss>"""
-        
+
         return Response(content=xml, media_type="application/rss+xml")
-        
+
     except Exception:
         logger.exception("Failed to generate MCP watchdog RSS feed")
         return Response(content=_FALLBACK_RSS, media_type="application/rss+xml")
@@ -213,18 +219,15 @@ async def rss_mcp_watchdog() -> Response:
 )
 async def json_feed(
     ecosystem: str | None = Query(
-        None, description="Filter by ecosystem",
-        min_length=1, max_length=20
+        None, description="Filter by ecosystem", min_length=1, max_length=20
     ),
-    verdict: str | None = Query(
-        None, description="Filter by verdict",
-        max_length=200
-    ),
+    verdict: str | None = Query(None, description="Filter by verdict", max_length=200),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     since: str | None = Query(
-        None, description="ISO datetime — return scans after this",
+        None,
+        description="ISO datetime — return scans after this",
         max_length=50,
-        regex=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?"  # Basic ISO datetime validation
+        regex=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?",  # Basic ISO datetime validation
     ),
 ) -> list[dict[str, Any]]:
     """Return recent scans as a JSON array. Filterable by ecosystem and verdict."""
@@ -234,7 +237,7 @@ async def json_feed(
             ecosystem = InputSanitizer.sanitize_ecosystem(ecosystem)
         if verdict:
             verdict = InputSanitizer.sanitize_verdict(verdict)
-            
+
         from api.database import db
 
         filters: dict[str, Any] = {}
@@ -371,11 +374,14 @@ async def pipeline_stats() -> dict[str, Any]:
     return stats
 
 
-@router.get("/api/v1/feed/mcp-watchdog", summary="MCP Watchdog typosquat alerts JSON feed")
+@router.get(
+    "/api/v1/feed/mcp-watchdog", summary="MCP Watchdog typosquat alerts JSON feed"
+)
 async def mcp_watchdog_feed(
     risk_level: str | None = Query(
-        None, description="Filter by risk level (LOW, MEDIUM, HIGH)",
-        regex="^(LOW|MEDIUM|HIGH)$"
+        None,
+        description="Filter by risk level (LOW, MEDIUM, HIGH)",
+        regex="^(LOW|MEDIUM|HIGH)$",
     ),
     limit: int = Query(20, ge=1, le=100, description="Max results"),
     resolved: bool | None = Query(False, description="Include resolved alerts"),
@@ -383,31 +389,32 @@ async def mcp_watchdog_feed(
     """Return recent MCP typosquat alerts as JSON."""
     try:
         from api.database import db
-        
+
         filters: dict[str, Any] = {"ecosystem": "mcp"}
         if risk_level:
             filters["risk_level"] = risk_level.upper()
         if resolved is not None:
             filters["resolved"] = resolved
-            
+
         alerts = await db.select(
             "typosquat_alerts",
             filters=filters,
             limit=limit,
             order_by="created_at",
-            order_desc=True
+            order_desc=True,
         )
-        
+
         results = []
         for alert in alerts:
             metadata = alert.get("metadata_json", {})
             if isinstance(metadata, str):
                 import json
+
                 try:
                     metadata = json.loads(metadata)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     metadata = {}
-            
+
             item = {
                 "alert_id": alert["id"],
                 "suspicious_package": alert["suspicious_package"],
@@ -421,9 +428,9 @@ async def mcp_watchdog_feed(
                 "resolved": alert.get("resolved", False),
             }
             results.append(item)
-            
+
         return results
-        
+
     except Exception:
         logger.exception("MCP watchdog feed query failed")
         return []
@@ -439,7 +446,7 @@ async def mcp_servers_feed(
     """Return recently discovered MCP servers as JSON."""
     try:
         from api.database import db
-        
+
         filters: dict[str, Any] = {}
         if author:
             filters["author"] = author
@@ -448,33 +455,35 @@ async def mcp_servers_feed(
         if min_stars is not None:
             # Note: This would need a proper SQL query with WHERE clause
             pass
-            
+
         servers = await db.select(
             "mcp_servers",
             filters=filters if filters else None,
             limit=limit,
             order_by="last_updated",
-            order_desc=True
+            order_desc=True,
         )
-        
+
         results = []
         for server in servers:
             topics = server.get("topics", "[]")
             if isinstance(topics, str):
                 import json
+
                 try:
                     topics = json.loads(topics)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     topics = []
-            
+
             mcp_config = server.get("mcp_config", "{}")
             if isinstance(mcp_config, str):
                 import json
+
                 try:
                     mcp_config = json.loads(mcp_config)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     mcp_config = {}
-            
+
             item = {
                 "repo_name": server["repo_name"],
                 "author": server["author"],
@@ -491,11 +500,11 @@ async def mcp_servers_feed(
                 "scan_status": server.get("scan_status", "pending"),
                 "github_url": f"https://github.com/{server['repo_name']}",
             }
-            
+
             # Add scan result if available
             scan_result = await db.select_one(
                 "public_scans",
-                {"ecosystem": "mcp", "package_name": server["repo_name"]}
+                {"ecosystem": "mcp", "package_name": server["repo_name"]},
             )
             if scan_result:
                 item["scan_result"] = {
@@ -504,100 +513,108 @@ async def mcp_servers_feed(
                     "findings_count": scan_result.get("findings_count", 0),
                     "scanned_at": scan_result.get("scanned_at", ""),
                 }
-            
+
             results.append(item)
-            
+
         return results
-        
+
     except Exception:
         logger.exception("MCP servers feed query failed")
         return []
 
 
-@router.get("/feed/skillguard.xml", summary="RSS feed — SkillGuard prompt injection alerts")
+@router.get(
+    "/feed/skillguard.xml", summary="RSS feed — SkillGuard prompt injection alerts"
+)
 async def rss_skillguard() -> Response:
     """Return RSS feed for AI skills with prompt injection patterns (SkillGuard Feed)."""
     try:
         from api.database import db
-        
+
         # Get ClawHub skills with Phase 7 (prompt injection) findings
         scans = await db.select(
             "public_scans",
             filters={"ecosystem": "clawhub"},
             limit=100,
             order_by="created_at",
-            order_desc=True
+            order_desc=True,
         )
-        
+
         # Filter for skills with prompt injection findings
         skill_alerts = []
         for scan in scans:
             findings = scan.get("findings_json", [])
             if isinstance(findings, str):
                 import json
+
                 try:
                     findings = json.loads(findings)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     findings = []
-            
+
             # Check if any findings are from Phase 7 (prompt injection)
             prompt_injection_findings = [
-                f for f in findings 
-                if f.get("phase") == "PROMPT_INJECTION"
+                f for f in findings if f.get("phase") == "PROMPT_INJECTION"
             ]
-            
+
             if prompt_injection_findings:
                 metadata = scan.get("metadata_json", {})
                 if isinstance(metadata, str):
                     import json
+
                     try:
                         metadata = json.loads(metadata)
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         metadata = {}
-                
+
                 # Categorize risk level
                 high_risk_patterns = [
-                    f for f in prompt_injection_findings
+                    f
+                    for f in prompt_injection_findings
                     if f.get("severity") in ("CRITICAL", "HIGH")
                 ]
-                
+
                 risk_level = "HIGH" if high_risk_patterns else "MEDIUM"
-                
-                skill_alerts.append({
-                    "scan_id": scan["id"],
-                    "skill_name": scan["package_name"],
-                    "skill_version": scan["package_version"],
-                    "risk_level": risk_level,
-                    "verdict": scan["verdict"],
-                    "author": metadata.get("author", "unknown"),
-                    "description": metadata.get("description", ""),
-                    "prompt_findings": prompt_injection_findings,
-                    "scanned_at": scan["scanned_at"],
-                })
-        
+
+                skill_alerts.append(
+                    {
+                        "scan_id": scan["id"],
+                        "skill_name": scan["package_name"],
+                        "skill_version": scan["package_version"],
+                        "risk_level": risk_level,
+                        "verdict": scan["verdict"],
+                        "author": metadata.get("author", "unknown"),
+                        "description": metadata.get("description", ""),
+                        "prompt_findings": prompt_injection_findings,
+                        "scanned_at": scan["scanned_at"],
+                    }
+                )
+
         # Generate RSS XML
         items = []
         from xml.sax.saxutils import escape
-        
+
         for alert in skill_alerts[:50]:  # Limit to 50 most recent
             # Escape all user-controlled data
-            skill_name = escape(alert['skill_name'])
-            risk_level = escape(alert['risk_level'])
-            
+            skill_name = escape(alert["skill_name"])
+            risk_level = escape(alert["risk_level"])
+
             title = f"🛡️ SkillGuard Alert: {skill_name} ({risk_level} RISK)"
-            
+
             # Summarize findings with proper escaping
             findings_summary = []
-            for finding in alert['prompt_findings'][:3]:  # Top 3 findings
-                finding_desc = escape(finding.get('description', finding.get('rule', 'Unknown')))
+            for finding in alert["prompt_findings"][:3]:  # Top 3 findings
+                finding_desc = escape(
+                    finding.get("description", finding.get("rule", "Unknown"))
+                )
                 findings_summary.append(f"• {finding_desc}")
-            
+
             # Build description with escaped data
-            author = escape(alert['author'])
-            verdict = escape(alert['verdict'])
-            skill_version = escape(alert['skill_version'])
-            desc_preview = escape(alert['description'][:200])
-            
+            author = escape(alert["author"])
+            verdict = escape(alert["verdict"])
+            skill_version = escape(alert["skill_version"])
+            desc_preview = escape(alert["description"][:200])
+
             description = f"""
 <strong>Risk Level:</strong> {risk_level}<br/>
 <strong>AI Skill:</strong> {skill_name} v{skill_version}<br/>
@@ -609,19 +626,21 @@ async def rss_skillguard() -> Response:
 This AI agent skill contains patterns that could be exploited for prompt injection attacks. 
 Review the skill code before installation and use.
 """
-            
-            link = f"https://clawhub.ai/skills/{escape(alert['skill_name'], quote=True)}"
-            
+
+            link = (
+                f"https://clawhub.ai/skills/{escape(alert['skill_name'], quote=True)}"
+            )
+
             items.append(f"""
     <item>
       <title>{escape(title)}</title>
       <description><![CDATA[{description}]]></description>
       <link>{escape(link)}</link>
-      <guid>{escape(alert['scan_id'])}</guid>
-      <pubDate>{escape(str(alert['scanned_at']))}</pubDate>
+      <guid>{escape(alert["scan_id"])}</guid>
+      <pubDate>{escape(str(alert["scanned_at"]))}</pubDate>
       <category>SkillGuard Alert</category>
     </item>""")
-        
+
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
@@ -629,95 +648,105 @@ Review the skill code before installation and use.
     <link>https://sigilsec.ai/skillguard</link>
     <description>Real-time prompt injection detection for AI agent skills</description>
     <language>en-us</language>
-    <lastBuildDate>{skill_alerts[0]['scanned_at'] if skill_alerts else ''}</lastBuildDate>
+    <lastBuildDate>{skill_alerts[0]["scanned_at"] if skill_alerts else ""}</lastBuildDate>
     {"".join(items)}
   </channel>
 </rss>"""
-        
+
         return Response(content=xml, media_type="application/rss+xml")
-        
+
     except Exception:
         logger.exception("Failed to generate SkillGuard RSS feed")
         return Response(content=_FALLBACK_RSS, media_type="application/rss+xml")
 
 
-@router.get("/api/v1/feed/skillguard", summary="SkillGuard prompt injection alerts JSON feed")
+@router.get(
+    "/api/v1/feed/skillguard", summary="SkillGuard prompt injection alerts JSON feed"
+)
 async def skillguard_feed(
     risk_level: str | None = Query(
-        None, description="Filter by risk level (LOW, MEDIUM, HIGH)",
-        regex="^(LOW|MEDIUM|HIGH)$"
+        None,
+        description="Filter by risk level (LOW, MEDIUM, HIGH)",
+        regex="^(LOW|MEDIUM|HIGH)$",
     ),
     severity: str | None = Query(
-        None, description="Filter by severity (LOW, MEDIUM, HIGH, CRITICAL)",
-        regex="^(LOW|MEDIUM|HIGH|CRITICAL)$"
+        None,
+        description="Filter by severity (LOW, MEDIUM, HIGH, CRITICAL)",
+        regex="^(LOW|MEDIUM|HIGH|CRITICAL)$",
     ),
     limit: int = Query(30, ge=1, le=100, description="Max results"),
-    include_descriptions: bool = Query(True, description="Include detailed finding descriptions"),
+    include_descriptions: bool = Query(
+        True, description="Include detailed finding descriptions"
+    ),
 ) -> list[dict[str, Any]]:
     """Return AI skills with prompt injection patterns as JSON (SkillGuard Feed)."""
     try:
         from api.database import db
-        
+
         # Get ClawHub skills with scan results
         scans = await db.select(
             "public_scans",
             filters={"ecosystem": "clawhub"},
             limit=200,  # Search larger set to filter
             order_by="created_at",
-            order_desc=True
+            order_desc=True,
         )
-        
+
         skill_alerts = []
         for scan in scans:
             findings = scan.get("findings_json", [])
             if isinstance(findings, str):
                 import json
+
                 try:
                     findings = json.loads(findings)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     findings = []
-            
+
             # Filter for prompt injection findings
             prompt_findings = [
-                f for f in findings
-                if f.get("phase") == "PROMPT_INJECTION"
+                f for f in findings if f.get("phase") == "PROMPT_INJECTION"
             ]
-            
+
             if not prompt_findings:
                 continue
-            
+
             # Apply severity filter if specified
             if severity:
                 prompt_findings = [
-                    f for f in prompt_findings
+                    f
+                    for f in prompt_findings
                     if f.get("severity", "").upper() == severity.upper()
                 ]
                 if not prompt_findings:
                     continue
-            
+
             metadata = scan.get("metadata_json", {})
             if isinstance(metadata, str):
                 import json
+
                 try:
                     metadata = json.loads(metadata)
-                except:
+                except (json.JSONDecodeError, TypeError):
                     metadata = {}
-            
+
             # Determine risk level
-            critical_findings = [f for f in prompt_findings if f.get("severity") == "CRITICAL"]
+            critical_findings = [
+                f for f in prompt_findings if f.get("severity") == "CRITICAL"
+            ]
             high_findings = [f for f in prompt_findings if f.get("severity") == "HIGH"]
-            
+
             if critical_findings:
                 calculated_risk = "HIGH"
             elif high_findings:
                 calculated_risk = "MEDIUM"
             else:
                 calculated_risk = "LOW"
-            
+
             # Apply risk level filter
             if risk_level and calculated_risk != risk_level.upper():
                 continue
-            
+
             alert = {
                 "scan_id": scan["id"],
                 "skill_name": scan["package_name"],
@@ -734,7 +763,7 @@ async def skillguard_feed(
                 "scan_url": f"https://sigilsec.ai/scans/clawhub/{scan['package_name']}",
                 "scanned_at": scan["scanned_at"],
             }
-            
+
             # Include detailed findings if requested
             if include_descriptions:
                 alert["findings"] = [
@@ -744,21 +773,22 @@ async def skillguard_feed(
                         "description": f.get("description", ""),
                         "file": f.get("file", ""),
                         "line": f.get("line", 0),
-                        "snippet": f.get("snippet", "")[:200] + ("..." if len(f.get("snippet", "")) > 200 else ""),
+                        "snippet": f.get("snippet", "")[:200]
+                        + ("..." if len(f.get("snippet", "")) > 200 else ""),
                     }
                     for f in prompt_findings[:5]  # Limit to top 5 findings per skill
                 ]
             else:
                 # Just include rule IDs for compact response
                 alert["rule_ids"] = [f.get("rule", "unknown") for f in prompt_findings]
-            
+
             skill_alerts.append(alert)
-            
+
             if len(skill_alerts) >= limit:
                 break
-        
+
         return skill_alerts
-        
+
     except Exception:
         logger.exception("SkillGuard feed query failed")
         return []

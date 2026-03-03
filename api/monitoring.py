@@ -33,29 +33,29 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlertThresholds:
     """Configurable thresholds for triggering alerts."""
-    
+
     # Error rate thresholds (errors per minute)
     error_rate_warning: float = 10.0
     error_rate_critical: float = 50.0
-    
+
     # Response time thresholds (seconds)
     response_time_warning: float = 2.0
     response_time_critical: float = 10.0
-    
+
     # Circuit breaker thresholds
     circuit_breakers_open_warning: int = 1
     circuit_breakers_open_critical: int = 3
-    
+
     # Database connection thresholds
     db_connection_errors_warning: int = 5
     db_connection_errors_critical: int = 20
-    
+
     # Job queue thresholds
     failed_jobs_warning: int = 10
     failed_jobs_critical: int = 50
     dead_letter_jobs_warning: int = 5
     dead_letter_jobs_critical: int = 20
-    
+
     # Memory and resource thresholds
     memory_usage_warning: float = 0.8  # 80%
     memory_usage_critical: float = 0.95  # 95%
@@ -63,7 +63,7 @@ class AlertThresholds:
 
 class AlertLevel(str, Enum):
     """Alert severity levels."""
-    
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -71,7 +71,7 @@ class AlertLevel(str, Enum):
 
 class AlertChannel(str, Enum):
     """Alert delivery channels."""
-    
+
     LOG = "log"
     EMAIL = "email"
     WEBHOOK = "webhook"
@@ -86,7 +86,7 @@ class AlertChannel(str, Enum):
 @dataclass
 class MetricPoint:
     """A single metric data point."""
-    
+
     timestamp: datetime
     value: float
     labels: Dict[str, str] = field(default_factory=dict)
@@ -94,29 +94,31 @@ class MetricPoint:
 
 class MetricsCollector:
     """Collects and aggregates application metrics."""
-    
+
     def __init__(self, retention_hours: int = 24):
         self.retention_hours = retention_hours
         self._metrics: Dict[str, deque] = defaultdict(lambda: deque())
-        self._counters: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._counters: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
         self._histograms: Dict[str, List[float]] = defaultdict(list)
-        
+
         # Start cleanup task
         self._cleanup_task: Optional[asyncio.Task] = None
-    
+
     def start_collection(self):
         """Start background metrics collection and cleanup."""
         if not self._cleanup_task:
             self._cleanup_task = asyncio.create_task(self._cleanup_loop())
             logger.info("Metrics collection started")
-    
+
     def stop_collection(self):
         """Stop background metrics collection."""
         if self._cleanup_task:
             self._cleanup_task.cancel()
             self._cleanup_task = None
             logger.info("Metrics collection stopped")
-    
+
     async def _cleanup_loop(self):
         """Clean up old metrics data periodically."""
         while True:
@@ -127,26 +129,30 @@ class MetricsCollector:
                 break
             except Exception as exc:
                 logger.error("Metrics cleanup error: %s", exc)
-    
+
     def _cleanup_old_metrics(self):
         """Remove metrics older than retention period."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=self.retention_hours)
-        
+
         for metric_name, points in self._metrics.items():
             while points and points[0].timestamp < cutoff:
                 points.popleft()
-        
+
         # Clean up histograms (keep last 1000 points max)
         for metric_name, values in self._histograms.items():
             if len(values) > 1000:
                 self._histograms[metric_name] = values[-1000:]
-    
-    def record_counter(self, name: str, labels: Optional[Dict[str, str]] = None, value: int = 1):
+
+    def record_counter(
+        self, name: str, labels: Optional[Dict[str, str]] = None, value: int = 1
+    ):
         """Record a counter metric."""
         label_key = json.dumps(labels or {}, sort_keys=True)
         self._counters[name][label_key] += value
-    
-    def record_gauge(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+
+    def record_gauge(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ):
         """Record a gauge metric."""
         point = MetricPoint(
             timestamp=datetime.now(timezone.utc),
@@ -154,46 +160,52 @@ class MetricsCollector:
             labels=labels or {},
         )
         self._metrics[name].append(point)
-    
-    def record_histogram(self, name: str, value: float, labels: Optional[Dict[str, str]] = None):
+
+    def record_histogram(
+        self, name: str, value: float, labels: Optional[Dict[str, str]] = None
+    ):
         """Record a histogram metric."""
-        self._histograms[f"{name}_{json.dumps(labels or {}, sort_keys=True)}"].append(value)
+        self._histograms[f"{name}_{json.dumps(labels or {}, sort_keys=True)}"].append(
+            value
+        )
         self.record_gauge(name, value, labels)
-    
-    def get_counter_value(self, name: str, labels: Optional[Dict[str, str]] = None) -> int:
+
+    def get_counter_value(
+        self, name: str, labels: Optional[Dict[str, str]] = None
+    ) -> int:
         """Get current counter value."""
         label_key = json.dumps(labels or {}, sort_keys=True)
         return self._counters[name].get(label_key, 0)
-    
-    def get_gauge_value(self, name: str, labels: Optional[Dict[str, str]] = None) -> Optional[float]:
+
+    def get_gauge_value(
+        self, name: str, labels: Optional[Dict[str, str]] = None
+    ) -> Optional[float]:
         """Get latest gauge value."""
         points = self._metrics[name]
         if not points:
             return None
-        
+
         # Find latest point matching labels
         target_labels = labels or {}
         for point in reversed(points):
             if point.labels == target_labels:
                 return point.value
-        
+
         return None
-    
+
     def get_histogram_stats(
-        self, 
-        name: str, 
-        labels: Optional[Dict[str, str]] = None
+        self, name: str, labels: Optional[Dict[str, str]] = None
     ) -> Dict[str, float]:
         """Get histogram statistics (percentiles, avg, etc.)."""
         label_key = f"{name}_{json.dumps(labels or {}, sort_keys=True)}"
         values = self._histograms.get(label_key, [])
-        
+
         if not values:
             return {}
-        
+
         sorted_values = sorted(values)
         count = len(sorted_values)
-        
+
         return {
             "count": count,
             "avg": sum(values) / count,
@@ -204,7 +216,7 @@ class MetricsCollector:
             "p95": sorted_values[int(count * 0.95)],
             "p99": sorted_values[int(count * 0.99)],
         }
-    
+
     def get_all_metrics(self) -> Dict[str, Any]:
         """Get all current metrics."""
         return {
@@ -221,8 +233,10 @@ class MetricsCollector:
                 for name, points in self._metrics.items()
             },
             "histograms": {
-                name: self.get_histogram_stats(name.split("_")[0], 
-                    json.loads("_".join(name.split("_")[1:])) if "_" in name else None)
+                name: self.get_histogram_stats(
+                    name.split("_")[0],
+                    json.loads("_".join(name.split("_")[1:])) if "_" in name else None,
+                )
                 for name in self._histograms.keys()
             },
         }
@@ -236,7 +250,7 @@ class MetricsCollector:
 @dataclass
 class Alert:
     """An alert event."""
-    
+
     id: str = field(default_factory=lambda: f"alert-{int(time.time())}")
     level: AlertLevel = AlertLevel.WARNING
     title: str = "Unknown Alert"
@@ -250,14 +264,14 @@ class Alert:
 
 class AlertManager:
     """Manages alert generation, routing, and delivery."""
-    
+
     def __init__(self):
         self.active_alerts: Dict[str, Alert] = {}
         self.alert_history: deque = deque(maxlen=1000)  # Keep last 1000 alerts
         self.alert_channels: List[AlertChannel] = [AlertChannel.LOG]
         self.thresholds = AlertThresholds()
         self._suppression_rules: Dict[str, datetime] = {}  # Alert ID -> suppress until
-    
+
     async def raise_alert(
         self,
         title: str,
@@ -275,18 +289,18 @@ class AlertManager:
             source=source,
             labels=labels or {},
         )
-        
+
         # Use alert key for deduplication if provided
         if alert_key:
             alert.id = alert_key
-        
+
         # Check if this alert is suppressed
         if alert.id in self._suppression_rules:
             suppress_until = self._suppression_rules[alert.id]
             if datetime.now(timezone.utc) < suppress_until:
                 logger.debug("Alert %s suppressed until %s", alert.id, suppress_until)
                 return alert.id
-        
+
         # Store the alert
         if alert.id in self.active_alerts:
             # Update existing alert
@@ -298,40 +312,42 @@ class AlertManager:
             # New alert
             self.active_alerts[alert.id] = alert
             self.alert_history.append(alert)
-        
+
         # Deliver the alert
         await self._deliver_alert(alert)
-        
+
         logger.info(
             "Alert raised: %s [%s] %s",
             alert.level.value.upper(),
             alert.title,
             alert.message,
         )
-        
+
         return alert.id
-    
+
     async def resolve_alert(self, alert_id: str) -> bool:
         """Resolve an active alert."""
         if alert_id in self.active_alerts:
             alert = self.active_alerts[alert_id]
             alert.resolved = True
             alert.resolved_at = datetime.now(timezone.utc)
-            
+
             del self.active_alerts[alert_id]
-            
+
             logger.info("Alert resolved: %s", alert.title)
             return True
-        
+
         return False
-    
+
     def suppress_alert(self, alert_id: str, duration_minutes: int = 60):
         """Suppress an alert for a specified duration."""
-        suppress_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+        suppress_until = datetime.now(timezone.utc) + timedelta(
+            minutes=duration_minutes
+        )
         self._suppression_rules[alert_id] = suppress_until
-        
+
         logger.info("Alert %s suppressed for %d minutes", alert_id, duration_minutes)
-    
+
     async def _deliver_alert(self, alert: Alert):
         """Deliver alert through configured channels."""
         for channel in self.alert_channels:
@@ -346,7 +362,7 @@ class AlertManager:
                     await self._deliver_console_alert(alert)
             except Exception as exc:
                 logger.error("Failed to deliver alert via %s: %s", channel.value, exc)
-    
+
     async def _deliver_log_alert(self, alert: Alert):
         """Deliver alert via logging."""
         log_level = {
@@ -354,7 +370,7 @@ class AlertManager:
             AlertLevel.WARNING: logging.WARNING,
             AlertLevel.CRITICAL: logging.CRITICAL,
         }.get(alert.level, logging.WARNING)
-        
+
         logger.log(
             log_level,
             "ALERT [%s] %s: %s (labels=%s)",
@@ -363,47 +379,52 @@ class AlertManager:
             alert.message,
             alert.labels,
         )
-    
+
     async def _deliver_email_alert(self, alert: Alert):
         """Deliver alert via email."""
         # This would integrate with the SMTP service
         # Implementation depends on email service setup
         logger.debug("Email alert delivery not implemented")
-    
+
     async def _deliver_webhook_alert(self, alert: Alert):
         """Deliver alert via webhook."""
         # This would make HTTP POST to configured webhook URL
         logger.debug("Webhook alert delivery not implemented")
-    
+
     async def _deliver_console_alert(self, alert: Alert):
         """Deliver alert to console."""
         color_codes = {
-            AlertLevel.INFO: "\033[94m",      # Blue
-            AlertLevel.WARNING: "\033[93m",   # Yellow
+            AlertLevel.INFO: "\033[94m",  # Blue
+            AlertLevel.WARNING: "\033[93m",  # Yellow
             AlertLevel.CRITICAL: "\033[91m",  # Red
         }
         reset_color = "\033[0m"
-        
+
         color = color_codes.get(alert.level, "")
-        print(f"{color}[ALERT {alert.level.value.upper()}] {alert.title}: {alert.message}{reset_color}")
-    
+        print(
+            f"{color}[ALERT {alert.level.value.upper()}] {alert.title}: {alert.message}{reset_color}"
+        )
+
     def get_active_alerts(self) -> List[Alert]:
         """Get all active alerts."""
         return list(self.active_alerts.values())
-    
+
     def get_alert_summary(self) -> Dict[str, Any]:
         """Get summary of alert status."""
         active_by_level = defaultdict(int)
         for alert in self.active_alerts.values():
             active_by_level[alert.level.value] += 1
-        
+
         return {
             "active_alerts": len(self.active_alerts),
             "active_by_level": dict(active_by_level),
-            "total_alerts_today": len([
-                alert for alert in self.alert_history
-                if alert.timestamp.date() == datetime.now(timezone.utc).date()
-            ]),
+            "total_alerts_today": len(
+                [
+                    alert
+                    for alert in self.alert_history
+                    if alert.timestamp.date() == datetime.now(timezone.utc).date()
+                ]
+            ),
             "suppressed_alerts": len(self._suppression_rules),
         }
 
@@ -415,26 +436,28 @@ class AlertManager:
 
 class HealthMonitor:
     """Monitors system health and triggers alerts based on metrics."""
-    
-    def __init__(self, metrics_collector: MetricsCollector, alert_manager: AlertManager):
+
+    def __init__(
+        self, metrics_collector: MetricsCollector, alert_manager: AlertManager
+    ):
         self.metrics = metrics_collector
         self.alerts = alert_manager
         self._monitoring_task: Optional[asyncio.Task] = None
         self._check_interval = 60  # Check every minute
-    
+
     def start_monitoring(self):
         """Start health monitoring."""
         if not self._monitoring_task:
             self._monitoring_task = asyncio.create_task(self._monitoring_loop())
             logger.info("Health monitoring started")
-    
+
     def stop_monitoring(self):
         """Stop health monitoring."""
         if self._monitoring_task:
             self._monitoring_task.cancel()
             self._monitoring_task = None
             logger.info("Health monitoring stopped")
-    
+
     async def _monitoring_loop(self):
         """Main monitoring loop."""
         while True:
@@ -445,35 +468,35 @@ class HealthMonitor:
                 break
             except Exception as exc:
                 logger.error("Health monitoring error: %s", exc)
-    
+
     async def _check_system_health(self):
         """Check various system health metrics and trigger alerts."""
         # Check error rates
         await self._check_error_rates()
-        
+
         # Check response times
         await self._check_response_times()
-        
+
         # Check circuit breaker states
         await self._check_circuit_breakers()
-        
+
         # Check database health
         await self._check_database_health()
-        
+
         # Check job queue health
         await self._check_job_queue_health()
-    
+
     async def _check_error_rates(self):
         """Check error rates and trigger alerts if thresholds are exceeded."""
         # Count errors in the last minute
         error_count = 0
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=1)
-        
+
         for correlation_id, errors in error_tracker._errors.items():
             for error in errors:
                 if error.timestamp >= cutoff:
                     error_count += 1
-        
+
         if error_count >= self.alerts.thresholds.error_rate_critical:
             await self.alerts.raise_alert(
                 title="Critical Error Rate",
@@ -494,20 +517,20 @@ class HealthMonitor:
             # Resolve alerts if error rate is back to normal
             await self.alerts.resolve_alert("error_rate_critical")
             await self.alerts.resolve_alert("error_rate_warning")
-        
+
         # Record metric
         self.metrics.record_gauge("error_rate_per_minute", error_count)
-    
+
     async def _check_response_times(self):
         """Check response times and alert on slowness."""
         # Get response time metrics
         stats = self.metrics.get_histogram_stats("response_time")
         if not stats:
             return
-        
+
         avg_response_time = stats.get("avg", 0)
         p95_response_time = stats.get("p95", 0)
-        
+
         if p95_response_time >= self.alerts.thresholds.response_time_critical:
             await self.alerts.raise_alert(
                 title="Critical Response Times",
@@ -527,19 +550,23 @@ class HealthMonitor:
         else:
             await self.alerts.resolve_alert("response_time_critical")
             await self.alerts.resolve_alert("response_time_warning")
-    
+
     async def _check_circuit_breakers(self):
         """Check circuit breaker states."""
         try:
             from api.circuit_breakers import circuit_registry
-            
+
             breaker_statuses = circuit_registry.get_all_status()
             open_breakers = [
-                name for name, status in breaker_statuses.items()
+                name
+                for name, status in breaker_statuses.items()
                 if status["state"] == "open"
             ]
-            
-            if len(open_breakers) >= self.alerts.thresholds.circuit_breakers_open_critical:
+
+            if (
+                len(open_breakers)
+                >= self.alerts.thresholds.circuit_breakers_open_critical
+            ):
                 await self.alerts.raise_alert(
                     title="Multiple Circuit Breakers Open",
                     message=f"Open circuit breakers: {', '.join(open_breakers)}",
@@ -547,7 +574,10 @@ class HealthMonitor:
                     source="circuit_breaker_monitor",
                     alert_key="circuit_breakers_critical",
                 )
-            elif len(open_breakers) >= self.alerts.thresholds.circuit_breakers_open_warning:
+            elif (
+                len(open_breakers)
+                >= self.alerts.thresholds.circuit_breakers_open_warning
+            ):
                 await self.alerts.raise_alert(
                     title="Circuit Breaker Open",
                     message=f"Open circuit breakers: {', '.join(open_breakers)}",
@@ -558,21 +588,21 @@ class HealthMonitor:
             else:
                 await self.alerts.resolve_alert("circuit_breakers_critical")
                 await self.alerts.resolve_alert("circuit_breakers_warning")
-            
+
             # Record metrics
             self.metrics.record_gauge("open_circuit_breakers", len(open_breakers))
-            
+
         except ImportError:
             logger.debug("Circuit breaker monitoring not available")
-    
+
     async def _check_database_health(self):
         """Check database connection health."""
         try:
             from api.database_resilience import get_database_health
-            
+
             health = get_database_health()
             db_health = health.get("database", {})
-            
+
             if not db_health.get("available"):
                 await self.alerts.raise_alert(
                     title="Database Unavailable",
@@ -592,22 +622,22 @@ class HealthMonitor:
             else:
                 await self.alerts.resolve_alert("database_unavailable")
                 await self.alerts.resolve_alert("database_unhealthy")
-            
+
             # Record metrics
             success_rate = db_health.get("success_rate", 0)
             self.metrics.record_gauge("database_success_rate", success_rate)
-            
+
         except ImportError:
             logger.debug("Database health monitoring not available")
-    
+
     async def _check_job_queue_health(self):
         """Check background job queue health."""
         try:
             from api.background_job_resilience import job_queue
-            
+
             stats = job_queue.get_queue_stats()
             failed_jobs = stats.get("dead_letter_jobs", 0)
-            
+
             if failed_jobs >= self.alerts.thresholds.dead_letter_jobs_critical:
                 await self.alerts.raise_alert(
                     title="Many Failed Jobs",
@@ -627,12 +657,12 @@ class HealthMonitor:
             else:
                 await self.alerts.resolve_alert("failed_jobs_critical")
                 await self.alerts.resolve_alert("failed_jobs_warning")
-            
+
             # Record metrics
             self.metrics.record_gauge("pending_jobs", stats.get("pending_jobs", 0))
             self.metrics.record_gauge("running_jobs", stats.get("running_jobs", 0))
             self.metrics.record_gauge("failed_jobs", failed_jobs)
-            
+
         except ImportError:
             logger.debug("Job queue monitoring not available")
 
@@ -689,6 +719,7 @@ def get_monitoring_status() -> Dict[str, Any]:
 
 def record_response_time(operation: str = "unknown"):
     """Decorator to automatically record response times."""
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             start_time = time.time()
@@ -698,7 +729,7 @@ def record_response_time(operation: str = "unknown"):
                 metrics_collector.record_histogram(
                     "response_time",
                     duration,
-                    {"operation": operation, "status": "success"}
+                    {"operation": operation, "status": "success"},
                 )
                 return result
             except Exception as exc:
@@ -706,33 +737,41 @@ def record_response_time(operation: str = "unknown"):
                 metrics_collector.record_histogram(
                     "response_time",
                     duration,
-                    {"operation": operation, "status": "error"}
+                    {"operation": operation, "status": "error"},
                 )
                 metrics_collector.record_counter(
                     "operation_errors",
-                    {"operation": operation, "error_type": type(exc).__name__}
+                    {"operation": operation, "error_type": type(exc).__name__},
                 )
                 raise
+
         return wrapper
+
     return decorator
 
 
 def record_operation(operation: str):
     """Decorator to record operation counts and success rates."""
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             try:
                 result = await func(*args, **kwargs)
                 metrics_collector.record_counter(
-                    "operations_total",
-                    {"operation": operation, "status": "success"}
+                    "operations_total", {"operation": operation, "status": "success"}
                 )
                 return result
             except Exception as exc:
                 metrics_collector.record_counter(
                     "operations_total",
-                    {"operation": operation, "status": "error", "error_type": type(exc).__name__}
+                    {
+                        "operation": operation,
+                        "status": "error",
+                        "error_type": type(exc).__name__,
+                    },
                 )
                 raise
+
         return wrapper
+
     return decorator

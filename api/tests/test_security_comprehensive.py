@@ -43,9 +43,9 @@ class TestXSSProtection:
                 "password": "ValidPassword123!",
                 "name": payload,  # XSS payload in name field
             }
-            
+
             resp = client.post("/v1/auth/register", json=registration_data)
-            
+
             # Should either sanitize or reject the payload
             if resp.status_code == 201:
                 # If accepted, ensure it's sanitized
@@ -68,9 +68,9 @@ class TestXSSProtection:
                 "findings": [],
                 "metadata": {"version": "1.0.0"},
             }
-            
+
             resp = client.post("/v1/scans", json=scan_data, headers=auth_headers)
-            
+
             if resp.status_code == 201:
                 # If accepted, verify target is sanitized
                 scan_response = resp.json()
@@ -89,9 +89,9 @@ class TestXSSProtection:
                 "description": payload,
                 "evidence": {"file": "test.js", "content": "malicious content"},
             }
-            
+
             resp = client.post("/v1/report", json=report_data, headers=auth_headers)
-            
+
             if resp.status_code == 201:
                 # Verify description is sanitized
                 assert "<script>" not in str(resp.json().get("description", ""))
@@ -117,7 +117,10 @@ class TestCommandInjection:
         ]
 
     def test_package_name_injection_protection(
-        self, client: TestClient, auth_headers: dict[str, str], injection_payloads: list[str]
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        injection_payloads: list[str],
     ):
         """Test command injection protection in package names."""
         for payload in injection_payloads:
@@ -128,9 +131,9 @@ class TestCommandInjection:
                 "findings": [],
                 "metadata": {},
             }
-            
+
             resp = client.post("/v1/scans", json=scan_data, headers=auth_headers)
-            
+
             # Should reject dangerous characters or sanitize
             if resp.status_code not in [400, 422]:
                 # If accepted, verify no shell metacharacters remain
@@ -143,7 +146,10 @@ class TestCommandInjection:
                 assert "`" not in target
 
     def test_publisher_verification_injection_protection(
-        self, client: TestClient, auth_headers: dict[str, str], injection_payloads: list[str]
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        injection_payloads: list[str],
     ):
         """Test command injection in publisher verification."""
         for payload in injection_payloads:
@@ -153,9 +159,9 @@ class TestCommandInjection:
                 "publisher": "test-publisher",
                 "registry_url": "https://registry.npmjs.org/",
             }
-            
+
             resp = client.post("/v1/verify", json=verify_data, headers=auth_headers)
-            
+
             # Should not allow command execution
             assert resp.status_code in [400, 422, 500]  # Should fail safely
 
@@ -173,7 +179,7 @@ class TestCSRFProtection:
             "findings": [],
             "metadata": {},
         }
-        
+
         # Should require authentication anyway, but let's test CSRF protection
         resp = client.post("/v1/scans", json=scan_data)
         assert resp.status_code in [401, 403]  # Should require auth
@@ -187,7 +193,7 @@ class TestCSRFProtection:
             "Origin": "https://evil.com",
             "Referer": "https://evil.com/attack.html",
         }
-        
+
         scan_data = {
             "target": "test-package",
             "target_type": "npm",
@@ -195,7 +201,7 @@ class TestCSRFProtection:
             "findings": [],
             "metadata": {},
         }
-        
+
         # Should be rejected due to CORS policy
         client.post("/v1/scans", json=scan_data, headers=malicious_headers)
         # The exact status depends on CORS configuration
@@ -209,11 +215,11 @@ class TestRateLimiting:
         """Test global rate limiting per IP."""
         # Make rapid requests to trigger rate limiting
         responses = []
-        
+
         for i in range(250):  # Exceed the 200 req/min limit
             resp = client.get("/health")
             responses.append(resp.status_code)
-            
+
         # Should eventually get rate limited
         rate_limited = any(status == 429 for status in responses)
         assert rate_limited, "Rate limiting not triggered after 250 requests"
@@ -223,11 +229,11 @@ class TestRateLimiting:
     ):
         """Test rate limiting on authenticated endpoints."""
         responses = []
-        
+
         for i in range(100):
             resp = client.get("/v1/scans", headers=auth_headers)
             responses.append(resp.status_code)
-            
+
         # Should handle normal load but prevent abuse
         success_count = sum(1 for status in responses if status == 200)
         assert success_count > 50, "Too aggressive rate limiting on normal usage"
@@ -235,7 +241,7 @@ class TestRateLimiting:
     def test_rate_limit_headers(self, client: TestClient):
         """Test that rate limit headers are properly set."""
         resp = client.get("/health")
-        
+
         # Should include rate limiting information in headers
         # (Specific headers depend on rate limiting implementation)
         assert resp.status_code in [200, 429]
@@ -251,16 +257,18 @@ class TestInputValidation:
         # Create an extremely large payload
         huge_findings = []
         for i in range(10000):  # Very large number of findings
-            huge_findings.append({
-                "phase": "code_patterns",
-                "rule": "test-rule",
-                "severity": "HIGH",
-                "file": f"file_{i}.js",
-                "line": i,
-                "snippet": "x" * 1000,  # Large snippet
-                "weight": 1.0,
-            })
-        
+            huge_findings.append(
+                {
+                    "phase": "code_patterns",
+                    "rule": "test-rule",
+                    "severity": "HIGH",
+                    "file": f"file_{i}.js",
+                    "line": i,
+                    "snippet": "x" * 1000,  # Large snippet
+                    "weight": 1.0,
+                }
+            )
+
         scan_data = {
             "target": "test-package",
             "target_type": "npm",
@@ -268,9 +276,9 @@ class TestInputValidation:
             "findings": huge_findings,
             "metadata": {},
         }
-        
+
         resp = client.post("/v1/scans", json=scan_data, headers=auth_headers)
-        
+
         # Should reject oversized payloads
         assert resp.status_code in [413, 422, 400]
 
@@ -285,14 +293,14 @@ class TestInputValidation:
             " user@domain.com ",
             "user@domain..com",
         ]
-        
+
         for email in invalid_emails:
             registration_data = {
                 "email": email,
                 "password": "ValidPassword123!",
                 "name": "Test User",
             }
-            
+
             resp = client.post("/v1/auth/register", json=registration_data)
             assert resp.status_code == 422, f"Invalid email {email} was accepted"
 
@@ -307,14 +315,14 @@ class TestInputValidation:
             "NoNumbers",
             "12345678",  # Only numbers
         ]
-        
+
         for password in weak_passwords:
             registration_data = {
                 "email": "test@example.com",
                 "password": password,
                 "name": "Test User",
             }
-            
+
             resp = client.post("/v1/auth/register", json=registration_data)
             assert resp.status_code == 422, f"Weak password {password} was accepted"
 
@@ -325,13 +333,13 @@ class TestSecurityHeaders:
     def test_security_headers_present(self, client: TestClient):
         """Test that all required security headers are present."""
         resp = client.get("/health")
-        
+
         # Check for security headers
         assert resp.headers.get("X-Content-Type-Options") == "nosniff"
         assert resp.headers.get("X-Frame-Options") == "DENY"
         assert resp.headers.get("X-XSS-Protection") == "1; mode=block"
         assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
-        
+
         # HSTS should be present in non-debug mode
         if not settings.debug:
             hsts = resp.headers.get("Strict-Transport-Security")
@@ -343,13 +351,13 @@ class TestSecurityHeaders:
         """Test that Content-Type header is enforced for JSON endpoints."""
         # Try to send JSON data with wrong content type
         scan_data = '{"target": "test", "target_type": "npm", "files_scanned": 1, "findings": []}'
-        
+
         resp = client.post(
             "/v1/scans",
             data=scan_data,
             headers={"Content-Type": "text/plain"},
         )
-        
+
         # Should reject requests with wrong content type
         assert resp.status_code == 422
 
@@ -357,22 +365,24 @@ class TestSecurityHeaders:
 class TestAuthenticationSecurity:
     """Test authentication security measures."""
 
-    def test_jwt_token_expiration(self, client: TestClient, test_user_data: dict[str, str]):
+    def test_jwt_token_expiration(
+        self, client: TestClient, test_user_data: dict[str, str]
+    ):
         """Test that JWT tokens properly expire."""
         # Register and login
         resp = client.post("/v1/auth/register", json=test_user_data)
         assert resp.status_code == 201
-        
+
         login_data = {
             "email": test_user_data["email"],
             "password": test_user_data["password"],
         }
         resp = client.post("/v1/auth/login", json=login_data)
         assert resp.status_code == 200
-        
+
         token_data = resp.json()
         access_token = token_data["access_token"]
-        
+
         # Token should be valid initially
         headers = {"Authorization": f"Bearer {access_token}"}
         resp = client.get("/v1/auth/me", headers=headers)
@@ -387,18 +397,20 @@ class TestAuthenticationSecurity:
             "",
             "malformed-token",
         ]
-        
+
         for token in invalid_tokens:
             headers = {"Authorization": f"Bearer {token}"}
             resp = client.get("/v1/auth/me", headers=headers)
             assert resp.status_code == 401, f"Invalid token {token} was accepted"
 
-    def test_password_hashing_security(self, client: TestClient, test_user_data: dict[str, str]):
+    def test_password_hashing_security(
+        self, client: TestClient, test_user_data: dict[str, str]
+    ):
         """Test that passwords are properly hashed."""
         # Register user
         resp = client.post("/v1/auth/register", json=test_user_data)
         assert resp.status_code == 201
-        
+
         # Attempt login with plaintext password should work
         login_data = {
             "email": test_user_data["email"],
@@ -406,7 +418,7 @@ class TestAuthenticationSecurity:
         }
         resp = client.post("/v1/auth/login", json=login_data)
         assert resp.status_code == 200
-        
+
         # Verify password is not stored in plaintext by attempting direct hash login
         # (This is more of a database-level test, but validates the concern)
 
@@ -422,16 +434,16 @@ class TestDataSanitization:
             ("POST", "/v1/auth/login", {"invalid": "data"}),
             ("POST", "/v1/scans", {"malformed": "payload"}),
         ]
-        
+
         for method, url, *data in error_triggers:
             if method == "GET":
                 resp = client.get(url)
             else:
                 resp = client.post(url, json=data[0] if data else {})
-            
+
             # Error responses should not contain sensitive information
             error_text = resp.text.lower()
-            
+
             # Check for common information disclosure patterns
             assert "traceback" not in error_text
             assert "database" not in error_text
@@ -444,10 +456,10 @@ class TestDataSanitization:
     ):
         """Test that response data doesn't include sensitive fields."""
         resp = client.get("/v1/auth/me", headers=auth_headers)
-        
+
         if resp.status_code == 200:
             user_data = resp.json()
-            
+
             # Should not include sensitive fields
             assert "password" not in user_data
             assert "password_hash" not in user_data
@@ -469,27 +481,27 @@ class TestBusinessLogicSecurity:
             "findings": [],
             "metadata": {},
         }
-        
+
         resp = client.post("/v1/scans", json=scan_data, headers=auth_headers)
         if resp.status_code != 201:
             return  # Skip if scan creation fails
-            
+
         scan_id = resp.json().get("id")
-        
+
         # Register a second user
         second_user_data = {
             "email": "second@example.com",
             "password": "SecondPassword123!",
             "name": "Second User",
         }
-        
+
         resp = client.post("/v1/auth/register", json=second_user_data)
         if resp.status_code != 201:
             return  # Skip if registration fails
-            
+
         second_token = resp.json()["access_token"]
         second_headers = {"Authorization": f"Bearer {second_token}"}
-        
+
         # Second user should not be able to access first user's scan
         resp = client.get(f"/v1/scans/{scan_id}", headers=second_headers)
         assert resp.status_code in [403, 404], "User can access other user's scan"
@@ -505,7 +517,7 @@ class TestBusinessLogicSecurity:
             "/admin",
             "/internal",
         ]
-        
+
         for endpoint in admin_endpoints:
             resp = client.get(endpoint, headers=auth_headers)
             # Should be forbidden or not found (not a server error)

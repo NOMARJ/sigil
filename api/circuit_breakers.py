@@ -18,7 +18,7 @@ from api.errors import CircuitBreakerOpenError, error_tracker
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # ---------------------------------------------------------------------------
@@ -28,9 +28,9 @@ T = TypeVar('T')
 
 class CircuitState(str, Enum):
     """Circuit breaker states following the classic pattern."""
-    
-    CLOSED = "closed"      # Normal operation, requests allowed
-    OPEN = "open"          # Failing fast, requests blocked
+
+    CLOSED = "closed"  # Normal operation, requests allowed
+    OPEN = "open"  # Failing fast, requests blocked
     HALF_OPEN = "half_open"  # Testing if service has recovered
 
 
@@ -42,24 +42,24 @@ class CircuitState(str, Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for a circuit breaker instance."""
-    
+
     # Failure thresholds
     failure_threshold: int = 5  # Number of failures to trigger open
     success_threshold: int = 2  # Number of successes to close from half-open
-    
+
     # Time windows
     timeout_duration: float = 60.0  # Seconds to wait in open state
     call_timeout: float = 30.0  # Timeout for individual calls
-    
+
     # Monitoring window
     monitoring_window: float = 300.0  # 5 minutes sliding window
     min_calls_in_window: int = 3  # Minimum calls before considering failure rate
-    
+
     # Recovery settings
     recovery_timeout: float = 10.0  # Timeout for recovery attempts in half-open
     exponential_backoff: bool = True  # Use exponential backoff for retry delay
     max_retry_delay: float = 300.0  # Maximum retry delay (5 minutes)
-    
+
     # Service identification
     service_name: str = "unknown"
 
@@ -67,17 +67,19 @@ class CircuitBreakerConfig:
 @dataclass
 class CircuitBreakerStats:
     """Statistics and state tracking for a circuit breaker."""
-    
+
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
     success_count: int = 0
     last_failure_time: float = 0.0
     last_success_time: float = 0.0
     last_state_change: float = field(default_factory=time.time)
-    
+
     # Call tracking for monitoring window
-    call_history: list[tuple[float, bool]] = field(default_factory=list)  # (timestamp, success)
-    
+    call_history: list[tuple[float, bool]] = field(
+        default_factory=list
+    )  # (timestamp, success)
+
     # Exponential backoff state
     consecutive_failures: int = 0
     next_retry_time: float = 0.0
@@ -91,24 +93,24 @@ class CircuitBreakerStats:
 class CircuitBreaker:
     """
     Circuit breaker implementation for protecting against cascading failures.
-    
+
     Follows the classic circuit breaker pattern:
     - CLOSED: Normal operation, all requests pass through
     - OPEN: Failing fast, requests are blocked
     - HALF_OPEN: Limited testing to see if service has recovered
     """
-    
+
     def __init__(self, config: CircuitBreakerConfig):
         self.config = config
         self.stats = CircuitBreakerStats()
         self._lock = asyncio.Lock()
-        
+
         logger.info(
             "Circuit breaker initialized for service '%s' with failure_threshold=%d",
             config.service_name,
             config.failure_threshold,
         )
-    
+
     async def call(
         self,
         func: Callable[..., Awaitable[T]],
@@ -117,15 +119,15 @@ class CircuitBreaker:
     ) -> T:
         """
         Execute a function with circuit breaker protection.
-        
+
         Args:
             func: Async function to call
             *args: Positional arguments for func
             **kwargs: Keyword arguments for func
-            
+
         Returns:
             Result of func execution
-            
+
         Raises:
             CircuitBreakerOpenError: When circuit is open
             TimeoutError: When call exceeds timeout
@@ -133,7 +135,7 @@ class CircuitBreaker:
         """
         async with self._lock:
             await self._update_state()
-            
+
             if self.stats.state == CircuitState.OPEN:
                 raise CircuitBreakerOpenError(
                     service=self.config.service_name,
@@ -142,9 +144,9 @@ class CircuitBreaker:
                         "failure_count": self.stats.failure_count,
                         "last_failure": self.stats.last_failure_time,
                         "next_retry": self.stats.next_retry_time,
-                    }
+                    },
                 )
-        
+
         # Execute the protected call
         start_time = time.time()
         try:
@@ -152,11 +154,11 @@ class CircuitBreaker:
                 func(*args, **kwargs),
                 timeout=self.config.call_timeout,
             )
-            
+
             # Record successful call
             await self._record_success(start_time)
             return result
-            
+
         except asyncio.TimeoutError as exc:
             await self._record_failure(start_time, exc)
             raise TimeoutError(
@@ -164,80 +166,79 @@ class CircuitBreaker:
                 timeout_seconds=int(self.config.call_timeout),
                 context={"args_count": len(args), "kwargs_count": len(kwargs)},
             )
-            
+
         except Exception as exc:
             await self._record_failure(start_time, exc)
             raise
-    
+
     async def _update_state(self) -> None:
         """Update circuit breaker state based on current conditions."""
         now = time.time()
         current_state = self.stats.state
-        
+
         if current_state == CircuitState.CLOSED:
             # Check if we should open due to too many failures
             failure_rate = self._calculate_failure_rate()
-            if (
-                self.stats.failure_count >= self.config.failure_threshold
-                or (failure_rate > 0.5 and self._has_sufficient_calls())
+            if self.stats.failure_count >= self.config.failure_threshold or (
+                failure_rate > 0.5 and self._has_sufficient_calls()
             ):
                 await self._transition_to_open()
-                
+
         elif current_state == CircuitState.OPEN:
             # Check if we should try half-open
             if self._should_attempt_reset(now):
                 await self._transition_to_half_open()
-                
+
         elif current_state == CircuitState.HALF_OPEN:
             # Check if we should close or reopen
             if self.stats.success_count >= self.config.success_threshold:
                 await self._transition_to_closed()
             elif self.stats.failure_count > 0:
                 await self._transition_to_open()
-    
+
     async def _record_success(self, start_time: float) -> None:
         """Record a successful call."""
         now = time.time()
         duration = now - start_time
-        
+
         async with self._lock:
             self.stats.success_count += 1
             self.stats.last_success_time = now
             self.stats.call_history.append((now, True))
             self.stats.consecutive_failures = 0
-            
+
             # Clean old call history
             self._clean_call_history(now)
-            
+
             logger.debug(
                 "Circuit breaker success for %s (duration=%.2fs, success_count=%d)",
                 self.config.service_name,
                 duration,
                 self.stats.success_count,
             )
-    
+
     async def _record_failure(self, start_time: float, exc: Exception) -> None:
         """Record a failed call."""
         now = time.time()
         duration = now - start_time
-        
+
         async with self._lock:
             self.stats.failure_count += 1
             self.stats.last_failure_time = now
             self.stats.call_history.append((now, False))
             self.stats.consecutive_failures += 1
-            
+
             # Update exponential backoff
             if self.config.exponential_backoff:
                 delay = min(
-                    2 ** self.stats.consecutive_failures,
+                    2**self.stats.consecutive_failures,
                     self.config.max_retry_delay,
                 )
                 self.stats.next_retry_time = now + delay
-            
+
             # Clean old call history
             self._clean_call_history(now)
-            
+
             logger.warning(
                 "Circuit breaker failure for %s (duration=%.2fs, failure_count=%d, exc=%s)",
                 self.config.service_name,
@@ -245,14 +246,14 @@ class CircuitBreaker:
                 self.stats.failure_count,
                 type(exc).__name__,
             )
-    
+
     async def _transition_to_open(self) -> None:
         """Transition circuit breaker to OPEN state."""
         if self.stats.state != CircuitState.OPEN:
             old_state = self.stats.state
             self.stats.state = CircuitState.OPEN
             self.stats.last_state_change = time.time()
-            
+
             logger.error(
                 "Circuit breaker OPENED for %s (failures=%d, %s -> %s)",
                 self.config.service_name,
@@ -260,7 +261,7 @@ class CircuitBreaker:
                 old_state.value,
                 CircuitState.OPEN.value,
             )
-            
+
             # Track this as a critical error
             error_tracker.track_error(
                 CircuitBreakerOpenError(
@@ -269,10 +270,10 @@ class CircuitBreaker:
                         "previous_state": old_state.value,
                         "failure_count": self.stats.failure_count,
                         "failure_rate": self._calculate_failure_rate(),
-                    }
+                    },
                 )
             )
-    
+
     async def _transition_to_half_open(self) -> None:
         """Transition circuit breaker to HALF_OPEN state."""
         old_state = self.stats.state
@@ -280,14 +281,14 @@ class CircuitBreaker:
         self.stats.last_state_change = time.time()
         self.stats.success_count = 0
         self.stats.failure_count = 0
-        
+
         logger.info(
             "Circuit breaker HALF_OPEN for %s (%s -> %s)",
             self.config.service_name,
             old_state.value,
             CircuitState.HALF_OPEN.value,
         )
-    
+
     async def _transition_to_closed(self) -> None:
         """Transition circuit breaker to CLOSED state."""
         old_state = self.stats.state
@@ -296,65 +297,70 @@ class CircuitBreaker:
         self.stats.failure_count = 0
         self.stats.success_count = 0
         self.stats.consecutive_failures = 0
-        
+
         logger.info(
             "Circuit breaker CLOSED for %s (%s -> %s)",
             self.config.service_name,
             old_state.value,
             CircuitState.CLOSED.value,
         )
-    
+
     def _should_attempt_reset(self, now: float) -> bool:
         """Check if circuit should attempt to reset from OPEN to HALF_OPEN."""
         if self.config.exponential_backoff:
             return now >= self.stats.next_retry_time
         else:
             return now - self.stats.last_state_change >= self.config.timeout_duration
-    
+
     def _calculate_failure_rate(self) -> float:
         """Calculate failure rate within the monitoring window."""
         now = time.time()
         window_start = now - self.config.monitoring_window
-        
+
         recent_calls = [
-            success for timestamp, success in self.stats.call_history
+            success
+            for timestamp, success in self.stats.call_history
             if timestamp >= window_start
         ]
-        
+
         if len(recent_calls) < self.config.min_calls_in_window:
             return 0.0
-        
+
         failures = sum(1 for success in recent_calls if not success)
         return failures / len(recent_calls)
-    
+
     def _has_sufficient_calls(self) -> bool:
         """Check if we have sufficient calls to make failure rate decisions."""
         now = time.time()
         window_start = now - self.config.monitoring_window
-        
+
         recent_calls = [
-            timestamp for timestamp, _ in self.stats.call_history
+            timestamp
+            for timestamp, _ in self.stats.call_history
             if timestamp >= window_start
         ]
-        
+
         return len(recent_calls) >= self.config.min_calls_in_window
-    
+
     def _get_retry_delay(self) -> float:
         """Get the delay before next retry attempt."""
         now = time.time()
         if self.config.exponential_backoff:
             return max(0, self.stats.next_retry_time - now)
         else:
-            return max(0, self.config.timeout_duration - (now - self.stats.last_state_change))
-    
+            return max(
+                0, self.config.timeout_duration - (now - self.stats.last_state_change)
+            )
+
     def _clean_call_history(self, now: float) -> None:
         """Remove old calls from history to prevent memory growth."""
         cutoff = now - self.config.monitoring_window * 2  # Keep 2x window for safety
         self.stats.call_history = [
-            (timestamp, success) for timestamp, success in self.stats.call_history
+            (timestamp, success)
+            for timestamp, success in self.stats.call_history
             if timestamp >= cutoff
         ]
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current circuit breaker status for monitoring."""
         now = time.time()
@@ -379,11 +385,11 @@ class CircuitBreaker:
 
 class CircuitBreakerRegistry:
     """Registry for managing multiple circuit breakers."""
-    
+
     def __init__(self):
         self._breakers: Dict[str, CircuitBreaker] = {}
         self._lock = asyncio.Lock()
-    
+
     async def get_breaker(
         self,
         service_name: str,
@@ -395,9 +401,9 @@ class CircuitBreakerRegistry:
                 if config is None:
                     config = CircuitBreakerConfig(service_name=service_name)
                 self._breakers[service_name] = CircuitBreaker(config)
-            
+
             return self._breakers[service_name]
-    
+
     async def call_with_breaker(
         self,
         service_name: str,
@@ -409,14 +415,11 @@ class CircuitBreakerRegistry:
         """Convenience method to call a function with circuit breaker protection."""
         breaker = await self.get_breaker(service_name, config)
         return await breaker.call(func, *args, **kwargs)
-    
+
     def get_all_status(self) -> Dict[str, Dict[str, Any]]:
         """Get status of all circuit breakers."""
-        return {
-            name: breaker.get_status()
-            for name, breaker in self._breakers.items()
-        }
-    
+        return {name: breaker.get_status() for name, breaker in self._breakers.items()}
+
     async def reset_breaker(self, service_name: str) -> bool:
         """Manually reset a circuit breaker to CLOSED state."""
         async with self._lock:
@@ -518,17 +521,20 @@ def circuit_protected(
 ):
     """
     Decorator to automatically protect a function with a circuit breaker.
-    
+
     Usage:
         @circuit_protected("my_service")
         async def my_function():
             # This function is now protected by a circuit breaker
             pass
     """
+
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         async def wrapper(*args: Any, **kwargs: Any) -> T:
             return await circuit_registry.call_with_breaker(
                 service_name, func, *args, config=config, **kwargs
             )
+
         return wrapper
+
     return decorator

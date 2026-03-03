@@ -190,7 +190,7 @@ async def _submit_scan_impl(
             await db.increment_scan_usage(user_id, year_month)
         except Exception:
             logger.exception("Failed to increment scan usage for user %s", user_id)
-        
+
         # --- 4c. Track analytics event ----------------------------------------
         try:
             await track_forge_event(
@@ -204,8 +204,8 @@ async def _submit_scan_impl(
                     "verdict": verdict.value,
                     "findings_count": len(request.findings),
                     "threat_hits": len(threat_hits),
-                    "files_scanned": request.files_scanned
-                }
+                    "files_scanned": request.files_scanned,
+                },
             )
         except Exception:
             logger.exception("Failed to track scan analytics for user %s", user_id)

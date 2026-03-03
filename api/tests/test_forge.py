@@ -85,11 +85,12 @@ SAMPLE_SKILL_SCAN = {
 # Unit Tests for Classification
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_classify_tool_database():
     """Test classification of a database tool."""
     tool = await classify_tool("mcp", "mcp-postgres", SAMPLE_SCAN_DATA)
-    
+
     assert tool.name == "mcp-postgres"
     assert tool.ecosystem == "mcp"
     assert tool.category == ToolCategory.DATABASE_CONNECTORS
@@ -106,7 +107,7 @@ async def test_classify_tool_database():
 async def test_classify_tool_ai_skill():
     """Test classification of an AI/LLM skill."""
     tool = await classify_tool("skill", "chat-skill", SAMPLE_SKILL_SCAN)
-    
+
     assert tool.name == "chat-skill"
     assert tool.ecosystem == "skill"
     assert tool.category == ToolCategory.AI_LLM_TOOLS
@@ -128,9 +129,9 @@ async def test_classify_tool_security():
             "description": "Security scanner for vulnerabilities",
         },
     }
-    
+
     tool = await classify_tool("mcp", "security-scanner", scan_data)
-    
+
     assert tool.category == ToolCategory.SECURITY_TOOLS
     assert ToolCapability.SECURITY in tool.capabilities
     assert tool.trust_score == 95
@@ -140,30 +141,35 @@ async def test_classify_tool_security():
 # Integration Tests for API Endpoints
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_search_tools_endpoint():
     """Test the /forge/search endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database response
-        mock_db.fetch_all = AsyncMock(return_value=[
-            {
-                "id": "test-1",
-                "ecosystem": "clawhub",
-                "package_name": "postgres-skill",
-                "package_version": "1.0.0",
-                "risk_score": 10,
-                "verdict": "LOW_RISK",
-                "findings_count": 2,
-                "files_scanned": 10,
-                "metadata": json.dumps({"description": "PostgreSQL database skill"}),
-                "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
-                "created_at": datetime.now(timezone.utc),
-            }
-        ])
-        
+        mock_db.fetch_all = AsyncMock(
+            return_value=[
+                {
+                    "id": "test-1",
+                    "ecosystem": "clawhub",
+                    "package_name": "postgres-skill",
+                    "package_version": "1.0.0",
+                    "risk_score": 10,
+                    "verdict": "LOW_RISK",
+                    "findings_count": 2,
+                    "files_scanned": 10,
+                    "metadata": json.dumps(
+                        {"description": "PostgreSQL database skill"}
+                    ),
+                    "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
+                    "created_at": datetime.now(timezone.utc),
+                }
+            ]
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/search?q=postgres&type=skill")
-            
+
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "items" in data
@@ -178,46 +184,54 @@ async def test_get_tool_stack_endpoint():
     """Test the /forge/stack endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database responses for different tool types
-        mock_db.fetch_all = AsyncMock(return_value=[
-            {
-                "id": "test-1",
-                "ecosystem": "github",
-                "package_name": "mcp-postgres",
-                "package_version": "2.0.0",
-                "risk_score": 8,
-                "verdict": "LOW_RISK",
-                "findings_count": 1,
-                "files_scanned": 20,
-                "metadata": json.dumps({"description": "PostgreSQL MCP server"}),
-                "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
-                "created_at": datetime.now(timezone.utc),
-            },
-            {
-                "id": "test-2",
-                "ecosystem": "clawhub",
-                "package_name": "db-query-skill",
-                "package_version": "1.5.0",
-                "risk_score": 15,
-                "verdict": "LOW_RISK",
-                "findings_count": 3,
-                "files_scanned": 15,
-                "metadata": json.dumps({"description": "Database query builder skill"}),
-                "findings_json": json.dumps([]),
-                "created_at": datetime.now(timezone.utc),
-            },
-        ])
-        
+        mock_db.fetch_all = AsyncMock(
+            return_value=[
+                {
+                    "id": "test-1",
+                    "ecosystem": "github",
+                    "package_name": "mcp-postgres",
+                    "package_version": "2.0.0",
+                    "risk_score": 8,
+                    "verdict": "LOW_RISK",
+                    "findings_count": 1,
+                    "files_scanned": 20,
+                    "metadata": json.dumps({"description": "PostgreSQL MCP server"}),
+                    "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
+                    "created_at": datetime.now(timezone.utc),
+                },
+                {
+                    "id": "test-2",
+                    "ecosystem": "clawhub",
+                    "package_name": "db-query-skill",
+                    "package_version": "1.5.0",
+                    "risk_score": 15,
+                    "verdict": "LOW_RISK",
+                    "findings_count": 3,
+                    "files_scanned": 15,
+                    "metadata": json.dumps(
+                        {"description": "Database query builder skill"}
+                    ),
+                    "findings_json": json.dumps([]),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            ]
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get(
                 "/forge/stack?use_case=query%20postgres%20database&max_tools=3"
             )
-            
+
             assert response.status_code == status.HTTP_200_OK
             stack = response.json()
             assert stack["name"] == "Database Agent Stack"
             assert "postgres" in stack["use_case"].lower()
             assert len(stack["tools"]) <= 3
-            assert stack["trust_summary"]["overall_risk"] in ["LOW_RISK", "MEDIUM_RISK", "HIGH_RISK"]
+            assert stack["trust_summary"]["overall_risk"] in [
+                "LOW_RISK",
+                "MEDIUM_RISK",
+                "HIGH_RISK",
+            ]
             assert "average_trust_score" in stack["trust_summary"]
 
 
@@ -226,23 +240,25 @@ async def test_get_tool_details_endpoint():
     """Test the /forge/tools/{ecosystem}/{name} endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database response for specific tool
-        mock_db.fetch_one = AsyncMock(return_value={
-            "id": "test-1",
-            "ecosystem": "github",
-            "package_name": "mcp-postgres",
-            "package_version": "2.0.0",
-            "risk_score": 8,
-            "verdict": "LOW_RISK",
-            "findings_count": 2,
-            "files_scanned": 20,
-            "metadata": json.dumps(SAMPLE_SCAN_DATA["metadata"]),
-            "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
-            "created_at": datetime.now(timezone.utc),
-        })
-        
+        mock_db.fetch_one = AsyncMock(
+            return_value={
+                "id": "test-1",
+                "ecosystem": "github",
+                "package_name": "mcp-postgres",
+                "package_version": "2.0.0",
+                "risk_score": 8,
+                "verdict": "LOW_RISK",
+                "findings_count": 2,
+                "files_scanned": 20,
+                "metadata": json.dumps(SAMPLE_SCAN_DATA["metadata"]),
+                "findings_json": json.dumps(SAMPLE_SCAN_DATA["findings"]),
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/tools/mcp/mcp-postgres")
-            
+
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "mcp-postgres"
@@ -257,10 +273,10 @@ async def test_get_tool_details_not_found():
     """Test 404 response when tool is not found."""
     with patch("api.routers.forge.db") as mock_db:
         mock_db.fetch_one = AsyncMock(return_value=None)
-        
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/tools/mcp/nonexistent-tool")
-            
+
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert "not found" in response.json()["detail"].lower()
 
@@ -269,69 +285,77 @@ async def test_get_tool_details_not_found():
 async def test_get_classified_skills():
     """Test the /forge/classifications/skills endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_all = AsyncMock(return_value=[
-            {
-                "id": "test-1",
-                "ecosystem": "clawhub",
-                "package_name": "skill-1",
-                "package_version": "1.0.0",
-                "risk_score": 10,
-                "verdict": "LOW_RISK",
-                "findings_count": 1,
-                "files_scanned": 5,
-                "metadata": json.dumps({"description": "Test skill 1"}),
-                "findings_json": json.dumps([]),
-                "created_at": datetime.now(timezone.utc),
-            },
-            {
-                "id": "test-2",
-                "ecosystem": "clawhub",
-                "package_name": "skill-2",
-                "package_version": "2.0.0",
-                "risk_score": 25,
-                "verdict": "MEDIUM_RISK",
-                "findings_count": 5,
-                "files_scanned": 10,
-                "metadata": json.dumps({"description": "Test skill 2"}),
-                "findings_json": json.dumps([]),
-                "created_at": datetime.now(timezone.utc),
-            },
-        ])
-        
+        mock_db.fetch_all = AsyncMock(
+            return_value=[
+                {
+                    "id": "test-1",
+                    "ecosystem": "clawhub",
+                    "package_name": "skill-1",
+                    "package_version": "1.0.0",
+                    "risk_score": 10,
+                    "verdict": "LOW_RISK",
+                    "findings_count": 1,
+                    "files_scanned": 5,
+                    "metadata": json.dumps({"description": "Test skill 1"}),
+                    "findings_json": json.dumps([]),
+                    "created_at": datetime.now(timezone.utc),
+                },
+                {
+                    "id": "test-2",
+                    "ecosystem": "clawhub",
+                    "package_name": "skill-2",
+                    "package_version": "2.0.0",
+                    "risk_score": 25,
+                    "verdict": "MEDIUM_RISK",
+                    "findings_count": 5,
+                    "files_scanned": 10,
+                    "metadata": json.dumps({"description": "Test skill 2"}),
+                    "findings_json": json.dumps([]),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            ]
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
-            response = await client.get("/forge/classifications/skills?limit=10&min_trust_score=70")
-            
+            response = await client.get(
+                "/forge/classifications/skills?limit=10&min_trust_score=70"
+            )
+
             assert response.status_code == status.HTTP_200_OK
             skills = response.json()
             assert isinstance(skills, list)
             assert len(skills) == 2
             assert all(s["ecosystem"] == "skill" for s in skills)
-            assert skills[0]["trust_score"] >= skills[1]["trust_score"]  # Sorted by trust
+            assert (
+                skills[0]["trust_score"] >= skills[1]["trust_score"]
+            )  # Sorted by trust
 
 
 @pytest.mark.asyncio
 async def test_get_classified_mcps():
     """Test the /forge/classifications/mcps endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_all = AsyncMock(return_value=[
-            {
-                "id": "test-1",
-                "ecosystem": "github",
-                "package_name": "mcp-server-1",
-                "package_version": "3.0.0",
-                "risk_score": 5,
-                "verdict": "LOW_RISK",
-                "findings_count": 0,
-                "files_scanned": 25,
-                "metadata": json.dumps({"description": "Test MCP server"}),
-                "findings_json": json.dumps([]),
-                "created_at": datetime.now(timezone.utc),
-            },
-        ])
-        
+        mock_db.fetch_all = AsyncMock(
+            return_value=[
+                {
+                    "id": "test-1",
+                    "ecosystem": "github",
+                    "package_name": "mcp-server-1",
+                    "package_version": "3.0.0",
+                    "risk_score": 5,
+                    "verdict": "LOW_RISK",
+                    "findings_count": 0,
+                    "files_scanned": 25,
+                    "metadata": json.dumps({"description": "Test MCP server"}),
+                    "findings_json": json.dumps([]),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            ]
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/classifications/mcps?limit=5")
-            
+
             assert response.status_code == status.HTTP_200_OK
             mcps = response.json()
             assert isinstance(mcps, list)
@@ -344,20 +368,22 @@ async def test_get_classified_mcps():
 async def test_classify_package_endpoint():
     """Test the /forge/classify endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_one = AsyncMock(return_value={
-            "id": "test-1",
-            "ecosystem": "clawhub",
-            "package_name": "new-skill",
-            "package_version": "1.0.0",
-            "risk_score": 20,
-            "verdict": "MEDIUM_RISK",
-            "findings_count": 4,
-            "files_scanned": 8,
-            "metadata": json.dumps({"description": "A newly classified skill"}),
-            "findings_json": json.dumps([]),
-            "created_at": datetime.now(timezone.utc),
-        })
-        
+        mock_db.fetch_one = AsyncMock(
+            return_value={
+                "id": "test-1",
+                "ecosystem": "clawhub",
+                "package_name": "new-skill",
+                "package_version": "1.0.0",
+                "risk_score": 20,
+                "verdict": "MEDIUM_RISK",
+                "findings_count": 4,
+                "files_scanned": 8,
+                "metadata": json.dumps({"description": "A newly classified skill"}),
+                "findings_json": json.dumps([]),
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/forge/classify",
@@ -365,9 +391,9 @@ async def test_classify_package_endpoint():
                     "ecosystem": "skill",
                     "package_name": "new-skill",
                     "force_refresh": False,
-                }
+                },
             )
-            
+
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "new-skill"
@@ -380,7 +406,7 @@ async def test_classify_package_not_scanned():
     """Test classification when package hasn't been scanned yet."""
     with patch("api.routers.forge.db") as mock_db:
         mock_db.fetch_one = AsyncMock(return_value=None)
-        
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/forge/classify",
@@ -388,9 +414,9 @@ async def test_classify_package_not_scanned():
                     "ecosystem": "mcp",
                     "package_name": "unscanned-mcp",
                     "force_refresh": False,
-                }
+                },
             )
-            
+
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert "No scan data available" in response.json()["detail"]
 
@@ -398,6 +424,7 @@ async def test_classify_package_not_scanned():
 # ---------------------------------------------------------------------------
 # Test Compatibility Detection
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_compatibility_signals():
@@ -424,9 +451,9 @@ async def test_compatibility_signals():
         ],
         "metadata": {"description": "PostgreSQL connector"},
     }
-    
+
     tool = await classify_tool("mcp", "test-mcp", scan_data)
-    
+
     assert "env_vars:DATABASE_URL,POSTGRES_PASSWORD" in str(tool.compatibility_signals)
     assert "database:postgres_compatible" in tool.compatibility_signals
     assert "network:1_endpoints" in str(tool.compatibility_signals)
@@ -449,7 +476,7 @@ async def test_category_detection_keywords():
         ("jest-runner", "Jest test runner", ToolCategory.TESTING_TOOLS),
         ("datadog-monitor", "Datadog monitoring", ToolCategory.MONITORING_TOOLS),
     ]
-    
+
     for package_name, description, expected_category in test_cases:
         scan_data = {
             "verdict": "LOW_RISK",
@@ -457,7 +484,7 @@ async def test_category_detection_keywords():
             "findings": [],
             "metadata": {"description": description},
         }
-        
+
         tool = await classify_tool("mcp", package_name, scan_data)
         assert tool.category == expected_category, f"Failed for {package_name}"
 
@@ -466,44 +493,56 @@ async def test_category_detection_keywords():
 # Test Stack Recommendation Logic
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_stack_use_case_parsing():
     """Test that use cases are properly parsed for capabilities."""
     with patch("api.routers.forge.db") as mock_db:
         # Return tools for different categories
-        mock_db.fetch_all = AsyncMock(return_value=[
-            {
-                "id": f"test-{i}",
-                "ecosystem": "github" if i % 2 == 0 else "clawhub",
-                "package_name": f"tool-{i}",
-                "package_version": "1.0.0",
-                "risk_score": 10 + i,
-                "verdict": "LOW_RISK",
-                "findings_count": i,
-                "files_scanned": 10,
-                "metadata": json.dumps({"description": f"Tool {i}"}),
-                "findings_json": json.dumps([]),
-                "created_at": datetime.now(timezone.utc),
-            }
-            for i in range(5)
-        ])
-        
+        mock_db.fetch_all = AsyncMock(
+            return_value=[
+                {
+                    "id": f"test-{i}",
+                    "ecosystem": "github" if i % 2 == 0 else "clawhub",
+                    "package_name": f"tool-{i}",
+                    "package_version": "1.0.0",
+                    "risk_score": 10 + i,
+                    "verdict": "LOW_RISK",
+                    "findings_count": i,
+                    "files_scanned": 10,
+                    "metadata": json.dumps({"description": f"Tool {i}"}),
+                    "findings_json": json.dumps([]),
+                    "created_at": datetime.now(timezone.utc),
+                }
+                for i in range(5)
+            ]
+        )
+
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Test database use case
-            response = await client.get("/forge/stack?use_case=connect%20to%20postgres%20database")
+            response = await client.get(
+                "/forge/stack?use_case=connect%20to%20postgres%20database"
+            )
             assert response.status_code == status.HTTP_200_OK
             stack = response.json()
             assert stack["name"] == "Database Agent Stack"
-            assert "database" in [cap.lower() for cap in stack["trust_summary"].get("needed_capabilities", [])]
-            
+            assert "database" in [
+                cap.lower()
+                for cap in stack["trust_summary"].get("needed_capabilities", [])
+            ]
+
             # Test API use case
-            response = await client.get("/forge/stack?use_case=integrate%20with%20REST%20API")
+            response = await client.get(
+                "/forge/stack?use_case=integrate%20with%20REST%20API"
+            )
             assert response.status_code == status.HTTP_200_OK
             stack = response.json()
             assert stack["name"] == "API Integration Stack"
-            
+
             # Test AI/LLM use case
-            response = await client.get("/forge/stack?use_case=build%20RAG%20pipeline%20with%20embeddings")
+            response = await client.get(
+                "/forge/stack?use_case=build%20RAG%20pipeline%20with%20embeddings"
+            )
             assert response.status_code == status.HTTP_200_OK
             stack = response.json()
             assert stack["name"] == "AI/LLM Stack"

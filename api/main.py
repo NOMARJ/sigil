@@ -16,7 +16,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from api.config import settings
 from api.database import cache, db
@@ -76,12 +76,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await db.connect()
     await cache.connect()
-    
+
     # Initialize analytics and dashboard services
     try:
         from api.services.forge_analytics import analytics_service
         from api.services.realtime_dashboard import dashboard_service
-        
+
         await analytics_service.initialize()
         await dashboard_service.initialize()
         logger.info("Analytics and real-time dashboard services initialized")
@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         print("[LIFESPAN] Starting monitoring system...")
         from api.monitoring.alerting import run_alert_evaluation_loop
         import asyncio
-        
+
         # Start alert evaluation loop in background
         asyncio.create_task(run_alert_evaluation_loop())
         print("[LIFESPAN] Monitoring and alerting started")
@@ -175,7 +175,10 @@ app.add_middleware(RequestValidationMiddleware)
 # ---------------------------------------------------------------------------
 
 # Use enhanced rate limiting with tiered limits
-app.add_middleware(EnhancedRateLimitMiddleware, redis_client=cache.redis if hasattr(cache, 'redis') else None)
+app.add_middleware(
+    EnhancedRateLimitMiddleware,
+    redis_client=cache.redis if hasattr(cache, "redis") else None,
+)
 
 # Keep legacy rate limiter as fallback
 app.add_middleware(RateLimitMiddleware, max_requests=200, window=60)
@@ -249,7 +252,9 @@ app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
-app.include_router(forge_premium.router)  # /forge/* — Forge premium features (authenticated)
+app.include_router(
+    forge_premium.router
+)  # /forge/* — Forge premium features (authenticated)
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(registry.router)  # /registry/* — public scan database
@@ -438,7 +443,7 @@ async def health() -> JSONResponse:
 async def health_detailed() -> JSONResponse:
     """Return comprehensive health status including all components."""
     health_status = await monitoring.get_health_status(include_checks=True)
-    
+
     # Determine HTTP status based on health
     if health_status["status"] == "healthy":
         http_status = status.HTTP_200_OK
@@ -446,11 +451,8 @@ async def health_detailed() -> JSONResponse:
         http_status = status.HTTP_200_OK  # Still serving traffic
     else:
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
-    
-    return JSONResponse(
-        status_code=http_status,
-        content=health_status
-    )
+
+    return JSONResponse(status_code=http_status, content=health_status)
 
 
 @app.get("/health/ready", tags=["monitoring"], summary="Readiness probe")
@@ -458,20 +460,26 @@ async def health_ready() -> JSONResponse:
     """Kubernetes readiness probe - checks if service can accept traffic."""
     # Check critical components only
     critical_healthy = db.connected
-    
+
     if critical_healthy:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"ready": True, "timestamp": monitoring.health_manager._get_timestamp()}
+            content={
+                "ready": True,
+                "timestamp": monitoring.health_manager._get_timestamp(),
+            },
         )
     else:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"ready": False, "timestamp": monitoring.health_manager._get_timestamp()}
+            content={
+                "ready": False,
+                "timestamp": monitoring.health_manager._get_timestamp(),
+            },
         )
 
 
-@app.get("/health/live", tags=["monitoring"], summary="Liveness probe") 
+@app.get("/health/live", tags=["monitoring"], summary="Liveness probe")
 async def health_live() -> JSONResponse:
     """Kubernetes liveness probe - checks if service is alive."""
     return JSONResponse(
@@ -479,8 +487,8 @@ async def health_live() -> JSONResponse:
         content={
             "alive": True,
             "timestamp": monitoring.health_manager._get_timestamp(),
-            "version": settings.app_version
-        }
+            "version": settings.app_version,
+        },
     )
 
 
@@ -489,8 +497,7 @@ async def metrics() -> Response:
     """Return Prometheus metrics in text format."""
     metrics_data = monitoring.get_prometheus_metrics()
     return Response(
-        content=metrics_data,
-        media_type="text/plain; version=0.0.4; charset=utf-8"
+        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
     )
 
 

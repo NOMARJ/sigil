@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from api.config import settings
 from api.database import db
 from api.security.forge_access import (
     AuditAction,
@@ -28,6 +29,20 @@ from api.security.forge_access import (
     requires_team_role,
 )
 
+# Rate limits per subscription plan
+RATE_LIMITS = {
+    "free": 100,
+    "pro": 1000,
+    "team": 5000,
+}
+
+# Data retention periods per subscription plan (in days)
+DATA_RETENTION = {
+    "free": 30,
+    "pro": 90,
+    "team": 365,
+}
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/forge", tags=["forge"])
@@ -40,9 +55,11 @@ router = APIRouter(prefix="/v1/forge", tags=["forge"])
 
 class TrackedToolRequest(BaseModel):
     """Request to track a new tool."""
-    
+
     package_name: str = Field(..., description="Name of the package to track")
-    ecosystem: str = Field(..., description="Package ecosystem (npm, pypi, skills, mcp)")
+    ecosystem: str = Field(
+        ..., description="Package ecosystem (npm, pypi, skills, mcp)"
+    )
     version: Optional[str] = Field(None, description="Specific version to track")
     tracking_reason: Optional[str] = Field(None, description="Why tracking this tool")
     tags: List[str] = Field(default_factory=list, description="Custom tags")
@@ -52,7 +69,7 @@ class TrackedToolRequest(BaseModel):
 
 class TrackedToolResponse(BaseModel):
     """A tracked tool with metadata."""
-    
+
     id: int
     package_name: str
     ecosystem: str
@@ -67,7 +84,7 @@ class TrackedToolResponse(BaseModel):
 
 class CustomStackRequest(BaseModel):
     """Request to create a custom stack."""
-    
+
     stack_name: str = Field(..., description="Name of the stack")
     description: Optional[str] = Field(None, description="Stack description")
     use_case: Optional[str] = Field(None, description="Primary use case")
@@ -79,7 +96,7 @@ class CustomStackRequest(BaseModel):
 
 class CustomStackResponse(BaseModel):
     """A custom stack configuration."""
-    
+
     id: int
     stack_name: str
     description: Optional[str]
@@ -97,7 +114,7 @@ class CustomStackResponse(BaseModel):
 
 class PersonalAnalyticsResponse(BaseModel):
     """Personal productivity analytics."""
-    
+
     total_tools_tracked: int
     tools_by_ecosystem: Dict[str, int]
     recent_vulnerabilities: int
@@ -109,7 +126,7 @@ class PersonalAnalyticsResponse(BaseModel):
 
 class TeamAnalyticsResponse(BaseModel):
     """Team-wide analytics."""
-    
+
     team_name: str
     member_count: int
     total_tools_tracked: int
@@ -121,7 +138,7 @@ class TeamAnalyticsResponse(BaseModel):
 
 class ApiKeyRequest(BaseModel):
     """Request to create an API key."""
-    
+
     name: str = Field(..., description="Name for the API key")
     description: Optional[str] = Field(None, description="Key description")
     scopes: List[str] = Field(default_factory=list, description="Allowed scopes")
@@ -130,7 +147,7 @@ class ApiKeyRequest(BaseModel):
 
 class ApiKeyResponse(BaseModel):
     """API key creation response."""
-    
+
     id: str
     key: str  # Only shown once at creation
     key_prefix: str
@@ -151,29 +168,29 @@ class ApiKeyResponse(BaseModel):
 async def track_tool(
     request: Request,
     body: TrackedToolRequest,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> TrackedToolResponse:
     """Track a new tool for monitoring (Pro+ feature)."""
-    
+
     # Apply rate limiting
     await apply_rate_limit(request, forge_user)
-    
+
     # Check if already tracking
     existing = await db.select_one(
         "forge_user_tools",
         {
             "user_id": forge_user.id,
             "package_name": body.package_name,
-            "ecosystem": body.ecosystem
-        }
+            "ecosystem": body.ecosystem,
+        },
     )
-    
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You are already tracking this tool"
+            detail="You are already tracking this tool",
         )
-    
+
     # Create tracking entry
     tool_data = {
         "user_id": forge_user.id,
@@ -186,11 +203,11 @@ async def track_tool(
         "alert_on_update": body.alert_on_update,
         "alert_on_vulnerability": body.alert_on_vulnerability,
         "alert_on_removal": False,
-        "tracked_at": datetime.utcnow()
+        "tracked_at": datetime.utcnow(),
     }
-    
+
     tool_id = await db.insert("forge_user_tools", tool_data)
-    
+
     # Get latest scan data if available
     latest_scan = await db.select_one_raw(
         """
@@ -198,9 +215,9 @@ async def track_tool(
         WHERE s.target LIKE :pattern
         ORDER BY s.created_at DESC
         """,
-        {"pattern": f"%{body.package_name}%"}
+        {"pattern": f"%{body.package_name}%"},
     )
-    
+
     return TrackedToolResponse(
         id=tool_id,
         package_name=body.package_name,
@@ -214,7 +231,7 @@ async def track_tool(
         },
         tracked_at=tool_data["tracked_at"],
         last_checked=None,
-        latest_scan=dict(latest_scan) if latest_scan else None
+        latest_scan=dict(latest_scan) if latest_scan else None,
     )
 
 
@@ -224,12 +241,12 @@ async def get_tracked_tools(
     request: Request,
     ecosystem: Optional[str] = Query(None, description="Filter by ecosystem"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> List[TrackedToolResponse]:
     """Get user's tracked tools (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Build query with filters
     query = """
         SELECT t.*, s.risk_score, s.verdict, s.created_at as last_scan_date
@@ -242,19 +259,19 @@ async def get_tracked_tools(
         WHERE t.user_id = :user_id
     """
     params = {"user_id": forge_user.id}
-    
+
     if ecosystem:
         query += " AND t.ecosystem = :ecosystem"
         params["ecosystem"] = ecosystem
-    
+
     if tag:
         query += " AND t.tags LIKE :tag"
         params["tag"] = f"%{tag}%"
-    
+
     query += " ORDER BY t.tracked_at DESC"
-    
+
     results = await db.fetch_all_raw(query, params)
-    
+
     return [
         TrackedToolResponse(
             id=row["id"],
@@ -272,8 +289,10 @@ async def get_tracked_tools(
             latest_scan={
                 "risk_score": row["risk_score"],
                 "verdict": row["verdict"],
-                "scan_date": row["last_scan_date"]
-            } if row["risk_score"] else None
+                "scan_date": row["last_scan_date"],
+            }
+            if row["risk_score"]
+            else None,
         )
         for row in results
     ]
@@ -283,22 +302,22 @@ async def get_tracked_tools(
 @requires_forge_feature(ForgeFeature.TOOL_TRACKING)
 @audit_action(AuditAction.TOOL_UNTRACKED, "tool")
 async def untrack_tool(
-    request: Request,
-    tool_id: int,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    request: Request, tool_id: int, forge_user: ForgeUser = Depends(get_forge_user)
 ) -> None:
     """Stop tracking a tool (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Verify ownership
-    tool = await db.select_one("forge_user_tools", {"id": tool_id, "user_id": forge_user.id})
+    tool = await db.select_one(
+        "forge_user_tools", {"id": tool_id, "user_id": forge_user.id}
+    )
     if not tool:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tool not found or you don't have permission to untrack it"
+            detail="Tool not found or you don't have permission to untrack it",
         )
-    
+
     await db.delete("forge_user_tools", {"id": tool_id})
 
 
@@ -312,12 +331,12 @@ async def untrack_tool(
 async def get_personal_analytics(
     request: Request,
     days: int = Query(30, description="Number of days to analyze"),
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> PersonalAnalyticsResponse:
     """Get personal productivity analytics (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Get tool tracking statistics
     stats = await db.fetch_one_raw(
         """
@@ -328,9 +347,9 @@ async def get_personal_analytics(
         FROM forge_user_tools
         WHERE user_id = :user_id
         """,
-        {"user_id": forge_user.id}
+        {"user_id": forge_user.id},
     )
-    
+
     # Get ecosystem breakdown
     ecosystem_stats = await db.fetch_all_raw(
         """
@@ -339,9 +358,9 @@ async def get_personal_analytics(
         WHERE user_id = :user_id
         GROUP BY ecosystem
         """,
-        {"user_id": forge_user.id}
+        {"user_id": forge_user.id},
     )
-    
+
     # Get recent vulnerability alerts
     vuln_count = await db.fetch_one_raw(
         """
@@ -352,12 +371,9 @@ async def get_personal_analytics(
           AND s.verdict IN ('HIGH_RISK', 'CRITICAL_RISK')
           AND s.created_at >= :since
         """,
-        {
-            "user_id": forge_user.id,
-            "since": datetime.utcnow() - timedelta(days=days)
-        }
+        {"user_id": forge_user.id, "since": datetime.utcnow() - timedelta(days=days)},
     )
-    
+
     # Get tracking history
     history = await db.fetch_all_raw(
         """
@@ -369,30 +385,24 @@ async def get_personal_analytics(
         ORDER BY date DESC
         LIMIT 30
         """,
-        {
-            "user_id": forge_user.id,
-            "since": datetime.utcnow() - timedelta(days=days)
-        }
+        {"user_id": forge_user.id, "since": datetime.utcnow() - timedelta(days=days)},
     )
-    
+
     # Calculate security score (0-100)
     total_tools = stats["total_tools"] or 0
     tools_with_vulns = vuln_count["count"] or 0
     security_score = 100.0
     if total_tools > 0:
         security_score = max(0, 100 - (tools_with_vulns / total_tools * 100))
-    
+
     return PersonalAnalyticsResponse(
         total_tools_tracked=total_tools,
-        tools_by_ecosystem={
-            row["ecosystem"]: row["count"] 
-            for row in ecosystem_stats
-        },
+        tools_by_ecosystem={row["ecosystem"]: row["count"] for row in ecosystem_stats},
         recent_vulnerabilities=tools_with_vulns,
         tools_updated_this_week=0,  # TODO: Implement version tracking
         most_used_categories=[],  # TODO: Implement category tracking
         security_score=round(security_score, 1),
-        tracking_history=[dict(row) for row in history]
+        tracking_history=[dict(row) for row in history],
     )
 
 
@@ -405,33 +415,31 @@ async def get_personal_analytics(
 @requires_forge_feature(ForgeFeature.TEAM_ANALYTICS)
 @requires_team_role(TeamRole.MEMBER)
 async def get_team_analytics(
-    request: Request,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    request: Request, forge_user: ForgeUser = Depends(get_forge_user)
 ) -> TeamAnalyticsResponse:
     """Get team-wide analytics (Team+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     if not forge_user.team_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be part of a team to access team analytics"
+            detail="You must be part of a team to access team analytics",
         )
-    
+
     # Get team info
     team = await db.select_one("teams", {"id": forge_user.team_id})
     if not team:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Team not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Team not found"
         )
-    
+
     # Get member count
     member_count = await db.fetch_one_raw(
         "SELECT COUNT(*) as count FROM users WHERE team_id = :team_id",
-        {"team_id": forge_user.team_id}
+        {"team_id": forge_user.team_id},
     )
-    
+
     # Get team tool statistics
     team_stats = await db.fetch_one_raw(
         """
@@ -441,9 +449,9 @@ async def get_team_analytics(
         FROM forge_user_tools
         WHERE team_id = :team_id
         """,
-        {"team_id": forge_user.team_id}
+        {"team_id": forge_user.team_id},
     )
-    
+
     # Get shared stacks count
     stack_count = await db.fetch_one_raw(
         """
@@ -451,9 +459,9 @@ async def get_team_analytics(
         FROM forge_user_stacks
         WHERE team_id = :team_id AND is_team_shared = 1
         """,
-        {"team_id": forge_user.team_id}
+        {"team_id": forge_user.team_id},
     )
-    
+
     # Get top tools
     top_tools = await db.fetch_all_raw(
         """
@@ -464,9 +472,9 @@ async def get_team_analytics(
         ORDER BY user_count DESC
         LIMIT 10
         """,
-        {"team_id": forge_user.team_id}
+        {"team_id": forge_user.team_id},
     )
-    
+
     # Get member activity
     member_activity = await db.fetch_all_raw(
         """
@@ -480,9 +488,9 @@ async def get_team_analytics(
         GROUP BY u.id, u.email, u.name
         ORDER BY tools_tracked DESC
         """,
-        {"team_id": forge_user.team_id}
+        {"team_id": forge_user.team_id},
     )
-    
+
     # Calculate security posture
     security_data = await db.fetch_one_raw(
         """
@@ -496,10 +504,10 @@ async def get_team_analytics(
         """,
         {
             "team_id": forge_user.team_id,
-            "since": datetime.utcnow() - timedelta(days=30)
-        }
+            "since": datetime.utcnow() - timedelta(days=30),
+        },
     )
-    
+
     return TeamAnalyticsResponse(
         team_name=team["name"],
         member_count=member_count["count"],
@@ -511,7 +519,7 @@ async def get_team_analytics(
             "critical_findings": security_data["critical_count"] or 0,
             "high_findings": security_data["high_count"] or 0,
         },
-        member_activity=[dict(row) for row in member_activity]
+        member_activity=[dict(row) for row in member_activity],
     )
 
 
@@ -526,35 +534,35 @@ async def get_team_analytics(
 async def create_custom_stack(
     request: Request,
     body: CustomStackRequest,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> CustomStackResponse:
     """Create a custom tool stack (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Check for duplicate name
     existing = await db.select_one(
-        "forge_user_stacks",
-        {"user_id": forge_user.id, "stack_name": body.stack_name}
+        "forge_user_stacks", {"user_id": forge_user.id, "stack_name": body.stack_name}
     )
-    
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You already have a stack with this name"
+            detail="You already have a stack with this name",
         )
-    
+
     # Validate team sharing permission
     if body.is_team_shared and not forge_user.team_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be part of a team to share stacks"
+            detail="You must be part of a team to share stacks",
         )
-    
+
     # Create stack
     import secrets
+
     share_token = secrets.token_urlsafe(32) if body.is_public else None
-    
+
     stack_data = {
         "user_id": forge_user.id,
         "team_id": forge_user.team_id if body.is_team_shared else None,
@@ -567,15 +575,15 @@ async def create_custom_stack(
         "is_team_shared": body.is_team_shared,
         "share_token": share_token,
         "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
     }
-    
+
     stack_id = await db.insert("forge_user_stacks", stack_data)
-    
+
     share_url = None
     if body.is_public and share_token:
         share_url = f"{settings.cors_origins[0]}/forge/stack/{share_token}"
-    
+
     return CustomStackResponse(
         id=stack_id,
         stack_name=body.stack_name,
@@ -589,7 +597,7 @@ async def create_custom_stack(
         view_count=0,
         fork_count=0,
         created_at=stack_data["created_at"],
-        updated_at=stack_data["updated_at"]
+        updated_at=stack_data["updated_at"],
     )
 
 
@@ -598,12 +606,12 @@ async def create_custom_stack(
 async def get_custom_stacks(
     request: Request,
     include_team: bool = Query(False, description="Include team stacks"),
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> List[CustomStackResponse]:
     """Get user's custom stacks (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Build query based on access level
     if include_team and forge_user.team_id:
         query = """
@@ -620,9 +628,9 @@ async def get_custom_stacks(
             ORDER BY updated_at DESC
         """
         params = {"user_id": forge_user.id}
-    
+
     results = await db.fetch_all_raw(query, params)
-    
+
     return [
         CustomStackResponse(
             id=row["id"],
@@ -633,12 +641,13 @@ async def get_custom_stacks(
             mcps=row["mcps"] or [],
             is_public=row["is_public"],
             is_team_shared=row["is_team_shared"],
-            share_url=f"{settings.cors_origins[0]}/forge/stack/{row['share_token']}" 
-                if row["is_public"] and row["share_token"] else None,
+            share_url=f"{settings.cors_origins[0]}/forge/stack/{row['share_token']}"
+            if row["is_public"] and row["share_token"]
+            else None,
             view_count=row["view_count"],
             fork_count=row["fork_count"],
             created_at=row["created_at"],
-            updated_at=row["updated_at"]
+            updated_at=row["updated_at"],
         )
         for row in results
     ]
@@ -655,25 +664,25 @@ async def get_custom_stacks(
 async def create_api_key(
     request: Request,
     body: ApiKeyRequest,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> ApiKeyResponse:
     """Create a new API key (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Generate secure API key
     import secrets
     import hashlib
-    
+
     raw_key = f"sk_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     key_prefix = raw_key[:10]
-    
+
     # Calculate expiration
     expires_at = None
     if body.expires_in_days:
         expires_at = datetime.utcnow() + timedelta(days=body.expires_in_days)
-    
+
     # Create key record
     key_data = {
         "user_id": forge_user.id,
@@ -684,11 +693,11 @@ async def create_api_key(
         "description": body.description,
         "scopes": body.scopes,
         "expires_at": expires_at,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
     }
-    
+
     key_id = await db.insert("api_keys", key_data)
-    
+
     return ApiKeyResponse(
         id=str(key_id),
         key=raw_key,  # Only shown once!
@@ -696,25 +705,23 @@ async def create_api_key(
         name=body.name,
         scopes=body.scopes,
         expires_at=expires_at,
-        created_at=key_data["created_at"]
+        created_at=key_data["created_at"],
     )
 
 
 @router.get("/api-keys", response_model=List[Dict[str, Any]])
 @requires_forge_feature(ForgeFeature.API_ACCESS)
 async def list_api_keys(
-    request: Request,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    request: Request, forge_user: ForgeUser = Depends(get_forge_user)
 ) -> List[Dict[str, Any]]:
     """List user's API keys (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     keys = await db.fetch_all(
-        "api_keys",
-        {"user_id": forge_user.id, "revoked_at": None}
+        "api_keys", {"user_id": forge_user.id, "revoked_at": None}
     )
-    
+
     return [
         {
             "id": str(key["id"]),
@@ -724,7 +731,7 @@ async def list_api_keys(
             "last_used": key["last_used"],
             "usage_count": key["usage_count"],
             "expires_at": key["expires_at"],
-            "created_at": key["created_at"]
+            "created_at": key["created_at"],
         }
         for key in keys
     ]
@@ -734,28 +741,21 @@ async def list_api_keys(
 @requires_forge_feature(ForgeFeature.API_ACCESS)
 @audit_action(AuditAction.API_KEY_REVOKED, "api_key")
 async def revoke_api_key(
-    request: Request,
-    key_id: str,
-    forge_user: ForgeUser = Depends(get_forge_user)
+    request: Request, key_id: str, forge_user: ForgeUser = Depends(get_forge_user)
 ) -> None:
     """Revoke an API key (Pro+ feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Verify ownership
     key = await db.select_one("api_keys", {"id": key_id, "user_id": forge_user.id})
     if not key:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
         )
-    
+
     # Revoke the key
-    await db.update(
-        "api_keys",
-        {"id": key_id},
-        {"revoked_at": datetime.utcnow()}
-    )
+    await db.update("api_keys", {"id": key_id}, {"revoked_at": datetime.utcnow()})
 
 
 # ---------------------------------------------------------------------------
@@ -772,12 +772,12 @@ async def get_audit_logs(
     action: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
     limit: int = Query(100, le=1000),
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> List[Dict[str, Any]]:
     """Get audit logs (Enterprise feature)."""
-    
+
     await apply_rate_limit(request, forge_user)
-    
+
     # Use AuditLogger to get logs with proper access control
     logs = await AuditLogger.get_audit_logs(
         forge_user=forge_user,
@@ -785,9 +785,9 @@ async def get_audit_logs(
         end_date=end_date,
         action=AuditAction(action) if action else None,
         resource_type=resource_type,
-        limit=limit
+        limit=limit,
     )
-    
+
     return logs
 
 
@@ -798,20 +798,22 @@ async def get_audit_logs(
 
 @router.get("/security/status")
 async def security_status(
-    forge_user: ForgeUser = Depends(get_forge_user)
+    forge_user: ForgeUser = Depends(get_forge_user),
 ) -> Dict[str, Any]:
     """Get current security status and limits."""
-    
+
     return {
         "user_id": forge_user.id,
         "subscription_plan": forge_user.subscription_plan.value,
         "team_id": forge_user.team_id,
         "team_role": forge_user.team_role.value if forge_user.team_role else None,
-        "api_calls_remaining": RATE_LIMITS[forge_user.subscription_plan] - forge_user.api_calls_this_period,
+        "api_calls_remaining": RATE_LIMITS[forge_user.subscription_plan]
+        - forge_user.api_calls_this_period,
         "rate_limit": RATE_LIMITS[forge_user.subscription_plan],
         "features_enabled": [
-            feature.value for feature in ForgeFeature
+            feature.value
+            for feature in ForgeFeature
             if forge_security.has_access(forge_user.subscription_plan, feature)
         ],
-        "data_retention_days": DATA_RETENTION[forge_user.subscription_plan]
+        "data_retention_days": DATA_RETENTION[forge_user.subscription_plan],
     }

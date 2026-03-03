@@ -22,7 +22,7 @@ from api.models import (
     UnsubscribeRequest,
     UnsubscribeResponse,
     WeeklyDigestContent,
-    ErrorResponse
+    ErrorResponse,
 )
 from api.services.email_service import email_service
 from api.database import get_database_client
@@ -37,16 +37,18 @@ router = APIRouter(prefix="/email", tags=["Email Newsletter"])
     response_model=EmailSubscriptionResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Invalid email format"},
-        429: {"model": ErrorResponse, "description": "Rate limit exceeded"}
-    }
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+    },
 )
 async def subscribe_to_newsletter(
     request: EmailSubscriptionRequest,
-    rate_limiter: None = Depends(rate_limit("email_subscribe", max_requests=5, window_seconds=3600))
+    rate_limiter: None = Depends(
+        rate_limit("email_subscribe", max_requests=5, window_seconds=3600)
+    ),
 ) -> EmailSubscriptionResponse:
     """
     Subscribe to Forge Weekly newsletter.
-    
+
     Subscribes an email address to receive weekly AI security intelligence digests.
     Includes tool discoveries, security alerts, and ecosystem updates.
     """
@@ -56,36 +58,32 @@ async def subscribe_to_newsletter(
         logger.error(f"Error subscribing email {request.email}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process subscription"
+            detail="Failed to process subscription",
         )
 
 
 @router.get(
     "/unsubscribe/{token}",
     response_class=HTMLResponse,
-    responses={
-        404: {"description": "Invalid unsubscribe token"}
-    }
+    responses={404: {"description": "Invalid unsubscribe token"}},
 )
 async def unsubscribe_page(token: str) -> HTMLResponse:
     """
     Show unsubscribe confirmation page.
-    
+
     Displays a user-friendly unsubscribe form with optional feedback.
     """
     # Validate token exists
     async with get_database_client() as db:
         subscription = await db.fetchrow(
-            "SELECT email FROM email_subscriptions WHERE unsubscribe_token = $1",
-            token
+            "SELECT email FROM email_subscriptions WHERE unsubscribe_token = $1", token
         )
-    
+
     if not subscription:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invalid unsubscribe token"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invalid unsubscribe token"
         )
-    
+
     # Return HTML unsubscribe form
     html_content = f"""
     <!DOCTYPE html>
@@ -150,7 +148,7 @@ async def unsubscribe_page(token: str) -> HTMLResponse:
         <div class="card">
             <h1>Unsubscribe from Forge Weekly</h1>
             <p>We're sorry to see you go! You're about to unsubscribe from Forge Weekly:</p>
-            <p><strong>Email:</strong> {subscription['email']}</p>
+            <p><strong>Email:</strong> {subscription["email"]}</p>
             
             <form id="unsubscribeForm" onsubmit="return handleUnsubscribe()">
                 <div class="form-group">
@@ -204,7 +202,7 @@ async def unsubscribe_page(token: str) -> HTMLResponse:
     </body>
     </html>
     """
-    
+
     return HTMLResponse(content=html_content)
 
 
@@ -213,14 +211,14 @@ async def unsubscribe_page(token: str) -> HTMLResponse:
     response_model=UnsubscribeResponse,
     responses={
         404: {"model": ErrorResponse, "description": "Invalid unsubscribe token"}
-    }
+    },
 )
 async def unsubscribe_from_newsletter(
-    request: UnsubscribeRequest
+    request: UnsubscribeRequest,
 ) -> UnsubscribeResponse:
     """
     Process unsubscribe request.
-    
+
     Removes email from all newsletter communications and logs the unsubscribe reason.
     """
     try:
@@ -229,66 +227,70 @@ async def unsubscribe_from_newsletter(
         logger.error(f"Error unsubscribing token {request.token}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process unsubscribe"
+            detail="Failed to process unsubscribe",
         )
 
 
 @router.put(
     "/preferences",
     response_model=EmailSubscriptionResponse,
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_user)],
 )
 async def update_email_preferences(
-    request: EmailPreferencesUpdate,
-    current_user: dict = Depends(get_current_user)
+    request: EmailPreferencesUpdate, current_user: dict = Depends(get_current_user)
 ) -> EmailSubscriptionResponse:
     """
     Update email subscription preferences.
-    
+
     Allows authenticated users to modify their newsletter preferences without unsubscribing.
     """
     user_email = current_user.get("email")
     if not user_email:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User email not found"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User email not found"
         )
-    
+
     async with get_database_client() as db:
         # Update preferences
-        result = await db.execute("""
+        result = await db.execute(
+            """
             UPDATE email_subscriptions 
             SET preferences = $1, updated_at = NOW()
             WHERE email = $2 AND is_active = true
             RETURNING unsubscribe_token
-        """, request.preferences, user_email)
-        
+        """,
+            request.preferences,
+            user_email,
+        )
+
         if result == "UPDATE 0":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Email subscription not found"
+                detail="Email subscription not found",
             )
-        
+
         return EmailSubscriptionResponse(
             success=True,
             message="Email preferences updated successfully",
             email=user_email,
             preferences=request.preferences,
-            unsubscribe_token=""  # Don't expose token
+            unsubscribe_token="",  # Don't expose token
         )
 
 
 @router.get(
     "/digest/preview",
     response_model=WeeklyDigestContent,
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_user)],
 )
 async def preview_weekly_digest(
-    week_ending: Optional[datetime] = Query(None, description="Week ending date (defaults to last Sunday)")
+    week_ending: Optional[datetime] = Query(
+        None, description="Week ending date (defaults to last Sunday)"
+    ),
 ) -> WeeklyDigestContent:
     """
     Preview weekly digest content.
-    
+
     Generates and returns the content for the weekly newsletter without sending it.
     Useful for testing and content review.
     """
@@ -299,71 +301,62 @@ async def preview_weekly_digest(
         if days_since_sunday == 7:
             days_since_sunday = 0
         week_ending = datetime.combine(
-            today - timedelta(days=days_since_sunday), 
-            datetime.min.time()
+            today - timedelta(days=days_since_sunday), datetime.min.time()
         )
-    
+
     try:
         return await email_service.generate_weekly_digest(week_ending)
     except Exception as e:
         logger.error(f"Error generating digest preview: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate digest preview"
+            detail="Failed to generate digest preview",
         )
 
 
 @router.post(
     "/campaign",
     response_model=EmailCampaignResponse,
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(get_current_user)],
 )
 async def create_email_campaign(
-    request: EmailCampaignRequest,
-    current_user: dict = Depends(get_current_user)
+    request: EmailCampaignRequest, current_user: dict = Depends(get_current_user)
 ) -> EmailCampaignResponse:
     """
     Create and send email campaign.
-    
+
     Creates a new email campaign with the provided content. Requires authentication.
     Can be scheduled for future delivery or sent immediately.
     """
     # Check if user has admin permissions (implement based on your auth system)
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permissions required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin permissions required"
         )
-    
+
     try:
         return await email_service.create_email_campaign(request)
     except Exception as e:
         logger.error(f"Error creating email campaign: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create email campaign"
+            detail="Failed to create email campaign",
         )
 
 
-@router.get(
-    "/stats",
-    dependencies=[Depends(get_current_user)]
-)
-async def get_email_stats(
-    current_user: dict = Depends(get_current_user)
-) -> dict:
+@router.get("/stats", dependencies=[Depends(get_current_user)])
+async def get_email_stats(current_user: dict = Depends(get_current_user)) -> dict:
     """
     Get email newsletter statistics.
-    
+
     Returns subscriber counts, campaign performance, and engagement metrics.
     Requires authentication.
     """
     if not current_user.get("is_admin", False):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permissions required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin permissions required"
         )
-    
+
     async with get_database_client() as db:
         stats = await db.fetchrow("""
             SELECT 
@@ -373,7 +366,7 @@ async def get_email_stats(
                 AVG(CASE WHEN is_active = true THEN 1.0 ELSE 0.0 END) * 100 as retention_rate
             FROM email_subscriptions
         """)
-        
+
         campaign_stats = await db.fetchrow("""
             SELECT 
                 COUNT(*) as total_campaigns,
@@ -383,7 +376,7 @@ async def get_email_stats(
                 SUM(clicked_count) as total_clicks
             FROM email_campaigns
         """)
-        
+
         recent_campaigns = await db.fetch("""
             SELECT campaign_id, subject, recipient_count, sent_count, 
                    opened_count, clicked_count, status, sent_at
@@ -391,94 +384,120 @@ async def get_email_stats(
             ORDER BY created_at DESC
             LIMIT 10
         """)
-        
+
         return {
             "subscribers": dict(stats) if stats else {},
             "campaigns": dict(campaign_stats) if campaign_stats else {},
-            "recent_campaigns": [dict(row) for row in recent_campaigns]
+            "recent_campaigns": [dict(row) for row in recent_campaigns],
         }
 
 
-@router.post(
-    "/webhook/resend",
-    include_in_schema=False
-)
+@router.post("/webhook/resend", include_in_schema=False)
 async def resend_webhook(event: dict) -> dict:
     """
     Handle Resend webhook events.
-    
+
     Processes email delivery, open, click, and bounce events from Resend.
     Updates tracking data in the database.
     """
     async with get_database_client() as db:
-        event_type = event.get('type')
-        data = event.get('data', {})
-        email = data.get('to', [{}])[0].get('email') if data.get('to') else None
-        timestamp = event.get('created_at')
-        
+        event_type = event.get("type")
+        data = event.get("data", {})
+        email = data.get("to", [{}])[0].get("email") if data.get("to") else None
+        timestamp = event.get("created_at")
+
         # Extract campaign_id from tags if present
         campaign_id = None
-        if 'tags' in data:
-            for tag in data.get('tags', []):
-                if tag.get('name') == 'campaign_id':
-                    campaign_id = tag.get('value')
+        if "tags" in data:
+            for tag in data.get("tags", []):
+                if tag.get("name") == "campaign_id":
+                    campaign_id = tag.get("value")
                     break
-        
+
         if not all([event_type, email]):
             logger.warning(f"Incomplete webhook data: {event}")
             return {"received": True}
-        
+
         try:
             # Convert timestamp to datetime
             from datetime import datetime
-            event_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00')) if timestamp else datetime.now()
-            
-            if event_type == 'email.opened':
-                await db.execute("""
+
+            event_time = (
+                datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                if timestamp
+                else datetime.now()
+            )
+
+            if event_type == "email.opened":
+                await db.execute(
+                    """
                     UPDATE email_sends 
                     SET opened_at = $1
                     WHERE email = $2 AND campaign_id = $3 AND opened_at IS NULL
-                """, event_time, email, campaign_id)
-                
+                """,
+                    event_time,
+                    email,
+                    campaign_id,
+                )
+
                 # Update campaign stats
                 if campaign_id:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE email_campaigns 
                         SET opened_count = opened_count + 1
                         WHERE campaign_id = $1
-                    """, campaign_id)
-            
-            elif event_type == 'email.clicked':
-                await db.execute("""
+                    """,
+                        campaign_id,
+                    )
+
+            elif event_type == "email.clicked":
+                await db.execute(
+                    """
                     UPDATE email_sends 
                     SET clicked_at = $1
                     WHERE email = $2 AND campaign_id = $3 AND clicked_at IS NULL
-                """, event_time, email, campaign_id)
-                
+                """,
+                    event_time,
+                    email,
+                    campaign_id,
+                )
+
                 # Update campaign stats
                 if campaign_id:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE email_campaigns 
                         SET clicked_count = clicked_count + 1
                         WHERE campaign_id = $1
-                    """, campaign_id)
-            
-            elif event_type in ['email.bounced', 'email.complaint']:
-                await db.execute("""
+                    """,
+                        campaign_id,
+                    )
+
+            elif event_type in ["email.bounced", "email.complaint"]:
+                await db.execute(
+                    """
                     UPDATE email_sends 
                     SET bounced_at = $1, status = 'bounced'
                     WHERE email = $2 AND campaign_id = $3
-                """, event_time, email, campaign_id)
-                
+                """,
+                    event_time,
+                    email,
+                    campaign_id,
+                )
+
                 # Update campaign stats
                 if campaign_id:
-                    await db.execute("""
+                    await db.execute(
+                        """
                         UPDATE email_campaigns 
                         SET bounced_count = bounced_count + 1
                         WHERE campaign_id = $1
-                    """, campaign_id)
-        
+                    """,
+                        campaign_id,
+                    )
+
         except Exception as e:
             logger.error(f"Error processing Resend webhook event: {e}")
-    
+
     return {"received": True}

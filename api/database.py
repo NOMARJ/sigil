@@ -25,26 +25,25 @@ logger = logging.getLogger(__name__)
 # Database Metrics Helper
 # ---------------------------------------------------------------------------
 
-def _record_db_operation(table: str, operation: str, duration: float, success: bool = True):
+
+def _record_db_operation(
+    table: str, operation: str, duration: float, success: bool = True
+):
     """Record database operation metrics if monitoring is available."""
     try:
         # Lazy import to avoid circular imports
         from api.monitoring import db_operations_total, db_query_duration
-        
+
         status = "success" if success else "error"
         db_operations_total.labels(
-            table=table,
-            operation=operation,
-            status=status
+            table=table, operation=operation, status=status
         ).inc()
-        
-        db_query_duration.labels(
-            table=table,
-            operation=operation
-        ).observe(duration)
+
+        db_query_duration.labels(table=table, operation=operation).observe(duration)
     except ImportError:
         # Monitoring not available during startup
         pass
+
 
 # ---------------------------------------------------------------------------
 # In-memory fallback stores (used when external backends are unavailable)
@@ -143,12 +142,14 @@ class MssqlClient:
             return json.dumps(v)
         return v
 
-    async def execute_raw_sql(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
+    async def execute_raw_sql(
+        self, sql: str, params: tuple = ()
+    ) -> list[dict[str, Any]]:
         """Execute raw SQL query with parameters. Returns list of dictionaries."""
         if not self._pool:
             logger.warning("Raw SQL not supported in memory mode")
             return []
-        
+
         try:
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
@@ -159,18 +160,20 @@ class MssqlClient:
         except Exception as e:
             logger.error(f"Raw SQL execution failed: {e}")
             raise
-    
-    async def execute_raw_sql_single(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
+
+    async def execute_raw_sql_single(
+        self, sql: str, params: tuple = ()
+    ) -> dict[str, Any] | None:
         """Execute raw SQL query and return single result."""
         results = await self.execute_raw_sql(sql, params)
         return results[0] if results else None
-    
+
     # ── Generic CRUD ──────────────────────────────────────────────────────────
 
     async def insert(self, table: str, data: dict[str, Any]) -> dict[str, Any]:
         start_time = time.time()
         success = True
-        
+
         try:
             if not self._pool:
                 row_id = data.get("id", str(uuid.uuid4()))
@@ -240,7 +243,7 @@ class MssqlClient:
         select_clause = "*"
         if include_columns:
             select_clause = ", ".join(include_columns)
-        
+
         # T-SQL requires ORDER BY for OFFSET/FETCH
         if limit or offset:
             if not order_by:

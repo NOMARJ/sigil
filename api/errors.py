@@ -1,7 +1,7 @@
 """
 Sigil API — Error Handling Framework
 
-Comprehensive error handling with standardized error types, responses, 
+Comprehensive error handling with standardized error types, responses,
 correlation IDs, and error categorization for reliable API operations.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import traceback
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorCategory(str, Enum):
     """High-level categorization of errors for monitoring and alerting."""
-    
+
     TRANSIENT = "transient"  # Temporary failures that may resolve
     PERMANENT = "permanent"  # Persistent failures requiring intervention
     USER_ERROR = "user_error"  # Client-side issues (bad input, auth)
@@ -36,7 +36,7 @@ class ErrorCategory(str, Enum):
 
 class ErrorSeverity(str, Enum):
     """Error severity levels for monitoring and alerting."""
-    
+
     LOW = "low"  # Minor issues, no user impact
     MEDIUM = "medium"  # Partial degradation
     HIGH = "high"  # Significant impact
@@ -45,7 +45,7 @@ class ErrorSeverity(str, Enum):
 
 class ErrorCode(str, Enum):
     """Standardized error codes for programmatic handling."""
-    
+
     # Client errors (4xx)
     VALIDATION_ERROR = "validation_error"
     AUTHENTICATION_ERROR = "authentication_error"
@@ -54,7 +54,7 @@ class ErrorCode(str, Enum):
     CONFLICT = "conflict"
     RATE_LIMITED = "rate_limited"
     PLAN_GATE = "plan_gate"
-    
+
     # Server errors (5xx)
     INTERNAL_ERROR = "internal_error"
     DATABASE_ERROR = "database_error"
@@ -62,7 +62,7 @@ class ErrorCode(str, Enum):
     TIMEOUT_ERROR = "timeout_error"
     CIRCUIT_BREAKER_OPEN = "circuit_breaker_open"
     SERVICE_UNAVAILABLE = "service_unavailable"
-    
+
     # Specific service errors
     GITHUB_API_ERROR = "github_api_error"
     CLAUDE_API_ERROR = "claude_api_error"
@@ -78,7 +78,7 @@ class ErrorCode(str, Enum):
 
 class ErrorDetail(BaseModel):
     """Structured error detail for API responses."""
-    
+
     code: ErrorCode
     message: str
     category: ErrorCategory
@@ -91,7 +91,7 @@ class ErrorDetail(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standardized API error response format."""
-    
+
     error: ErrorDetail
     errors: Optional[List[ErrorDetail]] = None  # For multiple errors
     request_id: Optional[str] = None
@@ -105,7 +105,7 @@ class ErrorResponse(BaseModel):
 
 class SigilError(Exception):
     """Base exception class for all Sigil errors."""
-    
+
     def __init__(
         self,
         message: str,
@@ -125,7 +125,7 @@ class SigilError(Exception):
         self.retry_after = retry_after
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.timestamp = datetime.now(timezone.utc)
-    
+
     def to_error_detail(self) -> ErrorDetail:
         """Convert exception to structured error detail."""
         return ErrorDetail(
@@ -142,7 +142,7 @@ class SigilError(Exception):
 
 class ValidationError(SigilError):
     """Client validation errors (400)."""
-    
+
     def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
         super().__init__(
             message=message,
@@ -155,7 +155,7 @@ class ValidationError(SigilError):
 
 class AuthenticationError(SigilError):
     """Authentication failures (401)."""
-    
+
     def __init__(self, message: str = "Authentication required"):
         super().__init__(
             message=message,
@@ -167,7 +167,7 @@ class AuthenticationError(SigilError):
 
 class AuthorizationError(SigilError):
     """Authorization failures (403)."""
-    
+
     def __init__(self, message: str = "Insufficient permissions"):
         super().__init__(
             message=message,
@@ -179,7 +179,7 @@ class AuthorizationError(SigilError):
 
 class NotFoundError(SigilError):
     """Resource not found (404)."""
-    
+
     def __init__(self, resource: str, identifier: str = ""):
         message = f"{resource} not found"
         if identifier:
@@ -195,7 +195,7 @@ class NotFoundError(SigilError):
 
 class ConflictError(SigilError):
     """Resource conflict (409)."""
-    
+
     def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
         super().__init__(
             message=message,
@@ -208,7 +208,7 @@ class ConflictError(SigilError):
 
 class RateLimitError(SigilError):
     """Rate limiting (429)."""
-    
+
     def __init__(self, retry_after: int = 60):
         super().__init__(
             message="Rate limit exceeded",
@@ -221,7 +221,7 @@ class RateLimitError(SigilError):
 
 class DatabaseError(SigilError):
     """Database operation failures."""
-    
+
     def __init__(
         self,
         message: str = "Database operation failed",
@@ -240,7 +240,7 @@ class DatabaseError(SigilError):
 
 class ExternalServiceError(SigilError):
     """External service failures (GitHub, Claude, etc.)."""
-    
+
     def __init__(
         self,
         service: str,
@@ -260,7 +260,7 @@ class ExternalServiceError(SigilError):
 
 class TimeoutError(SigilError):
     """Operation timeout failures."""
-    
+
     def __init__(
         self,
         operation: str,
@@ -272,14 +272,18 @@ class TimeoutError(SigilError):
             code=ErrorCode.TIMEOUT_ERROR,
             category=ErrorCategory.TRANSIENT,
             severity=ErrorSeverity.MEDIUM,
-            context={"operation": operation, "timeout": timeout_seconds, **(context or {})},
+            context={
+                "operation": operation,
+                "timeout": timeout_seconds,
+                **(context or {}),
+            },
             retry_after=min(timeout_seconds * 2, 300),  # Exponential backoff, max 5 min
         )
 
 
 class CircuitBreakerOpenError(SigilError):
     """Circuit breaker is open, preventing requests."""
-    
+
     def __init__(
         self,
         service: str,
@@ -298,7 +302,7 @@ class CircuitBreakerOpenError(SigilError):
 
 class ServiceUnavailableError(SigilError):
     """Service temporarily unavailable."""
-    
+
     def __init__(
         self,
         service: str = "API",
@@ -322,10 +326,10 @@ class ServiceUnavailableError(SigilError):
 
 class ErrorTracker:
     """Track and correlate errors for monitoring and debugging."""
-    
+
     def __init__(self):
         self._errors: Dict[str, List[ErrorDetail]] = {}
-    
+
     def track_error(
         self,
         error: SigilError,
@@ -335,18 +339,18 @@ class ErrorTracker:
     ) -> None:
         """Track an error occurrence with correlation data."""
         error_detail = error.to_error_detail()
-        
+
         # Add correlation context
         if error_detail.context is None:
             error_detail.context = {}
-        
+
         if request_id:
             error_detail.context["request_id"] = request_id
         if user_id:
             error_detail.context["user_id"] = user_id
         if endpoint:
             error_detail.context["endpoint"] = endpoint
-        
+
         # Log error for monitoring
         log_level = {
             ErrorSeverity.LOW: logging.INFO,
@@ -354,7 +358,7 @@ class ErrorTracker:
             ErrorSeverity.HIGH: logging.ERROR,
             ErrorSeverity.CRITICAL: logging.CRITICAL,
         }.get(error.severity, logging.ERROR)
-        
+
         logger.log(
             log_level,
             "Error tracked: %s [%s] %s (correlation_id: %s)",
@@ -368,24 +372,24 @@ class ErrorTracker:
                 "error_severity": error.severity.value,
                 "correlation_id": error.correlation_id,
                 "context": error_detail.context,
-            }
+            },
         )
-        
+
         # Store for correlation analysis
         correlation_key = error.correlation_id
         if correlation_key not in self._errors:
             self._errors[correlation_key] = []
         self._errors[correlation_key].append(error_detail)
-    
+
     def get_error_chain(self, correlation_id: str) -> List[ErrorDetail]:
         """Get all errors related to a correlation ID."""
         return self._errors.get(correlation_id, [])
-    
+
     def cleanup_old_errors(self, max_age_hours: int = 24) -> None:
         """Clean up old error records to prevent memory leaks."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
         to_remove = []
-        
+
         for correlation_id, errors in self._errors.items():
             # Keep only recent errors
             recent_errors = [e for e in errors if e.timestamp > cutoff]
@@ -393,7 +397,7 @@ class ErrorTracker:
                 self._errors[correlation_id] = recent_errors
             else:
                 to_remove.append(correlation_id)
-        
+
         for correlation_id in to_remove:
             del self._errors[correlation_id]
 
@@ -409,12 +413,13 @@ def extract_error_context(exc: Exception) -> Dict[str, Any]:
         "exception_type": type(exc).__name__,
         "exception_message": str(exc),
     }
-    
+
     # Add traceback in debug mode
     import os
+
     if os.getenv("SIGIL_DEBUG", "").lower() in ("true", "1", "yes"):
         context["traceback"] = traceback.format_exc()
-    
+
     # Extract specific context for known exception types
     if hasattr(exc, "__dict__"):
         for key, value in exc.__dict__.items():
@@ -426,7 +431,7 @@ def extract_error_context(exc: Exception) -> Dict[str, Any]:
                     context[f"exc_{key}"] = value
             except Exception:
                 continue
-    
+
     return context
 
 
@@ -442,17 +447,17 @@ def wrap_external_error(
         error_context.update(context)
     if operation:
         error_context["operation"] = operation
-    
+
     message = f"{operation} failed" if operation else "Operation failed"
     if str(exc):
         message += f": {exc}"
-    
+
     # Determine if error is likely transient
     is_transient = any(
         keyword in str(exc).lower()
         for keyword in ["timeout", "connection", "network", "temporary", "rate limit"]
     )
-    
+
     if is_transient:
         return ExternalServiceError(
             service=service,

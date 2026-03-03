@@ -658,23 +658,25 @@ class GateError(BaseModel):
 
 class EmailSubscriptionRequest(BaseModel):
     """Request to subscribe to Forge Weekly newsletter."""
-    
+
     email: str = Field(..., description="Subscriber email address")
     preferences: dict[str, bool] = Field(
         default_factory=lambda: {
             "security_alerts": True,
             "tool_discoveries": True,
             "weekly_digest": True,
-            "product_updates": True
+            "product_updates": True,
         },
-        description="Email preferences for different content types"
+        description="Email preferences for different content types",
     )
-    source: str = Field("forge", description="Subscription source (forge, api, dashboard)")
+    source: str = Field(
+        "forge", description="Subscription source (forge, api, dashboard)"
+    )
 
 
 class EmailSubscriptionResponse(BaseModel):
     """Response after email subscription."""
-    
+
     success: bool = True
     message: str = "Successfully subscribed to Forge Weekly"
     email: str = ""
@@ -684,15 +686,13 @@ class EmailSubscriptionResponse(BaseModel):
 
 class EmailPreferencesUpdate(BaseModel):
     """Request to update email preferences."""
-    
-    preferences: dict[str, bool] = Field(
-        ..., description="Updated email preferences"
-    )
+
+    preferences: dict[str, bool] = Field(..., description="Updated email preferences")
 
 
 class WeeklyDigestContent(BaseModel):
     """Content structure for weekly digest generation."""
-    
+
     week_ending: datetime = Field(..., description="Week ending date")
     new_tools: list[dict[str, Any]] = Field(
         default_factory=list, description="New tool discoveries"
@@ -716,7 +716,7 @@ class WeeklyDigestContent(BaseModel):
 
 class EmailCampaignRequest(BaseModel):
     """Request to send an email campaign."""
-    
+
     subject: str = Field(..., description="Email subject line")
     content: WeeklyDigestContent = Field(..., description="Email content")
     send_at: datetime | None = Field(None, description="Scheduled send time")
@@ -725,7 +725,7 @@ class EmailCampaignRequest(BaseModel):
 
 class EmailCampaignResponse(BaseModel):
     """Response after creating email campaign."""
-    
+
     campaign_id: str = Field(..., description="Unique campaign identifier")
     scheduled_for: datetime = Field(..., description="Scheduled send time")
     recipient_count: int = Field(0, description="Number of recipients")
@@ -734,14 +734,14 @@ class EmailCampaignResponse(BaseModel):
 
 class UnsubscribeRequest(BaseModel):
     """Request to unsubscribe from emails."""
-    
+
     token: str = Field(..., description="Unsubscribe token from email")
     reason: str = Field("", description="Optional unsubscribe reason")
 
 
 class UnsubscribeResponse(BaseModel):
     """Response after unsubscribing."""
-    
+
     success: bool = True
     message: str = "Successfully unsubscribed from all emails"
 
@@ -753,38 +753,38 @@ class UnsubscribeResponse(BaseModel):
 
 class ForgeEventType(str, enum.Enum):
     """Event types for Forge analytics tracking."""
-    
+
     # Tool interactions
     TOOL_VIEWED = "tool_viewed"
     TOOL_TRACKED = "tool_tracked"
     TOOL_UNTRACKED = "tool_untracked"
     TOOL_STARRED = "tool_starred"
     TOOL_DETAIL_VIEWED = "tool_detail_viewed"
-    
+
     # Stack management
     STACK_CREATED = "stack_created"
     STACK_SHARED = "stack_shared"
     STACK_DEPLOYED = "stack_deployed"
     STACK_FAVORITED = "stack_favorited"
-    
+
     # Search and discovery
     SEARCH_PERFORMED = "search_performed"
     CATEGORY_BROWSED = "category_browsed"
     ECOSYSTEM_FILTERED = "ecosystem_filtered"
     FORGE_API_USED = "forge_api_used"
-    
+
     # Alerts and monitoring
     ALERT_CONFIGURED = "alert_configured"
     ALERT_RECEIVED = "alert_received"
     ALERT_CLICKED = "alert_clicked"
     NOTIFICATION_SENT = "notification_sent"
-    
+
     # Feature usage
     ANALYTICS_VIEWED = "analytics_viewed"
     EXPORT_PERFORMED = "export_performed"
     SETTINGS_UPDATED = "settings_updated"
     DASHBOARD_ACCESSED = "dashboard_accessed"
-    
+
     # Security events
     TRUST_SCORE_CHANGED = "trust_score_changed"
     SECURITY_FINDING = "security_finding"
@@ -793,12 +793,11 @@ class ForgeEventType(str, enum.Enum):
 
 class ForgeAnalyticsEvent(BaseModel):
     """Forge analytics event for tracking user behavior."""
-    
+
     user_id: str = Field(..., description="User who performed the action")
     event_type: ForgeEventType = Field(..., description="Type of event")
     event_data: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Event-specific data payload"
+        default_factory=dict, description="Event-specific data payload"
     )
     session_id: str | None = Field(None, description="User session identifier")
     ip_address: str | None = Field(None, description="Source IP address")
@@ -808,7 +807,7 @@ class ForgeAnalyticsEvent(BaseModel):
 
 class PersonalAnalyticsRequest(BaseModel):
     """Request for personal analytics (Pro+ plan)."""
-    
+
     days_back: int = Field(30, ge=1, le=365, description="Days to look back")
     categories: list[str] | None = Field(None, description="Filter by categories")
     ecosystems: list[str] | None = Field(None, description="Filter by ecosystems")
@@ -816,17 +815,17 @@ class PersonalAnalyticsRequest(BaseModel):
 
 class PersonalAnalyticsResponse(BaseModel):
     """Personal analytics response for Pro+ users."""
-    
+
     period_days: int
     total_tool_views: int
     total_tools_tracked: int
     total_searches: int
     total_stacks_created: int
-    
+
     # Top tools by interaction
     most_viewed_tools: list[dict[str, Any]] = Field(default_factory=list)
     most_tracked_tools: list[dict[str, Any]] = Field(default_factory=list)
-    
+
     # Usage patterns
     discovery_sources: dict[str, int] = Field(
         default_factory=dict, description="How user finds tools (search, browse, etc.)"
@@ -835,9 +834,9 @@ class PersonalAnalyticsResponse(BaseModel):
         default_factory=dict, description="Category interaction counts"
     )
     ecosystem_usage: dict[str, int] = Field(
-        default_factory=dict, description="Ecosystem interaction counts" 
+        default_factory=dict, description="Ecosystem interaction counts"
     )
-    
+
     # Security trends
     trust_score_trends: list[dict[str, Any]] = Field(
         default_factory=list, description="Trust score changes over time"
@@ -845,7 +844,7 @@ class PersonalAnalyticsResponse(BaseModel):
     security_findings_timeline: list[dict[str, Any]] = Field(
         default_factory=list, description="Security findings for tracked tools"
     )
-    
+
     # Activity patterns
     daily_activity: dict[str, int] = Field(
         default_factory=dict, description="Activity by day of week"
@@ -857,26 +856,26 @@ class PersonalAnalyticsResponse(BaseModel):
 
 class TeamAnalyticsResponse(BaseModel):
     """Team analytics response for Team+ users."""
-    
+
     period_days: int
     team_id: str
-    
+
     # Team overview
     active_members: int
     total_tools_tracked: int
     total_stacks_shared: int
     total_scans_performed: int
-    
+
     # Collaboration metrics
     most_popular_tools: list[dict[str, Any]] = Field(default_factory=list)
     shared_tool_stacks: list[dict[str, Any]] = Field(default_factory=list)
     member_activity: list[dict[str, Any]] = Field(default_factory=list)
-    
+
     # Team tool adoption
     tool_adoption_timeline: list[dict[str, Any]] = Field(default_factory=list)
     category_distribution: dict[str, int] = Field(default_factory=dict)
     ecosystem_distribution: dict[str, int] = Field(default_factory=dict)
-    
+
     # Security compliance
     security_compliance_score: float = Field(
         0.0, description="Team security compliance percentage"
@@ -887,23 +886,21 @@ class TeamAnalyticsResponse(BaseModel):
 
 class OrganizationAnalyticsResponse(BaseModel):
     """Organization analytics response for Enterprise users."""
-    
+
     organization_id: str
-    
+
     # Department breakdown
     departments: list[dict[str, Any]] = Field(
         default_factory=list, description="Department-level analytics"
     )
-    
+
     # Cost analysis
     total_tools_in_use: int
     estimated_monthly_costs: dict[str, float] = Field(
         default_factory=dict, description="Cost estimates by category"
     )
-    cost_optimization_opportunities: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
-    
+    cost_optimization_opportunities: list[dict[str, Any]] = Field(default_factory=list)
+
     # Risk dashboard
     organization_risk_score: float = Field(
         0.0, description="Overall organization security risk"
@@ -915,7 +912,7 @@ class OrganizationAnalyticsResponse(BaseModel):
 
 class AnalyticsEventCreateRequest(BaseModel):
     """Request to track an analytics event."""
-    
+
     event_type: ForgeEventType
     event_data: dict[str, Any] = Field(default_factory=dict)
     session_id: str | None = None
@@ -923,7 +920,7 @@ class AnalyticsEventCreateRequest(BaseModel):
 
 class AnalyticsEventBatchRequest(BaseModel):
     """Request to track multiple analytics events in batch."""
-    
+
     events: list[AnalyticsEventCreateRequest]
 
 
@@ -934,20 +931,22 @@ class AnalyticsEventBatchRequest(BaseModel):
 
 class TrackedTool(BaseModel):
     """A tool tracked by a user with metadata."""
-    
+
     id: str = Field(..., description="Tracking record ID")
     tool_id: str = Field(..., description="Tool package name")
     ecosystem: str = Field(..., description="Tool ecosystem (pip, npm, etc.)")
     tracked_at: datetime = Field(..., description="When tool was tracked")
     is_starred: bool = Field(False, description="User has starred this tool")
-    custom_tags: list[str] = Field(default_factory=list, description="User-defined tags")
+    custom_tags: list[str] = Field(
+        default_factory=list, description="User-defined tags"
+    )
     notes: str = Field("", description="User notes about this tool")
     trust_score: float = Field(0.0, description="Current trust score")
 
 
 class TrackToolRequest(BaseModel):
     """Request to track a tool."""
-    
+
     tool_id: str = Field(..., description="Package name to track")
     ecosystem: str = Field(..., description="Tool ecosystem")
     is_starred: bool = Field(False, description="Star the tool immediately")
@@ -957,7 +956,7 @@ class TrackToolRequest(BaseModel):
 
 class UpdateTrackedToolRequest(BaseModel):
     """Request to update tracked tool metadata."""
-    
+
     is_starred: bool | None = None
     custom_tags: list[str] | None = None
     notes: str | None = None
@@ -965,11 +964,13 @@ class UpdateTrackedToolRequest(BaseModel):
 
 class ForgeStack(BaseModel):
     """A custom tool stack created by a user."""
-    
+
     id: str = Field(..., description="Stack ID")
     name: str = Field(..., description="Stack name")
     description: str = Field("", description="Stack description")
-    tools: list[dict[str, Any]] = Field(default_factory=list, description="Tools in stack")
+    tools: list[dict[str, Any]] = Field(
+        default_factory=list, description="Tools in stack"
+    )
     is_public: bool = Field(False, description="Stack is publicly visible")
     user_id: str = Field(..., description="Creator user ID")
     team_id: str | None = Field(None, description="Associated team ID")
@@ -979,7 +980,7 @@ class ForgeStack(BaseModel):
 
 class CreateStackRequest(BaseModel):
     """Request to create a new tool stack."""
-    
+
     name: str = Field(..., max_length=255, description="Stack name")
     description: str = Field("", description="Stack description")
     tools: list[dict[str, Any]] = Field(..., description="Tools in the stack")
@@ -988,7 +989,7 @@ class CreateStackRequest(BaseModel):
 
 class UpdateStackRequest(BaseModel):
     """Request to update an existing stack."""
-    
+
     name: str | None = None
     description: str | None = None
     tools: list[dict[str, Any]] | None = None
@@ -997,28 +998,32 @@ class UpdateStackRequest(BaseModel):
 
 class AlertSubscription(BaseModel):
     """A user's alert subscription configuration."""
-    
+
     id: str = Field(..., description="Subscription ID")
     tool_id: str | None = Field(None, description="Specific tool (None = all tools)")
     ecosystem: str | None = Field(None, description="Specific ecosystem (None = all)")
     alert_types: list[str] = Field(..., description="Types of alerts to receive")
-    channels: dict[str, bool] = Field(default_factory=dict, description="Notification channels")
+    channels: dict[str, bool] = Field(
+        default_factory=dict, description="Notification channels"
+    )
     is_active: bool = Field(True, description="Subscription is active")
     created_at: datetime = Field(..., description="Creation timestamp")
 
 
 class CreateAlertSubscriptionRequest(BaseModel):
     """Request to create an alert subscription."""
-    
+
     tool_id: str | None = Field(None, description="Specific tool (optional)")
     ecosystem: str | None = Field(None, description="Specific ecosystem (optional)")
     alert_types: list[str] = Field(..., description="Alert types to subscribe to")
-    channels: dict[str, bool] = Field(default_factory=dict, description="Notification channels")
+    channels: dict[str, bool] = Field(
+        default_factory=dict, description="Notification channels"
+    )
 
 
 class UpdateAlertSubscriptionRequest(BaseModel):
     """Request to update an alert subscription."""
-    
+
     alert_types: list[str] | None = None
     channels: dict[str, bool] | None = None
     is_active: bool | None = None
@@ -1026,11 +1031,18 @@ class UpdateAlertSubscriptionRequest(BaseModel):
 
 class ForgeUserSettings(BaseModel):
     """User's Forge preferences and settings."""
-    
+
     alert_frequency: str = Field("daily", description="How often to receive alerts")
-    alert_types: list[str] = Field(default_factory=lambda: ["security", "updates"], description="Default alert types")
-    delivery_channels: list[str] = Field(default_factory=lambda: ["email"], description="Default delivery channels")
-    quiet_hours: dict[str, str] | None = Field(None, description="Quiet hours configuration")
+    alert_types: list[str] = Field(
+        default_factory=lambda: ["security", "updates"],
+        description="Default alert types",
+    )
+    delivery_channels: list[str] = Field(
+        default_factory=lambda: ["email"], description="Default delivery channels"
+    )
+    quiet_hours: dict[str, str] | None = Field(
+        None, description="Quiet hours configuration"
+    )
     email_notifications: bool = Field(True, description="Enable email notifications")
     slack_notifications: bool = Field(False, description="Enable Slack notifications")
     weekly_digest: bool = Field(True, description="Send weekly digest email")
@@ -1040,7 +1052,7 @@ class ForgeUserSettings(BaseModel):
 
 class UpdateForgeSettingsRequest(BaseModel):
     """Request to update Forge user settings."""
-    
+
     alert_frequency: str | None = Field(None, pattern="^(instant|daily|weekly)$")
     alert_types: list[str] | None = None
     delivery_channels: list[str] | None = None
