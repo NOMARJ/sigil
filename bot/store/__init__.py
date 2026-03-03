@@ -97,16 +97,17 @@ class _MssqlStore:
             values.append(v)
         sql = (
             f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"OUTPUT INSERTED.* "
             f"VALUES ({placeholders})"
         )
         async with self._pool.acquire() as conn:
             cursor = await conn.cursor()
             await cursor.execute(sql, tuple(values))
-            row = await cursor.fetchone()
-            result = self._row_to_dict(cursor, row)
             await conn.commit()
-            return result if result else data
+            
+            # For inserts, we need to find the inserted record since we can't use OUTPUT with triggers
+            # Use a simple approach: return the data dict since we don't have reliable way to fetch
+            # the inserted record with auto-generated fields when triggers are present
+            return data
 
     async def upsert(
         self,
