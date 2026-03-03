@@ -1231,21 +1231,18 @@ async def get_forge_feed():
             package_name = row.get("package_name") or row.get("name") or "unknown"
             tool = await classify_tool(normalized_ecosystem, package_name, scan_data)
 
-            recent_tools.append(
-                {
-                    "title": f"{tool.name} ({tool.ecosystem})",
-                    "description": scan_data.get("metadata", {}).get("description", ""),
-                    "category": tool.category.value,
-                    "trust_score": tool.trust_score,
-                    "verdict": tool.verdict,
-                    "url": f"/forge/tools/{tool.ecosystem}/{tool.name}",
-                    "published": datetime.utcnow().isoformat(),
-                }
-            )
+            recent_tools.append({
+                "title": f"{tool.name} ({tool.ecosystem})",
+                "description": scan_data.get("metadata", {}).get("description", ""),
+                "category": tool.category.value,
+                "trust_score": tool.trust_score,
+                "verdict": tool.verdict,
+                "url": f"/forge/tools/{tool.ecosystem}/{tool.name}",
+                "published": datetime.utcnow().isoformat(),
+            })
 
             if len(recent_tools) >= 20:
                 break
-
         return {
             "version": "https://jsonfeed.org/version/1.1",
             "title": "Sigil Forge - Latest Tools",
