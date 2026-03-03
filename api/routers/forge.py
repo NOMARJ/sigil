@@ -1256,7 +1256,7 @@ async def get_forge_jobs(
                 sql += " AND verdict = ?"
                 params.append(status.upper())
 
-            sql += f" ORDER BY scanned_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            sql += " ORDER BY scanned_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
             params.extend([offset, limit])
 
             rows = await db.fetch_all(sql, params)
