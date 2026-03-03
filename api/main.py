@@ -148,7 +148,10 @@ app = FastAPI(
     ],
     tags_metadata=[
         {"name": "system", "description": "System information and root endpoints"},
-        {"name": "documentation", "description": "API documentation and OpenAPI specifications"},
+        {
+            "name": "documentation",
+            "description": "API documentation and OpenAPI specifications",
+        },
         {"name": "monitoring", "description": "Health checks and system monitoring"},
         {"name": "scan", "description": "Security scanning operations"},
         {"name": "threat", "description": "Threat intelligence and management"},
@@ -297,6 +300,7 @@ try:
         threat,
         verify,
     )
+
     logger.info("All routers imported successfully")
 except ImportError as e:
     logger.error(f"Failed to import routers: {e}")
@@ -585,18 +589,20 @@ async def metrics() -> Response:
     )
 
 
-@app.get("/api/openapi.json", tags=["documentation"], summary="Public OpenAPI specification")
+@app.get(
+    "/api/openapi.json", tags=["documentation"], summary="Public OpenAPI specification"
+)
 async def get_public_openapi_spec() -> dict:
     """
     Get OpenAPI 3.1 specification for public Sigil API endpoints only.
-    
+
     This endpoint provides documentation for publicly accessible endpoints:
     - Health checks and monitoring
-    - Registry (public scan database) 
+    - Registry (public scan database)
     - Feeds (RSS/JSON threat intelligence)
     - Badges and GitHub webhooks
     - Forge (tool discovery)
-    
+
     Secure endpoints requiring authentication are not included.
     """
     # Create a curated public-only OpenAPI schema
@@ -608,7 +614,7 @@ async def get_public_openapi_spec() -> dict:
             "description": "Automated security auditing platform for AI agent code. This documentation covers only publicly accessible endpoints that do not require authentication.",
             "x-logo": {
                 "url": "https://sigilsec.ai/logo.png",
-                "altText": "Sigil Security"
+                "altText": "Sigil Security",
             },
             "x-api-id": "sigil-api-public",
             "termsOfService": "https://sigilsec.ai/terms",
@@ -620,7 +626,7 @@ async def get_public_openapi_spec() -> dict:
             "license": {
                 "name": "MIT",
                 "url": "https://github.com/NOMARJ/sigil/blob/main/LICENSE",
-            }
+            },
         },
         "servers": [
             {"url": "https://api.sigilsec.ai", "description": "Production"},
@@ -628,13 +634,22 @@ async def get_public_openapi_spec() -> dict:
         ],
         "tags": [
             {"name": "system", "description": "System information and API discovery"},
-            {"name": "monitoring", "description": "Health checks and system monitoring"},
-            {"name": "registry", "description": "Public scan database and threat catalog"},
+            {
+                "name": "monitoring",
+                "description": "Health checks and system monitoring",
+            },
+            {
+                "name": "registry",
+                "description": "Public scan database and threat catalog",
+            },
             {"name": "feed", "description": "RSS and JSON threat intelligence feeds"},
             {"name": "forge", "description": "Tool discovery and stack analysis"},
             {"name": "github", "description": "GitHub App webhook integration"},
             {"name": "badges", "description": "SVG badge generation"},
-            {"name": "attestation", "description": "Digital attestations and verification"},
+            {
+                "name": "attestation",
+                "description": "Digital attestations and verification",
+            },
             {"name": "permissions", "description": "MCP server permissions"},
         ],
         "paths": {
@@ -653,12 +668,12 @@ async def get_public_openapi_spec() -> dict:
                                         "version": "0.1.0",
                                         "documentation": {
                                             "openapi_spec": "/api/openapi.json"
-                                        }
+                                        },
                                     }
                                 }
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             },
             "/health": {
@@ -666,9 +681,7 @@ async def get_public_openapi_spec() -> dict:
                     "tags": ["monitoring"],
                     "summary": "Basic Health Check",
                     "description": "Check if the API service is running",
-                    "responses": {
-                        "200": {"description": "Service is healthy"}
-                    }
+                    "responses": {"200": {"description": "Service is healthy"}},
                 }
             },
             "/health/detailed": {
@@ -676,9 +689,7 @@ async def get_public_openapi_spec() -> dict:
                     "tags": ["monitoring"],
                     "summary": "Detailed Health Check",
                     "description": "Comprehensive health check including database and dependencies",
-                    "responses": {
-                        "200": {"description": "Detailed health status"}
-                    }
+                    "responses": {"200": {"description": "Detailed health status"}},
                 }
             },
             "/metrics": {
@@ -689,27 +700,25 @@ async def get_public_openapi_spec() -> dict:
                     "responses": {
                         "200": {
                             "description": "Prometheus metrics",
-                            "content": {"text/plain": {}}
+                            "content": {"text/plain": {}},
                         }
-                    }
+                    },
                 }
             },
             "/registry/search": {
                 "get": {
                     "tags": ["registry"],
-                    "summary": "Search Public Scan Database", 
+                    "summary": "Search Public Scan Database",
                     "description": "Search the public registry of security scans",
                     "parameters": [
                         {
                             "name": "q",
                             "in": "query",
                             "description": "Search query",
-                            "schema": {"type": "string"}
+                            "schema": {"type": "string"},
                         }
                     ],
-                    "responses": {
-                        "200": {"description": "Search results"}
-                    }
+                    "responses": {"200": {"description": "Search results"}},
                 }
             },
             "/registry/stats": {
@@ -717,9 +726,7 @@ async def get_public_openapi_spec() -> dict:
                     "tags": ["registry"],
                     "summary": "Registry Statistics",
                     "description": "Get public registry statistics",
-                    "responses": {
-                        "200": {"description": "Registry statistics"}
-                    }
+                    "responses": {"200": {"description": "Registry statistics"}},
                 }
             },
             "/feed.xml": {
@@ -730,22 +737,22 @@ async def get_public_openapi_spec() -> dict:
                     "responses": {
                         "200": {
                             "description": "RSS XML feed",
-                            "content": {"application/rss+xml": {}}
+                            "content": {"application/rss+xml": {}},
                         }
-                    }
+                    },
                 }
             },
             "/feed.json": {
                 "get": {
                     "tags": ["feed"],
-                    "summary": "JSON Threat Feed", 
+                    "summary": "JSON Threat Feed",
                     "description": "JSON feed of latest security threats",
                     "responses": {
                         "200": {
                             "description": "JSON feed",
-                            "content": {"application/json": {}}
+                            "content": {"application/json": {}},
                         }
-                    }
+                    },
                 }
             },
             "/forge/search": {
@@ -756,14 +763,12 @@ async def get_public_openapi_spec() -> dict:
                     "parameters": [
                         {
                             "name": "q",
-                            "in": "query", 
+                            "in": "query",
                             "description": "Search query",
-                            "schema": {"type": "string"}
+                            "schema": {"type": "string"},
                         }
                     ],
-                    "responses": {
-                        "200": {"description": "Search results"}
-                    }
+                    "responses": {"200": {"description": "Search results"}},
                 }
             },
             "/forge/categories": {
@@ -771,9 +776,7 @@ async def get_public_openapi_spec() -> dict:
                     "tags": ["forge"],
                     "summary": "Tool Categories",
                     "description": "Get available tool categories",
-                    "responses": {
-                        "200": {"description": "Category list"}
-                    }
+                    "responses": {"200": {"description": "Category list"}},
                 }
             },
             "/badge/scan/{scan_id}": {
@@ -786,15 +789,15 @@ async def get_public_openapi_spec() -> dict:
                             "name": "scan_id",
                             "in": "path",
                             "required": True,
-                            "schema": {"type": "string"}
+                            "schema": {"type": "string"},
                         }
                     ],
                     "responses": {
                         "200": {
                             "description": "SVG badge",
-                            "content": {"image/svg+xml": {}}
+                            "content": {"image/svg+xml": {}},
                         }
-                    }
+                    },
                 }
             },
             "/github/webhook": {
@@ -802,9 +805,7 @@ async def get_public_openapi_spec() -> dict:
                     "tags": ["github"],
                     "summary": "GitHub Webhook",
                     "description": "GitHub App webhook endpoint",
-                    "responses": {
-                        "200": {"description": "Webhook processed"}
-                    }
+                    "responses": {"200": {"description": "Webhook processed"}},
                 }
             },
             "/api/v1/attestation/verify/{attestation_id}": {
@@ -817,12 +818,12 @@ async def get_public_openapi_spec() -> dict:
                             "name": "attestation_id",
                             "in": "path",
                             "required": True,
-                            "schema": {"type": "string"}
+                            "schema": {"type": "string"},
                         }
                     ],
                     "responses": {
                         "200": {"description": "Attestation verification result"}
-                    }
+                    },
                 }
             },
             "/api/v1/permissions/{mcp_name}": {
@@ -835,25 +836,21 @@ async def get_public_openapi_spec() -> dict:
                             "name": "mcp_name",
                             "in": "path",
                             "required": True,
-                            "schema": {"type": "string"}
+                            "schema": {"type": "string"},
                         }
                     ],
-                    "responses": {
-                        "200": {"description": "MCP permissions"}
-                    }
+                    "responses": {"200": {"description": "MCP permissions"}},
                 }
-            }
+            },
         },
         "components": {
             "schemas": {
                 "Error": {
                     "type": "object",
-                    "properties": {
-                        "detail": {"type": "string"}
-                    }
+                    "properties": {"detail": {"type": "string"}},
                 }
             }
-        }
+        },
     }
 
 
@@ -861,12 +858,12 @@ async def get_public_openapi_spec() -> dict:
 async def public_api_documentation():
     """
     Interactive API documentation for public endpoints only.
-    
-    Provides a web interface to explore and test publicly accessible 
+
+    Provides a web interface to explore and test publicly accessible
     endpoints that do not require authentication.
     """
     from fastapi.responses import HTMLResponse
-    
+
     swagger_ui_html = """
     <!DOCTYPE html>
     <html>
@@ -908,17 +905,19 @@ async def public_api_documentation():
     return HTMLResponse(content=swagger_ui_html)
 
 
-@app.get("/api/docs/complete", tags=["documentation"], summary="Complete API Documentation")
+@app.get(
+    "/api/docs/complete", tags=["documentation"], summary="Complete API Documentation"
+)
 async def complete_api_documentation():
     """
     Complete API documentation including secure endpoints.
-    
+
     Requires authentication. Provides documentation for all API endpoints
     including those that require authentication like user management,
     team operations, billing, scanning, etc.
     """
     from fastapi.responses import HTMLResponse
-    
+
     swagger_ui_html = """
     <!DOCTYPE html>
     <html>
@@ -965,11 +964,15 @@ async def complete_api_documentation():
     return HTMLResponse(content=swagger_ui_html)
 
 
-@app.get("/api/openapi/complete.json", tags=["documentation"], summary="Complete OpenAPI Specification")  
+@app.get(
+    "/api/openapi/complete.json",
+    tags=["documentation"],
+    summary="Complete OpenAPI Specification",
+)
 async def get_complete_openapi_spec() -> dict:
     """
     Complete OpenAPI specification including secure endpoints.
-    
+
     Requires authentication. Returns the full API documentation including
     endpoints that require authentication.
     """
@@ -987,7 +990,7 @@ async def get_complete_openapi_spec() -> dict:
                 "BearerAuth": {
                     "type": "http",
                     "scheme": "bearer",
-                    "bearerFormat": "JWT"
+                    "bearerFormat": "JWT",
                 }
             }
         },
@@ -998,7 +1001,7 @@ async def get_complete_openapi_spec() -> dict:
                     "summary": "User Login",
                     "description": "Authenticate user and get JWT token",
                     "security": [],  # No auth required for login
-                    "responses": {"200": {"description": "Login successful"}}
+                    "responses": {"200": {"description": "Login successful"}},
                 }
             },
             "/api/v1/scan/create": {
@@ -1007,7 +1010,7 @@ async def get_complete_openapi_spec() -> dict:
                     "summary": "Create Scan",
                     "description": "Create a new security scan",
                     "security": [{"BearerAuth": []}],
-                    "responses": {"201": {"description": "Scan created"}}
+                    "responses": {"201": {"description": "Scan created"}},
                 }
             },
             "/api/v1/team/": {
@@ -1016,11 +1019,11 @@ async def get_complete_openapi_spec() -> dict:
                     "summary": "Get Team",
                     "description": "Get team information",
                     "security": [{"BearerAuth": []}],
-                    "responses": {"200": {"description": "Team information"}}
+                    "responses": {"200": {"description": "Team information"}},
                 }
-            }
+            },
         },
-        "_note": "This is a placeholder schema. In production, this would contain the complete API specification."
+        "_note": "This is a placeholder schema. In production, this would contain the complete API specification.",
     }
 
 
@@ -1028,36 +1031,44 @@ async def get_complete_openapi_spec() -> dict:
 async def test_email_config() -> dict:
     """
     Test email configuration with mail.sigilsec.ai domain.
-    
+
     This endpoint verifies that the email service is properly configured
     and can connect to Resend with the mail.sigilsec.ai domain.
     """
     from api.services.email_service import EmailService
-    
+
     email_service = EmailService()
-    
+
     # Check configuration
     config_status = {
-        "domain": email_service.from_email.split("@")[1] if "@" in email_service.from_email else "unknown",
+        "domain": email_service.from_email.split("@")[1]
+        if "@" in email_service.from_email
+        else "unknown",
         "from_email": email_service.from_email,
         "from_name": email_service.from_name,
         "resend_configured": bool(email_service.resend_api_key),
-        "expected_domain": "mail.sigilsec.ai"
+        "expected_domain": "mail.sigilsec.ai",
     }
-    
+
     # Test status
-    status = "ready" if (
-        config_status["domain"] == "mail.sigilsec.ai" and 
-        config_status["resend_configured"]
-    ) else "needs_configuration"
-    
+    status = (
+        "ready"
+        if (
+            config_status["domain"] == "mail.sigilsec.ai"
+            and config_status["resend_configured"]
+        )
+        else "needs_configuration"
+    )
+
     if not config_status["resend_configured"]:
         message = "Resend API key not configured. Set SIGIL_RESEND_API_KEY environment variable."
     elif config_status["domain"] != "mail.sigilsec.ai":
-        message = f"Domain mismatch. Expected mail.sigilsec.ai, got {config_status['domain']}"
+        message = (
+            f"Domain mismatch. Expected mail.sigilsec.ai, got {config_status['domain']}"
+        )
     else:
         message = "Email service ready to send from mail.sigilsec.ai"
-    
+
     return {
         "status": status,
         "message": message,
@@ -1065,8 +1076,8 @@ async def test_email_config() -> dict:
         "test_payload_example": {
             "from": f"{config_status['from_name']} <{config_status['from_email']}>",
             "subject": "Test from mail.sigilsec.ai",
-            "domain_verified": config_status["domain"] == "mail.sigilsec.ai"
-        }
+            "domain_verified": config_status["domain"] == "mail.sigilsec.ai",
+        },
     }
 
 
@@ -1074,7 +1085,7 @@ async def test_email_config() -> dict:
 async def root() -> dict:
     """
     Landing endpoint with API metadata and documentation links.
-    
+
     Provides basic service information and links to API documentation
     for easy discovery.
     """
@@ -1084,12 +1095,16 @@ async def root() -> dict:
         "description": "Automated security auditing platform for AI agent code",
         "documentation": {
             "public_openapi_spec": "/api/openapi.json",
-            "public_interactive_docs": "/api/docs", 
+            "public_interactive_docs": "/api/docs",
             "complete_interactive_docs": "/api/docs/complete",
             "complete_openapi_spec": "/api/openapi/complete.json",
             "development_docs": {
-                "swagger_ui": "/docs" if settings.debug else "Available in development mode",
-                "redoc": "/redoc" if settings.debug else "Available in development mode",
+                "swagger_ui": "/docs"
+                if settings.debug
+                else "Available in development mode",
+                "redoc": "/redoc"
+                if settings.debug
+                else "Available in development mode",
             },
         },
         "endpoints": {
@@ -1104,7 +1119,7 @@ async def root() -> dict:
         },
         "public_endpoints": {
             "registry": "/registry",
-            "forge": "/forge", 
+            "forge": "/forge",
             "badges": "/badge",
             "github_webhook": "/github/webhook",
         },
