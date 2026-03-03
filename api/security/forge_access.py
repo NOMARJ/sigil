@@ -631,9 +631,9 @@ class AuditLogger:
             query += " AND resource_type = :resource_type"
             params["resource_type"] = resource_type
 
-        # Order and limit
+        # Order and limit (SQL Server compatible)
+        query = query.replace("SELECT *", f"SELECT TOP ({limit}) *", 1)
         query += " ORDER BY timestamp DESC"
-        query += f" LIMIT {limit}"
 
         results = await db.fetch_all_raw(query, params)
         return [dict(row) for row in results]

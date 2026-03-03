@@ -96,12 +96,17 @@ cd api
 python -m uvicorn main:app --reload
 ```
 
-**Endpoints:**
-- `POST /scans` — Submit a scan job
-- `GET /scans/{scan_id}` — Get scan results
-- `GET /scans/{scan_id}/findings` — Get detailed findings
-- `POST /quarantine/{item_id}/approve` — Approve quarantined item
-- `POST /quarantine/{item_id}/reject` — Reject quarantined item
+**Production API Base URL:** `https://api.sigilsec.ai`
+
+**Key Endpoints:**
+- `POST /v1/scans` — Submit a scan job
+- `GET /v1/scans/{scan_id}` — Get scan results  
+- `GET /v1/scans/{scan_id}/findings` — Get detailed findings
+- `POST /v1/quarantine/{item_id}/approve` — Approve quarantined item
+- `POST /v1/quarantine/{item_id}/reject` — Reject quarantined item
+- `GET /v1/health` — API health check
+
+**Authentication:** Include `Authorization: Bearer <jwt_token>` header for authenticated endpoints.
 
 See [API Reference](api-reference.md) for full documentation.
 

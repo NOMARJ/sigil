@@ -22,32 +22,27 @@ Sigil fills this gap with a **quarantine-first approach**.
 
 ## Quick Install
 
-**Homebrew (macOS/Linux):**
+**Manual Install (Current):**
 ```bash
-brew tap nomarj/tap
-brew install sigil
+# Clone the repository
+git clone https://github.com/NOMARJ/sigil.git
+cd sigil
+
+# Make the CLI executable and install
+chmod +x bin/sigil
+sudo cp bin/sigil /usr/local/bin/sigil
+
+# Initialize directories and aliases
+sigil install
 ```
 
-**npm (All platforms):**
-```bash
-npm install -g @nomark/sigil
-```
+**Coming Soon:**
+- **Homebrew**: `brew install nomarj/sigil`
+- **npm**: `npm install -g @nomark/sigil` 
+- **curl installer**: `curl -sSL https://sigilsec.ai/install.sh | sh`
+- **Docker**: `docker pull nomark/sigil:latest`
 
-**Cargo (Rust):**
-```bash
-cargo install sigil
-```
-
-**curl installer:**
-```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
-```
-
-**Docker:**
-```bash
-docker pull nomark/sigil:latest
-docker run --rm -v $(pwd):/workspace nomark/sigil scan .
-```
+> **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. We will publish as `@nomark/sigil` when Rust CLI is ready.
 
 [**→ See all installation methods**](docs/installation.md)
 
