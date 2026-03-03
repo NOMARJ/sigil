@@ -1292,9 +1292,9 @@ async def get_forge_jobs(
         raise HTTPException(status_code=500, detail="Failed to retrieve forge jobs")
 
 
-@router.get("/stats")
-async def get_forge_stats():
-    """Get forge statistics and status."""
+@router.get("/stats/detailed")
+async def get_forge_stats_detailed():
+    """Get detailed forge statistics and status."""
     try:
         if db.connected:
             # Get scan statistics from public_scans table

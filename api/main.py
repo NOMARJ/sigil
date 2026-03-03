@@ -272,29 +272,36 @@ async def validation_exception_handler(
 # Router registration
 # ---------------------------------------------------------------------------
 
-from api.routers import (  # noqa: E402
-    alerts,
-    attestation,
-    auth,
-    badge,
-    billing,
-    email,
-    feed,
-    forge,
-    forge_analytics,
-    forge_premium,
-    github_app,
-    permissions,
-    policies,
-    publisher,
-    realtime,
-    registry,
-    report,
-    scan,
-    team,
-    threat,
-    verify,
-)
+# Import routers with error handling to catch registration failures
+try:
+    from api.routers import (  # noqa: E402
+        alerts,
+        attestation,
+        auth,
+        badge,
+        billing,
+        email,
+        feed,
+        forge,
+        forge_analytics,
+        forge_premium,
+        github_app,
+        permissions,
+        policies,
+        publisher,
+        realtime,
+        registry,
+        report,
+        scan,
+        team,
+        threat,
+        verify,
+    )
+    logger.info("All routers imported successfully")
+except ImportError as e:
+    logger.error(f"Failed to import routers: {e}")
+    # Re-raise to prevent silent failures
+    raise
 
 # --- Original /v1 routes (backward compatibility) --------------------------
 app.include_router(scan.router)
