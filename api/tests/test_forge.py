@@ -147,7 +147,7 @@ async def test_search_tools_endpoint():
     """Test the /forge/search endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database response
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": "test-1",
@@ -184,7 +184,7 @@ async def test_search_tools_without_query():
     """Test the /forge/search endpoint without query parameter."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database response
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": "test-1",
@@ -227,7 +227,7 @@ async def test_get_tool_stack_endpoint():
     """Test the /forge/stack endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database responses for different tool types
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": "test-1",
@@ -283,7 +283,7 @@ async def test_get_tool_details_endpoint():
     """Test the /forge/tools/{ecosystem}/{name} endpoint."""
     with patch("api.routers.forge.db") as mock_db:
         # Mock database response for specific tool
-        mock_db.fetch_one = AsyncMock(
+        mock_db.execute_raw_sql_single = AsyncMock(
             return_value={
                 "id": "test-1",
                 "ecosystem": "github",
@@ -315,7 +315,7 @@ async def test_get_tool_details_endpoint():
 async def test_get_tool_details_not_found():
     """Test 404 response when tool is not found."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_one = AsyncMock(return_value=None)
+        mock_db.execute_raw_sql_single = AsyncMock(return_value=None)
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/tools/mcp/nonexistent-tool")
@@ -328,7 +328,7 @@ async def test_get_tool_details_not_found():
 async def test_get_classified_skills():
     """Test the /forge/classifications/skills endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": "test-1",
@@ -378,7 +378,7 @@ async def test_get_classified_skills():
 async def test_get_classified_mcps():
     """Test the /forge/classifications/mcps endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": "test-1",
@@ -411,7 +411,7 @@ async def test_get_classified_mcps():
 async def test_classify_package_endpoint():
     """Test the /forge/classify endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_one = AsyncMock(
+        mock_db.execute_raw_sql_single = AsyncMock(
             return_value={
                 "id": "test-1",
                 "ecosystem": "clawhub",
@@ -448,7 +448,7 @@ async def test_classify_package_endpoint():
 async def test_classify_package_not_scanned():
     """Test classification when package hasn't been scanned yet."""
     with patch("api.routers.forge.db") as mock_db:
-        mock_db.fetch_one = AsyncMock(return_value=None)
+        mock_db.execute_raw_sql_single = AsyncMock(return_value=None)
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
@@ -542,7 +542,7 @@ async def test_stack_use_case_parsing():
     """Test that use cases are properly parsed for capabilities."""
     with patch("api.routers.forge.db") as mock_db:
         # Return tools for different categories
-        mock_db.fetch_all = AsyncMock(
+        mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
                     "id": f"test-{i}",
