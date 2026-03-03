@@ -121,7 +121,7 @@ BEGIN
     CREATE TABLE forge_matches (
         id                      UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         primary_classification_id UNIQUEIDENTIFIER NOT NULL REFERENCES forge_classification(id) ON DELETE CASCADE,
-        secondary_classification_id UNIQUEIDENTIFIER NOT NULL REFERENCES forge_classification(id) ON DELETE CASCADE,
+        secondary_classification_id UNIQUEIDENTIFIER NOT NULL REFERENCES forge_classification(id) ON DELETE NO ACTION,
         match_type              NVARCHAR(50) NOT NULL,      -- 'env_vars', 'protocols', 'complementary', 'category'
         compatibility_score     FLOAT NOT NULL DEFAULT 0.0, -- How well they work together (0.0-1.0)
         shared_elements         NVARCHAR(MAX) NOT NULL DEFAULT '[]', -- JSON array of shared env vars, protocols, etc.

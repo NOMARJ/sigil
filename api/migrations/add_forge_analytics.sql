@@ -6,6 +6,7 @@
 -- Forge Analytics Events (primary event tracking table)
 -- =====================================================================
 
+-- Check if table exists and add missing columns if needed
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'forge_analytics_events')
 BEGIN
     CREATE TABLE forge_analytics_events (
@@ -19,6 +20,18 @@ BEGIN
         timestamp       DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
         CONSTRAINT CK_forge_analytics_events_data CHECK (event_data IS NULL OR ISJSON(event_data) = 1)
     );
+END
+ELSE
+BEGIN
+    -- Table exists, add missing columns if they don't exist
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_analytics_events') AND name = 'session_id')
+        ALTER TABLE forge_analytics_events ADD session_id NVARCHAR(255);
+    
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_analytics_events') AND name = 'ip_address')
+        ALTER TABLE forge_analytics_events ADD ip_address NVARCHAR(45);
+    
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_analytics_events') AND name = 'user_agent')
+        ALTER TABLE forge_analytics_events ADD user_agent NVARCHAR(1000);
 END
 GO
 
@@ -61,6 +74,20 @@ BEGIN
         UNIQUE(user_id, tool_id, ecosystem),
         CONSTRAINT CK_forge_user_tools_tags CHECK (custom_tags IS NULL OR ISJSON(custom_tags) = 1)
     );
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'tool_name')
+        ALTER TABLE forge_user_tools ADD tool_name NVARCHAR(255) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'category')
+        ALTER TABLE forge_user_tools ADD category NVARCHAR(100) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'last_viewed')
+        ALTER TABLE forge_user_tools ADD last_viewed DATETIMEOFFSET NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'view_count')
+        ALTER TABLE forge_user_tools ADD view_count INT NOT NULL DEFAULT 1;
 END
 GO
 
@@ -339,7 +366,10 @@ BEGIN
             WHEN i.risk_score <= 10 THEN 90 + (10 - i.risk_score)
             WHEN i.risk_score <= 30 THEN 70 + (30 - i.risk_score) * 0.67
             WHEN i.risk_score <= 60 THEN 40 + (60 - i.risk_score) * 0.5
-            ELSE GREATEST(0, 40 - (i.risk_score - 60) * 0.67)
+            ELSE CASE
+                WHEN 40 - (i.risk_score - 60) * 0.67 < 0 THEN 0
+                ELSE 40 - (i.risk_score - 60) * 0.67
+            END
         END,
         -- Previous score from last history record
         (SELECT TOP 1 trust_score 

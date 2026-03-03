@@ -126,11 +126,69 @@ BEGIN
         -- Constraints
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-        INDEX IX_forge_user_tools_user (user_id, tracked_at DESC),
-        INDEX IX_forge_user_tools_package (package_name, ecosystem),
         UNIQUE (user_id, package_name, ecosystem)
     );
 END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'team_id')
+        ALTER TABLE forge_user_tools ADD team_id UNIQUEIDENTIFIER NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'package_name')
+        ALTER TABLE forge_user_tools ADD package_name NVARCHAR(255) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'package_version')
+        ALTER TABLE forge_user_tools ADD package_version NVARCHAR(100) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'tracking_reason')
+        ALTER TABLE forge_user_tools ADD tracking_reason NVARCHAR(500) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'tags')
+        ALTER TABLE forge_user_tools ADD tags NVARCHAR(MAX) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'alert_on_update')
+        ALTER TABLE forge_user_tools ADD alert_on_update BIT NOT NULL DEFAULT 1;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'alert_on_vulnerability')
+        ALTER TABLE forge_user_tools ADD alert_on_vulnerability BIT NOT NULL DEFAULT 1;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'alert_on_removal')
+        ALTER TABLE forge_user_tools ADD alert_on_removal BIT NOT NULL DEFAULT 1;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'last_checked')
+        ALTER TABLE forge_user_tools ADD last_checked DATETIME2 NULL;
+
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'tool_id')
+        EXEC sp_executesql N'
+            UPDATE forge_user_tools
+            SET package_name = ISNULL(package_name, tool_id)
+            WHERE package_name IS NULL;
+        ';
+
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('forge_user_tools') AND name = 'package_name')
+        EXEC sp_executesql N'
+            UPDATE forge_user_tools
+            SET package_name = ''''
+            WHERE package_name IS NULL;
+        ';
+
+    IF EXISTS (
+        SELECT 1
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID('forge_user_tools')
+          AND name = 'package_name'
+          AND is_nullable = 1
+    )
+        EXEC sp_executesql N'ALTER TABLE forge_user_tools ALTER COLUMN package_name NVARCHAR(255) NOT NULL;';
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_user_tools_user')
+    CREATE INDEX IX_forge_user_tools_user ON forge_user_tools (user_id, tracked_at DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_user_tools_package')
+    CREATE INDEX IX_forge_user_tools_package ON forge_user_tools (package_name, ecosystem);
 GO
 
 -- ============================================================================
@@ -167,11 +225,17 @@ BEGIN
         
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-        INDEX IX_forge_user_stacks_user (user_id),
-        INDEX IX_forge_user_stacks_public (is_public, view_count DESC),
         UNIQUE (user_id, stack_name)
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_user_stacks_user')
+    CREATE INDEX IX_forge_user_stacks_user ON forge_user_stacks (user_id);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_user_stacks_public')
+    CREATE INDEX IX_forge_user_stacks_public ON forge_user_stacks (is_public, view_count DESC);
 GO
 
 -- ============================================================================
@@ -202,18 +266,28 @@ BEGIN
         
         timestamp DATETIME2 NOT NULL DEFAULT GETDATE(),
         
-        -- Indexes for querying
-        INDEX IX_audit_logs_user_time (user_id, timestamp DESC),
-        INDEX IX_audit_logs_org_time (organization_id, timestamp DESC),
-        INDEX IX_audit_logs_action_time (action, timestamp DESC),
-        INDEX IX_audit_logs_resource (resource_type, resource_id),
-        
         -- Foreign keys
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_audit_logs_user_time')
+    CREATE INDEX IX_audit_logs_user_time ON audit_logs (user_id, timestamp DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_audit_logs_org_time')
+    CREATE INDEX IX_audit_logs_org_time ON audit_logs (organization_id, timestamp DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_audit_logs_action_time')
+    CREATE INDEX IX_audit_logs_action_time ON audit_logs (action, timestamp DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_audit_logs_resource')
+    CREATE INDEX IX_audit_logs_resource ON audit_logs (resource_type, resource_id);
 GO
 
 -- ============================================================================
@@ -248,11 +322,17 @@ BEGIN
         
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-        INDEX IX_api_keys_hash (key_hash),
-        INDEX IX_api_keys_user (user_id),
         UNIQUE (key_hash)
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_api_keys_hash')
+    CREATE INDEX IX_api_keys_hash ON api_keys (key_hash);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_api_keys_user')
+    CREATE INDEX IX_api_keys_user ON api_keys (user_id);
 GO
 
 -- ============================================================================
@@ -278,16 +358,11 @@ BEGIN
         created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
         created_by UNIQUEIDENTIFIER NULL,
         
-        -- Ensure only one flag per feature per entity
-        INDEX IX_feature_flags_user (user_id, feature_name),
-        INDEX IX_feature_flags_team (team_id, feature_name),
-        INDEX IX_feature_flags_org (organization_id, feature_name),
-        
         -- Foreign keys
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id),
         
         -- Constraint to ensure at least one entity is specified
         CONSTRAINT CK_feature_flags_entity CHECK (
@@ -297,6 +372,18 @@ BEGIN
         )
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_feature_flags_user')
+    CREATE INDEX IX_feature_flags_user ON feature_flags (user_id, feature_name);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_feature_flags_team')
+    CREATE INDEX IX_feature_flags_team ON feature_flags (team_id, feature_name);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_feature_flags_org')
+    CREATE INDEX IX_feature_flags_org ON feature_flags (organization_id, feature_name);
 GO
 
 -- ============================================================================
@@ -323,19 +410,22 @@ BEGIN
         
         timestamp DATETIME2 NOT NULL DEFAULT GETDATE(),
         
-        -- Indexes for analytics queries
-        INDEX IX_forge_usage_analytics_user_time (user_id, timestamp DESC),
-        INDEX IX_forge_usage_analytics_feature_time (feature_name, timestamp DESC),
-        INDEX IX_forge_usage_analytics_daily NONCLUSTERED (
-            CAST(timestamp AS DATE),
-            feature_name,
-            user_id
-        ),
-        
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_usage_analytics_user_time')
+    CREATE INDEX IX_forge_usage_analytics_user_time ON forge_usage_analytics (user_id, timestamp DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_usage_analytics_feature_time')
+    CREATE INDEX IX_forge_usage_analytics_feature_time ON forge_usage_analytics (feature_name, timestamp DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_forge_usage_analytics_daily')
+    CREATE INDEX IX_forge_usage_analytics_daily ON forge_usage_analytics (timestamp, feature_name, user_id);
 GO
 
 -- ============================================================================
@@ -373,11 +463,13 @@ BEGIN
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
         FOREIGN KEY (generated_by) REFERENCES users(id),
         FOREIGN KEY (reviewed_by) REFERENCES users(id),
-        FOREIGN KEY (approved_by) REFERENCES users(id),
-        
-        INDEX IX_compliance_reports_org (organization_id, report_period_end DESC)
+        FOREIGN KEY (approved_by) REFERENCES users(id)
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_compliance_reports_org')
+    CREATE INDEX IX_compliance_reports_org ON compliance_reports (organization_id, report_period_end DESC);
 GO
 
 -- ============================================================================
@@ -403,13 +495,18 @@ BEGIN
         last_request_at DATETIME2 NULL,
         last_endpoint NVARCHAR(255) NULL,
         
-        INDEX IX_rate_limit_tracking_user_window (user_id, window_end DESC),
-        INDEX IX_rate_limit_tracking_key_window (api_key_id, window_end DESC),
-        
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE
+        FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
     );
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_rate_limit_tracking_user_window')
+    CREATE INDEX IX_rate_limit_tracking_user_window ON rate_limit_tracking (user_id, window_end DESC);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_rate_limit_tracking_key_window')
+    CREATE INDEX IX_rate_limit_tracking_key_window ON rate_limit_tracking (api_key_id, window_end DESC);
 GO
 
 -- ============================================================================

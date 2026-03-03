@@ -218,9 +218,19 @@ GO
 -- Full-text index on description_summary for search
 IF NOT EXISTS (SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('forge_classification'))
 BEGIN
-    CREATE FULLTEXT INDEX ON forge_classification(description_summary)
-    KEY INDEX PK__forge_cl__3213E83F
-    ON forge_fulltext_catalog;
+    DECLARE @pk_name NVARCHAR(128);
+    SELECT @pk_name = i.name 
+    FROM sys.indexes i
+    WHERE i.object_id = OBJECT_ID('forge_classification') 
+      AND i.is_primary_key = 1;
+    
+    IF @pk_name IS NOT NULL
+    BEGIN
+        DECLARE @sql NVARCHAR(MAX) = 
+            'CREATE FULLTEXT INDEX ON forge_classification(description_summary) ' +
+            'KEY INDEX ' + @pk_name + ' ON forge_fulltext_catalog;';
+        EXEC sp_executesql @sql;
+    END
 END
 GO
 
