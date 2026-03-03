@@ -1,10 +1,10 @@
 // Forge API Client
-import { 
-  Tool, 
-  Stack, 
-  Category, 
-  SearchResult, 
-  SearchFilters, 
+import {
+  Tool,
+  Stack,
+  Category,
+  SearchResult,
+  SearchFilters,
   StackRecommendation,
   APIResponse,
   PaginatedResponse,
@@ -25,22 +25,27 @@ class ForgeAPIError extends Error {
 }
 
 class ForgeAPI {
-  private baseUrl: string;
+  private backendUrl: string;
   private defaultHeaders: HeadersInit;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_FORGE_API_URL || 'http://localhost:8000';
+    this.backendUrl = process.env.NEXT_PUBLIC_FORGE_API_URL || 'http://localhost:8000';
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
   }
 
+  /**
+   * Make a request to the backend API. Validates Content-Type before parsing
+   * JSON so that HTML error pages (e.g. 401 from a reverse proxy) don't crash
+   * the process.
+   */
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const url = `${this.backendUrl}${endpoint}`;
     const config: RequestInit = {
       headers: this.defaultHeaders,
       ...options,
@@ -48,11 +53,21 @@ class ForgeAPI {
 
     try {
       const response = await fetch(url, config);
+
+      // Check Content-Type BEFORE attempting to parse as JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new ForgeAPIError(
+          `Expected JSON response but got ${contentType || 'unknown'} (HTTP ${response.status})`,
+          response.status
+        );
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
         throw new ForgeAPIError(
-          data.message || 'API request failed',
+          data.message || data.detail || 'API request failed',
           response.status,
           data.code
         );
@@ -70,7 +85,31 @@ class ForgeAPI {
     }
   }
 
-  // Tools API
+  /**
+   * Make a request through the local Next.js API proxy routes. These routes
+   * handle auth headers server-side and return JSON with proper fallbacks.
+   */
+  private async proxyRequest<T>(
+    path: string,
+    fallback: T
+  ): Promise<T> {
+    try {
+      const response = await fetch(`/api/forge${path}`);
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.error(`[ForgeAPI] Non-JSON response from proxy: ${contentType}`);
+        return fallback;
+      }
+
+      return await response.json() as T;
+    } catch (error) {
+      console.error(`[ForgeAPI] Proxy request failed for ${path}:`, error);
+      return fallback;
+    }
+  }
+
+  // Tools API — routed through server-side proxy
   async searchTools(
     query?: string,
     filters?: SearchFilters,
@@ -105,11 +144,28 @@ class ForgeAPI {
       params.append('sort_order', filters.sort_order);
     }
 
-    const response = await this.request<APIResponse<SearchResult>>(
-      `/api/v1/tools/search?${params}`
+    return this.proxyRequest<SearchResult>(
+      `/search?${params}`,
+      { tools: [], total: 0, page, limit, filters: {} as SearchFilters }
     );
+  }
 
-    return response.data;
+  async getToolByEcosystem(ecosystem: string, name: string): Promise<Tool | null> {
+    try {
+      return await this.proxyRequest<Tool | null>(
+        `/tools/${encodeURIComponent(ecosystem)}/${encodeURIComponent(name)}`,
+        null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async getToolMatches(ecosystem: string, name: string): Promise<unknown[]> {
+    return this.proxyRequest<unknown[]>(
+      `/tools/${encodeURIComponent(ecosystem)}/${encodeURIComponent(name)}/matches`,
+      []
+    );
   }
 
   async getTool(id: string): Promise<Tool> {
@@ -140,12 +196,9 @@ class ForgeAPI {
     return response.data;
   }
 
-  // Categories API
+  // Categories API — routed through server-side proxy
   async getCategories(): Promise<Category[]> {
-    const response = await this.request<APIResponse<Category[]>>(
-      '/api/v1/categories'
-    );
-    return response.data;
+    return this.proxyRequest<Category[]>('/categories', []);
   }
 
   async getCategoryTools(
@@ -157,6 +210,17 @@ class ForgeAPI {
       `/api/v1/categories/${categoryId}/tools?page=${page}&limit=${limit}`
     );
     return response.data;
+  }
+
+  // Stats API — routed through server-side proxy
+  async getStats(): Promise<Record<string, unknown>> {
+    return this.proxyRequest<Record<string, unknown>>('/stats', {
+      total_tools: 0,
+      total_categories: 0,
+      total_matches: 0,
+      ecosystems: {},
+      categories: {},
+    });
   }
 
   // Stacks API
@@ -313,7 +377,7 @@ export function isForgeAPIError(error: unknown): error is ForgeAPIError {
 // Cache utilities for React Query
 export const queryKeys = {
   tools: {
-    search: (query?: string, filters?: SearchFilters) => 
+    search: (query?: string, filters?: SearchFilters) =>
       ['tools', 'search', query, filters] as const,
     detail: (id: string) => ['tools', 'detail', id] as const,
     trustScore: (id: string) => ['tools', 'trust-score', id] as const,
