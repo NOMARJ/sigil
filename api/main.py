@@ -13,9 +13,9 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Annotated, AsyncIterator
+from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -867,7 +867,7 @@ async def public_api_documentation():
     """
     from fastapi.responses import HTMLResponse
     
-    swagger_ui_html = f"""
+    swagger_ui_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -919,7 +919,7 @@ async def complete_api_documentation():
     """
     from fastapi.responses import HTMLResponse
     
-    swagger_ui_html = f"""
+    swagger_ui_html = """
     <!DOCTYPE html>
     <html>
     <head>

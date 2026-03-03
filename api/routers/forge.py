@@ -1259,7 +1259,7 @@ async def get_forge_jobs(
                     try:
                         import json
                         metadata = json.loads(metadata)
-                    except:
+                    except json.JSONDecodeError:
                         metadata = {}
                 
                 jobs.append({
