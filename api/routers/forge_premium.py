@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
+from typing import Any
 from typing import Annotated
 from uuid import uuid4
 
@@ -44,7 +46,207 @@ from api.routers.auth import UserResponse, get_current_user_unified
 logger = logging.getLogger(__name__)
 
 # Create router with auth prefix for premium features
-router = APIRouter(prefix="/forge", tags=["Forge Premium"])
+router = APIRouter(prefix="/v1/forge", tags=["Forge Premium"])
+
+
+async def _plan_for_user(user_id: str) -> str:
+    sub = await db.get_subscription(user_id)
+    return (sub or {}).get("plan", "free")
+
+
+async def _require_pro(current_user: UserResponse) -> None:
+    plan = await _plan_for_user(current_user.id)
+    if plan not in {"pro", "team", "enterprise"}:
+        raise HTTPException(status_code=403, detail="This endpoint requires Pro plan")
+
+
+async def _require_team(current_user: UserResponse) -> None:
+    plan = await _plan_for_user(current_user.id)
+    if plan not in {"team", "enterprise"}:
+        raise HTTPException(status_code=403, detail="This endpoint requires Team plan")
+
+
+def _validate_repository_url(url: str) -> None:
+    if not re.match(r"^https://github\.com/[\w.-]+/[\w.-]+/?$", url or ""):
+        raise HTTPException(status_code=422, detail="Invalid repository URL")
+
+
+@router.post("/tools/track", status_code=201)
+async def track_tool_compat(
+    payload: dict[str, Any],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_pro(current_user)
+
+    name = (payload.get("name") or "").strip()
+    repository_url = (payload.get("repository_url") or "").strip()
+    if not name or not repository_url:
+        raise HTTPException(status_code=422, detail="Missing required fields")
+    _validate_repository_url(repository_url)
+
+    existing = await db.select_one(
+        "forge_user_tools",
+        {
+            "user_id": current_user.id,
+            "repository_url": repository_url,
+            "name": name,
+        },
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Tool already tracked")
+
+    row = {
+        "id": str(uuid4()),
+        "user_id": current_user.id,
+        "name": name,
+        "repository_url": repository_url,
+        "description": payload.get("description", ""),
+        "category": payload.get("category", ""),
+        "tracked_at": datetime.now(timezone.utc),
+    }
+    await db.insert("forge_user_tools", row)
+    return row
+
+
+@router.get("/tools")
+async def list_tools_compat(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_pro(current_user)
+    return await db.select(
+        "forge_user_tools",
+        {"user_id": current_user.id},
+        order_by="tracked_at",
+        order_desc=True,
+    )
+
+
+@router.delete("/tools/{tool_id}")
+async def untrack_tool_compat(
+    tool_id: str,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_pro(current_user)
+    tool = await db.select_one("forge_user_tools", {"id": tool_id, "user_id": current_user.id})
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+    await db.delete("forge_user_tools", {"id": tool_id})
+    return {"deleted": True}
+
+
+@router.get("/analytics/personal")
+async def personal_analytics_compat(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
+):
+    await _require_pro(current_user)
+    tools = await db.select("forge_user_tools", {"user_id": current_user.id})
+    start = (start_date or datetime.now(timezone.utc).date().isoformat()).split("T")[0]
+    end = (end_date or datetime.now(timezone.utc).date().isoformat()).split("T")[0]
+    return {
+        "tools_tracked": len(tools),
+        "risk_distribution": {"low": len(tools), "medium": 0, "high": 0},
+        "recent_activity": [],
+        "trends": {},
+        "date_range": {"start": start, "end": end},
+    }
+
+
+@router.get("/analytics/team")
+async def team_analytics_compat(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_team(current_user)
+    return {"team_activity": []}
+
+
+@router.get("/settings")
+async def get_settings_compat(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_pro(current_user)
+    row = await db.select_one("forge_user_settings", {"user_id": current_user.id})
+    if not row:
+        row = {
+            "id": str(uuid4()),
+            "user_id": current_user.id,
+            "notifications": {"weekly_digest": True, "security_alerts": True},
+            "privacy": {"public_profile": False, "share_stacks": False},
+            "preferences": {"risk_threshold": "medium", "auto_track_dependencies": False},
+            "updated_at": datetime.now(timezone.utc),
+        }
+        await db.insert("forge_user_settings", row)
+    return {
+        "notifications": row.get("notifications", {"weekly_digest": True}),
+        "privacy": row.get("privacy", {"public_profile": False}),
+        "preferences": row.get("preferences", {"risk_threshold": "medium"}),
+    }
+
+
+@router.put("/settings")
+async def update_settings_compat(
+    payload: dict[str, Any],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_pro(current_user)
+
+    preferences = payload.get("preferences")
+    if isinstance(preferences, dict):
+        if (
+            "risk_threshold" in preferences
+            and preferences["risk_threshold"] not in {"low", "medium", "high"}
+        ):
+            raise HTTPException(status_code=422, detail="Invalid preferences")
+        if (
+            "default_scan_depth" in preferences
+            and not isinstance(preferences["default_scan_depth"], str)
+        ):
+            raise HTTPException(status_code=422, detail="Invalid preferences")
+
+    row = await db.select_one("forge_user_settings", {"user_id": current_user.id}) or {
+        "id": str(uuid4()),
+        "user_id": current_user.id,
+        "notifications": {"weekly_digest": True, "security_alerts": True},
+        "privacy": {"public_profile": False, "share_stacks": False},
+        "preferences": {"risk_threshold": "medium", "auto_track_dependencies": False},
+        "updated_at": datetime.now(timezone.utc),
+    }
+    for key in ["notifications", "privacy", "preferences"]:
+        if key in payload and isinstance(payload[key], dict):
+            row[key] = payload[key]
+    row["updated_at"] = datetime.now(timezone.utc)
+    await db.upsert("forge_user_settings", row)
+    return {
+        "notifications": row["notifications"],
+        "privacy": row["privacy"],
+        "preferences": row["preferences"],
+    }
+
+
+@router.post("/stacks", status_code=201)
+async def create_stack_compat(
+    payload: dict[str, Any],
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_team(current_user)
+    row = {
+        "id": str(uuid4()),
+        "user_id": current_user.id,
+        "name": payload.get("name", "Untitled Stack"),
+        "tools": payload.get("tools", []),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.insert("forge_stacks", row)
+    return row
+
+
+@router.get("/stacks")
+async def list_stacks_compat(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+):
+    await _require_team(current_user)
+    return await db.select("forge_stacks", {"user_id": current_user.id})
 
 
 # ============================================================================

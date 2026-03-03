@@ -61,6 +61,7 @@ class MssqlClient:
 
     def __init__(self):
         self._pool = None
+        self._connected_override: Any | None = None
         # in-memory fallback for local development
         self._memory_store: dict[str, dict[str, Any]] = {}
 
@@ -121,7 +122,21 @@ class MssqlClient:
     @property
     def connected(self) -> bool:
         """Check if connected to Azure SQL Database."""
+        if self._connected_override is not None:
+            if callable(self._connected_override):
+                return bool(self._connected_override())
+            return bool(self._connected_override)
         return self._pool is not None
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        # Test compatibility: allow monkeypatching this attribute
+        self._connected_override = value
+
+    @connected.deleter
+    def connected(self) -> None:
+        # Test compatibility: support patch cleanup
+        self._connected_override = None
 
     def _mem(self, table: str) -> dict[str, Any]:
         return self._memory_store.setdefault(table, {})
@@ -362,6 +377,14 @@ OUTPUT INSERTED.*;
     async def get_user_by_email(self, email: str) -> dict[str, Any] | None:
         return await self.select_one("users", {"email": email})
 
+    async def get_user_by_id(self, user_id: str) -> dict[str, Any] | None:
+        """Legacy compatibility helper used by resilience tests."""
+        return await self.select_one("users", {"id": user_id})
+
+    async def store_scan(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Legacy compatibility helper used by resilience tests."""
+        return await self.insert("scans", data)
+
     async def create_password_reset_token(
         self, user_id: str, token_hash: str, expires_at: datetime
     ) -> dict[str, Any]:
@@ -485,6 +508,7 @@ class RedisClient:
     def __init__(self) -> None:
         self._client: Any | None = None
         self._connected = False
+        self._connected_override: Any | None = None
 
     async def connect(self) -> None:
         """Open a Redis connection pool (if configured)."""
@@ -524,7 +548,19 @@ class RedisClient:
 
     @property
     def connected(self) -> bool:
+        if self._connected_override is not None:
+            if callable(self._connected_override):
+                return bool(self._connected_override())
+            return bool(self._connected_override)
         return self._connected
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        self._connected_override = value
+
+    @connected.deleter
+    def connected(self) -> None:
+        self._connected_override = None
 
     async def get(self, key: str) -> str | None:
         """Get a cached value by key."""

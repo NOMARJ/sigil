@@ -8,10 +8,11 @@ throughout the API.
 from __future__ import annotations
 
 import enum
+import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +455,44 @@ class UserCreate(BaseModel):
     email: str = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="Password (min 8 characters)")
     name: str = Field("", description="Display name")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        email = value or ""
+        if email != email.strip():
+            raise ValueError("Invalid email format")
+        # Simple robust email validation without external dependency
+        if not re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email):
+            raise ValueError("Invalid email format")
+        if ".." in email:
+            raise ValueError("Invalid email format")
+        return email
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        password = value or ""
+        if len(password) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not re.search(r"[A-Z]", password):
+            raise ValueError("Password must include an uppercase letter")
+        if not re.search(r"[a-z]", password):
+            raise ValueError("Password must include a lowercase letter")
+        if not re.search(r"\d", password):
+            raise ValueError("Password must include a number")
+        return password
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        name = value or ""
+        lowered = name.lower()
+        if any(token in lowered for token in ["<script", "javascript:", "onerror", "onload", "<img", "<svg", "<iframe"]):
+            raise ValueError("Invalid display name")
+        if name and not re.match(r"^[A-Za-z0-9 _.-]{1,100}$", name):
+            raise ValueError("Invalid display name")
+        return name
 
 
 class UserLogin(BaseModel):

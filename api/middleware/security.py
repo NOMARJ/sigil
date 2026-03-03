@@ -284,6 +284,15 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
     """Middleware for request validation and sanitization."""
 
     async def dispatch(self, request: Request, call_next):
+        # Enforce JSON content type for JSON scan submission endpoint
+        if request.method in {"POST", "PUT", "PATCH"} and request.url.path == "/v1/scans":
+            content_type = request.headers.get("content-type", "")
+            if "application/json" not in content_type.lower():
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={"detail": "Bad request"},
+                )
+
         # Check request size
         if request.headers.get("content-length"):
             content_length = int(request.headers["content-length"])

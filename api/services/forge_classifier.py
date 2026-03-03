@@ -100,13 +100,14 @@ class ForgeClassifier:
 
             # Extract network protocols
             if finding.phase == ScanPhase.NETWORK_EXFIL:
-                if "http" in finding.snippet.lower():
+                snippet_lower = finding.snippet.lower()
+                if any(token in snippet_lower for token in ["http", "fetch", "axios", "request("]):
                     patterns["network_protocols"].add("HTTP")
-                if "webhook" in finding.snippet.lower():
+                if "webhook" in snippet_lower:
                     patterns["network_protocols"].add("Webhook")
-                if "socket" in finding.snippet.lower():
+                if "socket" in snippet_lower:
                     patterns["network_protocols"].add("WebSocket")
-                if "grpc" in finding.snippet.lower():
+                if "grpc" in snippet_lower:
                     patterns["network_protocols"].add("gRPC")
 
             # Extract import patterns (key dependencies)
@@ -131,7 +132,7 @@ class ForgeClassifier:
                     patterns["import_patterns"].add("file_operations")
 
             # Track high-severity findings as risk indicators
-            if finding.severity in [Severity.HIGH, Severity.CRITICAL]:
+            if finding.severity in [Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL]:
                 patterns["risk_indicators"].append(
                     {
                         "rule": finding.rule,

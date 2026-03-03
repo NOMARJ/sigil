@@ -12,8 +12,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-import aioredis
 from fastapi import HTTPException
+import redis.asyncio as aioredis
 
 from api.database import db
 from api.models import (

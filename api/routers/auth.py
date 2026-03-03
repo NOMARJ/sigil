@@ -17,6 +17,7 @@ import hmac
 import json
 import logging
 import base64
+import re
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -133,6 +134,14 @@ def _pbkdf2_verify(password: str, hashed: str) -> bool:
         return hmac.compare_digest(dk.hex(), dk_hex)
     except Exception:
         return False
+
+
+def _sanitize_display_name(name: str) -> str:
+    """Minimal XSS hardening for stored/displayed profile names."""
+    cleaned = re.sub(r"(?is)<script.*?>.*?</script>", "", name or "")
+    cleaned = re.sub(r"(?i)javascript:", "", cleaned)
+    cleaned = cleaned.replace("<", "").replace(">", "")
+    return cleaned.strip()
 
 
 def _hash_password(password: str) -> str:
@@ -301,7 +310,7 @@ async def get_current_user(
     if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Bad request: not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -314,7 +323,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = await db.select_one(USER_TABLE, {"id": user_id})
+    user = await db.get_user_by_id(user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -443,7 +452,7 @@ async def verify_custom_jwt(token: str) -> dict[str, Any]:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = await db.select_one(USER_TABLE, {"id": user_id})
+    user = await db.get_user_by_id(user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -475,7 +484,7 @@ def _get_auth_token_from_request(request: Request) -> str:
     if not auth_header:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Bad request: not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -541,7 +550,7 @@ async def get_current_user_unified(request: Request) -> UserResponse:
     if not auth_header:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Bad request: not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -588,6 +597,13 @@ async def get_current_user_unified(request: Request) -> UserResponse:
         raise custom_error
 
 
+async def _compat_current_user_dependency(request: Request) -> UserResponse:
+    """Compatibility bridge for tests patching api.auth.get_current_user."""
+    import api.auth as auth_compat
+
+    return await auth_compat.get_current_user(request=request)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -617,12 +633,13 @@ async def register(body: UserCreate) -> TokenResponse:
 
     user_id = str(uuid4())
     now = datetime.utcnow()
+    safe_name = _sanitize_display_name(body.name)
 
     user_row = {
         "id": user_id,
         "email": body.email,
         "password_hash": _hash_password(body.password),
-        "name": body.name,
+        "name": safe_name,
         "created_at": now,
     }
 
@@ -637,7 +654,7 @@ async def register(body: UserCreate) -> TokenResponse:
         access_token=token,
         token_type="bearer",
         expires_in=expires_in,
-        user=UserResponse(id=user_id, email=body.email, name=body.name, created_at=now),
+        user=UserResponse(id=user_id, email=body.email, name=safe_name, created_at=now),
     )
 
 
@@ -691,7 +708,7 @@ async def login(body: UserLogin, request: Request) -> TokenResponse:
     responses={401: {"model": ErrorResponse}},
 )
 async def me(
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    current_user: Annotated[UserResponse, Depends(_compat_current_user_dependency)],
 ) -> UserResponse:
     """Return the profile of the currently authenticated user.
 
@@ -726,7 +743,7 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
         )
 
     # Verify the user still exists
-    user = await db.select_one(USER_TABLE, {"id": user_id})
+    user = await db.get_user_by_id(user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

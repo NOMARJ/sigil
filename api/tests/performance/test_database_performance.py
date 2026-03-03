@@ -4,12 +4,15 @@ Analyzes query performance, suggests indexes, and validates optimization
 """
 
 import asyncio
+import json
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Dict, List
-import json
-import asyncpg
-from contextlib import asynccontextmanager
+
+import pytest
+
+asyncpg = pytest.importorskip("asyncpg")
 
 
 class DatabasePerformanceTester:

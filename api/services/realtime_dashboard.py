@@ -13,8 +13,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import aioredis
 from fastapi import WebSocket, WebSocketDisconnect
+import redis.asyncio as aioredis
 
 from api.database import db
 from api.services.forge_analytics import analytics_service
