@@ -76,6 +76,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await db.connect()
     await cache.connect()
+    
+    # Initialize analytics and dashboard services
+    try:
+        from api.services.forge_analytics import analytics_service
+        from api.services.realtime_dashboard import dashboard_service
+        
+        await analytics_service.initialize()
+        await dashboard_service.initialize()
+        logger.info("Analytics and real-time dashboard services initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize analytics services: {e}")
 
     # Start background tasks
     print("[LIFESPAN] Importing registry stats updater...")
@@ -213,10 +224,13 @@ from api.routers import (  # noqa: E402
     email,
     feed,
     forge,
+    forge_analytics,
+    forge_premium,
     github_app,
     permissions,
     policies,
     publisher,
+    realtime,
     registry,
     report,
     scan,
@@ -235,6 +249,7 @@ app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
+app.include_router(forge_premium.router)  # /forge/* — Forge premium features (authenticated)
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(registry.router)  # /registry/* — public scan database
@@ -243,6 +258,8 @@ app.include_router(github_app.router)  # /github/*   — GitHub App webhooks
 app.include_router(feed.router)  # /feed.*     — RSS + JSON threat feed
 app.include_router(attestation.router)  # /api/v1/attestation/* — signed attestations
 app.include_router(forge.router)  # /forge/*    — Forge discovery and curation
+app.include_router(forge_analytics.router)  # /forge/analytics/* — Forge analytics
+app.include_router(realtime.router)  # /realtime/* — Real-time updates
 app.include_router(permissions.router)  # /permissions/* — MCP permissions mapping
 app.include_router(email.router)  # /email/*    — Forge Weekly newsletter
 

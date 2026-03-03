@@ -45,7 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               const appUser = await api.getCurrentUser();
               if (!cancelled) {
-                setUser(appUser);
+                // Ensure user has a plan field for development
+                const userWithPlan = { ...appUser, plan: appUser.plan || "pro" as const };
+                setUser(userWithPlan);
                 setLoading(false);
                 return;
               }
@@ -65,7 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             const appUser = await api.getCurrentUser();
             if (!cancelled) {
-              setUser(appUser);
+              // Ensure user has a plan field for development
+              const userWithPlan = { ...appUser, plan: appUser.plan || "pro" as const };
+              setUser(userWithPlan);
               setLoading(false);
               return;
             }
@@ -101,10 +105,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     // Set user from the token response or fetch from API
     if (tokens.user) {
-      setUser(tokens.user);
+      const userWithPlan = { ...tokens.user, plan: tokens.user.plan || "pro" as const };
+      setUser(userWithPlan);
     } else {
       const appUser = await api.getCurrentUser();
-      setUser(appUser);
+      const userWithPlan = { ...appUser, plan: appUser.plan || "pro" as const };
+      setUser(userWithPlan);
     }
   }, []);
 

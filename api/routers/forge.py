@@ -12,16 +12,24 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from api.routers.auth import get_current_user_unified, UserResponse
 from pydantic import BaseModel, Field
 
 from api.database import db
-from api.models import ErrorResponse
+from api.models import ErrorResponse, ForgeEventType
 from api.services.forge_classifier import forge_classifier
 from api.services.forge_matcher import forge_matcher
+from api.services.forge_analytics import track_forge_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
 
 
 # ============================================================================
@@ -204,7 +212,7 @@ async def search_tools(
     ecosystem: str | None = Query(None, description="Filter by ecosystem"),
     category: str | None = Query(None, description="Filter by category"),
     min_trust: float | None = Query(None, description="Minimum trust score"),
-    limit: int = Query(20, description="Maximum results")
+    limit: int = Query(20, description="Maximum results"),
 ):
     """Search for classified tools by query, category, or ecosystem."""
     
@@ -313,6 +321,9 @@ async def search_tools(
         all_classifications = await db.select("forge_classification", {}, limit=1000)
         categories = list(set(c["category"] for c in all_classifications))
         ecosystems = list(set(c["ecosystem"] for c in all_classifications))
+        
+        # Track search analytics (if we had user context)
+        # For now, we'll track search patterns in separate analytics endpoints
         
         return SearchResponse(
             query=q,

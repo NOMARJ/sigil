@@ -43,6 +43,8 @@ from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
+from api.services.forge_analytics import track_forge_event
+from api.models import ForgeEventType
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +190,25 @@ async def _submit_scan_impl(
             await db.increment_scan_usage(user_id, year_month)
         except Exception:
             logger.exception("Failed to increment scan usage for user %s", user_id)
+        
+        # --- 4c. Track analytics event ----------------------------------------
+        try:
+            await track_forge_event(
+                user_id=user_id,
+                event_type=ForgeEventType.SCAN_COMPLETED,
+                event_data={
+                    "scan_id": scan_id,
+                    "target": request.target,
+                    "target_type": request.target_type,
+                    "risk_score": response.risk_score,
+                    "verdict": verdict.value,
+                    "findings_count": len(request.findings),
+                    "threat_hits": len(threat_hits),
+                    "files_scanned": request.files_scanned
+                }
+            )
+        except Exception:
+            logger.exception("Failed to track scan analytics for user %s", user_id)
 
     logger.info(
         "Scan %s completed: target=%s score=%.1f verdict=%s findings=%d",

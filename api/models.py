@@ -746,5 +746,309 @@ class UnsubscribeResponse(BaseModel):
     message: str = "Successfully unsubscribed from all emails"
 
 
+# ---------------------------------------------------------------------------
+# Forge Analytics and Event Tracking
+# ---------------------------------------------------------------------------
+
+
+class ForgeEventType(str, enum.Enum):
+    """Event types for Forge analytics tracking."""
+    
+    # Tool interactions
+    TOOL_VIEWED = "tool_viewed"
+    TOOL_TRACKED = "tool_tracked"
+    TOOL_UNTRACKED = "tool_untracked"
+    TOOL_STARRED = "tool_starred"
+    TOOL_DETAIL_VIEWED = "tool_detail_viewed"
+    
+    # Stack management
+    STACK_CREATED = "stack_created"
+    STACK_SHARED = "stack_shared"
+    STACK_DEPLOYED = "stack_deployed"
+    STACK_FAVORITED = "stack_favorited"
+    
+    # Search and discovery
+    SEARCH_PERFORMED = "search_performed"
+    CATEGORY_BROWSED = "category_browsed"
+    ECOSYSTEM_FILTERED = "ecosystem_filtered"
+    FORGE_API_USED = "forge_api_used"
+    
+    # Alerts and monitoring
+    ALERT_CONFIGURED = "alert_configured"
+    ALERT_RECEIVED = "alert_received"
+    ALERT_CLICKED = "alert_clicked"
+    NOTIFICATION_SENT = "notification_sent"
+    
+    # Feature usage
+    ANALYTICS_VIEWED = "analytics_viewed"
+    EXPORT_PERFORMED = "export_performed"
+    SETTINGS_UPDATED = "settings_updated"
+    DASHBOARD_ACCESSED = "dashboard_accessed"
+    
+    # Security events
+    TRUST_SCORE_CHANGED = "trust_score_changed"
+    SECURITY_FINDING = "security_finding"
+    SCAN_COMPLETED = "scan_completed"
+
+
+class ForgeAnalyticsEvent(BaseModel):
+    """Forge analytics event for tracking user behavior."""
+    
+    user_id: str = Field(..., description="User who performed the action")
+    event_type: ForgeEventType = Field(..., description="Type of event")
+    event_data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Event-specific data payload"
+    )
+    session_id: str | None = Field(None, description="User session identifier")
+    ip_address: str | None = Field(None, description="Source IP address")
+    user_agent: str | None = Field(None, description="User agent string")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PersonalAnalyticsRequest(BaseModel):
+    """Request for personal analytics (Pro+ plan)."""
+    
+    days_back: int = Field(30, ge=1, le=365, description="Days to look back")
+    categories: list[str] | None = Field(None, description="Filter by categories")
+    ecosystems: list[str] | None = Field(None, description="Filter by ecosystems")
+
+
+class PersonalAnalyticsResponse(BaseModel):
+    """Personal analytics response for Pro+ users."""
+    
+    period_days: int
+    total_tool_views: int
+    total_tools_tracked: int
+    total_searches: int
+    total_stacks_created: int
+    
+    # Top tools by interaction
+    most_viewed_tools: list[dict[str, Any]] = Field(default_factory=list)
+    most_tracked_tools: list[dict[str, Any]] = Field(default_factory=list)
+    
+    # Usage patterns
+    discovery_sources: dict[str, int] = Field(
+        default_factory=dict, description="How user finds tools (search, browse, etc.)"
+    )
+    category_preferences: dict[str, int] = Field(
+        default_factory=dict, description="Category interaction counts"
+    )
+    ecosystem_usage: dict[str, int] = Field(
+        default_factory=dict, description="Ecosystem interaction counts" 
+    )
+    
+    # Security trends
+    trust_score_trends: list[dict[str, Any]] = Field(
+        default_factory=list, description="Trust score changes over time"
+    )
+    security_findings_timeline: list[dict[str, Any]] = Field(
+        default_factory=list, description="Security findings for tracked tools"
+    )
+    
+    # Activity patterns
+    daily_activity: dict[str, int] = Field(
+        default_factory=dict, description="Activity by day of week"
+    )
+    hourly_activity: dict[str, int] = Field(
+        default_factory=dict, description="Activity by hour of day"
+    )
+
+
+class TeamAnalyticsResponse(BaseModel):
+    """Team analytics response for Team+ users."""
+    
+    period_days: int
+    team_id: str
+    
+    # Team overview
+    active_members: int
+    total_tools_tracked: int
+    total_stacks_shared: int
+    total_scans_performed: int
+    
+    # Collaboration metrics
+    most_popular_tools: list[dict[str, Any]] = Field(default_factory=list)
+    shared_tool_stacks: list[dict[str, Any]] = Field(default_factory=list)
+    member_activity: list[dict[str, Any]] = Field(default_factory=list)
+    
+    # Team tool adoption
+    tool_adoption_timeline: list[dict[str, Any]] = Field(default_factory=list)
+    category_distribution: dict[str, int] = Field(default_factory=dict)
+    ecosystem_distribution: dict[str, int] = Field(default_factory=dict)
+    
+    # Security compliance
+    security_compliance_score: float = Field(
+        0.0, description="Team security compliance percentage"
+    )
+    security_findings_summary: dict[str, int] = Field(default_factory=dict)
+    tools_needing_review: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OrganizationAnalyticsResponse(BaseModel):
+    """Organization analytics response for Enterprise users."""
+    
+    organization_id: str
+    
+    # Department breakdown
+    departments: list[dict[str, Any]] = Field(
+        default_factory=list, description="Department-level analytics"
+    )
+    
+    # Cost analysis
+    total_tools_in_use: int
+    estimated_monthly_costs: dict[str, float] = Field(
+        default_factory=dict, description="Cost estimates by category"
+    )
+    cost_optimization_opportunities: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+    
+    # Risk dashboard
+    organization_risk_score: float = Field(
+        0.0, description="Overall organization security risk"
+    )
+    high_risk_tools: list[dict[str, Any]] = Field(default_factory=list)
+    compliance_metrics: dict[str, float] = Field(default_factory=dict)
+    security_trends: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AnalyticsEventCreateRequest(BaseModel):
+    """Request to track an analytics event."""
+    
+    event_type: ForgeEventType
+    event_data: dict[str, Any] = Field(default_factory=dict)
+    session_id: str | None = None
+
+
+class AnalyticsEventBatchRequest(BaseModel):
+    """Request to track multiple analytics events in batch."""
+    
+    events: list[AnalyticsEventCreateRequest]
+
+
+# ---------------------------------------------------------------------------
+# Forge Premium Features - Tool Tracking, Stacks, Alerts, Settings
+# ---------------------------------------------------------------------------
+
+
+class TrackedTool(BaseModel):
+    """A tool tracked by a user with metadata."""
+    
+    id: str = Field(..., description="Tracking record ID")
+    tool_id: str = Field(..., description="Tool package name")
+    ecosystem: str = Field(..., description="Tool ecosystem (pip, npm, etc.)")
+    tracked_at: datetime = Field(..., description="When tool was tracked")
+    is_starred: bool = Field(False, description="User has starred this tool")
+    custom_tags: list[str] = Field(default_factory=list, description="User-defined tags")
+    notes: str = Field("", description="User notes about this tool")
+    trust_score: float = Field(0.0, description="Current trust score")
+
+
+class TrackToolRequest(BaseModel):
+    """Request to track a tool."""
+    
+    tool_id: str = Field(..., description="Package name to track")
+    ecosystem: str = Field(..., description="Tool ecosystem")
+    is_starred: bool = Field(False, description="Star the tool immediately")
+    custom_tags: list[str] = Field(default_factory=list, description="Initial tags")
+    notes: str = Field("", description="Initial notes")
+
+
+class UpdateTrackedToolRequest(BaseModel):
+    """Request to update tracked tool metadata."""
+    
+    is_starred: bool | None = None
+    custom_tags: list[str] | None = None
+    notes: str | None = None
+
+
+class ForgeStack(BaseModel):
+    """A custom tool stack created by a user."""
+    
+    id: str = Field(..., description="Stack ID")
+    name: str = Field(..., description="Stack name")
+    description: str = Field("", description="Stack description")
+    tools: list[dict[str, Any]] = Field(default_factory=list, description="Tools in stack")
+    is_public: bool = Field(False, description="Stack is publicly visible")
+    user_id: str = Field(..., description="Creator user ID")
+    team_id: str | None = Field(None, description="Associated team ID")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class CreateStackRequest(BaseModel):
+    """Request to create a new tool stack."""
+    
+    name: str = Field(..., max_length=255, description="Stack name")
+    description: str = Field("", description="Stack description")
+    tools: list[dict[str, Any]] = Field(..., description="Tools in the stack")
+    is_public: bool = Field(False, description="Make stack publicly visible")
+
+
+class UpdateStackRequest(BaseModel):
+    """Request to update an existing stack."""
+    
+    name: str | None = None
+    description: str | None = None
+    tools: list[dict[str, Any]] | None = None
+    is_public: bool | None = None
+
+
+class AlertSubscription(BaseModel):
+    """A user's alert subscription configuration."""
+    
+    id: str = Field(..., description="Subscription ID")
+    tool_id: str | None = Field(None, description="Specific tool (None = all tools)")
+    ecosystem: str | None = Field(None, description="Specific ecosystem (None = all)")
+    alert_types: list[str] = Field(..., description="Types of alerts to receive")
+    channels: dict[str, bool] = Field(default_factory=dict, description="Notification channels")
+    is_active: bool = Field(True, description="Subscription is active")
+    created_at: datetime = Field(..., description="Creation timestamp")
+
+
+class CreateAlertSubscriptionRequest(BaseModel):
+    """Request to create an alert subscription."""
+    
+    tool_id: str | None = Field(None, description="Specific tool (optional)")
+    ecosystem: str | None = Field(None, description="Specific ecosystem (optional)")
+    alert_types: list[str] = Field(..., description="Alert types to subscribe to")
+    channels: dict[str, bool] = Field(default_factory=dict, description="Notification channels")
+
+
+class UpdateAlertSubscriptionRequest(BaseModel):
+    """Request to update an alert subscription."""
+    
+    alert_types: list[str] | None = None
+    channels: dict[str, bool] | None = None
+    is_active: bool | None = None
+
+
+class ForgeUserSettings(BaseModel):
+    """User's Forge preferences and settings."""
+    
+    alert_frequency: str = Field("daily", description="How often to receive alerts")
+    alert_types: list[str] = Field(default_factory=lambda: ["security", "updates"], description="Default alert types")
+    delivery_channels: list[str] = Field(default_factory=lambda: ["email"], description="Default delivery channels")
+    quiet_hours: dict[str, str] | None = Field(None, description="Quiet hours configuration")
+    email_notifications: bool = Field(True, description="Enable email notifications")
+    slack_notifications: bool = Field(False, description="Enable Slack notifications")
+    weekly_digest: bool = Field(True, description="Send weekly digest email")
+    created_at: datetime = Field(..., description="Settings creation time")
+    updated_at: datetime = Field(..., description="Settings last update")
+
+
+class UpdateForgeSettingsRequest(BaseModel):
+    """Request to update Forge user settings."""
+    
+    alert_frequency: str | None = Field(None, pattern="^(instant|daily|weekly)$")
+    alert_types: list[str] | None = None
+    delivery_channels: list[str] | None = None
+    quiet_hours: dict[str, str] | None = None
+    email_notifications: bool | None = None
+    slack_notifications: bool | None = None
+    weekly_digest: bool | None = None
+
+
 # Forward-ref update so ScanResponse can reference ThreatEntry
 ScanResponse.model_rebuild()
