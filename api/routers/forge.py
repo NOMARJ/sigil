@@ -1217,6 +1217,128 @@ async def get_stacks_alias(
     return await get_tool_stack(use_case=use_case, max_tools=max_tools)
 
 
+@router.get("/jobs")
+async def get_forge_jobs(
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of jobs to return"),
+    offset: int = Query(0, ge=0, description="Number of jobs to skip"),
+    status: str = Query(None, description="Filter by job status"),
+):
+    """Get forge bot scan jobs and processing status."""
+    try:
+        # This endpoint provides visibility into the forge bot scanning queue
+        # Since we don't have a dedicated jobs table, return recent scan activities
+        # from public_scans as a proxy for job status
+        
+        filters = {}
+        if status and status.upper() in ['SUCCESS', 'ERROR', 'LOW_RISK', 'MEDIUM_RISK', 'HIGH_RISK', 'CRITICAL_RISK']:
+            filters['verdict'] = status.upper()
+        
+        if db.connected:
+            # Query recent scans as job proxy
+            sql = """
+            SELECT id, ecosystem, package_name as name, package_version as version,
+                   verdict, risk_score, scanned_at, metadata_json
+            FROM public_scans 
+            WHERE 1=1
+            """
+            params = []
+            
+            if status:
+                sql += " AND verdict = ?"
+                params.append(status.upper())
+                
+            sql += " ORDER BY scanned_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            
+            rows = await db.fetch_all(sql, params)
+            jobs = []
+            
+            for row in rows:
+                metadata = row.get('metadata_json', {})
+                if isinstance(metadata, str):
+                    try:
+                        import json
+                        metadata = json.loads(metadata)
+                    except:
+                        metadata = {}
+                
+                jobs.append({
+                    "id": row.get('id'),
+                    "ecosystem": row.get('ecosystem'),
+                    "name": row.get('name'),  
+                    "version": row.get('version'),
+                    "status": "completed",
+                    "verdict": row.get('verdict', 'UNKNOWN'),
+                    "risk_score": row.get('risk_score', 0),
+                    "completed_at": row.get('scanned_at'),
+                    "metadata": {
+                        "source": metadata.get("source", "forge-bot"),
+                        "duration_ms": metadata.get("duration_ms"),
+                        "files_scanned": metadata.get("files_scanned"),
+                    }
+                })
+        else:
+            jobs = []
+            
+        return {
+            "jobs": jobs,
+            "total": len(jobs),
+            "limit": limit,
+            "offset": offset,
+            "status_filter": status,
+        }
+    except Exception as e:
+        logger.error(f"Jobs query failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve forge jobs")
+
+
+@router.get("/stats")
+async def get_forge_stats():
+    """Get forge statistics and status."""
+    try:
+        if db.connected:
+            # Get scan statistics from public_scans table
+            stats_sql = """
+            SELECT 
+                COUNT(*) as total_scans,
+                COUNT(CASE WHEN verdict = 'CRITICAL_RISK' THEN 1 END) as critical_scans,
+                COUNT(CASE WHEN verdict = 'HIGH_RISK' THEN 1 END) as high_risk_scans,
+                COUNT(CASE WHEN verdict = 'MEDIUM_RISK' THEN 1 END) as medium_risk_scans,
+                COUNT(CASE WHEN verdict = 'LOW_RISK' THEN 1 END) as low_risk_scans,
+                COUNT(DISTINCT ecosystem) as ecosystems_covered,
+                MAX(scanned_at) as last_scan_at
+            FROM public_scans
+            WHERE scanned_at >= DATEADD(day, -7, GETDATE())
+            """
+            
+            stats_row = await db.fetch_one(stats_sql)
+            
+            return {
+                "status": "operational",
+                "total_scans_7d": stats_row.get("total_scans", 0),
+                "critical_scans_7d": stats_row.get("critical_scans", 0), 
+                "high_risk_scans_7d": stats_row.get("high_risk_scans", 0),
+                "medium_risk_scans_7d": stats_row.get("medium_risk_scans", 0),
+                "low_risk_scans_7d": stats_row.get("low_risk_scans", 0),
+                "ecosystems_covered": stats_row.get("ecosystems_covered", 0),
+                "last_scan_at": stats_row.get("last_scan_at"),
+                "database_connected": True
+            }
+        else:
+            return {
+                "status": "database_disconnected",
+                "total_scans_7d": 0,
+                "database_connected": False
+            }
+    except Exception as e:
+        logger.error(f"Stats query failed: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "database_connected": db.connected if hasattr(db, 'connected') else False
+        }
+
+
 @router.get("/feed.json")
 async def get_forge_feed():
     """RSS/JSON feed of latest tools (required by deployment validation)."""
