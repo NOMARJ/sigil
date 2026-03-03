@@ -227,7 +227,7 @@ async def json_feed(
         None,
         description="ISO datetime — return scans after this",
         max_length=50,
-        regex=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?",  # Basic ISO datetime validation
+        pattern=r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?",  # Basic ISO datetime validation
     ),
 ) -> list[dict[str, Any]]:
     """Return recent scans as a JSON array. Filterable by ecosystem and verdict."""
@@ -381,7 +381,7 @@ async def mcp_watchdog_feed(
     risk_level: str | None = Query(
         None,
         description="Filter by risk level (LOW, MEDIUM, HIGH)",
-        regex="^(LOW|MEDIUM|HIGH)$",
+        pattern="^(LOW|MEDIUM|HIGH)$",
     ),
     limit: int = Query(20, ge=1, le=100, description="Max results"),
     resolved: bool | None = Query(False, description="Include resolved alerts"),
@@ -667,12 +667,12 @@ async def skillguard_feed(
     risk_level: str | None = Query(
         None,
         description="Filter by risk level (LOW, MEDIUM, HIGH)",
-        regex="^(LOW|MEDIUM|HIGH)$",
+        pattern="^(LOW|MEDIUM|HIGH)$",
     ),
     severity: str | None = Query(
         None,
         description="Filter by severity (LOW, MEDIUM, HIGH, CRITICAL)",
-        regex="^(LOW|MEDIUM|HIGH|CRITICAL)$",
+        pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$",
     ),
     limit: int = Query(30, ge=1, le=100, description="Max results"),
     include_descriptions: bool = Query(

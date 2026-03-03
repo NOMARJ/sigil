@@ -5,6 +5,7 @@ Handles Forge Weekly email subscriptions, unsubscribes, and campaign management.
 Includes GDPR-compliant subscription management and analytics tracking.
 """
 
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -12,7 +13,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import HTMLResponse
 
-from api.dependencies import get_current_user, rate_limit
+from api.routers.auth import get_current_user
+from api.rate_limit import RateLimiter
 from api.models import (
     EmailSubscriptionRequest,
     EmailSubscriptionResponse,
@@ -25,7 +27,7 @@ from api.models import (
     ErrorResponse,
 )
 from api.services.email_service import email_service
-from api.database import get_database_client
+from api.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ router = APIRouter(prefix="/email", tags=["Email Newsletter"])
 async def subscribe_to_newsletter(
     request: EmailSubscriptionRequest,
     rate_limiter: None = Depends(
-        rate_limit("email_subscribe", max_requests=5, window_seconds=3600)
+        RateLimiter(max_requests=5, window=3600)
     ),
 ) -> EmailSubscriptionResponse:
     """
@@ -74,10 +76,9 @@ async def unsubscribe_page(token: str) -> HTMLResponse:
     Displays a user-friendly unsubscribe form with optional feedback.
     """
     # Validate token exists
-    async with get_database_client() as db:
-        subscription = await db.fetchrow(
-            "SELECT email FROM email_subscriptions WHERE unsubscribe_token = $1", token
-        )
+    subscription = await db.execute_raw_sql_single(
+        "SELECT email FROM email_subscriptions WHERE unsubscribe_token = ?", (token,)
+    )
 
     if not subscription:
         raise HTTPException(
@@ -250,32 +251,29 @@ async def update_email_preferences(
             status_code=status.HTTP_400_BAD_REQUEST, detail="User email not found"
         )
 
-    async with get_database_client() as db:
-        # Update preferences
-        result = await db.execute(
-            """
-            UPDATE email_subscriptions 
-            SET preferences = $1, updated_at = NOW()
-            WHERE email = $2 AND is_active = true
-            RETURNING unsubscribe_token
-        """,
-            request.preferences,
-            user_email,
+    # Update preferences
+    result = await db.update(
+        table="email_subscriptions",
+        filters={"email": user_email, "is_active": True},
+        data={
+            "preferences": json.dumps(request.preferences),
+            "updated_at": datetime.utcnow(),
+        }
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email subscription not found",
         )
 
-        if result == "UPDATE 0":
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Email subscription not found",
-            )
-
-        return EmailSubscriptionResponse(
-            success=True,
-            message="Email preferences updated successfully",
-            email=user_email,
-            preferences=request.preferences,
-            unsubscribe_token="",  # Don't expose token
-        )
+    return EmailSubscriptionResponse(
+        success=True,
+        message="Email preferences updated successfully",
+        email=user_email,
+        preferences=request.preferences,
+        unsubscribe_token="",  # Don't expose token
+    )
 
 
 @router.get(
@@ -357,39 +355,38 @@ async def get_email_stats(current_user: dict = Depends(get_current_user)) -> dic
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin permissions required"
         )
 
-    async with get_database_client() as db:
-        stats = await db.fetchrow("""
-            SELECT 
-                COUNT(CASE WHEN is_active = true THEN 1 END) as active_subscribers,
-                COUNT(CASE WHEN is_active = false THEN 1 END) as unsubscribed,
-                COUNT(*) as total_subscriptions,
-                AVG(CASE WHEN is_active = true THEN 1.0 ELSE 0.0 END) * 100 as retention_rate
-            FROM email_subscriptions
-        """)
+    stats = await db.execute_raw_sql_single("""
+        SELECT 
+            COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_subscribers,
+            COUNT(CASE WHEN is_active = 0 THEN 1 END) as unsubscribed,
+            COUNT(*) as total_subscriptions,
+            AVG(CASE WHEN is_active = 1 THEN 1.0 ELSE 0.0 END) * 100 as retention_rate
+        FROM email_subscriptions
+    """)
 
-        campaign_stats = await db.fetchrow("""
-            SELECT 
-                COUNT(*) as total_campaigns,
-                COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_campaigns,
-                SUM(sent_count) as total_emails_sent,
-                SUM(opened_count) as total_opens,
-                SUM(clicked_count) as total_clicks
-            FROM email_campaigns
-        """)
+    campaign_stats = await db.execute_raw_sql_single("""
+        SELECT 
+            COUNT(*) as total_campaigns,
+            COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_campaigns,
+            SUM(sent_count) as total_emails_sent,
+            SUM(opened_count) as total_opens,
+            SUM(clicked_count) as total_clicks
+        FROM email_campaigns
+    """)
 
-        recent_campaigns = await db.fetch("""
-            SELECT campaign_id, subject, recipient_count, sent_count, 
-                   opened_count, clicked_count, status, sent_at
-            FROM email_campaigns
-            ORDER BY created_at DESC
-            LIMIT 10
-        """)
+    recent_campaigns = await db.execute_raw_sql("""
+        SELECT campaign_id, subject, recipient_count, sent_count, 
+               opened_count, clicked_count, status, sent_at
+        FROM email_campaigns
+        ORDER BY created_at DESC
+        OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
+    """)
 
-        return {
-            "subscribers": dict(stats) if stats else {},
-            "campaigns": dict(campaign_stats) if campaign_stats else {},
-            "recent_campaigns": [dict(row) for row in recent_campaigns],
-        }
+    return {
+        "subscribers": dict(stats) if stats else {},
+        "campaigns": dict(campaign_stats) if campaign_stats else {},
+        "recent_campaigns": [dict(row) for row in recent_campaigns],
+    }
 
 
 @router.post("/webhook/resend", include_in_schema=False)
@@ -400,104 +397,95 @@ async def resend_webhook(event: dict) -> dict:
     Processes email delivery, open, click, and bounce events from Resend.
     Updates tracking data in the database.
     """
-    async with get_database_client() as db:
-        event_type = event.get("type")
-        data = event.get("data", {})
-        email = data.get("to", [{}])[0].get("email") if data.get("to") else None
-        timestamp = event.get("created_at")
+    event_type = event.get("type")
+    data = event.get("data", {})
+    email = data.get("to", [{}])[0].get("email") if data.get("to") else None
+    timestamp = event.get("created_at")
 
-        # Extract campaign_id from tags if present
-        campaign_id = None
-        if "tags" in data:
-            for tag in data.get("tags", []):
-                if tag.get("name") == "campaign_id":
-                    campaign_id = tag.get("value")
-                    break
+    # Extract campaign_id from tags if present
+    campaign_id = None
+    if "tags" in data:
+        for tag in data.get("tags", []):
+            if tag.get("name") == "campaign_id":
+                campaign_id = tag.get("value")
+                break
 
-        if not all([event_type, email]):
-            logger.warning(f"Incomplete webhook data: {event}")
-            return {"received": True}
+    if not all([event_type, email]):
+        logger.warning(f"Incomplete webhook data: {event}")
+        return {"received": True}
 
-        try:
-            # Convert timestamp to datetime
-            from datetime import datetime
+    try:
+        # Convert timestamp to datetime
+        event_time = (
+            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            if timestamp
+            else datetime.now()
+        )
 
-            event_time = (
-                datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                if timestamp
-                else datetime.now()
+        if event_type == "email.opened":
+            await db.execute_raw_sql(
+                """
+                UPDATE email_sends 
+                SET opened_at = ?
+                WHERE email = ? AND campaign_id = ? AND opened_at IS NULL
+            """,
+                (event_time, email, campaign_id),
             )
 
-            if event_type == "email.opened":
-                await db.execute(
+            # Update campaign stats
+            if campaign_id:
+                await db.execute_raw_sql(
                     """
-                    UPDATE email_sends 
-                    SET opened_at = $1
-                    WHERE email = $2 AND campaign_id = $3 AND opened_at IS NULL
+                    UPDATE email_campaigns 
+                    SET opened_count = opened_count + 1
+                    WHERE campaign_id = ?
                 """,
-                    event_time,
-                    email,
-                    campaign_id,
+                    (campaign_id,),
                 )
 
-                # Update campaign stats
-                if campaign_id:
-                    await db.execute(
-                        """
-                        UPDATE email_campaigns 
-                        SET opened_count = opened_count + 1
-                        WHERE campaign_id = $1
-                    """,
-                        campaign_id,
-                    )
+        elif event_type == "email.clicked":
+            await db.execute_raw_sql(
+                """
+                UPDATE email_sends 
+                SET clicked_at = ?
+                WHERE email = ? AND campaign_id = ? AND clicked_at IS NULL
+            """,
+                (event_time, email, campaign_id),
+            )
 
-            elif event_type == "email.clicked":
-                await db.execute(
+            # Update campaign stats
+            if campaign_id:
+                await db.execute_raw_sql(
                     """
-                    UPDATE email_sends 
-                    SET clicked_at = $1
-                    WHERE email = $2 AND campaign_id = $3 AND clicked_at IS NULL
+                    UPDATE email_campaigns 
+                    SET clicked_count = clicked_count + 1
+                    WHERE campaign_id = ?
                 """,
-                    event_time,
-                    email,
-                    campaign_id,
+                    (campaign_id,),
                 )
 
-                # Update campaign stats
-                if campaign_id:
-                    await db.execute(
-                        """
-                        UPDATE email_campaigns 
-                        SET clicked_count = clicked_count + 1
-                        WHERE campaign_id = $1
-                    """,
-                        campaign_id,
-                    )
+        elif event_type in ["email.bounced", "email.complaint"]:
+            await db.execute_raw_sql(
+                """
+                UPDATE email_sends 
+                SET bounced_at = ?, status = 'bounced'
+                WHERE email = ? AND campaign_id = ?
+            """,
+                (event_time, email, campaign_id),
+            )
 
-            elif event_type in ["email.bounced", "email.complaint"]:
-                await db.execute(
+            # Update campaign stats
+            if campaign_id:
+                await db.execute_raw_sql(
                     """
-                    UPDATE email_sends 
-                    SET bounced_at = $1, status = 'bounced'
-                    WHERE email = $2 AND campaign_id = $3
+                    UPDATE email_campaigns 
+                    SET bounced_count = bounced_count + 1
+                    WHERE campaign_id = ?
                 """,
-                    event_time,
-                    email,
-                    campaign_id,
+                    (campaign_id,),
                 )
 
-                # Update campaign stats
-                if campaign_id:
-                    await db.execute(
-                        """
-                        UPDATE email_campaigns 
-                        SET bounced_count = bounced_count + 1
-                        WHERE campaign_id = $1
-                    """,
-                        campaign_id,
-                    )
-
-        except Exception as e:
-            logger.error(f"Error processing Resend webhook event: {e}")
+    except Exception as e:
+        logger.error(f"Error processing Resend webhook event: {e}")
 
     return {"received": True}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,8 +24,255 @@ router = APIRouter(prefix="/forge", tags=["Sigil Forge"])
 
 
 # ============================================================================
+# Enums
+# ============================================================================
+
+
+class ToolCategory(str, Enum):
+    """Categories for AI tools and MCPs."""
+    AI_LLM_TOOLS = "ai_llm_tools"
+    API_INTEGRATIONS = "api_integrations" 
+    CODE_TOOLS = "code_tools"
+    COMMUNICATION_TOOLS = "communication_tools"
+    DATABASE_CONNECTORS = "database_connectors"
+    DATA_TOOLS = "data_tools"
+    DEVOPS_TOOLS = "devops_tools"
+    FILE_SYSTEM_TOOLS = "file_system_tools"
+    MONITORING_TOOLS = "monitoring_tools"
+    SEARCH_TOOLS = "search_tools"
+    SECURITY_TOOLS = "security_tools"
+    TESTING_TOOLS = "testing_tools"
+
+
+class ToolCapability(str, Enum):
+    """Capabilities that tools can provide."""
+    AI_LLM = "ai_llm"
+    AUTHENTICATION = "authentication"
+    CODE = "code"
+    DATABASE = "database"
+    NETWORK = "network"
+    SECURITY = "security"
+
+
+# ============================================================================
+# Tool Classification Model
+# ============================================================================
+
+
+class ClassifiedTool(BaseModel):
+    """Result of tool classification."""
+    name: str
+    ecosystem: str
+    category: ToolCategory
+    capabilities: list[ToolCapability]
+    trust_score: int
+    verdict: str
+    compatibility_signals: list[str]
+    github_url: str | None = None
+    install_command: str | None = None
+
+
+# ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> ClassifiedTool:
+    """Classify a tool based on its scan data and metadata."""
+    # Basic classification logic for tests
+    description = scan_data.get("metadata", {}).get("description", "")
+    risk_score = scan_data.get("risk_score", 0)
+    findings = scan_data.get("findings", [])
+    
+    # Determine category based on name and description
+    category = _determine_category(name, description)
+    
+    # Determine capabilities based on findings and metadata
+    capabilities = _determine_capabilities(findings, description)
+    
+    # Calculate trust score (100 - risk_score)
+    trust_score = max(0, 100 - risk_score)
+    
+    # Extract compatibility signals
+    compatibility_signals = _extract_compatibility_signals(findings)
+    
+    # Build GitHub URL if available
+    github_url = None
+    repo_url = scan_data.get("metadata", {}).get("repository", {}).get("url")
+    if repo_url and "github.com" in repo_url:
+        github_url = repo_url
+    
+    # Build install command
+    install_command = None
+    if ecosystem == "skill":
+        install_command = f"npx skills add {name}"
+    elif ecosystem == "mcp":
+        install_command = f"npm install {name}"
+    
+    return ClassifiedTool(
+        name=name,
+        ecosystem=ecosystem,
+        category=category,
+        capabilities=capabilities,
+        trust_score=trust_score,
+        verdict=scan_data.get("verdict", "UNKNOWN"),
+        compatibility_signals=compatibility_signals,
+        github_url=github_url,
+        install_command=install_command,
+    )
+
+
+def _determine_category(name: str, description: str) -> ToolCategory:
+    """Determine tool category based on name and description."""
+    name_lower = name.lower()
+    desc_lower = description.lower()
+    
+    # Database related
+    if any(term in name_lower for term in ["postgres", "mysql", "redis", "mongo", "db", "database"]):
+        return ToolCategory.DATABASE_CONNECTORS
+    if any(term in desc_lower for term in ["database", "redis", "sql", "postgres", "mysql"]):
+        return ToolCategory.DATABASE_CONNECTORS
+    
+    # AI/LLM related
+    if any(term in name_lower for term in ["gpt", "ai", "llm", "chat", "assistant"]):
+        return ToolCategory.AI_LLM_TOOLS
+    if any(term in desc_lower for term in ["gpt", "ai", "llm", "assistant", "chat"]):
+        return ToolCategory.AI_LLM_TOOLS
+    
+    # Security related
+    if any(term in name_lower for term in ["security", "audit", "scan"]):
+        return ToolCategory.SECURITY_TOOLS
+    if any(term in desc_lower for term in ["security", "audit", "vulnerabilit"]):
+        return ToolCategory.SECURITY_TOOLS
+    
+    # API related
+    if any(term in name_lower for term in ["api", "rest", "gateway"]):
+        return ToolCategory.API_INTEGRATIONS
+    if any(term in desc_lower for term in ["api", "rest", "gateway"]):
+        return ToolCategory.API_INTEGRATIONS
+    
+    # Code tools
+    if any(term in name_lower for term in ["lint", "format", "eslint", "code"]):
+        return ToolCategory.CODE_TOOLS
+    if any(term in desc_lower for term in ["lint", "format", "code", "syntax"]):
+        return ToolCategory.CODE_TOOLS
+    
+    # File system
+    if any(term in name_lower for term in ["file", "fs", "filesystem"]):
+        return ToolCategory.FILE_SYSTEM_TOOLS
+    if any(term in desc_lower for term in ["file", "filesystem", "directory"]):
+        return ToolCategory.FILE_SYSTEM_TOOLS
+    
+    # DevOps
+    if any(term in name_lower for term in ["docker", "deploy", "k8s", "kubernetes"]):
+        return ToolCategory.DEVOPS_TOOLS
+    if any(term in desc_lower for term in ["deploy", "docker", "kubernetes"]):
+        return ToolCategory.DEVOPS_TOOLS
+    
+    # Search
+    if any(term in name_lower for term in ["search", "elastic", "solr"]):
+        return ToolCategory.SEARCH_TOOLS
+    if any(term in desc_lower for term in ["search", "elastic", "index"]):
+        return ToolCategory.SEARCH_TOOLS
+    
+    # Communication
+    if any(term in name_lower for term in ["slack", "discord", "chat", "bot"]):
+        return ToolCategory.COMMUNICATION_TOOLS
+    if any(term in desc_lower for term in ["slack", "discord", "communication"]):
+        return ToolCategory.COMMUNICATION_TOOLS
+    
+    # Data
+    if any(term in name_lower for term in ["etl", "data", "pipeline"]):
+        return ToolCategory.DATA_TOOLS
+    if any(term in desc_lower for term in ["etl", "data", "pipeline"]):
+        return ToolCategory.DATA_TOOLS
+    
+    # Testing
+    if any(term in name_lower for term in ["test", "jest", "pytest", "spec"]):
+        return ToolCategory.TESTING_TOOLS
+    if any(term in desc_lower for term in ["test", "testing", "jest", "pytest"]):
+        return ToolCategory.TESTING_TOOLS
+    
+    # Monitoring
+    if any(term in name_lower for term in ["monitor", "datadog", "metrics"]):
+        return ToolCategory.MONITORING_TOOLS
+    if any(term in desc_lower for term in ["monitor", "metrics", "observability"]):
+        return ToolCategory.MONITORING_TOOLS
+    
+    # Default fallback
+    return ToolCategory.API_INTEGRATIONS
+
+
+def _determine_capabilities(findings: list, description: str) -> list[ToolCapability]:
+    """Determine tool capabilities based on findings and description."""
+    capabilities = []
+    desc_lower = description.lower()
+    
+    # Check findings for capability indicators
+    for finding in findings:
+        snippet = finding.get("snippet", "").lower()
+        phase = finding.get("phase", "")
+        
+        if phase == "credentials" or "env" in snippet or "password" in snippet:
+            capabilities.append(ToolCapability.AUTHENTICATION)
+        if phase == "network_exfil" or "fetch" in snippet or "http" in snippet:
+            capabilities.append(ToolCapability.NETWORK)
+        if "database" in snippet or "sql" in snippet:
+            capabilities.append(ToolCapability.DATABASE)
+        if "security" in snippet or "audit" in snippet:
+            capabilities.append(ToolCapability.SECURITY)
+        if "code" in snippet or "eval" in snippet:
+            capabilities.append(ToolCapability.CODE)
+    
+    # Check description for capability indicators
+    if any(term in desc_lower for term in ["database", "sql", "postgres", "mysql"]):
+        capabilities.append(ToolCapability.DATABASE)
+    if any(term in desc_lower for term in ["ai", "gpt", "llm", "assistant"]):
+        capabilities.append(ToolCapability.AI_LLM)
+    if any(term in desc_lower for term in ["auth", "login", "password"]):
+        capabilities.append(ToolCapability.AUTHENTICATION)
+    if any(term in desc_lower for term in ["network", "http", "api", "fetch"]):
+        capabilities.append(ToolCapability.NETWORK)
+    if any(term in desc_lower for term in ["security", "audit", "scan"]):
+        capabilities.append(ToolCapability.SECURITY)
+    if any(term in desc_lower for term in ["code", "programming", "development"]):
+        capabilities.append(ToolCapability.CODE)
+    
+    # Remove duplicates
+    return list(set(capabilities))
+
+
+def _extract_compatibility_signals(findings: list) -> list[str]:
+    """Extract compatibility signals from findings."""
+    signals = []
+    env_vars = []
+    endpoints = 0
+    
+    for finding in findings:
+        snippet = finding.get("snippet", "")
+        phase = finding.get("phase", "")
+        
+        if phase == "credentials":
+            # Extract environment variable names
+            if "process.env." in snippet:
+                var_name = snippet.split("process.env.")[1].split()[0].rstrip(",);")
+                env_vars.append(var_name)
+        
+        if phase == "network_exfil":
+            endpoints += 1
+    
+    # Build signals
+    if env_vars:
+        signals.append(f"env_vars:{','.join(env_vars)}")
+    
+    if endpoints > 0:
+        signals.append(f"network:{endpoints}_endpoints")
+    
+    # Add database compatibility signals based on env vars
+    if any("DATABASE" in var or "POSTGRES" in var for var in env_vars):
+        signals.append("database:postgres_compatible")
+    
+    return signals
 
 
 # ============================================================================

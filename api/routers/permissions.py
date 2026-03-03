@@ -459,7 +459,7 @@ async def permissions_directory() -> HTMLResponse:
 )
 async def mcp_permissions_page(
     mcp_name: str = Path(
-        ..., min_length=1, max_length=200, regex=r"^[a-zA-Z0-9_\-/]+$"
+        ..., min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9_\-/]+$"
     ),
 ) -> HTMLResponse:
     """Detailed permissions page for a specific MCP server."""
@@ -666,7 +666,7 @@ async def mcp_permissions_page(
 @router.get("/api/v1/permissions/{mcp_name}", summary="MCP server permissions JSON API")
 async def mcp_permissions_api(
     mcp_name: str = Path(
-        ..., min_length=1, max_length=200, regex=r"^[a-zA-Z0-9_\-/]+$"
+        ..., min_length=1, max_length=200, pattern=r"^[a-zA-Z0-9_\-/]+$"
     ),
 ) -> dict[str, Any]:
     """Get permissions data for an MCP server as JSON."""
@@ -720,10 +720,10 @@ async def search_permissions(
     permission: str | None = Query(
         None,
         description="Permission type (environment, filesystem, network, etc.)",
-        regex="^(environment|filesystem|network|database|process|credentials)$",
+        pattern="^(environment|filesystem|network|database|process|credentials)$",
     ),
     risk_level: str | None = Query(
-        None, description="Risk level (LOW, MEDIUM, HIGH)", regex="^(LOW|MEDIUM|HIGH)$"
+        None, description="Risk level (LOW, MEDIUM, HIGH)", pattern="^(LOW|MEDIUM|HIGH)$"
     ),
     limit: int = Query(50, ge=1, le=200, description="Max results"),
 ) -> list[dict[str, Any]]:
