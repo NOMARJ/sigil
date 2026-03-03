@@ -1259,7 +1259,7 @@ async def get_forge_jobs(
             sql += f" ORDER BY scanned_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
             params.extend([offset, limit])
 
-            rows = await db.execute_raw_sql(sql, tuple(params))
+            rows = await db.fetch_all(sql, params)
             jobs = []
 
             for row in rows:
