@@ -210,7 +210,14 @@ class EnhancedRateLimitMiddleware(BaseHTTPMiddleware):
         # Skip core health/metrics probes except during explicit rate-limit tests
         if (
             request.url.path
-            in {"/", "/health", "/health/detailed", "/health/ready", "/health/live", "/metrics"}
+            in {
+                "/",
+                "/health",
+                "/health/detailed",
+                "/health/ready",
+                "/health/live",
+                "/metrics",
+            }
             and _should_bypass_during_pytest()
         ):
             return await call_next(request)

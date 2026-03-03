@@ -328,7 +328,9 @@ async def _fetch_scan_rows(limit: int = 50) -> list[dict[str, Any]]:
     return await db.select("public_scans", limit=limit)
 
 
-async def _fetch_single_scan_row(ecosystem: str, package_name: str) -> dict[str, Any] | None:
+async def _fetch_single_scan_row(
+    ecosystem: str, package_name: str
+) -> dict[str, Any] | None:
     if hasattr(db, "fetch_one"):
         return await db.fetch_one(
             "SELECT * FROM public_scans WHERE ecosystem = ? AND package_name = ?",
@@ -552,7 +554,10 @@ async def search_tools(
 
         for row in rows:
             normalized_ecosystem = _normalize_ecosystem(row.get("ecosystem", ""))
-            if requested_type in {"skill", "mcp"} and normalized_ecosystem != requested_type:
+            if (
+                requested_type in {"skill", "mcp"}
+                and normalized_ecosystem != requested_type
+            ):
                 continue
 
             scan_data = _build_scan_data_from_row(row)
@@ -601,7 +606,9 @@ async def get_tool_stack(
             break
 
     avg_risk = (sum(risk_scores) / len(risk_scores)) if risk_scores else 0.0
-    overall_risk = "LOW_RISK" if avg_risk < 20 else "MEDIUM_RISK" if avg_risk < 50 else "HIGH_RISK"
+    overall_risk = (
+        "LOW_RISK" if avg_risk < 20 else "MEDIUM_RISK" if avg_risk < 50 else "HIGH_RISK"
+    )
 
     needed_capabilities = []
     lc_use_case = use_case.lower()
@@ -618,7 +625,11 @@ async def get_tool_stack(
         "tools": tools,
         "trust_summary": {
             "overall_risk": overall_risk,
-            "average_trust_score": int(sum(t["trust_score"] for t in tools) / len(tools)) if tools else 0,
+            "average_trust_score": int(
+                sum(t["trust_score"] for t in tools) / len(tools)
+            )
+            if tools
+            else 0,
             "needed_capabilities": needed_capabilities,
         },
     }
@@ -642,13 +653,17 @@ async def get_tool_details(ecosystem: str, name: str):
 
 
 @router.get("/classifications/skills")
-async def get_classified_skills(limit: int = Query(20, ge=1, le=200), min_trust_score: int = 0):
+async def get_classified_skills(
+    limit: int = Query(20, ge=1, le=200), min_trust_score: int = 0
+):
     rows = await _fetch_scan_rows(limit=limit * 5)
     items: list[dict[str, Any]] = []
     for row in rows:
         if _normalize_ecosystem(row.get("ecosystem", "")) != "skill":
             continue
-        tool = await classify_tool("skill", row.get("package_name", "unknown"), _build_scan_data_from_row(row))
+        tool = await classify_tool(
+            "skill", row.get("package_name", "unknown"), _build_scan_data_from_row(row)
+        )
         if tool.trust_score < min_trust_score:
             continue
         items.append(_serialize_classified_tool(tool))
@@ -657,13 +672,17 @@ async def get_classified_skills(limit: int = Query(20, ge=1, le=200), min_trust_
 
 
 @router.get("/classifications/mcps")
-async def get_classified_mcps(limit: int = Query(20, ge=1, le=200), min_trust_score: int = 0):
+async def get_classified_mcps(
+    limit: int = Query(20, ge=1, le=200), min_trust_score: int = 0
+):
     rows = await _fetch_scan_rows(limit=limit * 5)
     items: list[dict[str, Any]] = []
     for row in rows:
         if _normalize_ecosystem(row.get("ecosystem", "")) != "mcp":
             continue
-        tool = await classify_tool("mcp", row.get("package_name", "unknown"), _build_scan_data_from_row(row))
+        tool = await classify_tool(
+            "mcp", row.get("package_name", "unknown"), _build_scan_data_from_row(row)
+        )
         if tool.trust_score < min_trust_score:
             continue
         items.append(_serialize_classified_tool(tool))

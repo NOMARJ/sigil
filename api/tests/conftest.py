@@ -67,7 +67,10 @@ def pytest_collection_modifyitems(config, items):
     )
 
     for item in items:
-        if any(item.nodeid.endswith(file_name) or f"/{file_name}::" in item.nodeid for file_name in extended_files):
+        if any(
+            item.nodeid.endswith(file_name) or f"/{file_name}::" in item.nodeid
+            for file_name in extended_files
+        ):
             item.add_marker(skip_marker)
 
 

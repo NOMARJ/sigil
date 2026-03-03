@@ -430,7 +430,9 @@ class EmailChannel:
             msg = MIMEMultipart()
             msg["From"] = self.smtp_settings.smtp_from_email
             msg["To"] = ", ".join(self.recipients)
-            msg["Subject"] = f"[{alert.severity.value.upper()}] Sigil Alert: {alert.name}"
+            msg["Subject"] = (
+                f"[{alert.severity.value.upper()}] Sigil Alert: {alert.name}"
+            )
             msg.attach(MIMEText(alert.description, "plain"))
 
             with smtplib.SMTP(
@@ -567,8 +569,7 @@ class HealthCheckManager:
                 "critical_failures": sum(
                     1
                     for check in checks
-                    if check.get("critical")
-                    and check["status"] != HealthStatus.HEALTHY
+                    if check.get("critical") and check["status"] != HealthStatus.HEALTHY
                 ),
             },
             "checks": checks,
@@ -1347,7 +1348,7 @@ class MonitoringService:
             "http_requests_total 1\n"
             "# HELP http_request_duration_seconds HTTP request duration\n"
             "# TYPE http_request_duration_seconds histogram\n"
-            "http_request_duration_seconds_bucket{le=\"+Inf\"} 1\n"
+            'http_request_duration_seconds_bucket{le="+Inf"} 1\n'
         )
 
 

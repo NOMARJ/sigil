@@ -285,7 +285,10 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         # Enforce JSON content type for JSON scan submission endpoint
-        if request.method in {"POST", "PUT", "PATCH"} and request.url.path == "/v1/scans":
+        if (
+            request.method in {"POST", "PUT", "PATCH"}
+            and request.url.path == "/v1/scans"
+        ):
             content_type = request.headers.get("content-type", "")
             if "application/json" not in content_type.lower():
                 return JSONResponse(

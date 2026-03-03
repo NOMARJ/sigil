@@ -101,7 +101,10 @@ class ForgeClassifier:
             # Extract network protocols
             if finding.phase == ScanPhase.NETWORK_EXFIL:
                 snippet_lower = finding.snippet.lower()
-                if any(token in snippet_lower for token in ["http", "fetch", "axios", "request("]):
+                if any(
+                    token in snippet_lower
+                    for token in ["http", "fetch", "axios", "request("]
+                ):
                     patterns["network_protocols"].add("HTTP")
                 if "webhook" in snippet_lower:
                     patterns["network_protocols"].add("Webhook")

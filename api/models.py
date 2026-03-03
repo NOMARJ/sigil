@@ -488,7 +488,18 @@ class UserCreate(BaseModel):
     def validate_name(cls, value: str) -> str:
         name = value or ""
         lowered = name.lower()
-        if any(token in lowered for token in ["<script", "javascript:", "onerror", "onload", "<img", "<svg", "<iframe"]):
+        if any(
+            token in lowered
+            for token in [
+                "<script",
+                "javascript:",
+                "onerror",
+                "onload",
+                "<img",
+                "<svg",
+                "<iframe",
+            ]
+        ):
             raise ValueError("Invalid display name")
         if name and not re.match(r"^[A-Za-z0-9 _.-]{1,100}$", name):
             raise ValueError("Invalid display name")

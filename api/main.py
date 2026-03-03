@@ -218,7 +218,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 @app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     detail = str(exc.detail)
     if exc.status_code == status.HTTP_404_NOT_FOUND and detail == "Not Found":
         detail = "Bad request: not found"
@@ -226,7 +228,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": "Bad request"},
@@ -446,7 +450,9 @@ async def health() -> JSONResponse:
     """Return basic service health status for load balancer checks."""
     current_test = os.getenv("PYTEST_CURRENT_TEST", "")
     connected_attr = db.connected
-    db_connected = connected_attr() if callable(connected_attr) else bool(connected_attr)
+    db_connected = (
+        connected_attr() if callable(connected_attr) else bool(connected_attr)
+    )
 
     if os.getenv("SIGIL_RUN_EXTENDED_TESTS") == "1":
         if "test_connection_pool_recovery" in current_test and not db_connected:

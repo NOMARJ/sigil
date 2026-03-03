@@ -127,7 +127,9 @@ async def untrack_tool_compat(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ):
     await _require_pro(current_user)
-    tool = await db.select_one("forge_user_tools", {"id": tool_id, "user_id": current_user.id})
+    tool = await db.select_one(
+        "forge_user_tools", {"id": tool_id, "user_id": current_user.id}
+    )
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
     await db.delete("forge_user_tools", {"id": tool_id})
@@ -173,7 +175,10 @@ async def get_settings_compat(
             "user_id": current_user.id,
             "notifications": {"weekly_digest": True, "security_alerts": True},
             "privacy": {"public_profile": False, "share_stacks": False},
-            "preferences": {"risk_threshold": "medium", "auto_track_dependencies": False},
+            "preferences": {
+                "risk_threshold": "medium",
+                "auto_track_dependencies": False,
+            },
             "updated_at": datetime.now(timezone.utc),
         }
         await db.insert("forge_user_settings", row)
@@ -193,14 +198,14 @@ async def update_settings_compat(
 
     preferences = payload.get("preferences")
     if isinstance(preferences, dict):
-        if (
-            "risk_threshold" in preferences
-            and preferences["risk_threshold"] not in {"low", "medium", "high"}
-        ):
+        if "risk_threshold" in preferences and preferences["risk_threshold"] not in {
+            "low",
+            "medium",
+            "high",
+        }:
             raise HTTPException(status_code=422, detail="Invalid preferences")
-        if (
-            "default_scan_depth" in preferences
-            and not isinstance(preferences["default_scan_depth"], str)
+        if "default_scan_depth" in preferences and not isinstance(
+            preferences["default_scan_depth"], str
         ):
             raise HTTPException(status_code=422, detail="Invalid preferences")
 
