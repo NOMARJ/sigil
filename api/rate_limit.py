@@ -68,8 +68,8 @@ class RateLimiter:
         self.window = window
         self.key_prefix = key_prefix
 
-    async def __call__(self, request: Request | None = None) -> None:
-        if _should_bypass_during_pytest() or request is None:
+    async def __call__(self, request: Request) -> None:
+        if _should_bypass_during_pytest():
             return
 
         client_ip = request.client.host if request.client else "unknown"
