@@ -539,7 +539,7 @@ async def _build_classification_response(
 
 @router.get("/search")
 async def search_tools(
-    q: str = Query(..., description="Search query"),
+    q: str = Query("", description="Search query"),
     ecosystem: str | None = Query(None, description="Filter by ecosystem"),
     type: str | None = Query(None, description="Compatibility filter: skill|mcp"),
     category: str | None = Query(None, description="Filter by category"),
