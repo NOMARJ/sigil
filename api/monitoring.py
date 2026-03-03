@@ -17,6 +17,9 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from api.config import settings
 from api.errors import (
     error_tracker,
@@ -968,10 +971,6 @@ def get_monitoring_status() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # FastAPI Middleware
 # ---------------------------------------------------------------------------
-
-
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
