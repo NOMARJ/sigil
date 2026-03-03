@@ -3,8 +3,8 @@ Test suite for Sigil Forge security and access control system.
 """
 
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient

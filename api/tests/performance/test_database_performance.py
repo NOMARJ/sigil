@@ -6,7 +6,7 @@ Analyzes query performance, suggests indexes, and validates optimization
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List
 import json
 import asyncpg
 from contextlib import asynccontextmanager
@@ -237,7 +237,7 @@ class DatabasePerformanceTester:
                     # Check for performance issues
                     issues = self.analyze_plan(result["plan"])
                     if issues:
-                        print(f"  ⚠️  Performance Issues Found:")
+                        print("  ⚠️  Performance Issues Found:")
                         for issue in issues:
                             print(f"    - {issue}")
                     
@@ -331,7 +331,7 @@ class DatabasePerformanceTester:
             ORDER BY tablename, attname
         """
         
-        stats = await conn.fetch(missing_indexes_query)
+        await conn.fetch(missing_indexes_query)
         
         # Generate recommendations
         recommendations = [
@@ -386,7 +386,7 @@ class DatabasePerformanceTester:
             index_name = rec["index"].split(" ")[-1].split("(")[0]
             if index_name not in existing_index_names:
                 new_recommendations.append(rec)
-                print(f"Recommended Index:")
+                print("Recommended Index:")
                 print(f"  Table: {rec['table']}")
                 print(f"  SQL: {rec['index']}")
                 print(f"  Reason: {rec['reason']}\n")
@@ -409,7 +409,7 @@ class DatabasePerformanceTester:
                 else:
                     await conn.fetch(query)
                 return (time.perf_counter() - start) * 1000
-            except Exception as e:
+            except Exception:
                 return None
         
         # Simulate concurrent users
@@ -526,7 +526,7 @@ async def main():
         with open("database_performance_report.json", "w") as f:
             json.dump(report, f, indent=2)
         
-        print(f"\nDetailed report saved to: database_performance_report.json")
+        print("\nDetailed report saved to: database_performance_report.json")
         
         # Return non-zero exit code if tests failed
         if report['summary']['pass_rate'] < 100:

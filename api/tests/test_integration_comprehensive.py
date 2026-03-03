@@ -7,17 +7,11 @@ authentication flows, and cross-service communication.
 
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-import time
-from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import settings
 from api.database import db
 
 
@@ -86,7 +80,7 @@ class TestAuthenticationIntegration:
         assert logout_resp.status_code == 204
         
         # Step 7: Verify token is invalidated (optional, depends on implementation)
-        post_logout_resp = client.get("/v1/auth/me", headers=new_headers)
+        client.get("/v1/auth/me", headers=new_headers)
         # Token might still work until expiry depending on stateless JWT implementation
     
     def test_password_validation_integration(self, client: TestClient):
@@ -369,7 +363,7 @@ class TestBillingIntegration:
         
         if sub_resp.status_code == 200:
             current_sub = sub_resp.json()
-            current_plan = current_sub.get("plan", "free")
+            current_sub.get("plan", "free")
             
             # Step 2: List available plans
             plans_resp = client.get("/v1/billing/plans", headers=auth_headers)
@@ -630,7 +624,7 @@ class TestWorkflowIntegration:
             "metadata": {
                 "version": "2.1.0",
                 "author": "Legitimate Developer",
-                "npm_url": f"https://www.npmjs.com/package/my-awesome-lib",
+                "npm_url": "https://www.npmjs.com/package/my-awesome-lib",
                 "repository": "https://github.com/legit-dev/my-awesome-lib",
             },
         }

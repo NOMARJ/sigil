@@ -7,10 +7,9 @@ import json
 import random
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List
 
 from locust import HttpUser, TaskSet, task, between, events
-from locust.runners import MasterRunner, WorkerRunner
+from locust.runners import MasterRunner
 import logging
 
 logger = logging.getLogger(__name__)
@@ -409,5 +408,5 @@ def on_test_stop(environment, **kwargs):
         with open("forge_performance_report.json", "w") as f:
             json.dump(report, f, indent=2)
         
-        print(f"\nDetailed report saved to: forge_performance_report.json")
+        print("\nDetailed report saved to: forge_performance_report.json")
         print("="*60)

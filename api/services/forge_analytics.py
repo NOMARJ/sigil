@@ -7,12 +7,10 @@ Supports real-time analytics with Redis caching and plan-based feature gating.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID
 
 import aioredis
 from fastapi import HTTPException
@@ -20,7 +18,7 @@ from fastapi import HTTPException
 from api.database import db
 from api.models import (
     ForgeAnalyticsEvent, ForgeEventType, PersonalAnalyticsResponse,
-    TeamAnalyticsResponse, OrganizationAnalyticsResponse, PlanTier
+    TeamAnalyticsResponse, OrganizationAnalyticsResponse
 )
 
 logger = logging.getLogger(__name__)

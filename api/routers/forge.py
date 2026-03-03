@@ -12,15 +12,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Depends
-from api.routers.auth import get_current_user_unified, UserResponse
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.database import db
-from api.models import ErrorResponse, ForgeEventType
-from api.services.forge_classifier import forge_classifier
 from api.services.forge_matcher import forge_matcher
-from api.services.forge_analytics import track_forge_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])

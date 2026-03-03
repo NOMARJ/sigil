@@ -4,7 +4,7 @@ Test suite for Sigil Forge API endpoints and classification service.
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import status
@@ -14,8 +14,6 @@ from api.main import app
 from api.routers.forge import (
     ToolCapability,
     ToolCategory,
-    ToolMatch,
-    ForgeStack,
     classify_tool,
 )
 

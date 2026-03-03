@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import traceback
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
@@ -354,7 +353,6 @@ async def enhanced_health_check() -> dict:
     """Enhanced health check that includes all resilience components."""
     from api.background_job_resilience import job_queue
     from api.circuit_breakers import circuit_registry
-    from api.database import cache, db
     from api.database_resilience import get_database_health
     from api.graceful_degradation import get_degradation_health_status
     from api.monitoring import get_monitoring_status

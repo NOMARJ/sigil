@@ -7,8 +7,8 @@ import asyncio
 import json
 import time
 import random
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime
+from typing import Dict, Optional
 import redis.asyncio as redis
 from dataclasses import dataclass
 
@@ -191,7 +191,7 @@ class RedisCachePerformanceTester:
         start_time = time.perf_counter()
         cached_data = await self.redis_client.get(tools_key)
         if cached_data:
-            tools = json.loads(cached_data)
+            json.loads(cached_data)
         hit_time = (time.perf_counter() - start_time) * 1000
         print(f"  Cache hit: {hit_time:.2f}ms")
         print(f"  Speedup: {miss_time/hit_time:.1f}x")
@@ -249,7 +249,7 @@ class RedisCachePerformanceTester:
         
         # Get data
         start_time = time.perf_counter()
-        cached = await self.redis_client.get(key)
+        await self.redis_client.get(key)
         get_time = (time.perf_counter() - start_time) * 1000
         
         # Check TTL
@@ -559,7 +559,7 @@ async def main():
         with open("redis_performance_report.json", "w") as f:
             json.dump(report, f, indent=2)
         
-        print(f"\nDetailed report saved to: redis_performance_report.json")
+        print("\nDetailed report saved to: redis_performance_report.json")
         
     finally:
         await tester.teardown()

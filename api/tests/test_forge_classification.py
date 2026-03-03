@@ -5,12 +5,8 @@ Tests the accuracy and performance of the classification engine.
 """
 
 import asyncio
-import json
 import pytest
-from datetime import datetime, timezone
-from typing import Any
 
-from api.database import db
 from api.models import Finding, ScanPhase, Severity
 from api.services.forge_classifier import ForgeClassifier, ClassificationInput, ClassificationResult
 from api.services.forge_matcher import ForgeMatcher

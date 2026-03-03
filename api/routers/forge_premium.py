@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.database import db
 from api.gates import PlanTier, require_plan

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, TypeVar
 
-from api.circuit_breakers import CircuitBreaker, CircuitBreakerConfig, circuit_registry
+from api.circuit_breakers import CircuitBreaker, CircuitBreakerConfig
 from api.config import settings
 from api.errors import (
     DatabaseError,

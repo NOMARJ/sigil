@@ -8,11 +8,10 @@ Supports real-time event tracking and cached analytics dashboards.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 from api.gates import require_plan, get_user_plan
 from api.models import (

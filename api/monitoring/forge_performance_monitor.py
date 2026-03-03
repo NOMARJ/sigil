@@ -6,9 +6,9 @@ Real-time performance tracking and alerting for production
 import asyncio
 import time
 import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from datetime import datetime
+from typing import Dict, List, Optional
+from dataclasses import dataclass
 from collections import deque
 import statistics
 

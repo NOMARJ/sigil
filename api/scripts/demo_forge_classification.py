@@ -15,12 +15,10 @@ import asyncio
 import json
 import sys
 from datetime import datetime, timezone
-from typing import Any
 
 # Add parent directory to path to import API modules
 sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
-from api.config import settings
 from api.database import db
 from api.models import Finding, ScanPhase, Severity
 from api.services.forge_classifier import forge_classifier, ClassificationInput
@@ -201,7 +199,7 @@ async def demo_matching(classifications):
         tool1_input, tool1_result = postgres_tools[0]
         tool2_input, tool2_result = postgres_tools[1]
         
-        print(f"Analyzing compatibility between:")
+        print("Analyzing compatibility between:")
         print(f"  1. {tool1_input.ecosystem}/{tool1_input.package_name}")
         print(f"  2. {tool2_input.ecosystem}/{tool2_input.package_name}")
         print()

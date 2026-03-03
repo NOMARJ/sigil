@@ -8,7 +8,6 @@ and protection against common web vulnerabilities.
 from __future__ import annotations
 
 import html
-import json
 import logging
 import re
 import urllib.parse

@@ -176,7 +176,7 @@ class BatchMatchGenerator:
             
             # Final stats
             elapsed = time.time() - start_time
-            logger.info(f"Batch match generation complete!")
+            logger.info("Batch match generation complete!")
             logger.info(f"Processed tools: {self.processed_count}")
             logger.info(f"Matches generated: {self.matches_generated}")
             logger.info(f"Errors: {self.error_count}")

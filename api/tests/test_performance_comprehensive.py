@@ -12,7 +12,7 @@ import statistics
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -320,12 +320,12 @@ class TestDatabasePerformance:
         test_emails = [f"perftest{i}@example.com" for i in range(100)]
         
         # Measure user lookup performance
-        start_time = time.time()
+        time.time()
         
         lookup_times = []
         for email in test_emails[:10]:  # Test first 10
             lookup_start = time.time()
-            user = await db.get_user_by_email(email)
+            await db.get_user_by_email(email)
             lookup_end = time.time()
             lookup_times.append((lookup_end - lookup_start) * 1000)
         
@@ -341,10 +341,9 @@ class TestDatabasePerformance:
     @pytest.mark.asyncio
     async def test_scan_query_performance(self, client: TestClient):
         """Test scan query performance."""
-        from api.database import db
         
         # Measure scan listing performance
-        start_time = time.time()
+        time.time()
         
         # This would typically test actual database queries
         # For now, we'll measure the time for basic operations
@@ -437,7 +436,7 @@ class TestClassificationPipelinePerformance:
         
         for findings in test_cases:
             start_time = time.time()
-            result = scanner.classify_scan_result("test-target", "npm", len(findings), findings)
+            scanner.classify_scan_result("test-target", "npm", len(findings), findings)
             end_time = time.time()
             
             classification_time = (end_time - start_time) * 1000

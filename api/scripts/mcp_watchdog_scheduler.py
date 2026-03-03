@@ -25,8 +25,7 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +117,7 @@ class MCPWatchdogScheduler:
         
         while self.running:
             try:
-                logger.info(f"🔍 Starting MCP server discovery scan...")
+                logger.info("🔍 Starting MCP server discovery scan...")
                 await self._run_discovery()
                 
                 # Update last run time
@@ -355,7 +354,7 @@ async def run_once():
     logger.info("🐕 Running MCP Watchdog once...")
     
     # Load config
-    config = await scheduler._load_config()
+    await scheduler._load_config()
     
     # Run discovery
     await scheduler._run_discovery()

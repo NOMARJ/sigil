@@ -7,7 +7,6 @@ and analytics streaming for Forge premium features.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import List
 
@@ -293,5 +292,4 @@ async def get_realtime_status():
 
 
 # Import required dependencies for the endpoint
-from api.gates import require_plan
 from datetime import datetime

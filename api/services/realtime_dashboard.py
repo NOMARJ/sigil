@@ -10,15 +10,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 import aioredis
 from fastapi import WebSocket, WebSocketDisconnect
 
 from api.database import db
-from api.models import PlanTier
 from api.services.forge_analytics import analytics_service
 
 logger = logging.getLogger(__name__)

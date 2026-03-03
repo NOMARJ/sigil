@@ -7,9 +7,6 @@ CSRF protection, rate limiting, input validation, and security headers.
 
 from __future__ import annotations
 
-import json
-import time
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,7 +39,7 @@ class TestXSSProtection:
         """Test XSS protection in user registration fields."""
         for payload in xss_payloads:
             registration_data = {
-                "email": f"test@example.com",
+                "email": "test@example.com",
                 "password": "ValidPassword123!",
                 "name": payload,  # XSS payload in name field
             }
@@ -200,7 +197,7 @@ class TestCSRFProtection:
         }
         
         # Should be rejected due to CORS policy
-        resp = client.post("/v1/scans", json=scan_data, headers=malicious_headers)
+        client.post("/v1/scans", json=scan_data, headers=malicious_headers)
         # The exact status depends on CORS configuration
         # In production, this should be blocked
 

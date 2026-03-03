@@ -11,12 +11,9 @@ Tests the newly implemented Forge dashboard features including:
 """
 
 import asyncio
-import json
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timedelta
 from uuid import uuid4
 
-import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
@@ -258,8 +255,8 @@ class TestForgeSettings:
         # Verify settings were saved
         resp = client.get("/v1/forge/settings", headers=pro_auth_headers)
         saved_settings = resp.json()
-        assert saved_settings["notifications"]["weekly_digest"] == False
-        assert saved_settings["privacy"]["public_profile"] == False
+        assert not saved_settings["notifications"]["weekly_digest"]
+        assert not saved_settings["privacy"]["public_profile"]
 
 
 class TestForgeStacks:

@@ -7,12 +7,10 @@ circuit breakers, error recovery, and graceful degradation scenarios.
 
 from __future__ import annotations
 
-import asyncio
 import random
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List
+from typing import List
 from unittest.mock import Mock, patch
 
 import pytest
@@ -78,7 +76,7 @@ class TestDatabaseResilience:
             
             health_data = health_resp.json()
             assert health_data["status"] == "degraded"
-            assert health_data["database_connected"] == False
+            assert not health_data["database_connected"]
         
         # System should recover when database comes back
         recovery_resp = client.get("/health")
@@ -169,7 +167,7 @@ class TestNetworkResilience:
         assert len(successful_requests) > 0, "No requests succeeded during intermittent failures"
         
         # Failed requests should be handled gracefully
-        failed_requests = [r for r in results if r is None]
+        [r for r in results if r is None]
         # Some failures are acceptable during network chaos
 
 
@@ -440,7 +438,7 @@ class TestErrorRecovery:
         assert recovery_resp.status_code == 200
         
         recovery_data = recovery_resp.json()
-        assert recovery_data["database_connected"] == True
+        assert recovery_data["database_connected"]
     
     def test_background_service_recovery(self, client: TestClient):
         """Test recovery of background services after failures."""
@@ -585,8 +583,8 @@ class TestCascadingFailureProtection:
         }
         
         # Start heavy operation
-        heavy_start_time = time.time()
-        heavy_resp = client.post("/v1/scans", json=heavy_scan_data, headers=auth_headers)
+        time.time()
+        client.post("/v1/scans", json=heavy_scan_data, headers=auth_headers)
         
         # Light operations should still be responsive
         light_start_time = time.time()

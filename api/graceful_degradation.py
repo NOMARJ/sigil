@@ -7,26 +7,17 @@ even when dependent services are unavailable or degraded.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, TypeVar
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 from api.circuit_breakers import circuit_registry
-from api.config import settings
-from api.errors import (
-    ErrorCategory,
-    ErrorSeverity,
-    ServiceUnavailableError,
-    SigilError,
-    error_tracker,
-)
 
 logger = logging.getLogger(__name__)
 

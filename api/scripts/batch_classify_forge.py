@@ -23,7 +23,6 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
 from typing import Any
 
 # Add parent directory to path to import API modules
@@ -152,7 +151,7 @@ class BatchClassifier:
             result = await forge_classifier.classify_package(input_data)
             
             # Save classification
-            classification_id = await forge_classifier.save_classification(input_data, result)
+            await forge_classifier.save_classification(input_data, result)
             
             logger.info(f"✓ Classified {ecosystem}/{package_name} as {result.category} (confidence: {result.confidence_score:.2f})")
             return True
@@ -204,7 +203,7 @@ class BatchClassifier:
             
             # Final stats
             elapsed = time.time() - start_time
-            logger.info(f"Batch classification complete!")
+            logger.info("Batch classification complete!")
             logger.info(f"Processed: {self.processed_count}")
             logger.info(f"Classified: {self.classified_count}")
             logger.info(f"Errors: {self.error_count}")

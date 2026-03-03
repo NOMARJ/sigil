@@ -17,28 +17,19 @@ Security Areas Tested:
 10. Session Management
 """
 
-import asyncio
 import json
-import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import uuid4
+from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from api.database import db
 from api.models import (
-    AlertSubscription,
-    CreateStackRequest,
-    ForgeStack,
-    ForgeUserSettings,
-    TrackedTool,
     TrackToolRequest,
-    UpdateTrackedToolRequest,
     UserResponse,
 )
 from api.routers.auth import get_current_user_unified
@@ -519,11 +510,6 @@ class TestInputValidationSecurity:
             )
             
             # Even if client tries to set different user_id
-            malicious_data = {
-                "user_id": "another-user",  # Trying to impersonate
-                "tool_id": "test-tool",
-                "ecosystem": "npm"
-            }
             
             # Server should always use authenticated user's ID
             with patch("api.database.db.insert") as mock_insert:
@@ -543,7 +529,7 @@ class TestRateLimitingSecurity:
     async def test_rate_limits_enforced_per_plan(self):
         """Verify rate limits are properly enforced for each plan."""
         
-        from api.security.forge_access import RATE_LIMITS, apply_rate_limit
+        from api.security.forge_access import apply_rate_limit
         from fastapi import Request
         
         plans_and_limits = [
@@ -840,7 +826,6 @@ class TestPenetrationScenarios:
         
         # Sequential ID enumeration attempt
         for i in range(100):
-            target_id = f"user-{i:04d}"
             
             # Should not be able to access other users' data
             query = DataAccessFilter.apply_user_filter(
@@ -858,8 +843,6 @@ class TestPenetrationScenarios:
         # Authentication should take consistent time regardless of validity
         import time
         
-        valid_email = "valid@example.com"
-        invalid_email = "invalid@example.com"
         
         with patch("api.routers.auth._verify_password") as mock_verify:
             # Should use constant-time comparison

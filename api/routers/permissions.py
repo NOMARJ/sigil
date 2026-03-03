@@ -20,10 +20,9 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Path
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 
 from api.database import db
-from api.middleware.security import InputSanitizer, SecurityValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +438,7 @@ async def mcp_permissions_page(
             raise HTTPException(status_code=400, detail="Invalid MCP server name")
         
         # Escape for safe display
-        safe_mcp_name = html.escape(mcp_name)
+        html.escape(mcp_name)
         
         # Get scan data for this MCP server
         scan = await db.select_one(
@@ -470,7 +469,7 @@ async def mcp_permissions_page(
             icon = cat_info.get("icon", "")
             title = cat_info.get("title", category.title())
             description = cat_info.get("description", "")
-            risk = cat_info.get("risk_level", "medium")
+            cat_info.get("risk_level", "medium")
             
             # Escape items for safe HTML output
             items_html = "".join([f"<li><code>{html.escape(item)}</code></li>" for item in items])

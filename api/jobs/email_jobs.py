@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from api.services.email_service import email_service
-from api.models import EmailCampaignRequest, WeeklyDigestContent
+from api.models import EmailCampaignRequest
 from api.database import get_database_client
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ class EmailJobRunner:
                     RETURNING count(*)
                 """, cutoff_date)
                 
-                self.logger.info(f"Cleanup completed:")
+                self.logger.info("Cleanup completed:")
                 self.logger.info(f"  - Deleted {deleted_sends or 0} old email sends")
                 self.logger.info(f"  - Deleted {deleted_campaigns or 0} old campaigns")
                 self.logger.info(f"  - Deleted {deleted_cache or 0} old digest cache entries")

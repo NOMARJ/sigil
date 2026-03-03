@@ -7,13 +7,9 @@ alert generation, dashboard functionality, and monitoring accuracy.
 
 from __future__ import annotations
 
-import json
-import logging
 import time
-from typing import Any, Dict, List
 from unittest.mock import Mock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -40,7 +36,7 @@ class TestHealthChecks:
         # Test with database connected
         normal_resp = client.get("/health")
         assert normal_resp.status_code == 200
-        normal_data = normal_resp.json()
+        normal_resp.json()
         
         # Test with database disconnected
         with patch('api.database.db.connected', return_value=False):
@@ -49,7 +45,7 @@ class TestHealthChecks:
             
             degraded_data = degraded_resp.json()
             assert degraded_data["status"] == "degraded"
-            assert degraded_data["database_connected"] == False
+            assert not degraded_data["database_connected"]
     
     def test_health_check_reflects_cache_status(self, client: TestClient):
         """Test that health checks accurately reflect cache connectivity."""
@@ -60,7 +56,7 @@ class TestHealthChecks:
             assert resp.status_code in [200, 503]
             
             data = resp.json()
-            assert data["redis_connected"] == False
+            assert not data["redis_connected"]
     
     def test_health_check_performance(self, client: TestClient):
         """Test that health checks respond quickly."""
@@ -178,7 +174,7 @@ class TestLogAggregation:
     
     def test_error_logging_accuracy(self, client: TestClient):
         """Test that errors are logged accurately."""
-        with patch('api.main.logger') as mock_logger:
+        with patch('api.main.logger'):
             # Trigger an error
             client.get("/nonexistent-endpoint")
             
@@ -187,7 +183,7 @@ class TestLogAggregation:
     
     def test_security_event_logging(self, client: TestClient):
         """Test that security events are logged properly."""
-        with patch('api.main.logger') as mock_logger:
+        with patch('api.main.logger'):
             # Attempt unauthorized access
             client.get("/v1/scans", headers={"Authorization": "Bearer invalid"})
             
@@ -240,7 +236,7 @@ class TestAlertGeneration:
         
         for _ in range(20):
             start = time.time()
-            resp = client.get("/health")
+            client.get("/health")
             end = time.time()
             
             response_time = (end - start) * 1000
@@ -264,7 +260,7 @@ class TestAlertGeneration:
             assert resp.status_code == 503
             
             data = resp.json()
-            assert data["database_connected"] == False
+            assert not data["database_connected"]
             
             # This should trigger database connectivity alert
     
@@ -425,7 +421,7 @@ class TestMonitoringAccuracy:
         process = psutil.Process(os.getpid())
         
         # Capture baseline resource usage
-        baseline_cpu = process.cpu_percent()
+        process.cpu_percent()
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
         
         # Generate some load
@@ -434,7 +430,7 @@ class TestMonitoringAccuracy:
             assert resp.status_code == 200
         
         # Measure resource usage after load
-        loaded_cpu = process.cpu_percent()
+        process.cpu_percent()
         loaded_memory = process.memory_info().rss / 1024 / 1024  # MB
         
         # Resource usage should be tracked accurately

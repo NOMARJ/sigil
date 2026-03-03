@@ -6,7 +6,6 @@ functionality to ensure production monitoring works correctly.
 """
 
 import asyncio
-import json
 import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
@@ -619,7 +618,6 @@ class TestMonitoringPerformance:
     
     def test_health_check_performance(self, test_client):
         """Test that health checks don't significantly impact performance."""
-        import time
         
         # Time basic health check
         start = time.time()
@@ -643,7 +641,6 @@ class TestMonitoringPerformance:
     
     def test_metrics_collection_overhead(self, test_client):
         """Test metrics collection overhead."""
-        import time
         
         # Make requests and time them
         start = time.time()

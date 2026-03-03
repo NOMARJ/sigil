@@ -17,7 +17,6 @@ from api.database import db
 from api.security.forge_access import (
     AuditAction,
     AuditLogger,
-    DataAccessFilter,
     ForgeFeature,
     ForgeUser,
     TeamRole,

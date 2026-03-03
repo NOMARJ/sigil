@@ -12,11 +12,10 @@ import logging
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, List, Optional, Set, Type, TypeVar, Union
+from typing import Any, Awaitable, Callable, List, Optional, Set, Type, TypeVar
 
 from api.errors import (
     ErrorCategory,
-    ExternalServiceError,
     SigilError,
     TimeoutError,
     error_tracker,
@@ -266,7 +265,7 @@ async def retry_with_backoff(
             return result
             
         except Exception as exc:
-            attempt_duration = time.time() - attempt_start
+            time.time() - attempt_start
             state.total_elapsed = time.time() - state.start_time
             state.last_exception = exc
             

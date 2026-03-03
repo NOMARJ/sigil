@@ -17,10 +17,9 @@ import argparse
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List
 
-from api.config import settings
 from api.database import db
 
 logger = logging.getLogger(__name__)
@@ -94,7 +93,7 @@ class PerformanceMonitor:
             
             # Show unused indexes
             if unused_indexes:
-                print(f"\n⚠️  Unused indexes (consider dropping):")
+                print("\n⚠️  Unused indexes (consider dropping):")
                 for idx in unused_indexes:
                     if idx['index_name'] and not idx['index_name'].startswith('PK_'):
                         print(f"  🗑️  {idx['table_name']}.{idx['index_name']} ({idx['index_type']})")
@@ -363,7 +362,7 @@ class PerformanceMonitor:
                 
                 # Test a simple query
                 start_time = time.time()
-                result = await db.execute_raw_sql("SELECT 1 as test_query")
+                await db.execute_raw_sql("SELECT 1 as test_query")
                 end_time = time.time()
                 query_time_ms = (end_time - start_time) * 1000
                 
@@ -474,7 +473,7 @@ class PerformanceMonitor:
         self.results["recommendations"] = await self.generate_optimization_recommendations()
         
         # Summary
-        print(f"\n📋 Performance Analysis Summary")
+        print("\n📋 Performance Analysis Summary")
         print(f"{'='*50}")
         print(f"Timestamp: {datetime.now().isoformat()}")
         print(f"Database Connected: {db.connected}")

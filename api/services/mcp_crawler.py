@@ -31,7 +31,6 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -566,7 +565,7 @@ async def _main() -> None:
     if args.typosquat_check:
         # Check for typosquats
         alerts = await detect_typosquats(servers)
-        print(f"\nTyposquat Detection Results:")
+        print("\nTyposquat Detection Results:")
         print("=" * 50)
         
         for alert in alerts[:10]:  # Show top 10

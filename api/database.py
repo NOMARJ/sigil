@@ -195,7 +195,7 @@ class MssqlClient:
                 result = self._row_to_dict(cursor, row)
                 await conn.commit()
                 return result
-        except Exception as e:
+        except Exception:
             success = False
             raise
         finally:

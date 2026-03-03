@@ -7,14 +7,11 @@ for Forge premium features.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 
 from api.database import db
-from api.models import PlanTier
 
 logger = logging.getLogger(__name__)
 
