@@ -6,7 +6,7 @@ set -e
 # Configuration
 RESOURCE_GROUP="sigil-rg"
 ACR_NAME="sigilacrhoqms2"
-CONTAINER_APP="sigil-api-v2"
+CONTAINER_APP="sigil-api"
 IMAGE_TAG="supabase-auth-$(git rev-parse --short HEAD)"
 
 echo "🚀 Deploying Sigil API with Supabase Auth Support"
