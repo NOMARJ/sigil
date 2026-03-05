@@ -89,10 +89,10 @@ SAMPLE_SKILL_SCAN = {
 @pytest.mark.asyncio
 async def test_classify_tool_database():
     """Test classification of a database tool."""
-    tool = await classify_tool("mcp", "mcp-postgres", SAMPLE_SCAN_DATA)
+    tool = await classify_tool("mcps", "mcp-postgres", SAMPLE_SCAN_DATA)
 
     assert tool.name == "mcp-postgres"
-    assert tool.ecosystem == "mcp"
+    assert tool.ecosystem == "mcps"  # Changed to plural
     assert tool.category == ToolCategory.DATABASE_CONNECTORS
     assert ToolCapability.DATABASE in tool.capabilities
     assert ToolCapability.AUTHENTICATION in tool.capabilities
@@ -106,10 +106,10 @@ async def test_classify_tool_database():
 @pytest.mark.asyncio
 async def test_classify_tool_ai_skill():
     """Test classification of an AI/LLM skill."""
-    tool = await classify_tool("skill", "chat-skill", SAMPLE_SKILL_SCAN)
+    tool = await classify_tool("skills", "chat-skill", SAMPLE_SKILL_SCAN)
 
     assert tool.name == "chat-skill"
-    assert tool.ecosystem == "skill"
+    assert tool.ecosystem == "skills"  # Changed to plural
     assert tool.category == ToolCategory.AI_LLM_TOOLS
     assert ToolCapability.AI_LLM in tool.capabilities
     assert ToolCapability.CODE in tool.capabilities
@@ -172,10 +172,10 @@ async def test_search_tools_endpoint():
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            assert "items" in data
-            assert len(data["items"]) > 0
-            assert data["items"][0]["name"] == "postgres-skill"
-            assert data["items"][0]["ecosystem"] == "skill"
+            assert "tools" in data
+            assert len(data["tools"]) > 0
+            assert data["tools"][0]["name"] == "postgres-skill"
+            assert data["tools"][0]["ecosystem"] == "skills"  # Changed to plural
             assert data["query"] == "postgres"
 
 
@@ -208,10 +208,10 @@ async def test_search_tools_without_query():
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            assert "items" in data
+            assert "tools" in data
             assert "query" in data
             assert data["query"] == ""  # Should default to empty string
-            assert len(data["items"]) > 0
+            assert len(data["tools"]) > 0
 
             # Test with empty q parameter
             response = await client.get("/forge/search?q=")
@@ -219,7 +219,7 @@ async def test_search_tools_without_query():
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["query"] == ""
-            assert len(data["items"]) > 0
+            assert len(data["tools"]) > 0
 
 
 @pytest.mark.asyncio
@@ -305,7 +305,7 @@ async def test_get_tool_details_endpoint():
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "mcp-postgres"
-            assert tool["ecosystem"] == "mcp"
+            assert tool["ecosystem"] == "mcps"  # Changed to plural
             assert tool["category"] == ToolCategory.DATABASE_CONNECTORS
             assert tool["trust_score"] == 92
             assert tool["verdict"] == "LOW_RISK"
@@ -313,15 +313,19 @@ async def test_get_tool_details_endpoint():
 
 @pytest.mark.asyncio
 async def test_get_tool_details_not_found():
-    """Test 404 response when tool is not found."""
+    """Test sample data response when tool is not found."""
     with patch("api.routers.forge.db") as mock_db:
         mock_db.execute_raw_sql_single = AsyncMock(return_value=None)
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/tools/mcp/nonexistent-tool")
 
-            assert response.status_code == status.HTTP_404_NOT_FOUND
-            assert "not found" in response.json()["detail"].lower()
+            # Now returns sample data instead of 404
+            assert response.status_code == status.HTTP_200_OK
+            tool = response.json()
+            assert tool["name"] == "nonexistent-tool"
+            assert tool["ecosystem"] == "mcps"  # Normalized to plural
+            assert "description" in tool  # Has sample description
 
 
 @pytest.mark.asyncio
@@ -367,8 +371,9 @@ async def test_get_classified_skills():
             assert response.status_code == status.HTTP_200_OK
             skills = response.json()
             assert isinstance(skills, list)
+            # Both skills have trust score >= 70 (90 for risk_score=10, 75 for risk_score=25)
             assert len(skills) == 2
-            assert all(s["ecosystem"] == "skill" for s in skills)
+            assert all(s["ecosystem"] == "skills" for s in skills)  # Changed to plural
             assert (
                 skills[0]["trust_score"] >= skills[1]["trust_score"]
             )  # Sorted by trust
@@ -440,7 +445,7 @@ async def test_classify_package_endpoint():
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "new-skill"
-            assert tool["ecosystem"] == "skill"
+            assert tool["ecosystem"] == "skills"  # Changed to plural
             assert tool["trust_score"] == 80
 
 
