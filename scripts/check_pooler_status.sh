@@ -17,7 +17,7 @@ echo ""
 
 # Check API v2 (VNet) health
 echo -e "${YELLOW}Checking API v2 (VNet) health...${NC}"
-HEALTH=$(curl -s https://sigil-api-v2.yellowdesert-3086f866.eastus.azurecontainerapps.io/health)
+HEALTH=$(curl -s https://sigil-api.yellowdesert-3086f866.eastus.azurecontainerapps.io/health)
 echo "$HEALTH"
 
 # Parse the response
@@ -51,7 +51,7 @@ fi
 echo ""
 echo -e "${YELLOW}Recent API logs:${NC}"
 az containerapp logs show \
-  --name sigil-api-v2 \
+  --name sigil-api \
   --resource-group sigil-rg \
   --type console \
   --follow false \
