@@ -285,7 +285,7 @@ def _extract_compatibility_signals(findings: list) -> list[str]:
 
 def _normalize_ecosystem(ecosystem: str) -> str:
     """Normalize source ecosystem labels to API labels.
-    
+
     Frontend expects plural forms (skills, mcps) for URL construction.
     """
     eco = (ecosystem or "").lower()
@@ -551,7 +551,7 @@ async def search_tools(
     response: Response = None,
 ):
     """Search tools with compatibility response expected by tests and clients.
-    
+
     Returns 'tools' field for frontend compatibility.
     """
     try:
@@ -563,7 +563,10 @@ async def search_tools(
             normalized_ecosystem = _normalize_ecosystem(row.get("ecosystem", ""))
             # Check against both singular and plural forms
             if requested_type in {"skill", "skills", "mcp", "mcps"}:
-                if requested_type in {"skill", "skills"} and normalized_ecosystem != "skills":
+                if (
+                    requested_type in {"skill", "skills"}
+                    and normalized_ecosystem != "skills"
+                ):
                     continue
                 if requested_type in {"mcp", "mcps"} and normalized_ecosystem != "mcps":
                     continue
@@ -582,15 +585,19 @@ async def search_tools(
 
             if min_trust is not None and tool.trust_score < min_trust:
                 continue
-            
+
             # Add missing fields expected by frontend
             tool_data = _serialize_classified_tool(tool)
-            tool_data["description"] = scan_data.get("metadata", {}).get("description", "")
-            tool_data["last_updated"] = scan_data.get("scanned_at", datetime.utcnow().isoformat())
+            tool_data["description"] = scan_data.get("metadata", {}).get(
+                "description", ""
+            )
+            tool_data["last_updated"] = scan_data.get(
+                "scanned_at", datetime.utcnow().isoformat()
+            )
             tool_data["tags"] = []  # Will be populated when we have tag data
             tool_data["downloads"] = 0  # Placeholder
             tool_data["stars"] = 0  # Placeholder
-            
+
             tools.append(tool_data)
             if len(tools) >= limit:
                 break
@@ -661,15 +668,21 @@ async def get_tool_stack(
 @router.get("/tools/{ecosystem}/{name}")
 async def get_tool_details(ecosystem: str, name: str):
     """Get detailed information about a specific tool.
-    
+
     Handles both singular and plural ecosystem names for compatibility.
     """
     # Normalize ecosystem to plural form
     normalized_ecosystem = _normalize_ecosystem(ecosystem)
-    
+
     # Map plural back to singular for database lookup
-    db_ecosystem = "skill" if normalized_ecosystem == "skills" else "mcp" if normalized_ecosystem == "mcps" else ecosystem
-    
+    db_ecosystem = (
+        "skill"
+        if normalized_ecosystem == "skills"
+        else "mcp"
+        if normalized_ecosystem == "mcps"
+        else ecosystem
+    )
+
     # Try multiple lookups for compatibility
     row = await _fetch_single_scan_row(db_ecosystem, name)
     if row is None:
@@ -678,10 +691,11 @@ async def get_tool_details(ecosystem: str, name: str):
     if row is None:
         # Try URL-decoded name
         import urllib.parse
+
         decoded_name = urllib.parse.unquote(name)
         if decoded_name != name:
             row = await _fetch_single_scan_row(db_ecosystem, decoded_name)
-    
+
     # If still no data, create sample data for testing
     if row is None:
         # Create sample tool data for demonstration
@@ -693,14 +707,14 @@ async def get_tool_details(ecosystem: str, name: str):
             "findings": [],
             "metadata": {
                 "description": f"A {db_ecosystem} tool for AI agents",
-                "repository": {"url": f"https://github.com/example/{name}"}
+                "repository": {"url": f"https://github.com/example/{name}"},
             },
             "package_version": "1.0.0",
-            "scanned_at": datetime.utcnow().isoformat()
+            "scanned_at": datetime.utcnow().isoformat(),
         }
         scan_data = _build_scan_data_from_row(sample_data)
         tool = await classify_tool(normalized_ecosystem, name, scan_data)
-        
+
         # Add missing fields
         result = _serialize_classified_tool(tool)
         result["description"] = sample_data["metadata"].get("description", "")
@@ -709,14 +723,14 @@ async def get_tool_details(ecosystem: str, name: str):
         result["downloads"] = 0
         result["stars"] = 0
         return result
-    
+
     scan_data = _build_scan_data_from_row(row)
     tool = await classify_tool(
         normalized_ecosystem,
         row.get("package_name") or name,
         scan_data,
     )
-    
+
     # Add missing fields expected by frontend
     result = _serialize_classified_tool(tool)
     result["description"] = scan_data.get("metadata", {}).get("description", "")
@@ -865,7 +879,7 @@ async def browse_category(
 @router.get("/categories")
 async def list_categories(response: Response = None):
     """Get all available categories with tool counts.
-    
+
     Returns wrapped in data object for frontend compatibility.
     """
     try:
@@ -880,7 +894,7 @@ async def list_categories(response: Response = None):
         for classification in all_classifications:
             category = classification["category"]
             classification_counts[category] = classification_counts.get(category, 0) + 1
-            
+
         # If no classifications exist, provide sample counts for demonstration
         if not all_classifications:
             # Sample counts for demonstration
@@ -896,24 +910,28 @@ async def list_categories(response: Response = None):
                 "Data Pipeline": 6,
                 "Testing": 9,
                 "Search": 5,
-                "Monitoring": 7
+                "Monitoring": 7,
             }
             classification_counts = sample_counts
 
         results = []
         for category in categories:
-            results.append({
-                "category": category["category"],
-                "display_name": category["display_name"],
-                "description": category["description"],
-                "tool_count": classification_counts.get(category["category"], 0),
-                "parent_category": category.get("parent_category"),
-                "sort_order": category["sort_order"],
-            })
+            results.append(
+                {
+                    "category": category["category"],
+                    "display_name": category["display_name"],
+                    "description": category["description"],
+                    "tool_count": classification_counts.get(category["category"], 0),
+                    "parent_category": category.get("parent_category"),
+                    "sort_order": category["sort_order"],
+                }
+            )
 
         # Set cache headers to prevent aggressive caching
         if response:
-            response.headers["Cache-Control"] = "public, max-age=60"  # Cache for 1 minute
+            response.headers["Cache-Control"] = (
+                "public, max-age=60"  # Cache for 1 minute
+            )
             response.headers["Vary"] = "Accept"
 
         # Return wrapped in data object for frontend compatibility
