@@ -27,7 +27,7 @@ def execute_forge_fix():
     
     try:
         print("Connecting to Azure SQL Database...")
-        conn = pyodbc.connect(conn_str)
+        conn = pyodbc.connect(conn_str, timeout=30)
         cursor = conn.cursor()
         
         print("Connected successfully!")
