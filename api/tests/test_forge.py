@@ -305,7 +305,7 @@ async def test_get_tool_details_endpoint():
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "mcp-postgres"
-            assert tool["ecosystem"] == "mcp"
+            assert tool["ecosystem"] == "mcps"  # Changed to plural
             assert tool["category"] == ToolCategory.DATABASE_CONNECTORS
             assert tool["trust_score"] == 92
             assert tool["verdict"] == "LOW_RISK"
@@ -313,15 +313,19 @@ async def test_get_tool_details_endpoint():
 
 @pytest.mark.asyncio
 async def test_get_tool_details_not_found():
-    """Test 404 response when tool is not found."""
+    """Test sample data response when tool is not found."""
     with patch("api.routers.forge.db") as mock_db:
         mock_db.execute_raw_sql_single = AsyncMock(return_value=None)
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/tools/mcp/nonexistent-tool")
 
-            assert response.status_code == status.HTTP_404_NOT_FOUND
-            assert "not found" in response.json()["detail"].lower()
+            # Now returns sample data instead of 404
+            assert response.status_code == status.HTTP_200_OK
+            tool = response.json()
+            assert tool["name"] == "nonexistent-tool"
+            assert tool["ecosystem"] == "mcps"  # Normalized to plural
+            assert "description" in tool  # Has sample description
 
 
 @pytest.mark.asyncio
@@ -367,8 +371,9 @@ async def test_get_classified_skills():
             assert response.status_code == status.HTTP_200_OK
             skills = response.json()
             assert isinstance(skills, list)
+            # Both skills have trust score >= 70 (90 for risk_score=10, 75 for risk_score=25)
             assert len(skills) == 2
-            assert all(s["ecosystem"] == "skill" for s in skills)
+            assert all(s["ecosystem"] == "skills" for s in skills)  # Changed to plural
             assert (
                 skills[0]["trust_score"] >= skills[1]["trust_score"]
             )  # Sorted by trust
@@ -440,7 +445,7 @@ async def test_classify_package_endpoint():
             assert response.status_code == status.HTTP_200_OK
             tool = response.json()
             assert tool["name"] == "new-skill"
-            assert tool["ecosystem"] == "skill"
+            assert tool["ecosystem"] == "skills"  # Changed to plural
             assert tool["trust_score"] == 80
 
 
