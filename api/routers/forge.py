@@ -379,11 +379,11 @@ def _generate_tool_uuid(ecosystem: str, package_name: str) -> str:
 def _generate_tool_slug(package_name: str) -> str:
     """Generate a URL-safe slug from package name."""
     # Replace special characters with hyphens
-    slug = re.sub(r'[^a-z0-9]+', '-', package_name.lower())
+    slug = re.sub(r"[^a-z0-9]+", "-", package_name.lower())
     # Remove leading/trailing hyphens
-    slug = slug.strip('-')
+    slug = slug.strip("-")
     # Collapse multiple hyphens
-    slug = re.sub(r'-+', '-', slug)
+    slug = re.sub(r"-+", "-", slug)
     return slug
 
 
@@ -704,33 +704,35 @@ async def get_tool_stack(
 @router.get("/tools/{uuid}")
 async def get_tool_by_uuid(uuid: str):
     """Get detailed information about a specific tool by UUID.
-    
+
     This is the preferred endpoint for tool details to avoid URL encoding issues.
     """
     # Since we generate UUIDs deterministically, we need to find the tool
     # that matches this UUID
     rows = await _fetch_scan_rows(limit=100)
-    
+
     for row in rows:
         normalized_ecosystem = _normalize_ecosystem(row.get("ecosystem", ""))
         package_name = row.get("package_name") or row.get("name") or "unknown"
         tool_uuid = _generate_tool_uuid(normalized_ecosystem, package_name)
-        
+
         if tool_uuid == uuid:
             scan_data = _build_scan_data_from_row(row)
             tool = await classify_tool(normalized_ecosystem, package_name, scan_data)
-            
+
             # Add all required fields
             result = _serialize_classified_tool(tool)
             result["description"] = scan_data.get("metadata", {}).get("description", "")
-            result["last_updated"] = row.get("scanned_at", datetime.utcnow().isoformat())
+            result["last_updated"] = row.get(
+                "scanned_at", datetime.utcnow().isoformat()
+            )
             result["tags"] = []
             result["downloads"] = scan_data.get("metadata", {}).get("downloads", 0)
             result["stars"] = scan_data.get("metadata", {}).get("stars", 0)
             result["author"] = scan_data.get("metadata", {}).get("author", "")
             result["version"] = scan_data.get("package_version", "latest")
             return result
-    
+
     # If not found, return 404
     raise HTTPException(status_code=404, detail=f"Tool with UUID {uuid} not found")
 
@@ -1354,9 +1356,9 @@ async def get_forge_stats():
             "high": trust_buckets["critical"] + trust_buckets["high"],  # 90-100
             "medium": trust_buckets["medium"],  # 70-89
             "low": trust_buckets["low"],  # 25-69
-            "very_low": 0  # 0-24 (we'll add this if we have any)
+            "very_low": 0,  # 0-24 (we'll add this if we have any)
         }
-        
+
         # If we have no data, provide realistic sample counts
         if total_tools == 0:
             return {
@@ -1383,14 +1385,9 @@ async def get_forge_stats():
                     "high": 5432,
                     "medium": 3421,
                     "low": 4567,
-                    "very_low": 1331
+                    "very_low": 1331,
                 },
-                "ecosystems": {
-                    "skills": 3000,
-                    "mcp": 3400,
-                    "npm": 5900,
-                    "pypi": 2900
-                },
+                "ecosystems": {"skills": 3000, "mcp": 3400, "npm": 5900, "pypi": 2900},
                 "total_categories": 12,
                 "total_matches": 8765,
                 "recent_scans": [],
@@ -1399,7 +1396,7 @@ async def get_forge_stats():
                     {"name": "code_tools", "count": 1256},
                     {"name": "ai_llm_tools", "count": 892},
                     {"name": "database_connectors", "count": 847},
-                    {"name": "file_system_tools", "count": 567}
+                    {"name": "file_system_tools", "count": 567},
                 ],
                 "last_updated": datetime.utcnow().isoformat(),
             }
