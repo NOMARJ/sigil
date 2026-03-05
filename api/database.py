@@ -202,10 +202,7 @@ class MssqlClient:
             cols = list(data.keys())
             placeholders = ", ".join(["?"] * len(cols))
             values = [self._serialize_value(data[c]) for c in cols]
-            sql = (
-                f"INSERT INTO {table} ({', '.join(cols)}) "
-                f"VALUES ({placeholders})"
-            )
+            sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 await cursor.execute(sql, tuple(values))
@@ -303,20 +300,20 @@ class MssqlClient:
         # First, check if record exists
         conflict_filters = {c: data[c] for c in conflict}
         existing = await self.select_one(table, conflict_filters)
-        
+
         if existing and update_cols:
             # Update existing record
             set_parts = [f"{c} = ?" for c in update_cols]
             update_values = [values[cols.index(c)] for c in update_cols]
             where_parts = [f"{c} = ?" for c in conflict]
             where_values = [values[cols.index(c)] for c in conflict]
-            
+
             sql = f"UPDATE {table} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 await cursor.execute(sql, tuple(update_values + where_values))
                 await conn.commit()
-            
+
             # Return updated record
             return await self.select_one(table, conflict_filters) or data
         elif not existing:
@@ -490,7 +487,7 @@ class MssqlClient:
                 cursor.timeout = 60
                 await cursor.execute(update_sql, (user_id, year_month))
                 rows_affected = cursor.rowcount
-                
+
                 if rows_affected == 0:
                     # Record doesn't exist, insert it
                     insert_sql = """
@@ -498,9 +495,9 @@ class MssqlClient:
                         VALUES (?, ?, 1)
                     """
                     await cursor.execute(insert_sql, (user_id, year_month))
-                
+
                 await conn.commit()
-                
+
                 # Fetch the current count
                 select_sql = """
                     SELECT count FROM scan_usage 
