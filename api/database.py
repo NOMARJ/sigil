@@ -296,17 +296,8 @@ class MssqlClient:
         values = [self._serialize_value(data[c]) for c in cols]
         conflict = conflict_columns or ["id"]
 
-        # Build T-SQL MERGE statement
-        merge_conditions = " AND ".join([f"target.{c} = source.{c}" for c in conflict])
+        # Build conditions for checking existence
         update_cols = [c for c in cols if c not in conflict]
-        insert_cols = ", ".join(cols)
-        source_cols = ", ".join([f"source.{c}" for c in cols])
-        source_select = ", ".join([f"? AS {c}" for c in cols])
-
-        matched_clause = ""
-        if update_cols:
-            set_clauses = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
-            matched_clause = f"WHEN MATCHED THEN UPDATE SET {set_clauses}"
 
         # Use a two-step approach to work around SQL Server trigger limitations
         # First, check if record exists
