@@ -748,10 +748,14 @@ async def get_classified_skills(
     rows = await _fetch_scan_rows(limit=limit * 5)
     items: list[dict[str, Any]] = []
     for row in rows:
-        if _normalize_ecosystem(row.get("ecosystem", "")) != "skills":  # Changed to plural
+        if (
+            _normalize_ecosystem(row.get("ecosystem", "")) != "skills"
+        ):  # Changed to plural
             continue
         tool = await classify_tool(
-            "skills", row.get("package_name", "unknown"), _build_scan_data_from_row(row)  # Changed to plural
+            "skills",
+            row.get("package_name", "unknown"),
+            _build_scan_data_from_row(row),  # Changed to plural
         )
         if tool.trust_score < min_trust_score:
             continue
@@ -767,10 +771,14 @@ async def get_classified_mcps(
     rows = await _fetch_scan_rows(limit=limit * 5)
     items: list[dict[str, Any]] = []
     for row in rows:
-        if _normalize_ecosystem(row.get("ecosystem", "")) != "mcps":  # Changed to plural
+        if (
+            _normalize_ecosystem(row.get("ecosystem", "")) != "mcps"
+        ):  # Changed to plural
             continue
         tool = await classify_tool(
-            "mcps", row.get("package_name", "unknown"), _build_scan_data_from_row(row)  # Changed to plural
+            "mcps",
+            row.get("package_name", "unknown"),
+            _build_scan_data_from_row(row),  # Changed to plural
         )
         if tool.trust_score < min_trust_score:
             continue
