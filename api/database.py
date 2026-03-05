@@ -202,17 +202,15 @@ class MssqlClient:
             cols = list(data.keys())
             placeholders = ", ".join(["?"] * len(cols))
             values = [self._serialize_value(data[c]) for c in cols]
-            sql = (
-                f"INSERT INTO {table} ({', '.join(cols)}) "
-                f"OUTPUT INSERTED.* VALUES ({placeholders})"
-            )
+            sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 await cursor.execute(sql, tuple(values))
-                row = await cursor.fetchone()
-                result = self._row_to_dict(cursor, row)
                 await conn.commit()
-                return result
+                # For inserts with triggers, we can't use OUTPUT clause
+                # Return the input data as confirmation since auto-generated fields
+                # would require a separate SELECT which may not be reliable
+                return data
         except Exception:
             success = False
             raise
@@ -295,33 +293,35 @@ class MssqlClient:
         values = [self._serialize_value(data[c]) for c in cols]
         conflict = conflict_columns or ["id"]
 
-        # Build T-SQL MERGE statement
-        merge_conditions = " AND ".join([f"target.{c} = source.{c}" for c in conflict])
+        # Build conditions for checking existence
         update_cols = [c for c in cols if c not in conflict]
-        insert_cols = ", ".join(cols)
-        source_cols = ", ".join([f"source.{c}" for c in cols])
-        source_select = ", ".join([f"? AS {c}" for c in cols])
 
-        matched_clause = ""
-        if update_cols:
-            set_clauses = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
-            matched_clause = f"WHEN MATCHED THEN UPDATE SET {set_clauses}"
+        # Use a two-step approach to work around SQL Server trigger limitations
+        # First, check if record exists
+        conflict_filters = {c: data[c] for c in conflict}
+        existing = await self.select_one(table, conflict_filters)
 
-        sql = f"""
-MERGE {table} AS target
-USING (SELECT {source_select}) AS source ({", ".join(cols)})
-ON ({merge_conditions})
-{matched_clause}
-WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({source_cols})
-OUTPUT INSERTED.*;
-"""
-        async with self._pool.acquire() as conn:
-            cursor = await conn.cursor()
-            await cursor.execute(sql, tuple(values))
-            row = await cursor.fetchone()
-            result = self._row_to_dict(cursor, row)
-            await conn.commit()
-            return result
+        if existing and update_cols:
+            # Update existing record
+            set_parts = [f"{c} = ?" for c in update_cols]
+            update_values = [values[cols.index(c)] for c in update_cols]
+            where_parts = [f"{c} = ?" for c in conflict]
+            where_values = [values[cols.index(c)] for c in conflict]
+
+            sql = f"UPDATE {table} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
+            async with self._pool.acquire() as conn:
+                cursor = await conn.cursor()
+                await cursor.execute(sql, tuple(update_values + where_values))
+                await conn.commit()
+
+            # Return updated record
+            return await self.select_one(table, conflict_filters) or data
+        elif not existing:
+            # Insert new record
+            return await self.insert(table, data)
+        else:
+            # Record exists but no updates needed
+            return existing
 
     async def update(
         self, table: str, filters: dict[str, Any], data: dict[str, Any]
@@ -342,15 +342,15 @@ OUTPUT INSERTED.*;
             vals.append(self._serialize_value(v))
         sql = (
             f"UPDATE {table} SET {', '.join(set_parts)} "
-            f"OUTPUT INSERTED.* WHERE {' AND '.join(where_parts)}"
+            f"WHERE {' AND '.join(where_parts)}"
         )
         async with self._pool.acquire() as conn:
             cursor = await conn.cursor()
             await cursor.execute(sql, tuple(vals))
-            row = await cursor.fetchone()
-            result = self._row_to_dict(cursor, row) if row else None
             await conn.commit()
-            return result
+            # After update, fetch the updated record
+            # This works around the trigger/OUTPUT clause limitation
+            return await self.select_one(table, filters)
 
     async def delete(self, table: str, filters: dict[str, Any]) -> None:
         if not self._pool:
@@ -472,24 +472,40 @@ OUTPUT INSERTED.*;
                 store[key] = {"user_id": user_id, "year_month": year_month, "count": 0}
             store[key]["count"] += 1
             return store[key]["count"]
-        sql = """
-MERGE scan_usage AS target
-USING (SELECT ? AS user_id, ? AS year_month) AS source
-ON (target.user_id = source.user_id AND target.year_month = source.year_month)
-WHEN MATCHED THEN UPDATE SET count = target.count + 1
-WHEN NOT MATCHED THEN INSERT (user_id, year_month, count) VALUES (source.user_id, source.year_month, 1)
-OUTPUT INSERTED.count;
-"""
+        # Use a two-step approach to work around SQL Server trigger limitations
+        # First, try to update existing record
+        update_sql = """
+            UPDATE scan_usage 
+            SET count = count + 1 
+            WHERE user_id = ? AND year_month = ?
+        """
         # Use connection timeout for performance
         try:
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 # Set command timeout to prevent long-running queries
                 cursor.timeout = 60
-                await cursor.execute(sql, (user_id, year_month))
+                await cursor.execute(update_sql, (user_id, year_month))
+                rows_affected = cursor.rowcount
+
+                if rows_affected == 0:
+                    # Record doesn't exist, insert it
+                    insert_sql = """
+                        INSERT INTO scan_usage (user_id, year_month, count) 
+                        VALUES (?, ?, 1)
+                    """
+                    await cursor.execute(insert_sql, (user_id, year_month))
+
+                await conn.commit()
+
+                # Fetch the current count
+                select_sql = """
+                    SELECT count FROM scan_usage 
+                    WHERE user_id = ? AND year_month = ?
+                """
+                await cursor.execute(select_sql, (user_id, year_month))
                 row = await cursor.fetchone()
                 count = row[0] if row else 1
-                await conn.commit()
                 return count
         except Exception as e:
             logger.error(f"Failed to increment scan usage: {e}")
