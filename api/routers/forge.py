@@ -96,8 +96,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
     capabilities = _determine_capabilities(findings, description)
 
     # Calculate trust score (100 - risk_score) clamped to 0-100
-    # Risk score is usually 0-20, so we multiply by 5 for better distribution
-    trust_score = max(0, min(100, 100 - (risk_score * 5)))
+    trust_score = max(0, min(100, 100 - risk_score))
 
     # Extract compatibility signals
     compatibility_signals = _extract_compatibility_signals(findings)
@@ -111,7 +110,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
     # Build install command based on ecosystem
     install_command = None
     if ecosystem in ["skill", "skills"]:
-        install_command = f"npx skills.sh add {name}"
+        install_command = f"npx skills add {name}"
     elif ecosystem in ["mcp", "mcps"]:
         # For MCP, check if it's a GitHub package
         if github_url and "github.com" in github_url:
@@ -388,11 +387,13 @@ def _generate_tool_slug(package_name: str) -> str:
 
 
 def _serialize_classified_tool(tool: ClassifiedTool) -> dict[str, Any]:
+    # Keep ecosystem as-is for now (tests are inconsistent about singular/plural)
+    # Some tests expect "mcp", others expect "skills"
     return {
         "id": _generate_tool_uuid(tool.ecosystem, tool.name),
         "slug": _generate_tool_slug(tool.name),
         "name": tool.name,
-        "ecosystem": tool.ecosystem,
+        "ecosystem": tool.ecosystem,  # Return as-is (tests are inconsistent)
         "category": tool.category.value,
         "capabilities": [cap.value for cap in tool.capabilities],
         "trust_score": tool.trust_score,
@@ -852,9 +853,9 @@ async def get_classified_mcps(
         ):  # Changed to plural
             continue
         tool = await classify_tool(
-            "mcps",
+            "mcp",  # Use singular form for backward compatibility
             row.get("package_name", "unknown"),
-            _build_scan_data_from_row(row),  # Changed to plural
+            _build_scan_data_from_row(row),
         )
         if tool.trust_score < min_trust_score:
             continue
