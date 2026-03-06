@@ -112,11 +112,12 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
     if ecosystem in ["skill", "skills"]:
         install_command = f"npx skills add {name}"
     elif ecosystem in ["mcp", "mcps"]:
-        # For MCP, check if it's a GitHub package
-        if github_url and "github.com" in github_url:
-            install_command = f"npx @modelcontextprotocol/create-server {name}"
-        else:
+        # For MCP servers, use the standard MCP installation command
+        # If it looks like a GitHub repo (contains /), use npm install with the full path
+        if "/" in name:
             install_command = f"npm install {name}"
+        else:
+            install_command = f"npx @modelcontextprotocol/create-server {name}"
     elif ecosystem == "npm":
         install_command = f"npm install {name}"
     elif ecosystem == "pypi":
@@ -1315,12 +1316,36 @@ async def get_forge_stats():
         trust_buckets = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         total_tools = len(all_classifications)
 
+        # Category mapping to ensure snake_case
+        category_mapping = {
+            "mcp": "api_integrations",
+            "ml": "ai_llm_tools", 
+            "general": "code_tools",
+            "skills": "code_tools",
+            "security": "security_tools",
+            "ai-agents": "ai_llm_tools",
+            "web": "api_integrations",
+            "data": "data_pipeline",
+            "llm-tools": "ai_llm_tools",
+            "crypto": "security_tools",
+            "database": "database_connectors",
+            "devops": "devops_tools",
+            "testing": "testing_tools",
+            "monitoring": "monitoring",
+            "communication": "communication",
+            "search": "search_tools",
+            "file-system": "file_system_tools"
+        }
+
         for classification in all_classifications:
             ecosystem = classification["ecosystem"]
             category = classification["category"]
+            
+            # Map category to snake_case
+            mapped_category = category_mapping.get(category.lower(), category.replace("-", "_").replace(" ", "_").lower())
 
             ecosystem_counts[ecosystem] = ecosystem_counts.get(ecosystem, 0) + 1
-            category_counts[category] = category_counts.get(category, 0) + 1
+            category_counts[mapped_category] = category_counts.get(mapped_category, 0) + 1
 
             # Bucket by confidence as a proxy for trust level
             confidence = classification.get("confidence_score", 0.5)
