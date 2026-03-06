@@ -21,7 +21,7 @@ sigil scan ./vendor/       # scan code already on disk
 Drop-in shell aliases (`safepip`, `safenpm`, `gclone`) make this feel native. A pre-commit hook catches problems before they leave your machine.
 
 ### Know exactly what's dangerous and why
-Six scan phases catch the patterns that actually matter in supply chain attacks — not just CVEs, but the behavioral signals of malicious code:
+Eight scan phases catch the patterns that actually matter in supply chain attacks — not just CVEs, but the behavioral signals of malicious code:
 
 - **Install hooks** that execute on `pip install` or `npm install`
 - **Dangerous code patterns** like `eval()`, `pickle.loads()`, `child_process`
@@ -29,6 +29,8 @@ Six scan phases catch the patterns that actually matter in supply chain attacks 
 - **Credential access** — reads of `.aws/credentials`, SSH keys, API tokens
 - **Obfuscation** — base64-encoded payloads, hex strings, charCode tricks
 - **Provenance gaps** — missing git history, unexpected binaries, suspicious filenames
+- **Prompt injection** — AI agent instruction injection, system prompt overrides, jailbreak attempts embedded in packages or tool descriptions
+- **Skill security** — MCP permission escalation, undeclared tool capabilities, skill.yaml tampering
 
 Every finding has a severity, a weight, and a snippet showing exactly which line triggered it. The final verdict (CLEAN through CRITICAL) is a single number you can act on.
 

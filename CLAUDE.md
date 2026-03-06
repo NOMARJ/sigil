@@ -57,13 +57,15 @@ Three-layer system:
 3. **Dashboard** — Next.js for visibility and team management
 
 ## Scan Phases
-The scanner runs 6 phases with weighted severity:
-1. Install Hooks (Critical 10x) — setup.py, npm postinstall
-2. Code Patterns (High 5x) — eval, exec, pickle, child_process
-3. Network/Exfil (High 3x) — outbound HTTP, webhooks, sockets
-4. Credentials (Medium 2x) — ENV vars, API keys, SSH keys
-5. Obfuscation (High 5x) — base64, charCode, hex encoding
-6. Provenance (Low 1-3x) — git history, binaries, hidden files
+The scanner runs 8 phases with weighted severity:
+1. Install Hooks (Critical 10×) — setup.py, npm postinstall
+2. Code Patterns (High 5×) — eval, exec, pickle, child_process
+3. Network/Exfil (High 3×) — outbound HTTP, webhooks, sockets
+4. Credentials (Medium 2×) — ENV vars, API keys, SSH keys
+5. Obfuscation (High 5×) — base64, charCode, hex encoding
+6. Provenance (Low 1–3×) — git history, binaries, hidden files
+7. Prompt Injection (Critical 10×) — AI agent instruction injection, system prompt overrides
+8. Skill Security (High 5×) — MCP permission escalation, undeclared tool capabilities
 
 ## Testing
 ```bash
