@@ -596,7 +596,7 @@ async def search_tools(
             "SELECT COUNT(*) as count FROM public_scans"
         )
         total_count = total_count_result.get("count", 0) if total_count_result else 0
-        
+
         rows = await _fetch_scan_rows(limit=limit * 5)
         requested_type = (type or ecosystem or "").lower()
         tools: list[dict[str, Any]] = []  # Renamed from items to tools
