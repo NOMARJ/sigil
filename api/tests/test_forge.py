@@ -146,7 +146,7 @@ async def test_classify_tool_security():
 async def test_search_tools_endpoint():
     """Test the /forge/search endpoint."""
     with patch("api.routers.forge.db") as mock_db:
-        # Mock database response
+        # Mock database responses
         mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
@@ -166,6 +166,10 @@ async def test_search_tools_endpoint():
                 }
             ]
         )
+        # Mock total count query for pagination fix
+        mock_db.execute_raw_sql_single = AsyncMock(
+            return_value={"count": 17937}
+        )
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/search?q=postgres&type=skill")
@@ -173,17 +177,20 @@ async def test_search_tools_endpoint():
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "tools" in data
+            assert "total" in data
             assert len(data["tools"]) > 0
             assert data["tools"][0]["name"] == "postgres-skill"
             assert data["tools"][0]["ecosystem"] == "skills"  # Changed to plural
             assert data["query"] == "postgres"
+            # CRITICAL: Test the pagination fix - total should be actual DB count, not filtered count
+            assert data["total"] == 17937
 
 
 @pytest.mark.asyncio
 async def test_search_tools_without_query():
     """Test the /forge/search endpoint without query parameter."""
     with patch("api.routers.forge.db") as mock_db:
-        # Mock database response
+        # Mock database responses
         mock_db.execute_raw_sql = AsyncMock(
             return_value=[
                 {
@@ -201,6 +208,10 @@ async def test_search_tools_without_query():
                 }
             ]
         )
+        # Mock total count query for pagination fix
+        mock_db.execute_raw_sql_single = AsyncMock(
+            return_value={"count": 17937}
+        )
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Test without q parameter
@@ -209,9 +220,12 @@ async def test_search_tools_without_query():
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "tools" in data
+            assert "total" in data
             assert "query" in data
             assert data["query"] == ""  # Should default to empty string
             assert len(data["tools"]) > 0
+            # CRITICAL: Test the pagination fix - total should be actual DB count
+            assert data["total"] == 17937
 
             # Test with empty q parameter
             response = await client.get("/forge/search?q=")
@@ -220,6 +234,8 @@ async def test_search_tools_without_query():
             data = response.json()
             assert data["query"] == ""
             assert len(data["tools"]) > 0
+            # CRITICAL: Test the pagination fix - total should be actual DB count
+            assert data["total"] == 17937
 
 
 @pytest.mark.asyncio
