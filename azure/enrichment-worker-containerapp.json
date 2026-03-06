@@ -1,0 +1,173 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerAppName": {
+      "type": "string",
+      "defaultValue": "sigil-forge-enrichment",
+      "metadata": {
+        "description": "Name of the Container App for Forge enrichment worker"
+      }
+    },
+    "containerAppEnvironment": {
+      "type": "string",
+      "defaultValue": "sigil-env-46iy6y",
+      "metadata": {
+        "description": "Container App Environment name"
+      }
+    },
+    "containerImage": {
+      "type": "string",
+      "defaultValue": "sigilacr46iy6y.azurecr.io/sigil-bot:latest",
+      "metadata": {
+        "description": "Container image for the enrichment worker"
+      }
+    },
+    "databaseUrl": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Database connection string"
+      }
+    },
+    "redisUrl": {
+      "type": "securestring", 
+      "metadata": {
+        "description": "Redis connection string"
+      }
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('containerAppName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppEnvironment'))]",
+        "configuration": {
+          "secrets": [
+            {
+              "name": "database-url",
+              "value": "[parameters('databaseUrl')]"
+            },
+            {
+              "name": "redis-url", 
+              "value": "[parameters('redisUrl')]"
+            }
+          ],
+          "ingress": {
+            "external": false,
+            "targetPort": 8080,
+            "allowInsecure": false,
+            "traffic": [
+              {
+                "weight": 100,
+                "latestRevision": true
+              }
+            ]
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "forge-enrichment-worker",
+              "image": "[parameters('containerImage')]",
+              "command": [
+                "python",
+                "-m",
+                "bot.simple_enrichment"
+              ],
+              "env": [
+                {
+                  "name": "SIGIL_BOT_DATABASE_URL",
+                  "secretRef": "database-url"
+                },
+                {
+                  "name": "SIGIL_DATABASE_URL",
+                  "secretRef": "database-url"
+                },
+                {
+                  "name": "SIGIL_BOT_REDIS_URL",
+                  "secretRef": "redis-url"
+                },
+                {
+                  "name": "SIGIL_BOT_FORGE_ENRICHMENT_ENABLED",
+                  "value": "true"
+                },
+                {
+                  "name": "SIGIL_BOT_FORGE_ENRICHMENT_BATCH_SIZE",
+                  "value": "25"
+                },
+                {
+                  "name": "SIGIL_BOT_FORGE_ENRICHMENT_DELAY",
+                  "value": "2.0"
+                },
+                {
+                  "name": "SIGIL_BOT_FORGE_ENRICHMENT_MAX_RECORDS",
+                  "value": "5000"
+                },
+                {
+                  "name": "SIGIL_BOT_FORGE_ENRICHMENT_POLL_INTERVAL",
+                  "value": "300"
+                },
+                {
+                  "name": "PYTHONPATH",
+                  "value": "/app"
+                }
+              ],
+              "resources": {
+                "cpu": 0.75,
+                "memory": "1.5Gi",
+                "ephemeralStorage": "2Gi"
+              },
+              "probes": [
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": 8080,
+                    "scheme": "HTTP"
+                  },
+                  "initialDelaySeconds": 30,
+                  "periodSeconds": 30,
+                  "timeoutSeconds": 10,
+                  "failureThreshold": 3,
+                  "successThreshold": 1
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 2,
+            "rules": [
+              {
+                "name": "cpu-scaling",
+                "custom": {
+                  "type": "cpu",
+                  "metadata": {
+                    "type": "Utilization",
+                    "value": "80"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerAppId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "value": "[parameters('containerAppName')]"
+    }
+  }
+}

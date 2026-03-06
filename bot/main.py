@@ -24,6 +24,7 @@ from typing import Any
 
 from bot.config import bot_settings
 from bot.queue import JobQueue
+from bot.worker.forge_enrichment import ForgeEnrichmentWorker
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,15 @@ async def run_bot(
             )
             tasks.append(task)
         logger.info("Started %d scanner workers", num_workers)
+
+        # Start enrichment worker for Forge API compatibility
+        if bot_settings.forge_enrichment_enabled:
+            enrichment_worker = ForgeEnrichmentWorker()
+            task = asyncio.create_task(
+                enrichment_worker.run(), name="enrichment-worker"
+            )
+            tasks.append(task)
+            logger.info("Started Forge enrichment worker")
 
         # Start rescan scheduler (AEO Action #9 — freshness signals)
         from bot.rescan import rescan_loop

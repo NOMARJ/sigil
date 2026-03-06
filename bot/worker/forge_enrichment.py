@@ -782,6 +782,11 @@ class ForgeEnrichmentWorker:
             raise
 
 
+    async def run(self) -> None:
+        """Run method for integration with bot.main worker pattern."""
+        await self.process_enrichment_queue()
+
+
 # Main worker entry point
 async def start_forge_enrichment_worker():
     """Start the forge enrichment worker."""
