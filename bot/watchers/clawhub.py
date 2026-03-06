@@ -57,9 +57,7 @@ class ClawHubWatcher(BaseWatcher):
                     params["cursor"] = cursor
 
                 try:
-                    resp = await client.get(
-                        f"{CLAWHUB_BASE}/skills", params=params
-                    )
+                    resp = await client.get(f"{CLAWHUB_BASE}/skills", params=params)
                     resp.raise_for_status()
                     data = resp.json()
                 except Exception:
@@ -97,9 +95,8 @@ class ClawHubWatcher(BaseWatcher):
                     if updated and updated > newest_updated:
                         newest_updated = updated
 
-                    download_url = (
-                        f"{CLAWHUB_BASE}/download?slug={slug}"
-                        + (f"&version={version}" if version else "")
+                    download_url = f"{CLAWHUB_BASE}/download?slug={slug}" + (
+                        f"&version={version}" if version else ""
                     )
 
                     job = ScanJob(

@@ -78,11 +78,14 @@ async def _get_packages_due_for_rescan(
     try:
         async with db._pool.acquire() as conn:
             cursor = await conn.cursor()
-            await cursor.execute(sql, (
-                limit,
-                bot_settings.rescan_high_risk_days,
-                bot_settings.rescan_default_days,
-            ))
+            await cursor.execute(
+                sql,
+                (
+                    limit,
+                    bot_settings.rescan_high_risk_days,
+                    bot_settings.rescan_default_days,
+                ),
+            )
             cols = [col[0] for col in cursor.description]
             rows = await cursor.fetchall()
             for row in rows:
@@ -102,7 +105,9 @@ async def rescan_loop(queue: JobQueue) -> None:
             packages = await _get_packages_due_for_rescan(limit=50)
 
             if packages:
-                logger.info("Rescan scheduler: %d packages due for rescan", len(packages))
+                logger.info(
+                    "Rescan scheduler: %d packages due for rescan", len(packages)
+                )
 
             enqueued = 0
             for pkg in packages:

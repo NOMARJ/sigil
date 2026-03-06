@@ -45,34 +45,38 @@ unclassified = cursor.fetchall()
 print(f"Found {len(unclassified):,} unclassified packages")
 
 # Save to CSV file
-timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"unclassified_scans_{timestamp}.csv"
 
-with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+with open(filename, "w", newline="", encoding="utf-8") as csvfile:
     writer = csv.writer(csvfile)
-    
+
     # Write header
-    writer.writerow([
-        'package_name', 
-        'ecosystem', 
-        'package_version', 
-        'risk_score', 
-        'findings_count', 
-        'verdict', 
-        'created_at'
-    ])
-    
+    writer.writerow(
+        [
+            "package_name",
+            "ecosystem",
+            "package_version",
+            "risk_score",
+            "findings_count",
+            "verdict",
+            "created_at",
+        ]
+    )
+
     # Write data
     for row in unclassified:
-        writer.writerow([
-            row[0] or '',  # package_name
-            row[1] or '',  # ecosystem
-            row[2] or '',  # package_version
-            row[3] or 0,   # risk_score
-            row[4] or 0,   # findings_count
-            row[5] or '',  # verdict
-            row[6]         # created_at
-        ])
+        writer.writerow(
+            [
+                row[0] or "",  # package_name
+                row[1] or "",  # ecosystem
+                row[2] or "",  # package_version
+                row[3] or 0,  # risk_score
+                row[4] or 0,  # findings_count
+                row[5] or "",  # verdict
+                row[6],  # created_at
+            ]
+        )
 
 print(f"✅ Saved to {filename}")
 
@@ -117,11 +121,13 @@ cursor.execute("""
 high_risk = cursor.fetchall()
 if high_risk:
     print(f"\nTop 20 high-risk unclassified packages:")
-    print("Package Name".ljust(40) + "Ecosystem".ljust(12) + "Risk".ljust(6) + "Findings")
+    print(
+        "Package Name".ljust(40) + "Ecosystem".ljust(12) + "Risk".ljust(6) + "Findings"
+    )
     print("-" * 70)
     for row in high_risk:
-        name = (row[0] or 'unknown')[:39]
-        eco = (row[1] or 'unknown')[:11] 
+        name = (row[0] or "unknown")[:39]
+        eco = (row[1] or "unknown")[:11]
         risk = f"{row[2] or 0:.1f}"
         findings = row[3] or 0
         print(f"{name:<40} {eco:<12} {risk:<6} {findings}")

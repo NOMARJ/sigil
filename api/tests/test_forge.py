@@ -167,9 +167,7 @@ async def test_search_tools_endpoint():
             ]
         )
         # Mock total count query for pagination fix
-        mock_db.execute_raw_sql_single = AsyncMock(
-            return_value={"count": 17937}
-        )
+        mock_db.execute_raw_sql_single = AsyncMock(return_value={"count": 17937})
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get("/forge/search?q=postgres&type=skill")
@@ -209,9 +207,7 @@ async def test_search_tools_without_query():
             ]
         )
         # Mock total count query for pagination fix
-        mock_db.execute_raw_sql_single = AsyncMock(
-            return_value={"count": 17937}
-        )
+        mock_db.execute_raw_sql_single = AsyncMock(return_value={"count": 17937})
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Test without q parameter

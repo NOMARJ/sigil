@@ -45,9 +45,9 @@ def _canonical_json(obj: dict) -> bytes:
     return json.dumps(
         obj,
         sort_keys=True,
-        separators=(',', ':'),
+        separators=(",", ":"),
         ensure_ascii=False,
-    ).encode('utf-8')
+    ).encode("utf-8")
 
 
 def compute_content_digest(scan_data: dict) -> str:
@@ -74,12 +74,12 @@ def compute_finding_digest(finding: dict) -> str:
     Returns:
         SHA-256 hex digest string
     """
-    file_path = finding.get('file', '')
-    line = finding.get('line', 0)
-    snippet = finding.get('snippet', '')
+    file_path = finding.get("file", "")
+    line = finding.get("line", 0)
+    snippet = finding.get("snippet", "")
 
     content = f"{file_path}:{line}:{snippet}"
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def build_intoto_statement(
@@ -122,22 +122,25 @@ def build_intoto_statement(
     findings_with_digests = []
     for finding in findings:
         finding_copy = finding.copy()
-        finding_copy['digest'] = compute_finding_digest(finding)
+        finding_copy["digest"] = compute_finding_digest(finding)
         findings_with_digests.append(finding_copy)
 
     # Build subject (spec: {ecosystem}/{package_name}@{version})
     subject = {
         "name": f"{ecosystem}/{package_name}@{package_version}",
-        "digest": {
-            "sha256": subject_digest
-        }
+        "digest": {"sha256": subject_digest},
     }
 
     # Scan phases that were executed
     phases = [
-        "install_hooks", "code_patterns", "network_exfil",
-        "credentials", "obfuscation", "provenance",
-        "prompt_injection", "skill_security",
+        "install_hooks",
+        "code_patterns",
+        "network_exfil",
+        "credentials",
+        "obfuscation",
+        "provenance",
+        "prompt_injection",
+        "skill_security",
     ]
 
     scanned_at = datetime.utcnow().isoformat() + "Z"
@@ -169,9 +172,19 @@ def build_intoto_statement(
             "content_hash": compute_content_digest(
                 {"findings": findings, "verdict": verdict, "risk_score": risk_score}
             ),
-            **{k: v for k, v in metadata.items()
-               if k in ("registry_url", "repository_url", "published_at",
-                         "download_count", "description", "keywords")},
+            **{
+                k: v
+                for k, v in metadata.items()
+                if k
+                in (
+                    "registry_url",
+                    "repository_url",
+                    "published_at",
+                    "download_count",
+                    "description",
+                    "keywords",
+                )
+            },
         },
     }
 
@@ -184,7 +197,7 @@ def build_intoto_statement(
         "_type": INTOTO_STATEMENT_TYPE,
         "subject": [subject],
         "predicateType": SIGIL_PREDICATE_TYPE,
-        "predicate": predicate
+        "predicate": predicate,
     }
 
     return statement
@@ -197,24 +210,28 @@ def _build_pae(payload_type: str, payload: bytes) -> bytes:
     """
     return (
         b"DSSEv1 "
-        + str(len(payload_type)).encode('ascii')
+        + str(len(payload_type)).encode("ascii")
         + b" "
-        + payload_type.encode('ascii')
+        + payload_type.encode("ascii")
         + b" "
-        + str(len(payload)).encode('ascii')
+        + str(len(payload)).encode("ascii")
         + b" "
         + payload
     )
 
 
-def sign_dsse(statement: dict, private_key: ed25519.Ed25519PrivateKey, key_id: str) -> dict:
+def sign_dsse(
+    statement: dict, private_key: ed25519.Ed25519PrivateKey, key_id: str
+) -> dict:
     """Sign the statement with DSSE envelope using Ed25519."""
     statement_json = _canonical_json(statement)
-    payload_b64 = base64.urlsafe_b64encode(statement_json).decode('ascii').rstrip('=')
+    payload_b64 = base64.urlsafe_b64encode(statement_json).decode("ascii").rstrip("=")
 
     pae = _build_pae(DSSE_PAYLOAD_TYPE, statement_json)
     signature_bytes = private_key.sign(pae)
-    signature_b64 = base64.urlsafe_b64encode(signature_bytes).decode('ascii').rstrip('=')
+    signature_b64 = (
+        base64.urlsafe_b64encode(signature_bytes).decode("ascii").rstrip("=")
+    )
 
     return {
         "payload": payload_b64,
@@ -242,27 +259,27 @@ async def submit_to_rekor(dsse_envelope: dict, public_key_pem: bytes) -> dict | 
             "spec": {
                 "proposedContent": {
                     "envelope": dsse_envelope,
-                    "verifiers": [public_key_pem.decode('ascii')]
+                    "verifiers": [public_key_pem.decode("ascii")],
                 }
-            }
+            },
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 REKOR_API_ENDPOINT,
                 json=entry,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code == 201:
                 # Extract log entry ID from response
-                location = response.headers.get('Location', '')
-                log_entry_id = location.split('/')[-1] if location else None
+                location = response.headers.get("Location", "")
+                log_entry_id = location.split("/")[-1] if location else None
 
                 result = {
                     "log_entry_id": log_entry_id,
-                    "log_index": response.json().get('logIndex'),
-                    "integrated_time": response.json().get('integratedTime'),
+                    "log_index": response.json().get("logIndex"),
+                    "integrated_time": response.json().get("integratedTime"),
                 }
 
                 logger.info(f"Successfully submitted to Rekor: {log_entry_id}")
@@ -292,13 +309,13 @@ def generate_keypair() -> tuple[bytes, bytes]:
     private_key_bytes = private_key.private_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
     # Serialize public key (PEM format)
     public_key_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
     return private_key_bytes, public_key_pem
@@ -323,25 +340,25 @@ def verify_attestation(dsse_envelope: dict, public_key_pem: bytes) -> bool:
             return False
 
         # Extract payload and signature
-        payload_b64 = dsse_envelope.get('payload', '')
-        signatures = dsse_envelope.get('signatures', [])
+        payload_b64 = dsse_envelope.get("payload", "")
+        signatures = dsse_envelope.get("signatures", [])
 
         if not signatures:
             logger.error("No signatures in envelope")
             return False
 
-        signature_b64 = signatures[0].get('sig', '')
+        signature_b64 = signatures[0].get("sig", "")
 
         # Decode payload (add padding if needed)
-        payload_b64_padded = payload_b64 + '=' * (4 - len(payload_b64) % 4)
+        payload_b64_padded = payload_b64 + "=" * (4 - len(payload_b64) % 4)
         payload = base64.urlsafe_b64decode(payload_b64_padded)
 
         # Decode signature (add padding if needed)
-        signature_b64_padded = signature_b64 + '=' * (4 - len(signature_b64) % 4)
+        signature_b64_padded = signature_b64 + "=" * (4 - len(signature_b64) % 4)
         signature = base64.urlsafe_b64decode(signature_b64_padded)
 
         # Rebuild PAE and verify
-        payload_type = dsse_envelope.get('payloadType', DSSE_PAYLOAD_TYPE)
+        payload_type = dsse_envelope.get("payloadType", DSSE_PAYLOAD_TYPE)
         pae = _build_pae(payload_type, payload)
         public_key.verify(signature, pae)
         return True
@@ -391,7 +408,9 @@ async def create_attestation(
         try:
             private_key_bytes = base64.b64decode(bot_settings.signing_key)
             if len(private_key_bytes) != 32:
-                raise ValueError(f"Ed25519 key must be 32 bytes, got {len(private_key_bytes)}")
+                raise ValueError(
+                    f"Ed25519 key must be 32 bytes, got {len(private_key_bytes)}"
+                )
             logger.info("Loaded signing key from config (SIGIL_BOT_SIGNING_KEY)")
         except Exception as e:
             logger.error("Failed to decode signing key from config: %s", e)
@@ -399,7 +418,7 @@ async def create_attestation(
     # Fallback to file path
     if not private_key_bytes and bot_settings.signing_key_file:
         try:
-            with open(bot_settings.signing_key_file, 'rb') as f:
+            with open(bot_settings.signing_key_file, "rb") as f:
                 private_key_bytes = f.read()
             logger.info("Loaded signing key from %s", bot_settings.signing_key_file)
         except Exception as e:
@@ -419,7 +438,7 @@ async def create_attestation(
         # Serialize public key for Rekor
         public_key_pem = public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
         )
     except Exception as e:
         logger.error(f"Failed to load Ed25519 key: {e}")
@@ -429,12 +448,12 @@ async def create_attestation(
     key_id = bot_settings.signing_key_id
 
     # Extract scan data
-    verdict = scan_output.get('verdict', 'unknown')
-    risk_score = scan_output.get('risk_score', 0.0)
-    findings = scan_output.get('findings', [])
-    files_scanned = scan_output.get('files_scanned', 0)
-    duration_ms = scan_output.get('duration_ms', 0)
-    scanner_version = metadata.get('scanner_version', '1.0.0')
+    verdict = scan_output.get("verdict", "unknown")
+    risk_score = scan_output.get("risk_score", 0.0)
+    findings = scan_output.get("findings", [])
+    files_scanned = scan_output.get("files_scanned", 0)
+    duration_ms = scan_output.get("duration_ms", 0)
+    scanner_version = metadata.get("scanner_version", "1.0.0")
 
     # Compute content digest
     content_digest = compute_content_digest(scan_output)
@@ -466,13 +485,13 @@ async def create_attestation(
         rekor_result = await submit_to_rekor(dsse_envelope, public_key_pem)
 
         if rekor_result:
-            log_entry_id = rekor_result.get('log_entry_id')
+            log_entry_id = rekor_result.get("log_entry_id")
 
             # Update statement with transparency info
             transparency = {
                 "log_entry_id": log_entry_id,
-                "log_index": rekor_result.get('log_index'),
-                "integrated_time": rekor_result.get('integrated_time'),
+                "log_index": rekor_result.get("log_index"),
+                "integrated_time": rekor_result.get("integrated_time"),
             }
 
             # Rebuild statement with transparency info

@@ -60,9 +60,7 @@ class NpmWatcher(BaseWatcher):
                     # First run: get current update_seq from the DB root,
                     # don't backfill all of npm.  The replicate service no
                     # longer supports _changes?limit=0.
-                    resp = await client.get(
-                        "https://replicate.npmjs.com/"
-                    )
+                    resp = await client.get("https://replicate.npmjs.com/")
                     resp.raise_for_status()
                     data = resp.json()
                     self._last_seq = str(

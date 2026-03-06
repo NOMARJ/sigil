@@ -14,6 +14,7 @@ DATABASE = "sigil"
 USERNAME = "sigil_admin"
 PASSWORD = "hUkVA6s1G7z4Smqf!"
 
+
 def get_connection():
     """Get database connection."""
     conn_str = (
@@ -28,35 +29,36 @@ def get_connection():
     )
     return pyodbc.connect(conn_str)
 
+
 def classify_package(scan):
     """Classify a package based on scan data."""
-    package_name = scan.package_name.lower() if scan.package_name else ''
-    ecosystem = scan.ecosystem or 'unknown'
+    package_name = scan.package_name.lower() if scan.package_name else ""
+    ecosystem = scan.ecosystem or "unknown"
     severity = scan.severity or 0
     threats = scan.threats_found or 0
-    
+
     # Determine category
-    category = 'general'
-    if 'mcp' in package_name:
-        category = 'mcp'
-    elif 'skill' in package_name or 'clawbot' in package_name:
-        category = 'skills'
-    elif 'agent' in package_name or 'bot' in package_name:
-        category = 'agent'
-    elif 'llm' in package_name or 'openai' in package_name or 'claude' in package_name:
-        category = 'llm'
-    
+    category = "general"
+    if "mcp" in package_name:
+        category = "mcp"
+    elif "skill" in package_name or "clawbot" in package_name:
+        category = "skills"
+    elif "agent" in package_name or "bot" in package_name:
+        category = "agent"
+    elif "llm" in package_name or "openai" in package_name or "claude" in package_name:
+        category = "llm"
+
     # Determine tool type
-    tool_type = 'other'
-    if 'mcp' in package_name:
-        tool_type = 'mcp-server'
-    elif 'skill' in package_name:
-        tool_type = 'skill'
-    elif ecosystem == 'npm':
-        tool_type = 'npm-package'
-    elif ecosystem == 'pypi':
-        tool_type = 'python-package'
-    
+    tool_type = "other"
+    if "mcp" in package_name:
+        tool_type = "mcp-server"
+    elif "skill" in package_name:
+        tool_type = "skill"
+    elif ecosystem == "npm":
+        tool_type = "npm-package"
+    elif ecosystem == "pypi":
+        tool_type = "python-package"
+
     # Calculate trust score
     trust_score = 100
     if severity >= 9:
@@ -67,41 +69,42 @@ def classify_package(scan):
         trust_score = 60  # Medium
     elif severity >= 1:
         trust_score = 80  # Low
-    
+
     # Severity level
     if severity >= 9:
-        severity_level = 'critical'
+        severity_level = "critical"
     elif severity >= 7:
-        severity_level = 'high'
+        severity_level = "high"
     elif severity >= 4:
-        severity_level = 'medium'
+        severity_level = "medium"
     elif severity >= 1:
-        severity_level = 'low'
+        severity_level = "low"
     else:
-        severity_level = 'safe'
-    
+        severity_level = "safe"
+
     return {
-        'scan_id': scan.id,
-        'package_name': package_name,
-        'ecosystem': ecosystem,
-        'category': category,
-        'tool_type': tool_type,
-        'trust_score': trust_score,
-        'severity_level': severity_level,
-        'threats_detected': threats
+        "scan_id": scan.id,
+        "package_name": package_name,
+        "ecosystem": ecosystem,
+        "category": category,
+        "tool_type": tool_type,
+        "trust_score": trust_score,
+        "severity_level": severity_level,
+        "threats_detected": threats,
     }
+
 
 def main():
     """Main function."""
     limit = 1000
     if len(sys.argv) > 1:
         limit = int(sys.argv[1])
-    
+
     print(f"Batch classifying first {limit} packages...")
-    
+
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     # Create table if not exists
     print("Ensuring forge_classification table exists...")
     cursor.execute("""
@@ -121,7 +124,7 @@ def main():
             FOREIGN KEY (public_scan_id) REFERENCES public_scans(id) ON DELETE CASCADE
         )
     """)
-    
+
     # Create indexes (wrapped in try-catch for existing tables)
     try:
         cursor.execute("""
@@ -130,7 +133,7 @@ def main():
         """)
     except:
         pass  # Index might already exist
-    
+
     try:
         cursor.execute("""
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_class_package')
@@ -138,7 +141,7 @@ def main():
         """)
     except:
         pass
-    
+
     try:
         cursor.execute("""
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_class_category')
@@ -146,9 +149,9 @@ def main():
         """)
     except:
         pass
-    
+
     conn.commit()
-    
+
     # Get scans to process
     print(f"Fetching top {limit} scans...")
     cursor.execute(f"""
@@ -158,53 +161,56 @@ def main():
         WHERE id NOT IN (SELECT public_scan_id FROM forge_classification WHERE public_scan_id IS NOT NULL)
         ORDER BY created_at DESC
     """)
-    
+
     scans = cursor.fetchall()
     print(f"Found {len(scans)} unclassified scans")
-    
+
     classified = 0
     errors = 0
-    
+
     for scan in scans:
         try:
             # Classify the package
             classification = classify_package(scan)
-            
+
             # Insert into forge_classification
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO forge_classification (
                     public_scan_id, package_name, ecosystem, category, 
                     tool_type, trust_score, severity_level, threats_detected
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                classification['scan_id'],
-                classification['package_name'],
-                classification['ecosystem'],
-                classification['category'],
-                classification['tool_type'],
-                classification['trust_score'],
-                classification['severity_level'],
-                classification['threats_detected']
-            ))
-            
+            """,
+                (
+                    classification["scan_id"],
+                    classification["package_name"],
+                    classification["ecosystem"],
+                    classification["category"],
+                    classification["tool_type"],
+                    classification["trust_score"],
+                    classification["severity_level"],
+                    classification["threats_detected"],
+                ),
+            )
+
             classified += 1
-            
+
             if classified % 100 == 0:
                 conn.commit()
                 print(f"Progress: {classified}/{len(scans)} classified")
-                
+
         except Exception as e:
             errors += 1
             print(f"Error classifying {scan.package_name}: {e}")
-    
+
     conn.commit()
-    
-    print("\n" + "="*50)
+
+    print("\n" + "=" * 50)
     print("Classification complete!")
     print(f"Total scans processed: {len(scans)}")
     print(f"Successfully classified: {classified}")
     print(f"Errors: {errors}")
-    
+
     # Show statistics
     cursor.execute("""
         SELECT 
@@ -215,14 +221,17 @@ def main():
         GROUP BY category
         ORDER BY count DESC
     """)
-    
+
     print("\nCategory distribution:")
     for row in cursor.fetchall():
-        print(f"  {row.category}: {row.count} packages (avg trust: {row.avg_trust:.1f})")
-    
+        print(
+            f"  {row.category}: {row.count} packages (avg trust: {row.avg_trust:.1f})"
+        )
+
     cursor.close()
     conn.close()
     print("\n✅ Done!")
+
 
 if __name__ == "__main__":
     main()

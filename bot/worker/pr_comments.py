@@ -259,11 +259,13 @@ def _format_comment(
     lines = [f"## {emoji} Sigil Security Scan", ""]
 
     if not deps:
-        lines.extend([
-            "No new dependencies detected in this PR.",
-            "",
-            f"**Overall: {overall_verdict}** (score: {overall_score:.0f})",
-        ])
+        lines.extend(
+            [
+                "No new dependencies detected in this PR.",
+                "",
+                f"**Overall: {overall_verdict}** (score: {overall_score:.0f})",
+            ]
+        )
     else:
         lines.append(f"**{len(deps)} new dependency(ies) detected:**")
         lines.append("")
@@ -305,19 +307,23 @@ def _format_comment(
                     lines.append(f"- ... and {len(dep_findings) - 5} more findings")
                 lines.append("")
 
-        lines.extend([
-            "---",
-            f"**Overall: {overall_verdict}** (score: {overall_score:.0f})",
-        ])
+        lines.extend(
+            [
+                "---",
+                f"**Overall: {overall_verdict}** (score: {overall_score:.0f})",
+            ]
+        )
 
-    lines.extend([
-        "",
-        "---",
-        "<sub>Automated scan by [Sigil](https://sigilsec.ai) "
-        "&middot; [How this works](https://sigilsec.ai/bot) "
-        "&middot; Results are not a security certification "
-        "&middot; [sigilsec.ai/terms](https://sigilsec.ai/terms)</sub>",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "<sub>Automated scan by [Sigil](https://sigilsec.ai) "
+            "&middot; [How this works](https://sigilsec.ai/bot) "
+            "&middot; Results are not a security certification "
+            "&middot; [sigilsec.ai/terms](https://sigilsec.ai/terms)</sub>",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -349,7 +355,9 @@ async def _process_pr_event(
     deps = _extract_new_dependencies(diff)
     logger.info(
         "PR %s#%d: found %d new dependencies",
-        repo, pr_number, len(deps),
+        repo,
+        pr_number,
+        len(deps),
     )
 
     # 3. Look up scan results for each dependency

@@ -151,9 +151,7 @@ class SkillsWatcher(BaseWatcher):
                                 audit_data[sk.id] = audit_result.to_metadata()
                                 break
                 except Exception:
-                    logger.debug(
-                        "Failed to fetch audits for %s", source, exc_info=True
-                    )
+                    logger.debug("Failed to fetch audits for %s", source, exc_info=True)
                 await asyncio.sleep(0.5)
 
         # Build scan jobs

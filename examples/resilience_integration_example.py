@@ -49,17 +49,17 @@ async def fetch_repository_metadata(repo_url: str) -> Dict[str, Any]:
     """
     # Simulate GitHub API call
     import httpx
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(f"https://api.github.com/repos/{repo_url}")
-        
+
         if response.status_code != 200:
             raise ExternalServiceError(
                 service="github_api",
                 message=f"Failed to fetch repository: {response.status_code}",
-                context={"repo_url": repo_url, "status_code": response.status_code}
+                context={"repo_url": repo_url, "status_code": response.status_code},
             )
-        
+
         return response.json()
 
 
@@ -72,10 +72,10 @@ async def get_repository_info(owner: str, repo: str) -> JSONResponse:
     """
     try:
         repo_url = f"{owner}/{repo}"
-        
+
         # Use circuit breaker protection
         metadata = await fetch_repository_metadata(repo_url)
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -86,12 +86,12 @@ async def get_repository_info(owner: str, repo: str) -> JSONResponse:
                     "stars": metadata.get("stargazers_count"),
                     "language": metadata.get("language"),
                 },
-            }
+            },
         )
-        
+
     except ExternalServiceError as exc:
         logger.warning("GitHub API failed for %s/%s: %s", owner, repo, exc)
-        
+
         # Return degraded response
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -100,7 +100,7 @@ async def get_repository_info(owner: str, repo: str) -> JSONResponse:
                 "message": "Repository information temporarily unavailable",
                 "error": exc.message,
                 "retry_after": exc.retry_after,
-            }
+            },
         )
 
 
@@ -123,16 +123,16 @@ async def get_cached_repository_info(repo_url: str) -> Optional[Dict[str, Any]]:
     Fallback function that returns cached repository information.
     """
     from api.graceful_degradation import cached_fallback_manager
-    
+
     cached_data = await cached_fallback_manager.get_fallback_data(
         f"repo:{repo_url}",
-        max_age=3600  # 1 hour old cache is acceptable
+        max_age=3600,  # 1 hour old cache is acceptable
     )
-    
+
     if cached_data:
         logger.info("Using cached data for repository: %s", repo_url)
         return cached_data
-    
+
     return None
 
 
@@ -142,32 +142,31 @@ async def get_repository_with_fallback(owner: str, repo: str) -> JSONResponse:
     Example endpoint with comprehensive resilience: retry + circuit breaker + fallback.
     """
     repo_url = f"{owner}/{repo}"
-    
+
     # Try primary data source with full protection
     repository_data = await call_with_degradation(
         service_name="github_api",
         operation=lambda: fetch_repository_with_retry(repo_url),
         fallback=lambda: get_cached_repository_info(repo_url),
     )
-    
+
     if repository_data:
         # Cache successful response for future fallback
         from api.graceful_degradation import cached_fallback_manager
+
         await cached_fallback_manager.store_fallback_data(
-            f"repo:{repo_url}",
-            repository_data,
-            ttl=3600
+            f"repo:{repo_url}", repository_data, ttl=3600
         )
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
                 "status": "success",
                 "repository": repository_data,
                 "data_source": "live",
-            }
+            },
         )
-    
+
     # No data available at all
     raise NotFoundError("Repository", repo_url)
 
@@ -184,31 +183,36 @@ async def process_repository_scan(repo_url: str, user_id: str) -> Dict[str, Any]
     This function is automatically queued and executed with retry logic.
     """
     logger.info("Starting security scan for repository: %s", repo_url)
-    
+
     try:
         # Fetch repository data with resilience
         repo_data = await fetch_repository_with_retry(repo_url)
-        
+
         # Simulate scan processing (in reality, this would be complex analysis)
         import asyncio
+
         await asyncio.sleep(10)  # Simulate processing time
-        
+
         # Store scan results (with database resilience)
         from api.database_resilience import with_database_resilience
-        
+
         @with_database_resilience(fallback_result={"id": "temp-scan-id"})
         async def store_scan_result():
             from api.database import db
-            return await db.insert("scans", {
-                "repository_url": repo_url,
-                "user_id": user_id,
-                "status": "completed",
-                "findings": {"threats": 0, "warnings": 2},
-                "metadata": repo_data,
-            })
-        
+
+            return await db.insert(
+                "scans",
+                {
+                    "repository_url": repo_url,
+                    "user_id": user_id,
+                    "status": "completed",
+                    "findings": {"threats": 0, "warnings": 2},
+                    "metadata": repo_data,
+                },
+            )
+
         scan_result = await store_scan_result()
-        
+
         logger.info("Completed security scan for repository: %s", repo_url)
         return {
             "scan_id": scan_result["id"],
@@ -216,7 +220,7 @@ async def process_repository_scan(repo_url: str, user_id: str) -> Dict[str, Any]
             "repository": repo_url,
             "findings": {"threats": 0, "warnings": 2},
         }
-        
+
     except Exception as exc:
         logger.error("Security scan failed for %s: %s", repo_url, exc)
         raise  # Will be handled by job retry logic
@@ -232,7 +236,7 @@ async def submit_repository_scan(
     Example endpoint that submits a repository for background security scanning.
     """
     repo_url = f"{owner}/{repo}"
-    
+
     try:
         # Submit job for background processing
         job_id = await job_queue.submit_job(
@@ -246,7 +250,7 @@ async def submit_repository_scan(
             correlation_id=f"scan-{owner}-{repo}",
             context={"repository": repo_url, "operation": "security_scan"},
         )
-        
+
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content={
@@ -255,14 +259,14 @@ async def submit_repository_scan(
                 "job_id": job_id,
                 "repository": repo_url,
                 "estimated_completion": "5-10 minutes",
-            }
+            },
         )
-        
+
     except Exception as exc:
         logger.error("Failed to submit scan job for %s: %s", repo_url, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to submit repository scan"
+            detail="Failed to submit repository scan",
         )
 
 
@@ -272,16 +276,16 @@ async def get_scan_status(job_id: str) -> JSONResponse:
     Example endpoint to check the status of a background scan job.
     """
     job_status = job_queue.get_job_status(job_id)
-    
+
     if not job_status:
         raise NotFoundError("Job", job_id)
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "status": "success",
             "job": job_status,
-        }
+        },
     )
 
 
@@ -291,18 +295,21 @@ async def get_scan_status(job_id: str) -> JSONResponse:
 
 
 @resilience_router.get("/user/{user_id}/scans")
-@with_degradation("database", fallback_response_builder=lambda level: {
-    "scans": [],
-    "status": "degraded",
-    "message": "Scan history temporarily unavailable",
-})
+@with_degradation(
+    "database",
+    fallback_response_builder=lambda level: {
+        "scans": [],
+        "status": "degraded",
+        "message": "Scan history temporarily unavailable",
+    },
+)
 async def get_user_scans(user_id: str) -> JSONResponse:
     """
     Example endpoint showing database operations with resilience patterns.
     """
     from api.database_resilience import with_database_resilience
     from api.database import db
-    
+
     @with_database_resilience(fallback_result=[])
     async def fetch_user_scans():
         return await db.select(
@@ -312,10 +319,10 @@ async def get_user_scans(user_id: str) -> JSONResponse:
             order_desc=True,
             limit=50,
         )
-    
+
     try:
         scans = await fetch_user_scans()
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
@@ -323,12 +330,12 @@ async def get_user_scans(user_id: str) -> JSONResponse:
                 "user_id": user_id,
                 "scans": scans,
                 "total": len(scans),
-            }
+            },
         )
-        
+
     except DatabaseError as exc:
         logger.error("Database error fetching scans for user %s: %s", user_id, exc)
-        
+
         # Return degraded response
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -339,7 +346,7 @@ async def get_user_scans(user_id: str) -> JSONResponse:
                 "scans": [],
                 "error": exc.message,
                 "retry_after": exc.retry_after,
-            }
+            },
         )
 
 
@@ -354,9 +361,9 @@ async def get_detailed_health() -> JSONResponse:
     Example endpoint showing detailed health information including resilience components.
     """
     from api.resilience_middleware import enhanced_health_check
-    
+
     health_data = await enhanced_health_check()
-    
+
     # Add example-specific health information
     health_data["examples"] = {
         "github_integration": {
@@ -369,7 +376,7 @@ async def get_detailed_health() -> JSONResponse:
             "failed_scans": job_queue.get_queue_stats().get("dead_letter_jobs", 0),
         },
     }
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content=health_data,
@@ -382,7 +389,7 @@ async def get_metrics_summary() -> JSONResponse:
     Example endpoint showing how to expose application metrics.
     """
     from api.monitoring import metrics_collector
-    
+
     try:
         # Get key metrics for the examples
         metrics = {
@@ -391,10 +398,12 @@ async def get_metrics_summary() -> JSONResponse:
                     "operations_total", {"operation": "get_repository"}
                 ),
                 "success": metrics_collector.get_counter_value(
-                    "operations_total", {"operation": "get_repository", "status": "success"}
+                    "operations_total",
+                    {"operation": "get_repository", "status": "success"},
                 ),
                 "errors": metrics_collector.get_counter_value(
-                    "operations_total", {"operation": "get_repository", "status": "error"}
+                    "operations_total",
+                    {"operation": "get_repository", "status": "error"},
                 ),
             },
             "response_times": metrics_collector.get_histogram_stats(
@@ -412,16 +421,16 @@ async def get_metrics_summary() -> JSONResponse:
                 ),
             },
         }
-        
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
                 "status": "success",
                 "metrics": metrics,
                 "collection_time": "real-time",
-            }
+            },
         )
-        
+
     except Exception as exc:
         logger.error("Failed to get metrics summary: %s", exc)
         return JSONResponse(
@@ -430,7 +439,7 @@ async def get_metrics_summary() -> JSONResponse:
                 "status": "error",
                 "message": "Failed to retrieve metrics",
                 "error": str(exc),
-            }
+            },
         )
 
 
@@ -447,9 +456,9 @@ async def inject_error_for_testing(error_type: str) -> JSONResponse:
     if not settings.debug:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Error injection only available in debug mode"
+            detail="Error injection only available in debug mode",
         )
-    
+
     error_types = {
         "database": DatabaseError("Simulated database error for testing"),
         "external": ExternalServiceError("github_api", "Simulated GitHub API error"),
@@ -457,12 +466,12 @@ async def inject_error_for_testing(error_type: str) -> JSONResponse:
         "timeout": TimeoutError("test_operation", 30),
         "generic": Exception("Simulated generic error"),
     }
-    
+
     if error_type not in error_types:
         raise ValidationError(
             f"Invalid error type. Available: {list(error_types.keys())}"
         )
-    
+
     # Raise the specified error type
     raise error_types[error_type]
 
@@ -477,28 +486,27 @@ if __name__ == "__main__":
     Example of how to run a simple test of the resilience patterns.
     """
     import asyncio
-    
+
     async def test_resilience_patterns():
         """Test basic functionality of resilience patterns."""
         print("Testing resilience patterns...")
-        
+
         # Test circuit breaker
         try:
             result = await fetch_repository_metadata("octocat/Hello-World")
             print(f"Circuit breaker test passed: {result.get('name', 'Unknown')}")
         except Exception as exc:
             print(f"Circuit breaker test failed (expected): {exc}")
-        
+
         # Test background job submission
         try:
             job_id = await process_repository_scan.submit_job(
-                "octocat/Hello-World",
-                "test-user"
+                "octocat/Hello-World", "test-user"
             )
             print(f"Background job submitted: {job_id}")
         except Exception as exc:
             print(f"Background job submission failed: {exc}")
-        
+
         print("Resilience pattern tests completed")
-    
+
     asyncio.run(test_resilience_patterns())

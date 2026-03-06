@@ -33,7 +33,7 @@ for table in tables:
     print(f"  - {table[0]}")
 
 # Check columns in forge_classification if it exists
-if any('forge_classification' in str(t) for t in tables):
+if any("forge_classification" in str(t) for t in tables):
     print("\nforge_classification columns:")
     cursor.execute("""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
@@ -43,7 +43,7 @@ if any('forge_classification' in str(t) for t in tables):
     """)
     for col in cursor.fetchall():
         print(f"  - {col[0]}: {col[1]} (nullable: {col[2]})")
-    
+
     # Check row count
     cursor.execute("SELECT COUNT(*) FROM forge_classification")
     count = cursor.fetchone()[0]

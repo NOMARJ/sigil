@@ -40,9 +40,7 @@ _redis: aioredis.Redis | None = None
 async def _get_redis() -> aioredis.Redis:
     global _redis
     if _redis is None:
-        _redis = aioredis.from_url(
-            bot_settings.redis_url, decode_responses=True
-        )
+        _redis = aioredis.from_url(bot_settings.redis_url, decode_responses=True)
     return _redis
 
 
@@ -119,11 +117,15 @@ async def _trigger_revalidation(ecosystem: str, package_name: str) -> None:
                 },
             )
             if resp.status_code == 200:
-                logger.debug("ISR revalidation triggered for %s/%s", ecosystem, package_name)
+                logger.debug(
+                    "ISR revalidation triggered for %s/%s", ecosystem, package_name
+                )
             else:
                 logger.debug(
                     "ISR revalidation returned %d for %s/%s",
-                    resp.status_code, ecosystem, package_name,
+                    resp.status_code,
+                    ecosystem,
+                    package_name,
                 )
     except Exception:
         logger.debug("ISR revalidation failed (non-fatal)", exc_info=True)
@@ -147,14 +149,13 @@ async def _append_rss(
         desc = f.get("description", f.get("rule", "unknown"))
         severity = f.get("severity", "MEDIUM")
         finding_summaries.append(f"{severity}: {desc}")
-    summary = "; ".join(finding_summaries) if finding_summaries else "No notable findings"
+    summary = (
+        "; ".join(finding_summaries) if finding_summaries else "No notable findings"
+    )
 
     title = f"[{verdict}] {job.name}@{job.version} ({job.ecosystem.upper()})"
     link = f"https://sigilsec.ai/scans/{job.ecosystem}/{job.name}"
-    description = (
-        f"Risk score: {score:.0f}. "
-        f"{len(findings)} finding(s). {summary}."
-    )
+    description = f"Risk score: {score:.0f}. {len(findings)} finding(s). {summary}."
 
     item_xml = (
         f"<item>"
@@ -236,8 +237,7 @@ async def generate_rss_feed(
         items = await r.lrange(key, 0, RSS_MAX_ITEMS - 1)
         allowed_verdicts = {v.strip().upper() for v in verdict_filter.split(",")}
         items = [
-            item for item in items
-            if any(f"[{v}]" in item for v in allowed_verdicts)
+            item for item in items if any(f"[{v}]" in item for v in allowed_verdicts)
         ]
         items = items[:max_items]
 
@@ -262,7 +262,7 @@ async def generate_rss_feed(
     <link>https://sigilsec.ai/scans</link>
     <description>Automated security scan results for AI agent packages. Learn more at https://sigilsec.ai/bot</description>
     <language>en-us</language>
-    <lastBuildDate>{datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')}</lastBuildDate>
+    <lastBuildDate>{datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")}</lastBuildDate>
     {items_xml}
   </channel>
 </rss>"""

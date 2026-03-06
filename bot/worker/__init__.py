@@ -52,9 +52,7 @@ async def _download_and_extract(job: ScanJob, dest: str) -> bool:
             # ClawHub uses ZIP download via httpx
             from api.services.clawhub_crawler import ClawHubSkill, download_skill
 
-            skill = ClawHubSkill(
-                slug=job.name, version=job.version
-            )
+            skill = ClawHubSkill(slug=job.name, version=job.version)
             return await download_skill(skill, dest)
         elif job.ecosystem == "github":
             return await _download_git(target, dest)
@@ -72,7 +70,11 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
         if job.ecosystem == "npm":
             pkg_spec = f"{job.name}@{job.version}" if job.version else job.name
             proc = await asyncio.create_subprocess_exec(
-                "npm", "pack", pkg_spec, "--pack-destination", dest,
+                "npm",
+                "pack",
+                pkg_spec,
+                "--pack-destination",
+                dest,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -82,7 +84,11 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
             # Extract tarballs
             for tgz in Path(dest).glob("*.tgz"):
                 await asyncio.create_subprocess_exec(
-                    "tar", "xzf", str(tgz), "-C", dest,
+                    "tar",
+                    "xzf",
+                    str(tgz),
+                    "-C",
+                    dest,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -91,7 +97,12 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
         elif job.ecosystem in ("pip", "pypi"):
             pkg_spec = f"{job.name}=={job.version}" if job.version else job.name
             proc = await asyncio.create_subprocess_exec(
-                "pip", "download", "--no-deps", "-d", dest, pkg_spec,
+                "pip",
+                "download",
+                "--no-deps",
+                "-d",
+                dest,
+                pkg_spec,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -100,7 +111,11 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
                 return False
             for archive in Path(dest).glob("*.tar.gz"):
                 await asyncio.create_subprocess_exec(
-                    "tar", "xzf", str(archive), "-C", dest,
+                    "tar",
+                    "xzf",
+                    str(archive),
+                    "-C",
+                    dest,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -110,7 +125,12 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
             # Git clone
             url = job.download_url or f"https://github.com/{job.name}.git"
             proc = await asyncio.create_subprocess_exec(
-                "git", "clone", "--depth", "1", url, f"{dest}/repo",
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                url,
+                f"{dest}/repo",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -118,7 +138,9 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
             return proc.returncode == 0
 
     except Exception as e:
-        logger.warning("Download fallback failed for %s/%s: %s", job.ecosystem, job.name, e)
+        logger.warning(
+            "Download fallback failed for %s/%s: %s", job.ecosystem, job.name, e
+        )
         return False
 
 
@@ -148,7 +170,11 @@ async def _run_scan(directory: str) -> dict | None:
     # Fallback to CLI
     try:
         proc = await asyncio.create_subprocess_exec(
-            bot_settings.sigil_bin, "--format", "json", "scan", directory,
+            bot_settings.sigil_bin,
+            "--format",
+            "json",
+            "scan",
+            directory,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -156,6 +182,7 @@ async def _run_scan(directory: str) -> dict | None:
             proc.communicate(), timeout=bot_settings.scan_timeout
         )
         import json
+
         if stdout.strip():
             return json.loads(stdout.decode())
     except Exception as e:
@@ -173,9 +200,7 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
         await queue.complete(job)
         return
 
-    with tempfile.TemporaryDirectory(
-        prefix=f"sigil-bot-{job.ecosystem}-"
-    ) as tmpdir:
+    with tempfile.TemporaryDirectory(prefix=f"sigil-bot-{job.ecosystem}-") as tmpdir:
         try:
             # 1. Download
             ok = await _download_and_extract(job, tmpdir)
@@ -183,8 +208,11 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 if job.retries < job.max_retries:
                     logger.warning(
                         "Download failed for %s/%s@%s, scheduling retry %d/%d",
-                        job.ecosystem, job.name, job.version,
-                        job.retries + 1, job.max_retries,
+                        job.ecosystem,
+                        job.name,
+                        job.version,
+                        job.retries + 1,
+                        job.max_retries,
                     )
                     await queue.retry(job)
                     return
@@ -220,8 +248,11 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
                 if job.retries < job.max_retries:
                     logger.warning(
                         "Scanner produced no output for %s/%s@%s, scheduling retry %d/%d",
-                        job.ecosystem, job.name, job.version,
-                        job.retries + 1, job.max_retries,
+                        job.ecosystem,
+                        job.name,
+                        job.version,
+                        job.retries + 1,
+                        job.max_retries,
                     )
                     await queue.retry(job)
                     return
@@ -242,28 +273,35 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             log_entry_id = None
             try:
                 from bot.config import bot_settings as _bs
+
                 if _bs.signing_configured:
                     from bot.attestation import create_attestation
-                    attestation, content_digest, log_entry_id = (
-                        await create_attestation(
-                            scan_id="pending",
-                            ecosystem=job.ecosystem,
-                            package_name=job.name,
-                            package_version=job.version,
-                            subject_digest=archive_hash,
-                            scan_output=scan_output,
-                            metadata=scan_output.get("metadata", {}),
-                        )
+
+                    (
+                        attestation,
+                        content_digest,
+                        log_entry_id,
+                    ) = await create_attestation(
+                        scan_id="pending",
+                        ecosystem=job.ecosystem,
+                        package_name=job.name,
+                        package_version=job.version,
+                        subject_digest=archive_hash,
+                        scan_output=scan_output,
+                        metadata=scan_output.get("metadata", {}),
                     )
             except Exception:
                 logger.warning(
                     "Attestation signing failed for %s/%s (non-fatal)",
-                    job.ecosystem, job.name, exc_info=True,
+                    job.ecosystem,
+                    job.name,
+                    exc_info=True,
                 )
 
             # 4. Store
             scan_id = await store_scan_result(
-                job, scan_output,
+                job,
+                scan_output,
                 attestation=attestation,
                 content_digest=content_digest,
                 log_entry_id=log_entry_id,
@@ -272,6 +310,7 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             # 5. Publish
             try:
                 from bot.publisher import publish_scan
+
                 await publish_scan(scan_id, job, scan_output)
             except Exception:
                 logger.exception("Publish failed for %s (non-fatal)", scan_id)
@@ -279,6 +318,7 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             # 6. Intelligence extraction (async, non-blocking)
             try:
                 from bot.intelligence import extract_intelligence
+
                 await extract_intelligence(job, scan_output)
             except Exception:
                 logger.debug("Intelligence extraction skipped: %s", job.name)
@@ -290,8 +330,11 @@ async def process_job(job: ScanJob, queue: JobQueue) -> None:
             if job.retries < job.max_retries:
                 logger.warning(
                     "Scan timed out for %s/%s@%s, scheduling retry %d/%d",
-                    job.ecosystem, job.name, job.version,
-                    job.retries + 1, job.max_retries,
+                    job.ecosystem,
+                    job.name,
+                    job.version,
+                    job.retries + 1,
+                    job.max_retries,
                 )
                 await queue.retry(job)
                 return

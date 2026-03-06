@@ -13,6 +13,7 @@ from pathlib import Path
 # Add api to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+
 async def test_jwks_fetch():
     """Test that we can fetch Auth0 JWKS from custom domain."""
     print("🔍 Testing Auth0 JWKS fetch from auth.sigilsec.ai...")
@@ -29,12 +30,15 @@ async def test_jwks_fetch():
         print(f"   - Found {len(jwks.get('keys', []))} signing keys")
 
         for i, key in enumerate(jwks.get("keys", []), 1):
-            print(f"   - Key {i}: {key.get('kid')} (alg: {key.get('alg')}, use: {key.get('use')})")
+            print(
+                f"   - Key {i}: {key.get('kid')} (alg: {key.get('alg')}, use: {key.get('use')})"
+            )
 
         return True
     except Exception as e:
         print(f"❌ JWKS fetch failed: {e}")
         return False
+
 
 async def test_config_loaded():
     """Test that Auth0 config is properly loaded."""
@@ -58,6 +62,7 @@ async def test_config_loaded():
         print(f"❌ Config load failed: {e}")
         return False
 
+
 async def test_jose_available():
     """Test that python-jose is available for RS256 verification."""
     print("\n🔍 Testing python-jose availability...")
@@ -73,6 +78,7 @@ async def test_jose_available():
         print(f"❌ python-jose not available: {e}")
         print(f"   Auth0 RS256 verification requires python-jose")
         return False
+
 
 async def test_verify_function():
     """Test that verify_auth0_token function exists and can be called."""
@@ -95,8 +101,10 @@ async def test_verify_function():
     except Exception as e:
         print(f"❌ Function test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 async def test_auto_provision_function():
     """Test that user auto-provisioning function exists."""
@@ -112,6 +120,7 @@ async def test_auto_provision_function():
     except Exception as e:
         print(f"❌ Auto-provision function test failed: {e}")
         return False
+
 
 async def main():
     """Run all tests."""
@@ -155,6 +164,7 @@ async def main():
     else:
         print(f"\n❌ {total - passed} test(s) failed. Fix issues before proceeding.")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

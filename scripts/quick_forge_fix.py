@@ -10,6 +10,7 @@ DATABASE = "sigil"
 USERNAME = "sigil_admin"
 PASSWORD = "hUkVA6s1G7z4Smqf!"
 
+
 def main():
     conn_str = (
         f"Driver={{ODBC Driver 18 for SQL Server}};"
@@ -21,12 +22,12 @@ def main():
         f"TrustServerCertificate=no;"
         f"Connection Timeout=10;"
     )
-    
+
     print("Connecting to database...")
     conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
     conn.autocommit = True  # Enable autocommit for DDL
-    
+
     print("Dropping problematic constraint if exists...")
     try:
         cursor.execute("""
@@ -40,14 +41,14 @@ def main():
         print("✓ Constraint dropped")
     except Exception as e:
         print(f"  Note: {e}")
-    
+
     print("Checking if table exists...")
     cursor.execute("""
         SELECT COUNT(*) FROM sys.tables 
         WHERE name = 'forge_trust_score_history'
     """)
     exists = cursor.fetchone()[0] > 0
-    
+
     if exists:
         print("✓ Table already exists")
         # Just ensure the foreign key is correct
@@ -79,11 +80,12 @@ def main():
             )
         """)
         print("✓ Table created")
-    
+
     cursor.close()
     conn.close()
     print("\n✨ Done!")
     return 0
+
 
 if __name__ == "__main__":
     try:
