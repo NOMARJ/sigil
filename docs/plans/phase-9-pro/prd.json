@@ -1,0 +1,408 @@
+{
+  "project": "Sigil",
+  "subsystem": "phase-9-pro-llm-detection",
+  "branchName": "feature/phase-9-pro-billing",
+  "description": "Phase 9 Pro tier with LLM-powered intelligent threat detection at $29/month. Builds on open-source Phase 7-8 static analysis with AI-driven pattern recognition, contextual analysis, and zero-day threat detection.",
+  "businessValue": "Primary revenue driver at $29/month Pro tier. LLM-powered detection catches sophisticated threats that static analysis misses. Expected to convert 10% of active users who need advanced AI security.",
+  "dependencies": [
+    "billing-system (Stripe with MSSQL integration)",
+    "authentication-system (Auth0)",
+    "database-system (Azure SQL Database/MSSQL)",
+    "base-scanner (Phases 1-8 in open-source CLI)",
+    "forge-api (for SKILL.md detection)"
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add Phase 9 LLM detection to scanner API",
+      "description": "As a Pro user, I want LLM-powered analysis that goes beyond static Phase 7-8 rules",
+      "acceptanceCriteria": [
+        "LLM analyzes code context for zero-day patterns",
+        "AI identifies obfuscated prompt injections",
+        "Contextual analysis of SKILL.md intent",
+        "LLM explains findings in natural language",
+        "Detection only runs for Pro/Team/Enterprise tiers",
+        "Verify: API returns LLM insights for Pro users"
+      ],
+      "priority": 1,
+      "estimatedHours": 10,
+      "files": [
+        "api/scanner/phase9_llm_detector.py",
+        "api/services/llm_service.py",
+        "api/scanner/scanner_engine.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Implement LLM service integration",
+      "description": "As an API, I need to connect to LLM service for intelligent analysis",
+      "acceptanceCriteria": [
+        "Integrate with OpenAI/Anthropic/Azure AI",
+        "Structured prompts for security analysis",
+        "Response parsing and confidence scoring",
+        "Fallback to static analysis if LLM unavailable",
+        "Cache LLM responses for identical code",
+        "Rate limiting to control API costs"
+      ],
+      "priority": 1,
+      "estimatedHours": 8,
+      "files": [
+        "api/services/llm_service.py",
+        "api/models/llm_models.py",
+        "api/config/llm_config.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Add Pro tier check to scanner API",
+      "description": "As an API, I need to verify Pro subscription before running Phase 9 LLM detection",
+      "acceptanceCriteria": [
+        "API checks subscription tier from MSSQL via stored procedure",
+        "Auth0 JWT contains Pro tier claim",
+        "Phase 9 LLM only runs for Pro/Team/Enterprise",
+        "Free users get message about Pro features",
+        "Response includes 'pro_features_used' flag",
+        "Audit log tracks Pro feature usage in MSSQL",
+        "Verify: API returns 'upgrade_required' for free users"
+      ],
+      "priority": 2,
+      "estimatedHours": 4,
+      "files": [
+        "api/routers/scan.py",
+        "api/services/subscription_service.py",
+        "api/middleware/tier_check.py",
+        "api/database/mssql_procedures.sql"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Create Pro upgrade flow in billing",
+      "description": "As a free user, I want to upgrade to Pro for $29/month to get LLM detection",
+      "acceptanceCriteria": [
+        "Stripe checkout for $29/month Pro tier",
+        "Annual option at $232/year (save $116)",
+        "Webhook updates subscription in MSSQL",
+        "Auth0 user metadata updated with Pro tier",
+        "Customer portal for managing subscription",
+        "Immediate access after payment",
+        "Test with Stripe test cards"
+      ],
+      "priority": 2,
+      "estimatedHours": 4,
+      "files": [
+        "api/routers/billing.py",
+        "api/services/stripe_service.py",
+        "api/config.py (add Stripe price IDs)",
+        "api/database/subscription_procedures.sql"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Create LLM prompt templates for threat detection",
+      "description": "As a Pro scanner, I need optimized prompts for LLM threat analysis",
+      "acceptanceCriteria": [
+        "Prompt for zero-day vulnerability detection",
+        "Prompt for obfuscated code analysis",
+        "Prompt for behavioral pattern recognition",
+        "Prompt for supply chain risk assessment",
+        "Prompt for AI-specific attack vectors",
+        "Test prompts with 100+ known threats"
+      ],
+      "priority": 1,
+      "estimatedHours": 6,
+      "files": [
+        "api/prompts/security_analysis_prompts.py",
+        "api/prompts/threat_detection_prompts.py",
+        "api/tests/test_llm_prompts.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Add contextual threat intelligence",
+      "description": "As a Pro scanner, I need LLM to understand code context and intent",
+      "acceptanceCriteria": [
+        "LLM analyzes entire repository context",
+        "Identifies coordinated attack patterns",
+        "Detects time-bomb and logic bombs",
+        "Recognizes data exfiltration chains",
+        "Correlates findings across files",
+        "Provides remediation suggestions"
+      ],
+      "priority": 1,
+      "estimatedHours": 6,
+      "files": [
+        "api/services/context_analyzer.py",
+        "api/services/threat_correlator.py",
+        "api/tests/test_context_analysis.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Update CLI for Pro features",
+      "description": "As a CLI user, I want to use Pro detection features with my subscription",
+      "acceptanceCriteria": [
+        "CLI checks API key tier on scan",
+        "Shows Pro badge in scan output",
+        "--pro flag triggers LLM analysis via API",
+        "Upgrade prompt for free users",
+        "Cache subscription tier locally",
+        "Test with real Pro API key"
+      ],
+      "priority": 3,
+      "estimatedHours": 4,
+      "files": [
+        "bin/sigil (bash script)",
+        "cli/src/scanner.rs (future Rust)",
+        "api/routers/auth.py (API key validation)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Create Pro features dashboard page",
+      "description": "As a Pro user, I want to see my enhanced detection results in the dashboard",
+      "acceptanceCriteria": [
+        "Dashboard shows LLM insights and explanations",
+        "Pro badge on user profile",
+        "AI confidence scores for findings",
+        "Natural language threat explanations",
+        "Zero-day detection highlights",
+        "Upgrade CTA for free users"
+      ],
+      "priority": 4,
+      "estimatedHours": 5,
+      "files": [
+        "dashboard/src/app/pro/page.tsx",
+        "dashboard/src/components/ProFeatures.tsx",
+        "dashboard/src/components/PhaseBreakdown.tsx"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "title": "Implement usage tracking for Pro features",
+      "description": "As a business, I need to track Pro feature usage for analytics",
+      "acceptanceCriteria": [
+        "Track LLM API calls and costs",
+        "Log AI-detected threats",
+        "Record zero-day discoveries",
+        "Store in analytics database",
+        "Daily usage reports",
+        "Churn prediction metrics"
+      ],
+      "priority": 4,
+      "estimatedHours": 3,
+      "files": [
+        "api/services/analytics_service.py",
+        "api/models/usage_metrics.py",
+        "api/routers/analytics.py"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "title": "Add Pro tier to pricing page",
+      "description": "As a visitor, I want to understand Pro tier benefits on the pricing page",
+      "acceptanceCriteria": [
+        "Pro tier shows $29/month pricing",
+        "Lists LLM-powered detection beyond static analysis",
+        "Highlights zero-day and obfuscation detection",
+        "Comparison table with Free tier",
+        "Annual discount messaging",
+        "Sign up button links to billing"
+      ],
+      "priority": 3,
+      "estimatedHours": 2,
+      "files": [
+        "dashboard/src/app/pricing/page.tsx",
+        "dashboard/src/components/PricingCard.tsx",
+        "dashboard/public/pricing-data.json"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "title": "Create Pro onboarding flow",
+      "description": "As a new Pro user, I want guided onboarding to use advanced features",
+      "acceptanceCriteria": [
+        "Welcome email with Pro features guide",
+        "First LLM scan tutorial",
+        "AI insights interpretation guide",
+        "API key setup instructions",
+        "Slack notification setup (optional)",
+        "Track onboarding completion"
+      ],
+      "priority": 5,
+      "estimatedHours": 3,
+      "files": [
+        "api/services/onboarding_service.py",
+        "dashboard/src/app/onboarding/pro/page.tsx",
+        "api/templates/pro_welcome_email.html"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-012",
+      "title": "Add Pro tier integration tests",
+      "description": "As a developer, I need comprehensive tests for Pro tier functionality",
+      "acceptanceCriteria": [
+        "Test subscription upgrade flow",
+        "Verify LLM detection gating",
+        "Test Stripe webhook handling",
+        "Validate Pro API responses with AI insights",
+        "Test tier downgrade scenarios",
+        "Test LLM service failures and fallbacks",
+        "90% code coverage for Pro features"
+      ],
+      "priority": 5,
+      "estimatedHours": 4,
+      "files": [
+        "api/tests/test_pro_tier.py",
+        "api/tests/test_billing_integration.py",
+        "api/tests/test_phase9_llm.py"
+      ],
+      "passes": false
+    }
+  ],
+  "technicalRequirements": {
+    "billing": {
+      "provider": "Stripe",
+      "monthlyPrice": 29.00,
+      "annualPrice": 232.00,
+      "currency": "USD",
+      "trialPeriod": "14 days"
+    },
+    "llm": {
+      "provider": "OpenAI/Azure OpenAI",
+      "model": "gpt-4-turbo",
+      "maxTokensPerScan": 8000,
+      "temperatureSettings": 0.2,
+      "responseCache": "24 hours",
+      "fallbackToStatic": true
+    },
+    "detection": {
+      "phase7_8_static": "Open source CLI",
+      "phase9_llm": "Pro API only",
+      "contextWindow": "Full repository",
+      "correlationEngine": true,
+      "zeroDay": true
+    },
+    "performance": {
+      "scanLatency": "< 2s additional for LLM",
+      "llmResponse": "< 1.5s per analysis",
+      "cacheHitRate": "> 30% expected",
+      "subscriptionCheck": "< 50ms cached"
+    },
+    "security": {
+      "apiKeyScopes": [
+        "scan:pro",
+        "skill:analyze"
+      ],
+      "auditLogging": true,
+      "rateLimiting": "1000 scans/month for Pro"
+    }
+  },
+  "successMetrics": {
+    "conversion": {
+      "freeToProRate": "10% of active users",
+      "trialConversion": "40% after 14 days",
+      "monthlyChurn": "< 5%"
+    },
+    "usage": {
+      "llmAnalysisRuns": "5000+ monthly",
+      "zeroThreatsDetected": "50+ monthly",
+      "aiInsightsGenerated": "10000+ monthly",
+      "llmApiCost": "~$500/month at scale"
+    },
+    "revenue": {
+      "month1MRR": "$2,900 (100 users)",
+      "month6MRR": "$14,500 (500 users)",
+      "yearlyTarget": "$87,000 (250 avg users)"
+    }
+  },
+  "timeline": {
+    "totalEstimatedHours": 56,
+    "phases": [
+      {
+        "phase": 1,
+        "title": "LLM Integration",
+        "duration": "3-4 days",
+        "stories": [
+          "US-001",
+          "US-002",
+          "US-005",
+          "US-006"
+        ],
+        "deliverable": "LLM detection engine working"
+      },
+      {
+        "phase": 2,
+        "title": "Billing Integration",
+        "duration": "2 days",
+        "stories": [
+          "US-003",
+          "US-004",
+          "US-009"
+        ],
+        "deliverable": "Pro tier subscription flow"
+      },
+      {
+        "phase": 3,
+        "title": "User Experience",
+        "duration": "2 days",
+        "stories": [
+          "US-007",
+          "US-008",
+          "US-010"
+        ],
+        "deliverable": "CLI and dashboard Pro features"
+      },
+      {
+        "phase": 4,
+        "title": "Polish and Launch",
+        "duration": "2 days",
+        "stories": [
+          "US-011",
+          "US-012"
+        ],
+        "deliverable": "Production-ready with tests"
+      }
+    ],
+    "launchDate": "March 15, 2026"
+  },
+  "risks": [
+    {
+      "risk": "Low conversion rate from free to Pro",
+      "mitigation": "A/B test pricing, offer 14-day trial, highlight AI threats",
+      "severity": "high"
+    },
+    {
+      "risk": "Phase 7-8 detection false positives",
+      "mitigation": "Extensive testing with real skills, adjustable thresholds",
+      "severity": "medium"
+    },
+    {
+      "risk": "Stripe integration issues",
+      "mitigation": "Use existing billing router, test thoroughly",
+      "severity": "low"
+    }
+  ],
+  "launchChecklist": [
+    "Phase 7-8 detection rules tested on 1000+ samples",
+    "Stripe Pro pricing configured and tested",
+    "Subscription upgrade/downgrade flows verified",
+    "Pro features documented in user guide",
+    "Marketing landing page ready",
+    "Email announcement drafted for users",
+    "Support docs for Pro features written",
+    "Analytics tracking configured",
+    "Load testing completed for Pro detection",
+    "Security review of tier access controls"
+  ]
+}
