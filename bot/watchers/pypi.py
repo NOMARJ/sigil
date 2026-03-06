@@ -101,7 +101,11 @@ class PyPIWatcher(BaseWatcher):
                             if link:
                                 url_parts = link.rstrip("/").rsplit("/", 1)
                                 candidate = url_parts[-1] if len(url_parts) > 1 else ""
-                                version = candidate if candidate and candidate[0].isdigit() else ""
+                                version = (
+                                    candidate
+                                    if candidate and candidate[0].isdigit()
+                                    else ""
+                                )
                             else:
                                 version = ""
 
@@ -110,9 +114,7 @@ class PyPIWatcher(BaseWatcher):
                         description = meta.get("summary", "")
                         raw_kw = meta.get("keywords") or ""
                         keywords_list = raw_kw.split(",") if raw_kw else []
-                        weekly_downloads = meta.get("downloads", {}).get(
-                            "last_week", 0
-                        )
+                        weekly_downloads = meta.get("downloads", {}).get("last_week", 0)
 
                         if not matches_ai_keywords(name, description, keywords_list):
                             continue
@@ -237,9 +239,7 @@ class PyPIWatcher(BaseWatcher):
 
         return jobs
 
-    async def _fetch_package_meta(
-        self, client, name: str
-    ) -> dict:
+    async def _fetch_package_meta(self, client, name: str) -> dict:
         """Fetch package metadata from PyPI JSON API."""
         try:
             resp = await client.get(f"{PYPI_JSON_API}/{name}/json")

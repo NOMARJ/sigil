@@ -46,13 +46,20 @@ async def get_db():
 
         async def _configure_connection(raw_conn):
             """Register output converter for DATETIMEOFFSET (ODBC type -155)."""
+
             def handle_datetimeoffset(dto_value):
                 tup = struct.unpack("<6hI2h", dto_value)
                 return datetime(
-                    tup[0], tup[1], tup[2], tup[3], tup[4], tup[5],
+                    tup[0],
+                    tup[1],
+                    tup[2],
+                    tup[3],
+                    tup[4],
+                    tup[5],
                     tup[6] // 1000,
                     timezone(timedelta(hours=tup[7], minutes=tup[8])),
                 )
+
             raw_conn.add_output_converter(-155, handle_datetimeoffset)
 
         pool = await aioodbc.create_pool(
@@ -95,15 +102,12 @@ class _MssqlStore:
             if isinstance(v, (dict, list)):
                 v = json.dumps(v)
             values.append(v)
-        sql = (
-            f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"VALUES ({placeholders})"
-        )
+        sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
         async with self._pool.acquire() as conn:
             cursor = await conn.cursor()
             await cursor.execute(sql, tuple(values))
             await conn.commit()
-            
+
             # For inserts, we need to find the inserted record since we can't use OUTPUT with triggers
             # Use a simple approach: return the data dict since we don't have reliable way to fetch
             # the inserted record with auto-generated fields when triggers are present
@@ -140,20 +144,20 @@ class _MssqlStore:
         # First, try to update existing record
         update_filters = {c: values[cols.index(c)] for c in conflict}
         existing = await self.select_one(table, update_filters)
-        
+
         if existing and update_cols:
             # Update existing record
             set_clause = ", ".join([f"{c} = ?" for c in update_cols])
             update_values = [values[cols.index(c)] for c in update_cols]
             where_clause = " AND ".join([f"{c} = ?" for c in conflict])
             where_values = [values[cols.index(c)] for c in conflict]
-            
+
             sql = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 await cursor.execute(sql, tuple(update_values + where_values))
                 await conn.commit()
-            
+
             # Return updated record
             return await self.select_one(table, update_filters)
         elif not existing:
@@ -372,7 +376,9 @@ async def store_scan_error(
     try:
         await db.insert("public_scans", row)
     except Exception:
-        logger.exception("Failed to store scan error for %s/%s", job.ecosystem, job.name)
+        logger.exception(
+            "Failed to store scan error for %s/%s", job.ecosystem, job.name
+        )
 
 
 async def has_been_scanned(

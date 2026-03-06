@@ -40,35 +40,36 @@ print(f"Found {len(packages)} unclassified packages")
 inserted = 0
 for pkg in packages:
     name = pkg[0]
-    eco = pkg[1] or 'unknown'
-    ver = pkg[2] or '0.0.0'
+    eco = pkg[1] or "unknown"
+    ver = pkg[2] or "0.0.0"
     risk = float(pkg[3]) if pkg[3] else 0
     findings = pkg[4] or 0
-    
+
     # Quick category determination
     name_lower = name.lower()
-    if 'mcp' in name_lower:
-        cat, subcat = 'mcp', 'mcp-server'
-    elif 'skill' in name_lower or 'claw' in name_lower:
-        cat, subcat = 'skills', 'ai-skill'
-    elif any(x in name_lower for x in ['agent', 'bot', 'ai-']):
-        cat, subcat = 'ai-agents', 'agent-tool'
-    elif any(x in name_lower for x in ['llm', 'openai', 'gpt', 'claude']):
-        cat, subcat = 'llm-tools', 'llm-integration'
-    elif any(x in name_lower for x in ['crypto', 'bitcoin', 'ethereum']):
-        cat, subcat = 'crypto', 'cryptocurrency'
+    if "mcp" in name_lower:
+        cat, subcat = "mcp", "mcp-server"
+    elif "skill" in name_lower or "claw" in name_lower:
+        cat, subcat = "skills", "ai-skill"
+    elif any(x in name_lower for x in ["agent", "bot", "ai-"]):
+        cat, subcat = "ai-agents", "agent-tool"
+    elif any(x in name_lower for x in ["llm", "openai", "gpt", "claude"]):
+        cat, subcat = "llm-tools", "llm-integration"
+    elif any(x in name_lower for x in ["crypto", "bitcoin", "ethereum"]):
+        cat, subcat = "crypto", "cryptocurrency"
     else:
-        cat, subcat = 'general', 'utility'
-    
+        cat, subcat = "general", "utility"
+
     conf = 0.7 + (0.2 if findings > 0 else 0) + (0.1 if risk > 7 else 0)
     conf = min(1.0, conf)
-    
+
     desc = f"{eco.upper()} package in {cat} category."
     if findings > 0:
         desc += f" {findings} issues found."
-    
+
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO forge_classification (
                 id, ecosystem, package_name, package_version,
                 category, subcategory, confidence_score, description_summary,
@@ -76,21 +77,35 @@ for pkg in packages:
                 import_patterns, risk_indicators, classified_at,
                 updated_at, classifier_version, metadata_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            str(uuid.uuid4()), eco, name, ver,
-            cat, subcat, conf, desc[:500],
-            '[]', '[]', '[]', '[]', '[]',
-            datetime.now(timezone.utc), datetime.now(timezone.utc),
-            'quick-v1', '{}'
-        ))
+        """,
+            (
+                str(uuid.uuid4()),
+                eco,
+                name,
+                ver,
+                cat,
+                subcat,
+                conf,
+                desc[:500],
+                "[]",
+                "[]",
+                "[]",
+                "[]",
+                "[]",
+                datetime.now(timezone.utc),
+                datetime.now(timezone.utc),
+                "quick-v1",
+                "{}",
+            ),
+        )
         inserted += 1
-        
+
         if inserted % 100 == 0:
             conn.commit()
             print(f"Inserted {inserted}...")
     except Exception as e:
         pass  # Skip duplicates/errors
-        
+
 conn.commit()
 
 # Final stats

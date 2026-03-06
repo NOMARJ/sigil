@@ -13,29 +13,74 @@ from __future__ import annotations
 
 AI_KEYWORDS: set[str] = {
     # Frameworks
-    "langchain", "langgraph", "crewai", "autogen", "ag2",
-    "llamaindex", "llama-index", "haystack", "semantic-kernel",
-    "dspy", "instructor", "marvin", "guidance",
+    "langchain",
+    "langgraph",
+    "crewai",
+    "autogen",
+    "ag2",
+    "llamaindex",
+    "llama-index",
+    "haystack",
+    "semantic-kernel",
+    "dspy",
+    "instructor",
+    "marvin",
+    "guidance",
     # LLM providers
-    "openai", "anthropic", "cohere", "mistral", "groq",
-    "together", "replicate", "fireworks", "anyscale",
+    "openai",
+    "anthropic",
+    "cohere",
+    "mistral",
+    "groq",
+    "together",
+    "replicate",
+    "fireworks",
+    "anyscale",
     # MCP / agent protocols
-    "mcp", "model-context-protocol", "modelcontextprotocol",
-    "agent", "agentic", "tool-use", "function-calling",
+    "mcp",
+    "model-context-protocol",
+    "modelcontextprotocol",
+    "agent",
+    "agentic",
+    "tool-use",
+    "function-calling",
     # RAG / retrieval
-    "rag", "retrieval", "vector", "embedding", "pinecone",
-    "weaviate", "chroma", "qdrant", "milvus", "faiss",
+    "rag",
+    "retrieval",
+    "vector",
+    "embedding",
+    "pinecone",
+    "weaviate",
+    "chroma",
+    "qdrant",
+    "milvus",
+    "faiss",
     # ML / transformers
-    "transformers", "huggingface", "diffusers", "tokenizer",
-    "torch", "tensorflow", "jax", "mlflow",
+    "transformers",
+    "huggingface",
+    "diffusers",
+    "tokenizer",
+    "torch",
+    "tensorflow",
+    "jax",
+    "mlflow",
     # Skills / plugins
-    "skill", "plugin", "extension", "addon",
-    "chatgpt-plugin", "claude-skill", "copilot-extension",
+    "skill",
+    "plugin",
+    "extension",
+    "addon",
+    "chatgpt-plugin",
+    "claude-skill",
+    "copilot-extension",
 }
 
 AI_SCOPES_NPM: set[str] = {
-    "@langchain", "@modelcontextprotocol", "@anthropic",
-    "@openai", "@llamaindex", "@huggingface",
+    "@langchain",
+    "@modelcontextprotocol",
+    "@anthropic",
+    "@openai",
+    "@llamaindex",
+    "@huggingface",
 }
 
 # ---------------------------------------------------------------------------
@@ -43,11 +88,26 @@ AI_SCOPES_NPM: set[str] = {
 # ---------------------------------------------------------------------------
 
 POPULAR_TARGETS: list[str] = [
-    "langchain", "openai", "anthropic", "transformers",
-    "huggingface", "crewai", "autogen", "llamaindex",
-    "pinecone", "chromadb", "fastapi", "streamlit",
-    "numpy", "pandas", "requests", "flask",
-    "torch", "tensorflow", "scikit-learn", "boto3",
+    "langchain",
+    "openai",
+    "anthropic",
+    "transformers",
+    "huggingface",
+    "crewai",
+    "autogen",
+    "llamaindex",
+    "pinecone",
+    "chromadb",
+    "fastapi",
+    "streamlit",
+    "numpy",
+    "pandas",
+    "requests",
+    "flask",
+    "torch",
+    "tensorflow",
+    "scikit-learn",
+    "boto3",
 ]
 
 
@@ -73,9 +133,14 @@ def _levenshtein(s: str, t: str) -> int:
 def _has_suspicious_substitution(name: str, target: str) -> bool:
     """Check if a package name has character substitutions typical of typosquatting."""
     confusables = {
-        "0": "o", "1": "l", "1": "i",
-        "3": "e", "5": "s", "7": "t",
-        "l": "i", "rn": "m",
+        "0": "o",
+        "1": "l",
+        "1": "i",
+        "3": "e",
+        "5": "s",
+        "7": "t",
+        "l": "i",
+        "rn": "m",
     }
     cleaned = name.replace(target, "").replace("-", "").replace("_", "")
     if not cleaned:

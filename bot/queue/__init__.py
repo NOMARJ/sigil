@@ -82,9 +82,7 @@ class JobQueue:
         self._redis: aioredis.Redis | None = None
 
     async def connect(self) -> None:
-        self._redis = aioredis.from_url(
-            bot_settings.redis_url, decode_responses=True
-        )
+        self._redis = aioredis.from_url(bot_settings.redis_url, decode_responses=True)
         await self._redis.ping()
         logger.info("Queue connected to Redis at %s", bot_settings.redis_url)
 
@@ -134,9 +132,7 @@ class JobQueue:
             if result:
                 job = ScanJob.from_json(result)
                 # Track as processing
-                await self._redis.hset(
-                    PROCESSING_SET, job.id, str(int(time.time()))
-                )
+                await self._redis.hset(PROCESSING_SET, job.id, str(int(time.time())))
                 return job
 
         # If all empty, block-wait on all three (BRPOP)
@@ -146,9 +142,7 @@ class JobQueue:
         if result:
             _queue_name, data = result
             job = ScanJob.from_json(data)
-            await self._redis.hset(
-                PROCESSING_SET, job.id, str(int(time.time()))
-            )
+            await self._redis.hset(PROCESSING_SET, job.id, str(int(time.time())))
             return job
         return None
 

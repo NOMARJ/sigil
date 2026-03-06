@@ -60,7 +60,9 @@ cursor.execute("""
 
 print("\n📊 Sample of recent classifications:")
 for row in cursor.fetchall():
-    print(f"  {row[0][:30]:<30} | {row[1]:<10} | {row[2]:<15} | conf:{row[3]:.2f} | desc:{row[4]:>3} chars")
+    print(
+        f"  {row[0][:30]:<30} | {row[1]:<10} | {row[2]:<15} | conf:{row[3]:.2f} | desc:{row[4]:>3} chars"
+    )
 
 # Get statistics
 cursor.execute("""

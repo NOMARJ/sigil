@@ -1,4 +1,5 @@
 """Application with moderate risk patterns — TEST FIXTURE ONLY."""
+
 import os
 import subprocess
 

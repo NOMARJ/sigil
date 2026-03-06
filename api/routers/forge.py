@@ -591,6 +591,12 @@ async def search_tools(
     Returns 'tools' field for frontend compatibility.
     """
     try:
+        # Get total count from database first (CRITICAL BUG FIX)
+        total_count_result = await db.execute_raw_sql_single(
+            "SELECT COUNT(*) as count FROM public_scans"
+        )
+        total_count = total_count_result.get("count", 0) if total_count_result else 0
+
         rows = await _fetch_scan_rows(limit=limit * 5)
         requested_type = (type or ecosystem or "").lower()
         tools: list[dict[str, Any]] = []  # Renamed from items to tools
@@ -646,8 +652,8 @@ async def search_tools(
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
 
-        # Return 'tools' instead of 'items' for frontend compatibility
-        return {"query": q, "tools": tools, "total": len(tools)}
+        # CRITICAL FIX: Return actual database count instead of filtered results length
+        return {"query": q, "tools": tools, "total": total_count}
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

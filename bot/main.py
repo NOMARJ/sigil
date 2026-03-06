@@ -82,7 +82,9 @@ async def run_bot(
         for w in watchers:
             task = asyncio.create_task(w.run(), name=f"watcher-{w.name}")
             tasks.append(task)
-        logger.info("Started %d watchers: %s", len(watchers), [w.name for w in watchers])
+        logger.info(
+            "Started %d watchers: %s", len(watchers), [w.name for w in watchers]
+        )
 
     # Start workers
     if not watchers_only:
@@ -107,9 +109,7 @@ async def run_bot(
         # Start rescan scheduler (AEO Action #9 — freshness signals)
         from bot.rescan import rescan_loop
 
-        rescan_task = asyncio.create_task(
-            rescan_loop(queue), name="rescan-scheduler"
-        )
+        rescan_task = asyncio.create_task(rescan_loop(queue), name="rescan-scheduler")
         tasks.append(rescan_task)
         logger.info("Started rescan scheduler")
 
@@ -165,9 +165,7 @@ async def run_backfill(ecosystem: str) -> None:
 
         workers = []
         for i in range(bot_settings.max_concurrent_scans):
-            workers.append(
-                asyncio.create_task(worker_loop(queue, worker_id=i))
-            )
+            workers.append(asyncio.create_task(worker_loop(queue, worker_id=i)))
 
         # Wait until queue is drained
         while True:
@@ -211,8 +209,12 @@ async def run_backfill(ecosystem: str) -> None:
 def main() -> None:
     _setup_logging()
 
-    parser = argparse.ArgumentParser(description="Sigil Bot — Registry Monitor & Scanner")
-    parser.add_argument("--watchers-only", action="store_true", help="Run watchers only")
+    parser = argparse.ArgumentParser(
+        description="Sigil Bot — Registry Monitor & Scanner"
+    )
+    parser.add_argument(
+        "--watchers-only", action="store_true", help="Run watchers only"
+    )
     parser.add_argument("--workers-only", action="store_true", help="Run workers only")
     parser.add_argument(
         "--watcher",

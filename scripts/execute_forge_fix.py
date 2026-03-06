@@ -10,9 +10,10 @@ DATABASE = "sigil"
 USERNAME = "sigil_admin"
 PASSWORD = "hUkVA6s1G7z4Smqf!"
 
+
 def execute_forge_fix():
     """Execute the forge table fix SQL commands."""
-    
+
     # Connection string
     conn_str = (
         f"Driver={{ODBC Driver 18 for SQL Server}};"
@@ -24,14 +25,14 @@ def execute_forge_fix():
         f"TrustServerCertificate=no;"
         f"Connection Timeout=30;"
     )
-    
+
     try:
         print("Connecting to Azure SQL Database...")
         conn = pyodbc.connect(conn_str, timeout=30)
         cursor = conn.cursor()
-        
+
         print("Connected successfully!")
-        
+
         # First, check if the problematic constraint exists and drop it
         print("\nChecking for existing foreign key constraint...")
         cursor.execute("""
@@ -45,7 +46,7 @@ def execute_forge_fix():
                 PRINT 'Dropped existing constraint FK__forge_tru__scan___5708E33C';
             END
         """)
-        
+
         # Create forge_trust_score_history table if it doesn't exist
         print("Creating forge_trust_score_history table...")
         cursor.execute("""
@@ -88,7 +89,7 @@ def execute_forge_fix():
                 END
             END
         """)
-        
+
         # Create other forge tables
         print("Creating forge_analytics table...")
         cursor.execute("""
@@ -116,7 +117,7 @@ def execute_forge_fix():
                 PRINT 'Created forge_analytics table';
             END
         """)
-        
+
         # Create forge_security_reports table
         print("Creating forge_security_reports table...")
         cursor.execute("""
@@ -145,7 +146,7 @@ def execute_forge_fix():
                 PRINT 'Created forge_security_reports table';
             END
         """)
-        
+
         # Create forge_package_metrics table
         print("Creating forge_package_metrics table...")
         cursor.execute("""
@@ -172,11 +173,11 @@ def execute_forge_fix():
                 PRINT 'Created forge_package_metrics table';
             END
         """)
-        
+
         # Commit changes
         conn.commit()
         print("\n✅ All forge tables created/fixed successfully!")
-        
+
         # Verify tables exist
         print("\nVerifying tables...")
         cursor.execute("""
@@ -196,22 +197,25 @@ def execute_forge_fix():
             GROUP BY t.name
             ORDER BY t.name
         """)
-        
+
         for row in cursor.fetchall():
-            print(f"  • {row.table_name}: {row.column_count} columns, {row.foreign_key_count} foreign keys")
-        
+            print(
+                f"  • {row.table_name}: {row.column_count} columns, {row.foreign_key_count} foreign keys"
+            )
+
         cursor.close()
         conn.close()
-        
+
         print("\n✨ Forge table fixes completed successfully!")
         return 0
-        
+
     except pyodbc.Error as e:
         print(f"\n❌ Database error: {e}")
         return 1
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(execute_forge_fix())
