@@ -1,0 +1,43 @@
+[Unit]
+Description=Sigil Forge Enrichment Worker
+Documentation=https://github.com/nomarj/sigil
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=sigil
+Group=sigil
+WorkingDirectory=/opt/sigil
+ExecStart=/opt/sigil/venv/bin/python scripts/start_forge_enrichment.py
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sigil-forge-enrichment
+
+# Environment variables
+Environment=SIGIL_BOT_FORGE_ENRICHMENT_ENABLED=true
+Environment=SIGIL_BOT_FORGE_ENRICHMENT_BATCH_SIZE=10
+Environment=SIGIL_BOT_FORGE_ENRICHMENT_DELAY=1.0
+Environment=SIGIL_BOT_FORGE_ENRICHMENT_MAX_RECORDS=1000
+Environment=SIGIL_BOT_FORGE_ENRICHMENT_POLL_INTERVAL=300
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=512M
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/sigil/logs
+ReadWritePaths=/tmp
+
+# Health monitoring
+TimeoutStopSec=60
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

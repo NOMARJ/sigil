@@ -129,7 +129,7 @@ Analysis of threats and attack patterns:
 Sigil works in two modes:
 
 **Free (Offline)** — Local pattern scanning, no account required
-- All 6 scan phases
+- All 8 scan phases
 - Built-in threat signatures
 - Works 100% offline
 

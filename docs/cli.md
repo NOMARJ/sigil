@@ -6,7 +6,7 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ## Global Behavior
 
-- Sigil runs entirely offline by default. All six scan phases execute locally with no network calls.
+- Sigil runs entirely offline by default. All eight scan phases execute locally with no network calls.
 - When authenticated (`sigil login`), scans are enriched with cloud threat intelligence.
 - All scanned code is quarantined under `~/.sigil/quarantine/` — nothing executes until explicitly approved.
 - Exit codes reflect the scan verdict severity (see [Exit Codes](#exit-codes) below).
@@ -138,7 +138,7 @@ sigil clone <git-url>
 
 1. Validates the URL format (http(s), git@, ssh://)
 2. Shallow clones (`--depth 1`) into `~/.sigil/quarantine/<id>/`
-3. Runs all 6 scan phases + external scanners + dependency analysis
+3. Runs all 8 scan phases + external scanners + dependency analysis
 4. If authenticated, queries cloud threat intelligence
 5. Generates verdict and saves report to `~/.sigil/reports/`
 
@@ -231,7 +231,7 @@ sigil scan <path>
 
 1. Verifies the path exists
 2. Copies into quarantine (if not already quarantined)
-3. Runs all 6 scan phases + external scanners
+3. Runs all 8 scan phases + external scanners
 4. Generates verdict and saves report
 
 **Example:**
@@ -392,18 +392,20 @@ Deletes the token file at `~/.sigil/token`. Scans return to offline-only mode.
 
 ## Scan Phases
 
-Every audit command runs these six phases. Each phase has a severity weight that multiplies the number of findings.
+Every audit command runs these eight phases. Each phase has a severity weight that multiplies the number of findings.
 
 | Phase | Name | Weight | What It Detects |
 |-------|------|--------|-----------------|
-| 1 | Install Hooks | 10x | `setup.py` cmdclass, npm `postinstall`/`preinstall`, Makefile install targets |
-| 2 | Code Patterns | 5x | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports, `subprocess` with `shell=True` |
-| 3 | Network / Exfil | 3x | `requests.post`, `fetch()`, `axios`, WebSockets, ngrok, Discord/Telegram webhooks |
-| 4 | Credentials | 2x | `os.environ`, `.aws/credentials`, SSH keys, API key patterns, `DATABASE_URL` |
-| 5 | Obfuscation | 5x | `base64.b64decode`, `atob()`, `String.fromCharCode`, hex escape sequences |
-| 6 | Provenance | 1-3x | Git history depth, binary files, hidden dotfiles, large files, filesystem operations |
+| 1 | Install Hooks | 10× | `setup.py` cmdclass, npm `postinstall`/`preinstall`, Makefile install targets |
+| 2 | Code Patterns | 5× | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports, `subprocess` with `shell=True` |
+| 3 | Network / Exfil | 3× | `requests.post`, `fetch()`, `axios`, WebSockets, ngrok, Discord/Telegram webhooks |
+| 4 | Credentials | 2× | `os.environ`, `.aws/credentials`, SSH keys, API key patterns, `DATABASE_URL` |
+| 5 | Obfuscation | 5× | `base64.b64decode`, `atob()`, `String.fromCharCode`, hex escape sequences |
+| 6 | Provenance | 1–3× | Git history depth, binary files, hidden dotfiles, large files, filesystem operations |
+| 7 | Prompt Injection | 10× | AI agent instruction injection, system prompt overrides, jailbreak attempts |
+| 8 | Skill Security | 5× | MCP permission escalation, undeclared tool capabilities, skill.yaml tampering |
 
-**Supplementary checks (run after the 6 phases):**
+**Supplementary checks (run after the 8 phases):**
 
 - External scanners: semgrep, bandit, trufflehog, safety, npm audit
 - Dependency analysis: package count, unpinned versions
@@ -502,7 +504,7 @@ Check which scanners are available:
 sigil config
 ```
 
-All six core scan phases run without any external scanners. External scanners add depth but are not required.
+All eight core scan phases run without any external scanners. External scanners add depth but are not required.
 
 ---
 

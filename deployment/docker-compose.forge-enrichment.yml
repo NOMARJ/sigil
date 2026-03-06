@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  forge-enrichment:
+    build:
+      context: ..
+      dockerfile: docker/forge-enrichment.Dockerfile
+    image: sigil-forge-enrichment:latest
+    container_name: sigil-forge-enrichment
+    restart: unless-stopped
+    environment:
+      # Database connection
+      DATABASE_URL: ${DATABASE_URL}
+      
+      # Forge enrichment settings
+      SIGIL_BOT_FORGE_ENRICHMENT_ENABLED: "true"
+      SIGIL_BOT_FORGE_ENRICHMENT_BATCH_SIZE: "${FORGE_BATCH_SIZE:-10}"
+      SIGIL_BOT_FORGE_ENRICHMENT_DELAY: "${FORGE_DELAY:-1.0}"
+      SIGIL_BOT_FORGE_ENRICHMENT_MAX_RECORDS: "${FORGE_MAX_RECORDS:-1000}"
+      SIGIL_BOT_FORGE_ENRICHMENT_POLL_INTERVAL: "${FORGE_POLL_INTERVAL:-300}"
+      
+      # Optional Redis for advanced features
+      REDIS_URL: ${REDIS_URL:-}
+      
+    volumes:
+      - ./logs:/app/logs
+      
+    networks:
+      - sigil-network
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; from api.database import db; asyncio.run(db.connect())"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 40s
+
+networks:
+  sigil-network:
+    external: true
