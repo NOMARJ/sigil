@@ -68,6 +68,11 @@ PLANS: list[PlanInfo] = [
         scans_per_month=500,
         features=[
             "500 scans/month",
+            "🤖 AI-powered threat detection (LLM analysis)",
+            "🔍 Zero-day vulnerability detection",
+            "🎭 Advanced obfuscation analysis",
+            "🔗 Contextual threat correlation",
+            "💡 AI-generated remediation suggestions",
             "Full threat intelligence",
             "Advanced scan reports",
             "Priority support",
@@ -83,6 +88,11 @@ PLANS: list[PlanInfo] = [
         scans_per_month=5000,
         features=[
             "5,000 scans/month",
+            "🤖 AI-powered threat detection (LLM analysis)",
+            "🔍 Zero-day vulnerability detection",
+            "🎭 Advanced obfuscation analysis", 
+            "🔗 Contextual threat correlation",
+            "💡 AI-generated remediation suggestions",
             "Full threat intelligence",
             "Team dashboard",
             "RBAC & audit log",
@@ -100,6 +110,11 @@ PLANS: list[PlanInfo] = [
         scans_per_month=0,  # Unlimited
         features=[
             "Unlimited scans",
+            "🤖 AI-powered threat detection (LLM analysis)",
+            "🔍 Zero-day vulnerability detection",
+            "🎭 Advanced obfuscation analysis",
+            "🔗 Contextual threat correlation",
+            "💡 AI-generated remediation suggestions",
             "Full threat intelligence",
             "Dedicated account manager",
             "Custom integrations",

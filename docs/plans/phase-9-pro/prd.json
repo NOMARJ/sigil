@@ -31,7 +31,7 @@
         "api/services/llm_service.py",
         "api/scanner/scanner_engine.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-002",
@@ -52,7 +52,7 @@
         "api/models/llm_models.py",
         "api/config/llm_config.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",
@@ -75,7 +75,7 @@
         "api/middleware/tier_check.py",
         "api/database/mssql_procedures.sql"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
@@ -98,7 +98,7 @@
         "api/config.py (add Stripe price IDs)",
         "api/database/subscription_procedures.sql"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",
@@ -119,7 +119,7 @@
         "api/prompts/threat_detection_prompts.py",
         "api/tests/test_llm_prompts.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",
@@ -140,7 +140,7 @@
         "api/services/threat_correlator.py",
         "api/tests/test_context_analysis.py"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
