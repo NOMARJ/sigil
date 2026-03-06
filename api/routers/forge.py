@@ -1319,7 +1319,7 @@ async def get_forge_stats():
         # Category mapping to ensure snake_case
         category_mapping = {
             "mcp": "api_integrations",
-            "ml": "ai_llm_tools", 
+            "ml": "ai_llm_tools",
             "general": "code_tools",
             "skills": "code_tools",
             "security": "security_tools",
@@ -1334,18 +1334,22 @@ async def get_forge_stats():
             "monitoring": "monitoring",
             "communication": "communication",
             "search": "search_tools",
-            "file-system": "file_system_tools"
+            "file-system": "file_system_tools",
         }
 
         for classification in all_classifications:
             ecosystem = classification["ecosystem"]
             category = classification["category"]
-            
+
             # Map category to snake_case
-            mapped_category = category_mapping.get(category.lower(), category.replace("-", "_").replace(" ", "_").lower())
+            mapped_category = category_mapping.get(
+                category.lower(), category.replace("-", "_").replace(" ", "_").lower()
+            )
 
             ecosystem_counts[ecosystem] = ecosystem_counts.get(ecosystem, 0) + 1
-            category_counts[mapped_category] = category_counts.get(mapped_category, 0) + 1
+            category_counts[mapped_category] = (
+                category_counts.get(mapped_category, 0) + 1
+            )
 
             # Bucket by confidence as a proxy for trust level
             confidence = classification.get("confidence_score", 0.5)
