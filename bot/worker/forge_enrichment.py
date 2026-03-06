@@ -788,8 +788,6 @@ class ForgeEnrichmentWorker:
 
 
 # Main worker entry point
-
-
 async def start_forge_enrichment_worker():
     """Start the forge enrichment worker."""
     worker = ForgeEnrichmentWorker()
