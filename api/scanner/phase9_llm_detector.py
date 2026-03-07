@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from models import Finding, ScanPhase, Severity
-from models.llm_models import (
+from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
     LLMThreatCategory,

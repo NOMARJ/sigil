@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 from models import Finding
-from models.llm_models import (
+from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
 )

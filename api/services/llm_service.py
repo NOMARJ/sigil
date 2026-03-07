@@ -14,7 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from llm_config import llm_config
 from database import db
-from models.llm_models import (
+from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisResponse,
     LLMInsight,

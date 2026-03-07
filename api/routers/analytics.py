@@ -16,7 +16,7 @@ from typing_extensions import Annotated
 
 from middleware.tier_check import require_pro_tier, get_user_tier
 from models import PlanTier
-from models.llm_models import (
+from llm_models import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
