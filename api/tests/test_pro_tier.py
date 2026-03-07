@@ -22,7 +22,8 @@ from unittest.mock import MagicMock, patch
 from typing import Any
 
 from fastapi.testclient import TestClient
-from models import PlanTier, LLMAnalysisRequest, LLMAnalysisType
+from models import PlanTier
+from models.llm_models import LLMAnalysisRequest, LLMAnalysisType
 from services.llm_service import llm_service
 from services.subscription_service import subscription_service
 from middleware.tier_check import (
