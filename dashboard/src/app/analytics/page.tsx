@@ -437,7 +437,7 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-1 gap-6">
             <ThreatCategoryChart categories={usage?.top_threat_categories || []} />
             
-            {usage?.zero_days_found > 0 && (
+            {usage && usage.zero_days_found > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -445,7 +445,7 @@ export default function AnalyticsPage() {
                     <span>Zero-Day Discoveries</span>
                   </CardTitle>
                   <CardDescription>
-                    You've discovered {usage.zero_days_found} potential zero-day vulnerabilities
+                    You've discovered {usage?.zero_days_found ?? 0} potential zero-day vulnerabilities
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
