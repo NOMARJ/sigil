@@ -15,14 +15,14 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
 
-from api.circuit_breakers import CircuitBreaker, CircuitBreakerConfig
-from api.errors import (
+from circuit_breakers import CircuitBreaker, CircuitBreakerConfig
+from errors import (
     ErrorCategory,
     ErrorSeverity,
     SigilError,
     error_tracker,
 )
-from api.retry import RetryConfig, retry_with_backoff
+from retry import RetryConfig, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 

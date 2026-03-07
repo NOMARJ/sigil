@@ -10,7 +10,7 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
-from api.main import app
+from main import app
 from routers.forge import (
     ToolCapability,
     ToolCategory,

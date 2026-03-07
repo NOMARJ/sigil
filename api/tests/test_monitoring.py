@@ -14,8 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 
-from api.main import app
-from api.monitoring import (
+from main import app
+from monitoring import (
     Alert,
     AlertCategory,
     AlertManager,
@@ -619,7 +619,7 @@ class TestMonitoringIntegration:
 
     def test_monitoring_configuration_validation(self):
         """Test monitoring configuration validation."""
-        from api.config import settings
+        from config import settings
 
         # Test monitoring flags
         assert hasattr(settings, "metrics_enabled")

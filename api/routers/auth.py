@@ -33,10 +33,10 @@ from fastapi.security import (
 
 import httpx
 
-from api.config import settings
-from api.database import cache, db
-from api.rate_limit import RateLimiter
-from api.models import (
+from config import settings
+from database import cache, db
+from rate_limit import RateLimiter
+from models import (
     AuthTokens,
     ErrorResponse,
     ForgotPasswordRequest,
@@ -800,7 +800,7 @@ async def logout(
 
 async def _send_reset_email(email: str, reset_link: str) -> None:
     """Send a password reset email via the notifications service."""
-    from api.services.notifications import send_email_notification
+    from services.notifications import send_email_notification
 
     await send_email_notification(
         recipients=[email],
@@ -920,8 +920,8 @@ async def verify_api_key(
         - limits: Monthly scan limits and current usage for the user's tier
         - features: Available features for the user's tier
     """
-    from api.gates import get_user_plan, PLAN_LIMITS
-    from api.database import db
+    from gates import get_user_plan, PLAN_LIMITS
+    from database import db
     from datetime import datetime, timezone
 
     # Get user's current plan tier

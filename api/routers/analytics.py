@@ -14,16 +14,16 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing_extensions import Annotated
 
-from api.middleware.tier_check import require_pro_tier, get_user_tier
-from api.models import PlanTier
-from api.models.usage_metrics import (
+from middleware.tier_check import require_pro_tier, get_user_tier
+from models import PlanTier
+from models.llm_models import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
     ThreatTrendAnalysis,
 )
-from api.routers.auth import get_current_user_unified, UserResponse
-from api.services.analytics_service import analytics_service
+from routers.auth import get_current_user_unified, UserResponse
+from services.analytics_service import analytics_service
 
 
 logger = logging.getLogger(__name__)

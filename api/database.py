@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from api.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _record_db_operation(
     """Record database operation metrics if monitoring is available."""
     try:
         # Lazy import to avoid circular imports
-        from api.monitoring import db_operations_total, db_query_duration
+        from monitoring import db_operations_total, db_query_duration
 
         status = "success" if success else "error"
         db_operations_total.labels(

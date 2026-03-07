@@ -28,8 +28,8 @@ from fastapi import Request, Response
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from api.config import settings
-from api.errors import (
+from config import settings
+from errors import (
     error_tracker,
 )
 
@@ -997,7 +997,7 @@ class HealthMonitor:
     async def _check_circuit_breakers(self):
         """Check circuit breaker states."""
         try:
-            from api.circuit_breakers import circuit_registry
+            from circuit_breakers import circuit_registry
 
             breaker_statuses = circuit_registry.get_all_status()
             open_breakers = [
@@ -1041,7 +1041,7 @@ class HealthMonitor:
     async def _check_database_health(self):
         """Check database connection health."""
         try:
-            from api.database_resilience import get_database_health
+            from database_resilience import get_database_health
 
             health = get_database_health()
             db_health = health.get("database", {})
@@ -1076,7 +1076,7 @@ class HealthMonitor:
     async def _check_job_queue_health(self):
         """Check background job queue health."""
         try:
-            from api.background_job_resilience import job_queue
+            from background_job_resilience import job_queue
 
             stats = job_queue.get_queue_stats()
             failed_jobs = stats.get("dead_letter_jobs", 0)
@@ -1302,7 +1302,7 @@ class MonitoringService:
         )
 
     async def _app_health_check(self):
-        from api.database import cache, db
+        from database import cache, db
 
         return {"database": db.connected, "cache": cache.connected}
 
@@ -1320,7 +1320,7 @@ class MonitoringService:
 
     async def get_health_status(self, include_checks: bool = True) -> Dict[str, Any]:
         check_report = await self.health_manager.run_all_checks()
-        from api.database import cache, db
+        from database import cache, db
 
         if db.connected and check_report["summary"]["critical_failures"] == 0:
             status = "healthy"

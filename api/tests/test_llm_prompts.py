@@ -4,8 +4,8 @@ Tests for LLM prompt templates and Phase 9 functionality.
 
 import pytest
 
-from api.prompts.security_analysis_prompts import SecurityAnalysisPrompts
-from api.prompts.threat_detection_prompts import ThreatDetectionPrompts
+from prompts.security_analysis_prompts import SecurityAnalysisPrompts
+from prompts.threat_detection_prompts import ThreatDetectionPrompts
 
 
 class TestSecurityAnalysisPrompts:

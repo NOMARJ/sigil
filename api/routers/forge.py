@@ -18,8 +18,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-from api.database import db
-from api.services.forge_matcher import forge_matcher
+from database import db
+from services.forge_matcher import forge_matcher
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])

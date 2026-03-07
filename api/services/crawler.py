@@ -247,8 +247,8 @@ async def _run_sigil_scan(directory: str) -> dict[str, Any] | None:
     """Run the Sigil scanner on a directory and return parsed JSON output."""
     # Use the Python scanner directly if available
     try:
-        from api.services.scanner import scan_directory, count_scannable_files
-        from api.services.scoring import compute_verdict
+        from services.scanner import scan_directory, count_scannable_files
+        from services.scoring import compute_verdict
 
         findings = scan_directory(directory)
         score, verdict = compute_verdict(findings)
@@ -344,7 +344,7 @@ async def store_crawl_results(results: list[CrawlResult]) -> int:
 
         try:
             # Import here to avoid circular imports at module level
-            from api.database import db
+            from database import db
 
             await db.insert("public_scans", row)
             stored += 1
@@ -402,7 +402,7 @@ async def _main() -> None:
         )
 
     # Store results
-    from api.database import db
+    from database import db
 
     await db.connect()
     stored = await store_crawl_results(results)

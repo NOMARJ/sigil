@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api.routers import auth as _auth_router
+from routers import auth as _auth_router
 
 
 async def get_current_user(*args, **kwargs):

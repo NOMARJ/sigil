@@ -19,10 +19,10 @@ from datetime import datetime, timezone
 # Add parent directory to path to import API modules
 sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
-from api.database import db
-from api.models import Finding, ScanPhase, Severity
-from api.services.forge_classifier import forge_classifier, ClassificationInput
-from api.services.forge_matcher import forge_matcher
+from database import db
+from models import Finding, ScanPhase, Severity
+from services.forge_classifier import forge_classifier, ClassificationInput
+from services.forge_matcher import forge_matcher
 
 # Demo data
 DEMO_PACKAGES = [

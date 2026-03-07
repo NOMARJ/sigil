@@ -20,9 +20,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from api.database import db
-from api.gates import require_plan
-from api.models import (
+from database import db
+from gates import require_plan
+from models import (
     ErrorResponse,
     GateError,
     PlanTier,
@@ -32,7 +32,7 @@ from api.models import (
     TeamMember,
     TeamResponse,
 )
-from api.routers.auth import get_current_user_unified, UserResponse
+from routers.auth import get_current_user_unified, UserResponse
 
 logger = logging.getLogger(__name__)
 

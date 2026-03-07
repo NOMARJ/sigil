@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Optional, TypeVar
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
-from api.circuit_breakers import circuit_registry
+from circuit_breakers import circuit_registry
 
 logger = logging.getLogger(__name__)
 
@@ -504,7 +504,7 @@ class CachedFallbackManager:
 
         # Optional: Store in Redis if available
         try:
-            from api.database import cache
+            from database import cache
 
             if cache.connected:
                 import json
@@ -539,7 +539,7 @@ class CachedFallbackManager:
 
         # Try Redis cache
         try:
-            from api.database import cache
+            from database import cache
 
             if cache.connected:
                 import json

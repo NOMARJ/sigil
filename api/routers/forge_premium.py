@@ -23,9 +23,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.database import db
-from api.gates import PlanTier, require_plan
-from api.models import (
+from database import db
+from gates import PlanTier, require_plan
+from models import (
     AlertSubscription,
     CreateAlertSubscriptionRequest,
     CreateStackRequest,
@@ -41,7 +41,7 @@ from api.models import (
     UpdateStackRequest,
     UpdateTrackedToolRequest,
 )
-from api.routers.auth import UserResponse, get_current_user_unified
+from routers.auth import UserResponse, get_current_user_unified
 
 logger = logging.getLogger(__name__)
 

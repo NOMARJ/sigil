@@ -8,8 +8,8 @@ score calculation, and risk classification threshold mapping.
 from __future__ import annotations
 
 
-from api.models import Finding, ScanPhase, Severity, Verdict
-from api.services.scoring import (
+from models import Finding, ScanPhase, Severity, Verdict
+from services.scoring import (
     PHASE_WEIGHTS,
     SEVERITY_SCORES,
     aggregate_score,

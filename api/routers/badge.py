@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape as xml_escape
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from api.database import db
+from database import db
 
 logger = logging.getLogger(__name__)
 

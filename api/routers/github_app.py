@@ -25,8 +25,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Header, Request, status
 from pydantic import BaseModel, Field
 
-from api.config import settings
-from api.database import db
+from config import settings
+from database import db
 
 logger = logging.getLogger(__name__)
 

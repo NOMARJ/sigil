@@ -14,8 +14,8 @@ from pathlib import Path
 # Add the API directory to the path so we can import modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from api.database import db
-from api.config import settings
+from database import db
+from config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

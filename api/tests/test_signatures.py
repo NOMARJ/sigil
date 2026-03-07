@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from api.models import ScanPhase, Severity
+from models import ScanPhase, Severity
 
 
 class TestSignatureValidation:

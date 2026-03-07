@@ -19,8 +19,8 @@ from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from api.circuit_breakers import CircuitBreakerOpenError
-from api.errors import (
+from circuit_breakers import CircuitBreakerOpenError
+from errors import (
     AuthenticationError,
     AuthorizationError,
     ConflictError,
@@ -33,13 +33,13 @@ from api.errors import (
     ValidationError,
     error_tracker,
 )
-from api.graceful_degradation import (
+from graceful_degradation import (
     DegradationLevel,
     dependency_tracker,
     degradation_middleware,
     update_service_health_from_circuit_breakers,
 )
-from api.monitoring import (
+from monitoring import (
     AlertLevel,
     alert_manager,
     metrics_collector,
@@ -235,7 +235,7 @@ class ResilienceMiddleware(BaseHTTPMiddleware):
             )
 
         # Generic error fallback
-        from api.errors import ErrorCode, ErrorCategory, ErrorSeverity
+        from errors import ErrorCode, ErrorCategory, ErrorSeverity
 
         return SigilError(
             message=f"Internal server error: {exc}",
@@ -368,11 +368,11 @@ class ResilienceMiddleware(BaseHTTPMiddleware):
 
 async def enhanced_health_check() -> dict:
     """Enhanced health check that includes all resilience components."""
-    from api.background_job_resilience import job_queue
-    from api.circuit_breakers import circuit_registry
-    from api.database_resilience import get_database_health
-    from api.graceful_degradation import get_degradation_health_status
-    from api.monitoring import get_monitoring_status
+    from background_job_resilience import job_queue
+    from circuit_breakers import circuit_registry
+    from database_resilience import get_database_health
+    from graceful_degradation import get_degradation_health_status
+    from monitoring import get_monitoring_status
 
     health_data = {
         "status": "healthy",
@@ -483,7 +483,7 @@ async def initialize_resilience_systems():
     logger.info("Initializing resilience systems...")
 
     # Initialize database resilience
-    from api.database_resilience import (
+    from database_resilience import (
         initialize_database_resilience,
         start_database_monitoring,
     )
@@ -492,12 +492,12 @@ async def initialize_resilience_systems():
     await start_database_monitoring()
 
     # Start background job system
-    from api.background_job_resilience import start_background_jobs
+    from background_job_resilience import start_background_jobs
 
     await start_background_jobs()
 
     # Start monitoring
-    from api.monitoring import start_monitoring
+    from monitoring import start_monitoring
 
     await start_monitoring()
 
@@ -509,17 +509,17 @@ async def shutdown_resilience_systems():
     logger.info("Shutting down resilience systems...")
 
     # Stop monitoring
-    from api.monitoring import stop_monitoring
+    from monitoring import stop_monitoring
 
     await stop_monitoring()
 
     # Stop background jobs
-    from api.background_job_resilience import stop_background_jobs
+    from background_job_resilience import stop_background_jobs
 
     await stop_background_jobs()
 
     # Stop database monitoring
-    from api.database_resilience import stop_database_monitoring
+    from database_resilience import stop_database_monitoring
 
     await stop_database_monitoring()
 
@@ -539,7 +539,7 @@ async def trigger_system_recovery():
 
     # Reset circuit breakers
     try:
-        from api.circuit_breakers import circuit_registry
+        from circuit_breakers import circuit_registry
 
         breaker_statuses = circuit_registry.get_all_status()
         reset_count = 0
@@ -561,8 +561,8 @@ async def trigger_system_recovery():
 
     # Trigger database recovery
     try:
-        from api.database_resilience import get_database_health
-        from api.database import db
+        from database_resilience import get_database_health
+        from database import db
 
         if hasattr(db, "_resilient_manager"):
             await db._resilient_manager._attempt_recovery()

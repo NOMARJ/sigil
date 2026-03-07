@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import settings
+from config import settings
 
 
 class TestXSSProtection:

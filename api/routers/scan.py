@@ -24,10 +24,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.database import db
-from api.rate_limit import RateLimiter
-from api.gates import check_scan_quota, get_user_plan, require_plan
-from api.models import (
+from database import db
+from rate_limit import RateLimiter
+from gates import check_scan_quota, get_user_plan, require_plan
+from models import (
     DashboardStats,
     ErrorResponse,
     GateError,
@@ -38,17 +38,17 @@ from api.models import (
     ScanRequest,
     ScanResponse,
 )
-from api.routers.auth import get_current_user_unified, UserResponse
-from api.services.scoring import compute_verdict
-from api.services.threat_intel import (
+from routers.auth import get_current_user_unified, UserResponse
+from services.scoring import compute_verdict
+from services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
-from api.services.forge_analytics import track_forge_event
-from api.models import ForgeEventType
-from api.middleware.tier_check import get_scan_capabilities
-from api.scanner.scanner_engine import scanner_engine
-from api.services.subscription_service import subscription_service
+from services.forge_analytics import track_forge_event
+from models import ForgeEventType
+from middleware.tier_check import get_scan_capabilities
+from scanner.scanner_engine import scanner_engine
+from services.subscription_service import subscription_service
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ async def _submit_scan_impl(
     if threat_hits:
         threat_bonus = sum(10.0 for _ in threat_hits)
         risk_score += threat_bonus
-        from api.services.scoring import score_to_verdict
+        from services.scoring import score_to_verdict
 
         verdict = score_to_verdict(risk_score)
 
@@ -419,7 +419,7 @@ async def submit_enhanced_scan(
             ]
 
             # Recalculate risk score with LLM findings
-            from api.services.scoring import compute_verdict
+            from services.scoring import compute_verdict
 
             enhanced_risk_score, enhanced_verdict = compute_verdict(all_findings)
 
