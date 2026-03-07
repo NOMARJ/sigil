@@ -11,8 +11,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from typing import Any, Iterator
 from uuid import uuid4
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import httpx
 import pytest
