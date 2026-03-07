@@ -26,10 +26,10 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Any, List
 
-from api.services.llm_service import llm_service, LLMService, RateLimiter
-from api.services.subscription_service import subscription_service
-from api.models.llm_models import LLMAnalysisRequest, LLMAnalysisType
-from api.middleware.tier_check import require_pro_tier, get_scan_capabilities
+from services.llm_service import llm_service, LLMService, RateLimiter
+from services.subscription_service import subscription_service
+from models.llm_models import LLMAnalysisRequest, LLMAnalysisType
+from middleware.tier_check import require_pro_tier, get_scan_capabilities
 
 
 class TestLLMServicePerformance:

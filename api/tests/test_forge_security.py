@@ -448,7 +448,7 @@ class TestAPIIntegration:
     def client(self):
         """Create test client with mocked dependencies."""
         from fastapi import FastAPI
-        from api.routers.forge_secure import router
+        from routers.forge_secure import router
 
         app = FastAPI()
         app.include_router(router)

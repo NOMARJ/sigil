@@ -14,8 +14,8 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import Dict, List, Optional, Any, Tuple
 
-from api.database import db
-from api.models.usage_metrics import (
+from database import db
+from models.usage_metrics import (
     UsageEvent,
     LLMUsageRecord, 
     ThreatDiscovery,

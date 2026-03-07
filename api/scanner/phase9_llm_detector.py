@@ -9,13 +9,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from api.models import Finding, ScanPhase, Severity
-from api.models.llm_models import (
+from models import Finding, ScanPhase, Severity
+from models.llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
     LLMThreatCategory,
 )
-from api.services.llm_service import llm_service
+from services.llm_service import llm_service
 
 
 logger = logging.getLogger(__name__)

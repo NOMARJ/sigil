@@ -9,8 +9,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from api.database import db
-from api.models import PlanTier
+from database import db
+from models import PlanTier
 
 
 logger = logging.getLogger(__name__)

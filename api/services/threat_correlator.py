@@ -10,8 +10,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-from api.models import Finding, Severity
-from api.models.llm_models import LLMInsight, LLMThreatCategory
+from models import Finding, Severity
+from models.llm_models import LLMInsight, LLMThreatCategory
 
 
 logger = logging.getLogger(__name__)

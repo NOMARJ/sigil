@@ -17,7 +17,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from api.routers.permissions import (
+from routers.permissions import (
     PERMISSION_CATEGORIES,
     calculate_risk_score,
     extract_permissions_from_scan,

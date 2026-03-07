@@ -9,13 +9,13 @@ import hashlib
 import logging
 from typing import Any
 
-from api.models import Finding, ScanPhase
-from api.models.llm_models import (
+from models import Finding, ScanPhase
+from models.llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
     LLMContextAnalysis,
 )
-from api.services.llm_service import llm_service
+from services.llm_service import llm_service
 
 
 logger = logging.getLogger(__name__)

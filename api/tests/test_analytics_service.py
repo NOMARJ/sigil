@@ -22,14 +22,14 @@ from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from typing import Any
 
-from api.services.analytics_service import analytics_service, AnalyticsService
-from api.models.usage_metrics import (
+from services.analytics_service import analytics_service, AnalyticsService
+from models.usage_metrics import (
     LLMUsageMetric,
     ThreatDiscoveryMetric,
     ProFeatureUsageMetric,
     AnalyticsSummary
 )
-from api.database import db
+from database import db
 
 
 class TestLLMUsageTracking:

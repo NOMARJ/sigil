@@ -14,7 +14,7 @@ and custom JWT tokens without nested dependency conflicts.
 The fix in `api/gates.py` now uses:
 ```python
 def require_plan(minimum_tier: PlanTier):
-    from api.routers.auth import get_current_user_unified, UserResponse
+    from routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
         current_user: UserResponse = Depends(get_current_user_unified),
@@ -515,7 +515,7 @@ class TestImplementedFix:
         and manually extracts the token from headers, avoiding the dependency
         injection conflict between OAuth2PasswordBearer and HTTPBearer.
         """
-        from api.routers.auth import get_current_user_unified
+        from routers.auth import get_current_user_unified
         import inspect
 
         # Verify the function signature uses Request directly

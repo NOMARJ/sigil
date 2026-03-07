@@ -25,16 +25,16 @@ from typing import Any
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from api.models import PlanTier, UserResponse
-from api.middleware.tier_check import (
+from models import PlanTier, UserResponse
+from middleware.tier_check import (
     get_user_tier,
     require_pro_tier, 
     check_llm_analysis_access,
     get_scan_capabilities
 )
-from api.services.subscription_service import subscription_service, pro_feature_gate
-from api.routers.auth import get_current_user_unified
-from api.database import db
+from services.subscription_service import subscription_service, pro_feature_gate
+from routers.auth import get_current_user_unified
+from database import db
 
 
 class TestTierGatingMiddleware:

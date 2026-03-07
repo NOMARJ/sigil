@@ -24,8 +24,8 @@ import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 from typing import Any
 
-from api.services.llm_service import llm_service, LLMService, RateLimiter
-from api.models.llm_models import (
+from services.llm_service import llm_service, LLMService, RateLimiter
+from models.llm_models import (
     LLMAnalysisRequest, 
     LLMAnalysisResponse,
     LLMInsight,
@@ -35,8 +35,8 @@ from api.models.llm_models import (
     LLMConfidence,
     confidence_to_level
 )
-from api.config.llm_config import llm_config
-from api.scanner.phase9_llm_detector import Phase9LLMDetector
+from config.llm_config import llm_config
+from scanner.phase9_llm_detector import Phase9LLMDetector
 
 
 class TestLLMServiceConfiguration:

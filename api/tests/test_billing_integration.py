@@ -22,9 +22,9 @@ from unittest.mock import patch, MagicMock
 from typing import Any
 
 from fastapi.testclient import TestClient
-from api.models import PlanTier
-from api.services.subscription_service import subscription_service
-from api.database import db
+from models import PlanTier
+from services.subscription_service import subscription_service
+from database import db
 
 
 class TestStripeCheckoutFlow:
@@ -76,7 +76,7 @@ class TestStripeCheckoutFlow:
         """Test checkout creation for user with existing Stripe customer"""
         
         # Setup user with existing subscription record
-        from api.tests.conftest import registered_user
+        from tests.conftest import registered_user
         import asyncio
         
         async def setup_existing_customer():

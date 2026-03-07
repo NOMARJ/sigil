@@ -13,9 +13,9 @@ from typing import Any
 import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from api.config.llm_config import llm_config
-from api.database import db
-from api.models.llm_models import (
+from config.llm_config import llm_config
+from database import db
+from models.llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisResponse,
     LLMInsight,
@@ -113,7 +113,7 @@ class LLMService:
     
     async def _build_analysis_prompt(self, request: LLMAnalysisRequest) -> str:
         """Build the analysis prompt for the LLM using professional templates."""
-        from api.prompts.security_analysis_prompts import SecurityAnalysisPrompts
+        from prompts.security_analysis_prompts import SecurityAnalysisPrompts
         
         # Use the professional prompt builder
         analysis_type_strings = [t.value for t in request.analysis_types]
@@ -315,7 +315,7 @@ class LLMService:
         """Track analytics for LLM analysis usage."""
         try:
             # Lazy import to avoid circular imports
-            from api.services.analytics_service import analytics_service
+            from services.analytics_service import analytics_service
             
             # Convert insights to dict format for analytics
             insights_data = [
