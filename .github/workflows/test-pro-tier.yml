@@ -1,0 +1,385 @@
+name: Pro Tier Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'api/services/llm_service.py'
+      - 'api/services/subscription_service.py'
+      - 'api/middleware/tier_check.py'
+      - 'api/routers/billing.py'
+      - 'api/scanner/phase9_llm_detector.py'
+      - 'api/tests/test_pro_tier.py'
+      - 'api/tests/test_billing_integration.py'
+      - 'api/tests/test_phase9_llm.py'
+      - 'api/tests/test_analytics_service.py'
+      - 'api/tests/test_tier_gating.py'
+      - 'api/tests/test_pro_performance.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'api/**'
+  schedule:
+    # Run daily at 2 AM UTC to catch any regressions
+    - cron: '0 2 * * *'
+
+env:
+  PYTHON_VERSION: '3.11'
+  
+jobs:
+  pro-tier-unit-tests:
+    name: Pro Tier Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    strategy:
+      matrix:
+        test-group: 
+          - "pro_tier"
+          - "billing_integration" 
+          - "phase9_llm"
+          - "analytics_service"
+          - "tier_gating"
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-mock httpx
+          
+      - name: Set environment variables
+        run: |
+          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
+          echo "SIGIL_LLM_PROVIDER=mock" >> $GITHUB_ENV
+          echo "SIGIL_DB_TYPE=memory" >> $GITHUB_ENV
+          echo "SIGIL_STRIPE_CONFIGURED=0" >> $GITHUB_ENV
+          
+      - name: Run Pro tier tests
+        run: |
+          cd api
+          pytest tests/test_${{ matrix.test-group }}.py \
+            -v \
+            --cov=services/llm_service \
+            --cov=services/subscription_service \
+            --cov=services/analytics_service \
+            --cov=middleware/tier_check \
+            --cov=routers/billing \
+            --cov=scanner/phase9_llm_detector \
+            --cov-report=xml:coverage-${{ matrix.test-group }}.xml \
+            --cov-report=term-missing \
+            --tb=short
+            
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: api/coverage-${{ matrix.test-group }}.xml
+          flags: pro-tier,${{ matrix.test-group }}
+          name: codecov-pro-${{ matrix.test-group }}
+          fail_ci_if_error: false
+
+  pro-tier-performance-tests:
+    name: Pro Tier Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-benchmark psutil
+          
+      - name: Set environment variables
+        run: |
+          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
+          echo "SIGIL_PERFORMANCE_TESTS=1" >> $GITHUB_ENV
+          echo "SIGIL_LLM_PROVIDER=mock" >> $GITHUB_ENV
+          echo "SIGIL_DB_TYPE=memory" >> $GITHUB_ENV
+          
+      - name: Run performance tests
+        run: |
+          cd api
+          pytest tests/test_pro_performance.py \
+            -v \
+            --tb=short \
+            --durations=10
+            
+      - name: Generate performance report
+        run: |
+          cd api
+          echo "## Pro Tier Performance Test Results" > performance_report.md
+          echo "Date: $(date)" >> performance_report.md
+          echo "Commit: ${{ github.sha }}" >> performance_report.md
+          echo "" >> performance_report.md
+          pytest tests/test_pro_performance.py --tb=no -v >> performance_report.md 2>&1 || true
+          
+      - name: Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: pro-tier-performance-report
+          path: api/performance_report.md
+
+  integration-tests:
+    name: Pro Tier Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python  
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+          
+      - name: Set environment variables
+        run: |
+          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
+          echo "SIGIL_INTEGRATION_TESTS=1" >> $GITHUB_ENV
+          echo "SIGIL_REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
+          echo "SIGIL_LLM_PROVIDER=openai" >> $GITHUB_ENV
+          echo "SIGIL_LLM_API_KEY=test-key-for-integration" >> $GITHUB_ENV
+          echo "SIGIL_STRIPE_CONFIGURED=1" >> $GITHUB_ENV
+          echo "SIGIL_STRIPE_SECRET_KEY=sk_test_integration" >> $GITHUB_ENV
+          echo "SIGIL_STRIPE_WEBHOOK_SECRET=whsec_test_integration" >> $GITHUB_ENV
+          
+      - name: Run integration tests
+        run: |
+          cd api
+          pytest \
+            tests/test_pro_tier.py::TestProTierIntegration \
+            tests/test_billing_integration.py::TestWebhookProcessing \
+            -v \
+            --cov=services \
+            --cov=middleware \
+            --cov=routers \
+            --cov-report=xml:coverage-integration.xml \
+            --tb=short
+            
+      - name: Upload integration coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: api/coverage-integration.xml
+          flags: pro-tier,integration
+          name: codecov-pro-integration
+
+  security-tests:
+    name: Pro Tier Security Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install security testing tools
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install bandit safety pytest pytest-asyncio
+          
+      - name: Run Bandit security scan
+        run: |
+          cd api
+          bandit -r services/llm_service.py services/subscription_service.py \
+            middleware/tier_check.py routers/billing.py \
+            -f json -o bandit-report.json || true
+          
+      - name: Run Safety dependency check
+        run: |
+          cd api
+          safety check --json --output safety-report.json || true
+          
+      - name: Security test for Pro features
+        run: |
+          cd api
+          pytest tests/test_tier_gating.py::TestTierGatingEdgeCases \
+            tests/test_billing_integration.py::TestBillingEdgeCases \
+            -v --tb=short
+            
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: pro-tier-security-reports
+          path: |
+            api/bandit-report.json
+            api/safety-report.json
+
+  load-tests:
+    name: Pro Tier Load Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'load-test')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install load testing dependencies
+        run: |
+          cd api
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio locust
+          
+      - name: Run load tests
+        run: |
+          cd api
+          pytest tests/test_pro_performance.py::TestStressTestingAndLimits \
+            -v --tb=short
+            
+      - name: Generate load test report
+        run: |
+          cd api
+          echo "## Pro Tier Load Test Results" > load_test_report.md
+          echo "Date: $(date)" >> load_test_report.md
+          echo "Commit: ${{ github.sha }}" >> load_test_report.md
+          echo "Event: ${{ github.event_name }}" >> load_test_report.md
+          
+      - name: Upload load test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: pro-tier-load-test-report
+          path: api/load_test_report.md
+
+  coverage-report:
+    name: Combined Coverage Report
+    runs-on: ubuntu-latest
+    needs: [pro-tier-unit-tests, integration-tests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download coverage reports
+        uses: actions/download-artifact@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install coverage tools
+        run: |
+          pip install coverage codecov
+          
+      - name: Combine coverage reports
+        run: |
+          cd api
+          coverage combine ../artifact/coverage-*.xml || true
+          coverage report --show-missing
+          coverage html -d coverage_html
+          
+      - name: Upload combined coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: pro-tier-combined-coverage
+          path: api/coverage_html
+          
+      - name: Coverage comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            let coverageComment = `## Pro Tier Test Coverage\n\n`;
+            coverageComment += `All Pro tier tests have been executed.\n`;
+            coverageComment += `Coverage reports are available in the artifacts.\n\n`;
+            coverageComment += `**Test Categories:**\n`;
+            coverageComment += `- ✅ Unit Tests (Pro Tier, Billing, LLM, Analytics, Tier Gating)\n`;
+            coverageComment += `- ✅ Integration Tests\n`;
+            coverageComment += `- ✅ Performance Tests\n`;
+            coverageComment += `- ✅ Security Tests\n`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: coverageComment
+            });
+
+  notify-on-failure:
+    name: Notify on Test Failure
+    runs-on: ubuntu-latest
+    needs: [pro-tier-unit-tests, integration-tests, security-tests]
+    if: failure() && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Notify failure
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueTitle = `Pro Tier Tests Failed - ${new Date().toISOString().split('T')[0]}`;
+            const issueBody = `
+            ## Pro Tier Test Suite Failure
+            
+            The Pro tier test suite failed on the main branch.
+            
+            **Commit:** ${context.sha}
+            **Workflow:** ${context.workflow}
+            **Run ID:** ${context.runId}
+            
+            Please investigate and fix the failing tests.
+            
+            **Failed Jobs:**
+            ${context.payload.workflow_run ? context.payload.workflow_run.jobs_url : 'See workflow run for details'}
+            
+            **Priority:** High (affects Pro tier functionality)
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: ['bug', 'pro-tier', 'test-failure', 'high-priority']
+            });

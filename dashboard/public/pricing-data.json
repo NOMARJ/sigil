@@ -1,0 +1,244 @@
+{
+  "tiers": [
+    {
+      "id": "free",
+      "name": "Free",
+      "subtitle": "For individuals getting started",
+      "price": {
+        "monthly": 0,
+        "yearly": 0
+      },
+      "priceDisplay": {
+        "monthly": "Free",
+        "yearly": "Free"
+      },
+      "billingCycle": "forever",
+      "popular": false,
+      "features": [
+        "Static analysis (Phases 1-8)",
+        "CLI scanning",
+        "Basic threat detection",
+        "5 scans per month",
+        "Community support",
+        "Basic reporting"
+      ],
+      "limitations": [
+        "No LLM-powered analysis",
+        "No zero-day detection", 
+        "Limited scan history",
+        "No team features"
+      ],
+      "ctaText": "Get Started Free",
+      "ctaVariant": "secondary"
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "subtitle": "For developers who need advanced protection",
+      "price": {
+        "monthly": 29,
+        "yearly": 232
+      },
+      "priceDisplay": {
+        "monthly": "$29",
+        "yearly": "$232"
+      },
+      "billingCycle": "per user/month",
+      "popular": true,
+      "features": [
+        "Everything in Free",
+        "🤖 LLM-powered analysis (Phase 9)",
+        "🔍 Zero-day threat detection", 
+        "🎭 Advanced obfuscation analysis",
+        "💡 AI insights & explanations",
+        "🔗 Contextual threat correlation",
+        "Unlimited scans",
+        "Priority support",
+        "Advanced reporting",
+        "API access"
+      ],
+      "limitations": [
+        "Single user only",
+        "No team management",
+        "No SSO integration"
+      ],
+      "ctaText": "Start Pro Trial",
+      "ctaVariant": "primary",
+      "annualDiscount": {
+        "amount": 116,
+        "percentage": 33
+      },
+      "highlights": [
+        {
+          "icon": "🤖",
+          "title": "AI-Powered Detection",
+          "description": "Claude AI analyzes code context for sophisticated threats"
+        },
+        {
+          "icon": "🔍",
+          "title": "Zero-Day Discovery", 
+          "description": "Catch novel attack patterns before they're documented"
+        },
+        {
+          "icon": "🎭",
+          "title": "Advanced Obfuscation",
+          "description": "Detect steganography, base64 chains, and hidden payloads"
+        }
+      ]
+    },
+    {
+      "id": "enterprise",
+      "name": "Enterprise",
+      "subtitle": "For teams and organizations",
+      "price": {
+        "monthly": null,
+        "yearly": null
+      },
+      "priceDisplay": {
+        "monthly": "Custom",
+        "yearly": "Custom"
+      },
+      "billingCycle": "custom pricing",
+      "popular": false,
+      "features": [
+        "Everything in Pro",
+        "Team management",
+        "SSO integration (SAML, OIDC)",
+        "Custom scanning rules",
+        "Advanced team analytics",
+        "Dedicated support",
+        "SLA guarantees",
+        "On-premise deployment",
+        "Custom integrations",
+        "Compliance reporting"
+      ],
+      "limitations": [],
+      "ctaText": "Contact Sales",
+      "ctaVariant": "secondary"
+    }
+  ],
+  "comparisonFeatures": [
+    {
+      "category": "Core Scanning",
+      "features": [
+        {
+          "name": "Static Analysis (Phases 1-8)",
+          "free": true,
+          "pro": true,
+          "enterprise": true
+        },
+        {
+          "name": "LLM-Powered Analysis (Phase 9)",
+          "free": false,
+          "pro": true,
+          "enterprise": true
+        },
+        {
+          "name": "Zero-Day Detection",
+          "free": false,
+          "pro": true,
+          "enterprise": true
+        },
+        {
+          "name": "Advanced Obfuscation Analysis",
+          "free": false,
+          "pro": true,
+          "enterprise": true
+        }
+      ]
+    },
+    {
+      "category": "Usage Limits",
+      "features": [
+        {
+          "name": "Monthly Scans",
+          "free": "5",
+          "pro": "Unlimited",
+          "enterprise": "Unlimited"
+        },
+        {
+          "name": "Scan History",
+          "free": "30 days",
+          "pro": "1 year", 
+          "enterprise": "Unlimited"
+        },
+        {
+          "name": "API Access",
+          "free": false,
+          "pro": true,
+          "enterprise": true
+        }
+      ]
+    },
+    {
+      "category": "Team Features",
+      "features": [
+        {
+          "name": "Team Management",
+          "free": false,
+          "pro": false,
+          "enterprise": true
+        },
+        {
+          "name": "SSO Integration",
+          "free": false,
+          "pro": false,
+          "enterprise": true
+        },
+        {
+          "name": "Custom Scanning Rules",
+          "free": false,
+          "pro": false,
+          "enterprise": true
+        }
+      ]
+    },
+    {
+      "category": "Support & SLA",
+      "features": [
+        {
+          "name": "Support Level",
+          "free": "Community",
+          "pro": "Priority Email",
+          "enterprise": "Dedicated + SLA"
+        },
+        {
+          "name": "Response Time",
+          "free": "Best effort",
+          "pro": "24-48 hours",
+          "enterprise": "< 4 hours"
+        }
+      ]
+    }
+  ],
+  "testimonials": [
+    {
+      "quote": "Sigil's AI-powered detection caught a sophisticated supply chain attack that static analysis missed entirely.",
+      "author": "Sarah Chen",
+      "title": "Security Engineer",
+      "company": "TechCorp",
+      "avatar": "/testimonials/sarah.jpg"
+    },
+    {
+      "quote": "The zero-day detection capabilities have saved us from three potential breaches in the last month.",
+      "author": "Michael Rodriguez", 
+      "title": "DevSecOps Lead",
+      "company": "FinanceFlow",
+      "avatar": "/testimonials/michael.jpg"
+    }
+  ],
+  "faqs": [
+    {
+      "question": "What's the difference between static analysis and LLM-powered analysis?",
+      "answer": "Static analysis uses predefined patterns to detect known threats. LLM-powered analysis understands code context and can detect novel, sophisticated attacks that haven't been seen before."
+    },
+    {
+      "question": "Can I upgrade or downgrade my plan anytime?",
+      "answer": "Yes, you can change your plan at any time. Upgrades take effect immediately, while downgrades take effect at the next billing cycle."
+    },
+    {
+      "question": "Is there a free trial for Pro?",
+      "answer": "Yes! We offer a 14-day free trial of Pro with full access to LLM-powered features. No credit card required."
+    }
+  ]
+}

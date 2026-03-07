@@ -279,6 +279,7 @@ async def validation_exception_handler(
 try:
     from api.routers import (  # noqa: E402
         alerts,
+        analytics,
         attestation,
         auth,
         badge,
@@ -317,6 +318,7 @@ app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
+app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
 app.include_router(
     forge_premium.router
 )  # /forge/* — Forge premium features (authenticated)

@@ -331,3 +331,76 @@ export interface TrackToolRequest {
   description?: string;
   category?: string;
 }
+
+// ---------------------------------------------------------------------------
+// LLM Insights Types (Pro Features)
+// ---------------------------------------------------------------------------
+
+/** Types of LLM analysis available. */
+export type LLMAnalysisType =
+  | "zero_day_detection"
+  | "obfuscation_analysis"
+  | "behavioral_pattern"
+  | "supply_chain_risk"
+  | "ai_attack_vector"
+  | "contextual_correlation";
+
+/** Confidence levels for LLM analysis. */
+export type LLMConfidenceLevel = "low" | "medium" | "high" | "very_high";
+
+/** Categories of threats that LLM can detect. */
+export type LLMThreatCategory =
+  | "code_injection"
+  | "data_exfiltration"
+  | "credential_theft"
+  | "supply_chain_attack"
+  | "prompt_injection"
+  | "privilege_escalation"
+  | "obfuscated_malware"
+  | "time_bomb"
+  | "backdoor"
+  | "unknown_pattern";
+
+/** A single insight from LLM analysis. */
+export interface LLMInsight {
+  analysis_type: LLMAnalysisType;
+  threat_category: LLMThreatCategory;
+  confidence: number;
+  confidence_level: LLMConfidenceLevel;
+  title: string;
+  description: string;
+  reasoning: string;
+  evidence_snippets: string[];
+  affected_files: string[];
+  severity_adjustment: number;
+  false_positive_likelihood: number;
+  remediation_suggestions: string[];
+  mitigation_steps: string[];
+}
+
+/** Contextual analysis across multiple files/findings. */
+export interface LLMContextAnalysis {
+  attack_chain_detected: boolean;
+  coordinated_threat: boolean;
+  attack_chain_steps: string[];
+  correlation_insights: string[];
+  overall_intent: string;
+  sophistication_level: "basic" | "intermediate" | "advanced";
+}
+
+/** Response model for LLM analysis. */
+export interface LLMAnalysisResponse {
+  insights: LLMInsight[];
+  context_analysis: LLMContextAnalysis | null;
+  analysis_id: string;
+  model_used: string;
+  tokens_used: number;
+  processing_time_ms: number;
+  cache_hit: boolean;
+  confidence_summary: Record<string, number>;
+  threat_summary: Record<string, number>;
+  success: boolean;
+  error_message: string | null;
+  fallback_used: boolean;
+  created_at: string;
+}

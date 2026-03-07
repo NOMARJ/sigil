@@ -218,3 +218,4 @@ Binary files are gitignored: `*.docx` in `.gitignore`
 For navigation and discoverability:
 - **Public:** Consider adding to main `README.md` or `docs/` listing
 - **Internal:** MUST add to `docs/internal/README.md` index
+- "Always use MSSQL not Supabase"

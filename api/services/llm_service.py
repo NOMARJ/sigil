@@ -65,6 +65,9 @@ class LLMService:
             # Cache successful results
             if response.success:
                 await self._cache_analysis(analysis_id, response)
+                
+                # Track analytics after successful analysis
+                await self._track_analysis_analytics(request, response, analysis_id, cached_response is not None)
             
             # Track usage
             processing_time = int((time.time() - start_time) * 1000)
@@ -301,6 +304,61 @@ class LLMService:
         """Close HTTP session."""
         if self._session:
             await self._session.close()
+    
+    async def _track_analysis_analytics(
+        self,
+        request: LLMAnalysisRequest,
+        response: LLMAnalysisResponse,
+        analysis_id: str,
+        was_cache_hit: bool
+    ) -> None:
+        """Track analytics for LLM analysis usage."""
+        try:
+            # Lazy import to avoid circular imports
+            from api.services.analytics_service import analytics_service
+            
+            # Convert insights to dict format for analytics
+            insights_data = [
+                {
+                    'threat_category': insight.threat_category.value,
+                    'confidence': insight.confidence,
+                    'analysis_type': insight.analysis_type.value,
+                    'title': insight.title,
+                    'description': insight.description,
+                    'severity_adjustment': insight.severity_adjustment
+                }
+                for insight in response.insights
+            ]
+            
+            # Track LLM usage
+            await analytics_service.track_llm_usage(
+                user_id=getattr(request, 'user_id', 'unknown'),
+                scan_id=analysis_id,
+                model_used=response.model_used,
+                tokens_used=response.tokens_used,
+                processing_time_ms=response.processing_time_ms or 0,
+                insights_generated=insights_data,
+                cache_hit=was_cache_hit,
+                fallback_used=response.fallback_used
+            )
+            
+            # Track individual threat discoveries
+            for insight in response.insights:
+                await analytics_service.track_threat_discovery(
+                    user_id=getattr(request, 'user_id', 'unknown'),
+                    threat_type=insight.threat_category.value,
+                    severity=insight.confidence_level.value,
+                    confidence=insight.confidence,
+                    scan_id=analysis_id,
+                    is_zero_day=insight.analysis_type == LLMAnalysisType.ZERO_DAY_DETECTION,
+                    analysis_type="llm_analysis",
+                    evidence_snippet='\n'.join(insight.evidence_snippets[:2]) if insight.evidence_snippets else None,
+                    remediation_steps=insight.remediation_suggestions
+                )
+            
+        except Exception as e:
+            logger.exception(f"Failed to track analytics for analysis {analysis_id}: {e}")
+            # Don't let analytics failures break the main functionality
 
 
 class RateLimiter:
