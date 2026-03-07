@@ -58,6 +58,13 @@ htmlcov/
 *.zip
 supabase/.temp/
 
+# Log files (contain sensitive infrastructure data)
+*.log
+*_progress.log
+*_deployment.log
+migration_*.log
+classification_*.log
+
 # Internal documentation (deployment notes, infrastructure details)
 docs/internal/
 *.docx
