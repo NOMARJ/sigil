@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 
 from database import db
-from llm_models import (
+from usage_metrics import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
