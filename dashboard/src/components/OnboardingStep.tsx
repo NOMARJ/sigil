@@ -44,7 +44,7 @@ export default function OnboardingStep(props: OnboardingStepProps): JSX.Element 
             Step Component Not Found
           </h3>
           <p className="text-red-400">
-            The component "{step.component}" for step "{step.id}" was not found.
+            The component &quot;{step.component}&quot; for step &quot;{step.id}&quot; was not found.
           </p>
         </div>
       </div>

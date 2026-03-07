@@ -22,14 +22,12 @@ import asyncio
 import pytest
 import time
 import statistics
-from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch, MagicMock, AsyncMock
-from typing import Any, List
 
 from services.llm_service import llm_service, LLMService, RateLimiter
 from services.subscription_service import subscription_service
 from models.llm_models import LLMAnalysisRequest, LLMAnalysisType
-from middleware.tier_check import require_pro_tier, get_scan_capabilities
+from middleware.tier_check import get_scan_capabilities
 
 
 class TestLLMServicePerformance:
@@ -151,7 +149,7 @@ class TestLLMServicePerformance:
         # First request - cache miss
         with patch.object(llm_service, '_call_llm_api') as mock_api:
             with patch.object(llm_service, '_get_cached_analysis') as mock_cache_get:
-                with patch.object(llm_service, '_cache_analysis') as mock_cache_set:
+                with patch.object(llm_service, '_cache_analysis'):
                     # No cache hit initially
                     mock_cache_get.return_value = None
                     mock_api.return_value = '{"insights": []}'
@@ -514,7 +512,7 @@ class TestStressTestingAndLimits:
         
         total_time = end_time - start_time
         successful_results = [r for r in results if isinstance(r, dict) and r.get("success")]
-        error_results = [r for r in results if isinstance(r, dict) and not r.get("success")]
+        [r for r in results if isinstance(r, dict) and not r.get("success")]
         exceptions = [r for r in results if isinstance(r, Exception)]
         
         success_rate = len(successful_results) / len(results)
@@ -661,7 +659,7 @@ class TestTimeoutAndCircuitBreaking:
                 except Exception as e:
                     return {"success": False, "error": str(e)}
         
-        result = await timeout_subscription_check("timeout_user")
+        await timeout_subscription_check("timeout_user")
         
         # Should fallback gracefully on timeout
         # Implementation may vary - either return default or raise exception

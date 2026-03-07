@@ -324,7 +324,7 @@ export default function InsightsGuideStep({ step, onComplete }: OnboardingStepPr
                       <h6 className="font-medium text-blue-300 mb-2">Pro Tip:</h6>
                       <p className="text-blue-200 text-sm">
                         AI-generated remediation steps are tailored to the specific threat pattern detected. 
-                        They provide actionable guidance beyond just "this is bad."
+                        They provide actionable guidance beyond just &quot;this is bad.&quot;
                       </p>
                     </div>
                   </div>
@@ -386,7 +386,7 @@ export default function InsightsGuideStep({ step, onComplete }: OnboardingStepPr
             <div className="mt-6 text-center">
               <div className="bg-green-900 border border-green-700 rounded-lg p-4 inline-block">
                 <p className="text-green-300">
-                  Great! You're ready to interpret AI insights like a pro. Moving to integrations...
+                  Great! You&apos;re ready to interpret AI insights like a pro. Moving to integrations...
                 </p>
               </div>
             </div>

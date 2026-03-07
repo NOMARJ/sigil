@@ -118,7 +118,7 @@ if datetime.datetime.now() > trigger_date:
           </div>
           <h3 className="text-xl font-bold text-white mb-2">Run Your First AI-Powered Scan</h3>
           <p className="text-gray-400">
-            Experience how Sigil Pro's AI detects sophisticated threats that traditional scanners miss.
+            Experience how Sigil Pro&apos;s AI detects sophisticated threats that traditional scanners miss.
           </p>
         </div>
 

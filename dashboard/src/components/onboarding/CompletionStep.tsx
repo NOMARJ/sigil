@@ -138,7 +138,7 @@ export default function CompletionStep({ step, onComplete, data }: OnboardingSte
             🎉 Welcome to Sigil Pro!
           </h2>
           <p className="text-xl text-gray-400 mb-2">
-            You've successfully completed the onboarding and are ready to use AI-powered threat detection.
+            You&apos;ve successfully completed the onboarding and are ready to use AI-powered threat detection.
           </p>
           <div className="inline-flex items-center px-4 py-2 bg-green-900 border border-green-700 rounded-lg text-green-300 text-sm">
             <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">

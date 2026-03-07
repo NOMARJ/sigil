@@ -22,14 +22,12 @@ import json
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
-from typing import Any
 
 from services.llm_service import llm_service, LLMService, RateLimiter
 from models.llm_models import (
     LLMAnalysisRequest, 
     LLMAnalysisResponse,
     LLMInsight,
-    LLMContextAnalysis,
     LLMAnalysisType,
     LLMThreatCategory,
     LLMConfidence,
@@ -219,7 +217,7 @@ class TestLLMAnalysisRequests:
             
             # Should not have called LLM API due to cache hit
             with patch.object(llm_service, '_call_llm_api') as mock_api:
-                response2 = await llm_service.analyze_threat(sample_analysis_request)
+                await llm_service.analyze_threat(sample_analysis_request)
                 mock_api.assert_not_called()
 
     @pytest.mark.asyncio

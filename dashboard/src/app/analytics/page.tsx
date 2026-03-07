@@ -7,7 +7,7 @@
  * for Pro users to track their security analysis insights and costs.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -272,11 +272,7 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState('30');
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [timeRange]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -315,7 +311,11 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -445,12 +445,12 @@ export default function AnalyticsPage() {
                     <span>Zero-Day Discoveries</span>
                   </CardTitle>
                   <CardDescription>
-                    You've discovered {usage?.zero_days_found ?? 0} potential zero-day vulnerabilities
+                    You&apos;ve discovered {usage?.zero_days_found ?? 0} potential zero-day vulnerabilities
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-600">
-                    Zero-day discoveries are novel security vulnerabilities that haven't been 
+                    Zero-day discoveries are novel security vulnerabilities that haven&apos;t been 
                     seen before. These findings demonstrate the value of AI-powered analysis
                     in uncovering sophisticated threats.
                   </p>
@@ -481,7 +481,7 @@ export default function AnalyticsPage() {
               {engagement && engagement.monthly_scans < 10 && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
                   <p className="text-sm text-blue-800">
-                    <strong>Tip:</strong> You've performed {engagement.monthly_scans} scans this month. 
+                    <strong>Tip:</strong> You&apos;ve performed {engagement.monthly_scans} scans this month. 
                     Regular scanning helps identify threats early and improves your security posture.
                   </p>
                 </div>

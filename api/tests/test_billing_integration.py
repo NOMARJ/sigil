@@ -15,14 +15,11 @@ Test Coverage:
 
 from __future__ import annotations
 
-import json
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
-from typing import Any
 
 from fastapi.testclient import TestClient
-from models import PlanTier
 from services.subscription_service import subscription_service
 from database import db
 
@@ -76,7 +73,6 @@ class TestStripeCheckoutFlow:
         """Test checkout creation for user with existing Stripe customer"""
         
         # Setup user with existing subscription record
-        from tests.conftest import registered_user
         import asyncio
         
         async def setup_existing_customer():
@@ -428,7 +424,7 @@ class TestSubscriptionManagement:
             )
             return user_id
             
-        user_id = asyncio.run(setup_user())
+        asyncio.run(setup_user())
         
         with patch('api.routers.billing._get_stripe') as mock_get_stripe:
             mock_stripe = MagicMock()

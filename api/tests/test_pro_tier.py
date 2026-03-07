@@ -18,13 +18,13 @@ import json
 import pytest
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from typing import Any
 
 from fastapi.testclient import TestClient
-from models import PlanTier, LLMAnalysisRequest, LLMAnalysisType, LLMThreatCategory
+from models import PlanTier, LLMAnalysisRequest, LLMAnalysisType
 from services.llm_service import llm_service
-from services.subscription_service import subscription_service, pro_feature_gate
+from services.subscription_service import subscription_service
 from middleware.tier_check import get_user_tier, require_pro_tier, check_llm_analysis_access
 from database import db
 
@@ -168,7 +168,7 @@ class TestSubscriptionUpgradeFlow:
     async def test_subscription_downgrade_flow(self, client: TestClient, pro_user: dict[str, Any]):
         """Test subscription downgrade from Pro to free"""
         user_id = pro_user["user"]["id"]
-        auth_headers = {"Authorization": f"Bearer {pro_user['access_token']}"}
+        {"Authorization": f"Bearer {pro_user['access_token']}"}
         
         # Verify Pro tier initially
         tier = await subscription_service.get_user_tier(user_id)
@@ -562,7 +562,7 @@ class TestProPerformance:
             # First request - should call LLM
             start_time = asyncio.get_event_loop().time() 
             response1 = await llm_service.analyze_threat(analysis_request)
-            first_duration = asyncio.get_event_loop().time() - start_time
+            asyncio.get_event_loop().time() - start_time
             
             assert mock_llm.call_count == 1
             assert response1.cache_hit is False
@@ -570,7 +570,7 @@ class TestProPerformance:
             # Second request - should use cache
             start_time = asyncio.get_event_loop().time()
             response2 = await llm_service.analyze_threat(analysis_request)
-            second_duration = asyncio.get_event_loop().time() - start_time
+            asyncio.get_event_loop().time() - start_time
             
             # Should not call LLM again
             assert mock_llm.call_count == 1  

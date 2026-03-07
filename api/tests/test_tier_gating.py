@@ -18,14 +18,12 @@ from __future__ import annotations
 
 import pytest
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, AsyncMock
-from typing import Any
+from unittest.mock import patch, MagicMock
 
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from models import PlanTier, UserResponse
+from models import PlanTier
 from middleware.tier_check import (
     get_user_tier,
     require_pro_tier, 
@@ -33,8 +31,6 @@ from middleware.tier_check import (
     get_scan_capabilities
 )
 from services.subscription_service import subscription_service, pro_feature_gate
-from routers.auth import get_current_user_unified
-from database import db
 
 
 class TestTierGatingMiddleware:
@@ -535,13 +531,13 @@ class TestTierGatingEdgeCases:
             ("unknown_status", False)  # Unknown status - no access
         ]
         
-        for status, expected_access in status_cases:
+        for sub_status, expected_access in status_cases:
             with patch.object(subscription_service, 'get_user_subscription') as mock_get_sub:
                 mock_get_sub.return_value = {
                     "plan": "pro",
-                    "status": status,
+                    "status": sub_status,
                     "has_pro_features": expected_access
                 }
                 
-                has_access = await subscription_service.check_pro_access(f"user_{status}")
-                assert has_access == expected_access, f"Status {status} should have access={expected_access}"
+                has_access = await subscription_service.check_pro_access(f"user_{sub_status}")
+                assert has_access == expected_access, f"Status {sub_status} should have access={expected_access}"

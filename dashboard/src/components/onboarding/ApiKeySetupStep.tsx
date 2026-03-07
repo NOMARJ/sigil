@@ -156,7 +156,7 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
                     <p className="text-sm text-gray-400 mb-2">2. Configure your API key:</p>
                     <div className="bg-gray-800 border border-gray-600 rounded p-3">
                       <code className="text-green-400 font-mono text-sm">
-                        export SIGIL_API_KEY="{apiKey}"
+                        export SIGIL_API_KEY=&quot;{apiKey}&quot;
                       </code>
                     </div>
                   </div>

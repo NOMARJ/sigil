@@ -104,7 +104,7 @@ export default function WelcomeStep({ step, onComplete }: OnboardingStepProps): 
           <span>This onboarding will take approximately <strong>5 minutes</strong> to complete</span>
         </div>
         <p className="text-blue-200 mt-2">
-          You'll learn how to set up the CLI, run your first AI-powered scan, and interpret the advanced insights that only Pro members receive.
+          You&apos;ll learn how to set up the CLI, run your first AI-powered scan, and interpret the advanced insights that only Pro members receive.
         </p>
       </div>
 
@@ -118,7 +118,7 @@ export default function WelcomeStep({ step, onComplete }: OnboardingStepProps): 
             className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
           />
           <span className="ml-2 text-gray-300">
-            I'm ready to get started with AI-powered threat detection
+            I&apos;m ready to get started with AI-powered threat detection
           </span>
         </label>
 
@@ -132,7 +132,7 @@ export default function WelcomeStep({ step, onComplete }: OnboardingStepProps): 
                 : "bg-gray-600 cursor-not-allowed"
             }`}
           >
-            Let's Get Started
+            Let&apos;s Get Started
           </button>
         </div>
       </div>
