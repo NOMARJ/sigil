@@ -9,7 +9,6 @@ or provide simplified versions of existing functionality.
 from __future__ import annotations
 
 from fastapi import APIRouter
-from fastapi.responses import RedirectResponse
 
 from services.realtime_dashboard import dashboard_service
 from routers.forge import get_classified_skills
@@ -23,10 +22,10 @@ async def get_status():
     try:
         # Check Redis connection
         redis_status = "connected" if dashboard_service.redis else "disconnected"
-        
+
         # Count active connections
         active_connections = len(dashboard_service.active_connections)
-        
+
         # Return simplified status
         return {
             "status": "operational",
