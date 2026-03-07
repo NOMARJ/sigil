@@ -21,17 +21,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api.config import settings
-from api.database import cache, db
-from api.gates import PlanGateException
-from api.models import GateError
-from api.monitoring import MetricsMiddleware, monitoring
-from api.rate_limit import RateLimitMiddleware
-from api.middleware.security import (
+from config import settings
+from database import cache, db
+from gates import PlanGateException
+from models import GateError
+from monitoring import MetricsMiddleware, monitoring
+from rate_limit import RateLimitMiddleware
+from middleware.security import (
     RequestValidationMiddleware,
     SecurityHeaders,
 )
-from api.middleware.rate_limit_enhanced import EnhancedRateLimitMiddleware
+from middleware.rate_limit_enhanced import EnhancedRateLimitMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -82,8 +82,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize analytics and dashboard services
     try:
-        from api.services.forge_analytics import analytics_service
-        from api.services.realtime_dashboard import dashboard_service
+        from services.forge_analytics import analytics_service
+        from services.realtime_dashboard import dashboard_service
 
         await analytics_service.initialize()
         await dashboard_service.initialize()
@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Start background tasks
     print("[LIFESPAN] Importing registry stats updater...")
-    from api.services import registry_stats_updater
+    from services import registry_stats_updater
 
     print("[LIFESPAN] Starting background updater...")
     await registry_stats_updater.start_updater()
@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start monitoring and alerting
     if settings.metrics_enabled:
         print("[LIFESPAN] Starting monitoring system...")
-        from api.monitoring import run_alert_evaluation_loop
+        from monitoring import run_alert_evaluation_loop
         import asyncio
 
         # Start alert evaluation loop in background
@@ -277,8 +277,9 @@ async def validation_exception_handler(
 
 # Import routers with error handling to catch registration failures
 try:
-    from api.routers import (  # noqa: E402
+    from routers import (  # noqa: E402
         alerts,
+        analytics,
         attestation,
         auth,
         badge,
@@ -317,6 +318,7 @@ app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
+app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
 app.include_router(
     forge_premium.router
 )  # /forge/* — Forge premium features (authenticated)
@@ -1035,7 +1037,7 @@ async def test_email_config() -> dict:
     This endpoint verifies that the email service is properly configured
     and can connect to Resend with the mail.sigilsec.ai domain.
     """
-    from api.services.email_service import EmailService
+    from services.email_service import EmailService
 
     email_service = EmailService()
 

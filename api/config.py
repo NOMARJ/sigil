@@ -169,5 +169,5 @@ class Settings(BaseSettings):
         return bool(self.azure_insights_key)
 
 
-# Singleton — importable from anywhere as `from api.config import settings`.
+# Singleton — importable from anywhere as `from config import settings`.
 settings = Settings()

@@ -21,11 +21,11 @@ import os
 import time
 
 from fastapi import HTTPException, Request, status
-from api.middleware.security import SecurityHeaders
+from middleware.security import SecurityHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from api.database import cache
+from database import cache
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class RateLimiter:
 
     Usage::
 
-        from api.rate_limit import RateLimiter
+        from rate_limit import RateLimiter
 
         @router.get("/expensive", dependencies=[Depends(RateLimiter(max_requests=20, window=60))])
         async def expensive_endpoint(): ...

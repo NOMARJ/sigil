@@ -33,10 +33,10 @@ from fastapi.security import (
 
 import httpx
 
-from api.config import settings
-from api.database import cache, db
-from api.rate_limit import RateLimiter
-from api.models import (
+from config import settings
+from database import cache, db
+from rate_limit import RateLimiter
+from models import (
     AuthTokens,
     ErrorResponse,
     ForgotPasswordRequest,
@@ -800,7 +800,7 @@ async def logout(
 
 async def _send_reset_email(email: str, reset_link: str) -> None:
     """Send a password reset email via the notifications service."""
-    from api.services.notifications import send_email_notification
+    from services.notifications import send_email_notification
 
     await send_email_notification(
         recipients=[email],
@@ -900,3 +900,91 @@ async def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
     logger.info("Password reset completed for user: %s", token_record["user_id"])
 
     return ResetPasswordResponse(message="Password reset successfully")
+
+
+@router.get(
+    "/verify",
+    response_model=dict[str, Any],
+    summary="Verify API key and return user tier information",
+    responses={401: {"model": ErrorResponse}},
+)
+async def verify_api_key(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> dict[str, Any]:
+    """Verify API key and return user tier information for CLI tier checking.
+
+    Returns:
+        - valid: True if token is valid
+        - user_id: The authenticated user's ID
+        - tier: User's current subscription tier (free, pro, team, enterprise)
+        - limits: Monthly scan limits and current usage for the user's tier
+        - features: Available features for the user's tier
+    """
+    from gates import get_user_plan, PLAN_LIMITS
+    from database import db
+    from datetime import datetime, timezone
+
+    # Get user's current plan tier
+    user_tier = await get_user_plan(current_user.id)
+
+    # Get current scan usage for the month
+    year_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    current_usage = await db.get_scan_usage(current_user.id, year_month)
+    monthly_limit = PLAN_LIMITS[user_tier]
+
+    # Define features available per tier
+    tier_features = {
+        "free": {
+            "static_analysis": True,
+            "llm_analysis": False,
+            "advanced_obfuscation": False,
+            "contextual_insights": False,
+            "priority_support": False,
+            "scan_history": False,
+            "team_collaboration": False,
+        },
+        "pro": {
+            "static_analysis": True,
+            "llm_analysis": True,
+            "advanced_obfuscation": True,
+            "contextual_insights": True,
+            "priority_support": True,
+            "scan_history": True,
+            "team_collaboration": False,
+        },
+        "team": {
+            "static_analysis": True,
+            "llm_analysis": True,
+            "advanced_obfuscation": True,
+            "contextual_insights": True,
+            "priority_support": True,
+            "scan_history": True,
+            "team_collaboration": True,
+        },
+        "enterprise": {
+            "static_analysis": True,
+            "llm_analysis": True,
+            "advanced_obfuscation": True,
+            "contextual_insights": True,
+            "priority_support": True,
+            "scan_history": True,
+            "team_collaboration": True,
+        },
+    }
+
+    return {
+        "valid": True,
+        "user_id": current_user.id,
+        "tier": user_tier.value,
+        "limits": {
+            "monthly_scans": monthly_limit if monthly_limit > 0 else "unlimited",
+            "current_usage": current_usage,
+            "remaining": max(0, monthly_limit - current_usage)
+            if monthly_limit > 0
+            else "unlimited",
+        },
+        "features": tier_features.get(user_tier.value, tier_features["free"]),
+        "upgrade_url": "https://app.sigilsec.ai/upgrade"
+        if user_tier.value == "free"
+        else None,
+    }

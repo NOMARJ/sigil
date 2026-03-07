@@ -16,10 +16,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from api.config import settings
-from api.database import cache, db
-from api.models import UserResponse
-from api.routers.auth import get_current_user_unified
+from config import settings
+from database import cache, db
+from models import UserResponse
+from routers.auth import get_current_user_unified
 
 logger = logging.getLogger(__name__)
 

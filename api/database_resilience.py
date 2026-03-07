@@ -16,16 +16,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, TypeVar
 
-from api.circuit_breakers import CircuitBreaker, CircuitBreakerConfig
-from api.config import settings
-from api.database import cache, db
-from api.errors import (
+from circuit_breakers import CircuitBreaker, CircuitBreakerConfig
+from config import settings
+from database import cache, db
+from errors import (
     DatabaseError,
     ErrorSeverity,
     SigilError,
     error_tracker,
 )
-from api.retry import DATABASE_RETRY_CONFIG, retry_with_backoff
+from retry import DATABASE_RETRY_CONFIG, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -533,7 +533,7 @@ def with_redis_resilience(fallback_result: Any = None):
 
 def initialize_database_resilience():
     """Initialize database resilience patterns."""
-    from api.database import db, cache
+    from database import db, cache
 
     # Add resilient managers to existing clients
     if not hasattr(db, "_resilient_manager"):
@@ -547,7 +547,7 @@ def initialize_database_resilience():
 
 async def start_database_monitoring():
     """Start database health monitoring."""
-    from api.database import db
+    from database import db
 
     if hasattr(db, "_resilient_manager"):
         await db._resilient_manager.start_health_monitoring()
@@ -555,7 +555,7 @@ async def start_database_monitoring():
 
 async def stop_database_monitoring():
     """Stop database health monitoring."""
-    from api.database import db
+    from database import db
 
     if hasattr(db, "_resilient_manager"):
         await db._resilient_manager.stop_health_monitoring()
@@ -563,7 +563,7 @@ async def stop_database_monitoring():
 
 def get_database_health():
     """Get overall database health status."""
-    from api.database import db, cache
+    from database import db, cache
 
     health_status = {
         "database": {

@@ -7,8 +7,8 @@ remain declarative and easy to audit.
 
 Usage in a route:
 
-    from api.gates import require_plan, check_scan_quota
-    from api.models import PlanTier
+    from gates import require_plan, check_scan_quota
+    from models import PlanTier
 
     # Hard gate — 403 if user is below PRO:
     @router.get("/my-route")
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
 
-from api.models import PlanTier
+from models import PlanTier
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ async def get_user_plan(user_id: str) -> PlanTier:
 
     Defaults to FREE if no subscription record exists.
     """
-    from api.database import db
+    from database import db
 
     sub = await db.get_subscription(user_id)
     if sub is None:
@@ -129,7 +129,7 @@ def require_plan(minimum_tier: PlanTier):
     Uses the unified auth function to support both Supabase Auth and custom JWT
     without dependency injection conflicts.
     """
-    from api.routers.auth import get_current_user_unified, UserResponse
+    from routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
         current_user: UserResponse = Depends(get_current_user_unified),
@@ -163,7 +163,7 @@ async def check_scan_quota(user_id: str, current_tier: PlanTier) -> None:
     if limit == 0:
         return  # ENTERPRISE — unlimited
 
-    from api.database import db
+    from database import db
 
     year_month = datetime.now(timezone.utc).strftime("%Y-%m")
     current_count = await db.get_scan_usage(user_id, year_month)

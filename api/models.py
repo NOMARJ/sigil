@@ -40,7 +40,7 @@ class Severity(str, enum.Enum):
 
 
 class ScanPhase(str, enum.Enum):
-    """The eight scan phases: original six + AI security extensions."""
+    """The nine scan phases: original six + AI security extensions."""
 
     INSTALL_HOOKS = "install_hooks"
     CODE_PATTERNS = "code_patterns"
@@ -50,6 +50,7 @@ class ScanPhase(str, enum.Enum):
     PROVENANCE = "provenance"
     PROMPT_INJECTION = "prompt_injection"  # Phase 7: Prompt injection attacks
     SKILL_SECURITY = "skill_security"  # Phase 8: AI skill/tool abuse
+    LLM_ANALYSIS = "llm_analysis"  # Phase 9: AI-powered threat detection (Pro)
 
 
 # ---------------------------------------------------------------------------

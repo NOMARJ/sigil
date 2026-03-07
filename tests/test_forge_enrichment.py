@@ -5,7 +5,6 @@ Test Forge Enrichment Worker
 This tests the forge enrichment worker logic without requiring a database connection.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -395,14 +394,6 @@ def test_enriched_data_generation():
     worker = ForgeEnrichmentWorker()
 
     # Mock scan record
-    scan_record = {
-        "ecosystem": "npm",
-        "package_name": "test-package",
-        "package_version": "1.0.0",
-        "risk_score": 15,
-        "verdict": "LOW_RISK",
-        "scanned_at": "2026-03-06T10:00:00Z",
-    }
 
     findings = [
         {

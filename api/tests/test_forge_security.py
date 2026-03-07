@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from api.security.forge_access import (
+from security.forge_access import (
     AuditAction,
     AuditLogger,
     DataAccessFilter,
@@ -404,7 +404,7 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_rate_limit_by_plan(self):
         """Test different rate limits per plan."""
-        from api.security.forge_access import RATE_LIMITS, apply_rate_limit
+        from security.forge_access import RATE_LIMITS, apply_rate_limit
         from fastapi import Request
 
         mock_request = MagicMock(spec=Request)
@@ -448,7 +448,7 @@ class TestAPIIntegration:
     def client(self):
         """Create test client with mocked dependencies."""
         from fastapi import FastAPI
-        from api.routers.forge_secure import router
+        from routers.forge_secure import router
 
         app = FastAPI()
         app.include_router(router)
@@ -491,7 +491,7 @@ class TestSecurityHeaders:
     @pytest.mark.asyncio
     async def test_security_headers_added(self):
         """Test that security headers are added to responses."""
-        from api.security.forge_access import add_security_headers
+        from security.forge_access import add_security_headers
         from fastapi import Response
 
         # Mock request and response
@@ -522,7 +522,7 @@ class TestDataRetention:
 
     def test_retention_limits(self):
         """Test data retention limits are properly defined."""
-        from api.security.forge_access import DATA_RETENTION
+        from security.forge_access import DATA_RETENTION
 
         assert DATA_RETENTION[SigilPlan.FREE] == 7  # 1 week
         assert DATA_RETENTION[SigilPlan.PRO] == 90  # 3 months

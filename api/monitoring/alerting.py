@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
-from api.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -491,7 +491,7 @@ class AlertManager:
     async def _check_error_rate(self) -> float:
         """Check current error rate from metrics."""
         try:
-            from api.monitoring import http_requests_total
+            from monitoring import http_requests_total
 
             # Get total requests and errors from last 5 minutes
             # This is a simplified check - in production you'd query metrics properly
@@ -521,7 +521,7 @@ class AlertManager:
 
     async def _check_database_connectivity(self) -> bool:
         """Check database connectivity."""
-        from api.database import db
+        from database import db
 
         return not db.connected
 

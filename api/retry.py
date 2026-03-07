@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, List, Optional, Set, Type, TypeVar
 
-from api.errors import (
+from errors import (
     ErrorCategory,
     SigilError,
     TimeoutError,
@@ -552,7 +552,7 @@ async def call_with_circuit_breaker_and_retry(
     - Circuit breaker prevents cascading failures
     - Retry handles transient issues within the circuit breaker
     """
-    from api.circuit_breakers import circuit_registry
+    from circuit_breakers import circuit_registry
 
     if retry_config is None:
         # Use default retry config based on service name

@@ -14,7 +14,7 @@ and custom JWT tokens without nested dependency conflicts.
 The fix in `api/gates.py` now uses:
 ```python
 def require_plan(minimum_tier: PlanTier):
-    from api.routers.auth import get_current_user_unified, UserResponse
+    from routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
         current_user: UserResponse = Depends(get_current_user_unified),
@@ -51,7 +51,7 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
-from api.database import db
+from database import db
 
 
 # ---------------------------------------------------------------------------
@@ -312,8 +312,8 @@ class TestPlanSubscriptionManagement:
 
     def test_default_plan_is_free(self) -> None:
         """New users default to FREE plan when no subscription exists."""
-        from api.gates import get_user_plan
-        from api.models import PlanTier
+        from gates import get_user_plan
+        from models import PlanTier
         from uuid import uuid4
         import asyncio
 
@@ -324,9 +324,9 @@ class TestPlanSubscriptionManagement:
 
     def test_pro_plan_detection_works(self) -> None:
         """PRO plan is correctly detected when subscription exists."""
-        from api.gates import get_user_plan
-        from api.models import PlanTier
-        from api.database import db
+        from gates import get_user_plan
+        from models import PlanTier
+        from database import db
         from uuid import uuid4
         import asyncio
 
@@ -347,7 +347,7 @@ class TestPlanSubscriptionManagement:
 
     def test_subscription_data_structure(self) -> None:
         """Subscription data is stored with correct structure."""
-        from api.database import db
+        from database import db
         from uuid import uuid4
         import asyncio
 
@@ -515,7 +515,7 @@ class TestImplementedFix:
         and manually extracts the token from headers, avoiding the dependency
         injection conflict between OAuth2PasswordBearer and HTTPBearer.
         """
-        from api.routers.auth import get_current_user_unified
+        from routers.auth import get_current_user_unified
         import inspect
 
         # Verify the function signature uses Request directly

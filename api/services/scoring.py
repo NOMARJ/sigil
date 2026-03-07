@@ -20,7 +20,7 @@ Risk classification thresholds:
 
 from __future__ import annotations
 
-from api.models import Finding, ScanPhase, Severity, Verdict
+from models import Finding, ScanPhase, Severity, Verdict
 
 
 # ---------------------------------------------------------------------------

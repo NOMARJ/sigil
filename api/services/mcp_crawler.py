@@ -372,7 +372,7 @@ async def scan_mcp_server(server: MCPServer) -> MCPScanResult:
     with tempfile.TemporaryDirectory(prefix=f"sigil-mcp-{server.author}-") as tmpdir:
         try:
             # Validate and sanitize clone URL before using
-            from api.middleware.security import URLValidator, SecurityValidationError
+            from middleware.security import URLValidator, SecurityValidationError
 
             try:
                 sanitized_url = URLValidator.sanitize_url(server.clone_url)
@@ -417,13 +417,13 @@ async def scan_mcp_server(server: MCPServer) -> MCPScanResult:
                 return result
 
             # Scan with standard Sigil engine
-            from api.services.scanner import scan_directory
-            from api.services.scoring import compute_verdict
+            from services.scanner import scan_directory
+            from services.scoring import compute_verdict
 
             findings = scan_directory(tmpdir)
             score, verdict = compute_verdict(findings)
 
-            from api.services.scanner import count_scannable_files
+            from services.scanner import count_scannable_files
 
             file_count = count_scannable_files(tmpdir)
 
@@ -456,8 +456,8 @@ async def send_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
         return 0
 
     try:
-        from api.services.notifications import send_notification
-        from api.database import db
+        from services.notifications import send_notification
+        from database import db
 
         # Get active alert channels
         alert_channels = await db.select("alerts", {"enabled": True})
@@ -503,7 +503,7 @@ async def send_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
 
 async def store_mcp_results(results: list[MCPScanResult]) -> int:
     """Store MCP scan results in the public_scans table."""
-    from api.database import db
+    from database import db
 
     stored = 0
     for result in results:
@@ -555,7 +555,7 @@ async def store_mcp_results(results: list[MCPScanResult]) -> int:
 
 async def store_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
     """Store typosquat alerts in the database for tracking."""
-    from api.database import db
+    from database import db
 
     stored = 0
     for alert in alerts:
@@ -640,7 +640,7 @@ async def _main() -> None:
             print()
 
         if args.store:
-            from api.database import db
+            from database import db
 
             await db.connect()
             stored_alerts = await store_typosquat_alerts(alerts)
@@ -654,7 +654,7 @@ async def _main() -> None:
             result = await scan_mcp_server(server)
             scan_results.append(result)
 
-        from api.database import db
+        from database import db
 
         await db.connect()
         stored = await store_mcp_results(scan_results)

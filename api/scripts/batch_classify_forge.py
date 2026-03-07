@@ -28,9 +28,9 @@ from typing import Any
 # Add parent directory to path to import API modules
 sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
-from api.config import settings
-from api.database import db
-from api.services.forge_classifier import (
+from config import settings
+from database import db
+from services.forge_classifier import (
     forge_classifier,
     ClassificationInput,
     Finding,

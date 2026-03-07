@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from api.database import db
+from database import db
 
 logger = logging.getLogger(__name__)
 

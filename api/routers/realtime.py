@@ -21,14 +21,14 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
-from api.gates import get_user_plan, require_plan
-from api.models import PlanTier
-from api.routers.auth import get_current_user_unified, UserResponse
-from api.services.realtime_dashboard import (
+from gates import get_user_plan, require_plan
+from models import PlanTier
+from routers.auth import get_current_user_unified, UserResponse
+from services.realtime_dashboard import (
     dashboard_service,
     send_security_notification,
 )
-from api.services.forge_analytics import track_forge_event, ForgeEventType
+from services.forge_analytics import track_forge_event, ForgeEventType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time Updates"])
@@ -148,7 +148,7 @@ async def send_notification(
             raise HTTPException(status_code=403, detail="Permission denied")
 
         # Get target user info
-        from api.database import db
+        from database import db
 
         target_user = await db.select_one("users", {"id": target_user_id})
         if not target_user or target_user.get("team_id") != current_user.team_id:
@@ -242,7 +242,7 @@ async def invalidate_caches(
         results = {}
 
         if "analytics" in cache_types or "personal" in cache_types:
-            from api.services.forge_analytics import analytics_service
+            from services.forge_analytics import analytics_service
 
             await analytics_service.invalidate_user_cache(current_user.id)
             results["personal_analytics"] = "invalidated"

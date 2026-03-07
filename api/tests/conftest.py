@@ -11,14 +11,18 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from typing import Any, Iterator
 from uuid import uuid4
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from api.database import _memory_cache, db
+from database import _memory_cache, db
 
 
 _original_async_client_init = httpx.AsyncClient.__init__
@@ -113,7 +117,7 @@ def client() -> Iterator[TestClient]:
 
     Uses the in-memory fallback stores (no Supabase/Redis required).
     """
-    from api.main import app
+    from main import app
 
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
@@ -155,7 +159,7 @@ def auth_headers(registered_user: dict[str, Any]) -> dict[str, str]:
 def pro_user(client: TestClient, test_user_data: dict[str, str]) -> dict[str, Any]:
     """Register a test user and upgrade them to PRO plan."""
     import asyncio
-    from api.database import db
+    from database import db
 
     # Register user
     resp = client.post("/v1/auth/register", json=test_user_data)

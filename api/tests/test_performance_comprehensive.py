@@ -373,7 +373,7 @@ class TestDatabasePerformance:
     @pytest.mark.asyncio
     async def test_user_lookup_performance(self, client: TestClient):
         """Test user lookup query performance."""
-        from api.database import db
+        from database import db
 
         # Create some test users first
         test_emails = [f"perftest{i}@example.com" for i in range(100)]
@@ -493,7 +493,7 @@ class TestClassificationPipelinePerformance:
 
     def test_classification_speed(self, sample_findings: list[dict[str, Any]]):
         """Test classification pipeline processing speed."""
-        from api.services.scanner_service import ScannerService
+        from services.scanner_service import ScannerService
 
         scanner = ScannerService()
 
@@ -526,7 +526,7 @@ class TestClassificationPipelinePerformance:
 
     def test_scoring_algorithm_performance(self, sample_findings: list[dict[str, Any]]):
         """Test scoring algorithm performance."""
-        from api.services.scanner_service import ScannerService
+        from services.scanner_service import ScannerService
 
         scanner = ScannerService()
 

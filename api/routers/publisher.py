@@ -10,8 +10,8 @@ import logging
 
 from fastapi import APIRouter
 
-from api.models import ErrorResponse, PublisherReputation
-from api.services.threat_intel import get_publisher_reputation
+from models import ErrorResponse, PublisherReputation
+from services.threat_intel import get_publisher_reputation
 
 logger = logging.getLogger(__name__)
 

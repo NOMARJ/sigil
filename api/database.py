@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from api.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _record_db_operation(
     """Record database operation metrics if monitoring is available."""
     try:
         # Lazy import to avoid circular imports
-        from api.monitoring import db_operations_total, db_query_duration
+        from monitoring import db_operations_total, db_query_duration
 
         status = "success" if success else "error"
         db_operations_total.labels(
@@ -511,6 +511,51 @@ class MssqlClient:
             logger.error(f"Failed to increment scan usage: {e}")
             # Return fallback value instead of raising
             return 1
+
+    async def execute_procedure(
+        self, procedure_name: str, params: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        """Execute a stored procedure and return results."""
+        if not self._pool:
+            logger.warning(
+                f"Database not configured, cannot execute procedure {procedure_name}"
+            )
+            return []
+
+        start_time = time.time()
+        success = True
+
+        try:
+            # Build procedure call with parameters
+            param_list = []
+            param_values = []
+
+            if params:
+                for key, value in params.items():
+                    param_list.append(f"@{key} = ?")
+                    param_values.append(self._serialize_value(value))
+
+            param_string = ", ".join(param_list) if param_list else ""
+            sql = f"EXEC {procedure_name} {param_string}".strip()
+
+            async with self._pool.acquire() as conn:
+                cursor = await conn.cursor()
+                await cursor.execute(sql, tuple(param_values))
+
+                # Fetch all results
+                rows = await cursor.fetchall()
+                results = [self._row_to_dict(cursor, row) for row in rows]
+
+                await conn.commit()
+                return results
+
+        except Exception as e:
+            success = False
+            logger.exception(f"Failed to execute procedure {procedure_name}: {e}")
+            raise
+        finally:
+            duration = time.time() - start_time
+            _record_db_operation(procedure_name, "procedure", duration, success)
 
 
 # ---------------------------------------------------------------------------
