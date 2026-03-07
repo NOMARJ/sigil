@@ -29,7 +29,6 @@ from fastapi.responses import JSONResponse
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from api.config import settings
 from api.database import db
 from bot.config import bot_settings
 from bot.worker.forge_enrichment import ForgeEnrichmentWorker

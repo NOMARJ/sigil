@@ -297,6 +297,7 @@ try:
         registry,
         report,
         scan,
+        system,
         team,
         threat,
         verify,
@@ -307,6 +308,9 @@ except ImportError as e:
     logger.error(f"Failed to import routers: {e}")
     # Re-raise to prevent silent failures
     raise
+
+# --- Root-level system endpoints -------------------------------------------
+app.include_router(system.router)  # /status, /skills — Root-level convenience endpoints
 
 # --- Original /v1 routes (backward compatibility) --------------------------
 app.include_router(scan.router)
