@@ -8,7 +8,7 @@ from __future__ import annotations
 
 class ThreatDetectionPrompts:
     """Specialized prompts for detecting specific types of threats."""
-    
+
     @staticmethod
     def get_prompt_injection_detector() -> str:
         """Detect prompt injection and AI jailbreaking attempts."""
@@ -261,7 +261,7 @@ Distribution mechanisms:
 
     @staticmethod
     def get_advanced_persistent_threat_detector() -> str:
-        """Detect APT (Advanced Persistent Threat) characteristics.""" 
+        """Detect APT (Advanced Persistent Threat) characteristics."""
         return """**ADVANCED PERSISTENT THREAT DETECTION**
 
 Identify sophisticated, long-term attack campaigns.

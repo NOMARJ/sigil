@@ -46,7 +46,7 @@ from api.services.threat_intel import (
 )
 from api.services.forge_analytics import track_forge_event
 from api.models import ForgeEventType
-from api.middleware.tier_check import get_scan_capabilities, check_llm_analysis_access
+from api.middleware.tier_check import get_scan_capabilities
 from api.scanner.scanner_engine import scanner_engine
 from api.services.subscription_service import subscription_service
 
@@ -332,39 +332,45 @@ async def submit_enhanced_scan(
 ) -> ScanResponse:
     """
     Enhanced scan with AI-powered analysis for Pro users.
-    
-    Performs both static analysis (Phases 1-8) and LLM analysis (Phase 9) 
+
+    Performs both static analysis (Phases 1-8) and LLM analysis (Phase 9)
     for users with Pro, Team, or Enterprise subscriptions.
-    
+
     For Free users, returns static analysis results with upgrade prompts.
     """
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
-    
+
     # Start with basic scan implementation
     basic_response = await _submit_scan_impl(request, user_id=current_user.id)
-    
+
     # If user doesn't have Pro access, return basic response with upgrade message
     if not capabilities["llm_analysis"]:
         # Add Pro features information to metadata
-        enhanced_metadata = basic_response.metadata if hasattr(basic_response, 'metadata') else {}
-        enhanced_metadata.update({
-            "pro_features_available": False,
-            "upgrade_required": True,
-            "upgrade_message": "Upgrade to Pro for AI-powered threat detection, zero-day analysis, and contextual insights",
-            "upgrade_url": "https://app.sigilsec.ai/upgrade",
-            "missing_features": [
-                "LLM-powered threat analysis",
-                "Zero-day vulnerability detection", 
-                "Obfuscation pattern analysis",
-                "Contextual threat correlation",
-                "Advanced remediation suggestions"
-            ]
-        })
-        
-        logger.info(f"Enhanced scan completed for Free user {current_user.id}: static analysis only")
+        enhanced_metadata = (
+            basic_response.metadata if hasattr(basic_response, "metadata") else {}
+        )
+        enhanced_metadata.update(
+            {
+                "pro_features_available": False,
+                "upgrade_required": True,
+                "upgrade_message": "Upgrade to Pro for AI-powered threat detection, zero-day analysis, and contextual insights",
+                "upgrade_url": "https://app.sigilsec.ai/upgrade",
+                "missing_features": [
+                    "LLM-powered threat analysis",
+                    "Zero-day vulnerability detection",
+                    "Obfuscation pattern analysis",
+                    "Contextual threat correlation",
+                    "Advanced remediation suggestions",
+                ],
+            }
+        )
+
+        logger.info(
+            f"Enhanced scan completed for Free user {current_user.id}: static analysis only"
+        )
         return basic_response
-    
+
     # Pro user - perform LLM analysis
     try:
         # Prepare file contents from request metadata for LLM analysis
@@ -374,17 +380,19 @@ async def submit_enhanced_scan(
         elif "content" in request.metadata and "filename" in request.metadata:
             # Single file scan
             file_contents = {request.metadata["filename"]: request.metadata["content"]}
-        
+
         if file_contents:
-            logger.info(f"Starting enhanced LLM analysis for Pro user {current_user.id}")
-            
+            logger.info(
+                f"Starting enhanced LLM analysis for Pro user {current_user.id}"
+            )
+
             # Use scanner engine for comprehensive analysis
             enhanced_findings = await scanner_engine.scan_with_pro_features(
                 content=None,  # No directory path
                 repository_context=request.metadata,
-                user_tier=current_tier.value
+                user_tier=current_tier.value,
             )
-            
+
             # Track Pro feature usage
             await subscription_service.track_pro_feature_usage(
                 user_id=current_user.id,
@@ -392,21 +400,29 @@ async def submit_enhanced_scan(
                 usage_data={
                     "scan_id": basic_response.scan_id,
                     "files_analyzed": len(file_contents),
-                    "enhanced_findings": len([f for f in enhanced_findings if f.phase.value == "llm_analysis"]),
+                    "enhanced_findings": len(
+                        [
+                            f
+                            for f in enhanced_findings
+                            if f.phase.value == "llm_analysis"
+                        ]
+                    ),
                     "total_findings": len(enhanced_findings),
-                }
+                },
             )
-            
+
             # Merge LLM findings with basic findings
             all_findings = basic_response.findings + [
-                f for f in enhanced_findings 
+                f
+                for f in enhanced_findings
                 if f.phase.value == "llm_analysis"  # Only add new LLM findings
             ]
-            
+
             # Recalculate risk score with LLM findings
             from api.services.scoring import compute_verdict
+
             enhanced_risk_score, enhanced_verdict = compute_verdict(all_findings)
-            
+
             # Update response with enhanced results
             enhanced_response = ScanResponse(
                 scan_id=basic_response.scan_id,
@@ -421,23 +437,31 @@ async def submit_enhanced_scan(
                 metadata={
                     "pro_features_used": True,
                     "llm_analysis_performed": True,
-                    "enhanced_findings_count": len([f for f in enhanced_findings if f.phase.value == "llm_analysis"]),
+                    "enhanced_findings_count": len(
+                        [
+                            f
+                            for f in enhanced_findings
+                            if f.phase.value == "llm_analysis"
+                        ]
+                    ),
                     "original_risk_score": basic_response.risk_score,
                     "enhanced_risk_score": enhanced_risk_score,
                     "user_tier": current_tier.value,
-                }
+                },
             )
-            
+
             logger.info(
                 f"Enhanced scan completed for Pro user {current_user.id}: "
                 f"{len(all_findings)} total findings, "
                 f"risk score {basic_response.risk_score} -> {enhanced_risk_score}"
             )
-            
+
             return enhanced_response
-        
+
         else:
-            logger.warning(f"No file contents provided for LLM analysis for user {current_user.id}")
+            logger.warning(
+                f"No file contents provided for LLM analysis for user {current_user.id}"
+            )
             # Return basic response with Pro metadata
             basic_response.metadata = {
                 "pro_features_used": False,
@@ -446,7 +470,7 @@ async def submit_enhanced_scan(
                 "user_tier": current_tier.value,
             }
             return basic_response
-    
+
     except Exception as e:
         logger.exception(f"Enhanced scan failed for Pro user {current_user.id}: {e}")
         # Return basic response with error information
@@ -471,7 +495,7 @@ async def get_user_scan_capabilities(
 ) -> dict[str, Any]:
     """
     Return the scanning capabilities available to the current user.
-    
+
     Includes information about:
     - Available analysis types (static, LLM, contextual)
     - Subscription tier

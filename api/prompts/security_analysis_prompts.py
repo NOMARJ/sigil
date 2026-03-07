@@ -10,7 +10,7 @@ from typing import Any
 
 class SecurityAnalysisPrompts:
     """Collection of security analysis prompts for different threat types."""
-    
+
     @staticmethod
     def get_system_prompt() -> str:
         """Base system prompt for all security analysis tasks."""
@@ -267,35 +267,35 @@ For the overall threat landscape:
         analysis_types: list[str],
         file_contents: dict[str, str],
         static_findings: list[dict[str, Any]],
-        repository_context: dict[str, Any]
+        repository_context: dict[str, Any],
     ) -> str:
         """Build a comprehensive analysis prompt combining multiple analysis types."""
-        
+
         # Start with system prompt
         prompt_parts = [SecurityAnalysisPrompts.get_system_prompt()]
-        
+
         # Add context information
         context_info = f"""
 **ANALYSIS CONTEXT**
 
-Repository: {repository_context.get('name', 'Unknown')}
-Target Type: {repository_context.get('target_type', 'directory')}
+Repository: {repository_context.get("name", "Unknown")}
+Target Type: {repository_context.get("target_type", "directory")}
 Files to Analyze: {len(file_contents)}
 Static Findings: {len(static_findings)}
 
 **STATIC ANALYSIS FINDINGS**
 The following findings were detected by traditional static analysis tools:
 """
-        
+
         # Include static findings for context
         for finding in static_findings[:10]:  # Limit to first 10 to save tokens
             context_info += f"- {finding.get('severity', 'UNKNOWN')}: {finding.get('description', 'No description')} in {finding.get('file', 'unknown file')}\n"
-        
+
         if len(static_findings) > 10:
             context_info += f"... and {len(static_findings) - 10} more findings\n"
-        
+
         prompt_parts.append(context_info)
-        
+
         # Add specific analysis prompts based on requested types
         analysis_prompts = {
             "zero_day_detection": SecurityAnalysisPrompts.get_zero_day_detection_prompt(),
@@ -305,20 +305,22 @@ The following findings were detected by traditional static analysis tools:
             "ai_attack_vector": SecurityAnalysisPrompts.get_ai_attack_vector_prompt(),
             "contextual_correlation": SecurityAnalysisPrompts.get_contextual_correlation_prompt(),
         }
-        
+
         for analysis_type in analysis_types:
             if analysis_type in analysis_prompts:
                 prompt_parts.append(analysis_prompts[analysis_type])
-        
+
         # Add file contents
         files_section = "\n**CODE TO ANALYZE**\n"
         for filename, content in file_contents.items():
             # Truncate very long files
-            truncated_content = content[:8000] + "\n... [TRUNCATED]" if len(content) > 8000 else content
+            truncated_content = (
+                content[:8000] + "\n... [TRUNCATED]" if len(content) > 8000 else content
+            )
             files_section += f"\n=== {filename} ===\n{truncated_content}\n"
-        
+
         prompt_parts.append(files_section)
-        
+
         # Add response format instructions
         response_format = """
 **RESPONSE FORMAT**
@@ -356,7 +358,7 @@ Respond with a JSON object containing your analysis:
 
 Focus on HIGH-CONFIDENCE findings that represent genuine security threats. Quality over quantity.
 """
-        
+
         prompt_parts.append(response_format)
-        
+
         return "\n\n".join(prompt_parts)

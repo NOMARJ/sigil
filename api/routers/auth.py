@@ -912,7 +912,7 @@ async def verify_api_key(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> dict[str, Any]:
     """Verify API key and return user tier information for CLI tier checking.
-    
+
     Returns:
         - valid: True if token is valid
         - user_id: The authenticated user's ID
@@ -923,15 +923,15 @@ async def verify_api_key(
     from api.gates import get_user_plan, PLAN_LIMITS
     from api.database import db
     from datetime import datetime, timezone
-    
+
     # Get user's current plan tier
     user_tier = await get_user_plan(current_user.id)
-    
+
     # Get current scan usage for the month
     year_month = datetime.now(timezone.utc).strftime("%Y-%m")
     current_usage = await db.get_scan_usage(current_user.id, year_month)
     monthly_limit = PLAN_LIMITS[user_tier]
-    
+
     # Define features available per tier
     tier_features = {
         "free": {
@@ -971,7 +971,7 @@ async def verify_api_key(
             "team_collaboration": True,
         },
     }
-    
+
     return {
         "valid": True,
         "user_id": current_user.id,
@@ -979,8 +979,12 @@ async def verify_api_key(
         "limits": {
             "monthly_scans": monthly_limit if monthly_limit > 0 else "unlimited",
             "current_usage": current_usage,
-            "remaining": max(0, monthly_limit - current_usage) if monthly_limit > 0 else "unlimited",
+            "remaining": max(0, monthly_limit - current_usage)
+            if monthly_limit > 0
+            else "unlimited",
         },
         "features": tier_features.get(user_tier.value, tier_features["free"]),
-        "upgrade_url": "https://app.sigilsec.ai/upgrade" if user_tier.value == "free" else None,
+        "upgrade_url": "https://app.sigilsec.ai/upgrade"
+        if user_tier.value == "free"
+        else None,
     }

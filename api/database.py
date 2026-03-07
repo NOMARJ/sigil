@@ -517,36 +517,38 @@ class MssqlClient:
     ) -> list[dict[str, Any]]:
         """Execute a stored procedure and return results."""
         if not self._pool:
-            logger.warning(f"Database not configured, cannot execute procedure {procedure_name}")
+            logger.warning(
+                f"Database not configured, cannot execute procedure {procedure_name}"
+            )
             return []
-        
+
         start_time = time.time()
         success = True
-        
+
         try:
             # Build procedure call with parameters
             param_list = []
             param_values = []
-            
+
             if params:
                 for key, value in params.items():
                     param_list.append(f"@{key} = ?")
                     param_values.append(self._serialize_value(value))
-            
+
             param_string = ", ".join(param_list) if param_list else ""
             sql = f"EXEC {procedure_name} {param_string}".strip()
-            
+
             async with self._pool.acquire() as conn:
                 cursor = await conn.cursor()
                 await cursor.execute(sql, tuple(param_values))
-                
+
                 # Fetch all results
                 rows = await cursor.fetchall()
                 results = [self._row_to_dict(cursor, row) for row in rows]
-                
+
                 await conn.commit()
                 return results
-                
+
         except Exception as e:
             success = False
             logger.exception(f"Failed to execute procedure {procedure_name}: {e}")

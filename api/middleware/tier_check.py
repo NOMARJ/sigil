@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_user_tier(
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)]
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> PlanTier:
     """Get the current user's plan tier."""
     try:
@@ -30,7 +30,7 @@ async def get_user_tier(
 
 
 async def require_pro_tier(
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)]
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> UserResponse:
     """Require Pro tier or higher, raise 402 if not."""
     try:
@@ -42,17 +42,17 @@ async def require_pro_tier(
         logger.exception(f"Error checking Pro access for {current_user.id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to verify subscription status"
+            detail="Unable to verify subscription status",
         )
 
 
 async def check_llm_analysis_access(
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)]
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> dict[str, Any]:
     """Check if user can access LLM analysis features."""
     user_tier = await get_user_tier(current_user)
     has_pro_access = user_tier in (PlanTier.PRO, PlanTier.TEAM, PlanTier.ENTERPRISE)
-    
+
     return {
         "user_id": current_user.id,
         "user_tier": user_tier.value,
@@ -62,11 +62,11 @@ async def check_llm_analysis_access(
 
 
 async def get_scan_capabilities(
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)]
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> dict[str, Any]:
     """Get user's scanning capabilities based on their tier."""
     tier_info = await check_llm_analysis_access(current_user)
-    
+
     capabilities = {
         "static_analysis": True,  # Available to all users
         "llm_analysis": tier_info["has_pro_access"],
@@ -76,5 +76,5 @@ async def get_scan_capabilities(
         "tier": tier_info["user_tier"],
         "upgrade_required": not tier_info["has_pro_access"],
     }
-    
+
     return capabilities

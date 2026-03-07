@@ -90,7 +90,7 @@ PLANS: list[PlanInfo] = [
             "5,000 scans/month",
             "🤖 AI-powered threat detection (LLM analysis)",
             "🔍 Zero-day vulnerability detection",
-            "🎭 Advanced obfuscation analysis", 
+            "🎭 Advanced obfuscation analysis",
             "🔗 Contextual threat correlation",
             "💡 AI-generated remediation suggestions",
             "Full threat intelligence",
