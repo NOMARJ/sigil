@@ -33,7 +33,7 @@ from models.llm_models import (
     LLMConfidence,
     confidence_to_level,
 )
-from config.llm_config import llm_config
+from llm_config import llm_config
 from scanner.phase9_llm_detector import Phase9LLMDetector
 
 
