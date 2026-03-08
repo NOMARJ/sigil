@@ -35,8 +35,22 @@ from errors import (
 
 logger = logging.getLogger(__name__)
 
+def _get_alerting_settings():
+    try:
+        from api.monitoring.alerting import settings as alerting_settings
+
+        return alerting_settings
+    except Exception:
+        try:
+            from monitoring.alerting import settings as alerting_settings
+
+            return alerting_settings
+        except Exception:
+            return settings
+
+
 # Compatibility namespace used by tests that patch "api.monitoring.alerting.settings"
-alerting = SimpleNamespace(settings=settings)
+alerting = SimpleNamespace(settings=_get_alerting_settings())
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +429,7 @@ class EmailChannel:
     def __init__(self, recipients_or_settings=None):
         if isinstance(recipients_or_settings, list):
             self.recipients = recipients_or_settings
-            self.smtp_settings = alerting.settings
+            self.smtp_settings = _get_alerting_settings()
         else:
             self.recipients = [getattr(settings, "smtp_from_email", "alerts@localhost")]
             self.smtp_settings = recipients_or_settings or alerting.settings

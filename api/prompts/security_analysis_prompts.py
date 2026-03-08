@@ -283,6 +283,8 @@ Target Type: {repository_context.get("target_type", "directory")}
 Files to Analyze: {len(file_contents)}
 Static Findings: {len(static_findings)}
 
+Requested Analysis Types: {', '.join(analysis_types) if analysis_types else 'none'}
+
 **STATIC ANALYSIS FINDINGS**
 The following findings were detected by traditional static analysis tools:
 """
@@ -308,16 +310,43 @@ The following findings were detected by traditional static analysis tools:
 
         for analysis_type in analysis_types:
             if analysis_type in analysis_prompts:
+                prompt_parts.append(f"**REQUESTED ANALYSIS TYPE: {analysis_type}**\n")
                 prompt_parts.append(analysis_prompts[analysis_type])
 
-        # Add file contents
+        # Add file contents (bounded to keep prompts manageable)
         files_section = "\n**CODE TO ANALYZE**\n"
+
+        max_total_chars = 45000
+        max_file_chars = 4000
+        remaining = max_total_chars
+        included_files = 0
+        omitted_files = 0
+
         for filename, content in file_contents.items():
-            # Truncate very long files
-            truncated_content = (
-                content[:8000] + "\n... [TRUNCATED]" if len(content) > 8000 else content
-            )
-            files_section += f"\n=== {filename} ===\n{truncated_content}\n"
+            header = f"\n=== {filename} ===\n"
+            if len(header) >= remaining:
+                omitted_files += 1
+                continue
+
+            remaining -= len(header)
+            truncated_content = content
+            if len(truncated_content) > max_file_chars:
+                truncated_content = truncated_content[:max_file_chars] + "\n... [TRUNCATED]"
+
+            if len(truncated_content) >= remaining:
+                truncated_content = truncated_content[: max(0, remaining - len("\n... [TRUNCATED]"))] + "\n... [TRUNCATED]"
+
+            files_section += header + truncated_content + "\n"
+            remaining -= len(truncated_content) + 1
+            included_files += 1
+
+            if remaining <= 0:
+                break
+
+        total_files = len(file_contents)
+        if included_files < total_files:
+            omitted_files = max(omitted_files, total_files - included_files)
+            files_section += f"\n... [TRUNCATED] Omitted {omitted_files} file(s) to stay within prompt limits.\n"
 
         prompt_parts.append(files_section)
 
