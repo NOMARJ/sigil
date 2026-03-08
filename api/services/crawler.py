@@ -344,7 +344,7 @@ async def store_crawl_results(results: list[CrawlResult]) -> int:
 
         try:
             # Import here to avoid circular imports at module level
-            from database import db
+            from api.database import db
 
             await db.insert("public_scans", row)
             stored += 1
@@ -402,7 +402,7 @@ async def _main() -> None:
         )
 
     # Store results
-    from database import db
+    from api.database import db
 
     await db.connect()
     stored = await store_crawl_results(results)

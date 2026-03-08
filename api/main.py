@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Start background tasks
     print("[LIFESPAN] Importing registry stats updater...")
-    from services import registry_stats_updater
+    from api.services import registry_stats_updater
 
     print("[LIFESPAN] Starting background updater...")
     await registry_stats_updater.start_updater()
@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start monitoring and alerting
     if settings.metrics_enabled:
         print("[LIFESPAN] Starting monitoring system...")
-        from monitoring import run_alert_evaluation_loop
+        from api.monitoring import run_alert_evaluation_loop
         import asyncio
 
         # Start alert evaluation loop in background

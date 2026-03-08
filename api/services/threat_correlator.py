@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from api.models import Finding
-from llm_models import LLMInsight
+from api.llm_models import LLMInsight
 
 
 logger = logging.getLogger(__name__)

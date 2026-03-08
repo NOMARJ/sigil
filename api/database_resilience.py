@@ -533,7 +533,7 @@ def with_redis_resilience(fallback_result: Any = None):
 
 def initialize_database_resilience():
     """Initialize database resilience patterns."""
-    from database import db, cache
+    from api.database import db, cache
 
     # Add resilient managers to existing clients
     if not hasattr(db, "_resilient_manager"):
@@ -547,7 +547,7 @@ def initialize_database_resilience():
 
 async def start_database_monitoring():
     """Start database health monitoring."""
-    from database import db
+    from api.database import db
 
     if hasattr(db, "_resilient_manager"):
         await db._resilient_manager.start_health_monitoring()
@@ -555,7 +555,7 @@ async def start_database_monitoring():
 
 async def stop_database_monitoring():
     """Stop database health monitoring."""
-    from database import db
+    from api.database import db
 
     if hasattr(db, "_resilient_manager"):
         await db._resilient_manager.stop_health_monitoring()
@@ -563,7 +563,7 @@ async def stop_database_monitoring():
 
 def get_database_health():
     """Get overall database health status."""
-    from database import db, cache
+    from api.database import db, cache
 
     health_status = {
         "database": {

@@ -82,7 +82,7 @@ class MCPWatchdogScheduler:
     async def _load_config(self) -> dict:
         """Load configuration from api.database."""
         try:
-            from database import db
+            from api.database import db
 
             await db.connect()
 
@@ -178,7 +178,7 @@ class MCPWatchdogScheduler:
         while self.running:
             try:
                 # Log status every hour
-                from database import db
+                from api.database import db
 
                 # Count recent activity
                 recent_scans = await db.select(
@@ -226,7 +226,7 @@ class MCPWatchdogScheduler:
             return
 
         # Store server metadata
-        from database import db
+        from api.database import db
 
         stored_servers = 0
 
@@ -282,7 +282,7 @@ class MCPWatchdogScheduler:
             send_typosquat_alerts,
             store_typosquat_alerts,
         )
-        from database import db
+        from api.database import db
 
         # Get all monitored MCP servers
         servers_data = await db.select(
@@ -354,7 +354,7 @@ class MCPWatchdogScheduler:
     async def _update_config(self, updates: dict):
         """Update configuration in database."""
         try:
-            from database import db
+            from api.database import db
 
             config = await db.select_one(
                 "mcp_watchdog_config", {"id": "default_config"}
@@ -389,7 +389,7 @@ async def run_once():
 async def show_status():
     """Show current MCP Watchdog status."""
     try:
-        from database import db
+        from api.database import db
 
         await db.connect()
 

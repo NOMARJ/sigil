@@ -373,7 +373,7 @@ class TestDatabasePerformance:
     @pytest.mark.asyncio
     async def test_user_lookup_performance(self, client: TestClient):
         """Test user lookup query performance."""
-        from database import db
+        from api.database import db
 
         # Create some test users first
         test_emails = [f"perftest{i}@example.com" for i in range(100)]

@@ -457,7 +457,7 @@ async def send_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
 
     try:
         from api.services.notifications import send_notification
-        from database import db
+        from api.database import db
 
         # Get active alert channels
         alert_channels = await db.select("alerts", {"enabled": True})
@@ -503,7 +503,7 @@ async def send_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
 
 async def store_mcp_results(results: list[MCPScanResult]) -> int:
     """Store MCP scan results in the public_scans table."""
-    from database import db
+    from api.database import db
 
     stored = 0
     for result in results:
@@ -555,7 +555,7 @@ async def store_mcp_results(results: list[MCPScanResult]) -> int:
 
 async def store_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
     """Store typosquat alerts in the database for tracking."""
-    from database import db
+    from api.database import db
 
     stored = 0
     for alert in alerts:
@@ -640,7 +640,7 @@ async def _main() -> None:
             print()
 
         if args.store:
-            from database import db
+            from api.database import db
 
             await db.connect()
             stored_alerts = await store_typosquat_alerts(alerts)
@@ -654,7 +654,7 @@ async def _main() -> None:
             result = await scan_mcp_server(server)
             scan_results.append(result)
 
-        from database import db
+        from api.database import db
 
         await db.connect()
         stored = await store_mcp_results(scan_results)

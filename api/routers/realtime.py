@@ -148,7 +148,7 @@ async def send_notification(
             raise HTTPException(status_code=403, detail="Permission denied")
 
         # Get target user info
-        from database import db
+        from api.database import db
 
         target_user = await db.select_one("users", {"id": target_user_id})
         if not target_user or target_user.get("team_id") != current_user.team_id:

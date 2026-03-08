@@ -26,7 +26,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 from api.services.llm_service import llm_service, LLMService, RateLimiter
 from api.services.subscription_service import subscription_service
-from llm_models import LLMAnalysisRequest, LLMAnalysisType
+from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 from api.middleware.tier_check import get_scan_capabilities
 
 

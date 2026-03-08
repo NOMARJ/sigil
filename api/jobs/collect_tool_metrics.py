@@ -18,8 +18,8 @@ from dataclasses import dataclass
 # Add the parent directory to the path so we can import from api
 sys.path.append(str(Path(__file__).parent.parent))
 
-from database import db
-from config import settings
+from api.database import db
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 
