@@ -920,8 +920,8 @@ async def verify_api_key(
         - limits: Monthly scan limits and current usage for the user's tier
         - features: Available features for the user's tier
     """
-    from gates import get_user_plan, PLAN_LIMITS
-    from database import db
+    from api.gates import get_user_plan, PLAN_LIMITS
+    from api.database import db
     from datetime import datetime, timezone
 
     # Get user's current plan tier

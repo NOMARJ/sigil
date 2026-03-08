@@ -504,7 +504,7 @@ class CachedFallbackManager:
 
         # Optional: Store in Redis if available
         try:
-            from database import cache
+            from api.database import cache
 
             if cache.connected:
                 import json
@@ -539,7 +539,7 @@ class CachedFallbackManager:
 
         # Try Redis cache
         try:
-            from database import cache
+            from api.database import cache
 
             if cache.connected:
                 import json

@@ -47,7 +47,7 @@ class RateLimiter:
 
     Usage::
 
-        from rate_limit import RateLimiter
+        from api.rate_limit import RateLimiter
 
         @router.get("/expensive", dependencies=[Depends(RateLimiter(max_requests=20, window=60))])
         async def expensive_endpoint(): ...

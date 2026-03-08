@@ -20,7 +20,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

@@ -7,8 +7,8 @@ remain declarative and easy to audit.
 
 Usage in a route:
 
-    from gates import require_plan, check_scan_quota
-    from models import PlanTier
+    from api.gates import require_plan, check_scan_quota
+    from api.models import PlanTier
 
     # Hard gate — 403 if user is below PRO:
     @router.get("/my-route")
@@ -88,7 +88,7 @@ async def get_user_plan(user_id: str) -> PlanTier:
 
     Defaults to FREE if no subscription record exists.
     """
-    from database import db
+    from api.database import db
 
     sub = await db.get_subscription(user_id)
     if sub is None:
@@ -163,7 +163,7 @@ async def check_scan_quota(user_id: str, current_tier: PlanTier) -> None:
     if limit == 0:
         return  # ENTERPRISE — unlimited
 
-    from database import db
+    from api.database import db
 
     year_month = datetime.now(timezone.utc).strftime("%Y-%m")
     current_count = await db.get_scan_usage(user_id, year_month)

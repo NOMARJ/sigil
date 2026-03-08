@@ -235,7 +235,7 @@ async def registry_stats() -> RegistryStats:
     Returns pre-computed statistics from the cache table, updated every 15 minutes
     by a background task. This avoids expensive full-table scans on every request.
     """
-    from services import registry_stats_updater
+    from api.services import registry_stats_updater
 
     cached = await registry_stats_updater.get_cached_stats()
 

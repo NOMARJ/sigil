@@ -387,7 +387,7 @@ async def scan_delta(
 
 async def store_clawhub_results(results: list[ClawHubScanResult]) -> int:
     """Store ClawHub scan results in the public_scans table."""
-    from database import db
+    from api.database import db
 
     stored = 0
     for result in results:
@@ -500,7 +500,7 @@ async def _main() -> None:
     print(f"\nSummary: {verdicts}")
 
     if args.store:
-        from database import db
+        from api.database import db
 
         await db.connect()
         stored = await store_clawhub_results(results)

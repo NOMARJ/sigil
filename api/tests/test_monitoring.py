@@ -619,7 +619,7 @@ class TestMonitoringIntegration:
 
     def test_monitoring_configuration_validation(self):
         """Test monitoring configuration validation."""
-        from config import settings
+        from api.config import settings
 
         # Test monitoring flags
         assert hasattr(settings, "metrics_enabled")
