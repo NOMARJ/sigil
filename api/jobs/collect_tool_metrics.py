@@ -192,16 +192,19 @@ class ToolMetricsCollector:
         """Fetch list of tools to collect metrics for from database."""
         try:
             # Use the global db client
-                # Assuming we have a tools table or can derive from existing data
-                # This would need to match your existing forge schema
-                tools = await db.execute_raw_sql("""
+            # Assuming we have a tools table or can derive from existing data
+            # This would need to match your existing forge schema
+            tools = await db.execute_raw_sql(
+                """
                     SELECT DISTINCT tool_id, ecosystem, repository_url, package_name
                     FROM forge_tools 
                     WHERE status = 'active'
                     ORDER BY tool_id
-                """, ())
+                """,
+                (),
+            )
 
-                return [dict(row) for row in tools] if tools else []
+            return [dict(row) for row in tools] if tools else []
 
         except Exception as e:
             self.logger.error(f"Failed to fetch tools from database: {e}")
@@ -318,8 +321,8 @@ class ToolMetricsCollector:
         """Store metrics in database."""
         try:
             # Use the global db client
-                await db.execute_raw_sql(
-                    """
+            await db.execute_raw_sql(
+                """
                     MERGE forge_tool_metrics AS target
                     USING (VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)) AS source 
                         (tool_id, date, downloads, stars, version, forks, issues_open, issues_closed, trust_score)
@@ -339,24 +342,24 @@ class ToolMetricsCollector:
                         VALUES (source.tool_id, source.date, source.downloads, source.stars, 
                                source.version, source.forks, source.issues_open, source.issues_closed, source.trust_score);
                 """,
-                    (
-                        metrics.tool_id,
-                        metrics.date,
-                        metrics.downloads,
-                        metrics.stars,
-                        metrics.version,
-                        metrics.forks,
-                        metrics.issues_open,
-                        metrics.issues_closed,
-                        metrics.trust_score,
-                    )
-                )
+                (
+                    metrics.tool_id,
+                    metrics.date,
+                    metrics.downloads,
+                    metrics.stars,
+                    metrics.version,
+                    metrics.forks,
+                    metrics.issues_open,
+                    metrics.issues_closed,
+                    metrics.trust_score,
+                ),
+            )
 
-                self.logger.info(
-                    f"Stored metrics for {metrics.tool_id}: "
-                    f"{metrics.downloads} downloads, {metrics.stars} stars"
-                )
-                return True
+            self.logger.info(
+                f"Stored metrics for {metrics.tool_id}: "
+                f"{metrics.downloads} downloads, {metrics.stars} stars"
+            )
+            return True
 
         except Exception as e:
             self.logger.error(f"Failed to store metrics for {metrics.tool_id}: {e}")

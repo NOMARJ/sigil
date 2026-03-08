@@ -114,22 +114,22 @@ class TrendingService:
 
         try:
             # Use the global db client
-                # Build dynamic WHERE clause for filters
-                where_conditions = ["1=1"]
-                params = [start_date, end_date, prev_start_date, prev_end_date]
+            # Build dynamic WHERE clause for filters
+            where_conditions = ["1=1"]
+            params = [start_date, end_date, prev_start_date, prev_end_date]
 
-                if ecosystem != "all":
-                    where_conditions.append("ft.ecosystem = $" + str(len(params) + 1))
-                    params.append(ecosystem)
+            if ecosystem != "all":
+                where_conditions.append("ft.ecosystem = $" + str(len(params) + 1))
+                params.append(ecosystem)
 
-                if category != "all":
-                    where_conditions.append("ft.category = $" + str(len(params) + 1))
-                    params.append(category)
+            if category != "all":
+                where_conditions.append("ft.category = $" + str(len(params) + 1))
+                params.append(category)
 
-                where_clause = " AND ".join(where_conditions)
+            where_clause = " AND ".join(where_conditions)
 
-                # Complex query to get current and previous metrics
-                query = f"""
+            # Complex query to get current and previous metrics
+            query = f"""
                 WITH current_metrics AS (
                     SELECT 
                         ftm.tool_id,
@@ -179,8 +179,8 @@ class TrendingService:
                 LIMIT {limit}
                 """
 
-                rows = await db.execute_raw_sql(query, tuple(params))
-                return [dict(row) for row in rows] if rows else []
+            rows = await db.execute_raw_sql(query, tuple(params))
+            return [dict(row) for row in rows] if rows else []
 
         except Exception as e:
             self.logger.error(f"Failed to fetch tool metrics: {e}")
@@ -255,10 +255,10 @@ class TrendingService:
         """Get previous rankings for rank change calculation."""
         try:
             # Use the global db client
-                # Look for cached rankings from previous period
-                cache_key_pattern = f"forge:trending:{timeframe}:{ecosystem}:{category}"
+            # Look for cached rankings from previous period
+            cache_key_pattern = f"forge:trending:{timeframe}:{ecosystem}:{category}"
 
-                query = """
+            query = """
                 SELECT tool_id, rank_position 
                 FROM forge_trending_cache 
                 WHERE cache_key LIKE $1 + '%'
@@ -267,12 +267,10 @@ class TrendingService:
                 ORDER BY created_at DESC
                 """
 
-                rows = await db.execute_raw_sql(query, (cache_key_pattern,))
-                return (
-                    {row["tool_id"]: row["rank_position"] for row in rows}
-                    if rows
-                    else {}
-                )
+            rows = await db.execute_raw_sql(query, (cache_key_pattern,))
+            return (
+                {row["tool_id"]: row["rank_position"] for row in rows} if rows else {}
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to fetch previous rankings: {e}")

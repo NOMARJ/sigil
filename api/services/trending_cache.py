@@ -192,7 +192,6 @@ class TrendingCacheService:
     ) -> None:
         """Store trending data in database cache table for persistence."""
         try:
-
             # Calculate expiration time
             expires_at = datetime.utcnow() + timedelta(seconds=ttl)
 
@@ -248,28 +247,29 @@ class TrendingCacheService:
                         );
                 """,
                     (
-                    metrics.tool_id,
-                    timeframe,
-                    ecosystem,
-                    category,
-                    metrics.rank_position,
-                    metrics.previous_rank,
-                    metrics.rank_change,
-                    metrics.downloads_growth,
-                    metrics.direction,
-                    metrics.composite_score,
-                    metrics.current_downloads,
-                    metrics.previous_downloads,
-                    metrics.downloads_growth,
-                    metrics.current_stars,
-                    metrics.previous_stars,
-                    metrics.stars_growth,
-                    metrics.current_trust_score,
-                    cache_key,
-                    expires_at,
-                    datetime.utcnow(),
-                    datetime.utcnow(),
-                ))
+                        metrics.tool_id,
+                        timeframe,
+                        ecosystem,
+                        category,
+                        metrics.rank_position,
+                        metrics.previous_rank,
+                        metrics.rank_change,
+                        metrics.downloads_growth,
+                        metrics.direction,
+                        metrics.composite_score,
+                        metrics.current_downloads,
+                        metrics.previous_downloads,
+                        metrics.downloads_growth,
+                        metrics.current_stars,
+                        metrics.previous_stars,
+                        metrics.stars_growth,
+                        metrics.current_trust_score,
+                        cache_key,
+                        expires_at,
+                        datetime.utcnow(),
+                        datetime.utcnow(),
+                    ),
+                )
 
             self.logger.debug(
                 f"Stored {len(trending_data)} trending entries in database cache"
@@ -321,7 +321,8 @@ class TrendingCacheService:
             if timeframe is None and ecosystem is None and category is None:
                 # Delete all expired entries
                 await db.execute_raw_sql(
-                    "DELETE FROM forge_trending_cache WHERE expires_at < GETUTCDATE()", []
+                    "DELETE FROM forge_trending_cache WHERE expires_at < GETUTCDATE()",
+                    (),
                 )
             else:
                 # Delete specific entries
@@ -342,7 +343,7 @@ class TrendingCacheService:
                     where_clause = " AND ".join(conditions)
                     await db.execute_raw_sql(
                         f"DELETE FROM forge_trending_cache WHERE {where_clause}",
-                        params
+                        tuple(params),
                     )
 
             self.logger.info(f"Cache invalidation completed for pattern: {pattern}")
@@ -355,9 +356,9 @@ class TrendingCacheService:
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
         try:
-
             # Get database cache stats
-            db_stats = await db.execute_raw_sql_single("""
+            db_stats = await db.execute_raw_sql_single(
+                """
                 SELECT 
                     COUNT(*) as total_entries,
                     COUNT(CASE WHEN expires_at > GETUTCDATE() THEN 1 END) as active_entries,
@@ -365,7 +366,9 @@ class TrendingCacheService:
                     MIN(created_at) as oldest_entry,
                     MAX(created_at) as newest_entry
                 FROM forge_trending_cache
-            """, ())
+            """,
+                (),
+            )
 
             return {
                 "database_cache": dict(db_stats) if db_stats else {},
