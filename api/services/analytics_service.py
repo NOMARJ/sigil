@@ -7,7 +7,6 @@ metrics to support business intelligence, cost optimization, and churn predictio
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, date
