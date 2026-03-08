@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
-from models import Finding, ScanPhase, Severity
-from services.explanations import get_explanation
+from api.models import Finding, ScanPhase, Severity
+from api.services.explanations import get_explanation
 
 
 # ---------------------------------------------------------------------------

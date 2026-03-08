@@ -17,7 +17,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from routers.permissions import (
+from api.routers.permissions import (
     PERMISSION_CATEGORIES,
     calculate_risk_score,
     extract_permissions_from_scan,
@@ -560,7 +560,7 @@ class TestPermissionsRouter:
         self, sample_mcp_scan, high_risk_mcp_scan, clean_mcp_scan
     ):
         """Setup test MCP scan data in the database."""
-        from database import db
+        from api.database import db
 
         # Insert test scans into public_scans table
         await db.insert("public_scans", sample_mcp_scan)
@@ -752,7 +752,7 @@ class TestPermissionsRouter:
     @pytest.mark.asyncio
     async def test_permissions_api_malformed_metadata(self, client: TestClient):
         """Test API endpoints handle malformed metadata gracefully."""
-        from database import db
+        from api.database import db
 
         # Insert scan with malformed metadata
         malformed_scan = {
@@ -778,7 +778,7 @@ class TestPermissionsRouter:
     @pytest.mark.asyncio
     async def test_permissions_large_dataset_performance(self, client: TestClient):
         """Test permissions directory performance with large dataset."""
-        from database import db
+        from api.database import db
 
         # Create many test scans
         large_scans = []
@@ -835,7 +835,7 @@ class TestPermissionsSecurity:
     @pytest.mark.asyncio
     async def test_xss_prevention_in_html_output(self, client: TestClient):
         """Test that HTML output prevents XSS attacks."""
-        from database import db
+        from api.database import db
 
         # Create scan with malicious script in metadata
         xss_scan = {
@@ -953,7 +953,7 @@ class TestPermissionsSecurity:
     @pytest.mark.asyncio
     async def test_unicode_and_special_characters(self, client: TestClient):
         """Test handling of Unicode and special characters."""
-        from database import db
+        from api.database import db
 
         # Create scan with Unicode characters
         unicode_scan = {
@@ -1126,7 +1126,7 @@ class TestPermissionsValidation:
     @pytest.mark.asyncio
     async def test_database_edge_cases(self, client: TestClient):
         """Test API behavior with edge case database states."""
-        from database import db
+        from api.database import db
 
         # Test with scan that has null/missing fields
         minimal_scan = {
@@ -1177,7 +1177,7 @@ class TestHTMLValidation:
     @pytest.mark.asyncio
     async def test_html_structure_validity(self, client: TestClient, sample_mcp_scan):
         """Test that generated HTML has valid structure."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", sample_mcp_scan)
 
@@ -1213,7 +1213,7 @@ class TestHTMLValidation:
         self, client: TestClient, sample_mcp_scan
     ):
         """Test individual MCP page HTML structure."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", sample_mcp_scan)
 
@@ -1239,7 +1239,7 @@ class TestHTMLValidation:
     @pytest.mark.asyncio
     async def test_html_escaping_in_content(self, client: TestClient):
         """Test that HTML content is properly escaped."""
-        from database import db
+        from api.database import db
 
         # Create scan with HTML entities in content
         html_scan = {
@@ -1310,7 +1310,7 @@ class TestHTMLValidation:
     @pytest.mark.asyncio
     async def test_accessibility_features(self, client: TestClient, sample_mcp_scan):
         """Test basic accessibility features in HTML."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", sample_mcp_scan)
 
@@ -1334,7 +1334,7 @@ class TestHTMLValidation:
         self, client: TestClient, high_risk_mcp_scan, clean_mcp_scan
     ):
         """Test that risk indicators have appropriate styling."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", high_risk_mcp_scan)
         await db.insert("public_scans", clean_mcp_scan)
@@ -1375,7 +1375,7 @@ class TestHTMLValidation:
     @pytest.mark.asyncio
     async def test_link_validity_structure(self, client: TestClient, sample_mcp_scan):
         """Test that links have valid structure."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", sample_mcp_scan)
 
@@ -1403,7 +1403,7 @@ class TestHTMLValidation:
     @pytest.mark.asyncio
     async def test_icon_and_emoji_rendering(self, client: TestClient, sample_mcp_scan):
         """Test that icons and emojis render correctly."""
-        from database import db
+        from api.database import db
 
         await db.insert("public_scans", sample_mcp_scan)
 

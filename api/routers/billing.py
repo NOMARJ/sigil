@@ -23,10 +23,10 @@ from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from config import settings
-from database import db
-from rate_limit import RateLimiter
-from models import (
+from api.config import settings
+from api.database import db
+from api.rate_limit import RateLimiter
+from api.models import (
     ErrorResponse,
     PlanInfo,
     PlanTier,
@@ -35,7 +35,7 @@ from models import (
     SubscriptionResponse,
     WebhookResponse,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 sys.modules.setdefault("api.routers.billing", sys.modules[__name__])
 

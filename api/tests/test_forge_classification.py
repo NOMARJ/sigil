@@ -7,13 +7,13 @@ Tests the accuracy and performance of the classification engine.
 import asyncio
 import pytest
 
-from models import Finding, ScanPhase, Severity
-from services.forge_classifier import (
+from api.models import Finding, ScanPhase, Severity
+from api.services.forge_classifier import (
     ForgeClassifier,
     ClassificationInput,
     ClassificationResult,
 )
-from services.forge_matcher import ForgeMatcher
+from api.services.forge_matcher import ForgeMatcher
 
 
 class TestForgeClassifier:

@@ -8,14 +8,14 @@ to verify detection accuracy across all six scan phases.
 from __future__ import annotations
 
 
-from services.scanner import (
+from api.services.scanner import (
     ALL_RULES,
     INSTALL_HOOK_RULES,
     PROVENANCE_RULES,
     scan_content,
     _scan_filename,
 )
-from models import ScanPhase, Severity
+from api.models import ScanPhase, Severity
 
 
 class TestInstallHookDetection:

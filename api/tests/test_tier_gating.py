@@ -23,14 +23,14 @@ from unittest.mock import patch, MagicMock
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from models import PlanTier
-from middleware.tier_check import (
+from api.models import PlanTier
+from api.middleware.tier_check import (
     get_user_tier,
     require_pro_tier,
     check_llm_analysis_access,
     get_scan_capabilities,
 )
-from services.subscription_service import subscription_service, pro_feature_gate
+from api.services.subscription_service import subscription_service, pro_feature_gate
 
 
 class TestTierGatingMiddleware:

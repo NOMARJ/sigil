@@ -13,8 +13,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from gates import require_plan, get_user_plan
-from models import (
+from api.gates import require_plan, get_user_plan
+from api.models import (
     PlanTier,
     ForgeEventType,
     PersonalAnalyticsRequest,
@@ -24,8 +24,8 @@ from models import (
     AnalyticsEventCreateRequest,
     AnalyticsEventBatchRequest,
 )
-from routers.auth import get_current_user_unified, UserResponse
-from services.forge_analytics import analytics_service, track_forge_event
+from api.routers.auth import get_current_user_unified, UserResponse
+from api.services.forge_analytics import analytics_service, track_forge_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge/analytics", tags=["Forge Analytics"])

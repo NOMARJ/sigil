@@ -11,7 +11,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from main import app
-from routers.forge import (
+from api.routers.forge import (
     ToolCapability,
     ToolCategory,
     classify_tool,

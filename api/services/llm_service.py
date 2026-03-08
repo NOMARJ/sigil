@@ -12,9 +12,9 @@ import time
 import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from llm_config import llm_config
-from database import db
-from llm_models import (
+from api.llm_config import llm_config
+from api.database import db
+from api.llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisResponse,
     LLMInsight,
@@ -339,7 +339,7 @@ class LLMService:
         """Track analytics for LLM analysis usage."""
         try:
             # Lazy import to avoid circular imports
-            from services.analytics_service import analytics_service
+            from api.services.analytics_service import analytics_service
 
             # Convert insights to dict format for analytics
             insights_data = [

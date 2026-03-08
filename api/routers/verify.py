@@ -12,14 +12,14 @@ from uuid import uuid4
 
 from fastapi import APIRouter, status
 
-from database import db
-from models import (
+from api.database import db
+from api.models import (
     Verdict,
     VerifyRequest,
     VerifyResponse,
 )
-from services.scoring import score_to_verdict
-from services.threat_intel import lookup_threat
+from api.services.scoring import score_to_verdict
+from api.services.threat_intel import lookup_threat
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ async def verify_package(request: VerifyRequest) -> VerifyResponse:
 
     # --- 2. Publisher reputation check --------------------------------------
     if request.publisher_id:
-        from services.threat_intel import get_publisher_reputation
+        from api.services.threat_intel import get_publisher_reputation
 
         pub = await get_publisher_reputation(request.publisher_id)
         if pub is not None:

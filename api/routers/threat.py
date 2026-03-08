@@ -20,8 +20,8 @@ from typing_extensions import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from gates import require_plan
-from models import (
+from api.gates import require_plan
+from api.models import (
     ErrorResponse,
     GateError,
     PlanTier,
@@ -29,8 +29,8 @@ from models import (
     ThreatEntry,
 )
 
-from routers.auth import get_current_user_unified, UserResponse
-from services.threat_intel import (
+from api.routers.auth import get_current_user_unified, UserResponse
+from api.services.threat_intel import (
     delete_signature,
     get_report,
     get_signatures,

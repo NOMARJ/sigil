@@ -80,9 +80,9 @@ class MCPWatchdogScheduler:
             task.cancel()
 
     async def _load_config(self) -> dict:
-        """Load configuration from database."""
+        """Load configuration from api.database."""
         try:
-            from database import db
+            from api.database import db
 
             await db.connect()
 
@@ -178,7 +178,7 @@ class MCPWatchdogScheduler:
         while self.running:
             try:
                 # Log status every hour
-                from database import db
+                from api.database import db
 
                 # Count recent activity
                 recent_scans = await db.select(
@@ -212,7 +212,7 @@ class MCPWatchdogScheduler:
 
     async def _run_discovery(self):
         """Run MCP server discovery."""
-        from services.mcp_crawler import (
+        from api.services.mcp_crawler import (
             discover_mcp_servers,
             store_mcp_results,
             scan_mcp_server,
@@ -226,7 +226,7 @@ class MCPWatchdogScheduler:
             return
 
         # Store server metadata
-        from database import db
+        from api.database import db
 
         stored_servers = 0
 
@@ -277,12 +277,12 @@ class MCPWatchdogScheduler:
 
     async def _run_typosquat_check(self):
         """Run typosquat detection and send alerts."""
-        from services.mcp_crawler import (
+        from api.services.mcp_crawler import (
             detect_typosquats,
             send_typosquat_alerts,
             store_typosquat_alerts,
         )
-        from database import db
+        from api.database import db
 
         # Get all monitored MCP servers
         servers_data = await db.select(
@@ -296,7 +296,7 @@ class MCPWatchdogScheduler:
             return 0
 
         # Convert to MCPServer objects for detection
-        from services.mcp_crawler import MCPServer
+        from api.services.mcp_crawler import MCPServer
 
         servers = []
         for server_data in servers_data:
@@ -354,7 +354,7 @@ class MCPWatchdogScheduler:
     async def _update_config(self, updates: dict):
         """Update configuration in database."""
         try:
-            from database import db
+            from api.database import db
 
             config = await db.select_one(
                 "mcp_watchdog_config", {"id": "default_config"}
@@ -389,7 +389,7 @@ async def run_once():
 async def show_status():
     """Show current MCP Watchdog status."""
     try:
-        from database import db
+        from api.database import db
 
         await db.connect()
 

@@ -8,13 +8,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from models import Finding, ScanPhase, Severity
-from llm_models import (
+from api.models import Finding, ScanPhase, Severity
+from api.llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
     LLMThreatCategory,
 )
-from services.llm_service import llm_service
+from api.services.llm_service import llm_service
 
 
 logger = logging.getLogger(__name__)

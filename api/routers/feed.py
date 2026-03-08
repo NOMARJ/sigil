@@ -23,7 +23,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, HTTPException, status
 from fastapi.responses import Response
-from middleware.security import InputSanitizer, SecurityValidationError
+from api.middleware.security import InputSanitizer, SecurityValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ async def rss_mcp() -> Response:
 async def rss_mcp_watchdog() -> Response:
     """Return RSS feed for MCP typosquat alerts from Sigil Watchdog."""
     try:
-        from database import db
+        from api.database import db
 
         # Get recent typosquat alerts
         alerts = await db.select(
@@ -238,7 +238,7 @@ async def json_feed(
         if verdict:
             verdict = InputSanitizer.sanitize_verdict(verdict)
 
-        from database import db
+        from api.database import db
 
         filters: dict[str, Any] = {}
         if ecosystem:
@@ -307,7 +307,7 @@ async def alerts_feed(
 ) -> list[dict[str, Any]]:
     """Return recent HIGH_RISK and CRITICAL_RISK scan alerts."""
     try:
-        from database import cache
+        from api.database import cache
 
         raw_alerts = await cache.get("sigil:alerts")
         if raw_alerts:
@@ -320,7 +320,7 @@ async def alerts_feed(
 
     # Fallback: query database
     try:
-        from database import db
+        from api.database import db
 
         rows = await db.select(
             "public_scans",
@@ -363,7 +363,7 @@ async def pipeline_stats() -> dict[str, Any]:
         stats["queue"] = {"note": "Queue not available"}
 
     try:
-        from database import db
+        from api.database import db
 
         # Count recent scans
         rows = await db.select("public_scans", limit=1)
@@ -388,7 +388,7 @@ async def mcp_watchdog_feed(
 ) -> list[dict[str, Any]]:
     """Return recent MCP typosquat alerts as JSON."""
     try:
-        from database import db
+        from api.database import db
 
         filters: dict[str, Any] = {"ecosystem": "mcp"}
         if risk_level:
@@ -445,7 +445,7 @@ async def mcp_servers_feed(
 ) -> list[dict[str, Any]]:
     """Return recently discovered MCP servers as JSON."""
     try:
-        from database import db
+        from api.database import db
 
         filters: dict[str, Any] = {}
         if author:
@@ -529,7 +529,7 @@ async def mcp_servers_feed(
 async def rss_skillguard() -> Response:
     """Return RSS feed for AI skills with prompt injection patterns (SkillGuard Feed)."""
     try:
-        from database import db
+        from api.database import db
 
         # Get ClawHub skills with Phase 7 (prompt injection) findings
         scans = await db.select(
@@ -681,7 +681,7 @@ async def skillguard_feed(
 ) -> list[dict[str, Any]]:
     """Return AI skills with prompt injection patterns as JSON (SkillGuard Feed)."""
     try:
-        from database import db
+        from api.database import db
 
         # Get ClawHub skills with scan results
         scans = await db.select(

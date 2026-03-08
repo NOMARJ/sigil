@@ -11,9 +11,9 @@ Attack Vector: Social engineering in skill documentation + malicious binaries
 
 import pytest
 
-from services.prompt_scanner import scan_prompt, quick_scan_prompt
-from services.scanner import scan_content
-from models import Severity
+from api.services.prompt_scanner import scan_prompt, quick_scan_prompt
+from api.services.scanner import scan_content
+from api.models import Severity
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +356,7 @@ def test_openclaw_base64_obfuscation():
 
 def test_openclaw_publisher_metadata():
     """Test detection of suspicious publisher metadata patterns."""
-    from services.prompt_scanner import scan_skill_content
+    from api.services.prompt_scanner import scan_skill_content
 
     # Malicious skill manifest with rapid versioning
     malicious_manifest = """{

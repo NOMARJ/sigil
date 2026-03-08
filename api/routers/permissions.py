@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

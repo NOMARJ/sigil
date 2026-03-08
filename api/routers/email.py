@@ -13,9 +13,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import HTMLResponse
 
-from routers.auth import get_current_user
-from rate_limit import RateLimiter
-from models import (
+from api.routers.auth import get_current_user
+from api.rate_limit import RateLimiter
+from api.models import (
     EmailSubscriptionRequest,
     EmailSubscriptionResponse,
     EmailPreferencesUpdate,
@@ -26,8 +26,8 @@ from models import (
     WeeklyDigestContent,
     ErrorResponse,
 )
-from services.email_service import email_service
-from database import db
+from api.services.email_service import email_service
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

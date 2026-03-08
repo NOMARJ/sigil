@@ -25,8 +25,8 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Header, Query, status
 from pydantic import BaseModel, Field
 
-from config import settings
-from database import db
+from api.config import settings
+from api.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ async def registry_stats() -> RegistryStats:
     Returns pre-computed statistics from the cache table, updated every 15 minutes
     by a background task. This avoids expensive full-table scans on every request.
     """
-    from services import registry_stats_updater
+    from api.services import registry_stats_updater
 
     cached = await registry_stats_updater.get_cached_stats()
 

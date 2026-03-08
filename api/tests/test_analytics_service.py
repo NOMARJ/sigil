@@ -20,7 +20,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from services.analytics_service import analytics_service, AnalyticsService
+from api.services.analytics_service import analytics_service, AnalyticsService
 
 
 class TestLLMUsageTracking:

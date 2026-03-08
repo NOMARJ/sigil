@@ -16,10 +16,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from config import settings
-from database import cache, db
-from models import UserResponse
-from routers.auth import get_current_user_unified
+from api.config import settings
+from api.database import cache, db
+from api.models import UserResponse
+from api.routers.auth import get_current_user_unified
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,7 @@ def get_plans_with_feature(feature: ForgeFeature) -> List[str]:
 
 
 async def get_user_subscription_info(user_id: str) -> Dict[str, Any]:
-    """Fetch user's subscription and team information from database."""
+    """Fetch user's subscription and team information from api.database."""
 
     # Get user with team information
     query = """

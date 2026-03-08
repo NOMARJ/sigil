@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

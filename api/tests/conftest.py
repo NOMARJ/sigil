@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
-from database import _memory_cache, db
+from api.database import _memory_cache, db
 
 
 _original_async_client_init = httpx.AsyncClient.__init__
@@ -168,7 +168,7 @@ def auth_headers(registered_user: dict[str, Any]) -> dict[str, str]:
 def pro_user(client: TestClient, test_user_data: dict[str, str]) -> dict[str, Any]:
     """Register a test user and upgrade them to PRO plan."""
     import asyncio
-    from database import db
+    from api.database import db
 
     # Register user
     resp = client.post("/v1/auth/register", json=test_user_data)
@@ -223,7 +223,7 @@ def webhook_headers() -> dict[str, str]:
 
 @pytest.fixture
 def sample_analysis_request():
-    from llm_models import LLMAnalysisRequest, LLMAnalysisType
+    from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 
     return LLMAnalysisRequest(
         file_contents={

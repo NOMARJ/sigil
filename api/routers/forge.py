@@ -12,18 +12,25 @@ import logging
 import re
 import hashlib
 import sys
+import time
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal, Optional, List
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-from database import db
-from services.forge_matcher import forge_matcher
+from api.database import db
+from api.services.forge_matcher import forge_matcher
+from api.services.trending_service import TrendingService, TrendingMetrics
+
+TimeFrame = Literal["24h", "7d", "30d"]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])
+
+# Initialize trending service
+trending_service = TrendingService()
 
 sys.modules.setdefault("api.routers.forge", sys.modules[__name__])
 
@@ -524,6 +531,54 @@ async def _get_trust_score(ecosystem: str, package_name: str) -> float:
     return max(0.0, 100.0 - (risk_score * 5))
 
 
+def _apply_sorting(
+    tools: list[dict[str, Any]], sort: str, order: str
+) -> list[dict[str, Any]]:
+    """Apply sorting to tools list."""
+    reverse = order.lower() == "desc"
+
+    if sort == "trending":
+        # Composite trending score based on downloads, stars, and trust score
+        def trending_score(tool):
+            downloads = tool.get("downloads", 0) or 0
+            stars = tool.get("stars", 0) or 0
+            trust_score = tool.get("trust_score", 0) or 0
+
+            # Trending score formula: weighted combination
+            # Downloads (40%), Stars (30%), Trust Score (30%)
+            score = (downloads * 0.4) + (stars * 0.3) + (trust_score * 0.3)
+            return score
+
+        return sorted(tools, key=trending_score, reverse=reverse)
+
+    elif sort == "downloads":
+        return sorted(tools, key=lambda t: t.get("downloads", 0) or 0, reverse=reverse)
+
+    elif sort == "stars":
+        return sorted(tools, key=lambda t: t.get("stars", 0) or 0, reverse=reverse)
+
+    elif sort == "newest":
+        # Sort by last_updated timestamp
+        def parse_date(tool):
+            date_str = tool.get("last_updated", "")
+            if not date_str:
+                return datetime.min
+            try:
+                # Handle ISO format dates
+                if "T" in date_str:
+                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                else:
+                    return datetime.fromisoformat(date_str)
+            except (ValueError, TypeError):
+                return datetime.min
+
+        return sorted(tools, key=parse_date, reverse=reverse)
+
+    else:
+        # Default to trending if unknown sort
+        return tools
+
+
 async def _build_classification_response(
     classification: dict[str, Any],
     capabilities: list[dict[str, Any]] = None,
@@ -586,6 +641,10 @@ async def search_tools(
     type: str | None = Query(None, description="Compatibility filter: skill|mcp"),
     category: str | None = Query(None, description="Filter by category"),
     min_trust: float | None = Query(None, description="Minimum trust score"),
+    sort: str = Query(
+        "trending", description="Sort by: trending, downloads, stars, newest"
+    ),
+    order: str = Query("desc", description="Order: asc, desc"),
     limit: int = Query(20, description="Maximum results"),
     response: Response = None,
 ):
@@ -649,6 +708,10 @@ async def search_tools(
             if len(tools) >= limit:
                 break
 
+        # Apply sorting
+        if sort and tools:
+            tools = _apply_sorting(tools, sort, order)
+
         # Set cache headers to prevent aggressive caching
         if response:
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -656,7 +719,17 @@ async def search_tools(
             response.headers["Expires"] = "0"
 
         # CRITICAL FIX: Return actual database count instead of filtered results length
-        return {"query": q, "tools": tools, "total": total_count}
+        # Include sort metadata in response
+        return {
+            "query": q,
+            "tools": tools,
+            "total": total_count,
+            "sort_metadata": {
+                "sort": sort,
+                "order": order,
+                "supported_sorts": ["trending", "downloads", "stars", "newest"],
+            },
+        }
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1720,3 +1793,215 @@ async def get_forge_feed():
     except Exception as e:
         logger.error(f"Feed generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Trending Tools Models
+# ============================================================================
+
+
+class TrendingToolResponse(BaseModel):
+    """Response model for a single trending tool."""
+
+    tool_id: str = Field(..., description="Unique tool identifier")
+    rank: int = Field(
+        ..., description="Current ranking position", alias="rank_position"
+    )
+    rank_change: int = Field(
+        ..., description="Change in rank (+/-) compared to previous period"
+    )
+    direction: Literal["up", "down", "stable", "new"] = Field(
+        ..., description="Trend direction indicator"
+    )
+    growth_percentage: float = Field(..., description="Overall growth percentage")
+
+    # Current metrics
+    downloads: int = Field(
+        ..., description="Current period downloads", alias="current_downloads"
+    )
+    stars: int = Field(..., description="Current stars count", alias="current_stars")
+    trust_score: float = Field(
+        ..., description="Current trust score (0-100)", alias="current_trust_score"
+    )
+
+    # Growth metrics
+    downloads_growth: float = Field(..., description="Downloads growth percentage")
+    stars_growth: float = Field(..., description="Stars growth percentage")
+    composite_score: float = Field(..., description="Calculated trending score")
+
+    # Metadata
+    timeframe: TimeFrame = Field(..., description="Timeframe used for calculation")
+    ecosystem: str = Field(..., description="Tool ecosystem")
+    category: str = Field(..., description="Tool category")
+
+    class Config:
+        allow_population_by_field_name = True
+
+
+class TrendingResponse(BaseModel):
+    """Response model for trending tools list."""
+
+    tools: List[TrendingToolResponse] = Field(..., description="List of trending tools")
+    total: int = Field(..., description="Total number of trending tools")
+    timeframe: TimeFrame = Field(..., description="Timeframe used")
+    ecosystem: str = Field(..., description="Ecosystem filter applied")
+    category: str = Field(..., description="Category filter applied")
+    limit: int = Field(..., description="Result limit applied")
+    generated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Response generation timestamp"
+    )
+    response_time_ms: Optional[float] = Field(
+        None, description="API response time in milliseconds"
+    )
+
+
+# ============================================================================
+# Trending Tools Helper Functions
+# ============================================================================
+
+
+def _convert_trending_metrics_to_response(
+    metrics: TrendingMetrics,
+) -> TrendingToolResponse:
+    """Convert TrendingMetrics to API response model."""
+    return TrendingToolResponse(
+        tool_id=metrics.tool_id,
+        rank_position=metrics.rank_position,
+        rank_change=metrics.rank_change,
+        direction=metrics.direction,
+        growth_percentage=metrics.downloads_growth,
+        current_downloads=metrics.current_downloads,
+        current_stars=metrics.current_stars,
+        current_trust_score=metrics.current_trust_score,
+        downloads_growth=metrics.downloads_growth,
+        stars_growth=metrics.stars_growth,
+        composite_score=metrics.composite_score,
+        timeframe=metrics.timeframe,
+        ecosystem=metrics.ecosystem,
+        category=metrics.category,
+    )
+
+
+# ============================================================================
+# Trending Tools API Endpoints
+# ============================================================================
+
+
+@router.get("/trending", response_model=TrendingResponse, tags=["Forge Trending"])
+async def get_trending_tools(
+    timeframe: TimeFrame = Query(
+        "7d", description="Timeframe for trending calculation"
+    ),
+    ecosystem: str = Query(
+        "all", description="Filter by ecosystem (npm, pypi, github, etc.)"
+    ),
+    category: str = Query("all", description="Filter by category"),
+    limit: int = Query(
+        20, ge=1, le=100, description="Maximum number of results (1-100)"
+    ),
+    response: Response = None,
+):
+    """
+    Get trending tools based on downloads, stars, and growth metrics.
+
+    Returns tools ranked by a composite score algorithm:
+    - 40% downloads weight
+    - 30% growth rate weight
+    - 20% stars weight
+    - 10% trust score weight
+
+    **Query Parameters:**
+    - `timeframe`: Time period for trending calculation (24h, 7d, 30d)
+    - `ecosystem`: Filter by tool ecosystem (all, npm, pypi, github, etc.)
+    - `category`: Filter by tool category (all, ai-agent, mcp-server, etc.)
+    - `limit`: Maximum results to return (1-100, default: 20)
+
+    **Performance:**
+    - Response time target: <200ms with caching
+    - Cache TTL: 1 hour
+
+    **Example:**
+    ```
+    GET /forge/trending?timeframe=7d&ecosystem=npm&limit=10
+    ```
+    """
+    start_time = time.time()
+
+    try:
+        # Validate timeframe
+        if timeframe not in ["24h", "7d", "30d"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid timeframe '{timeframe}'. Must be one of: 24h, 7d, 30d",
+            )
+
+        # Normalize filters
+        ecosystem = ecosystem.lower() if ecosystem else "all"
+        category = category.lower() if category else "all"
+
+        # Get trending data from service
+        trending_data = await trending_service.get_trending_tools(
+            timeframe=timeframe,
+            ecosystem=ecosystem,
+            category=category,
+            limit=limit,
+            use_cache=True,  # Enable caching for performance
+        )
+
+        if not trending_data:
+            # Return empty result if no data found
+            logger.info(
+                f"No trending data found for {timeframe}/{ecosystem}/{category}"
+            )
+            return TrendingResponse(
+                tools=[],
+                total=0,
+                timeframe=timeframe,
+                ecosystem=ecosystem,
+                category=category,
+                limit=limit,
+                response_time_ms=round((time.time() - start_time) * 1000, 2),
+            )
+
+        # Convert to response format
+        response_tools = [
+            _convert_trending_metrics_to_response(metrics) for metrics in trending_data
+        ]
+
+        # Calculate response time
+        response_time_ms = round((time.time() - start_time) * 1000, 2)
+
+        # Set cache headers for client-side caching
+        if response:
+            response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+            response.headers["X-Response-Time"] = f"{response_time_ms}ms"
+
+        # Log performance
+        logger.info(
+            f"Trending API: {len(response_tools)} tools, {response_time_ms:.2f}ms "
+            f"(timeframe={timeframe}, ecosystem={ecosystem}, category={category})"
+        )
+
+        # Warning if response time exceeds target
+        if response_time_ms > 200:
+            logger.warning(
+                f"Trending API response time exceeded 200ms target: {response_time_ms:.2f}ms"
+            )
+
+        return TrendingResponse(
+            tools=response_tools,
+            total=len(response_tools),
+            timeframe=timeframe,
+            ecosystem=ecosystem,
+            category=category,
+            limit=limit,
+            response_time_ms=response_time_ms,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get trending tools: {e}")
+        raise HTTPException(
+            status_code=500, detail="Internal server error while fetching trending data"
+        )

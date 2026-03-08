@@ -20,9 +20,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from config import settings
-from database import db
-from models import Finding, ScanPhase, Severity
+from api.config import settings
+from api.database import db
+from api.models import Finding, ScanPhase, Severity
 
 logger = logging.getLogger(__name__)
 
@@ -450,7 +450,7 @@ Please respond with valid JSON only:
     async def get_classification(
         self, ecosystem: str, package_name: str, package_version: str = ""
     ) -> dict[str, Any] | None:
-        """Get existing classification from database."""
+        """Get existing classification from api.database."""
         filters = {"ecosystem": ecosystem, "package_name": package_name}
         if package_version:
             filters["package_version"] = package_version

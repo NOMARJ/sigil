@@ -22,16 +22,16 @@ from unittest.mock import MagicMock, patch
 from typing import Any
 
 from fastapi.testclient import TestClient
-from models import PlanTier
-from llm_models import LLMAnalysisRequest, LLMAnalysisType
-from services.llm_service import llm_service
-from services.subscription_service import subscription_service
-from middleware.tier_check import (
+from api.models import PlanTier
+from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
+from api.services.llm_service import llm_service
+from api.services.subscription_service import subscription_service
+from api.middleware.tier_check import (
     get_user_tier,
     require_pro_tier,
     check_llm_analysis_access,
 )
-from database import db
+from api.database import db
 
 
 # Test Fixtures
@@ -424,7 +424,7 @@ class TestLLMServiceFailures:
     @pytest.mark.asyncio
     async def test_llm_rate_limiting(self):
         """Test LLM service rate limiting behavior"""
-        from services.llm_service import RateLimiter
+        from api.services.llm_service import RateLimiter
 
         # Test rate limiter with low limit
         rate_limiter = RateLimiter(requests_per_minute=2)

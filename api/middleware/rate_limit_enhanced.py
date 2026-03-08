@@ -15,7 +15,7 @@ from typing import Dict, Optional, Tuple
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from middleware.security import SecurityHeaders
+from api.middleware.security import SecurityHeaders
 
 logger = logging.getLogger(__name__)
 

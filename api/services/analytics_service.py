@@ -13,8 +13,8 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 
-from database import db
-from usage_metrics import (
+from api.database import db
+from api.usage_metrics import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
