@@ -11,7 +11,7 @@ from typing import Any
 
 from api.models import Finding
 from api.services.scanner import scan_directory, scan_content
-from scanner.phase9_llm_detector import phase9_detector
+from api.scanner.phase9_llm_detector import phase9_detector
 
 
 logger = logging.getLogger(__name__)

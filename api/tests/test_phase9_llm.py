@@ -34,7 +34,7 @@ from api.llm_models import (
     confidence_to_level,
 )
 from api.llm_config import llm_config
-from scanner.phase9_llm_detector import Phase9LLMDetector
+from api.scanner.phase9_llm_detector import Phase9LLMDetector
 
 
 class TestLLMServiceConfiguration:
