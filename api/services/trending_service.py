@@ -343,13 +343,6 @@ class TrendingService:
                     max_stars,
                 )
 
-                # Check if tool is new (created within timeframe)
-                created_at = row.get("created_at")
-                is_new_tool = False
-                if created_at:
-                    start_date, _ = self._get_date_range(timeframe)
-                    is_new_tool = created_at.date() >= start_date
-
                 # Create trending metrics object
                 metrics = TrendingMetrics(
                     tool_id=tool_id,
