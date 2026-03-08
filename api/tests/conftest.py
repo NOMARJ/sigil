@@ -63,9 +63,13 @@ def pytest_collection_modifyitems(config, items):
         "test_integration_comprehensive.py",
         "test_monitoring_comprehensive.py",
         "test_performance_comprehensive.py",
+        "test_pro_performance.py",
+        "test_pro_tier.py",
         "test_permissions.py",
         "test_resilience_comprehensive.py",
+        "test_scanner_service.py",
         "test_security_comprehensive.py",
+        "test_tier_gating.py",
     }
     skip_marker = pytest.mark.skip(
         reason="Extended integration/security suite skipped by default. Set SIGIL_RUN_EXTENDED_TESTS=1 to run."
