@@ -331,10 +331,15 @@ The following findings were detected by traditional static analysis tools:
             remaining -= len(header)
             truncated_content = content
             if len(truncated_content) > max_file_chars:
-                truncated_content = truncated_content[:max_file_chars] + "\n... [TRUNCATED]"
+                truncated_content = (
+                    truncated_content[:max_file_chars] + "\n... [TRUNCATED]"
+                )
 
             if len(truncated_content) >= remaining:
-                truncated_content = truncated_content[: max(0, remaining - len("\n... [TRUNCATED]"))] + "\n... [TRUNCATED]"
+                truncated_content = (
+                    truncated_content[: max(0, remaining - len("\n... [TRUNCATED]"))]
+                    + "\n... [TRUNCATED]"
+                )
 
             files_section += header + truncated_content + "\n"
             remaining -= len(truncated_content) + 1

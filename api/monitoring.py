@@ -35,6 +35,7 @@ from errors import (
 
 logger = logging.getLogger(__name__)
 
+
 def _get_alerting_settings():
     try:
         from api.monitoring.alerting import settings as alerting_settings
