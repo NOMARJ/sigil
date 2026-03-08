@@ -21,17 +21,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from config import settings
-from database import cache, db
-from gates import PlanGateException
-from models import GateError
-from monitoring import MetricsMiddleware, monitoring
-from rate_limit import RateLimitMiddleware
-from middleware.security import (
+from api.config import settings
+from api.database import cache, db
+from api.gates import PlanGateException
+from api.models import GateError
+from api.monitoring import MetricsMiddleware, monitoring
+from api.rate_limit import RateLimitMiddleware
+from api.middleware.security import (
     RequestValidationMiddleware,
     SecurityHeaders,
 )
-from middleware.rate_limit_enhanced import EnhancedRateLimitMiddleware
+from api.middleware.rate_limit_enhanced import EnhancedRateLimitMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -277,7 +277,7 @@ async def validation_exception_handler(
 
 # Import routers with error handling to catch registration failures
 try:
-    from routers import (  # noqa: E402
+    from api.routers import (  # noqa: E402
         alerts,
         analytics,
         attestation,
