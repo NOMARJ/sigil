@@ -283,7 +283,7 @@ Target Type: {repository_context.get("target_type", "directory")}
 Files to Analyze: {len(file_contents)}
 Static Findings: {len(static_findings)}
 
-Requested Analysis Types: {', '.join(analysis_types) if analysis_types else 'none'}
+Requested Analysis Types: {", ".join(analysis_types) if analysis_types else "none"}
 
 **STATIC ANALYSIS FINDINGS**
 The following findings were detected by traditional static analysis tools:
