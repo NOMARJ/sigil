@@ -18,8 +18,8 @@ from api.models import (
     VerifyRequest,
     VerifyResponse,
 )
-from services.scoring import score_to_verdict
-from services.threat_intel import lookup_threat
+from api.services.scoring import score_to_verdict
+from api.services.threat_intel import lookup_threat
 
 logger = logging.getLogger(__name__)
 

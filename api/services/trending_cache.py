@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 from api.database import cache, db
-from services.trending_service import TrendingMetrics, TimeFrame
+from api.services.trending_service import TrendingMetrics, TimeFrame
 
 logger = logging.getLogger(__name__)
 

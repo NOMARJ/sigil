@@ -30,7 +30,7 @@ from api.models import (
 )
 
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.threat_intel import (
+from api.services.threat_intel import (
     delete_signature,
     get_report,
     get_signatures,

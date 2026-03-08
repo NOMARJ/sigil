@@ -39,16 +39,16 @@ from api.models import (
     ScanResponse,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.scoring import compute_verdict
-from services.threat_intel import (
+from api.services.scoring import compute_verdict
+from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
-from services.forge_analytics import track_forge_event
+from api.services.forge_analytics import track_forge_event
 from api.models import ForgeEventType
 from api.middleware.tier_check import get_scan_capabilities
 from scanner.scanner_engine import scanner_engine
-from services.subscription_service import subscription_service
+from api.services.subscription_service import subscription_service
 
 logger = logging.getLogger(__name__)
 

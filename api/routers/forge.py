@@ -21,8 +21,8 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from api.database import db
-from services.forge_matcher import forge_matcher
-from services.trending_service import TrendingService, TrendingMetrics
+from api.services.forge_matcher import forge_matcher
+from api.services.trending_service import TrendingService, TrendingMetrics
 
 TimeFrame = Literal["24h", "7d", "30d"]
 

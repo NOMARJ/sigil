@@ -24,8 +24,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 from api.models import PlanTier
 from llm_models import LLMAnalysisRequest, LLMAnalysisType
-from services.llm_service import llm_service
-from services.subscription_service import subscription_service
+from api.services.llm_service import llm_service
+from api.services.subscription_service import subscription_service
 from api.middleware.tier_check import (
     get_user_tier,
     require_pro_tier,

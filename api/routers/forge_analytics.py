@@ -25,7 +25,7 @@ from api.models import (
     AnalyticsEventBatchRequest,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.forge_analytics import analytics_service, track_forge_event
+from api.services.forge_analytics import analytics_service, track_forge_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge/analytics", tags=["Forge Analytics"])

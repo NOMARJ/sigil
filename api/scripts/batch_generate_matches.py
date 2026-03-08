@@ -27,7 +27,7 @@ sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
 from config import settings
 from database import db
-from services.forge_matcher import forge_matcher
+from api.services.forge_matcher import forge_matcher
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

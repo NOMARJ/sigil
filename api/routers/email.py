@@ -26,7 +26,7 @@ from api.models import (
     WeeklyDigestContent,
     ErrorResponse,
 )
-from services.email_service import email_service
+from api.services.email_service import email_service
 from api.database import db
 
 logger = logging.getLogger(__name__)
