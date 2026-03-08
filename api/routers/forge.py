@@ -99,8 +99,18 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
     risk_score = scan_data.get("risk_score", 0)
     findings = scan_data.get("findings", [])
 
-    # Determine category based on name and description
-    category = _determine_category(name, description)
+    # Use stored category from metadata if available, otherwise derive from name/description
+    stored_category = scan_data.get("metadata", {}).get("category", "")
+    if stored_category:
+        # Try to map stored category string to a ToolCategory enum value
+        try:
+            category = ToolCategory(
+                stored_category.lower().replace("-", "_").replace(" ", "_")
+            )
+        except ValueError:
+            category = _determine_category(name, description)
+    else:
+        category = _determine_category(name, description)
 
     # Determine capabilities based on findings and metadata
     capabilities = _determine_capabilities(findings, description)
@@ -228,8 +238,8 @@ def _determine_category(name: str, description: str) -> ToolCategory:
     if any(term in desc_lower for term in ["test", "testing", "jest", "pytest"]):
         return ToolCategory.TESTING_TOOLS
 
-    # Default fallback
-    return ToolCategory.API_INTEGRATIONS
+    # Default fallback — use a general category rather than misclassifying as API_INTEGRATIONS
+    return ToolCategory.CODE_TOOLS
 
 
 def _determine_capabilities(findings: list, description: str) -> list[ToolCapability]:
@@ -646,6 +656,7 @@ async def search_tools(
     ),
     order: str = Query("desc", description="Order: asc, desc"),
     limit: int = Query(20, description="Maximum results"),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
     response: Response = None,
 ):
     """Search tools with compatibility response expected by tests and clients.
@@ -653,22 +664,23 @@ async def search_tools(
     Returns 'tools' field for frontend compatibility.
     """
     try:
+        offset = (page - 1) * limit
         # Get both count and data in a single optimized query to prevent connection conflicts
         if hasattr(db, "execute_raw_sql"):
             # Use a single query with both count and data
             count_and_data_sql = f"""
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM public_scans) as total_count,
                     *
                 FROM public_scans
                 ORDER BY created_at DESC
-                OFFSET 0 ROWS FETCH NEXT {limit * 5} ROWS ONLY
+                OFFSET {offset} ROWS FETCH NEXT {limit * 5} ROWS ONLY
             """
             rows = await db.execute_raw_sql(count_and_data_sql, ())
             total_count = rows[0]["total_count"] if rows else 0
         else:
             # Fallback for in-memory mode
-            rows = await db.select("public_scans", limit=limit * 5)
+            rows = await db.select("public_scans", limit=limit * 5, offset=offset)
             total_count = len(await db.select("public_scans"))
         requested_type = (type or ecosystem or "").lower()
         tools: list[dict[str, Any]] = []  # Renamed from items to tools
@@ -729,11 +741,13 @@ async def search_tools(
             response.headers["Expires"] = "0"
 
         # CRITICAL FIX: Return actual database count instead of filtered results length
-        # Include sort metadata in response
+        # Include sort metadata and pagination info in response
         return {
             "query": q,
             "tools": tools,
             "total": total_count,
+            "page": page,
+            "limit": limit,
             "sort_metadata": {
                 "sort": sort,
                 "order": order,
@@ -862,35 +876,11 @@ async def get_tool_details(ecosystem: str, name: str):
         if decoded_name != name:
             row = await _fetch_single_scan_row(db_ecosystem, decoded_name)
 
-    # If still no data, create sample data for testing
     if row is None:
-        # Create sample tool data for demonstration
-        sample_data = {
-            "ecosystem": db_ecosystem,
-            "package_name": name,
-            "risk_score": 10,
-            "verdict": "LOW_RISK",
-            "findings": [],
-            "metadata": {
-                "description": f"A {db_ecosystem} tool for AI agents",
-                "repository": {"url": f"https://github.com/example/{name}"},
-            },
-            "package_version": "1.0.0",
-            "scanned_at": datetime.utcnow().isoformat(),
-        }
-        scan_data = _build_scan_data_from_row(sample_data)
-        tool = await classify_tool(normalized_ecosystem, name, scan_data)
-
-        # Add all required fields
-        result = _serialize_classified_tool(tool)
-        result["description"] = sample_data["metadata"].get("description", "")
-        result["last_updated"] = sample_data.get("scanned_at")
-        result["tags"] = []
-        result["downloads"] = sample_data["metadata"].get("downloads", 0)
-        result["stars"] = sample_data["metadata"].get("stars", 0)
-        result["author"] = sample_data["metadata"].get("author", "unknown")
-        result["version"] = sample_data.get("package_version", "1.0.0")
-        return result
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tool '{name}' not found in ecosystem '{ecosystem}'",
+        )
 
     scan_data = _build_scan_data_from_row(row)
     tool = await classify_tool(
@@ -1073,24 +1063,7 @@ async def list_categories(response: Response = None):
             category = classification["category"]
             classification_counts[category] = classification_counts.get(category, 0) + 1
 
-        # If no classifications exist, provide sample counts for demonstration
-        if not all_classifications:
-            # Sample counts for demonstration
-            sample_counts = {
-                "Database": 12,
-                "API Integration": 25,
-                "AI/LLM": 18,
-                "File System": 15,
-                "Security": 8,
-                "Code Tools": 20,
-                "DevOps": 10,
-                "Communication": 14,
-                "Data Pipeline": 6,
-                "Testing": 9,
-                "Search": 5,
-                "Monitoring": 7,
-            }
-            classification_counts = sample_counts
+        # No classifications yet — counts stay at 0 (real data only)
 
         results = []
         for category in categories:
@@ -1405,7 +1378,6 @@ async def get_forge_stats():
 
         ecosystem_counts: dict[str, int] = {}
         category_counts: dict[str, int] = {}
-        trust_buckets = {"low": 0, "medium": 0, "high": 0, "critical": 0}
         total_tools = len(all_classifications)
 
         # Category mapping to ensure snake_case
@@ -1443,20 +1415,27 @@ async def get_forge_stats():
                 category_counts.get(mapped_category, 0) + 1
             )
 
-            # Bucket by confidence as a proxy for trust level
-            confidence = classification.get("confidence_score", 0.5)
-            if confidence >= 0.9:
-                trust_buckets["critical"] += 1
-            elif confidence >= 0.7:
-                trust_buckets["high"] += 1
-            elif confidence >= 0.4:
-                trust_buckets["medium"] += 1
-            else:
-                trust_buckets["low"] += 1
-
         # Count total matches
         matches = await db.select("forge_matches", {})
         total_matches = len(matches)
+
+        # Compute trust score distribution from actual risk_score in public_scans
+        # trust_score = 100 - risk_score; buckets: high ≥75, medium ≥40, low ≥15, very_low <15
+        trust_buckets = {"high": 0, "medium": 0, "low": 0, "very_low": 0}
+        all_scans = await db.select("public_scans", limit=10000)
+        for scan in all_scans:
+            risk_score = scan.get("risk_score", 0) or 0
+            trust_score = max(0, min(100, 100 - risk_score))
+            if trust_score >= 75:
+                trust_buckets["high"] += 1
+            elif trust_score >= 40:
+                trust_buckets["medium"] += 1
+            elif trust_score >= 15:
+                trust_buckets["low"] += 1
+            else:
+                trust_buckets["very_low"] += 1
+
+        trust_distribution = trust_buckets
 
         # Derive ecosystem-specific counts
         mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
@@ -1472,56 +1451,6 @@ async def get_forge_stats():
             key=lambda x: x["count"],
             reverse=True,
         )[:10]
-
-        # Map trust buckets to frontend expected format
-        trust_distribution = {
-            "high": trust_buckets["critical"] + trust_buckets["high"],  # 90-100
-            "medium": trust_buckets["medium"],  # 70-89
-            "low": trust_buckets["low"],  # 25-69
-            "very_low": 0,  # 0-24 (we'll add this if we have any)
-        }
-
-        # If we have no data, provide realistic sample counts
-        if total_tools == 0:
-            return {
-                "total_tools": 14751,
-                "mcp_servers": 3400,
-                "skills_count": 3000,
-                "npm_packages": 5900,
-                "pypi_packages": 2900,
-                "categories": {
-                    "api_integrations": 3421,
-                    "database_connectors": 847,
-                    "code_tools": 1256,
-                    "ai_llm_tools": 892,
-                    "security_tools": 234,
-                    "file_system_tools": 567,
-                    "devops_tools": 423,
-                    "communication": 312,
-                    "data_pipeline": 289,
-                    "testing_tools": 198,
-                    "search_tools": 156,
-                    "monitoring": 145,
-                },
-                "trust_score_distribution": {
-                    "high": 5432,
-                    "medium": 3421,
-                    "low": 4567,
-                    "very_low": 1331,
-                },
-                "ecosystems": {"skills": 3000, "mcp": 3400, "npm": 5900, "pypi": 2900},
-                "total_categories": 12,
-                "total_matches": 8765,
-                "recent_scans": [],
-                "top_categories": [
-                    {"name": "api_integrations", "count": 3421},
-                    {"name": "code_tools", "count": 1256},
-                    {"name": "ai_llm_tools", "count": 892},
-                    {"name": "database_connectors", "count": 847},
-                    {"name": "file_system_tools", "count": 567},
-                ],
-                "last_updated": datetime.utcnow().isoformat(),
-            }
 
         return {
             "total_tools": total_tools,
