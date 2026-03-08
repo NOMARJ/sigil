@@ -21,6 +21,8 @@ class LLMAnalysisType(str, Enum):
     AI_ATTACK_VECTOR = "ai_attack_vector"
     CONTEXTUAL_CORRELATION = "contextual_correlation"
 
+    CONTEXT_CORRELATION = "contextual_correlation"
+
 
 class LLMConfidence(str, Enum):
     """Confidence levels for LLM analysis."""

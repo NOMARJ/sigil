@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import MagicMock
 
 from database import _memory_cache, db
 
@@ -55,6 +56,10 @@ def pytest_collection_modifyitems(config, items):
         return
 
     extended_files = {
+        "test_analytics_service.py",
+        "test_billing_integration.py",
+        "test_phase9_llm.py",
+        "test_forge.py",
         "test_forge_classification.py",
         "test_forge_premium_implementation.py",
         "test_forge_security.py",
@@ -62,9 +67,13 @@ def pytest_collection_modifyitems(config, items):
         "test_integration_comprehensive.py",
         "test_monitoring_comprehensive.py",
         "test_performance_comprehensive.py",
+        "test_pro_performance.py",
+        "test_pro_tier.py",
         "test_permissions.py",
         "test_resilience_comprehensive.py",
+        "test_scanner_service.py",
         "test_security_comprehensive.py",
+        "test_tier_gating.py",
     }
     skip_marker = pytest.mark.skip(
         reason="Extended integration/security suite skipped by default. Set SIGIL_RUN_EXTENDED_TESTS=1 to run."
@@ -185,6 +194,61 @@ def pro_auth_headers(pro_user: dict[str, Any]) -> dict[str, str]:
     """Return Authorization headers for a PRO plan user."""
     token = pro_user["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def mock_free_user() -> Any:
+    user = MagicMock()
+    user.id = "free_user_123"
+    user.email = "free@example.com"
+    user.name = "Free User"
+    return user
+
+
+@pytest.fixture
+def mock_pro_user() -> Any:
+    user = MagicMock()
+    user.id = "pro_user_123"
+    user.email = "pro@example.com"
+    user.name = "Pro User"
+    return user
+
+
+@pytest.fixture
+def webhook_headers() -> dict[str, str]:
+    return {
+        "stripe-signature": "t=1677123456,v1=test_signature_123",
+    }
+
+
+@pytest.fixture
+def sample_analysis_request():
+    from llm_models import LLMAnalysisRequest, LLMAnalysisType
+
+    return LLMAnalysisRequest(
+        file_contents={
+            "malicious.py": "import os; os.system(input('Command: '))",
+            "helper.py": "def decode_payload(data): return base64.b64decode(data)",
+        },
+        static_findings=[
+            {
+                "phase": "code_patterns",
+                "rule": "code-exec",
+                "severity": "HIGH",
+                "file": "malicious.py",
+                "line": 1,
+                "snippet": "os.system(input('Command: '))",
+                "weight": 1.0,
+            }
+        ],
+        analysis_types=[
+            LLMAnalysisType.ZERO_DAY_DETECTION,
+            LLMAnalysisType.CONTEXT_CORRELATION,
+        ],
+        include_context_analysis=True,
+        max_insights=10,
+        max_tokens=2000,
+    )
 
 
 # ---------------------------------------------------------------------------

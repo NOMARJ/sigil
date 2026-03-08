@@ -7,7 +7,6 @@ metrics to support business intelligence, cost optimization, and churn predictio
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, date
@@ -59,11 +58,10 @@ class AnalyticsService:
         cache_hit: bool = False,
         fallback_used: bool = False,
         cost_override: Optional[Decimal] = None,
-    ) -> None:
+    ) -> bool:
         """Track LLM API usage for cost and performance analytics."""
 
         try:
-            # Calculate actual cost
             cost_cents = cost_override or self._calculate_llm_cost(
                 model_used, tokens_used
             )
@@ -81,60 +79,24 @@ class AnalyticsService:
                 else 0.0
             )
 
-            # Store detailed LLM usage record
-            await db.execute(
-                """
-                INSERT INTO llm_usage_metrics (
-                    user_id, scan_id, model_used, tokens_used, processing_time_ms,
-                    cost_cents, insights_generated, threats_found, confidence_avg,
-                    cache_hit, fallback_used
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    user_id,
-                    scan_id,
-                    model_used,
-                    tokens_used,
-                    processing_time_ms,
-                    float(cost_cents),
-                    len(insights_generated),
-                    threats_found,
-                    confidence_avg,
-                    cache_hit,
-                    fallback_used,
-                ),
-            )
+            usage_details = {
+                "scan_id": scan_id,
+                "model_used": model_used,
+                "tokens_used": tokens_used,
+                "processing_time_ms": processing_time_ms,
+                "cost_cents": float(cost_cents),
+                "insights_generated": insights_generated,
+                "threats_found": threats_found,
+                "confidence_avg": confidence_avg,
+                "cache_hit": cache_hit,
+                "fallback_used": fallback_used,
+            }
 
-            # Track general usage event
-            await self.track_event(
-                user_id=user_id,
-                event_type="llm_scan",
-                event_data={
-                    "scan_id": scan_id,
-                    "model": model_used,
-                    "insights_count": len(insights_generated),
-                    "threats_found": threats_found,
-                    "cache_hit": cache_hit,
-                    "processing_time_ms": processing_time_ms,
-                },
-            )
-
-            # Update daily engagement metrics
-            await self._update_daily_engagement(
-                user_id,
-                {
-                    "scans_performed": 1,
-                    "threats_discovered": threats_found,
-                    "llm_tokens_used": tokens_used,
-                },
-            )
-
-            logger.debug(
-                f"Tracked LLM usage for user {user_id}: {tokens_used} tokens, {threats_found} threats"
-            )
-
+            await db.execute_procedure("sp_TrackLLMUsage", usage_details)
+            return True
         except Exception as e:
             logger.exception(f"Failed to track LLM usage for user {user_id}: {e}")
+            return False
 
     async def track_threat_discovery(
         self,
@@ -149,73 +111,179 @@ class AnalyticsService:
         analysis_type: str = "llm_analysis",
         evidence_snippet: Optional[str] = None,
         remediation_steps: Optional[List[str]] = None,
-    ) -> None:
+    ) -> bool:
         """Track individual threat discoveries for trend analysis."""
 
         try:
-            # Generate threat hash for deduplication
-            threat_hash = None
-            if threat_pattern:
-                threat_hash = hashlib.sha256(threat_pattern.encode()).hexdigest()
+            usage_details = {
+                "user_id": user_id,
+                "threat_type": threat_type,
+                "severity": severity,
+                "confidence": confidence,
+                "scan_id": scan_id,
+                "file_path": file_path,
+                "is_zero_day": is_zero_day,
+                "analysis_type": analysis_type,
+                "evidence_snippet": evidence_snippet,
+                "remediation_steps": json.dumps(remediation_steps or []),
+            }
 
-            # Store threat discovery
-            await db.execute(
-                """
-                INSERT INTO threat_discoveries (
-                    user_id, scan_id, threat_type, severity, confidence, is_zero_day,
-                    file_path, threat_hash, analysis_type, evidence_snippet, remediation_suggested
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                (
-                    user_id,
-                    scan_id,
-                    threat_type,
-                    severity,
-                    confidence,
-                    is_zero_day,
-                    file_path,
-                    threat_hash,
-                    analysis_type,
-                    evidence_snippet,
-                    json.dumps(remediation_steps or []),
-                ),
-            )
-
-            # Track specific events for zero-days and high-severity threats
-            if is_zero_day:
-                await self.track_event(
-                    user_id=user_id,
-                    event_type="zero_day_found",
-                    event_data={
-                        "threat_type": threat_type,
-                        "confidence": confidence,
-                        "file_path": file_path,
-                        "scan_id": scan_id,
-                    },
-                )
-
-                # Update zero-day count in daily metrics
-                await self._update_daily_engagement(user_id, {"zero_days_found": 1})
-
-            if severity in ("high", "critical"):
-                await self.track_event(
-                    user_id=user_id,
-                    event_type="critical_threat_detected",
-                    event_data={
-                        "threat_type": threat_type,
-                        "severity": severity,
-                        "confidence": confidence,
-                    },
-                )
-
-            logger.debug(
-                f"Tracked threat discovery: {threat_type} ({severity}) for user {user_id}"
-            )
-
+            await db.execute_procedure("sp_TrackThreatDiscovery", usage_details)
+            return True
         except Exception as e:
             logger.exception(
                 f"Failed to track threat discovery for user {user_id}: {e}"
             )
+            return False
+
+    async def track_pro_feature_usage(
+        self,
+        user_id: str,
+        feature_type: str,
+        usage_details: dict[str, Any],
+        session_id: str | None = None,
+    ) -> bool:
+        try:
+            payload = {
+                "user_id": user_id,
+                "feature_type": feature_type,
+                "usage_details": json.dumps(usage_details),
+                "session_id": session_id,
+            }
+            await db.execute_procedure("sp_TrackProFeatureUsage", payload)
+            return True
+        except Exception as exc:
+            logger.exception("Failed to track pro feature usage: %s", exc)
+            return False
+
+    async def get_user_analytics_summary(
+        self,
+        user_id: str,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> dict[str, Any] | None:
+        try:
+            rows = await db.execute_procedure(
+                "sp_GetUserAnalyticsSummary",
+                {"user_id": user_id, "start_date": start_date, "end_date": end_date},
+            )
+            return rows[0] if rows else None
+        except Exception as exc:
+            logger.exception("Failed to get user analytics summary: %s", exc)
+            return None
+
+    async def get_threat_discovery_trends(
+        self,
+        user_id: str,
+        threat_type: str,
+        days: int = 7,
+    ) -> list[dict[str, Any]]:
+        try:
+            return await db.execute_procedure(
+                "sp_GetThreatDiscoveryTrends",
+                {"user_id": user_id, "threat_type": threat_type, "days": days},
+            )
+        except Exception as exc:
+            logger.exception("Failed to get threat discovery trends: %s", exc)
+            return []
+
+    async def track_api_performance(
+        self,
+        endpoint: str,
+        method: str,
+        response_time_ms: int,
+        status_code: int,
+        user_id: str | None = None,
+        user_tier: str = "pro",
+        features_used: list[str] | None = None,
+        payload_size_bytes: int | None = None,
+        timestamp: datetime | None = None,
+    ) -> bool:
+        try:
+            payload = {
+                "endpoint": endpoint,
+                "method": method,
+                "response_time_ms": response_time_ms,
+                "status_code": status_code,
+                "user_id": user_id,
+                "user_tier": user_tier,
+                "features_used": json.dumps(features_used or []),
+                "payload_size_bytes": payload_size_bytes,
+                "timestamp": timestamp or datetime.utcnow(),
+            }
+            await db.execute_procedure("sp_TrackAPIPerformance", payload)
+            return True
+        except Exception as exc:
+            logger.exception("Failed to track API performance: %s", exc)
+            return False
+
+    async def get_performance_statistics(
+        self,
+        endpoint: str,
+        hours: int = 24,
+    ) -> list[dict[str, Any]]:
+        try:
+            return await db.execute_procedure(
+                "sp_GetPerformanceStatistics",
+                {"endpoint": endpoint, "hours": hours},
+            )
+        except Exception as exc:
+            logger.exception("Failed to get performance statistics: %s", exc)
+            return []
+
+    async def anonymize_user_analytics(self, user_id: str) -> bool:
+        try:
+            await db.execute_procedure(
+                "sp_AnonymizeUserAnalytics", {"user_id": user_id}
+            )
+            return True
+        except Exception as exc:
+            logger.exception("Failed to anonymize analytics: %s", exc)
+            return False
+
+    async def purge_expired_analytics(self, retention_days: int = 365) -> bool:
+        try:
+            await db.execute_procedure(
+                "sp_PurgeExpiredAnalytics", {"retention_days": retention_days}
+            )
+            return True
+        except Exception as exc:
+            logger.exception("Failed to purge analytics: %s", exc)
+            return False
+
+    async def export_user_analytics(self, user_id: str) -> list[dict[str, Any]]:
+        try:
+            return await db.execute_procedure(
+                "sp_ExportUserAnalytics", {"user_id": user_id}
+            )
+        except Exception as exc:
+            logger.exception("Failed to export analytics: %s", exc)
+            return []
+
+    async def get_platform_statistics(self) -> dict[str, Any]:
+        rows = await db.execute_procedure("sp_GetPlatformStatistics", {})
+        return rows[0] if rows else {}
+
+    async def generate_monthly_report(self, month: str) -> dict[str, Any]:
+        rows = await db.execute_procedure("sp_GenerateMonthlyReport", {"month": month})
+        return rows[0] if rows else {"month": month}
+
+    async def process_analytics_batch(self, events: list[dict[str, Any]]) -> bool:
+        try:
+            for event in events:
+                event_type = event.get("type")
+                data = event.get("data", {})
+                await db.execute_procedure(
+                    "sp_ProcessAnalyticsEvent", {"type": event_type, **data}
+                )
+            return True
+        except Exception as exc:
+            logger.exception("Failed to process analytics batch: %s", exc)
+            return False
+
+    async def health_check(self) -> dict[str, Any]:
+        rows = await db.execute_procedure("sp_AnalyticsHealthCheck", {})
+        return rows[0] if rows else {"status": "unknown"}
 
     async def track_event(
         self,

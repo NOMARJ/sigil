@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import sys
 from datetime import datetime, timedelta
 from typing import Any
 from typing_extensions import Annotated
@@ -35,6 +36,8 @@ from models import (
     WebhookResponse,
 )
 from routers.auth import get_current_user_unified, UserResponse
+
+sys.modules.setdefault("api.routers.billing", sys.modules[__name__])
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +71,7 @@ PLANS: list[PlanInfo] = [
         scans_per_month=500,
         features=[
             "500 scans/month",
+            "AI-powered threat detection",
             "🤖 AI-powered threat detection (LLM analysis)",
             "🔍 Zero-day vulnerability detection",
             "🎭 Advanced obfuscation analysis",
@@ -88,6 +92,7 @@ PLANS: list[PlanInfo] = [
         scans_per_month=5000,
         features=[
             "5,000 scans/month",
+            "AI-powered threat detection",
             "🤖 AI-powered threat detection (LLM analysis)",
             "🔍 Zero-day vulnerability detection",
             "🎭 Advanced obfuscation analysis",
@@ -110,6 +115,7 @@ PLANS: list[PlanInfo] = [
         scans_per_month=0,  # Unlimited
         features=[
             "Unlimited scans",
+            "AI-powered threat detection",
             "🤖 AI-powered threat detection (LLM analysis)",
             "🔍 Zero-day vulnerability detection",
             "🎭 Advanced obfuscation analysis",
@@ -127,17 +133,23 @@ PLANS: list[PlanInfo] = [
     ),
 ]
 
-# Stripe price ID mapping — keyed by (tier, interval)
-_STRIPE_PRICE_MAP: dict[tuple[PlanTier, str], str | None] = {
-    (PlanTier.FREE, "monthly"): None,
-    (PlanTier.FREE, "annual"): None,
-    (PlanTier.PRO, "monthly"): settings.stripe_price_pro,
-    (PlanTier.PRO, "annual"): settings.stripe_price_pro_annual,
-    (PlanTier.TEAM, "monthly"): settings.stripe_price_team,
-    (PlanTier.TEAM, "annual"): settings.stripe_price_team_annual,
-    (PlanTier.ENTERPRISE, "monthly"): None,  # Custom — handled via sales
-    (PlanTier.ENTERPRISE, "annual"): None,
-}
+
+def _get_price_id(plan: PlanTier, interval: str) -> str | None:
+    if plan in (PlanTier.FREE, PlanTier.ENTERPRISE):
+        return None
+    if plan == PlanTier.PRO:
+        return (
+            settings.stripe_price_pro
+            if interval == "monthly"
+            else settings.stripe_price_pro_annual
+        )
+    if plan == PlanTier.TEAM:
+        return (
+            settings.stripe_price_team
+            if interval == "monthly"
+            else settings.stripe_price_team_annual
+        )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +238,9 @@ async def subscribe(
     sub_data = await _get_or_create_subscription(current_user.id)
 
     interval = body.interval  # "monthly" or "annual"
-
     if stripe is not None:
         # --- Stripe integration path ---
-        price_id = _STRIPE_PRICE_MAP.get((body.plan, interval))
+        price_id = _get_price_id(body.plan, interval)
 
         # Reject if the price ID is a placeholder or missing for paid plans
         if body.plan != PlanTier.FREE and (not price_id or "placeholder" in price_id):

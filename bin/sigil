@@ -25,6 +25,8 @@
 # ============================================================================
 set -euo pipefail
 
+declare -a SIGIL_IGNORE_PATTERNS=()
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 QUARANTINE_DIR="${SIGIL_QUARANTINE_DIR:-$HOME/.sigil/quarantine}"
 APPROVED_DIR="${SIGIL_APPROVED_DIR:-$HOME/.sigil/approved}"
@@ -108,11 +110,9 @@ check_user_tier() {
     fi
     
     local response
-    response=$(curl -sf -H "Authorization: Bearer $token" \
+    if response=$(curl -sf -H "Authorization: Bearer $token" \
                     -H "Content-Type: application/json" \
-                    "$API_BASE_URL/v1/auth/verify" 2>/dev/null)
-    
-    if [ $? -eq 0 ] && [ -n "$response" ]; then
+                    "$API_BASE_URL/v1/auth/verify" 2>/dev/null) && [ -n "$response" ]; then
         local tier=""
         if check_tool "jq"; then
             tier=$(echo "$response" | jq -r '.tier // "free"' 2>/dev/null)
@@ -234,7 +234,7 @@ load_ignore_patterns() {
 # Check if a file path should be ignored
 should_ignore() {
     local filepath="$1"
-    for pattern in "${SIGIL_IGNORE_PATTERNS[@]}"; do
+    for pattern in "${SIGIL_IGNORE_PATTERNS[@]+"${SIGIL_IGNORE_PATTERNS[@]}"}"; do
         # Use bash pattern matching (supports *, ?, **)
         # shellcheck disable=SC2053
         if [[ "$filepath" == $pattern ]] || [[ "$filepath" == */$pattern ]] || [[ "$filepath" == $pattern/* ]]; then
@@ -1015,7 +1015,7 @@ cmd_scan() {
     local q_id; q_id=$(qid "$(basename "$target")")
     if [[ "$target" != "$QUARANTINE_DIR"* ]]; then
         local quarantine_copy="$QUARANTINE_DIR/$q_id"
-        cp -r "$target" "$quarantine_copy"
+        cp -R -P "$target" "$quarantine_copy"
         target="$quarantine_copy"
         log "Copied to quarantine: $quarantine_copy"
     fi

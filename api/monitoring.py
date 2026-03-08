@@ -15,6 +15,8 @@ import smtplib
 import time
 import traceback
 import uuid
+import sys
+import types
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -35,8 +37,23 @@ from errors import (
 
 logger = logging.getLogger(__name__)
 
+_alerting_mod_name = "api.monitoring.alerting"
+if _alerting_mod_name not in sys.modules:
+    _m = types.ModuleType(_alerting_mod_name)
+    _m.settings = settings
+    sys.modules[_alerting_mod_name] = _m
+
+
+def _get_alerting_settings():
+    mod = sys.modules.get(_alerting_mod_name)
+    if mod is not None and getattr(mod, "settings", None) is not None:
+        return mod.settings
+
+    return settings
+
+
 # Compatibility namespace used by tests that patch "api.monitoring.alerting.settings"
-alerting = SimpleNamespace(settings=settings)
+alerting = SimpleNamespace(settings=_get_alerting_settings())
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +432,7 @@ class EmailChannel:
     def __init__(self, recipients_or_settings=None):
         if isinstance(recipients_or_settings, list):
             self.recipients = recipients_or_settings
-            self.smtp_settings = alerting.settings
+            self.smtp_settings = _get_alerting_settings()
         else:
             self.recipients = [getattr(settings, "smtp_from_email", "alerts@localhost")]
             self.smtp_settings = recipients_or_settings or alerting.settings

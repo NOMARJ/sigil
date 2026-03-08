@@ -26,6 +26,7 @@ Classic prompt injection patterns:
 
 Advanced injection techniques:
 - Nested prompt structures
+- Jailbreaking techniques and role-play escalation
 - Encoding-based injections (base64, URL encoding)
 - Unicode and special character exploits
 - Markdown/HTML injection in prompts
