@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 
 from api.database import db
-from usage_metrics import (
+from api.usage_metrics import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
