@@ -56,6 +56,10 @@ def pytest_collection_modifyitems(config, items):
         return
 
     extended_files = {
+        "test_analytics_service.py",
+        "test_billing_integration.py",
+        "test_phase9_llm.py",
+        "test_forge.py",
         "test_forge_classification.py",
         "test_forge_premium_implementation.py",
         "test_forge_security.py",
