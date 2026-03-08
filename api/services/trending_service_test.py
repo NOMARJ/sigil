@@ -256,7 +256,9 @@ class TestTrendingService:
     ):
         """Integration test for trending scores calculation."""
         with patch.object(trending_service, "_fetch_tool_metrics") as mock_fetch:
-            mock_fetch.return_value = mock_db_data
+            # Filter mock data to only return npm tools as _fetch_tool_metrics would
+            npm_tools = [tool for tool in mock_db_data if tool["ecosystem"] == "npm"]
+            mock_fetch.return_value = npm_tools
 
             with patch.object(
                 trending_service, "_get_previous_rankings"
