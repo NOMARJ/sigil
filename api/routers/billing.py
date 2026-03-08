@@ -35,7 +35,7 @@ from api.models import (
     SubscriptionResponse,
     WebhookResponse,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 sys.modules.setdefault("api.routers.billing", sys.modules[__name__])
 

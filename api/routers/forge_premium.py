@@ -41,7 +41,7 @@ from api.models import (
     UpdateStackRequest,
     UpdateTrackedToolRequest,
 )
-from routers.auth import UserResponse, get_current_user_unified
+from api.routers.auth import UserResponse, get_current_user_unified
 
 logger = logging.getLogger(__name__)
 

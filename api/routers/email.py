@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import HTMLResponse
 
-from routers.auth import get_current_user
+from api.routers.auth import get_current_user
 from api.rate_limit import RateLimiter
 from api.models import (
     EmailSubscriptionRequest,

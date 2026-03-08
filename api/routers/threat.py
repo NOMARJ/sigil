@@ -29,7 +29,7 @@ from api.models import (
     ThreatEntry,
 )
 
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from services.threat_intel import (
     delete_signature,
     get_report,

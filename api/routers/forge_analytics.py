@@ -24,7 +24,7 @@ from api.models import (
     AnalyticsEventCreateRequest,
     AnalyticsEventBatchRequest,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from services.forge_analytics import analytics_service, track_forge_event
 
 logger = logging.getLogger(__name__)

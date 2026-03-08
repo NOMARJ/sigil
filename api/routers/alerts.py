@@ -33,7 +33,7 @@ from api.models import (
     GateError,
     PlanTier,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from services.notifications import send_notification
 
 logger = logging.getLogger(__name__)

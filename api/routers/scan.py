@@ -38,7 +38,7 @@ from api.models import (
     ScanRequest,
     ScanResponse,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from services.scoring import compute_verdict
 from services.threat_intel import (
     lookup_threats_for_hashes,
