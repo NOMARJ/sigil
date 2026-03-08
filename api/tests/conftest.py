@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import MagicMock
 
 from database import _memory_cache, db
 
@@ -185,6 +186,61 @@ def pro_auth_headers(pro_user: dict[str, Any]) -> dict[str, str]:
     """Return Authorization headers for a PRO plan user."""
     token = pro_user["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def mock_free_user() -> Any:
+    user = MagicMock()
+    user.id = "free_user_123"
+    user.email = "free@example.com"
+    user.name = "Free User"
+    return user
+
+
+@pytest.fixture
+def mock_pro_user() -> Any:
+    user = MagicMock()
+    user.id = "pro_user_123"
+    user.email = "pro@example.com"
+    user.name = "Pro User"
+    return user
+
+
+@pytest.fixture
+def webhook_headers() -> dict[str, str]:
+    return {
+        "stripe-signature": "t=1677123456,v1=test_signature_123",
+    }
+
+
+@pytest.fixture
+def sample_analysis_request():
+    from llm_models import LLMAnalysisRequest, LLMAnalysisType
+
+    return LLMAnalysisRequest(
+        file_contents={
+            "malicious.py": "import os; os.system(input('Command: '))",
+            "helper.py": "def decode_payload(data): return base64.b64decode(data)",
+        },
+        static_findings=[
+            {
+                "phase": "code_patterns",
+                "rule": "code-exec",
+                "severity": "HIGH",
+                "file": "malicious.py",
+                "line": 1,
+                "snippet": "os.system(input('Command: '))",
+                "weight": 1.0,
+            }
+        ],
+        analysis_types=[
+            LLMAnalysisType.ZERO_DAY_DETECTION,
+            LLMAnalysisType.CONTEXT_CORRELATION,
+        ],
+        include_context_analysis=True,
+        max_insights=10,
+        max_tokens=2000,
+    )
 
 
 # ---------------------------------------------------------------------------
