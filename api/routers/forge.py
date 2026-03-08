@@ -653,13 +653,23 @@ async def search_tools(
     Returns 'tools' field for frontend compatibility.
     """
     try:
-        # Get total count from database first (CRITICAL BUG FIX)
-        total_count_result = await db.execute_raw_sql_single(
-            "SELECT COUNT(*) as count FROM public_scans"
-        )
-        total_count = total_count_result.get("count", 0) if total_count_result else 0
-
-        rows = await _fetch_scan_rows(limit=limit * 5)
+        # Get both count and data in a single optimized query to prevent connection conflicts
+        if hasattr(db, "execute_raw_sql"):
+            # Use a single query with both count and data
+            count_and_data_sql = f"""
+                SELECT 
+                    (SELECT COUNT(*) FROM public_scans) as total_count,
+                    *
+                FROM public_scans
+                ORDER BY created_at DESC
+                OFFSET 0 ROWS FETCH NEXT {limit * 5} ROWS ONLY
+            """
+            rows = await db.execute_raw_sql(count_and_data_sql, ())
+            total_count = rows[0]["total_count"] if rows else 0
+        else:
+            # Fallback for in-memory mode
+            rows = await db.select("public_scans", limit=limit * 5)
+            total_count = len(await db.select("public_scans"))
         requested_type = (type or ecosystem or "").lower()
         tools: list[dict[str, Any]] = []  # Renamed from items to tools
 

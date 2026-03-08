@@ -167,11 +167,11 @@ class MssqlClient:
 
         try:
             async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                cursor.timeout = 60
-                await cursor.execute(sql, params)
-                rows = await cursor.fetchall()
-                return [self._row_to_dict(cursor, r) for r in rows]
+                async with conn.cursor() as cursor:
+                    cursor.timeout = 60
+                    await cursor.execute(sql, params)
+                    rows = await cursor.fetchall()
+                    return [self._row_to_dict(cursor, r) for r in rows]
         except Exception as e:
             logger.error(f"Raw SQL execution failed: {e}")
             raise
@@ -180,8 +180,20 @@ class MssqlClient:
         self, sql: str, params: tuple = ()
     ) -> dict[str, Any] | None:
         """Execute raw SQL query and return single result."""
-        results = await self.execute_raw_sql(sql, params)
-        return results[0] if results else None
+        if not self._pool:
+            logger.warning("Raw SQL not supported in memory mode")
+            return None
+
+        try:
+            async with self._pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    cursor.timeout = 60
+                    await cursor.execute(sql, params)
+                    row = await cursor.fetchone()
+                    return self._row_to_dict(cursor, row) if row else None
+        except Exception as e:
+            logger.error(f"Raw SQL execution failed: {e}")
+            raise
 
     # ── Generic CRUD ──────────────────────────────────────────────────────────
 
@@ -204,9 +216,9 @@ class MssqlClient:
             values = [self._serialize_value(data[c]) for c in cols]
             sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
             async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                await cursor.execute(sql, tuple(values))
-                await conn.commit()
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, tuple(values))
+                    await conn.commit()
                 # For inserts with triggers, we can't use OUTPUT clause
                 # Return the input data as confirmation since auto-generated fields
                 # would require a separate SELECT which may not be reliable
@@ -268,10 +280,10 @@ class MssqlClient:
             sql = f"SELECT {select_clause} FROM {table} {where} {order}".strip()
 
         async with self._pool.acquire() as conn:
-            cursor = await conn.cursor()
-            await cursor.execute(sql, tuple(vals))
-            rows = await cursor.fetchall()
-            return [self._row_to_dict(cursor, r) for r in rows]
+            async with conn.cursor() as cursor:
+                await cursor.execute(sql, tuple(vals))
+                rows = await cursor.fetchall()
+                return [self._row_to_dict(cursor, r) for r in rows]
 
     async def select_one(
         self, table: str, filters: dict[str, Any]
@@ -310,9 +322,9 @@ class MssqlClient:
 
             sql = f"UPDATE {table} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
             async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                await cursor.execute(sql, tuple(update_values + where_values))
-                await conn.commit()
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, tuple(update_values + where_values))
+                    await conn.commit()
 
             # Return updated record
             return await self.select_one(table, conflict_filters) or data
@@ -345,9 +357,9 @@ class MssqlClient:
             f"WHERE {' AND '.join(where_parts)}"
         )
         async with self._pool.acquire() as conn:
-            cursor = await conn.cursor()
-            await cursor.execute(sql, tuple(vals))
-            await conn.commit()
+            async with conn.cursor() as cursor:
+                await cursor.execute(sql, tuple(vals))
+                await conn.commit()
             # After update, fetch the updated record
             # This works around the trigger/OUTPUT clause limitation
             return await self.select_one(table, filters)
@@ -368,9 +380,9 @@ class MssqlClient:
             vals.append(self._serialize_value(v))
         sql = f"DELETE FROM {table} WHERE {' AND '.join(conditions)}"
         async with self._pool.acquire() as conn:
-            cursor = await conn.cursor()
-            await cursor.execute(sql, tuple(vals))
-            await conn.commit()
+            async with conn.cursor() as cursor:
+                await cursor.execute(sql, tuple(vals))
+                await conn.commit()
 
     # ── Domain Methods ─────────────────────────────────────────────────────────
 
@@ -482,31 +494,31 @@ class MssqlClient:
         # Use connection timeout for performance
         try:
             async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                # Set command timeout to prevent long-running queries
-                cursor.timeout = 60
-                await cursor.execute(update_sql, (user_id, year_month))
-                rows_affected = cursor.rowcount
+                async with conn.cursor() as cursor:
+                    # Set command timeout to prevent long-running queries
+                    cursor.timeout = 60
+                    await cursor.execute(update_sql, (user_id, year_month))
+                    rows_affected = cursor.rowcount
 
-                if rows_affected == 0:
-                    # Record doesn't exist, insert it
-                    insert_sql = """
-                        INSERT INTO scan_usage (user_id, year_month, count) 
-                        VALUES (?, ?, 1)
+                    if rows_affected == 0:
+                        # Record doesn't exist, insert it
+                        insert_sql = """
+                            INSERT INTO scan_usage (user_id, year_month, count) 
+                            VALUES (?, ?, 1)
+                        """
+                        await cursor.execute(insert_sql, (user_id, year_month))
+
+                    await conn.commit()
+
+                    # Fetch the current count
+                    select_sql = """
+                        SELECT count FROM scan_usage 
+                        WHERE user_id = ? AND year_month = ?
                     """
-                    await cursor.execute(insert_sql, (user_id, year_month))
-
-                await conn.commit()
-
-                # Fetch the current count
-                select_sql = """
-                    SELECT count FROM scan_usage 
-                    WHERE user_id = ? AND year_month = ?
-                """
-                await cursor.execute(select_sql, (user_id, year_month))
-                row = await cursor.fetchone()
-                count = row[0] if row else 1
-                return count
+                    await cursor.execute(select_sql, (user_id, year_month))
+                    row = await cursor.fetchone()
+                    count = row[0] if row else 1
+                    return count
         except Exception as e:
             logger.error(f"Failed to increment scan usage: {e}")
             # Return fallback value instead of raising
@@ -539,15 +551,15 @@ class MssqlClient:
             sql = f"EXEC {procedure_name} {param_string}".strip()
 
             async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                await cursor.execute(sql, tuple(param_values))
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, tuple(param_values))
 
-                # Fetch all results
-                rows = await cursor.fetchall()
-                results = [self._row_to_dict(cursor, row) for row in rows]
+                    # Fetch all results
+                    rows = await cursor.fetchall()
+                    results = [self._row_to_dict(cursor, row) for row in rows]
 
-                await conn.commit()
-                return results
+                    await conn.commit()
+                    return results
 
         except Exception as e:
             success = False
