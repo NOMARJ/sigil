@@ -25,7 +25,7 @@
 # ============================================================================
 set -euo pipefail
 
-SIGIL_IGNORE_PATTERNS=()
+declare -a SIGIL_IGNORE_PATTERNS=()
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 QUARANTINE_DIR="${SIGIL_QUARANTINE_DIR:-$HOME/.sigil/quarantine}"
@@ -234,7 +234,7 @@ load_ignore_patterns() {
 # Check if a file path should be ignored
 should_ignore() {
     local filepath="$1"
-    for pattern in "${SIGIL_IGNORE_PATTERNS[@]}"; do
+    for pattern in "${SIGIL_IGNORE_PATTERNS[@]+"${SIGIL_IGNORE_PATTERNS[@]}"}"; do
         # Use bash pattern matching (supports *, ?, **)
         # shellcheck disable=SC2053
         if [[ "$filepath" == $pattern ]] || [[ "$filepath" == */$pattern ]] || [[ "$filepath" == $pattern/* ]]; then
