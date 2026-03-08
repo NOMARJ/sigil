@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
-from database import _memory_cache, db
+from api.database import _memory_cache, db
 
 
 _original_async_client_init = httpx.AsyncClient.__init__

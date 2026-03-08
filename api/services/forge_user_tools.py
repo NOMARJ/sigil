@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

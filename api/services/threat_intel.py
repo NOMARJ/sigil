@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from database import cache, db
-from models import (
+from api.database import cache, db
+from api.models import (
     ScanPhase,
     Severity,
     SignatureEntry,

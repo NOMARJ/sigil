@@ -12,8 +12,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, status
 
-from database import db
-from models import (
+from api.database import db
+from api.models import (
     Verdict,
     VerifyRequest,
     VerifyResponse,

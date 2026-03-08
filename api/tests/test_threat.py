@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from database import db
+from api.database import db
 
 
 class TestThreatLookup:

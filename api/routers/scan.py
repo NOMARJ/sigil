@@ -24,10 +24,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from database import db
-from rate_limit import RateLimiter
-from gates import check_scan_quota, get_user_plan, require_plan
-from models import (
+from api.database import db
+from api.rate_limit import RateLimiter
+from api.gates import check_scan_quota, get_user_plan, require_plan
+from api.models import (
     DashboardStats,
     ErrorResponse,
     GateError,
@@ -45,8 +45,8 @@ from services.threat_intel import (
     update_publisher_from_scan,
 )
 from services.forge_analytics import track_forge_event
-from models import ForgeEventType
-from middleware.tier_check import get_scan_capabilities
+from api.models import ForgeEventType
+from api.middleware.tier_check import get_scan_capabilities
 from scanner.scanner_engine import scanner_engine
 from services.subscription_service import subscription_service
 

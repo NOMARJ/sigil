@@ -27,8 +27,8 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from database import db
-from models import (
+from api.database import db
+from api.models import (
     TrackToolRequest,
     UserResponse,
 )

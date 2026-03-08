@@ -13,8 +13,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from gates import require_plan, get_user_plan
-from models import (
+from api.gates import require_plan, get_user_plan
+from api.models import (
     PlanTier,
     ForgeEventType,
     PersonalAnalyticsRequest,

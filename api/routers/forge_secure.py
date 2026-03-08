@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
-from config import settings
-from database import db
+from api.config import settings
+from api.database import db
 from security.forge_access import (
     AuditAction,
     AuditLogger,

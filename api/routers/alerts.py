@@ -20,9 +20,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from database import db
-from gates import require_plan
-from models import (
+from api.database import db
+from api.gates import require_plan
+from api.models import (
     AlertCreate,
     AlertResponse,
     AlertTestRequest,

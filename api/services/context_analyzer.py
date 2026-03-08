@@ -9,7 +9,7 @@ import hashlib
 import logging
 from typing import Any
 
-from models import Finding
+from api.models import Finding
 from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,

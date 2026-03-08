@@ -33,10 +33,10 @@ from fastapi.security import (
 
 import httpx
 
-from config import settings
-from database import cache, db
-from rate_limit import RateLimiter
-from models import (
+from api.config import settings
+from api.database import cache, db
+from api.rate_limit import RateLimiter
+from api.models import (
     AuthTokens,
     ErrorResponse,
     ForgotPasswordRequest,

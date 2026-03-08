@@ -13,7 +13,7 @@ import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from llm_config import llm_config
-from database import db
+from api.database import db
 from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisResponse,

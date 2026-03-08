@@ -13,7 +13,7 @@ import pytest
 
 from services.prompt_scanner import scan_prompt, quick_scan_prompt
 from services.scanner import scan_content
-from models import Severity
+from api.models import Severity
 
 
 # ---------------------------------------------------------------------------

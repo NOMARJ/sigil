@@ -17,7 +17,7 @@ from datetime import timedelta, date
 from typing import Dict, List, Optional, Tuple, Literal
 from dataclasses import dataclass
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 
