@@ -384,7 +384,9 @@ class TrendingService:
 
                 # Determine trend direction
                 metrics.direction = self._determine_trend_direction(
-                    metrics.downloads_growth, metrics.rank_change, is_new_tool_for_direction
+                    metrics.downloads_growth,
+                    metrics.rank_change,
+                    is_new_tool_for_direction,
                 )
 
             # Performance logging
