@@ -211,7 +211,7 @@ def get_plans_with_feature(feature: ForgeFeature) -> List[str]:
 
 
 async def get_user_subscription_info(user_id: str) -> Dict[str, Any]:
-    """Fetch user's subscription and team information from database."""
+    """Fetch user's subscription and team information from api.database."""
 
     # Get user with team information
     query = """

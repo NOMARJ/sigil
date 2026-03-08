@@ -63,7 +63,7 @@ async def verify_package(request: VerifyRequest) -> VerifyResponse:
 
     # --- 2. Publisher reputation check --------------------------------------
     if request.publisher_id:
-        from services.threat_intel import get_publisher_reputation
+        from api.services.threat_intel import get_publisher_reputation
 
         pub = await get_publisher_reputation(request.publisher_id)
         if pub is not None:

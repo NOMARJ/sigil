@@ -276,13 +276,13 @@ async def scan_skill(skill: ClawHubSkill) -> ClawHubScanResult:
                 return result
 
             # Scan with OpenClaw-specific rules
-            from services.openclaw_rules import scan_openclaw_directory
-            from services.scoring import compute_verdict
+            from api.services.openclaw_rules import scan_openclaw_directory
+            from api.services.scoring import compute_verdict
 
             findings = scan_openclaw_directory(tmpdir)
             score, verdict = compute_verdict(findings)
 
-            from services.scanner import count_scannable_files
+            from api.services.scanner import count_scannable_files
 
             file_count = count_scannable_files(tmpdir)
 

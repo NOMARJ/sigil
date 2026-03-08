@@ -191,7 +191,7 @@ class TestTrendingService:
 
     @pytest.mark.asyncio
     async def test_fetch_tool_metrics(self, trending_service, mock_db_data):
-        """Test tool metrics fetching from database."""
+        """Test tool metrics fetching from api.database."""
         with patch("services.trending_service.db") as mock_db:
             mock_db.execute_raw_sql = AsyncMock(return_value=mock_db_data)
 

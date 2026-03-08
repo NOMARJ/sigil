@@ -493,7 +493,7 @@ class TestClassificationPipelinePerformance:
 
     def test_classification_speed(self, sample_findings: list[dict[str, Any]]):
         """Test classification pipeline processing speed."""
-        from services.scanner_service import ScannerService
+        from api.services.scanner_service import ScannerService
 
         scanner = ScannerService()
 
@@ -526,7 +526,7 @@ class TestClassificationPipelinePerformance:
 
     def test_scoring_algorithm_performance(self, sample_findings: list[dict[str, Any]]):
         """Test scoring algorithm performance."""
-        from services.scanner_service import ScannerService
+        from api.services.scanner_service import ScannerService
 
         scanner = ScannerService()
 

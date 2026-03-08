@@ -82,8 +82,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize analytics and dashboard services
     try:
-        from services.forge_analytics import analytics_service
-        from services.realtime_dashboard import dashboard_service
+        from api.services.forge_analytics import analytics_service
+        from api.services.realtime_dashboard import dashboard_service
 
         await analytics_service.initialize()
         await dashboard_service.initialize()
@@ -1041,7 +1041,7 @@ async def test_email_config() -> dict:
     This endpoint verifies that the email service is properly configured
     and can connect to Resend with the mail.sigilsec.ai domain.
     """
-    from services.email_service import EmailService
+    from api.services.email_service import EmailService
 
     email_service = EmailService()
 

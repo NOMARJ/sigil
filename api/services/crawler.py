@@ -247,8 +247,8 @@ async def _run_sigil_scan(directory: str) -> dict[str, Any] | None:
     """Run the Sigil scanner on a directory and return parsed JSON output."""
     # Use the Python scanner directly if available
     try:
-        from services.scanner import scan_directory, count_scannable_files
-        from services.scoring import compute_verdict
+        from api.services.scanner import scan_directory, count_scannable_files
+        from api.services.scoring import compute_verdict
 
         findings = scan_directory(directory)
         score, verdict = compute_verdict(findings)

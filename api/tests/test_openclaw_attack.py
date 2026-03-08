@@ -356,7 +356,7 @@ def test_openclaw_base64_obfuscation():
 
 def test_openclaw_publisher_metadata():
     """Test detection of suspicious publisher metadata patterns."""
-    from services.prompt_scanner import scan_skill_content
+    from api.services.prompt_scanner import scan_skill_content
 
     # Malicious skill manifest with rapid versioning
     malicious_manifest = """{

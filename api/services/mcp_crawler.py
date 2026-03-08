@@ -372,7 +372,7 @@ async def scan_mcp_server(server: MCPServer) -> MCPScanResult:
     with tempfile.TemporaryDirectory(prefix=f"sigil-mcp-{server.author}-") as tmpdir:
         try:
             # Validate and sanitize clone URL before using
-            from middleware.security import URLValidator, SecurityValidationError
+            from api.middleware.security import URLValidator, SecurityValidationError
 
             try:
                 sanitized_url = URLValidator.sanitize_url(server.clone_url)
@@ -417,13 +417,13 @@ async def scan_mcp_server(server: MCPServer) -> MCPScanResult:
                 return result
 
             # Scan with standard Sigil engine
-            from services.scanner import scan_directory
-            from services.scoring import compute_verdict
+            from api.services.scanner import scan_directory
+            from api.services.scoring import compute_verdict
 
             findings = scan_directory(tmpdir)
             score, verdict = compute_verdict(findings)
 
-            from services.scanner import count_scannable_files
+            from api.services.scanner import count_scannable_files
 
             file_count = count_scannable_files(tmpdir)
 
@@ -456,7 +456,7 @@ async def send_typosquat_alerts(alerts: list[TyposquatAlert]) -> int:
         return 0
 
     try:
-        from services.notifications import send_notification
+        from api.services.notifications import send_notification
         from database import db
 
         # Get active alert channels

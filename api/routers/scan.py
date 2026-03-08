@@ -155,7 +155,7 @@ async def _submit_scan_impl(
     if threat_hits:
         threat_bonus = sum(10.0 for _ in threat_hits)
         risk_score += threat_bonus
-        from services.scoring import score_to_verdict
+        from api.services.scoring import score_to_verdict
 
         verdict = score_to_verdict(risk_score)
 
@@ -419,7 +419,7 @@ async def submit_enhanced_scan(
             ]
 
             # Recalculate risk score with LLM findings
-            from services.scoring import compute_verdict
+            from api.services.scoring import compute_verdict
 
             enhanced_risk_score, enhanced_verdict = compute_verdict(all_findings)
 

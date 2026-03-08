@@ -80,7 +80,7 @@ class MCPWatchdogScheduler:
             task.cancel()
 
     async def _load_config(self) -> dict:
-        """Load configuration from database."""
+        """Load configuration from api.database."""
         try:
             from database import db
 
@@ -212,7 +212,7 @@ class MCPWatchdogScheduler:
 
     async def _run_discovery(self):
         """Run MCP server discovery."""
-        from services.mcp_crawler import (
+        from api.services.mcp_crawler import (
             discover_mcp_servers,
             store_mcp_results,
             scan_mcp_server,
@@ -277,7 +277,7 @@ class MCPWatchdogScheduler:
 
     async def _run_typosquat_check(self):
         """Run typosquat detection and send alerts."""
-        from services.mcp_crawler import (
+        from api.services.mcp_crawler import (
             detect_typosquats,
             send_typosquat_alerts,
             store_typosquat_alerts,
@@ -296,7 +296,7 @@ class MCPWatchdogScheduler:
             return 0
 
         # Convert to MCPServer objects for detection
-        from services.mcp_crawler import MCPServer
+        from api.services.mcp_crawler import MCPServer
 
         servers = []
         for server_data in servers_data:
