@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import hashlib
+import sys
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -23,6 +24,8 @@ from services.forge_matcher import forge_matcher
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])
+
+sys.modules.setdefault("api.routers.forge", sys.modules[__name__])
 
 
 # ============================================================================
