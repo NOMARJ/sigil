@@ -11,7 +11,7 @@ import logging
 from fastapi import APIRouter, status
 
 from api.models import ThreatReport, ThreatReportResponse
-from services.threat_intel import submit_report
+from api.services.threat_intel import submit_report
 
 logger = logging.getLogger(__name__)
 

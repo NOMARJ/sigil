@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 
 from api.models import PlanTier
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.subscription_service import subscription_service, pro_feature_gate
+from api.services.subscription_service import subscription_service, pro_feature_gate
 
 
 logger = logging.getLogger(__name__)

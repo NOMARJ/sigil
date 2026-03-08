@@ -14,7 +14,7 @@ from pathlib import Path
 # Add the parent directory to the path so we can import from api
 sys.path.append(str(Path(__file__).parent.parent))
 
-from services.email_service import email_service
+from api.services.email_service import email_service
 from models import EmailCampaignRequest
 from database import get_database_client
 

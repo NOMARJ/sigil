@@ -30,7 +30,7 @@ sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
 from config import settings
 from database import db
-from services.forge_classifier import (
+from api.services.forge_classifier import (
     forge_classifier,
     ClassificationInput,
     Finding,

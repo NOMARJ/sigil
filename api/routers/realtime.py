@@ -24,11 +24,11 @@ from pydantic import BaseModel
 from api.gates import get_user_plan, require_plan
 from api.models import PlanTier
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.realtime_dashboard import (
+from api.services.realtime_dashboard import (
     dashboard_service,
     send_security_notification,
 )
-from services.forge_analytics import track_forge_event, ForgeEventType
+from api.services.forge_analytics import track_forge_event, ForgeEventType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time Updates"])

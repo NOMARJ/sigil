@@ -34,7 +34,7 @@ from api.models import (
     PlanTier,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.notifications import send_notification
+from api.services.notifications import send_notification
 
 logger = logging.getLogger(__name__)
 

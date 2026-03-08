@@ -21,8 +21,8 @@ sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
 
 from database import db
 from models import Finding, ScanPhase, Severity
-from services.forge_classifier import forge_classifier, ClassificationInput
-from services.forge_matcher import forge_matcher
+from api.services.forge_classifier import forge_classifier, ClassificationInput
+from api.services.forge_matcher import forge_matcher
 
 # Demo data
 DEMO_PACKAGES = [

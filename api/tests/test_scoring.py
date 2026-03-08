@@ -9,7 +9,7 @@ from __future__ import annotations
 
 
 from api.models import Finding, ScanPhase, Severity, Verdict
-from services.scoring import (
+from api.services.scoring import (
     PHASE_WEIGHTS,
     SEVERITY_SCORES,
     aggregate_score,

@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 from dataclasses import asdict
 
-from services.trending_service import TrendingService, TrendingMetrics
+from api.services.trending_service import TrendingService, TrendingMetrics
 
 
 class TestTrendingService:

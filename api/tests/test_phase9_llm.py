@@ -23,7 +23,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from services.llm_service import llm_service, LLMService, RateLimiter
+from api.services.llm_service import llm_service, LLMService, RateLimiter
 from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisResponse,

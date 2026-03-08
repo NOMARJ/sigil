@@ -8,12 +8,12 @@ import asyncio
 import pytest
 
 from api.models import Finding, ScanPhase, Severity
-from services.forge_classifier import (
+from api.services.forge_classifier import (
     ForgeClassifier,
     ClassificationInput,
     ClassificationResult,
 )
-from services.forge_matcher import ForgeMatcher
+from api.services.forge_matcher import ForgeMatcher
 
 
 class TestForgeClassifier:

@@ -30,7 +30,7 @@ from api.middleware.tier_check import (
     check_llm_analysis_access,
     get_scan_capabilities,
 )
-from services.subscription_service import subscription_service, pro_feature_gate
+from api.services.subscription_service import subscription_service, pro_feature_gate
 
 
 class TestTierGatingMiddleware:

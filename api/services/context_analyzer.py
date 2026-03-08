@@ -14,7 +14,7 @@ from llm_models import (
     LLMAnalysisRequest,
     LLMAnalysisType,
 )
-from services.llm_service import llm_service
+from api.services.llm_service import llm_service
 
 
 logger = logging.getLogger(__name__)

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Iterator
 
 from api.models import Finding, ScanPhase, Severity
-from services.explanations import get_explanation
+from api.services.explanations import get_explanation
 
 
 # ---------------------------------------------------------------------------

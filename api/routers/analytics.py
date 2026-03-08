@@ -23,7 +23,7 @@ from usage_metrics import (
     ThreatTrendAnalysis,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
-from services.analytics_service import analytics_service
+from api.services.analytics_service import analytics_service
 
 
 logger = logging.getLogger(__name__)

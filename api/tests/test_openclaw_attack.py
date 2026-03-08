@@ -11,8 +11,8 @@ Attack Vector: Social engineering in skill documentation + malicious binaries
 
 import pytest
 
-from services.prompt_scanner import scan_prompt, quick_scan_prompt
-from services.scanner import scan_content
+from api.services.prompt_scanner import scan_prompt, quick_scan_prompt
+from api.services.scanner import scan_content
 from api.models import Severity
 
 

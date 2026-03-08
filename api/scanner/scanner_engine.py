@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from models import Finding
-from services.scanner import scan_directory, scan_content
+from api.services.scanner import scan_directory, scan_content
 from scanner.phase9_llm_detector import phase9_detector
 
 
