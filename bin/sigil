@@ -108,11 +108,9 @@ check_user_tier() {
     fi
     
     local response
-    response=$(curl -sf -H "Authorization: Bearer $token" \
+    if response=$(curl -sf -H "Authorization: Bearer $token" \
                     -H "Content-Type: application/json" \
-                    "$API_BASE_URL/v1/auth/verify" 2>/dev/null)
-    
-    if [ $? -eq 0 ] && [ -n "$response" ]; then
+                    "$API_BASE_URL/v1/auth/verify" 2>/dev/null) && [ -n "$response" ]; then
         local tier=""
         if check_tool "jq"; then
             tier=$(echo "$response" | jq -r '.tier // "free"' 2>/dev/null)
