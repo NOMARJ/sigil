@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar
 
-from errors import CircuitBreakerOpenError, error_tracker
+from api.errors import CircuitBreakerOpenError, error_tracker
 
 logger = logging.getLogger(__name__)
 

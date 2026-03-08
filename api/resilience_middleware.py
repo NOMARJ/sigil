@@ -19,8 +19,8 @@ from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from circuit_breakers import CircuitBreakerOpenError
-from errors import (
+from api.circuit_breakers import CircuitBreakerOpenError
+from api.errors import (
     AuthenticationError,
     AuthorizationError,
     ConflictError,
@@ -33,7 +33,7 @@ from errors import (
     ValidationError,
     error_tracker,
 )
-from graceful_degradation import (
+from api.graceful_degradation import (
     DegradationLevel,
     dependency_tracker,
     degradation_middleware,
