@@ -47,7 +47,7 @@ from api.services.threat_intel import (
 from api.services.forge_analytics import track_forge_event
 from api.models import ForgeEventType
 from api.middleware.tier_check import get_scan_capabilities
-from scanner.scanner_engine import scanner_engine
+from api.scanner.scanner_engine import scanner_engine
 from api.services.subscription_service import subscription_service
 
 logger = logging.getLogger(__name__)
