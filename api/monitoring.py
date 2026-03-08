@@ -15,6 +15,8 @@ import smtplib
 import time
 import traceback
 import uuid
+import sys
+import types
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -35,19 +37,19 @@ from errors import (
 
 logger = logging.getLogger(__name__)
 
+_alerting_mod_name = "api.monitoring.alerting"
+if _alerting_mod_name not in sys.modules:
+    _m = types.ModuleType(_alerting_mod_name)
+    _m.settings = settings
+    sys.modules[_alerting_mod_name] = _m
+
 
 def _get_alerting_settings():
-    try:
-        from api.monitoring.alerting import settings as alerting_settings
+    mod = sys.modules.get(_alerting_mod_name)
+    if mod is not None and getattr(mod, "settings", None) is not None:
+        return mod.settings
 
-        return alerting_settings
-    except Exception:
-        try:
-            from monitoring.alerting import settings as alerting_settings
-
-            return alerting_settings
-        except Exception:
-            return settings
+    return settings
 
 
 # Compatibility namespace used by tests that patch "api.monitoring.alerting.settings"
