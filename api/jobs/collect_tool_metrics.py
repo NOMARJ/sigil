@@ -199,7 +199,7 @@ class ToolMetricsCollector:
                     FROM forge_tools 
                     WHERE status = 'active'
                     ORDER BY tool_id
-                """, [])
+                """, ())
 
                 return [dict(row) for row in tools] if tools else []
 
@@ -339,15 +339,17 @@ class ToolMetricsCollector:
                         VALUES (source.tool_id, source.date, source.downloads, source.stars, 
                                source.version, source.forks, source.issues_open, source.issues_closed, source.trust_score);
                 """,
-                    metrics.tool_id,
-                    metrics.date,
-                    metrics.downloads,
-                    metrics.stars,
-                    metrics.version,
-                    metrics.forks,
-                    metrics.issues_open,
-                    metrics.issues_closed,
-                    metrics.trust_score,
+                    (
+                        metrics.tool_id,
+                        metrics.date,
+                        metrics.downloads,
+                        metrics.stars,
+                        metrics.version,
+                        metrics.forks,
+                        metrics.issues_open,
+                        metrics.issues_closed,
+                        metrics.trust_score,
+                    )
                 )
 
                 self.logger.info(

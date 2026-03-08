@@ -164,7 +164,7 @@ class TrendingCacheService:
             serialized_data = self._serialize_trending_data(trending_data)
             cache_ttl = ttl if ttl is not None else self.DEFAULT_TTL
 
-            await cache.set(cache_key, serialized_data, ttl=cache_ttl)
+            await cache.set(cache_key, serialized_data, cache_ttl)
 
             self.logger.info(
                 f"Cached trending data: {cache_key} ({len(trending_data)} tools, TTL={cache_ttl}s)"
@@ -192,14 +192,13 @@ class TrendingCacheService:
     ) -> None:
         """Store trending data in database cache table for persistence."""
         try:
-            from database import db
 
             # Calculate expiration time
             expires_at = datetime.utcnow() + timedelta(seconds=ttl)
 
             # Store each tool's trending data
             for metrics in trending_data:
-                await db.execute(
+                await db.execute_raw_sql(
                     """
                     MERGE forge_trending_cache AS target
                     USING (VALUES (
@@ -248,6 +247,7 @@ class TrendingCacheService:
                             source.trust_score_current, source.cache_key, source.expires_at
                         );
                 """,
+                    (
                     metrics.tool_id,
                     timeframe,
                     ecosystem,
@@ -269,7 +269,7 @@ class TrendingCacheService:
                     expires_at,
                     datetime.utcnow(),
                     datetime.utcnow(),
-                )
+                ))
 
             self.logger.debug(
                 f"Stored {len(trending_data)} trending entries in database cache"
@@ -317,12 +317,11 @@ class TrendingCacheService:
                     )
 
             # Also clean up database cache
-            from database import db
 
             if timeframe is None and ecosystem is None and category is None:
                 # Delete all expired entries
-                await db.execute(
-                    "DELETE FROM forge_trending_cache WHERE expires_at < GETUTCDATE()"
+                await db.execute_raw_sql(
+                    "DELETE FROM forge_trending_cache WHERE expires_at < GETUTCDATE()", []
                 )
             else:
                 # Delete specific entries
@@ -356,10 +355,9 @@ class TrendingCacheService:
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
         try:
-            from database import db
 
             # Get database cache stats
-            db_stats = await db.fetchrow("""
+            db_stats = await db.execute_raw_sql_single("""
                 SELECT 
                     COUNT(*) as total_entries,
                     COUNT(CASE WHEN expires_at > GETUTCDATE() THEN 1 END) as active_entries,
@@ -367,7 +365,7 @@ class TrendingCacheService:
                     MIN(created_at) as oldest_entry,
                     MAX(created_at) as newest_entry
                 FROM forge_trending_cache
-            """)
+            """, ())
 
             return {
                 "database_cache": dict(db_stats) if db_stats else {},

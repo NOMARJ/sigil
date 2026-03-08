@@ -179,7 +179,7 @@ class TrendingService:
                 LIMIT {limit}
                 """
 
-                rows = await db.execute_raw_sql(query, params)
+                rows = await db.execute_raw_sql(query, tuple(params))
                 return [dict(row) for row in rows] if rows else []
 
         except Exception as e:
@@ -267,7 +267,7 @@ class TrendingService:
                 ORDER BY created_at DESC
                 """
 
-                rows = await db.execute_raw_sql(query, [cache_key_pattern])
+                rows = await db.execute_raw_sql(query, (cache_key_pattern,))
                 return (
                     {row["tool_id"]: row["rank_position"] for row in rows}
                     if rows

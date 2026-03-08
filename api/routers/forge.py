@@ -22,15 +22,18 @@ from pydantic import BaseModel, Field
 
 from database import db
 from services.forge_matcher import forge_matcher
-from services.trending_service import TrendingService, TrendingMetrics, TimeFrame
+from services.trending_service import TrendingService, TrendingMetrics
+from typing import Literal
+
+TimeFrame = Literal["24h", "7d", "30d"]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["Sigil Forge"])
 
-sys.modules.setdefault("api.routers.forge", sys.modules[__name__])
-
 # Initialize trending service
 trending_service = TrendingService()
+
+sys.modules.setdefault("api.routers.forge", sys.modules[__name__])
 
 
 # ============================================================================
