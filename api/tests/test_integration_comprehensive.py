@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from database import db
+from api.database import db
 
 
 class TestAuthenticationIntegration:

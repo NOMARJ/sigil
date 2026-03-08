@@ -21,8 +21,8 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
-from gates import get_user_plan, require_plan
-from models import PlanTier
+from api.gates import get_user_plan, require_plan
+from api.models import PlanTier
 from routers.auth import get_current_user_unified, UserResponse
 from services.realtime_dashboard import (
     dashboard_service,

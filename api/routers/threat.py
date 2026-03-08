@@ -20,8 +20,8 @@ from typing_extensions import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from gates import require_plan
-from models import (
+from api.gates import require_plan
+from api.models import (
     ErrorResponse,
     GateError,
     PlanTier,

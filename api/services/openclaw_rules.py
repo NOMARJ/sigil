@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
-from models import Finding, ScanPhase, Severity
+from api.models import Finding, ScanPhase, Severity
 
 
 # ---------------------------------------------------------------------------

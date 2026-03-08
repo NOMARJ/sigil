@@ -21,7 +21,7 @@ import os
 import time
 
 from fastapi import HTTPException, Request, status
-from middleware.security import SecurityHeaders
+from api.middleware.security import SecurityHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 

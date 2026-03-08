@@ -21,7 +21,7 @@ from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 from services.subscription_service import subscription_service
-from database import db
+from api.database import db
 
 
 class TestStripeCheckoutFlow:

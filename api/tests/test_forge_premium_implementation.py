@@ -17,7 +17,7 @@ from uuid import uuid4
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from database import db
+from api.database import db
 
 
 class TestForgeToolTracking:

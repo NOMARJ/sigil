@@ -22,7 +22,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from database import db
+from api.database import db
 
 logger = logging.getLogger(__name__)
 

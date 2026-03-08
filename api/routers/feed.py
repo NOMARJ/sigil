@@ -23,7 +23,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, HTTPException, status
 from fastapi.responses import Response
-from middleware.security import InputSanitizer, SecurityValidationError
+from api.middleware.security import InputSanitizer, SecurityValidationError
 
 logger = logging.getLogger(__name__)
 

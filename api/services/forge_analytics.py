@@ -15,8 +15,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 import redis.asyncio as aioredis
 
-from database import db
-from models import (
+from api.database import db
+from api.models import (
     ForgeAnalyticsEvent,
     ForgeEventType,
     PersonalAnalyticsResponse,

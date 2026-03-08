@@ -20,9 +20,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from config import settings
-from database import db
-from models import Finding, ScanPhase, Severity
+from api.config import settings
+from api.database import db
+from api.models import Finding, ScanPhase, Severity
 
 logger = logging.getLogger(__name__)
 

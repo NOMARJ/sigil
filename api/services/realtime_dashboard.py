@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 import redis.asyncio as aioredis
 
-from database import db
+from api.database import db
 from services.forge_analytics import analytics_service
 
 logger = logging.getLogger(__name__)

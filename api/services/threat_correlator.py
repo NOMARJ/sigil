@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-from models import Finding
+from api.models import Finding
 from llm_models import LLMInsight
 
 

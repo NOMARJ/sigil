@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 import aiohttp
 from jinja2 import Environment, FileSystemLoader
 
-from database import db
-from models import (
+from api.database import db
+from api.models import (
     EmailCampaignRequest,
     EmailCampaignResponse,
     EmailSubscriptionRequest,
@@ -24,7 +24,7 @@ from models import (
     UnsubscribeResponse,
     WeeklyDigestContent,
 )
-from config import settings
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 

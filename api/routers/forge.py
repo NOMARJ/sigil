@@ -20,7 +20,7 @@ from typing import Any, Literal, Optional, List
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-from database import db
+from api.database import db
 from services.forge_matcher import forge_matcher
 from services.trending_service import TrendingService, TrendingMetrics
 

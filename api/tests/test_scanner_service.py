@@ -15,7 +15,7 @@ from services.scanner import (
     scan_content,
     _scan_filename,
 )
-from models import ScanPhase, Severity
+from api.models import ScanPhase, Severity
 
 
 class TestInstallHookDetection:
