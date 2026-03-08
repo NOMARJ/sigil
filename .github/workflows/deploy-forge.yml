@@ -392,14 +392,14 @@ jobs:
             exit 1
           fi
           
-          # Check Forge endpoints
-          if ! curl -f "https://api.sigilsec.ai/api/forge/categories"; then
+          # Check Forge endpoints (router is mounted at /forge/*, not /api/forge/*)
+          if ! curl -f "https://api.sigilsec.ai/forge/categories"; then
             echo "ERROR: Forge categories endpoint failed"
             exit 1
           fi
-          
-          if ! curl -f "https://api.sigilsec.ai/api/forge/stats"; then
-            echo "ERROR: Forge stats endpoint failed"  
+
+          if ! curl -f "https://api.sigilsec.ai/forge/stats"; then
+            echo "ERROR: Forge stats endpoint failed"
             exit 1
           fi
           
@@ -421,19 +421,19 @@ jobs:
         run: |
           echo "Testing Forge functionality..."
           
-          # Test search endpoint with sample query
-          SEARCH_RESULT=$(curl -s "https://api.sigilsec.ai/api/forge/search?q=database&limit=1")
-          
-          if ! echo "$SEARCH_RESULT" | grep -q '\[' ; then
+          # Test search endpoint with sample query (response is {"tools":[...], "total":N})
+          SEARCH_RESULT=$(curl -s "https://api.sigilsec.ai/forge/search?q=database&limit=1")
+
+          if ! echo "$SEARCH_RESULT" | grep -q '"tools"'; then
             echo "ERROR: Search endpoint returned invalid JSON"
             echo "Response: $SEARCH_RESULT"
             exit 1
           fi
-          
-          # Test categories endpoint
-          CATEGORIES_RESULT=$(curl -s "https://api.sigilsec.ai/api/forge/categories")
-          
-          if ! echo "$CATEGORIES_RESULT" | grep -q 'database\|api\|code'; then
+
+          # Test categories endpoint (response is {"data":{"categories":[...]}})
+          CATEGORIES_RESULT=$(curl -s "https://api.sigilsec.ai/forge/categories")
+
+          if ! echo "$CATEGORIES_RESULT" | grep -q 'database\|api\|code\|categories'; then
             echo "ERROR: Categories endpoint missing expected categories"
             echo "Response: $CATEGORIES_RESULT"
             exit 1
@@ -507,14 +507,14 @@ jobs:
           echo "Deploy time: $(date)"
           echo ""
           echo "🔗 Services:"
-          echo "   - Forge API: https://api.sigilsec.ai/api/forge/"
+          echo "   - Forge API: https://api.sigilsec.ai/forge/"
           echo "   - Forge Web: https://forge.sigilsec.ai"
           echo "   - API Docs: https://api.sigilsec.ai/docs"
           echo ""
           echo "📊 Quick checks:"
-          echo "   - Search: curl https://api.sigilsec.ai/api/forge/search?q=database"
-          echo "   - Categories: curl https://api.sigilsec.ai/api/forge/categories"
-          echo "   - Stats: curl https://api.sigilsec.ai/api/forge/stats"
+          echo "   - Search: curl https://api.sigilsec.ai/forge/search?q=database"
+          echo "   - Categories: curl https://api.sigilsec.ai/forge/categories"
+          echo "   - Stats: curl https://api.sigilsec.ai/forge/stats"
           
       - name: Update deployment status
         run: |
