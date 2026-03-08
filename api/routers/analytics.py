@@ -16,7 +16,7 @@ from typing_extensions import Annotated
 
 from api.middleware.tier_check import require_pro_tier, get_user_tier
 from api.models import PlanTier
-from usage_metrics import (
+from api.usage_metrics import (
     DailyUsageReport,
     ChurnRiskMetrics,
     UserUsageStats,
