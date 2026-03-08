@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, List, Optional, Set, Type, TypeVar
 
-from errors import (
+from api.errors import (
     ErrorCategory,
     SigilError,
     TimeoutError,

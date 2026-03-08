@@ -16,16 +16,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, TypeVar
 
-from circuit_breakers import CircuitBreaker, CircuitBreakerConfig
+from api.circuit_breakers import CircuitBreaker, CircuitBreakerConfig
 from api.config import settings
 from api.database import cache, db
-from errors import (
+from api.errors import (
     DatabaseError,
     ErrorSeverity,
     SigilError,
     error_tracker,
 )
-from retry import DATABASE_RETRY_CONFIG, retry_with_backoff
+from api.retry import DATABASE_RETRY_CONFIG, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 

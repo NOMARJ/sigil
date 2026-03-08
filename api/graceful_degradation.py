@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Optional, TypeVar
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
-from circuit_breakers import circuit_registry
+from api.circuit_breakers import circuit_registry
 
 logger = logging.getLogger(__name__)
 

@@ -31,7 +31,7 @@ import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.config import settings
-from errors import (
+from api.errors import (
     error_tracker,
 )
 
