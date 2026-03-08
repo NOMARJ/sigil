@@ -445,7 +445,7 @@ class TrendingService:
     ) -> Optional[List[TrendingMetrics]]:
         """Fetch trending data from cache."""
         try:
-            from services.trending_cache import trending_cache_service
+            from api.services.trending_cache import trending_cache_service
 
             # Calculate page based on limit (assuming 20 items per page)
             page = 1  # For simplicity, always use page 1 for now
@@ -473,7 +473,7 @@ class TrendingService:
     ) -> bool:
         """Store trending data to cache."""
         try:
-            from services.trending_cache import trending_cache_service
+            from api.services.trending_cache import trending_cache_service
 
             # Calculate page based on data (assuming 20 items per page)
             page = 1  # For simplicity, always use page 1 for now
@@ -496,7 +496,7 @@ class TrendingService:
     ) -> bool:
         """Invalidate cached trending data."""
         try:
-            from services.trending_cache import trending_cache_service
+            from api.services.trending_cache import trending_cache_service
 
             return await trending_cache_service.invalidate_trending_cache(
                 timeframe, ecosystem, category

@@ -34,7 +34,7 @@ from api.models import (
 )
 from api.routers.auth import get_current_user_unified
 from api.routers.forge_premium import router as forge_router
-from security.forge_access import (
+from api.security.forge_access import (
     AuditAction,
     AuditLogger,
     DataAccessFilter,
@@ -541,7 +541,7 @@ class TestRateLimitingSecurity:
     async def test_rate_limits_enforced_per_plan(self):
         """Verify rate limits are properly enforced for each plan."""
 
-        from security.forge_access import apply_rate_limit
+        from api.security.forge_access import apply_rate_limit
         from fastapi import Request
 
         plans_and_limits = [
@@ -609,7 +609,7 @@ class TestRateLimitingSecurity:
 
                 # Should still be rate limited despite bypass attempts
                 with pytest.raises(HTTPException) as exc:
-                    from security.forge_access import apply_rate_limit
+                    from api.security.forge_access import apply_rate_limit
 
                     await apply_rate_limit(mock_request, user)
 
@@ -713,7 +713,7 @@ class TestSecurityHeaders:
     async def test_security_headers_present(self):
         """Verify all security headers are properly set."""
 
-        from security.forge_access import add_security_headers
+        from api.security.forge_access import add_security_headers
         from fastapi import Response
 
         mock_request = MagicMock()
@@ -825,7 +825,7 @@ class TestPenetrationScenarios:
             mock_get.return_value = 1000  # Way over FREE limit of 100
 
             with pytest.raises(HTTPException) as exc:
-                from security.forge_access import apply_rate_limit
+                from api.security.forge_access import apply_rate_limit
 
                 await apply_rate_limit(mock_request, user)
 

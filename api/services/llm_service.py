@@ -339,7 +339,7 @@ class LLMService:
         """Track analytics for LLM analysis usage."""
         try:
             # Lazy import to avoid circular imports
-            from services.analytics_service import analytics_service
+            from api.services.analytics_service import analytics_service
 
             # Convert insights to dict format for analytics
             insights_data = [

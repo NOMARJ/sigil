@@ -273,7 +273,7 @@ def scan_openclaw_directory(directory: str) -> list[Finding]:
     """
     from pathlib import Path
 
-    from services.scanner import scan_directory as sigil_scan_directory
+    from api.services.scanner import scan_directory as sigil_scan_directory
 
     root = Path(directory)
     all_findings: list[Finding] = []

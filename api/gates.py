@@ -129,7 +129,7 @@ def require_plan(minimum_tier: PlanTier):
     Uses the unified auth function to support both Supabase Auth and custom JWT
     without dependency injection conflicts.
     """
-    from routers.auth import get_current_user_unified, UserResponse
+    from api.routers.auth import get_current_user_unified, UserResponse
 
     async def _gate(
         current_user: UserResponse = Depends(get_current_user_unified),

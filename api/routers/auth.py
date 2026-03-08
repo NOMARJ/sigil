@@ -800,7 +800,7 @@ async def logout(
 
 async def _send_reset_email(email: str, reset_link: str) -> None:
     """Send a password reset email via the notifications service."""
-    from services.notifications import send_email_notification
+    from api.services.notifications import send_email_notification
 
     await send_email_notification(
         recipients=[email],

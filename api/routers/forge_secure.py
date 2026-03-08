@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from api.config import settings
 from api.database import db
-from security.forge_access import (
+from api.security.forge_access import (
     AuditAction,
     AuditLogger,
     ForgeFeature,

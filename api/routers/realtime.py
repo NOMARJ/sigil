@@ -242,7 +242,7 @@ async def invalidate_caches(
         results = {}
 
         if "analytics" in cache_types or "personal" in cache_types:
-            from services.forge_analytics import analytics_service
+            from api.services.forge_analytics import analytics_service
 
             await analytics_service.invalidate_user_cache(current_user.id)
             results["personal_analytics"] = "invalidated"

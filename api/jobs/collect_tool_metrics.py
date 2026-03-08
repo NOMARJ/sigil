@@ -189,7 +189,7 @@ class ToolMetricsCollector:
         self.logger = logging.getLogger(__name__)
 
     async def get_tools_from_database(self) -> List[Dict[str, str]]:
-        """Fetch list of tools to collect metrics for from database."""
+        """Fetch list of tools to collect metrics for from api.database."""
         try:
             # Use the global db client
             # Assuming we have a tools table or can derive from existing data

@@ -424,7 +424,7 @@ class TestLLMServiceFailures:
     @pytest.mark.asyncio
     async def test_llm_rate_limiting(self):
         """Test LLM service rate limiting behavior"""
-        from services.llm_service import RateLimiter
+        from api.services.llm_service import RateLimiter
 
         # Test rate limiter with low limit
         rate_limiter = RateLimiter(requests_per_minute=2)
