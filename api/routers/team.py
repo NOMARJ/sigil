@@ -32,7 +32,7 @@ from api.models import (
     TeamMember,
     TeamResponse,
 )
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 
 logger = logging.getLogger(__name__)
 

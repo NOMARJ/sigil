@@ -32,8 +32,8 @@ from api.models import (
     TrackToolRequest,
     UserResponse,
 )
-from routers.auth import get_current_user_unified
-from routers.forge_premium import router as forge_router
+from api.routers.auth import get_current_user_unified
+from api.routers.forge_premium import router as forge_router
 from security.forge_access import (
     AuditAction,
     AuditLogger,

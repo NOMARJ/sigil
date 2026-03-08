@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from api.gates import get_user_plan, require_plan
 from api.models import PlanTier
-from routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import get_current_user_unified, UserResponse
 from services.realtime_dashboard import (
     dashboard_service,
     send_security_notification,

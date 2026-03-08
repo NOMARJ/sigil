@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 from typing import Any, Dict, List
 
-from models import PlanTier, LLMAnalysisRequest, LLMAnalysisType
+from api.models import PlanTier, LLMAnalysisRequest, LLMAnalysisType
 
 
 # User Fixtures
