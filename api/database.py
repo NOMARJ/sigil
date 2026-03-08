@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from api.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
