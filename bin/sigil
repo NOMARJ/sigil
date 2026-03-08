@@ -25,6 +25,8 @@
 # ============================================================================
 set -euo pipefail
 
+SIGIL_IGNORE_PATTERNS=()
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 QUARANTINE_DIR="${SIGIL_QUARANTINE_DIR:-$HOME/.sigil/quarantine}"
 APPROVED_DIR="${SIGIL_APPROVED_DIR:-$HOME/.sigil/approved}"
@@ -1013,7 +1015,7 @@ cmd_scan() {
     local q_id; q_id=$(qid "$(basename "$target")")
     if [[ "$target" != "$QUARANTINE_DIR"* ]]; then
         local quarantine_copy="$QUARANTINE_DIR/$q_id"
-        cp -r "$target" "$quarantine_copy"
+        cp -R -P "$target" "$quarantine_copy"
         target="$quarantine_copy"
         log "Copied to quarantine: $quarantine_copy"
     fi
