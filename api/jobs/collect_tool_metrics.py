@@ -9,9 +9,8 @@ Designed to be run by a cron job every 6 hours.
 import asyncio
 import logging
 import sys
-import json
 import httpx
-from datetime import datetime, timedelta, date
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass

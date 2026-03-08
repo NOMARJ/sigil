@@ -6,11 +6,11 @@ and performance requirements.
 """
 
 import pytest
-import asyncio
 from datetime import date, datetime, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
+from dataclasses import asdict
 
-from trending_service import TrendingService, TrendingMetrics, TimeFrame
+from trending_service import TrendingService, TrendingMetrics
 
 
 class TestTrendingService:
