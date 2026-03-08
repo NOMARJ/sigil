@@ -17,8 +17,8 @@ from enum import Enum
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, TypeVar
 
 from circuit_breakers import CircuitBreaker, CircuitBreakerConfig
-from config import settings
-from database import cache, db
+from api.config import settings
+from api.database import cache, db
 from errors import (
     DatabaseError,
     ErrorSeverity,

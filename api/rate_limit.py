@@ -25,7 +25,7 @@ from api.middleware.security import SecurityHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from database import cache
+from api.database import cache
 
 logger = logging.getLogger(__name__)
 

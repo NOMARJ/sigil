@@ -39,7 +39,7 @@ from graceful_degradation import (
     degradation_middleware,
     update_service_health_from_circuit_breakers,
 )
-from monitoring import (
+from api.monitoring import (
     AlertLevel,
     alert_manager,
     metrics_collector,
