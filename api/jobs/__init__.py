@@ -8,10 +8,7 @@ Jobs are designed to be executed by external cron or task schedulers.
 from .email_jobs import EmailJobRunner
 from .collect_tool_metrics import ToolMetricsCollector
 
-__all__ = [
-    "EmailJobRunner", 
-    "ToolMetricsCollector"
-]
+__all__ = ["EmailJobRunner", "ToolMetricsCollector"]
 
 # Job registry for scheduled execution
 JOB_REGISTRY = {
