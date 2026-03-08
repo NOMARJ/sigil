@@ -381,9 +381,17 @@ class TrendingService:
                 else:
                     metrics.rank_change = 0
 
+                # Re-check if tool is new for this specific tool (created within timeframe)
+                # We need to recalculate this per tool, not use the last value from the previous loop
+                is_new_tool_for_direction = False
+                # Since we don't have created_at in metrics, we'll base it on whether
+                # the tool had previous downloads (new tools typically start from 0)
+                if metrics.previous_downloads == 0 and metrics.current_downloads > 0:
+                    is_new_tool_for_direction = True
+
                 # Determine trend direction
                 metrics.direction = self._determine_trend_direction(
-                    metrics.downloads_growth, metrics.rank_change, is_new_tool
+                    metrics.downloads_growth, metrics.rank_change, is_new_tool_for_direction
                 )
 
             # Performance logging
