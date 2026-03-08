@@ -19,8 +19,8 @@ import logging
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from database import db
-from models import ScanPhase, Severity
+from api.database import db
+from api.models import ScanPhase, Severity
 
 logger = logging.getLogger(__name__)
 

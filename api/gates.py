@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
 
-from models import PlanTier
+from api.models import PlanTier
 
 logger = logging.getLogger(__name__)
 

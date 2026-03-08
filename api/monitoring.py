@@ -30,7 +30,7 @@ from fastapi import Request, Response
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from config import settings
+from api.config import settings
 from errors import (
     error_tracker,
 )
