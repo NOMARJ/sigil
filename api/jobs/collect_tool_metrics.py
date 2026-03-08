@@ -18,7 +18,7 @@ from dataclasses import dataclass
 # Add the parent directory to the path so we can import from api
 sys.path.append(str(Path(__file__).parent.parent))
 
-from database import get_database_client
+from database import db
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -191,15 +191,15 @@ class ToolMetricsCollector:
     async def get_tools_from_database(self) -> List[Dict[str, str]]:
         """Fetch list of tools to collect metrics for from database."""
         try:
-            async with get_database_client() as db:
+            # Use the global db client
                 # Assuming we have a tools table or can derive from existing data
                 # This would need to match your existing forge schema
-                tools = await db.fetch("""
+                tools = await db.execute_raw_sql("""
                     SELECT DISTINCT tool_id, ecosystem, repository_url, package_name
                     FROM forge_tools 
                     WHERE status = 'active'
                     ORDER BY tool_id
-                """)
+                """, [])
 
                 return [dict(row) for row in tools] if tools else []
 
@@ -317,8 +317,8 @@ class ToolMetricsCollector:
     async def store_metrics(self, metrics: ToolMetrics) -> bool:
         """Store metrics in database."""
         try:
-            async with get_database_client() as db:
-                await db.execute(
+            # Use the global db client
+                await db.execute_raw_sql(
                     """
                     MERGE forge_tool_metrics AS target
                     USING (VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)) AS source 

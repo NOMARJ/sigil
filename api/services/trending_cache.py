@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from database import cache
+from database import cache, db
 from services.trending_service import TrendingMetrics, TimeFrame
 
 logger = logging.getLogger(__name__)
@@ -341,9 +341,9 @@ class TrendingCacheService:
 
                 if conditions:
                     where_clause = " AND ".join(conditions)
-                    await db.execute(
+                    await db.execute_raw_sql(
                         f"DELETE FROM forge_trending_cache WHERE {where_clause}",
-                        *params,
+                        params
                     )
 
             self.logger.info(f"Cache invalidation completed for pattern: {pattern}")

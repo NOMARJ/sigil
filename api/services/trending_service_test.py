@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 from dataclasses import asdict
 
-from trending_service import TrendingService, TrendingMetrics
+from services.trending_service import TrendingService, TrendingMetrics
 
 
 class TestTrendingService:
@@ -182,8 +182,8 @@ class TestTrendingService:
             {"tool_id": "tool2", "rank_position": 10},
         ]
 
-        with patch("trending_service.get_database_client") as mock_db:
-            mock_db.return_value.__aenter__.return_value.fetch = AsyncMock(
+        with patch("services.trending_service.db") as mock_db:
+            mock_db.execute_raw_sql = AsyncMock(
                 return_value=mock_rows
             )
 
@@ -194,8 +194,8 @@ class TestTrendingService:
     @pytest.mark.asyncio
     async def test_fetch_tool_metrics(self, trending_service, mock_db_data):
         """Test tool metrics fetching from database."""
-        with patch("trending_service.get_database_client") as mock_db:
-            mock_db.return_value.__aenter__.return_value.fetch = AsyncMock(
+        with patch("services.trending_service.db") as mock_db:
+            mock_db.execute_raw_sql = AsyncMock(
                 return_value=mock_db_data
             )
 

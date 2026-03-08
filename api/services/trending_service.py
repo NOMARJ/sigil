@@ -17,7 +17,7 @@ from datetime import timedelta, date
 from typing import Dict, List, Optional, Tuple, Literal
 from dataclasses import dataclass
 
-from database import get_database_client
+from database import db
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class TrendingService:
         prev_start_date, prev_end_date = self._get_previous_date_range(timeframe)
 
         try:
-            async with get_database_client() as db:
+            # Use the global db client
                 # Build dynamic WHERE clause for filters
                 where_conditions = ["1=1"]
                 params = [start_date, end_date, prev_start_date, prev_end_date]
@@ -179,7 +179,7 @@ class TrendingService:
                 LIMIT {limit}
                 """
 
-                rows = await db.fetch(query, *params)
+                rows = await db.execute_raw_sql(query, params)
                 return [dict(row) for row in rows] if rows else []
 
         except Exception as e:
@@ -254,7 +254,7 @@ class TrendingService:
     ) -> Dict[str, int]:
         """Get previous rankings for rank change calculation."""
         try:
-            async with get_database_client() as db:
+            # Use the global db client
                 # Look for cached rankings from previous period
                 cache_key_pattern = f"forge:trending:{timeframe}:{ecosystem}:{category}"
 
@@ -267,7 +267,7 @@ class TrendingService:
                 ORDER BY created_at DESC
                 """
 
-                rows = await db.fetch(query, cache_key_pattern)
+                rows = await db.execute_raw_sql(query, [cache_key_pattern])
                 return (
                     {row["tool_id"]: row["rank_position"] for row in rows}
                     if rows
