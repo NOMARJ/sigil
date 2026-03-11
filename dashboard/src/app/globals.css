@@ -8,13 +8,53 @@
 
 @layer base {
   :root {
-    --color-bg-primary: #030712;    /* gray-950 */
-    --color-bg-secondary: #111827;  /* gray-900 */
-    --color-border: #1f2937;        /* gray-800 */
-    --color-text-primary: #f3f4f6;  /* gray-100 */
-    --color-text-secondary: #9ca3af; /* gray-400 */
-    --color-text-muted: #6b7280;   /* gray-500 */
-    --color-accent: #6366f1;       /* indigo-500 */
+    /* Enhanced Dark Theme with Better Contrast */
+    --color-bg-primary: #0a0f1b;      /* Deeper, richer dark blue-gray */
+    --color-bg-secondary: #141b2d;    /* Slightly lighter for cards */
+    --color-bg-tertiary: #1a2236;     /* For hover states */
+    --color-border: #2a3551;          /* More visible borders */
+    --color-border-subtle: #1f2842;   /* Subtle borders */
+    
+    /* High Contrast Text (Claude-style readability) */
+    --color-text-primary: #ffffff;    /* Pure white for headers and important text */
+    --color-text-secondary: #e2e8f0;  /* Light gray - much brighter for body text */
+    --color-text-muted: #94a3b8;      /* Medium gray - still visible but de-emphasized */
+    --color-text-disabled: #64748b;   /* Darker gray for disabled states */
+    --color-text-subtle: #cbd5e1;     /* Subtle but readable */
+    
+    /* Professional Security Green Accent */
+    --color-accent: #10b981;          /* Emerald-500 - Professional security green */
+    --color-accent-hover: #34d399;    /* Emerald-400 - Hover state */
+    --color-accent-muted: #059669;    /* Emerald-600 - Muted variant */
+    --color-accent-dark: #047857;     /* Emerald-700 - Dark variant */
+    --color-accent-glow: rgba(16, 185, 129, 0.4); /* Green glow effect */
+    
+    /* Status Colors - Security Focused Palette */
+    --color-success: #10b981;         /* Emerald - Matches brand for consistency */
+    --color-warning: #f59e0b;         /* Amber - More professional than yellow */
+    --color-danger: #ef4444;          /* Red - Clear danger indication */
+    --color-info: #06b6d4;            /* Cyan - Neutral info color */
+    
+    /* Risk Classification Colors (Security Industry Standard) */
+    --color-critical: #dc2626;        /* Red-600 - Critical risk */
+    --color-critical-bg: #7f1d1d;     /* Red-900 - Critical background */
+    --color-critical-border: #991b1b; /* Red-800 - Critical border */
+    
+    --color-high: #ea580c;            /* Orange-600 - High risk */
+    --color-high-bg: #7c2d12;         /* Orange-900 - High background */
+    --color-high-border: #9a3412;     /* Orange-800 - High border */
+    
+    --color-medium: #f59e0b;          /* Amber-500 - Medium risk */
+    --color-medium-bg: #78350f;       /* Amber-900 - Medium background */
+    --color-medium-border: #92400e;   /* Amber-800 - Medium border */
+    
+    --color-low: #3b82f6;             /* Blue-500 - Low risk */
+    --color-low-bg: #1e3a8a;          /* Blue-900 - Low background */
+    --color-low-border: #1e40af;      /* Blue-800 - Low border */
+    
+    /* Security-specific colors */
+    --color-secure: #10b981;          /* Green - Secure/safe */
+    --color-scanning: #0ea5e9;        /* Sky-500 - Active scanning */
   }
 
   html {
@@ -22,8 +62,17 @@
   }
 
   body {
-    @apply bg-gray-950 text-gray-100 antialiased;
+    background: var(--color-bg-primary);
+    color: var(--color-text-secondary);  /* Use lighter default text color */
+    @apply antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Add subtle green gradient for depth - security focused */
+    background-image: radial-gradient(at 50% 0%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
+    background-attachment: fixed;
+    /* Improve font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   /* Scrollbar */
@@ -37,38 +86,66 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-700 rounded-full;
+    background: var(--color-border);
+    @apply rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-600;
+    background: var(--color-border-subtle);
   }
 }
 
 @layer components {
-  /* Card component */
+  /* Enhanced Card component with better depth */
   .card {
-    @apply bg-gray-900 border border-gray-800 rounded-xl;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-subtle);
+    @apply rounded-xl;
+    /* Softer shadow for cleaner look */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12),
+                0 1px 2px rgba(0, 0, 0, 0.24);
+    transition: all 0.3s ease;
+  }
+  
+  .card:hover {
+    border-color: var(--color-border);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15),
+                0 2px 4px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
   }
 
   .card-header {
-    @apply px-5 py-4 border-b border-gray-800;
+    @apply px-6 py-4;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: linear-gradient(to bottom, rgba(16, 185, 129, 0.02), transparent);
   }
 
   .card-body {
-    @apply p-5;
+    @apply p-6;
   }
 
-  /* Input fields */
+  /* Enhanced Input fields */
   .input {
-    @apply w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg
-           text-gray-100 placeholder-gray-500 text-sm
-           focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500
-           transition-colors;
+    @apply w-full px-4 py-2.5 rounded-lg text-sm transition-all;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-primary);
+  }
+  
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+  
+  .input:focus {
+    @apply outline-none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
   }
 
   .input-label {
-    @apply block text-sm font-medium text-gray-300 mb-1.5;
+    @apply block text-sm font-medium mb-1.5;
+    color: var(--color-text-subtle);
+    font-weight: 500;
   }
 
   /* Buttons */
@@ -80,12 +157,28 @@
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-500 focus:ring-brand-500;
+    @apply btn text-white;
+    background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  }
+  
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
-    @apply btn bg-gray-800 text-gray-200 border border-gray-700
-           hover:bg-gray-700 focus:ring-gray-500;
+    @apply btn;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-subtle);
+  }
+  
+  .btn-secondary:hover {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    border-color: var(--color-border);
   }
 
   .btn-danger {
@@ -94,21 +187,91 @@
   }
 
   .btn-ghost {
-    @apply btn text-gray-400 hover:text-gray-200 hover:bg-gray-800;
+    @apply btn;
+    color: var(--color-text-muted);
+  }
+  
+  .btn-ghost:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-secondary);
   }
 
-  /* Section header */
+  /* Section header with better contrast */
   .section-header {
-    @apply text-lg font-semibold text-gray-100 tracking-tight;
+    @apply text-lg font-semibold tracking-tight;
+    color: var(--color-text-primary);
+    font-weight: 600;
   }
 
   .section-description {
-    @apply text-sm text-gray-500 mt-1;
+    @apply text-sm mt-1;
+    color: var(--color-text-secondary);
+    font-weight: 400;
   }
 
   /* Badge */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  /* Plan/Tier Badges - Professional Security Style */
+  .badge-plan {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wide;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-secondary);
+  }
+  
+  .badge-pro {
+    background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
+    border: 1px solid var(--color-accent);
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  }
+  
+  .badge-enterprise {
+    background: linear-gradient(135deg, #0c4a6e, #0284c7);
+    border: 1px solid #0ea5e9;
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.2);
+  }
+  
+  .badge-free {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+  }
+  
+  .badge-trial {
+    background: linear-gradient(135deg, #78350f, #f59e0b);
+    border: 1px solid #fbbf24;
+    color: #ffffff;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+  }
+  
+  /* Status/Feature Badges */
+  .badge-success {
+    background: var(--color-success)/10;
+    border: 1px solid var(--color-success)/30;
+    color: var(--color-success);
+  }
+  
+  .badge-warning {
+    background: var(--color-warning)/10;
+    border: 1px solid var(--color-warning)/30;
+    color: var(--color-warning);
+  }
+  
+  .badge-danger {
+    background: var(--color-danger)/10;
+    border: 1px solid var(--color-danger)/30;
+    color: var(--color-danger);
+  }
+  
+  .badge-info {
+    background: var(--color-info)/10;
+    border: 1px solid var(--color-info)/30;
+    color: var(--color-info);
   }
 
   /* Table */
@@ -121,28 +284,152 @@
   }
 
   .data-table th {
-    @apply text-left pb-3 text-xs font-medium text-gray-500 uppercase tracking-wider;
+    @apply text-left pb-3 text-xs font-semibold uppercase tracking-wider;
+    color: var(--color-text-subtle);
   }
 
   .data-table tbody tr {
-    @apply border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors;
+    border-bottom: 1px solid var(--color-border-subtle);
+    @apply transition-colors;
+  }
+  
+  .data-table tbody tr:hover {
+    background: var(--color-bg-tertiary);
   }
 
   .data-table td {
-    @apply py-3 text-gray-300;
+    @apply py-3;
+    color: var(--color-text-secondary);
+    font-weight: 400;
   }
 }
 
 @layer utilities {
+  /* Risk Classification Badges/Buttons */
+  .risk-badge {
+    @apply inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold
+           uppercase tracking-wider transition-all cursor-pointer;
+  }
+  
+  .risk-critical {
+    color: #ffffff;
+    background: var(--color-critical-bg);
+    border: 1px solid var(--color-critical-border);
+  }
+  
+  .risk-critical:hover {
+    background: var(--color-critical);
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
+  }
+  
+  .risk-critical.active {
+    background: var(--color-critical);
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.5),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+  }
+  
+  .risk-high {
+    color: #ffffff;
+    background: var(--color-high-bg);
+    border: 1px solid var(--color-high-border);
+  }
+  
+  .risk-high:hover {
+    background: var(--color-high);
+    box-shadow: 0 0 20px rgba(234, 88, 12, 0.3);
+  }
+  
+  .risk-high.active {
+    background: var(--color-high);
+    box-shadow: 0 0 30px rgba(234, 88, 12, 0.5),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+  }
+  
+  .risk-medium {
+    color: #ffffff;
+    background: var(--color-medium-bg);
+    border: 1px solid var(--color-medium-border);
+  }
+  
+  .risk-medium:hover {
+    background: var(--color-medium);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  }
+  
+  .risk-medium.active {
+    background: var(--color-medium);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+  }
+  
+  .risk-low {
+    color: #ffffff;
+    background: var(--color-low-bg);
+    border: 1px solid var(--color-low-border);
+  }
+  
+  .risk-low:hover {
+    background: var(--color-low);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  
+  .risk-low.active {
+    background: var(--color-low);
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.5),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Risk level text colors for inline use */
+  .text-critical { color: var(--color-critical) !important; }
+  .text-high { color: var(--color-high) !important; }
+  .text-medium { color: var(--color-medium) !important; }
+  .text-low { color: var(--color-low) !important; }
+  
+  /* Risk level background colors */
+  .bg-critical { background: var(--color-critical-bg) !important; }
+  .bg-high { background: var(--color-high-bg) !important; }
+  .bg-medium { background: var(--color-medium-bg) !important; }
+  .bg-low { background: var(--color-low-bg) !important; }
+  /* Enhanced glow effects */
   .glow-brand {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.25);
   }
 
   .glow-green {
-    box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
   }
 
   .glow-red {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 30px rgba(248, 113, 113, 0.25);
+  }
+  
+  .glow-warning {
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.25);
+  }
+  
+  /* Stat card specific styles */
+  .stat-value {
+    @apply text-2xl;
+    color: var(--color-text-primary);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  
+  .stat-label {
+    @apply text-xs uppercase tracking-wider;
+    color: var(--color-text-subtle);
+    font-weight: 500;
+    opacity: 0.9;
+  }
+  
+  .stat-trend {
+    @apply text-xs font-medium;
+  }
+  
+  /* Enhanced focus states for accessibility */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    --tw-ring-color: var(--color-accent);
+    --tw-ring-offset-color: var(--color-bg-primary);
   }
 }

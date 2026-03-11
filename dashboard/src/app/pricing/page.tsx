@@ -1,381 +1,199 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Metadata } from 'next';
-import PricingCard from '@/components/PricingCard';
-import FeatureComparison from '@/components/FeatureComparison';
-
-interface PricingData {
-  tiers: Array<{
-    id: string;
-    name: string;
-    subtitle: string;
-    price: {
-      monthly: number | null;
-      yearly: number | null;
-    };
-    priceDisplay: {
-      monthly: string;
-      yearly: string;
-    };
-    billingCycle: string;
-    popular: boolean;
-    features: string[];
-    limitations: string[];
-    ctaText: string;
-    ctaVariant: 'primary' | 'secondary';
-    annualDiscount?: {
-      amount: number;
-      percentage: number;
-    };
-    highlights?: Array<{
-      icon: string;
-      title: string;
-      description: string;
-    }>;
-  }>;
-  comparisonFeatures: Array<{
-    category: string;
-    features: Array<{
-      name: string;
-      free: boolean | string;
-      pro: boolean | string;
-      enterprise: boolean | string;
-    }>;
-  }>;
-  testimonials: Array<{
-    quote: string;
-    author: string;
-    title: string;
-    company: string;
-    avatar: string;
-  }>;
-  faqs: Array<{
-    question: string;
-    answer: string;
-  }>;
-}
+import { useState, useEffect } from "react";
+import * as api from "@/lib/api";
+import type { Subscription } from "@/lib/types";
 
 export default function PricingPage(): JSX.Element {
-  const [pricingData, setPricingData] = useState<PricingData | null>(null);
-  const [isYearly, setIsYearly] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
-    // Load pricing data
-    fetch('/pricing-data.json')
-      .then(response => response.json())
-      .then(data => setPricingData(data))
-      .catch(error => console.error('Failed to load pricing data:', error));
+    api.getSubscription()
+      .then(setSubscription)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleSelectPlan = async (tierId: string, billingCycle: 'monthly' | 'yearly'): Promise<void> => {
-    if (tierId === 'free') {
-      // Redirect to signup for free plan
-      window.location.href = '/auth/signup';
-      return;
-    }
-
-    if (tierId === 'enterprise') {
-      // Open contact form or redirect to sales
-      window.open('mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry', '_blank');
-      return;
-    }
-
-    if (tierId === 'pro') {
-      setIsLoading(true);
-      
-      try {
-        // Create Stripe checkout session
-        const response = await fetch('/api/billing/create-checkout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            tier: 'pro',
-            billing_cycle: billingCycle,
-            success_url: `${window.location.origin}/pro?checkout=success`,
-            cancel_url: `${window.location.origin}/pricing?checkout=cancelled`,
-          }),
-        });
-
-        if (response.ok) {
-          const { checkout_url } = await response.json();
-          window.location.href = checkout_url;
-        } else {
-          throw new Error('Failed to create checkout session');
-        }
-      } catch (error) {
-        console.error('Checkout error:', error);
-        alert('Unable to process payment. Please try again or contact support.');
-      } finally {
-        setIsLoading(false);
-      }
+  const handleManage = async () => {
+    setPortalLoading(true);
+    try {
+      const session = await api.createPortalSession();
+      window.location.href = session.url;
+    } catch {
+      alert("Unable to open billing portal. Please try again.");
+    } finally {
+      setPortalLoading(false);
     }
   };
 
-  const toggleFaq = (index: number): void => {
-    setExpandedFaq(expandedFaq === index ? null : index);
-  };
-
-  if (!pricingData) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500 mx-auto"></div>
-          <p className="text-gray-500 mt-4">Loading pricing...</p>
-        </div>
+      <div className="space-y-6 animate-pulse max-w-2xl mx-auto pt-8">
+        <div className="h-8 bg-gray-800 rounded w-1/2" />
+        <div className="h-4 bg-gray-800 rounded w-3/4" />
+        <div className="h-48 bg-gray-800/50 rounded-xl border border-gray-800" />
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-950">
-      {/* Hero Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-transparent"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-100 mb-6">
-              Protect Your Code with{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-600">
-                AI-Powered
-              </span>{' '}
-              Security
-            </h1>
-            <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-              Advanced threat detection that goes beyond static analysis. Catch zero-day attacks, 
-              sophisticated obfuscation, and supply chain threats with LLM-powered insights.
-            </p>
+  const plan = subscription?.plan ?? "free";
+  const isActive = subscription?.status === "active" || subscription?.status === "trialing";
+  const isPaid = plan !== "free";
 
-            {/* Billing Toggle */}
-            <div className="flex items-center justify-center gap-4 mb-12">
-              <span className={`text-sm font-medium ${!isYearly ? 'text-gray-100' : 'text-gray-500'}`}>
-                Monthly
-              </span>
-              <button
-                onClick={() => setIsYearly(!isYearly)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isYearly ? 'bg-brand-600' : 'bg-gray-700'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isYearly ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className={`text-sm font-medium ${isYearly ? 'text-gray-100' : 'text-gray-500'}`}>
-                Yearly
-              </span>
-              {isYearly && (
-                <span className="ml-2 inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                  Save 33%
-                </span>
-              )}
-            </div>
-          </div>
+  // Subscribed user — show account/billing management
+  if (isPaid && isActive) {
+    const renewDate = subscription?.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString("en-US", {
+          month: "long", day: "numeric", year: "numeric",
+        })
+      : null;
 
-          {/* Pricing Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto mb-20">
-            {pricingData.tiers.map((tier) => (
-              <PricingCard
-                key={tier.id}
-                tier={tier}
-                isYearly={isYearly}
-                onSelectPlan={handleSelectPlan}
-                isLoading={isLoading}
-              />
-            ))}
-          </div>
+    const PLAN_FEATURES: Record<string, string[]> = {
+      pro: [
+        "500 scans / month",
+        "AI-powered threat detection (LLM analysis)",
+        "Zero-day vulnerability detection",
+        "Advanced obfuscation analysis",
+        "Contextual threat correlation",
+        "AI-generated remediation suggestions",
+        "Full threat intelligence access",
+        "Priority support",
+        "API access",
+      ],
+      team: [
+        "5,000 scans / month",
+        "Everything in Pro",
+        "Team dashboard",
+        "RBAC & audit log",
+        "Slack / webhook alerts",
+        "Custom policies",
+        "SSO (SAML)",
+      ],
+      enterprise: [
+        "Unlimited scans",
+        "Everything in Team",
+        "Dedicated account manager",
+        "Custom integrations",
+        "SLA guarantee",
+        "On-premise deployment option",
+        "Advanced audit & compliance",
+        "SSO (SAML / OIDC)",
+      ],
+    };
+
+    const features = PLAN_FEATURES[plan] ?? [];
+
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Subscription</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage your plan and billing</p>
         </div>
-      </div>
 
-      {/* Feature Comparison */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-8 lg:mb-12">
-          <h2 className="text-2xl lg:text-3xl font-bold text-gray-100 mb-4">
-            Compare Plans
-          </h2>
-          <p className="text-base lg:text-lg text-gray-400 max-w-2xl mx-auto">
-            Choose the perfect plan for your security needs. Upgrade anytime as your requirements grow.
-          </p>
-        </div>
-        
-        <FeatureComparison categories={pricingData.comparisonFeatures} />
-      </div>
-
-      {/* Pro Tier Benefits */}
-      <div className="bg-gray-900/50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-100 mb-4">
-              Why Choose Pro?
-            </h2>
-            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-              Go beyond traditional static analysis with AI-powered threat detection
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">🤖</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">AI-Powered Analysis</h3>
-              <p className="text-gray-400 text-sm">
-                Claude AI analyzes code context and relationships to detect sophisticated threats 
-                that traditional pattern matching misses.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">🔍</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Zero-Day Detection</h3>
-              <p className="text-gray-400 text-sm">
-                Identify novel attack patterns and previously unknown threats before they become 
-                widespread security issues.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">🎭</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Advanced Obfuscation</h3>
-              <p className="text-gray-400 text-sm">
-                Detect sophisticated hiding techniques including steganography, 
-                multi-layer encoding, and polymorphic code.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">💡</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Smart Insights</h3>
-              <p className="text-gray-400 text-sm">
-                Get natural language explanations of threats, impact assessment, 
-                and actionable remediation steps.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">🔗</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Attack Chain Analysis</h3>
-              <p className="text-gray-400 text-sm">
-                Understand multi-file attack coordination and cross-dependency exploitation 
-                patterns in complex codebases.
-              </p>
-            </div>
-
-            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <div className="text-4xl mb-4">📊</div>
-              <h3 className="text-lg font-semibold text-gray-100 mb-2">Confidence Scoring</h3>
-              <p className="text-gray-400 text-sm">
-                Reduce false positives with intelligent confidence levels and 
-                contextual threat prioritization.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Testimonials */}
-      <div className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-100 mb-4">
-              Trusted by Security Teams
-            </h2>
-            <p className="text-lg text-gray-400">
-              See how teams are using Sigil to catch threats others miss
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {pricingData.testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-                <blockquote className="text-gray-300 mb-4">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-gray-300">
-                    {testimonial.author.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-200">{testimonial.author}</div>
-                    <div className="text-sm text-gray-500">{testimonial.title}, {testimonial.company}</div>
-                  </div>
+        {/* Current plan card */}
+        <div className="card border-brand-500/30">
+          <div className="card-body">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg font-bold text-gray-100 capitalize">{plan}</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                    Active
+                  </span>
                 </div>
+                <p className="text-sm text-gray-500 capitalize">
+                  {subscription?.billing_interval ?? "monthly"} billing
+                  {renewDate && ` · renews ${renewDate}`}
+                </p>
               </div>
-            ))}
+              <button
+                onClick={handleManage}
+                disabled={portalLoading}
+                className="btn-secondary text-sm shrink-0"
+              >
+                {portalLoading ? "Opening..." : "Manage Billing"}
+              </button>
+            </div>
+
+            {features.length > 0 && (
+              <div className="mt-5 pt-5 border-t border-gray-800">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Included in your plan</p>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4">
+                  {features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
+                      <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Upgrade path for pro users */}
+        {plan === "pro" && (
+          <div className="card">
+            <div className="card-body">
+              <h2 className="text-sm font-semibold text-gray-100 mb-1">Need more?</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Team plan includes 5,000 scans/month, RBAC, audit logs, and Slack alerts.
+              </p>
+              <button onClick={handleManage} className="btn-secondary text-sm">
+                Upgrade to Team
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-gray-600">
+          To cancel or update payment details, use the billing portal above.
+          Contact <a href="mailto:support@sigilsec.ai" className="text-brand-400 hover:text-brand-300">support@sigilsec.ai</a> for help.
+        </p>
+      </div>
+    );
+  }
+
+  // Free user — minimal upgrade prompt
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Upgrade to Pro</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          You&apos;re on the free plan. Get AI-powered threat detection for $29/month.
+        </p>
       </div>
 
-      {/* FAQ */}
-      <div className="bg-gray-900/50 py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-100 mb-4">
-              Frequently Asked Questions
-            </h2>
+      <div className="card border-brand-500/30">
+        <div className="card-body">
+          <div className="flex items-baseline gap-1 mb-4">
+            <span className="text-3xl font-bold text-gray-100">$29</span>
+            <span className="text-gray-500">/month</span>
           </div>
-
-          <div className="space-y-4">
-            {pricingData.faqs.map((faq, index) => (
-              <div key={index} className="bg-gray-900 rounded-lg border border-gray-800">
-                <button
-                  onClick={() => toggleFaq(index)}
-                  className="w-full p-6 text-left flex justify-between items-center hover:bg-gray-800/50 transition-colors"
-                >
-                  <h3 className="text-lg font-medium text-gray-100">{faq.question}</h3>
-                  <svg
-                    className={`w-5 h-5 text-gray-400 transition-transform ${
-                      expandedFaq === index ? 'transform rotate-180' : ''
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {expandedFaq === index && (
-                  <div className="px-6 pb-6">
-                    <p className="text-gray-400">{faq.answer}</p>
-                  </div>
-                )}
-              </div>
+          <ul className="space-y-2 mb-6">
+            {[
+              "500 scans / month",
+              "AI-powered LLM threat analysis",
+              "Zero-day vulnerability detection",
+              "Advanced obfuscation analysis",
+              "Full threat intelligence access",
+              "Priority support & API access",
+            ].map((f) => (
+              <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
+                <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {f}
+              </li>
             ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Final CTA */}
-      <div className="py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-100 mb-4">
-            Ready to Secure Your Code?
-          </h2>
-          <p className="text-lg text-gray-400 mb-8">
-            Join thousands of developers protecting their applications with AI-powered security.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button 
-              onClick={() => handleSelectPlan('free', 'monthly')}
-              className="btn-secondary"
-            >
-              Start Free
-            </button>
-            <button 
-              onClick={() => handleSelectPlan('pro', isYearly ? 'yearly' : 'monthly')}
-              className="btn-primary"
-              disabled={isLoading}
-            >
-              Try Pro Free for 14 Days
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 mt-4">
-            No credit card required for free trial
-          </p>
+          </ul>
+          <a href="/settings" className="btn-primary w-full text-center block">
+            Subscribe — $29/month
+          </a>
         </div>
       </div>
     </div>

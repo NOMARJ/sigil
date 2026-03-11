@@ -541,61 +541,109 @@ async def list_scans(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     verdict: str | None = Query(None, description="Filter by verdict"),
-    source: str | None = Query(None, description="Filter by target_type"),
+    source: str | None = Query(None, description="Filter by target_type / ecosystem"),
     search: str | None = Query(None, description="Search in target name"),
+    scope: str | None = Query(
+        None, description="Scope: own | public | community | all (default: all)"
+    ),
 ) -> ScanListResponse:
-    """Return a paginated list of scans for the authenticated user.
+    """Return a paginated list of scans.
 
-    Supports filtering by verdict, source (target_type), and free-text
-    search in the target name.
+    scope=own        — only this user's scans (scans table)
+    scope=public     — bot-scanned public packages (public_scans table)
+    scope=community  — alias for public
+    scope=all        — merge own + public (default)
 
-    Free plan users receive an empty list with an upgrade message.
-    PRO plan and above receive full scan history.
+    Supports filtering by verdict, source (target_type/ecosystem), and
+    free-text search in the target name.
     """
-    # Soft-gate: FREE tier gets limited preview (last 5) + upgrade prompt
     current_tier = await get_user_plan(current_user.id)
     is_free = current_tier == PlanTier.FREE
 
-    filters: dict[str, Any] = {}
-    if verdict:
-        filters["verdict"] = verdict
-    if source:
-        filters["target_type"] = source
+    # ---- helpers -----------------------------------------------------------
 
-    # Fetch a generous batch for in-memory pagination/filtering
-    rows = await db.select(SCAN_TABLE, filters if filters else None, limit=1000)
+    def _public_row_to_list_item(r: dict[str, Any]) -> ScanListItem:
+        """Map a public_scans row to ScanListItem."""
+        return ScanListItem(
+            id=str(r.get("id", "")),
+            target=r.get("package_name", ""),
+            target_type=r.get("ecosystem", "pip"),
+            files_scanned=r.get("files_scanned", 0),
+            findings_count=r.get("findings_count", 0),
+            risk_score=r.get("risk_score", 0.0),
+            verdict=r.get("verdict", "LOW_RISK"),
+            threat_hits=0,
+            metadata={},
+            created_at=r.get("scanned_at") or r.get("created_at") or datetime.utcnow(),
+        )
 
-    # Exclude ERROR scans unless explicitly requested via verdict filter
-    if not verdict:
-        rows = [r for r in rows if r.get("verdict") != "ERROR"]
+    def _apply_common_filters(
+        rows: list[dict[str, Any]],
+        target_field: str,
+        type_field: str,
+    ) -> list[dict[str, Any]]:
+        if verdict:
+            rows = [r for r in rows if r.get("verdict") == verdict]
+        else:
+            rows = [r for r in rows if r.get("verdict") not in ("ERROR", None)]
+        if source:
+            rows = [r for r in rows if r.get(type_field, "").lower() == source.lower()]
+        if search:
+            sl = search.lower()
+            rows = [r for r in rows if sl in r.get(target_field, "").lower()]
+        return rows
 
-    # Apply text search filter in-memory
-    if search:
-        search_lower = search.lower()
-        rows = [r for r in rows if search_lower in r.get("target", "").lower()]
+    # ---- fetch rows by scope -----------------------------------------------
+    resolved_scope = (scope or "all").lower()
 
-    # Sort by created_at descending
-    rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    own_rows: list[dict[str, Any]] = []
+    pub_rows: list[dict[str, Any]] = []
 
-    total = len(rows)
+    if resolved_scope in ("own", "all"):
+        own_rows = await db.select(SCAN_TABLE, {"user_id": current_user.id}, limit=500)
+        own_rows = _apply_common_filters(own_rows, "target", "target_type")
 
-    # FREE tier: limit to most recent 5 scans with upgrade prompt
+    if resolved_scope in ("public", "community", "all"):
+        pub_rows = await db.select(
+            "public_scans", None, limit=500, order_by="scanned_at", order_desc=True
+        )
+        pub_rows = _apply_common_filters(pub_rows, "package_name", "ecosystem")
+
+    # Merge and sort
+    all_rows_merged = [("own", r) for r in own_rows] + [("public", r) for r in pub_rows]
+
+    def _sort_key(pair: tuple[str, dict[str, Any]]) -> str:
+        _, r = pair
+        ts = r.get("created_at") or r.get("scanned_at") or ""
+        return str(ts)
+
+    all_rows_merged.sort(key=_sort_key, reverse=True)
+
+    total = len(all_rows_merged)
+
+    # FREE tier: limit preview
     if is_free:
-        rows = rows[:5]
-        total = min(total, 5)
+        all_rows_merged = all_rows_merged[:10]
+        total = min(total, 10)
 
     start = (page - 1) * per_page
-    end = start + per_page
-    page_rows = rows[start:end]
+    page_pairs = all_rows_merged[start : start + per_page]
+
+    items = []
+    for origin, row in page_pairs:
+        if origin == "own":
+            items.append(_row_to_list_item(row))
+        else:
+            items.append(_public_row_to_list_item(row))
 
     return ScanListResponse(
-        items=[_row_to_list_item(r) for r in page_rows],
+        items=items,
         total=total,
         page=page,
         per_page=per_page,
         upgrade_message=(
-            "Free plan shows your 5 most recent scans. "
-            "Upgrade to Pro for full scan history: https://app.sigilsec.ai/upgrade"
+            "Free plan shows your 10 most recent scans. "
+            "Upgrade to Pro for full scan history."
         )
         if is_free
         else None,
@@ -614,6 +662,9 @@ async def list_scans_v1(
     verdict: str | None = Query(None, description="Filter by verdict"),
     source: str | None = Query(None, description="Filter by target_type"),
     search: str | None = Query(None, description="Search in target name"),
+    scope: str | None = Query(
+        None, description="Scope: own | public | community | all"
+    ),
 ) -> ScanListResponse:
     return await list_scans(
         current_user=current_user,
@@ -622,6 +673,7 @@ async def list_scans_v1(
         verdict=verdict,
         source=source,
         search=search,
+        scope=scope,
     )
 
 

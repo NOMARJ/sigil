@@ -376,13 +376,13 @@ export default function ThreatsPage() {
                     </p>
 
                     {/* Indicators */}
-                    {threat.indicators.length > 0 && (
+                    {(threat.indicators ?? []).length > 0 && (
                       <div className="mt-3">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
                           Indicators
                         </p>
                         <div className="flex flex-wrap gap-1.5">
-                          {threat.indicators.map((indicator, i) => (
+                          {(threat.indicators ?? []).map((indicator, i) => (
                             <span
                               key={i}
                               className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-gray-800/50 text-gray-400 border border-gray-700/50"
