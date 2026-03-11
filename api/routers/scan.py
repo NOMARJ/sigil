@@ -543,7 +543,9 @@ async def list_scans(
     verdict: str | None = Query(None, description="Filter by verdict"),
     source: str | None = Query(None, description="Filter by target_type / ecosystem"),
     search: str | None = Query(None, description="Search in target name"),
-    scope: str | None = Query(None, description="Scope: own | public | community | all (default: all)"),
+    scope: str | None = Query(
+        None, description="Scope: own | public | community | all (default: all)"
+    ),
 ) -> ScanListResponse:
     """Return a paginated list of scans.
 
