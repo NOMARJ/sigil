@@ -417,6 +417,7 @@ async def list_threats(
         if isinstance(indicators, str):
             try:
                 import json as _json
+
                 indicators = _json.loads(indicators)
             except Exception:
                 indicators = []
@@ -424,6 +425,7 @@ async def list_threats(
         if isinstance(references, str):
             try:
                 import json as _json
+
                 references = _json.loads(references)
             except Exception:
                 references = []

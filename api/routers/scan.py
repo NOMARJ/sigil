@@ -543,7 +543,9 @@ async def list_scans(
     verdict: str | None = Query(None, description="Filter by verdict"),
     source: str | None = Query(None, description="Filter by target_type / ecosystem"),
     search: str | None = Query(None, description="Search in target name"),
-    scope: str | None = Query(None, description="Scope: own | public | community | all (default: all)"),
+    scope: str | None = Query(
+        None, description="Scope: own | public | community | all (default: all)"
+    ),
 ) -> ScanListResponse:
     """Return a paginated list of scans.
 
@@ -602,16 +604,13 @@ async def list_scans(
         own_rows = _apply_common_filters(own_rows, "target", "target_type")
 
     if resolved_scope in ("public", "community", "all"):
-        pub_rows = await db.select("public_scans", None, limit=500,
-                                   order_by="scanned_at", order_desc=True)
+        pub_rows = await db.select(
+            "public_scans", None, limit=500, order_by="scanned_at", order_desc=True
+        )
         pub_rows = _apply_common_filters(pub_rows, "package_name", "ecosystem")
 
     # Merge and sort
-    all_rows_merged = [
-        ("own", r) for r in own_rows
-    ] + [
-        ("public", r) for r in pub_rows
-    ]
+    all_rows_merged = [("own", r) for r in own_rows] + [("public", r) for r in pub_rows]
 
     def _sort_key(pair: tuple[str, dict[str, Any]]) -> str:
         _, r = pair
@@ -663,7 +662,9 @@ async def list_scans_v1(
     verdict: str | None = Query(None, description="Filter by verdict"),
     source: str | None = Query(None, description="Filter by target_type"),
     search: str | None = Query(None, description="Search in target name"),
-    scope: str | None = Query(None, description="Scope: own | public | community | all"),
+    scope: str | None = Query(
+        None, description="Scope: own | public | community | all"
+    ),
 ) -> ScanListResponse:
     return await list_scans(
         current_user=current_user,
