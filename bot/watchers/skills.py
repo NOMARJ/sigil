@@ -85,8 +85,8 @@ class SkillsWatcher(BaseWatcher):
         """Check for new skills using a subset of search queries per poll."""
         from bot.watchers.skills_client import _DISCOVERY_QUERIES
 
-        # Rotate through 5 queries per poll cycle
-        batch_size = 5
+        # Rotate through queries per poll cycle (configurable via SIGIL_BOT_SKILLS_CRAWL_BATCH_SIZE)
+        batch_size = bot_settings.skills_crawl_batch_size
         queries = _DISCOVERY_QUERIES
         start = self._discovery_index % len(queries)
         batch = queries[start : start + batch_size]
