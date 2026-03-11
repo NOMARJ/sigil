@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import ScanTable from "@/components/ScanTable";
+import { RiskFilterBar } from "@/components/ui/RiskFilterBar";
 import * as api from "@/lib/api";
 import type { Scan, Verdict, PaginatedResponse } from "@/lib/types";
 
@@ -77,8 +78,10 @@ export default function ScansPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-100 tracking-tight">Scan History</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-3xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+          Scan History
+        </h1>
+        <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>
           Browse public, community, and your own package scans.
         </p>
       </div>
@@ -101,10 +104,19 @@ export default function ScansPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Risk Filter Bar */}
+      <RiskFilterBar 
+        selectedRisk={verdictFilter === "ALL" ? null : verdictFilter.replace("_RISK", "") as any}
+        onRiskSelect={(risk) => {
+          setVerdictFilter(risk ? `${risk}_RISK` as Verdict : "ALL");
+          resetPage();
+        }}
+      />
+
+      {/* Additional Filters */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Scope */}
-        <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1">
+        <div className="flex items-center gap-1" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)' }} className="rounded-lg p-1">
           {scopeOptions.map((s) => (
             <button
               key={s.value}
@@ -112,8 +124,9 @@ export default function ScansPage() {
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                 scope === s.value
                   ? "bg-brand-600/20 text-brand-400"
-                  : "text-gray-500 hover:text-gray-300"
+                  : "hover:text-gray-300"
               }`}
+              style={{ color: scope === s.value ? undefined : 'var(--color-text-muted)' }}
             >
               {s.label}
             </button>
@@ -124,29 +137,17 @@ export default function ScansPage() {
         <select
           value={source}
           onChange={(e) => { setSource(e.target.value); resetPage(); }}
-          className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-brand-500"
+          className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-brand-500"
+          style={{ 
+            background: 'var(--color-bg-secondary)', 
+            border: '1px solid var(--color-border-subtle)',
+            color: 'var(--color-text-secondary)'
+          }}
         >
           {sourceOptions.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
-
-        {/* Verdict */}
-        <div className="flex items-center gap-1">
-          {verdictOptions.map((v) => (
-            <button
-              key={v}
-              onClick={() => { setVerdictFilter(v); resetPage(); }}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-                verdictFilter === v
-                  ? "bg-brand-600/20 text-brand-400 border-brand-500/30"
-                  : "bg-gray-800/50 text-gray-500 border-gray-800 hover:border-gray-700 hover:text-gray-300"
-              }`}
-            >
-              {v === "ALL" ? "All Verdicts" : v.replace("_RISK", "")}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Table */}
