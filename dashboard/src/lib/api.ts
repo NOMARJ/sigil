@@ -194,6 +194,7 @@ export async function listScans(params?: {
   verdict?: Verdict;
   source?: string;
   search?: string;
+  scope?: "own" | "public" | "community" | "all";
 }): Promise<PaginatedResponse<Scan>> {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
@@ -201,6 +202,7 @@ export async function listScans(params?: {
   if (params?.verdict) query.set("verdict", params.verdict);
   if (params?.source) query.set("source", params.source);
   if (params?.search) query.set("search", params.search);
+  if (params?.scope) query.set("scope", params.scope);
   const qs = query.toString();
   return request<PaginatedResponse<Scan>>(`/scans${qs ? `?${qs}` : ""}`);
 }
@@ -288,7 +290,10 @@ export async function getPublisher(name: string, source: ScanSource): Promise<Pu
 // ---------------------------------------------------------------------------
 
 export async function getSignatures(): Promise<Signature[]> {
-  return request<Signature[]>("/signatures");
+  const res = await request<{ signatures: Signature[] } | Signature[]>("/signatures");
+  // API returns { signatures: [...], total, last_updated } or bare array
+  if (Array.isArray(res)) return res;
+  return (res as { signatures: Signature[] }).signatures ?? [];
 }
 
 // ---------------------------------------------------------------------------

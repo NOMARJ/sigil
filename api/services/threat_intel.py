@@ -407,8 +407,42 @@ async def list_threats(
     start = (page - 1) * per_page
     items = rows[start : start + per_page]
 
+    # Normalise rows to match the frontend ThreatEntry interface
+    def _normalise(row: dict) -> dict:
+        # Map DB fields to frontend-expected fields
+        reported_at = row.get("created_at") or row.get("confirmed_at")
+        if reported_at and hasattr(reported_at, "isoformat"):
+            reported_at = reported_at.isoformat()
+        indicators = row.get("indicators")
+        if isinstance(indicators, str):
+            try:
+                import json as _json
+                indicators = _json.loads(indicators)
+            except Exception:
+                indicators = []
+        references = row.get("references")
+        if isinstance(references, str):
+            try:
+                import json as _json
+                references = _json.loads(references)
+            except Exception:
+                references = []
+        return {
+            "id": str(row.get("id") or row.get("hash", "")),
+            "package_name": row.get("package_name", ""),
+            "source": row.get("source", "community"),
+            "threat_type": row.get("threat_type") or row.get("source", "Supply Chain"),
+            "description": row.get("description", ""),
+            "reporter": row.get("reporter") or row.get("source", "Sigil"),
+            "reported_at": reported_at or "",
+            "severity": row.get("severity", "HIGH_RISK"),
+            "indicators": indicators or [],
+            "references": references or [],
+            "version": row.get("version", ""),
+        }
+
     return {
-        "items": items,
+        "items": [_normalise(r) for r in items],
         "total": total,
         "page": page,
         "per_page": per_page,

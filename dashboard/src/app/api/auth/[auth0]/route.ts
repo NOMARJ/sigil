@@ -12,4 +12,11 @@ export const GET = handleAuth({
   logout: handleLogout({
     returnTo: process.env.AUTH0_BASE_URL,
   }),
+  onError(_req: Request, error: Error & { status?: number }) {
+    // Return proper status code instead of always 500
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: error.status ?? 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
 });
