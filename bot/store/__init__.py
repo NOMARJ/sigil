@@ -303,6 +303,42 @@ async def store_scan_result(
         "created_at": now,
     }
 
+    # Initiative 2: extract provider assessments for skills ecosystem scans.
+    # job.metadata["provider_assessments"] is keyed by provider name (e.g.
+    # "gen", "socket", "snyk") and each value is the dict returned by
+    # SkillAuditResult.to_metadata() — {"risk": str, "alerts": int, ...}.
+    if job.ecosystem == "skills":
+        provider_assessments: dict[str, Any] = job.metadata.get(
+            "provider_assessments", {}
+        )
+        if provider_assessments:
+            row["provider_assessments_json"] = provider_assessments
+
+        def _provider_verdict(provider: str) -> str | None:
+            """Map a provider's risk string to a normalised verdict token."""
+            assessment = provider_assessments.get(provider)
+            if not isinstance(assessment, dict):
+                return None
+            risk = assessment.get("risk")
+            if not risk:
+                return None
+            # Normalise to lowercase; preserve as-is (safe, low, medium, high,
+            # critical, unknown).  The view uses 'low_risk' so map "low" → it.
+            risk = risk.lower()
+            if risk == "low":
+                risk = "low_risk"
+            return risk
+
+        gen_v = _provider_verdict("gen")
+        socket_v = _provider_verdict("socket")
+        snyk_v = _provider_verdict("snyk")
+        if gen_v is not None:
+            row["gen_verdict"] = gen_v
+        if socket_v is not None:
+            row["socket_verdict"] = socket_v
+        if snyk_v is not None:
+            row["snyk_verdict"] = snyk_v
+
     # Attestation fields (nullable — only present when signing is configured)
     if attestation is not None:
         row["attestation"] = attestation
