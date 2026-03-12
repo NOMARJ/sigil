@@ -719,7 +719,7 @@ async fn cmd_scan(
     // --- Enhanced LLM analysis (Pro feature) -------------------------------
     if enhanced {
         let client = api::SigilClient::new(None);
-        
+
         if !client.is_authenticated() {
             eprintln!(
                 "{} Enhanced scanning requires authentication. Run: sigil login",
@@ -734,7 +734,7 @@ async fn cmd_scan(
 
         // Collect file contents for LLM analysis (limit to reasonable size)
         let file_contents = collect_file_contents(path, 50, verbose);
-        
+
         if file_contents.is_empty() {
             eprintln!(
                 "{} no readable files found for LLM analysis",
@@ -742,9 +742,12 @@ async fn cmd_scan(
             );
         } else {
             if verbose {
-                eprintln!("submitting {} files for enhanced LLM analysis...", file_contents.len());
+                eprintln!(
+                    "submitting {} files for enhanced LLM analysis...",
+                    file_contents.len()
+                );
             }
-            
+
             match client.submit_enhanced_scan(&result, file_contents).await {
                 Ok(response) => {
                     println!(
@@ -850,9 +853,9 @@ fn collect_file_contents(
 
     // Common text file extensions to prioritize
     let text_extensions = [
-        "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "c", "cpp", "h", "hpp",
-        "rb", "php", "sh", "bash", "zsh", "ps1", "yaml", "yml", "json", "toml", "xml",
-        "md", "txt", "sql", "r", "scala", "kt", "swift", "m", "cs", "vb", "pl", "lua",
+        "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "c", "cpp", "h", "hpp", "rb", "php",
+        "sh", "bash", "zsh", "ps1", "yaml", "yml", "json", "toml", "xml", "md", "txt", "sql", "r",
+        "scala", "kt", "swift", "m", "cs", "vb", "pl", "lua",
     ];
 
     let entries: Vec<_> = WalkDir::new(path)
@@ -865,16 +868,13 @@ fn collect_file_contents(
     for entry in entries {
         if files_collected >= max_files {
             if verbose {
-                eprintln!(
-                    "Reached max file limit ({}) for LLM analysis",
-                    max_files
-                );
+                eprintln!("Reached max file limit ({}) for LLM analysis", max_files);
             }
             break;
         }
 
         let file_path = entry.path();
-        
+
         // Check if file has a text extension
         let has_text_ext = file_path
             .extension()
@@ -908,7 +908,7 @@ fn collect_file_contents(
                     .unwrap_or(file_path)
                     .to_string_lossy()
                     .to_string();
-                
+
                 file_contents.insert(rel_path, contents);
                 files_collected += 1;
             }

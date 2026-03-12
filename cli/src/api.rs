@@ -371,7 +371,9 @@ impl SigilClient {
         if let Some(ref token) = self.token {
             request = request.bearer_auth(token);
         } else {
-            return Err("Authentication required for enhanced scanning. Run: sigil login".to_string());
+            return Err(
+                "Authentication required for enhanced scanning. Run: sigil login".to_string(),
+            );
         }
 
         let response = request
