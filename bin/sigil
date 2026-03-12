@@ -1364,103 +1364,108 @@ api_request() {
 }
 
 cmd_login() {
-    local email="" password=""
-
-    # Parse flags
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --email)    email="$2"; shift 2 ;;
-            --password) password="$2"; shift 2 ;;
-            --email=*)    email="${1#*=}"; shift ;;
-            --password=*) password="${1#*=}"; shift ;;
-            *) shift ;;
-        esac
-    done
-
-    # Prompt interactively if not provided via flags
-    if [ -z "$email" ]; then
-        printf "Email: "
-        read -r email
-    fi
-    if [ -z "$password" ]; then
-        printf "Password: "
-        read -rs password
-        echo ""
-    fi
-
-    if [ -z "$email" ] || [ -z "$password" ]; then
-        fail "Email and password are required."
-        echo "Usage: sigil login [--email <email>] [--password <password>]"
-        exit 1
-    fi
-
-    log "Authenticating with Sigil API..."
-
-    local json_body
-    json_body=$(python3 -c "
-import json, sys
-print(json.dumps({'email': sys.argv[1], 'password': sys.argv[2]}))
-" "$email" "$password" 2>/dev/null)
-
-    if [ -z "$json_body" ]; then
-        # Fallback: use printf with proper escaping
-        local escaped_email escaped_password
-        escaped_email=$(printf '%s' "$email" | sed 's/[\\"]/\\&/g')
-        escaped_password=$(printf '%s' "$password" | sed 's/[\\"]/\\&/g')
-        json_body="{\"email\": \"$escaped_email\", \"password\": \"$escaped_password\"}"
-    fi
-
+    log "Initiating device authorization flow..."
+    
+    # Step 1: Request device code from API
     local response
-    response=$(api_request POST "/v1/auth/login" \
-        -d "$json_body" \
-        -w "\n%{http_code}" 2>/dev/null)
-
-    local http_code body
-    http_code=$(echo "$response" | tail -1)
-    body=$(echo "$response" | sed '$d')
-
-    if [ "$http_code" = "200" ]; then
-        # Extract token — prefer python3/jq, fall back to grep
-        local token=""
-        if check_tool "python3"; then
-            token=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
-        elif check_tool "jq"; then
-            token=$(echo "$body" | jq -r '.access_token' 2>/dev/null)
-        else
-            token=$(echo "$body" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-        fi
-
-        if [ -z "$token" ]; then
-            fail "Login succeeded but could not extract token from response."
-            exit 1
-        fi
-
-        mkdir -p "$(dirname "$TOKEN_FILE")"
-        echo "$token" > "$TOKEN_FILE"
-        chmod 600 "$TOKEN_FILE"
-
-        # Extract user info for display
-        local user_email="" user_name=""
-        if check_tool "python3"; then
-            user_email=$(echo "$body" | python3 -c "import sys,json; u=json.load(sys.stdin).get('user',{}); print(u.get('email',''))" 2>/dev/null)
-            user_name=$(echo "$body" | python3 -c "import sys,json; u=json.load(sys.stdin).get('user',{}); print(u.get('name',''))" 2>/dev/null)
-        elif check_tool "jq"; then
-            user_email=$(echo "$body" | jq -r '.user.email // empty' 2>/dev/null)
-            user_name=$(echo "$body" | jq -r '.user.name // empty' 2>/dev/null)
-        fi
-
-        pass "Logged in successfully!"
-        [ -n "$user_name" ] && info "Name:  $user_name"
-        [ -n "$user_email" ] && info "Email: $user_email"
-        info "Token stored in $TOKEN_FILE"
-    elif [ "$http_code" = "401" ]; then
-        fail "Invalid email or password."
-        exit 1
-    else
-        fail "Login failed (HTTP $http_code)"
-        [ -n "$body" ] && echo "$body"
+    response=$(curl -sf -X POST "$API_BASE_URL/v1/auth/device/code" \
+        -H "Content-Type: application/json" \
+        2>/dev/null)
+    
+    if [ -z "$response" ]; then
+        fail "Failed to connect to Sigil API. Check your internet connection."
         exit 1
     fi
+    
+    # Extract device code and user code
+    local device_code user_code verification_uri interval
+    if check_tool "python3"; then
+        device_code=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('device_code',''))" 2>/dev/null)
+        user_code=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user_code',''))" 2>/dev/null)
+        verification_uri=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('verification_uri',''))" 2>/dev/null)
+        interval=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('interval','5'))" 2>/dev/null)
+    elif check_tool "jq"; then
+        device_code=$(echo "$response" | jq -r '.device_code' 2>/dev/null)
+        user_code=$(echo "$response" | jq -r '.user_code' 2>/dev/null)
+        verification_uri=$(echo "$response" | jq -r '.verification_uri' 2>/dev/null)
+        interval=$(echo "$response" | jq -r '.interval // 5' 2>/dev/null)
+    else
+        device_code=$(echo "$response" | grep -o '"device_code":"[^"]*"' | cut -d'"' -f4)
+        user_code=$(echo "$response" | grep -o '"user_code":"[^"]*"' | cut -d'"' -f4)
+        verification_uri=$(echo "$response" | grep -o '"verification_uri":"[^"]*"' | cut -d'"' -f4)
+        interval=5
+    fi
+    
+    if [ -z "$device_code" ] || [ -z "$user_code" ]; then
+        fail "Failed to initiate device flow. Invalid response from API."
+        exit 1
+    fi
+    
+    # Step 2: Display instructions to user
+    echo -e "\n${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}  Sigil CLI Authentication${NC}"
+    echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    echo -e "${BOLD}1.${NC} Visit: ${YELLOW}${verification_uri}${NC}"
+    echo -e "${BOLD}2.${NC} Enter code: ${GREEN}${BOLD}${user_code}${NC}"
+    echo -e "\n${DIM}Waiting for authentication...${NC}\n"
+    
+    # Step 3: Poll for token
+    local max_attempts=60  # 5 minutes with 5 second interval
+    local attempt=0
+    local token=""
+    
+    while [ $attempt -lt $max_attempts ]; do
+        sleep "$interval"
+        
+        local token_response
+        token_response=$(curl -sf -X POST "$API_BASE_URL/v1/auth/device/token?device_code=$device_code" \
+            2>/dev/null)
+        
+        if [ -n "$token_response" ]; then
+            # Check if we got a token
+            if check_tool "python3"; then
+                token=$(echo "$token_response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+                local error=$(echo "$token_response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('detail',{}).get('error','') if isinstance(d.get('detail'),dict) else '')" 2>/dev/null)
+            elif check_tool "jq"; then
+                token=$(echo "$token_response" | jq -r '.access_token // empty' 2>/dev/null)
+                local error=$(echo "$token_response" | jq -r '.detail.error // empty' 2>/dev/null)
+            else
+                token=$(echo "$token_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+                local error=$(echo "$token_response" | grep -o '"error":"[^"]*"' | cut -d'"' -f4)
+            fi
+            
+            # Success - got token
+            if [ -n "$token" ]; then
+                mkdir -p "$(dirname "$TOKEN_FILE")"
+                echo "$token" > "$TOKEN_FILE"
+                chmod 600 "$TOKEN_FILE"
+                
+                echo -e "${GREEN}✓${NC} Authentication successful!"
+                info "Token stored in $TOKEN_FILE"
+                return 0
+            fi
+            
+            # Check for terminal errors
+            if [ "$error" = "expired_token" ]; then
+                fail "Device code expired. Please run 'sigil login' again."
+                exit 1
+            elif [ "$error" = "access_denied" ]; then
+                fail "Authentication denied. Please try again."
+                exit 1
+            elif [ "$error" = "slow_down" ]; then
+                # Increase polling interval
+                interval=$((interval + 1))
+            fi
+            # authorization_pending is expected, continue polling
+        fi
+        
+        attempt=$((attempt + 1))
+        echo -ne "\r${DIM}Waiting... ($((max_attempts - attempt))s remaining)${NC}"
+    done
+    
+    echo
+    fail "Authentication timed out. Please run 'sigil login' again."
+    exit 1
 }
 
 cmd_logout() {
