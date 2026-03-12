@@ -98,6 +98,10 @@ enum Commands {
         /// Enrich scan with cloud threat intelligence (hash lookup)
         #[arg(long)]
         enrich: bool,
+
+        /// Use enhanced LLM-powered analysis (Pro feature, requires authentication)
+        #[arg(long)]
+        enhanced: bool,
     },
 
     /// Clear all cached scan results
@@ -258,6 +262,7 @@ async fn main() {
             submit,
             no_cache,
             enrich,
+            enhanced,
         } => {
             cmd_scan(
                 &path,
@@ -266,6 +271,7 @@ async fn main() {
                 submit,
                 no_cache,
                 enrich,
+                enhanced,
                 &cli.format,
                 cli.verbose,
             )
@@ -600,6 +606,7 @@ async fn cmd_scan(
     submit: bool,
     no_cache: bool,
     enrich: bool,
+    enhanced: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
@@ -709,6 +716,60 @@ async fn cmd_scan(
         }
     }
 
+    // --- Enhanced LLM analysis (Pro feature) -------------------------------
+    if enhanced {
+        let client = api::SigilClient::new(None);
+        
+        if !client.is_authenticated() {
+            eprintln!(
+                "{} Enhanced scanning requires authentication. Run: sigil login",
+                "error:".bold().red()
+            );
+            return 1;
+        }
+
+        if verbose {
+            eprintln!("collecting file contents for LLM analysis...");
+        }
+
+        // Collect file contents for LLM analysis (limit to reasonable size)
+        let file_contents = collect_file_contents(path, 50, verbose);
+        
+        if file_contents.is_empty() {
+            eprintln!(
+                "{} no readable files found for LLM analysis",
+                "warning:".bold().yellow()
+            );
+        } else {
+            if verbose {
+                eprintln!("submitting {} files for enhanced LLM analysis...", file_contents.len());
+            }
+            
+            match client.submit_enhanced_scan(&result, file_contents).await {
+                Ok(response) => {
+                    println!(
+                        "\n{} Enhanced LLM analysis completed",
+                        "sigil:".bold().green()
+                    );
+                    if verbose {
+                        eprintln!("  Scan ID: {}", response.id);
+                        if let Some(msg) = response.message {
+                            eprintln!("  Message: {}", msg);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!(
+                        "{} Enhanced analysis failed: {}",
+                        "warning:".bold().yellow(),
+                        err
+                    );
+                    eprintln!("  Continuing with static analysis results only");
+                }
+            }
+        }
+    }
+
     if submit {
         if verbose {
             eprintln!("submitting results to Sigil cloud...");
@@ -769,6 +830,100 @@ fn compute_directory_hash(path: &Path) -> String {
     }
 
     hex::encode(hasher.finalize())
+}
+
+// ---------------------------------------------------------------------------
+// File contents collection for LLM analysis
+// ---------------------------------------------------------------------------
+
+/// Collect file contents for LLM analysis.
+/// Limits the number of files and skips binary/large files for cost control.
+fn collect_file_contents(
+    path: &Path,
+    max_files: usize,
+    verbose: bool,
+) -> std::collections::HashMap<String, String> {
+    use walkdir::WalkDir;
+
+    let mut file_contents = std::collections::HashMap::new();
+    let mut files_collected = 0;
+
+    // Common text file extensions to prioritize
+    let text_extensions = [
+        "py", "js", "ts", "jsx", "tsx", "rs", "go", "java", "c", "cpp", "h", "hpp",
+        "rb", "php", "sh", "bash", "zsh", "ps1", "yaml", "yml", "json", "toml", "xml",
+        "md", "txt", "sql", "r", "scala", "kt", "swift", "m", "cs", "vb", "pl", "lua",
+    ];
+
+    let entries: Vec<_> = WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .collect();
+
+    for entry in entries {
+        if files_collected >= max_files {
+            if verbose {
+                eprintln!(
+                    "Reached max file limit ({}) for LLM analysis",
+                    max_files
+                );
+            }
+            break;
+        }
+
+        let file_path = entry.path();
+        
+        // Check if file has a text extension
+        let has_text_ext = file_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| text_extensions.contains(&ext))
+            .unwrap_or(false);
+
+        if !has_text_ext {
+            continue;
+        }
+
+        // Skip files larger than 100KB to control costs
+        if let Ok(metadata) = entry.metadata() {
+            if metadata.len() > 100_000 {
+                if verbose {
+                    eprintln!(
+                        "Skipping large file: {} ({} bytes)",
+                        file_path.display(),
+                        metadata.len()
+                    );
+                }
+                continue;
+            }
+        }
+
+        // Try to read file contents
+        match std::fs::read_to_string(file_path) {
+            Ok(contents) => {
+                let rel_path = file_path
+                    .strip_prefix(path)
+                    .unwrap_or(file_path)
+                    .to_string_lossy()
+                    .to_string();
+                
+                file_contents.insert(rel_path, contents);
+                files_collected += 1;
+            }
+            Err(_) => {
+                // Skip binary or unreadable files
+                continue;
+            }
+        }
+    }
+
+    if verbose && files_collected > 0 {
+        eprintln!("Collected {} files for LLM analysis", files_collected);
+    }
+
+    file_contents
 }
 
 async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {

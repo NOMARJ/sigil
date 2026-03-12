@@ -59,16 +59,17 @@ sigil install
 └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-Sigil runs **six analysis phases** on every scan:
+Sigil runs **six analysis phases** on every scan (Phases 1-6 are free, Phase 9 requires Pro):
 
-| Phase | What It Catches |
-|-------|----------------|
-| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install |
-| **Code Patterns** | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports |
-| **Network / Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunnelling |
-| **Credentials** | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns |
-| **Obfuscation** | Base64 decode, charCode, hex encoding, minified payloads |
-| **Provenance** | Git history depth, author count, binary files, hidden files |
+| Phase | What It Catches | Tier |
+|-------|----------------|------|
+| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install | Free |
+| **Code Patterns** | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports | Free |
+| **Network / Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunnelling | Free |
+| **Credentials** | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns | Free |
+| **Obfuscation** | Base64 decode, charCode, hex encoding, minified payloads | Free |
+| **Provenance** | Git history depth, author count, binary files, hidden files | Free |
+| **🔒 LLM Analysis** | AI-powered zero-day detection, contextual threat correlation, advanced remediation | **Pro** |
 
 Each finding is weighted and scored. You get a clear verdict:
 
@@ -96,6 +97,11 @@ sigil npm langchain-community-plugin
 
 # Scan a directory or file already on disk
 sigil scan ./downloaded-skill/
+
+# 🔒 Pro: Enhanced LLM-powered scanning (requires authentication)
+sigil login --token YOUR_API_TOKEN
+sigil scan ./code --enhanced              # AI-powered threat detection
+sigil scan ./code --enhanced --verbose    # With detailed output
 
 # Download and scan any URL
 sigil fetch https://example.com/agent-tool.tar.gz

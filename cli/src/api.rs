@@ -341,6 +341,66 @@ impl SigilClient {
         self.token.is_some()
     }
 
+    /// Submit an enhanced scan with LLM analysis (Pro feature).
+    ///
+    /// POST /v1/scan-enhanced
+    pub async fn submit_enhanced_scan(
+        &self,
+        result: &ScanResult,
+        file_contents: std::collections::HashMap<String, String>,
+    ) -> Result<ScanResponse, String> {
+        let url = format!("{}/v1/scan-enhanced", self.endpoint);
+
+        // Build enhanced request with file contents for LLM analysis
+        let mut metadata = serde_json::Map::new();
+        metadata.insert(
+            "file_contents".to_string(),
+            serde_json::to_value(&file_contents)
+                .map_err(|e| format!("failed to serialize file contents: {}", e))?,
+        );
+
+        let request_body = serde_json::json!({
+            "target": "cli-scan",
+            "target_type": "directory",
+            "files_scanned": result.files_scanned,
+            "findings": result.findings,
+            "metadata": metadata,
+        });
+
+        let mut request = self.client.post(&url).json(&request_body);
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        } else {
+            return Err("Authentication required for enhanced scanning. Run: sigil login".to_string());
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|e| offline_fallback_message(&e))?;
+
+        let status = response.status();
+        if status.as_u16() == 402 {
+            return Err(
+                "Pro subscription required for LLM analysis. Upgrade at https://app.sigilsec.ai/upgrade"
+                    .to_string(),
+            );
+        }
+
+        if !status.is_success() {
+            return Err(format!(
+                "API error: {} {}",
+                status,
+                response.text().await.unwrap_or_default()
+            ));
+        }
+
+        response
+            .json::<ScanResponse>()
+            .await
+            .map_err(|e| format!("failed to parse response: {}", e))
+    }
+
     /// Authenticate with email and password.
     ///
     /// POST /v1/auth/login
