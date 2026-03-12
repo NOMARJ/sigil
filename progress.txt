@@ -1,0 +1,26 @@
+## Codebase Patterns
+
+- API services use credit_service for all LLM operations
+- Frontend components fetch credit balance on mount
+- Use Claude Haiku for simple tasks, Sonnet for complex analysis
+- All interactive features deduct credits atomically via stored procedures
+- LLM prompts are built using template functions for consistency
+
+---
+
+## 2026-03-12 - US-005 Trace Attack Chains
+
+- Implemented attack chain tracing service with MITRE ATT&CK mapping
+- Created code flow analyzer for data flow and execution path analysis
+- Built visualization component with risk scoring and blast radius
+- Files changed:
+  - api/services/attack_chain_tracer.py
+  - api/utils/code_flow_analyzer.py
+  - dashboard/components/AttackChainVisualizer.tsx
+- **Learnings:**
+  - Attack chain analysis requires 8 credits (Sonnet model for complex reasoning)
+  - MITRE ATT&CK framework stages map well to exploit progression
+  - Visualization data structure needs nodes/edges for frontend rendering
+  - Kill chain disruption points are critical for actionable insights
+
+---
