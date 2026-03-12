@@ -15,10 +15,10 @@ class BulkAnalysisPromptBuilder:
         pattern_type: str,
         findings: List[Finding],
         common_characteristics: Dict[str, Any],
-        depth: str = "thorough"
+        depth: str = "thorough",
     ) -> str:
         """Build prompt for bulk analysis of similar findings"""
-        
+
         prompt = f"""Analyze this group of {len(findings)} similar {pattern_type} security findings.
 
 PATTERN TYPE: {pattern_type}
@@ -26,14 +26,14 @@ ANALYSIS DEPTH: {depth}
 TOTAL FINDINGS: {len(findings)}
 
 COMMON CHARACTERISTICS:
-- Common Functions: {', '.join(common_characteristics.get('common_functions', ['None identified']))}
-- Common Variables: {', '.join(common_characteristics.get('common_variables', ['None identified']))}
-- Code Similarity: {common_characteristics.get('code_similarity', 0):.0%}
-- File Proximity: {'Yes' if common_characteristics.get('file_proximity') else 'No'}
+- Common Functions: {", ".join(common_characteristics.get("common_functions", ["None identified"]))}
+- Common Variables: {", ".join(common_characteristics.get("common_variables", ["None identified"]))}
+- Code Similarity: {common_characteristics.get("code_similarity", 0):.0%}
+- File Proximity: {"Yes" if common_characteristics.get("file_proximity") else "No"}
 
 FINDINGS DETAIL:
 """
-        
+
         # Add findings (limit to prevent token overflow)
         max_findings = 10 if depth == "exhaustive" else 5
         for i, finding in enumerate(findings[:max_findings], 1):
@@ -43,12 +43,14 @@ Finding {i}:
 - Severity: {finding.severity}
 - Rule: {finding.rule}
 - Description: {finding.description}
-- Evidence: {finding.evidence[:200] if finding.evidence else 'N/A'}
+- Evidence: {finding.evidence[:200] if finding.evidence else "N/A"}
 """
-        
+
         if len(findings) > max_findings:
-            prompt += f"\n... and {len(findings) - max_findings} more similar findings\n"
-        
+            prompt += (
+                f"\n... and {len(findings) - max_findings} more similar findings\n"
+            )
+
         # Add analysis instructions based on depth
         if depth == "quick":
             prompt += """
@@ -111,20 +113,18 @@ EXHAUSTIVE ANALYSIS REQUIRED:
    - Related security weaknesses to investigate
    - Systemic issues indicated by this pattern
 """
-        
+
         prompt += """
 Provide a structured analysis focusing on actionable insights for fixing these security issues efficiently.
 """
-        
+
         return prompt
 
     def build_root_cause_prompt(
-        self,
-        findings: List[Finding],
-        pattern_type: str
+        self, findings: List[Finding], pattern_type: str
     ) -> str:
         """Build prompt specifically for root cause analysis"""
-        
+
         return f"""Perform root cause analysis on {len(findings)} {pattern_type} findings.
 
 Focus on identifying:
@@ -137,13 +137,10 @@ Provide specific, actionable recommendations.
 """
 
     def build_remediation_prompt(
-        self,
-        findings: List[Finding],
-        pattern_type: str,
-        single_fix_possible: bool
+        self, findings: List[Finding], pattern_type: str, single_fix_possible: bool
     ) -> str:
         """Build prompt for generating bulk remediation"""
-        
+
         if single_fix_possible:
             return f"""Generate a single remediation that fixes all {len(findings)} {pattern_type} vulnerabilities.
 

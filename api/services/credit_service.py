@@ -18,38 +18,45 @@ logger = logging.getLogger(__name__)
 
 # Credit conversion rates (credits per 1K tokens)
 CREDIT_RATES = {
-    "claude-3-haiku-20240307": 1,      # Most efficient
-    "claude-3-sonnet-20240229": 10,    # Balanced
-    "claude-3-opus-20240229": 40,      # Premium
-    "gpt-3.5-turbo": 2,                # Budget option
-    "gpt-4-turbo": 20,                 # High quality
-    "gpt-4": 30,                        # Legacy
+    "claude-3-haiku-20240307": 1,  # Most efficient
+    "claude-3-sonnet-20240229": 10,  # Balanced
+    "claude-3-opus-20240229": 40,  # Premium
+    "gpt-3.5-turbo": 2,  # Budget option
+    "gpt-4-turbo": 20,  # High quality
+    "gpt-4": 30,  # Legacy
 }
 
 # Monthly credit allocations by tier
 MONTHLY_CREDITS = {
-    SubscriptionTier.ANONYMOUS: 0,        # No LLM access
-    SubscriptionTier.FREE: 50,            # Minimal for logged-in users
-    SubscriptionTier.PRO: 5000,           # Standard professional
-    SubscriptionTier.ELITE: 15000,        # Advanced power users
-    SubscriptionTier.TEAM: 50000,         # Team collaboration
+    SubscriptionTier.ANONYMOUS: 0,  # No LLM access
+    SubscriptionTier.FREE: 50,  # Minimal for logged-in users
+    SubscriptionTier.PRO: 5000,  # Standard professional
+    SubscriptionTier.ELITE: 15000,  # Advanced power users
+    SubscriptionTier.TEAM: 50000,  # Team collaboration
     SubscriptionTier.ENTERPRISE: 999999,  # Effectively unlimited
 }
 
 # Feature credit costs
 SCAN_COSTS = {
-    "quick_scan": 8,           # Basic 8K token scan
-    "deep_analysis": 32,       # Comprehensive 32K scan
-    "interactive_session": 2,   # Per Q&A exchange
-    "bulk_scan": 100,          # Full repository scan
-    "investigate_finding": 4,   # Deep-dive on specific issue
-    "remediation_suggest": 6,   # Generate fix code
+    "quick_scan": 8,  # Basic 8K token scan
+    "deep_analysis": 32,  # Comprehensive 32K scan
+    "interactive_session": 2,  # Per Q&A exchange
+    "bulk_scan": 100,  # Full repository scan
+    "investigate_finding": 4,  # Deep-dive on specific issue
+    "remediation_suggest": 6,  # Generate fix code
 }
 
 TransactionType = Literal[
-    "scan", "interactive", "investigate", "remediation",
-    "subscription", "purchase", "bonus", "refund"
+    "scan",
+    "interactive",
+    "investigate",
+    "remediation",
+    "subscription",
+    "purchase",
+    "bonus",
+    "refund",
 ]
+
 
 class CreditService:
     """Manages user credits for LLM usage."""
@@ -63,16 +70,16 @@ class CreditService:
                 FROM user_credits 
                 WHERE user_id = :user_id
                 """,
-                {"user_id": user_id}
+                {"user_id": user_id},
             )
-            
+
             if not result:
                 # Initialize credits for new user
                 await self.initialize_user_credits(user_id)
                 return await self.get_balance(user_id)
-            
+
             return result["credits_balance"]
-            
+
         except Exception as e:
             logger.exception(f"Failed to get credit balance for {user_id}: {e}")
             raise CreditTransactionError(f"Could not retrieve credit balance: {e}")
@@ -95,10 +102,10 @@ class CreditService:
     ) -> int:
         """
         Deduct credits from user balance.
-        
+
         Returns:
             New balance after deduction
-            
+
         Raises:
             InsufficientCreditsError: If user doesn't have enough credits
         """
@@ -115,9 +122,9 @@ class CreditService:
                     "ModelUsed": model_used,
                     "TokensUsed": tokens_used,
                     "Metadata": json.dumps(metadata) if metadata else None,
-                }
+                },
             )
-            
+
             if result:
                 new_balance = result[0]["new_balance"]
                 logger.info(
@@ -125,9 +132,9 @@ class CreditService:
                     f"New balance: {new_balance}"
                 )
                 return new_balance
-            
+
             raise CreditTransactionError("Failed to deduct credits")
-            
+
         except db.DatabaseError as e:
             if "Insufficient credits" in str(e):
                 raise InsufficientCreditsError(
@@ -137,12 +144,20 @@ class CreditService:
                 # Initialize and retry
                 await self.initialize_user_credits(user_id)
                 return await self.deduct_credits(
-                    user_id, amount, transaction_type, scan_id, 
-                    session_id, model_used, tokens_used, metadata
+                    user_id,
+                    amount,
+                    transaction_type,
+                    scan_id,
+                    session_id,
+                    model_used,
+                    tokens_used,
+                    metadata,
                 )
             else:
                 logger.exception(f"Credit deduction failed for {user_id}: {e}")
-                raise CreditTransactionError(f"Failed to process credit transaction: {e}")
+                raise CreditTransactionError(
+                    f"Failed to process credit transaction: {e}"
+                )
 
     async def add_credits(
         self,
@@ -153,7 +168,7 @@ class CreditService:
     ) -> int:
         """
         Add credits to user balance.
-        
+
         Returns:
             New balance after addition
         """
@@ -165,9 +180,9 @@ class CreditService:
                     "Amount": amount,
                     "TransactionType": transaction_type,
                     "Metadata": json.dumps(metadata) if metadata else None,
-                }
+                },
             )
-            
+
             if result:
                 new_balance = result[0]["new_balance"]
                 logger.info(
@@ -175,9 +190,9 @@ class CreditService:
                     f"New balance: {new_balance}"
                 )
                 return new_balance
-            
+
             raise CreditTransactionError("Failed to add credits")
-            
+
         except Exception as e:
             logger.exception(f"Credit addition failed for {user_id}: {e}")
             raise CreditTransactionError(f"Failed to add credits: {e}")
@@ -188,15 +203,15 @@ class CreditService:
             # Get user's subscription tier
             user = await db.fetch_one(
                 "SELECT subscription_tier FROM users WHERE id = :user_id",
-                {"user_id": user_id}
+                {"user_id": user_id},
             )
-            
+
             if not user:
                 raise ValueError(f"User {user_id} not found")
-            
+
             tier = SubscriptionTier(user["subscription_tier"])
             initial_credits = MONTHLY_CREDITS.get(tier, 100)
-            
+
             # Create credit record
             await db.execute(
                 """
@@ -210,11 +225,13 @@ class CreditService:
                     "user_id": user_id,
                     "credits": initial_credits,
                     "reset_date": datetime.utcnow() + timedelta(days=30),
-                }
+                },
             )
-            
-            logger.info(f"Initialized {initial_credits} credits for user {user_id} ({tier.value})")
-            
+
+            logger.info(
+                f"Initialized {initial_credits} credits for user {user_id} ({tier.value})"
+            )
+
         except Exception as e:
             logger.exception(f"Failed to initialize credits for {user_id}: {e}")
             # Don't raise - allow graceful degradation
@@ -223,7 +240,7 @@ class CreditService:
         """
         Reset monthly credits for all users.
         Called by scheduled job.
-        
+
         Returns:
             Number of users reset
         """
@@ -232,16 +249,12 @@ class CreditService:
             users_reset = result[0]["users_reset"] if result else 0
             logger.info(f"Reset monthly credits for {users_reset} users")
             return users_reset
-            
+
         except Exception as e:
             logger.exception(f"Failed to reset monthly credits: {e}")
             raise
 
-    async def calculate_token_cost(
-        self, 
-        model: str, 
-        tokens: int
-    ) -> int:
+    async def calculate_token_cost(self, model: str, tokens: int) -> int:
         """Calculate credit cost for token usage."""
         rate = CREDIT_RATES.get(model, 10)  # Default to mid-tier rate
         # Convert tokens to credits (1 credit per 1K tokens * rate)
@@ -249,10 +262,7 @@ class CreditService:
         return credits
 
     async def get_transaction_history(
-        self,
-        user_id: str,
-        limit: int = 50,
-        transaction_type: Optional[str] = None
+        self, user_id: str, limit: int = 50, transaction_type: Optional[str] = None
     ) -> list[Dict]:
         """Get credit transaction history for user."""
         try:
@@ -272,18 +282,18 @@ class CreditService:
                 FROM credit_transactions
                 WHERE user_id = :user_id
             """
-            
+
             params = {"user_id": user_id}
-            
+
             if transaction_type:
                 query += " AND transaction_type = :transaction_type"
                 params["transaction_type"] = transaction_type
-            
+
             query += " ORDER BY created_at DESC LIMIT :limit"
             params["limit"] = limit
-            
+
             results = await db.fetch_all(query, params)
-            
+
             return [
                 {
                     "id": str(row["transaction_id"]),
@@ -295,12 +305,14 @@ class CreditService:
                     "session_id": row["session_id"],
                     "model": row["model_used"],
                     "tokens": row["tokens_used"],
-                    "metadata": json.loads(row["metadata"]) if row["metadata"] else None,
+                    "metadata": json.loads(row["metadata"])
+                    if row["metadata"]
+                    else None,
                     "timestamp": row["created_at"].isoformat(),
                 }
                 for row in results
             ]
-            
+
         except Exception as e:
             logger.exception(f"Failed to get transaction history for {user_id}: {e}")
             return []
@@ -322,9 +334,9 @@ class CreditService:
                 FROM vw_credit_analytics
                 WHERE user_id = :user_id
                 """,
-                {"user_id": user_id}
+                {"user_id": user_id},
             )
-            
+
             if not result:
                 return {
                     "balance": 0,
@@ -335,32 +347,32 @@ class CreditService:
                     "usage_stats": {
                         "scans": 0,
                         "interactive_sessions": 0,
-                        "total_consumed": 0
-                    }
+                        "total_consumed": 0,
+                    },
                 }
-            
+
             return {
                 "balance": result["credits_balance"],
                 "used_this_month": result["credits_used_month"],
                 "monthly_allocation": result["subscription_credits"],
                 "bonus_credits": result["bonus_credits"],
-                "reset_date": result["reset_date"].isoformat() if result["reset_date"] else None,
+                "reset_date": result["reset_date"].isoformat()
+                if result["reset_date"]
+                else None,
                 "usage_stats": {
                     "scans": result["scans_last_30_days"] or 0,
-                    "interactive_sessions": result["interactive_sessions_last_30_days"] or 0,
-                    "total_consumed": result["total_credits_consumed_month"] or 0
-                }
+                    "interactive_sessions": result["interactive_sessions_last_30_days"]
+                    or 0,
+                    "total_consumed": result["total_credits_consumed_month"] or 0,
+                },
             }
-            
+
         except Exception as e:
             logger.exception(f"Failed to get usage analytics for {user_id}: {e}")
             return {}
 
     async def purchase_credits(
-        self,
-        user_id: str,
-        package_id: int,
-        stripe_payment_intent_id: str
+        self, user_id: str, package_id: int, stripe_payment_intent_id: str
     ) -> Dict:
         """Process credit package purchase."""
         try:
@@ -371,12 +383,12 @@ class CreditService:
                 FROM credit_packages
                 WHERE package_id = :package_id AND is_active = 1
                 """,
-                {"package_id": package_id}
+                {"package_id": package_id},
             )
-            
+
             if not package:
                 raise ValueError(f"Invalid package ID: {package_id}")
-            
+
             # Add credits
             new_balance = await self.add_credits(
                 user_id=user_id,
@@ -387,16 +399,16 @@ class CreditService:
                     "package_name": package["package_name"],
                     "price_usd": float(package["price_usd"]),
                     "stripe_payment_intent": stripe_payment_intent_id,
-                }
+                },
             )
-            
+
             return {
                 "success": True,
                 "credits_added": package["credits_amount"],
                 "new_balance": new_balance,
                 "package_name": package["package_name"],
             }
-            
+
         except Exception as e:
             logger.exception(f"Failed to process credit purchase for {user_id}: {e}")
             raise CreditTransactionError(f"Failed to process credit purchase: {e}")
