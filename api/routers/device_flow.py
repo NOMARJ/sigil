@@ -38,7 +38,7 @@ router = APIRouter(prefix="/v1/auth/device", tags=["auth"])
 
 class DeviceCodeResponse:
     """Response from Auth0 device authorization endpoint."""
-    
+
     def __init__(self, data: dict[str, Any]):
         self.device_code: str = data["device_code"]
         self.user_code: str = data["user_code"]
@@ -50,7 +50,7 @@ class DeviceCodeResponse:
 
 class DeviceCodeRequest:
     """Request to initiate device flow."""
-    
+
     client_id: str
     scope: str = "openid profile email offline_access"
     audience: str
@@ -58,7 +58,7 @@ class DeviceCodeRequest:
 
 class DeviceTokenResponse:
     """Response containing access token from device flow."""
-    
+
     def __init__(self, data: dict[str, Any]):
         self.access_token: str = data["access_token"]
         self.token_type: str = data.get("token_type", "Bearer")
@@ -85,58 +85,58 @@ class DeviceTokenResponse:
                         "verification_uri": "https://auth.sigilsec.ai/activate",
                         "verification_uri_complete": "https://auth.sigilsec.ai/activate?user_code=WDJB-MJHT",
                         "expires_in": 900,
-                        "interval": 5
+                        "interval": 5,
                     }
                 }
-            }
+            },
         },
-        503: {"model": ErrorResponse}
-    }
+        503: {"model": ErrorResponse},
+    },
 )
 async def request_device_code() -> dict[str, Any]:
     """Initiate device authorization flow.
-    
+
     Returns device code and verification URL for user to complete authentication.
     CLI should display the verification_uri and user_code to the user.
     """
     if not settings.auth0_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 not configured"
+            detail="Auth0 not configured",
         )
-    
+
     # Request device code from Auth0
     device_auth_url = f"https://{settings.auth0_domain}/oauth/device/code"
-    
+
     payload = {
         "client_id": settings.auth0_client_id,
         "scope": "openid profile email offline_access",
         "audience": settings.auth0_audience,
     }
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 device_auth_url,
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=10.0
+                timeout=10.0,
             )
-            
+
             if response.status_code != 200:
                 logger.error(
                     "Auth0 device code request failed: %s - %s",
                     response.status_code,
-                    response.text
+                    response.text,
                 )
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Failed to initiate device flow"
+                    detail="Failed to initiate device flow",
                 )
-            
+
             data = response.json()
             logger.info("Device code requested: %s", data.get("user_code"))
-            
+
             return {
                 "device_code": data["device_code"],
                 "user_code": data["user_code"],
@@ -145,12 +145,12 @@ async def request_device_code() -> dict[str, Any]:
                 "expires_in": data["expires_in"],
                 "interval": data.get("interval", 5),
             }
-            
+
     except httpx.RequestError as e:
         logger.error("Auth0 device code request error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 service unavailable"
+            detail="Auth0 service unavailable",
         )
 
 
@@ -168,10 +168,10 @@ async def request_device_code() -> dict[str, Any]:
                         "token_type": "Bearer",
                         "expires_in": 86400,
                         "refresh_token": "v1.MRrT...",
-                        "scope": "openid profile email offline_access"
+                        "scope": "openid profile email offline_access",
                     }
                 }
-            }
+            },
         },
         400: {
             "description": "Pending (user hasn't completed auth yet) or expired",
@@ -179,30 +179,42 @@ async def request_device_code() -> dict[str, Any]:
                 "application/json": {
                     "examples": {
                         "pending": {
-                            "value": {"error": "authorization_pending", "error_description": "User has not yet authorized"}
+                            "value": {
+                                "error": "authorization_pending",
+                                "error_description": "User has not yet authorized",
+                            }
                         },
                         "slow_down": {
-                            "value": {"error": "slow_down", "error_description": "Polling too frequently"}
+                            "value": {
+                                "error": "slow_down",
+                                "error_description": "Polling too frequently",
+                            }
                         },
                         "expired": {
-                            "value": {"error": "expired_token", "error_description": "Device code expired"}
+                            "value": {
+                                "error": "expired_token",
+                                "error_description": "Device code expired",
+                            }
                         },
                         "denied": {
-                            "value": {"error": "access_denied", "error_description": "User denied authorization"}
-                        }
+                            "value": {
+                                "error": "access_denied",
+                                "error_description": "User denied authorization",
+                            }
+                        },
                     }
                 }
-            }
+            },
         },
-        503: {"model": ErrorResponse}
-    }
+        503: {"model": ErrorResponse},
+    },
 )
 async def poll_device_token(device_code: str) -> dict[str, Any]:
     """Poll for device flow token.
-    
+
     CLI should call this endpoint repeatedly (respecting the interval)
     until it receives a token or an error.
-    
+
     Returns:
     - 200 with access_token: User completed auth, token granted
     - 400 with authorization_pending: User hasn't completed auth yet (keep polling)
@@ -213,29 +225,29 @@ async def poll_device_token(device_code: str) -> dict[str, Any]:
     if not settings.auth0_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 not configured"
+            detail="Auth0 not configured",
         )
-    
+
     # Exchange device code for token
     token_url = f"https://{settings.auth0_domain}/oauth/token"
-    
+
     payload = {
         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
         "device_code": device_code,
         "client_id": settings.auth0_client_id,
     }
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 token_url,
                 data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=10.0
+                timeout=10.0,
             )
-            
+
             data = response.json()
-            
+
             # Success - user completed auth
             if response.status_code == 200:
                 logger.info("Device flow token granted")
@@ -246,36 +258,36 @@ async def poll_device_token(device_code: str) -> dict[str, Any]:
                     "refresh_token": data.get("refresh_token"),
                     "scope": data.get("scope"),
                 }
-            
+
             # Pending or error
             error = data.get("error", "unknown_error")
             error_description = data.get("error_description", "Unknown error")
-            
+
             # These are expected during polling
             if error in ("authorization_pending", "slow_down"):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": error, "error_description": error_description}
+                    detail={"error": error, "error_description": error_description},
                 )
-            
+
             # Terminal errors
             if error in ("expired_token", "access_denied"):
                 logger.warning("Device flow failed: %s", error)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": error, "error_description": error_description}
+                    detail={"error": error, "error_description": error_description},
                 )
-            
+
             # Unknown error
             logger.error("Auth0 device token error: %s - %s", error, error_description)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"error": error, "error_description": error_description}
+                detail={"error": error, "error_description": error_description},
             )
-            
+
     except httpx.RequestError as e:
         logger.error("Auth0 device token request error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 service unavailable"
+            detail="Auth0 service unavailable",
         )

@@ -140,6 +140,17 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     return total;
   };
 
+  const classifyPattern = useCallback((finding: Finding): string => {
+    // Simplified pattern classification for component
+    const pattern = finding.pattern_matched.toUpperCase();
+    if (pattern.includes('SQL')) return 'SQL_INJECTION';
+    if (pattern.includes('XSS')) return 'XSS';
+    if (pattern.includes('COMMAND')) return 'COMMAND_INJECTION';
+    if (pattern.includes('PATH')) return 'PATH_TRAVERSAL';
+    if (pattern.includes('SECRET') || pattern.includes('KEY')) return 'HARDCODED_SECRET';
+    return 'OTHER';
+  }, []);
+
   const runBulkAnalysis = useCallback(async () => {
     if (selectedGroups.size === 0) {
       setError('Please select at least one pattern group to analyze');
@@ -196,17 +207,6 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
       setLoading(false);
     }
   }, [selectedGroups, patternGroups, findings, depth, credits, onAnalysisComplete, classifyPattern]);
-
-  const classifyPattern = useCallback((finding: Finding): string => {
-    // Simplified pattern classification for component
-    const pattern = finding.pattern_matched.toUpperCase();
-    if (pattern.includes('SQL')) return 'SQL_INJECTION';
-    if (pattern.includes('XSS')) return 'XSS';
-    if (pattern.includes('COMMAND')) return 'COMMAND_INJECTION';
-    if (pattern.includes('PATH')) return 'PATH_TRAVERSAL';
-    if (pattern.includes('SECRET') || pattern.includes('KEY')) return 'HARDCODED_SECRET';
-    return 'OTHER';
-  }, []);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

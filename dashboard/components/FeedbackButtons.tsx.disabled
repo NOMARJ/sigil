@@ -319,7 +319,7 @@ export const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({
               </Typography>
               <Slider
                 value={confidence}
-                onChange={(_, value) => setConfidence(value as number)}
+                onChange={(_: Event, value: number | number[]) => setConfidence(value as number)}
                 min={0}
                 max={100}
                 step={10}
@@ -337,7 +337,7 @@ export const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({
               multiline
               rows={3}
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReason(e.target.value)}
               placeholder="Explain why you think this is a true/false positive..."
               helperText="Your explanation helps improve detection accuracy"
             />
@@ -384,7 +384,7 @@ export const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({
                 control={
                   <Switch
                     checked={shareWithTeam}
-                    onChange={(e) => setShareWithTeam(e.target.checked)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShareWithTeam(e.target.checked)}
                   />
                 }
                 label="Share feedback with team for collective learning"

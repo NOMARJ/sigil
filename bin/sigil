@@ -1423,15 +1423,16 @@ cmd_login() {
         
         if [ -n "$token_response" ]; then
             # Check if we got a token
+            local error
             if check_tool "python3"; then
                 token=$(echo "$token_response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
-                local error=$(echo "$token_response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('detail',{}).get('error','') if isinstance(d.get('detail'),dict) else '')" 2>/dev/null)
+                error=$(echo "$token_response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('detail',{}).get('error','') if isinstance(d.get('detail'),dict) else '')" 2>/dev/null)
             elif check_tool "jq"; then
                 token=$(echo "$token_response" | jq -r '.access_token // empty' 2>/dev/null)
-                local error=$(echo "$token_response" | jq -r '.detail.error // empty' 2>/dev/null)
+                error=$(echo "$token_response" | jq -r '.detail.error // empty' 2>/dev/null)
             else
                 token=$(echo "$token_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-                local error=$(echo "$token_response" | grep -o '"error":"[^"]*"' | cut -d'"' -f4)
+                error=$(echo "$token_response" | grep -o '"error":"[^"]*"' | cut -d'"' -f4)
             fi
             
             # Success - got token

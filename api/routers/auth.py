@@ -538,7 +538,7 @@ async def _auto_provision_auth0_user(user_info: dict[str, Any]) -> dict[str, Any
 
 async def get_current_user_unified(request: Request) -> UserResponse:
     """Auth0-only authentication (RS256 JWT).
-    
+
     Auth0 users are auto-provisioned on first login.
     Email/password authentication now handled by Auth0 Database Connection.
     """
@@ -602,7 +602,7 @@ async def _compat_current_user_dependency(request: Request) -> UserResponse:
 )
 async def register(body: UserCreate) -> TokenResponse:
     """DEPRECATED: Registration now handled by Auth0 Database Connection.
-    
+
     Please use the Auth0 Universal Login flow at /api/auth/login instead.
     """
     raise HTTPException(
@@ -621,7 +621,7 @@ async def register(body: UserCreate) -> TokenResponse:
 )
 async def login(body: UserLogin, request: Request) -> TokenResponse:
     """DEPRECATED: Login now handled by Auth0 Database Connection.
-    
+
     Please use the Auth0 Universal Login flow at /api/auth/login instead.
     """
     raise HTTPException(

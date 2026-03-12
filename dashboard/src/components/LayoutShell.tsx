@@ -20,7 +20,7 @@ export default function LayoutShell({ children }: LayoutShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const hideSidebar = NO_SIDEBAR_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + "/"),
+    (route) => pathname === route || pathname?.startsWith(route + "/"),
   );
 
   return (

@@ -29,7 +29,7 @@ const channelTypeIcons: Record<string, string> = {
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const checkoutStatus = searchParams.get("checkout");
+  const checkoutStatus = searchParams?.get("checkout");
 
   // Policy state
   const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("LOW_RISK");
