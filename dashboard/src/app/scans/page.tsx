@@ -106,9 +106,12 @@ export default function ScansPage() {
 
       {/* Risk Filter Bar */}
       <RiskFilterBar 
-        selectedRisk={verdictFilter === "ALL" ? null : verdictFilter.replace("_RISK", "") as any}
-        onRiskSelect={(risk) => {
-          setVerdictFilter(risk ? `${risk}_RISK` as Verdict : "ALL");
+        onFilterChange={(filter) => {
+          if (filter === 'all') {
+            setVerdictFilter("ALL");
+          } else {
+            setVerdictFilter(`${filter.toUpperCase()}_RISK` as Verdict);
+          }
           resetPage();
         }}
       />
@@ -116,7 +119,7 @@ export default function ScansPage() {
       {/* Additional Filters */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Scope */}
-        <div className="flex items-center gap-1" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)' }} className="rounded-lg p-1">
+        <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-subtle)' }}>
           {scopeOptions.map((s) => (
             <button
               key={s.value}
