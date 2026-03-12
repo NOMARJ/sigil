@@ -9,7 +9,6 @@ Cost target: ~$15-25/month for 7,700+ classifications
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import anthropic
@@ -589,13 +588,13 @@ async def main():
 
     # Configuration from environment variables
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    database_url = os.getenv("DATABASE_URL")
+    # database_url = os.getenv("DATABASE_URL")  # TODO: Use when DB is configured
 
     if not anthropic_api_key:
         raise ValueError("ANTHROPIC_API_KEY environment variable required")
 
     # Initialize classifier
-    classifier = ForgeClassifier(anthropic_api_key)
+    # classifier = ForgeClassifier(anthropic_api_key)  # TODO: Use when processing
 
     # Initialize database connection (pseudo-code)
     # db_connection = await get_database_connection(database_url)

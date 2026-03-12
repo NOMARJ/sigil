@@ -134,8 +134,8 @@ def _has_suspicious_substitution(name: str, target: str) -> bool:
     """Check if a package name has character substitutions typical of typosquatting."""
     confusables = {
         "0": "o",
-        "1": "l",
-        "1": "i",
+        "1": "l",  # Can be confused with 'l' or 'i'
+        # "1": "i",  # Duplicate key removed
         "3": "e",
         "5": "s",
         "7": "t",

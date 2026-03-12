@@ -129,16 +129,14 @@ class _MssqlStore:
         conflict = conflict_columns or ["id"]
 
         # Build MERGE statement for SQL Server
-        merge_on = " AND ".join([f"target.{c} = source.{c}" for c in conflict])
+        " AND ".join([f"target.{c} = source.{c}" for c in conflict])
         update_cols = [c for c in cols if c not in conflict]
-        source_select = ", ".join([f"? AS {c}" for c in cols])
-        insert_cols = ", ".join(cols)
-        source_vals = ", ".join([f"source.{c}" for c in cols])
+        ", ".join([f"? AS {c}" for c in cols])
+        ", ".join(cols)
+        ", ".join([f"source.{c}" for c in cols])
 
-        matched_clause = ""
         if update_cols:
             set_clause = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
-            matched_clause = f"WHEN MATCHED THEN UPDATE SET {set_clause}"
 
         # Use a two-step approach to work around SQL Server trigger limitations
         # First, try to update existing record

@@ -52,7 +52,7 @@ async def publish_scan(
     """Publish a completed scan to all downstream surfaces."""
     verdict = scan_output.get("verdict", "LOW_RISK")
     score = scan_output.get("score", 0.0)
-    findings = scan_output.get("findings", [])
+    scan_output.get("findings", [])
 
     # 1. Invalidate badge cache (Redis + DB upsert)
     await _invalidate_badge_cache(job.ecosystem, job.name, job.version, verdict, score)
@@ -347,7 +347,7 @@ async def _maybe_post_social(
     # Full URL — no shorteners (agents resolve full URLs)
     report_url = f"https://sigilsec.ai/scans/{job.ecosystem}/{job.name}"
 
-    post_text = (
+    (
         f"{verdict_label} detected: {job.name}@{job.version} on {job.ecosystem.upper()}\n"
         f"\n"
         f"{findings_text}\n"

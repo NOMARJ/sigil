@@ -6,14 +6,10 @@ Realistic load testing scenarios for Forge APIs simulating various user patterns
 Run with: locust -f forge_load_test.py --host=http://localhost:8000
 """
 
-from locust import HttpUser, task, between, events, TaskSet
-from locust.env import Environment
-from locust.stats import StatsEntry
+from locust import HttpUser, task, between, events
 import random
 import json
-import time
 from datetime import datetime
-from typing import Dict, List, Any
 
 
 class ForgeAPIUser(HttpUser):

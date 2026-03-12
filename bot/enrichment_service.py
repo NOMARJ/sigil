@@ -14,11 +14,9 @@ the bot module structure.
 """
 
 import asyncio
-import json
 import logging
 import signal
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -214,7 +212,7 @@ async def run_enrichment_worker():
         worker_state["processed_records"] = 0
         worker_state["error_count"] = 0
 
-        logger.info(f"Enrichment worker configuration:")
+        logger.info("Enrichment worker configuration:")
         logger.info(f"  Batch size: {enrichment_worker.batch_size}")
         logger.info(f"  Max records: {enrichment_worker.max_records}")
         logger.info(

@@ -10,7 +10,6 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Add project root to path
@@ -55,7 +54,7 @@ async def main():
         worker.max_records = bot_settings.forge_enrichment_max_records
         worker.delay_between_batches = bot_settings.forge_enrichment_delay
 
-        logger.info(f"Worker configuration:")
+        logger.info("Worker configuration:")
         logger.info(f"  Batch size: {worker.batch_size}")
         logger.info(f"  Max records: {worker.max_records}")
         logger.info(f"  Delay between batches: {worker.delay_between_batches}s")

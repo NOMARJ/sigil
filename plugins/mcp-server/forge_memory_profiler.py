@@ -11,11 +11,10 @@ import tracemalloc
 import psutil
 import sys
 import os
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Any, Tuple
+from dataclasses import dataclass
 from datetime import datetime
 import json
-import linecache
 
 # Add parent directories to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -142,7 +141,7 @@ class ForgeMemoryProfiler:
         before = self.take_snapshot("Before endpoint")
 
         # Run the endpoint function
-        result = await endpoint_func(*args, **kwargs)
+        await endpoint_func(*args, **kwargs)
 
         after = self.take_snapshot("After endpoint")
 
@@ -365,7 +364,7 @@ async def profile_forge_apis():
 
     # Import API modules for testing
     try:
-        from api.routers import forge
+        # from api.routers import forge  # Not used in this test
         from api.services import forge_classifier, forge_matcher
         from api.database import db
 
@@ -380,7 +379,7 @@ async def profile_forge_apis():
     print("\n=== MEMORY PROFILING STARTED ===")
 
     # Take initial baseline
-    baseline = profiler.take_snapshot("Baseline")
+    profiler.take_snapshot("Baseline")
 
     # Test 1: Classification memory usage
     print("\n Testing classification service...")
@@ -444,19 +443,19 @@ async def profile_forge_apis():
     print(f"  Heavy load memory: {load_profile['memory_used_mb']:.2f}MB")
 
     # Take final snapshot
-    final = profiler.take_snapshot("Final")
+    profiler.take_snapshot("Final")
 
     # Analyze patterns
     print("\n=== MEMORY ANALYSIS ===")
     patterns = profiler.analyze_memory_patterns()
 
-    print(f"\n Memory Statistics:")
+    print("\n Memory Statistics:")
     print(f"  Peak Memory: {patterns['peak_memory_mb']:.2f}MB")
     print(f"  Average Memory: {patterns['average_memory_mb']:.2f}MB")
     print(f"  Growth Rate: {patterns['memory_growth_rate_mb_per_min']:.2f}MB/min")
 
     if patterns.get("memory_hotspots"):
-        print(f"\n Memory Hotspots:")
+        print("\n Memory Hotspots:")
         for hotspot in patterns["memory_hotspots"][:5]:
             print(f"  - {hotspot['location']}: {hotspot['average_size_mb']:.2f}MB avg")
 

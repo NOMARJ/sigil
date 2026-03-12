@@ -6,7 +6,6 @@ This script tests the enrichment worker with sample data to verify
 the complete data flow without requiring a real database.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -183,7 +182,6 @@ if __name__ == "__main__":
         self, ecosystem, package_name, package_version, scan_record, findings, metadata
     ):
         """Synchronous version of _generate_enriched_data for testing."""
-        from datetime import datetime, timezone
 
         # Generate deterministic UUID for tool
         tool_uuid = self._generate_tool_uuid(ecosystem, package_name)

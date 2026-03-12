@@ -37,7 +37,7 @@ async def _get_packages_due_for_rescan(
     from bot.store import get_db
 
     db = await get_db()
-    now = datetime.now(timezone.utc)
+    datetime.now(timezone.utc)
 
     # Build SQL that selects the most recent scan per package and checks age
     sql = """

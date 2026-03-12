@@ -120,7 +120,7 @@ cursor.execute("""
 
 high_risk = cursor.fetchall()
 if high_risk:
-    print(f"\nTop 20 high-risk unclassified packages:")
+    print("\nTop 20 high-risk unclassified packages:")
     print(
         "Package Name".ljust(40) + "Ecosystem".ljust(12) + "Risk".ljust(6) + "Findings"
     )

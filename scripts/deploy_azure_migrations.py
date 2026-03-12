@@ -9,10 +9,9 @@ import sys
 import pyodbc
 import re
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 
 # Setup logging
 logging.basicConfig(
@@ -330,7 +329,7 @@ class AzureMigrationDeployer:
                     str(e),
                 )
                 conn.commit()
-            except:
+            except Exception:
                 pass  # Ignore errors in error recording
 
             return False
@@ -403,7 +402,7 @@ class AzureMigrationDeployer:
                     )
                     break
 
-            logger.info(f"\n📊 Deployment Summary:")
+            logger.info("\n📊 Deployment Summary:")
             logger.info(f"✅ Successful migrations: {successful}")
             logger.info(f"❌ Failed migrations: {failed}")
             logger.info(f"📊 Total T-SQL migrations processed: {successful + failed}")

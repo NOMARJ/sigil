@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
 
 from bot.config import bot_settings
 from bot.filters import determine_priority, matches_ai_keywords
@@ -163,7 +162,6 @@ class PyPIWatcher(BaseWatcher):
                 )
                 if self._last_serial is None:
                     # First run: get current serial, don't backfill
-                    checkpoint = None  # Will be loaded async
                     serial = client.changelog_last_serial()
                     return serial, []
                 changes = client.changelog_since_serial(self._last_serial)

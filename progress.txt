@@ -1,0 +1,154 @@
+## Codebase Patterns
+
+- API services use credit_service for all LLM operations
+- Frontend components fetch credit balance on mount
+- Use Claude Haiku for simple tasks, Sonnet for complex analysis
+- All interactive features deduct credits atomically via stored procedures
+- LLM prompts are built using template functions for consistency
+- Git operations use subprocess with timeout for safety
+- Dashboard pages use Next.js with TypeScript
+
+---
+
+## 2026-03-12 - US-005 Trace Attack Chains
+
+- Implemented attack chain tracing service with MITRE ATT&CK mapping
+- Created code flow analyzer for data flow and execution path analysis
+- Built visualization component with risk scoring and blast radius
+- Files changed:
+  - api/services/attack_chain_tracer.py
+  - api/utils/code_flow_analyzer.py
+  - dashboard/components/AttackChainVisualizer.tsx
+- **Learnings:**
+  - Attack chain analysis requires 8 credits (Sonnet model for complex reasoning)
+  - MITRE ATT&CK framework stages map well to exploit progression
+  - Visualization data structure needs nodes/edges for frontend rendering
+  - Kill chain disruption points are critical for actionable insights
+
+---
+
+## 2026-03-12 - US-006 Compare Security Between Versions
+
+- Implemented version comparison service for security delta analysis
+- Created git analyzer utility for blame and commit history
+- Built security timeline page with trend visualization
+- Files changed:
+  - api/services/version_comparator.py
+  - api/utils/git_analyzer.py
+  - dashboard/pages/security-timeline.tsx
+- **Learnings:**
+  - Version comparison uses 6 credits (simpler than attack chain analysis)
+  - Git worktrees prevent disrupting working directory during comparison
+  - Blame information helps identify who introduced vulnerabilities
+  - Timeline visualization needs event type icons for clarity
+  - Security score delta helps quantify improvement/regression
+
+---
+
+## 2026-03-12 - US-008 Get Compliance Mapping
+
+- Implemented compliance mapping for OWASP, CWE, PCI DSS, HIPAA, GDPR, MITRE ATT&CK
+- Created comprehensive compliance frameworks data file with pattern mappings
+- Built ComplianceReport component with framework selection and context adjustment
+- Files changed:
+  - api/data/compliance_frameworks.json
+  - api/services/compliance_mapper.py
+  - dashboard/components/ComplianceReport.tsx
+  - api/routers/interactive.py (added /compliance endpoints)
+- **Learnings:**
+  - Compliance mapping uses 3 credits (simpler than attack chain analysis)
+  - Pattern extraction from findings maps to framework categories
+  - Severity adjusts based on compliance context (healthcare, financial, privacy)
+  - Export format generation for auditors includes executive summary
+  - Remediation priorities sorted by severity and framework impact
+
+---
+
+## 2026-03-12 - US-009 Session Persistence and Sharing
+
+- Implemented session persistence with 30-day expiry
+- Created unique share tokens for public session sharing
+- Built session viewing page with conversation history display
+- Added markdown export for session reports
+- Files changed:
+  - api/services/session_manager.py
+  - dashboard/pages/session/[id].tsx
+  - api/routers/interactive.py (added sharing endpoints)
+  - api/migrations/add_session_sharing.sql
+- **Learnings:**
+  - Sessions use UUID-based share tokens for public access
+  - Read-only access via share URL requires no authentication
+  - Session export to markdown includes conversation statistics
+  - Continue session feature updates last_activity timestamp
+  - Share URL works in incognito (no auth required)
+
+---
+
+## 2026-03-12 - US-010 Smart Model Routing
+
+- Implemented complexity scoring for task analysis
+- Created model router with cost optimization logic
+- Added user override capability for model selection
+- Built cost preview showing price differences
+- Files changed:
+  - api/utils/complexity_scorer.py
+  - api/services/model_router.py
+  - api/routers/interactive.py (routing preview endpoints)
+  - api/migrations/add_model_routing.sql
+  - api/tests/test_model_routing.py
+- **Learnings:**
+  - "Is this safe?" correctly routes to Haiku (simple)
+  - "Trace attack" correctly routes to Opus (complex)
+  - Investigation depths map to models (quick→Haiku, thorough→Sonnet, exhaustive→Opus)
+  - Complexity scoring uses keywords, patterns, and context factors
+  - User override sets confidence to 1.0 and bypasses analysis
+  - Estimated 60% cost savings vs always using Opus
+
+---
+
+## 2026-03-12 - US-011 Bulk Investigate Similar Patterns
+
+- Implemented pattern grouping for similar security findings
+- Created bulk analyzer for batch analysis with root cause detection
+- Built interactive component for selecting and analyzing groups
+- Added single fix suggestions for common root causes
+- Files changed:
+  - api/services/pattern_grouper.py
+  - api/services/bulk_analyzer.py
+  - api/prompts/bulk_analysis_prompts.py
+  - dashboard/components/BulkInvestigator.tsx
+  - api/routers/interactive.py (bulk endpoints)
+- **Learnings:**
+  - Pattern grouping uses rules, indicators, and evidence analysis
+  - Root cause similarity calculated via code/file proximity
+  - Single fix possible when similarity > 70% and common patterns exist
+  - 5 SQL injections would be analyzed together as one group
+  - Cost scales with finding count (1 + count*0.1 multiplier)
+  - Recommendations prioritized by severity and fix efficiency
+
+---
+
+## 2026-03-12 - US-012 Learning from User Feedback
+
+- Implemented feedback learning system with suppression rules
+- Created comprehensive feedback processor with pattern recognition
+- Built interactive feedback buttons component with team sharing
+- Added three feedback API endpoints for submission, stats, and accuracy
+- Files changed:
+  - api/models/suppression_rules.py
+  - api/services/feedback_processor.py
+  - dashboard/components/FeedbackButtons.tsx
+  - api/routers/interactive.py (added /feedback endpoints)
+  - api/tests/test_feedback_learning.py
+- **Learnings:**
+  - Feedback processing creates suppression rules when confidence >= 0.8
+  - False positives with 95% confidence trigger complete suppression
+  - Test file patterns (*/tests/*, */spec/*) are recognized and grouped
+  - Team suppression rules require share_with_team flag and team_id
+  - Personal rules only affect user's own scans by default
+  - Confidence adjustments range from -1.0 to +1.0 based on feedback
+  - Contradictory feedback weakens rules (effectiveness score)
+  - Rules deactivate when effectiveness drops below 0.3
+  - Marking test file pattern as safe successfully suppresses similar test files
+
+---

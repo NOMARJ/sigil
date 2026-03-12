@@ -8,9 +8,9 @@ API endpoints and service functions.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 # Import resilience patterns
@@ -23,12 +23,11 @@ from api.errors import (
     ValidationError,
 )
 from api.graceful_degradation import (
-    DegradedResponseBuilder,
     call_with_degradation,
     with_degradation,
 )
 from api.monitoring import record_operation, record_response_time
-from api.retry import protected, retry_github_api
+from api.retry import protected
 
 logger = logging.getLogger(__name__)
 
@@ -453,7 +452,9 @@ async def inject_error_for_testing(error_type: str) -> JSONResponse:
     """
     Example endpoint for testing error handling (only use in development).
     """
-    if not settings.debug:
+    # Check debug mode (would normally import from api.config.settings)
+    debug_mode = False  # Set to True in development
+    if not debug_mode:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Error injection only available in debug mode",

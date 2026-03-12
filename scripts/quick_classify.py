@@ -2,7 +2,6 @@
 """Quick and simple classification to populate forge_classification."""
 
 import pyodbc
-import json
 import uuid
 from datetime import datetime, timezone
 import sys
@@ -103,7 +102,7 @@ for pkg in packages:
         if inserted % 100 == 0:
             conn.commit()
             print(f"Inserted {inserted}...")
-    except Exception as e:
+    except Exception:
         pass  # Skip duplicates/errors
 
 conn.commit()

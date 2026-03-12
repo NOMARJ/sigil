@@ -71,3 +71,4 @@ docs/internal/
 terraform.tfstate
 terraform.tfstate.backup
 *.tfstate
+ui-ux-pro-max

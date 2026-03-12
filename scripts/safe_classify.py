@@ -225,7 +225,7 @@ def classify_package(
     if findings_count > 0:
         description += f"Security scan found {findings_count} potential issues with {risk_level} risk level. "
     else:
-        description += f"No security issues detected in initial scan. "
+        description += "No security issues detected in initial scan. "
 
     if verdict and verdict != "UNKNOWN":
         description += f"Verdict: {verdict}. "
@@ -293,7 +293,7 @@ def process_batch_safe(cursor, batch_data):
     for row in batch_data:
         try:
             # Parse row data
-            scan_id = row[0]
+            row[0]
             package_name = row[1] or "unknown"
             ecosystem = row[2] or "unknown"
             version = row[3] or "0.0.0"

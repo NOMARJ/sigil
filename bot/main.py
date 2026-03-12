@@ -19,8 +19,6 @@ import argparse
 import asyncio
 import logging
 import signal
-import sys
-from typing import Any
 
 from bot.config import bot_settings
 from bot.queue import JobQueue

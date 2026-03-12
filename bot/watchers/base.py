@@ -10,9 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 
-from bot.config import bot_settings
 from bot.queue import JobQueue, ScanJob
 
 logger = logging.getLogger(__name__)
