@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Finding } from '@/lib/types';
 
 interface PatternGroup {
@@ -73,12 +73,8 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
       .catch(err => console.error('Failed to fetch credits:', err));
   }, []);
 
-  // Group findings on component mount
-  useEffect(() => {
-    groupFindings();
-  }, [findings]);
-
-  const groupFindings = async () => {
+  // Group findings when findings change
+  const groupFindings = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/interactive/bulk/group', {
         method: 'POST',
@@ -101,7 +97,12 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     } catch (err) {
       console.error('Failed to group findings:', err);
     }
-  };
+  }, [findings]);
+
+  // Group findings on component mount
+  useEffect(() => {
+    groupFindings();
+  }, [groupFindings]);
 
   const toggleGroup = (patternType: string) => {
     const newSelection = new Set(selectedGroups);
@@ -139,7 +140,7 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     return total;
   };
 
-  const runBulkAnalysis = async () => {
+  const runBulkAnalysis = useCallback(async () => {
     if (selectedGroups.size === 0) {
       setError('Please select at least one pattern group to analyze');
       return;
@@ -194,18 +195,18 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedGroups, patternGroups, findings, depth, credits, onAnalysisComplete, classifyPattern]);
 
-  const classifyPattern = (finding: Finding): string => {
+  const classifyPattern = useCallback((finding: Finding): string => {
     // Simplified pattern classification for component
-    const rule = finding.rule.toUpperCase();
-    if (rule.includes('SQL')) return 'SQL_INJECTION';
-    if (rule.includes('XSS')) return 'XSS';
-    if (rule.includes('COMMAND')) return 'COMMAND_INJECTION';
-    if (rule.includes('PATH')) return 'PATH_TRAVERSAL';
-    if (rule.includes('SECRET') || rule.includes('KEY')) return 'HARDCODED_SECRET';
+    const pattern = finding.pattern_matched.toUpperCase();
+    if (pattern.includes('SQL')) return 'SQL_INJECTION';
+    if (pattern.includes('XSS')) return 'XSS';
+    if (pattern.includes('COMMAND')) return 'COMMAND_INJECTION';
+    if (pattern.includes('PATH')) return 'PATH_TRAVERSAL';
+    if (pattern.includes('SECRET') || pattern.includes('KEY')) return 'HARDCODED_SECRET';
     return 'OTHER';
-  };
+  }, []);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
