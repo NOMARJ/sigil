@@ -1,0 +1,334 @@
+{
+  "frameworks": {
+    "OWASP": {
+      "name": "OWASP Top 10 2021",
+      "version": "2021",
+      "categories": {
+        "A01:2021": {
+          "name": "Broken Access Control",
+          "description": "Access control enforces policy such that users cannot act outside of their intended permissions",
+          "patterns": ["path_traversal", "privilege_escalation", "cors_misconfiguration", "jwt_weak_secret"]
+        },
+        "A02:2021": {
+          "name": "Cryptographic Failures",
+          "description": "Failures related to cryptography which often leads to sensitive data exposure",
+          "patterns": ["weak_crypto", "hardcoded_secret", "insecure_random", "password_plaintext"]
+        },
+        "A03:2021": {
+          "name": "Injection",
+          "description": "User-supplied data is not validated, filtered, or sanitized by the application",
+          "patterns": ["sql_injection", "command_injection", "xpath_injection", "ldap_injection", "eval_usage"]
+        },
+        "A04:2021": {
+          "name": "Insecure Design",
+          "description": "Missing or ineffective control design",
+          "patterns": ["missing_auth", "business_logic_flaw", "race_condition"]
+        },
+        "A05:2021": {
+          "name": "Security Misconfiguration",
+          "description": "Missing appropriate security hardening or improperly configured permissions",
+          "patterns": ["debug_enabled", "default_credentials", "verbose_errors", "open_redirect"]
+        },
+        "A06:2021": {
+          "name": "Vulnerable and Outdated Components",
+          "description": "Using components with known vulnerabilities",
+          "patterns": ["outdated_dependency", "cve_match", "vulnerable_library"]
+        },
+        "A07:2021": {
+          "name": "Identification and Authentication Failures",
+          "description": "Confirmation of the user's identity, authentication, and session management",
+          "patterns": ["weak_password", "session_fixation", "brute_force", "missing_mfa"]
+        },
+        "A08:2021": {
+          "name": "Software and Data Integrity Failures",
+          "description": "Code and infrastructure that does not protect against integrity violations",
+          "patterns": ["deserialization", "ci_cd_manipulation", "unsigned_update", "npm_install_hook", "pypi_setup_hook"]
+        },
+        "A09:2021": {
+          "name": "Security Logging and Monitoring Failures",
+          "description": "Without logging and monitoring, breaches cannot be detected",
+          "patterns": ["missing_logging", "insufficient_logging", "log_injection"]
+        },
+        "A10:2021": {
+          "name": "Server-Side Request Forgery (SSRF)",
+          "description": "Fetching a remote resource without validating the user-supplied URL",
+          "patterns": ["ssrf", "dns_rebinding", "internal_network_access"]
+        }
+      }
+    },
+    "CWE": {
+      "name": "Common Weakness Enumeration",
+      "version": "4.13",
+      "categories": {
+        "CWE-79": {
+          "name": "Cross-site Scripting",
+          "patterns": ["xss_reflected", "xss_stored", "xss_dom"]
+        },
+        "CWE-89": {
+          "name": "SQL Injection",
+          "patterns": ["sql_injection"]
+        },
+        "CWE-78": {
+          "name": "OS Command Injection",
+          "patterns": ["command_injection"]
+        },
+        "CWE-22": {
+          "name": "Path Traversal",
+          "patterns": ["path_traversal"]
+        },
+        "CWE-502": {
+          "name": "Deserialization of Untrusted Data",
+          "patterns": ["deserialization", "pickle_usage"]
+        },
+        "CWE-287": {
+          "name": "Improper Authentication",
+          "patterns": ["missing_auth", "weak_auth"]
+        },
+        "CWE-798": {
+          "name": "Use of Hard-coded Credentials",
+          "patterns": ["hardcoded_secret", "hardcoded_api_key"]
+        },
+        "CWE-918": {
+          "name": "Server-Side Request Forgery",
+          "patterns": ["ssrf"]
+        },
+        "CWE-601": {
+          "name": "URL Redirection to Untrusted Site",
+          "patterns": ["open_redirect"]
+        },
+        "CWE-434": {
+          "name": "Unrestricted Upload of File",
+          "patterns": ["file_upload"]
+        }
+      }
+    },
+    "PCI_DSS": {
+      "name": "Payment Card Industry Data Security Standard",
+      "version": "4.0",
+      "requirements": {
+        "6.2": {
+          "name": "Protect All System Components",
+          "patterns": ["outdated_dependency", "missing_patches", "vulnerable_library"]
+        },
+        "6.5.1": {
+          "name": "Injection flaws",
+          "patterns": ["sql_injection", "command_injection", "ldap_injection"]
+        },
+        "6.5.3": {
+          "name": "Insecure cryptographic storage",
+          "patterns": ["weak_crypto", "password_plaintext", "weak_hash"]
+        },
+        "6.5.7": {
+          "name": "Cross-site scripting",
+          "patterns": ["xss_reflected", "xss_stored", "xss_dom"]
+        },
+        "6.5.8": {
+          "name": "Improper access control",
+          "patterns": ["path_traversal", "privilege_escalation", "missing_auth"]
+        },
+        "6.5.10": {
+          "name": "Broken authentication",
+          "patterns": ["weak_password", "session_fixation", "missing_mfa"]
+        },
+        "8.2": {
+          "name": "Unique User IDs",
+          "patterns": ["shared_account", "default_credentials"]
+        },
+        "10.2": {
+          "name": "Audit Logs",
+          "patterns": ["missing_logging", "insufficient_logging"]
+        }
+      }
+    },
+    "HIPAA": {
+      "name": "Health Insurance Portability and Accountability Act",
+      "version": "2013",
+      "safeguards": {
+        "164.312(a)(1)": {
+          "name": "Access Control",
+          "patterns": ["missing_auth", "privilege_escalation", "weak_auth"]
+        },
+        "164.312(a)(2)(iv)": {
+          "name": "Encryption and Decryption",
+          "patterns": ["weak_crypto", "password_plaintext", "unencrypted_transmission"]
+        },
+        "164.312(b)": {
+          "name": "Audit Controls",
+          "patterns": ["missing_logging", "insufficient_logging", "log_tampering"]
+        },
+        "164.312(c)(1)": {
+          "name": "Integrity",
+          "patterns": ["data_tampering", "missing_integrity_check"]
+        },
+        "164.312(d)": {
+          "name": "Person or Entity Authentication",
+          "patterns": ["weak_password", "missing_mfa", "weak_auth"]
+        },
+        "164.312(e)(1)": {
+          "name": "Transmission Security",
+          "patterns": ["unencrypted_transmission", "mitm_vulnerability"]
+        }
+      }
+    },
+    "GDPR": {
+      "name": "General Data Protection Regulation",
+      "version": "2018",
+      "articles": {
+        "Article 32": {
+          "name": "Security of Processing",
+          "description": "Implement appropriate technical and organizational measures",
+          "patterns": ["weak_crypto", "missing_auth", "insufficient_logging", "data_leak"]
+        },
+        "Article 25": {
+          "name": "Data Protection by Design",
+          "description": "Implement data protection principles effectively",
+          "patterns": ["privacy_violation", "excessive_data_collection", "missing_consent"]
+        },
+        "Article 33": {
+          "name": "Breach Notification",
+          "description": "Notify breaches within 72 hours",
+          "patterns": ["missing_logging", "insufficient_monitoring"]
+        },
+        "Article 35": {
+          "name": "Data Protection Impact Assessment",
+          "description": "Assessment for high-risk processing",
+          "patterns": ["high_risk_processing", "biometric_processing", "profiling"]
+        }
+      }
+    },
+    "MITRE_ATTACK": {
+      "name": "MITRE ATT&CK",
+      "version": "14.0",
+      "tactics": {
+        "TA0001": {
+          "name": "Initial Access",
+          "techniques": ["supply_chain_compromise", "trusted_relationship", "phishing"]
+        },
+        "TA0002": {
+          "name": "Execution",
+          "techniques": ["command_injection", "eval_usage", "deserialization"]
+        },
+        "TA0003": {
+          "name": "Persistence",
+          "techniques": ["backdoor", "npm_install_hook", "pypi_setup_hook"]
+        },
+        "TA0004": {
+          "name": "Privilege Escalation",
+          "techniques": ["privilege_escalation", "sudo_bypass"]
+        },
+        "TA0005": {
+          "name": "Defense Evasion",
+          "techniques": ["obfuscation", "base64_encoding", "code_packing"]
+        },
+        "TA0006": {
+          "name": "Credential Access",
+          "techniques": ["credential_theft", "keylogger", "env_var_access"]
+        },
+        "TA0009": {
+          "name": "Collection",
+          "techniques": ["data_collection", "screen_capture", "clipboard_data"]
+        },
+        "TA0010": {
+          "name": "Exfiltration",
+          "techniques": ["network_exfiltration", "dns_tunneling", "webhook_data"]
+        }
+      }
+    }
+  },
+  "severity_adjustments": {
+    "HIPAA": {
+      "multiplier": 2.0,
+      "reason": "Healthcare data requires strict protection"
+    },
+    "PCI_DSS": {
+      "multiplier": 1.8,
+      "reason": "Financial data protection is critical"
+    },
+    "GDPR": {
+      "multiplier": 1.5,
+      "reason": "Privacy violations carry heavy fines"
+    }
+  },
+  "pattern_mappings": {
+    "sql_injection": {
+      "frameworks": ["OWASP:A03:2021", "CWE-89", "PCI_DSS:6.5.1"],
+      "severity_base": "HIGH",
+      "remediation_priority": 1
+    },
+    "command_injection": {
+      "frameworks": ["OWASP:A03:2021", "CWE-78", "PCI_DSS:6.5.1", "MITRE_ATTACK:TA0002"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "xss_reflected": {
+      "frameworks": ["OWASP:A03:2021", "CWE-79", "PCI_DSS:6.5.7"],
+      "severity_base": "MEDIUM",
+      "remediation_priority": 2
+    },
+    "xss_stored": {
+      "frameworks": ["OWASP:A03:2021", "CWE-79", "PCI_DSS:6.5.7"],
+      "severity_base": "HIGH",
+      "remediation_priority": 1
+    },
+    "path_traversal": {
+      "frameworks": ["OWASP:A01:2021", "CWE-22", "PCI_DSS:6.5.8"],
+      "severity_base": "HIGH",
+      "remediation_priority": 2
+    },
+    "hardcoded_secret": {
+      "frameworks": ["OWASP:A02:2021", "CWE-798"],
+      "severity_base": "HIGH",
+      "remediation_priority": 1
+    },
+    "npm_install_hook": {
+      "frameworks": ["OWASP:A08:2021", "MITRE_ATTACK:TA0003"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "pypi_setup_hook": {
+      "frameworks": ["OWASP:A08:2021", "MITRE_ATTACK:TA0003"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "eval_usage": {
+      "frameworks": ["OWASP:A03:2021", "MITRE_ATTACK:TA0002"],
+      "severity_base": "HIGH",
+      "remediation_priority": 2
+    },
+    "deserialization": {
+      "frameworks": ["OWASP:A08:2021", "CWE-502", "MITRE_ATTACK:TA0002"],
+      "severity_base": "HIGH",
+      "remediation_priority": 1
+    },
+    "weak_crypto": {
+      "frameworks": ["OWASP:A02:2021", "PCI_DSS:6.5.3", "HIPAA:164.312(a)(2)(iv)"],
+      "severity_base": "HIGH",
+      "remediation_priority": 2
+    },
+    "missing_auth": {
+      "frameworks": ["OWASP:A07:2021", "CWE-287", "PCI_DSS:6.5.8", "HIPAA:164.312(a)(1)"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "credential_theft": {
+      "frameworks": ["MITRE_ATTACK:TA0006"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "network_exfiltration": {
+      "frameworks": ["MITRE_ATTACK:TA0010"],
+      "severity_base": "HIGH",
+      "remediation_priority": 1
+    },
+    "backdoor": {
+      "frameworks": ["MITRE_ATTACK:TA0003"],
+      "severity_base": "CRITICAL",
+      "remediation_priority": 1
+    },
+    "obfuscation": {
+      "frameworks": ["MITRE_ATTACK:TA0005"],
+      "severity_base": "MEDIUM",
+      "remediation_priority": 3
+    }
+  }
+}
