@@ -42,19 +42,21 @@ const API_URL =
 async function getToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
 
-  // Try Auth0 access token first (for OAuth users)
+  // Only Auth0 tokens now
   try {
-    const res = await fetch("/api/auth/token");
+    const res = await fetch("/api/auth/token", {
+      credentials: 'include',
+      cache: 'no-store',
+    });
     if (res.ok) {
       const { accessToken } = await res.json();
-      if (accessToken) return accessToken;
+      return accessToken || null;
     }
   } catch {
-    // Auth0 session unavailable, fall through
+    // Not authenticated
   }
 
-  // Fall back to custom JWT (for email/password users)
-  return localStorage.getItem("sigil_access_token");
+  return null;
 }
 
 /** Parse an API error response into a human-readable message. */
@@ -126,26 +128,29 @@ async function request<T>(
 // Auth
 // ---------------------------------------------------------------------------
 
-export async function login(payload: LoginRequest): Promise<AuthTokens> {
-  return request<AuthTokens>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
+// DEPRECATED: Auth0 handles registration now via Universal Login
+// export async function register(payload: RegisterRequest): Promise<AuthTokens> {
+//   return request<AuthTokens>("/auth/register", {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// }
 
-export async function register(payload: RegisterRequest): Promise<AuthTokens> {
-  return request<AuthTokens>("/auth/register", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
+// DEPRECATED: Auth0 handles login now via Universal Login
+// export async function login(payload: LoginRequest): Promise<AuthTokens> {
+//   return request<AuthTokens>("/auth/login", {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// }
 
-export async function refreshToken(refresh: string): Promise<AuthTokens> {
-  return request<AuthTokens>("/auth/refresh", {
-    method: "POST",
-    body: JSON.stringify({ refresh_token: refresh }),
-  });
-}
+// DEPRECATED: Auth0 handles token refresh
+// export async function refreshToken(refresh: string): Promise<AuthTokens> {
+//   return request<AuthTokens>("/auth/refresh", {
+//     method: "POST",
+//     body: JSON.stringify({ refresh_token: refresh }),
+//   });
+// }
 
 export async function getCurrentUser(): Promise<User> {
   return request<User>("/auth/me");

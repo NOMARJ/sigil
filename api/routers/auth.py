@@ -537,64 +537,47 @@ async def _auto_provision_auth0_user(user_info: dict[str, Any]) -> dict[str, Any
 
 
 async def get_current_user_unified(request: Request) -> UserResponse:
-    """Unified auth dependency that supports Auth0 (OAuth) and custom JWT.
-
-    Priority:
-    1. Try Auth0 RS256 JWT first (for OAuth users)
-    2. Fall back to custom HS256 JWT (for email/password users)
-
+    """Auth0-only authentication (RS256 JWT).
+    
     Auth0 users are auto-provisioned on first login.
+    Email/password authentication now handled by Auth0 Database Connection.
     """
     # Extract token from Authorization header
     auth_header = request.headers.get("Authorization")
-    if not auth_header:
+    if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Bad request: not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication scheme",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     token = auth_header[7:]  # Remove "Bearer " prefix
 
-    # Try Auth0 first (if configured)
-    auth0_error = None
-    if settings.auth0_configured:
-        try:
-            user_info = await verify_auth0_token(token)
-            # Auto-provision or look up the user in our DB
-            user = await _auto_provision_auth0_user(user_info)
-            logger.debug("Authentication successful via Auth0 token")
-            return UserResponse(
-                id=str(user["id"]),
-                email=user["email"],
-                name=user.get("name", ""),
-                created_at=user.get("created_at", datetime.utcnow()),
-            )
-        except HTTPException as e:
-            auth0_error = e
-            logger.debug("Auth0 auth failed: %s, trying custom JWT fallback", e.detail)
-
-    # Fall back to custom JWT (email/password users)
-    try:
-        user_data = await verify_custom_jwt(token)
-        logger.debug("Authentication successful via custom JWT")
-        return UserResponse(**user_data)
-    except HTTPException as custom_error:
-        logger.warning(
-            "Authentication failed for token. Auth0: %s, Custom JWT: %s",
-            auth0_error.detail if auth0_error else "Not configured",
-            custom_error.detail,
+    # Verify Auth0 token
+    if not settings.auth0_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service not configured",
         )
-        if auth0_error and settings.auth0_configured:
-            raise auth0_error
-        raise custom_error
+
+    try:
+        user_info = await verify_auth0_token(token)
+        user = await _auto_provision_auth0_user(user_info)
+        logger.debug("Authentication successful via Auth0")
+        return UserResponse(
+            id=str(user["id"]),
+            email=user["email"],
+            name=user.get("name", ""),
+            created_at=user.get("created_at", datetime.utcnow()),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Auth0 authentication failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
 
 
 async def _compat_current_user_dependency(request: Request) -> UserResponse:
@@ -612,92 +595,38 @@ async def _compat_current_user_dependency(request: Request) -> UserResponse:
 @router.post(
     "/register",
     response_model=TokenResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Register a new user account",
-    responses={409: {"model": ErrorResponse}},
-    dependencies=[Depends(RateLimiter(max_requests=5, window=60))],
+    status_code=status.HTTP_410_GONE,
+    summary="DEPRECATED: Use Auth0 Database Connection",
+    deprecated=True,
+    responses={410: {"model": ErrorResponse}},
 )
 async def register(body: UserCreate) -> TokenResponse:
-    """Create a new user account and return an access token.
-
-    - Email must be unique.
-    - Password must be at least 8 characters.
+    """DEPRECATED: Registration now handled by Auth0 Database Connection.
+    
+    Please use the Auth0 Universal Login flow at /api/auth/login instead.
     """
-    # Check for existing user
-    existing = await db.select_one(USER_TABLE, {"email": body.email})
-    if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this email already exists",
-        )
-
-    user_id = str(uuid4())
-    now = datetime.utcnow()
-    safe_name = _sanitize_display_name(body.name)
-
-    user_row = {
-        "id": user_id,
-        "email": body.email,
-        "password_hash": _hash_password(body.password),
-        "name": safe_name,
-        "created_at": now,
-    }
-
-    await db.insert(USER_TABLE, user_row)
-
-    token = _create_access_token({"sub": user_id, "email": body.email})
-    expires_in = settings.jwt_expire_minutes * 60
-
-    logger.info("User registered: %s (%s)", user_id, body.email)
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_in=expires_in,
-        user=UserResponse(id=user_id, email=body.email, name=safe_name, created_at=now),
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="This endpoint is deprecated. Please use Auth0 authentication at /api/auth/login",
     )
 
 
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Authenticate and receive a JWT",
-    responses={401: {"model": ErrorResponse}},
-    dependencies=[Depends(RateLimiter(max_requests=10, window=300))],
+    status_code=status.HTTP_410_GONE,
+    summary="DEPRECATED: Use Auth0 Database Connection",
+    deprecated=True,
+    responses={410: {"model": ErrorResponse}},
 )
 async def login(body: UserLogin, request: Request) -> TokenResponse:
-    """Authenticate with email and password.
-
-    Returns a JWT access token on success, or 401 on failure.
+    """DEPRECATED: Login now handled by Auth0 Database Connection.
+    
+    Please use the Auth0 Universal Login flow at /api/auth/login instead.
     """
-    client_ip = request.client.host if request.client else "unknown"
-    await _check_login_rate_limit(client_ip)
-
-    user = await db.select_one(USER_TABLE, {"email": body.email})
-    if user is None or not _verify_password(
-        body.password, user.get("password_hash", "")
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    user_id = str(user["id"])
-    token = _create_access_token({"sub": user_id, "email": user["email"]})
-    expires_in = settings.jwt_expire_minutes * 60
-
-    logger.info("User logged in: %s", user_id)
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_in=expires_in,
-        user=UserResponse(
-            id=user_id,
-            email=user["email"],
-            name=user.get("name", ""),
-            created_at=user.get("created_at", datetime.utcnow()),
-        ),
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="This endpoint is deprecated. Please use Auth0 authentication at /api/auth/login",
     )
 
 
