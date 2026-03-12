@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
