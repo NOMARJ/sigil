@@ -74,7 +74,7 @@ const phaseLabels: Record<ScanPhase, string> = {
 
 export default function ScanDetailPage() {
   const params = useParams();
-  const scanId = params.id as string;
+  const scanId = params?.id as string;
 
   const [scan, setScan] = useState<Scan | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);

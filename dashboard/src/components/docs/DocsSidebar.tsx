@@ -135,7 +135,7 @@ export default function DocsSidebar({ isOpen = false, onClose }: DocsSidebarProp
                 {!isCollapsed && (
                   <div className="mt-1 space-y-0.5">
                     {section.items.map((item) => {
-                      const isActive = pathname === item.href || (item.href !== "/docs" && pathname.startsWith(item.href.split("#")[0]));
+                      const isActive = pathname === item.href || (item.href !== "/docs" && pathname?.startsWith(item.href.split("#")[0]));
 
                       return (
                         <Link

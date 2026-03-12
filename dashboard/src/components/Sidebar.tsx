@@ -206,7 +206,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           const isActive =
             item.href === "/"
               ? pathname === "/"
-              : pathname.startsWith(item.href);
+              : pathname?.startsWith(item.href);
 
           return (
             <Link
@@ -237,7 +237,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
         {/* Forge navigation */}
         {forgeNavItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+          const isActive = pathname?.startsWith(item.href);
           const hasItemAccess = hasAccess(user?.plan || "free", item.requiredPlan);
 
           return (

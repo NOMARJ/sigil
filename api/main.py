@@ -284,6 +284,7 @@ try:
         auth,
         badge,
         billing,
+        device_flow,
         email,
         feed,
         forge,
@@ -319,6 +320,7 @@ app.include_router(publisher.router)
 app.include_router(report.router)
 app.include_router(verify.router)
 app.include_router(auth.router)
+app.include_router(device_flow.router)  # /v1/auth/device/* — CLI device flow
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)

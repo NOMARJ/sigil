@@ -23,10 +23,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
 
   const isPublicRoute = PUBLIC_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + "/"),
+    (route) => pathname === route || pathname?.startsWith(route + "/"),
   );
   const isAuthRoute = AUTH_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + "/"),
+    (route) => pathname === route || pathname?.startsWith(route + "/"),
   );
 
   useEffect(() => {
