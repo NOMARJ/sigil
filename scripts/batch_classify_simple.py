@@ -4,8 +4,6 @@ Simple batch classification script to populate forge_classification table.
 """
 
 import pyodbc
-import json
-from datetime import datetime
 import sys
 
 # Database connection

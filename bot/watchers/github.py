@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 
 from bot.config import bot_settings
 from bot.filters import determine_priority

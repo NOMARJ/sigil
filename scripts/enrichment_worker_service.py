@@ -10,11 +10,9 @@ Production-ready service that includes:
 """
 
 import asyncio
-import json
 import logging
 import signal
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +23,6 @@ from fastapi.responses import JSONResponse
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from api.config import settings
 from api.database import db
 from bot.config import bot_settings
 from bot.worker.forge_enrichment import ForgeEnrichmentWorker
@@ -211,7 +208,7 @@ async def run_enrichment_worker():
         worker_state["processed_records"] = 0
         worker_state["error_count"] = 0
 
-        logger.info(f"Enrichment worker configuration:")
+        logger.info("Enrichment worker configuration:")
         logger.info(f"  Batch size: {enrichment_worker.batch_size}")
         logger.info(f"  Max records: {enrichment_worker.max_records}")
         logger.info(

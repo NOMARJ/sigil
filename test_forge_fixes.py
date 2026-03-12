@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Test script to verify Forge API fixes."""
 
-import json
 import sys
 import requests
-from datetime import datetime
 
 BASE_URL = "https://api.sigilsec.ai"
 
@@ -29,7 +27,7 @@ def test_search_endpoint():
         assert "description" in tool, "Missing description field"
         assert "last_updated" in tool, "Missing last_updated field"
         assert "tags" in tool, "Missing tags field"
-        print(f"  ✓ Tool has all required fields")
+        print("  ✓ Tool has all required fields")
 
         # Check ecosystem format
         ecosystem = tool["ecosystem"]
@@ -61,7 +59,7 @@ def test_categories_endpoint():
         assert "category" in cat, "Missing category field"
         assert "display_name" in cat, "Missing display_name field"
         assert "tool_count" in cat, "Missing tool_count field"
-        print(f"  ✓ Category has all required fields")
+        print("  ✓ Category has all required fields")
 
         # Check if any categories have tool counts
         total_tools = sum(c["tool_count"] for c in categories)

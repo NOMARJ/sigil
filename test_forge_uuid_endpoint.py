@@ -4,7 +4,6 @@
 import requests
 import hashlib
 import re
-import json
 
 BASE_URL = "https://api.sigilsec.ai"
 
@@ -49,14 +48,14 @@ def test_uuid_endpoint():
         assert tool["id"] == expected_uuid, (
             f"UUID mismatch: {tool['id']} != {expected_uuid}"
         )
-        print(f"  ✓ UUID generation is consistent")
+        print("  ✓ UUID generation is consistent")
 
         # Verify slug generation is consistent
         expected_slug = generate_tool_slug(tool["name"])
         assert tool["slug"] == expected_slug, (
             f"Slug mismatch: {tool['slug']} != {expected_slug}"
         )
-        print(f"  ✓ Slug generation is consistent")
+        print("  ✓ Slug generation is consistent")
 
         # Test fetching by UUID
         uuid_resp = requests.get(f"{BASE_URL}/forge/tools/{tool['id']}")

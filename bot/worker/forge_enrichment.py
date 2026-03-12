@@ -21,13 +21,9 @@ import hashlib
 import json
 import logging
 import re
-import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 
-from bot.config import bot_settings
 from api.database import db
 
 logger = logging.getLogger(__name__)

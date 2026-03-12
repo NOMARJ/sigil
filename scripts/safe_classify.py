@@ -225,7 +225,7 @@ def classify_package(
     if findings_count > 0:
         description += f"Security scan found {findings_count} potential issues with {risk_level} risk level. "
     else:
-        description += f"No security issues detected in initial scan. "
+        description += "No security issues detected in initial scan. "
 
     if verdict and verdict != "UNKNOWN":
         description += f"Verdict: {verdict}. "

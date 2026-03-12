@@ -26,7 +26,7 @@ async def test_jwks_fetch():
             resp.raise_for_status()
             jwks = resp.json()
 
-        print(f"✅ JWKS fetched successfully")
+        print("✅ JWKS fetched successfully")
         print(f"   - Found {len(jwks.get('keys', []))} signing keys")
 
         for i, key in enumerate(jwks.get("keys", []), 1):
@@ -47,7 +47,7 @@ async def test_config_loaded():
     try:
         from api.config import settings
 
-        print(f"✅ Config loaded successfully")
+        print("✅ Config loaded successfully")
         print(f"   - AUTH0_DOMAIN: {settings.auth0_domain}")
         print(f"   - AUTH0_AUDIENCE: {settings.auth0_audience}")
         print(f"   - AUTH0_CLIENT_ID: {settings.auth0_client_id[:20]}...")
@@ -70,13 +70,13 @@ async def test_jose_available():
     try:
         from jose import jwt, JWTError
 
-        print(f"✅ python-jose available")
-        print(f"   - Can decode RS256 tokens")
+        print("✅ python-jose available")
+        print("   - Can decode RS256 tokens")
 
         return True
     except ImportError as e:
         print(f"❌ python-jose not available: {e}")
-        print(f"   Auth0 RS256 verification requires python-jose")
+        print("   Auth0 RS256 verification requires python-jose")
         return False
 
 
@@ -85,17 +85,17 @@ async def test_verify_function():
     print("\n🔍 Testing verify_auth0_token() function...")
 
     try:
-        from api.routers.auth import verify_auth0_token, _get_auth0_jwks
+        from api.routers.auth import _get_auth0_jwks
         from api.config import settings
 
-        print(f"✅ verify_auth0_token() function imported")
+        print("✅ verify_auth0_token() function imported")
 
         # Try to fetch JWKS (simulates what happens during token verification)
         if settings.auth0_configured:
             jwks = await _get_auth0_jwks()
             print(f"✅ JWKS cache populated ({len(jwks.get('keys', []))} keys)")
         else:
-            print(f"⚠️  Auth0 not configured, skipping JWKS fetch")
+            print("⚠️  Auth0 not configured, skipping JWKS fetch")
 
         return True
     except Exception as e:
@@ -111,10 +111,9 @@ async def test_auto_provision_function():
     print("\n🔍 Testing _auto_provision_auth0_user() function...")
 
     try:
-        from api.routers.auth import _auto_provision_auth0_user
 
-        print(f"✅ _auto_provision_auth0_user() function imported")
-        print(f"   - Ready to auto-create OAuth users on first login")
+        print("✅ _auto_provision_auth0_user() function imported")
+        print("   - Ready to auto-create OAuth users on first login")
 
         return True
     except Exception as e:

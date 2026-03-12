@@ -9,15 +9,13 @@ Includes load testing, query profiling, and optimization recommendations.
 import asyncio
 import time
 import json
-import random
 import statistics
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import httpx
 import psutil
 import tracemalloc
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 import os
 
@@ -655,9 +653,9 @@ async def main():
             response = await client.get("http://localhost:8000/health")
             if response.status_code != 200:
                 print("Warning: API may not be healthy")
-    except Exception as e:
-        print(f"Error: Could not connect to API at http://localhost:8000")
-        print(f"Please ensure the Sigil API is running: cd api && python main.py")
+    except Exception:
+        print("Error: Could not connect to API at http://localhost:8000")
+        print("Please ensure the Sigil API is running: cd api && python main.py")
         return
 
     analyzer = ForgePerformanceAnalyzer()

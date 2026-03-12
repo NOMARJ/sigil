@@ -11,11 +11,10 @@ import tracemalloc
 import psutil
 import sys
 import os
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Any, Tuple
+from dataclasses import dataclass
 from datetime import datetime
 import json
-import linecache
 
 # Add parent directories to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -450,13 +449,13 @@ async def profile_forge_apis():
     print("\n=== MEMORY ANALYSIS ===")
     patterns = profiler.analyze_memory_patterns()
 
-    print(f"\n Memory Statistics:")
+    print("\n Memory Statistics:")
     print(f"  Peak Memory: {patterns['peak_memory_mb']:.2f}MB")
     print(f"  Average Memory: {patterns['average_memory_mb']:.2f}MB")
     print(f"  Growth Rate: {patterns['memory_growth_rate_mb_per_min']:.2f}MB/min")
 
     if patterns.get("memory_hotspots"):
-        print(f"\n Memory Hotspots:")
+        print("\n Memory Hotspots:")
         for hotspot in patterns["memory_hotspots"][:5]:
             print(f"  - {hotspot['location']}: {hotspot['average_size_mb']:.2f}MB avg")
 

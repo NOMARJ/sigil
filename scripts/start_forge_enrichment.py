@@ -122,7 +122,7 @@ class EnrichmentController:
         if len(pending_records) > 5:
             logger.info(f"  ... and {len(pending_records) - 5} more")
 
-        logger.info(f"\n⚡ To start enrichment, run without --dry-run")
+        logger.info("\n⚡ To start enrichment, run without --dry-run")
 
     async def run_continuous(self):
         """Run continuous enrichment."""

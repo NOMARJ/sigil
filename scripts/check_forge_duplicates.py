@@ -2,7 +2,6 @@
 """Check for duplicates and data quality in forge_classification."""
 
 import pyodbc
-import json
 
 conn = pyodbc.connect(
     "Driver={ODBC Driver 18 for SQL Server};"
@@ -77,7 +76,7 @@ cursor.execute("""
 """)
 
 stats = cursor.fetchone()
-print(f"\n📈 Statistics:")
+print("\n📈 Statistics:")
 print(f"  Total entries: {stats[0]:,}")
 print(f"  Unique packages: {stats[1]:,}")
 print(f"  Avg confidence: {stats[2]:.2f}")

@@ -17,7 +17,6 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Any
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -261,7 +260,7 @@ class MSSQLForgeSetup:
             )
             categories_count = categories_result["count"]
 
-            logger.info(f"📊 Forge data summary:")
+            logger.info("📊 Forge data summary:")
             logger.info(f"   Classifications: {classification_count}")
             logger.info(f"   Capabilities: {capabilities_count}")
             logger.info(f"   Categories: {categories_count}")

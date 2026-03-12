@@ -2,7 +2,6 @@
 """Ultra-fast bulk classification using batch inserts."""
 
 import pyodbc
-import json
 import uuid
 from datetime import datetime, timezone
 import sys

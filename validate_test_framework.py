@@ -10,8 +10,7 @@ them to ensure they are syntactically correct and well-structured.
 import ast
 import os
 import sys
-from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 
 class TestFrameworkValidator:
@@ -166,7 +165,7 @@ class TestFrameworkValidator:
             self.validation_results[test_file] = validation_result
 
             if validation_result["syntax_valid"]:
-                print(f"✅ Syntax valid")
+                print("✅ Syntax valid")
                 print(f"📊 {validation_result['test_classes']} test classes")
                 print(f"🧪 {validation_result['test_methods']} test methods")
                 print(f"📄 {validation_result['lines_of_code']} lines of code")
@@ -187,12 +186,12 @@ class TestFrameworkValidator:
                 all_syntax_valid = False
 
         # Validate test runner
-        print(f"\n🚀 Validating Test Runner")
+        print("\n🚀 Validating Test Runner")
         runner_file = "run_comprehensive_tests.py"
         if os.path.exists(runner_file):
             runner_validation = self.validate_file_syntax(runner_file)
             if runner_validation["syntax_valid"]:
-                print(f"✅ Test runner syntax valid")
+                print("✅ Test runner syntax valid")
             else:
                 print(f"❌ Test runner validation failed: {runner_validation['error']}")
                 all_syntax_valid = False
@@ -201,10 +200,10 @@ class TestFrameworkValidator:
             all_syntax_valid = False
 
         # Validate requirements
-        print(f"\n📦 Validating Requirements")
+        print("\n📦 Validating Requirements")
         req_file = "test_requirements.txt"
         if os.path.exists(req_file):
-            print(f"✅ Test requirements file exists")
+            print("✅ Test requirements file exists")
         else:
             print(f"⚠️ Test requirements file not found: {req_file}")
 
@@ -312,14 +311,14 @@ def main():
 
     # Generate inventory
     if results["framework_ready"]:
-        print(f"\n📋 Generating Test Inventory")
+        print("\n📋 Generating Test Inventory")
         inventory = validator.generate_test_inventory()
         with open("TEST_INVENTORY.md", "w") as f:
             f.write(inventory)
-        print(f"✅ Test inventory saved to TEST_INVENTORY.md")
+        print("✅ Test inventory saved to TEST_INVENTORY.md")
 
     # Final recommendations
-    print(f"\n🎯 RECOMMENDATIONS")
+    print("\n🎯 RECOMMENDATIONS")
     print("=" * 60)
 
     if results["framework_ready"]:

@@ -14,7 +14,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 
 class TestSuiteRunner:
@@ -408,7 +408,7 @@ Duration: {total_duration:.2f} seconds
 """
 
         # Recommendations
-        report += f"""
+        report += """
 ## Recommendations
 
 """

@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
 
 from bot.config import bot_settings
 from bot.filters import determine_priority, matches_ai_keywords

@@ -10,7 +10,6 @@ Scope: AI keyword filtering + npm scope allowlist.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from bot.config import bot_settings

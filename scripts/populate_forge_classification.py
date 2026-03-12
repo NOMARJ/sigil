@@ -133,7 +133,7 @@ def classify_package(scan):
     if threats > 0:
         description += f"Found {threats} potential threats with {risk_level} risk. "
     else:
-        description += f"No immediate threats detected. "
+        description += "No immediate threats detected. "
 
     # Parse findings for patterns (no longer available in query)
     findings = {}
