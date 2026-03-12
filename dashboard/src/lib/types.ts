@@ -404,3 +404,86 @@ export interface LLMAnalysisResponse {
   fallback_used: boolean;
   created_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Interactive LLM Analysis Types (New Features)
+// ---------------------------------------------------------------------------
+
+/** Investigation depth levels for findings analysis. */
+export type InvestigationDepth = "quick" | "thorough" | "exhaustive";
+
+/** Investigation analysis response. */
+export interface InvestigationResult {
+  finding_id: string;
+  depth: InvestigationDepth;
+  confidence_score: number;
+  threat_assessment: string;
+  evidence: string[];
+  code_flow_analysis: string;
+  false_positive_likelihood: number;
+  credits_used: number;
+  model_used: string;
+  created_at: string;
+}
+
+/** False positive analysis response. */
+export interface FalsePositiveAnalysis {
+  finding_id: string;
+  is_safe: boolean;
+  confidence_percentage: number;
+  explanation: string;
+  context_analysis: string;
+  defense_suggestions: string[];
+  credits_used: number;
+  created_at: string;
+}
+
+/** Remediation code fix response. */
+export interface RemediationResult {
+  finding_id: string;
+  fixes: Array<{
+    id: string;
+    title: string;
+    description: string;
+    code: string;
+    language: string;
+    explanation: string;
+  }>;
+  unit_test?: string;
+  credits_used: number;
+  created_at: string;
+}
+
+/** Interactive chat message. */
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  credits_used?: number;
+  model_used?: string;
+}
+
+/** Interactive chat session. */
+export interface ChatSession {
+  id: string;
+  scan_id: string;
+  messages: ChatMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Credit balance and usage. */
+export interface CreditInfo {
+  balance: number;
+  monthly_limit: number;
+  used_this_month: number;
+  costs: {
+    quick_investigation: number;
+    thorough_investigation: number;
+    exhaustive_investigation: number;
+    false_positive_check: number;
+    remediation: number;
+    chat_message: number;
+  };
+}
