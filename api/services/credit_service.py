@@ -5,13 +5,13 @@ Implements Windsurf-style credit system for Pro tier features
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Literal
-from decimal import Decimal
 
 from api.database import db
-from api.models import User, SubscriptionTier
+from api.models import SubscriptionTier
 from api.exceptions import InsufficientCreditsError, CreditTransactionError
 
 logger = logging.getLogger(__name__)
@@ -404,5 +404,3 @@ class CreditService:
 
 # Global service instance
 credit_service = CreditService()
-
-import json

@@ -20,7 +20,7 @@ def test_simple_question():
     
     model = complexity_scorer.recommend_model(complexity)
     
-    print(f"Query: 'Is this safe?'")
+    print("Query: 'Is this safe?'")
     print(f"Complexity: {complexity.value}")
     print(f"Confidence: {confidence:.2f}")
     print(f"Selected Model: {model}")
@@ -42,7 +42,7 @@ def test_trace_attack():
     
     model = complexity_scorer.recommend_model(complexity)
     
-    print(f"Query: 'Trace the attack chain through the code'")
+    print("Query: 'Trace the attack chain through the code'")
     print(f"Complexity: {complexity.value}")
     print(f"Confidence: {confidence:.2f}")
     print(f"Selected Model: {model}")
@@ -65,7 +65,7 @@ def test_attack_chain_task():
     
     model = complexity_scorer.recommend_model(complexity)
     
-    print(f"Task Type: 'attack_chain'")
+    print("Task Type: 'attack_chain'")
     print(f"Complexity: {complexity.value}")
     print(f"Selected Model: {model}")
     print()
@@ -107,11 +107,11 @@ def test_model_override():
     )
     
     # But with override...
-    model = "claude-3-opus"  # Router would respect the override
+    # model = "claude-3-opus"  # Router would respect the override
     
-    print(f"Query: 'What is this?' with Opus override")
+    print("Query: 'What is this?' with Opus override")
     print(f"Complexity: {complexity.value}")
-    print(f"Override Model: claude-3-opus")
+    print("Override Model: claude-3-opus")
     print(f"Confidence: {confidence:.2f} (1.0 due to override)")
     print()
     

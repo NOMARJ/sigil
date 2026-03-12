@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 from datetime import datetime
 
 from ..models import Finding

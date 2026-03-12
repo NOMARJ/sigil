@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 from collections import defaultdict
-import hashlib
 
 from ..models import Finding
 

@@ -6,9 +6,8 @@ Dynamically expands analysis context by including additional files and dependenc
 from __future__ import annotations
 
 import logging
-import os
 import json
-from typing import List, Dict, Optional, Set, Any
+from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -409,12 +408,12 @@ class ContextExpander:
         """Convert LLM insight to Finding"""
         from api.models import ScanPhase
         
-        severity_map = {
-            'critical': Severity.CRITICAL,
-            'high': Severity.HIGH,
-            'medium': Severity.MEDIUM,
-            'low': Severity.LOW
-        }
+        # severity_map = {
+        #     'critical': Severity.CRITICAL,
+        #     'high': Severity.HIGH,
+        #     'medium': Severity.MEDIUM,
+        #     'low': Severity.LOW
+        # }
         
         # Determine severity from threat category
         severity = Severity.MEDIUM
@@ -520,7 +519,7 @@ class ContextExpander:
                     data = json.loads(content)
                     dependencies.extend(data.get('dependencies', {}).keys())
                     dependencies.extend(data.get('devDependencies', {}).keys())
-                except:
+                except Exception:
                     pass
             
             elif 'requirements.txt' in file_path:

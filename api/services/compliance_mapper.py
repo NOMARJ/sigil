@@ -11,7 +11,7 @@ from typing import List, Dict, Optional, Any
 from pathlib import Path
 from datetime import datetime
 
-from ..models import Finding, SubscriptionTier
+from ..models import Finding
 from ..services.credit_service import CreditService
 
 logger = logging.getLogger(__name__)

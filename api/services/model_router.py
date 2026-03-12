@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Optional, Any, Tuple
 from datetime import datetime
 
-from ..utils.complexity_scorer import complexity_scorer, TaskComplexity
+from ..utils.complexity_scorer import complexity_scorer
 from ..services.credit_service import credit_service
 from ..database import db
 from ..exceptions import InsufficientCreditsError
