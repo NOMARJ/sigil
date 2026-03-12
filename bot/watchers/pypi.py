@@ -162,7 +162,6 @@ class PyPIWatcher(BaseWatcher):
                 )
                 if self._last_serial is None:
                     # First run: get current serial, don't backfill
-                    checkpoint = None  # Will be loaded async
                     serial = client.changelog_last_serial()
                     return serial, []
                 changes = client.changelog_since_serial(self._last_serial)

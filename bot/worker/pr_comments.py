@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -151,8 +152,6 @@ async def _update_pr_comment(
 # ---------------------------------------------------------------------------
 # Dependency extraction (re-uses logic from github_app router)
 # ---------------------------------------------------------------------------
-
-import re
 
 _NPM_DEP_PATTERN = re.compile(r'^\+\s*"([^"]+)"\s*:\s*"([^"]+)"', re.MULTILINE)
 _PIP_DEP_PATTERN = re.compile(r"^\+([a-zA-Z0-9_-]+)(?:[=<>!~]+(.+))?$", re.MULTILINE)

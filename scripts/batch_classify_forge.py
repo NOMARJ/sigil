@@ -139,7 +139,7 @@ class ForgeClassifier:
         if isinstance(findings, str):
             try:
                 findings = json.loads(findings)
-            except:
+            except Exception:
                 findings = {}
 
         # Check for common capabilities

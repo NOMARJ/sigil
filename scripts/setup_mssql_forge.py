@@ -50,7 +50,7 @@ class MSSQLForgeSetup:
                 return False
 
             # Test query
-            result = await db.execute_raw_sql("SELECT 1 as test")
+            await db.execute_raw_sql("SELECT 1 as test")
             logger.info("✅ Database connection successful")
             return True
 

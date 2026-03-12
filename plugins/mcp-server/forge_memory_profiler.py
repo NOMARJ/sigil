@@ -141,7 +141,7 @@ class ForgeMemoryProfiler:
         before = self.take_snapshot("Before endpoint")
 
         # Run the endpoint function
-        result = await endpoint_func(*args, **kwargs)
+        await endpoint_func(*args, **kwargs)
 
         after = self.take_snapshot("After endpoint")
 
@@ -364,7 +364,7 @@ async def profile_forge_apis():
 
     # Import API modules for testing
     try:
-        from api.routers import forge
+        # from api.routers import forge  # Not used in this test
         from api.services import forge_classifier, forge_matcher
         from api.database import db
 
@@ -379,7 +379,7 @@ async def profile_forge_apis():
     print("\n=== MEMORY PROFILING STARTED ===")
 
     # Take initial baseline
-    baseline = profiler.take_snapshot("Baseline")
+    profiler.take_snapshot("Baseline")
 
     # Test 1: Classification memory usage
     print("\n Testing classification service...")
@@ -443,7 +443,7 @@ async def profile_forge_apis():
     print(f"  Heavy load memory: {load_profile['memory_used_mb']:.2f}MB")
 
     # Take final snapshot
-    final = profiler.take_snapshot("Final")
+    profiler.take_snapshot("Final")
 
     # Analyze patterns
     print("\n=== MEMORY ANALYSIS ===")

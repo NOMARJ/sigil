@@ -452,7 +452,9 @@ async def inject_error_for_testing(error_type: str) -> JSONResponse:
     """
     Example endpoint for testing error handling (only use in development).
     """
-    if not settings.debug:
+    # Check debug mode (would normally import from api.config.settings)
+    debug_mode = False  # Set to True in development
+    if not debug_mode:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Error injection only available in debug mode",

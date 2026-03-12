@@ -329,7 +329,7 @@ class AzureMigrationDeployer:
                     str(e),
                 )
                 conn.commit()
-            except:
+            except Exception:
                 pass  # Ignore errors in error recording
 
             return False

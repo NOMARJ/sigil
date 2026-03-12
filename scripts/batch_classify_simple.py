@@ -129,7 +129,7 @@ def main():
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_class_scan')
             CREATE INDEX idx_forge_class_scan ON forge_classification(public_scan_id)
         """)
-    except:
+    except Exception:
         pass  # Index might already exist
 
     try:
@@ -137,7 +137,7 @@ def main():
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_class_package')
             CREATE INDEX idx_forge_class_package ON forge_classification(package_name, ecosystem)
         """)
-    except:
+    except Exception:
         pass
 
     try:
@@ -145,7 +145,7 @@ def main():
             IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_forge_class_category')
             CREATE INDEX idx_forge_class_category ON forge_classification(category)
         """)
-    except:
+    except Exception:
         pass
 
     conn.commit()

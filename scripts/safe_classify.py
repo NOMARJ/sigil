@@ -293,7 +293,7 @@ def process_batch_safe(cursor, batch_data):
     for row in batch_data:
         try:
             # Parse row data
-            scan_id = row[0]
+            row[0]
             package_name = row[1] or "unknown"
             ecosystem = row[2] or "unknown"
             version = row[3] or "0.0.0"

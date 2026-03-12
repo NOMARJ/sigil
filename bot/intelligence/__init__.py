@@ -18,7 +18,6 @@ the scan pipeline. The marginal cost is extra DB writes + a dashboard.
 from __future__ import annotations
 
 import logging
-import re
 from datetime import datetime, timezone
 from typing import Any
 
