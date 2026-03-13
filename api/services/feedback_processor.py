@@ -10,14 +10,14 @@ from datetime import datetime, timedelta
 import re
 from uuid import uuid4
 
-from ..model_types.suppression_rules import (
+from api.model_types.suppression_rules import (
     FeedbackType,
     SuppressionScope,
     SuppressionRule,
     UserFeedback,
     AccuracyMetrics,
 )
-from ..models import Finding
+from api.models import Finding
 from ..services.credit_service import CreditService
 from ..services.claude_service import ClaudeService
 from ..utils.logger import get_logger
