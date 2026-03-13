@@ -21,15 +21,11 @@ import concurrent.futures
 import requests
 import statistics
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from fastapi.testclient import TestClient
 
-from main import app
-from services.scanner import scan_content
-from models import Severity
+from api.main import app
+from api.services.scanner import scan_content
+from api.models import Severity
 
 
 # ── Test Configuration ─────────────────────────────────────────────────────

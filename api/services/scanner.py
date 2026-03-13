@@ -38,10 +38,7 @@ except ImportError:
     Finding = models_module.Finding
     ScanPhase = models_module.ScanPhase
     Severity = models_module.Severity
-try:
-    from api.services.explanations import get_explanation
-except ImportError:
-    from services.explanations import get_explanation
+from api.services.explanations import get_explanation
 
 
 # ---------------------------------------------------------------------------
