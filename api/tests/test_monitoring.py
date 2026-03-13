@@ -337,7 +337,8 @@ class TestMetrics:
         assert middleware._categorize_endpoint("/v1/scan/submit") == "scan"
         assert middleware._categorize_endpoint("/api/threat/lookup") == "threat_intel"
         assert middleware._categorize_endpoint("/registry/packages") == "registry"
-        assert middleware._categorize_endpoint("/forge/tools") == "forge"
+        # Forge endpoints removed - testing alternate path instead
+        assert middleware._categorize_endpoint("/dashboard/tools") == "dashboard"
         assert middleware._categorize_endpoint("/auth/login") == "auth"
         assert middleware._categorize_endpoint("/billing/subscribe") == "billing"
         assert middleware._categorize_endpoint("/some/other/path") == "other"
