@@ -1254,7 +1254,7 @@ async def submit_feedback(
     """
     try:
         from ..services.feedback_processor import FeedbackProcessor
-        from ..models.suppression_rules import FeedbackType
+        from ..model_types.suppression_rules import FeedbackType
 
         processor = FeedbackProcessor()
 
