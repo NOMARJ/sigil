@@ -112,6 +112,39 @@ sigil approve abc123    # Move approved code out of quarantine
 sigil reject abc123     # Permanently delete quarantined code
 ```
 
+### Discovery Commands
+
+Find and research AI tools, packages, and dependencies before using them:
+
+```bash
+# Search for AI tools and packages
+sigil search "natural language processing"
+sigil search "web scraping"
+sigil search "machine learning"
+
+# Get curated tool recommendations for specific use cases  
+sigil discover "chatbot development"
+sigil discover "data analysis pipeline"
+sigil discover "web scraping automation"
+
+# Get detailed information about a specific tool
+sigil info pypi/langchain
+sigil info npm/puppeteer  
+sigil info pypi/scrapy
+
+# Discovery integrates with security auditing
+sigil search "pdf processing" | head -3    # Find options
+sigil info pypi/pypdf                      # Research a tool
+sigil pip pypdf                            # Audit before installing
+```
+
+**Discovery Features:**
+- **Smart Search**: Natural language queries find relevant tools
+- **Use Case Stacks**: Get curated tool recommendations for specific workflows  
+- **Trust Scoring**: See security ratings and trust scores for every tool
+- **Installation Ready**: Get exact install commands with security pre-checks
+- **Ecosystem Coverage**: Search across pip, npm, and other package managers
+
 ### Shell Aliases
 
 After running `sigil install`, these aliases are available in every terminal session. Use the commands you already know — Sigil protects you automatically:
@@ -257,7 +290,8 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 **Getting Started:**
 - [Getting Started Guide](docs/getting-started.md) — Installation and first scan
 - [CLI Reference](docs/cli.md) — All commands and options
-- [Authentication Guide](docs/authentication-guide.md) — Connect to Sigil Pro ⭐ **NEW**
+- [Discovery Commands](docs/cli.md#discovery-commands) — Find and research tools before use ⭐ **NEW**
+- [Authentication Guide](docs/authentication-guide.md) — Connect to Sigil Pro
 - [Configuration](docs/configuration.md) — Environment variables and settings
 
 **Technical Deep Dives:**
@@ -270,7 +304,8 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
 - [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
 - [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
-- [AI Security Stack](docs/ai-security-stack-integration.md) — Sigil + Aardvark + Claude Code Security ⭐ **NEW**
+- [Forge to CLI Migration](docs/migration-guides/forge-to-cli.md) — Migrate from Forge web UI to CLI discovery ⭐ **NEW**
+- [AI Security Stack](docs/ai-security-stack-integration.md) — Sigil + Aardvark + Claude Code Security
 - [Claude Code Security Integration](docs/claude-code-security-integration.md) — Defense-in-depth with Anthropic
 - [AI Agent Integration](docs/ai-agent-integration.md) — Claude Code, MCP, and other AI agents
 
