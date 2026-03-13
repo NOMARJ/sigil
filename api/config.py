@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     # --- Anthropic (optional — for Forge classification) ----------------------
     anthropic_api_key: Union[str, None] = None  # SIGIL_ANTHROPIC_API_KEY
 
+    # --- Bot Attestation Keys -------------------------------------------------
+    # Bot signing key for creating attestations (Ed25519)
+    bot_private_key: Union[str, None] = None  # SIGIL_BOT_PRIVATE_KEY (base64-encoded 32 bytes)
+    bot_public_key: Union[str, None] = None  # SIGIL_BOT_PUBLIC_KEY (base64-encoded PEM)
+    bot_public_key_file: Union[str, None] = None  # SIGIL_BOT_PUBLIC_KEY_FILE (path to PEM file)
+    bot_signing_key_id: str = "sha256:sigil-bot-signing-key-2026"  # SIGIL_BOT_SIGNING_KEY_ID
+
     # --- Monitoring & Observability --------------------------------------------
     metrics_enabled: bool = True  # SIGIL_METRICS_ENABLED
     health_checks_enabled: bool = True  # SIGIL_HEALTH_CHECKS_ENABLED
@@ -147,6 +154,11 @@ class Settings(BaseSettings):
     def redis_configured(self) -> bool:
         """Return True when a Redis URL is set."""
         return bool(self.redis_url)
+
+    @property
+    def bot_attestation_configured(self) -> bool:
+        """Return True when bot attestation keys are configured."""
+        return bool(self.bot_public_key or self.bot_public_key_file)
 
     @property
     def smtp_configured(self) -> bool:
