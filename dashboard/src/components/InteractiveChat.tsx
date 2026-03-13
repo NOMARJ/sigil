@@ -50,12 +50,6 @@ export default function InteractiveChat({
     scrollToBottom();
   }, [session?.messages]);
 
-  useEffect(() => {
-    if (isOpen && !session) {
-      initializeSession();
-    }
-  }, [isOpen, session, initializeSession]);
-
   const initializeSession = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch("/api/v1/interactive/sessions", {
@@ -79,6 +73,12 @@ export default function InteractiveChat({
       console.error("Session initialization error:", error);
     }
   }, [onChatSessionUpdate, scan.id]);
+
+  useEffect(() => {
+    if (isOpen && !session) {
+      initializeSession();
+    }
+  }, [isOpen, session, initializeSession]);
 
   const sendMessage = async (message: string): Promise<void> => {
     if (!session || !message.trim() || !canAfford) return;

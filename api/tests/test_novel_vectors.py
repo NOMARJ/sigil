@@ -297,7 +297,7 @@ class TestNovelVectorPerformance:
         times = []
         for _ in range(100):
             start = time.time()
-            findings = scan_content(code, 'app.js')
+            _ = scan_content(code, 'app.js')  # Run scan for timing
             elapsed = (time.time() - start) * 1000  # Convert to ms
             times.append(elapsed)
         
