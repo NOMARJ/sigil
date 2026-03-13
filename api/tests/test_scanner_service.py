@@ -312,7 +312,7 @@ class TestBenignCodeNotFlagged:
 
 class TestEnhancedObfuscationDetection:
     """Test enhanced obfuscation detection capabilities for gap closure.
-    
+
     These tests target the 23 obfuscation CVEs that need to be detected
     to close the 0.54% detection gap and reach the 98.5% threshold.
     """
@@ -473,7 +473,9 @@ final_payload = base64.b64decode(b64_string)
     def test_detect_invisible_character_payload(self) -> None:
         """Should detect invisible character payload embedding (CVE-2023-4890)."""
         # Using combining characters to hide payload
-        content = "var clean_var = 'safe';\u0300\u0301\u0302eval(hidden_payload);\u0303\u0304"
+        content = (
+            "var clean_var = 'safe';\u0300\u0301\u0302eval(hidden_payload);\u0303\u0304"
+        )
         findings = scan_content(content, "invisible_payload.js")
         rule_ids = [f.rule for f in findings]
         assert "obf-unicode-invisible-chars" in rule_ids
@@ -493,7 +495,9 @@ config_data = base64.b64decode("eyJhcGlfa2V5IjoidGVzdCJ9")  # {"api_key":"test"}
 
     def test_benign_unicode_not_flagged(self) -> None:
         """Legitimate Unicode text should not trigger steganography detection."""
-        content = "message = 'Hello 世界! Здравствуй мир!'"  # Mixed scripts but legitimate
+        content = (
+            "message = 'Hello 世界! Здравствуй мир!'"  # Mixed scripts but legitimate
+        )
         findings = scan_content(content, "multilingual.py")
         rule_ids = [f.rule for f in findings]
         # Should not trigger any Unicode obfuscation rules

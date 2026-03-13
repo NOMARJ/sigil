@@ -119,10 +119,16 @@ class Settings(BaseSettings):
 
     # --- Bot Attestation Keys -------------------------------------------------
     # Bot signing key for creating attestations (Ed25519)
-    bot_private_key: Union[str, None] = None  # SIGIL_BOT_PRIVATE_KEY (base64-encoded 32 bytes)
+    bot_private_key: Union[str, None] = (
+        None  # SIGIL_BOT_PRIVATE_KEY (base64-encoded 32 bytes)
+    )
     bot_public_key: Union[str, None] = None  # SIGIL_BOT_PUBLIC_KEY (base64-encoded PEM)
-    bot_public_key_file: Union[str, None] = None  # SIGIL_BOT_PUBLIC_KEY_FILE (path to PEM file)
-    bot_signing_key_id: str = "sha256:sigil-bot-signing-key-2026"  # SIGIL_BOT_SIGNING_KEY_ID
+    bot_public_key_file: Union[str, None] = (
+        None  # SIGIL_BOT_PUBLIC_KEY_FILE (path to PEM file)
+    )
+    bot_signing_key_id: str = (
+        "sha256:sigil-bot-signing-key-2026"  # SIGIL_BOT_SIGNING_KEY_ID
+    )
 
     # --- Monitoring & Observability --------------------------------------------
     metrics_enabled: bool = True  # SIGIL_METRICS_ENABLED

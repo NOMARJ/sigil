@@ -23,13 +23,15 @@ from typing import Iterator
 # Import models with fallback handling
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from api.models import Finding, ScanPhase, Severity
 except ImportError:
     import importlib.util
-    models_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models.py')
+
+    models_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.py")
     spec = importlib.util.spec_from_file_location("models", models_path)
     models_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(models_module)
@@ -314,8 +316,7 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "description": "Hex to Base64 decoding chain",
             "weight": 1.7,
         },
-        
-        # Unicode Steganography Detection  
+        # Unicode Steganography Detection
         {
             "id": "obf-unicode-zero-width",
             "phase": ScanPhase.OBFUSCATION,
@@ -348,7 +349,6 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "description": "Potential Unicode homograph attack in domain",
             "weight": 1.2,
         },
-
         # Dynamic Property Access Detection
         {
             "id": "obf-dynamic-property-access",
@@ -366,10 +366,9 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "description": "Dynamic Function constructor with string building",
             "weight": 2.2,
         },
-        
         # Additional enhanced patterns for gap closure
         {
-            "id": "obf-unicode-escape-sequences", 
+            "id": "obf-unicode-escape-sequences",
             "phase": ScanPhase.OBFUSCATION,
             "severity": Severity.HIGH,
             "pattern": r"\\u[0-9a-fA-F]{4}.*\\u[0-9a-fA-F]{4}.*\\u[0-9a-fA-F]{4}",
@@ -378,7 +377,7 @@ ENHANCED_OBFUSCATION_RULES = _compile(
         },
         {
             "id": "obf-mixed-script-identifiers",
-            "phase": ScanPhase.OBFUSCATION, 
+            "phase": ScanPhase.OBFUSCATION,
             "severity": Severity.MEDIUM,
             "pattern": r"[\u0100-\u017F\u0180-\u024F\u1E00-\u1EFF].*[a-zA-Z].*[\u0400-\u04FF]",
             "description": "Mixed script characters in identifiers — potential homograph attack",
@@ -574,19 +573,21 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 description=rule.description,
                 explanation=get_explanation(rule.id),
             )
-    
+
     # Enhanced multi-line pattern detection for nested Base64 chains
     if _detect_base64_chain_pattern(content):
         # Find the first base64 decode call to get line number
-        base64_match = re.search(r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content)
+        base64_match = re.search(
+            r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content
+        )
         if base64_match:
-            line_no = content[:base64_match.start()].count("\n") + 1
+            line_no = content[: base64_match.start()].count("\n") + 1
             lines = content.splitlines()
             idx = line_no - 1
             start = max(0, idx - 1)
             end = min(len(lines), idx + 4)  # Show more context for multi-line patterns
             snippet = "\n".join(lines[start:end])
-            
+
             yield Finding(
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-base64-nested-chain",
@@ -598,18 +599,18 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 description="Nested Base64 chain decoding — advanced obfuscation technique",
                 explanation=get_explanation("obf-base64-nested-chain"),
             )
-    
+
     # Enhanced multi-line pattern detection for hex+Base64 chains
     if _detect_hex_base64_chain_pattern(content):
         hex_match = re.search(r"bytes\.fromhex\s*\(", content)
         if hex_match:
-            line_no = content[:hex_match.start()].count("\n") + 1
+            line_no = content[: hex_match.start()].count("\n") + 1
             lines = content.splitlines()
             idx = line_no - 1
             start = max(0, idx - 1)
             end = min(len(lines), idx + 4)
             snippet = "\n".join(lines[start:end])
-            
+
             yield Finding(
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-hex-base64-chain",
@@ -626,57 +627,71 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
 def _detect_base64_chain_pattern(content: str) -> bool:
     """Detect Base64 chain patterns across multiple lines."""
     # Count Base64 decode calls
-    base64_calls = len(re.findall(r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content))
-    
+    base64_calls = len(
+        re.findall(r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content)
+    )
+
     # Look for variable assignment patterns with Base64 decode followed by another Base64 decode using that variable
     if base64_calls >= 2:
         # Pattern: var = base64.decode(...); other_var = base64.decode(var)
-        lines = content.split('\n')
+        lines = content.split("\n")
         base64_vars = []
-        
+
         for line in lines:
             # Look for Base64 decode assignment
-            b64_assign_match = re.search(r"(\w+)\s*=\s*(base64\.(b64decode|decodebytes)|atob)\s*\(", line)
+            b64_assign_match = re.search(
+                r"(\w+)\s*=\s*(base64\.(b64decode|decodebytes)|atob)\s*\(", line
+            )
             if b64_assign_match:
                 var_name = b64_assign_match.group(1)
                 base64_vars.append(var_name)
                 continue
-            
+
             # Check if this line uses a previously decoded variable in another Base64 decode
             for var in base64_vars:
                 pattern = rf"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*{re.escape(var)}\s*\)"
                 if re.search(pattern, line):
                     return True
-                    
+
         # Also check if any variable from Base64 decode is used in another Base64 decode
         for var in base64_vars:
             for line in lines:
-                if var in line and re.search(rf"(base64\.(b64decode|decodebytes)|atob)\s*\([^)]*{re.escape(var)}[^)]*\)", line):
+                if var in line and re.search(
+                    rf"(base64\.(b64decode|decodebytes)|atob)\s*\([^)]*{re.escape(var)}[^)]*\)",
+                    line,
+                ):
                     return True
-                    
+
     return False
 
 
 def _detect_hex_base64_chain_pattern(content: str) -> bool:
     """Detect hex encoding followed by Base64 decoding patterns."""
     # Look for bytes.fromhex followed by Base64 decode
-    if "bytes.fromhex" in content and re.search(r"(base64\.(b64decode|decodebytes)|atob)", content):
-        lines = content.split('\n')
+    if "bytes.fromhex" in content and re.search(
+        r"(base64\.(b64decode|decodebytes)|atob)", content
+    ):
+        lines = content.split("\n")
         hex_vars = []
-        
+
         for line in lines:
             # Look for hex decode assignment: var = bytes.fromhex(...).decode()
-            hex_assign_match = re.search(r"(\w+)\s*=\s*bytes\.fromhex\s*\([^)]+\)\.decode\s*\(\s*\)", line)
+            hex_assign_match = re.search(
+                r"(\w+)\s*=\s*bytes\.fromhex\s*\([^)]+\)\.decode\s*\(\s*\)", line
+            )
             if hex_assign_match:
                 var_name = hex_assign_match.group(1)
                 hex_vars.append(var_name)
                 continue
-                
+
             # Check if hex variable is used in Base64 decode
             for var in hex_vars:
-                if var in line and re.search(rf"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*{re.escape(var)}\s*\)", line):
+                if var in line and re.search(
+                    rf"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*{re.escape(var)}\s*\)",
+                    line,
+                ):
                     return True
-                    
+
     return False
 
 

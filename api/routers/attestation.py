@@ -73,7 +73,9 @@ def _load_public_key() -> Union[str, None]:
             with open(settings.bot_public_key_file, "r") as f:
                 return f.read()
         except Exception as e:
-            logger.error(f"Failed to read public key from {settings.bot_public_key_file}: {e}")
+            logger.error(
+                f"Failed to read public key from {settings.bot_public_key_file}: {e}"
+            )
             return None
 
     return None

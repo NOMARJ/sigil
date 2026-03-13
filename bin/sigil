@@ -1491,7 +1491,7 @@ cache_get() {
     
     [ ! -f "$cache_file" ] && return 1
     
-    local cached_time entry
+    local cached_time
     if check_tool "jq"; then
         cached_time=$(jq -r --arg key "$key" '.[$key].timestamp // 0' "$cache_file" 2>/dev/null)
         [ "$cached_time" = "0" ] && return 1
@@ -1632,7 +1632,6 @@ cmd_discover() {
         local tools
         tools=$(echo "$response" | jq -r '.data.stack[]? // empty')
         if [ -n "$tools" ]; then
-            local category=""
             echo "$response" | jq -r '.data.stack[] | 
                 "## \(.category)
                 • \(.package_name) (\(.ecosystem)) - Trust: \(.trust_score)%
