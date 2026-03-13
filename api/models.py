@@ -10,7 +10,7 @@ from __future__ import annotations
 import enum
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -352,7 +352,9 @@ class AlertCreate(BaseModel):
 class AlertUpdate(BaseModel):
     """Request to update an alert channel."""
 
-    channel_type: Optional[ChannelType] = Field(None, description="Updated channel type")
+    channel_type: Optional[ChannelType] = Field(
+        None, description="Updated channel type"
+    )
     channel_config: Optional[Dict[str, Any]] = Field(
         None, description="Updated configuration"
     )
@@ -411,7 +413,9 @@ class SubscribeRequest(BaseModel):
     interval: Literal["monthly", "annual"] = Field(
         "monthly", description="Billing interval"
     )
-    payment_method_id: Optional[str] = Field(None, description="Stripe payment method ID")
+    payment_method_id: Optional[str] = Field(
+        None, description="Stripe payment method ID"
+    )
 
 
 class SubscriptionResponse(BaseModel):
@@ -1052,7 +1056,9 @@ class AlertSubscription(BaseModel):
 
     id: str = Field(..., description="Subscription ID")
     tool_id: Optional[str] = Field(None, description="Specific tool (None = all tools)")
-    ecosystem: Optional[str] = Field(None, description="Specific ecosystem (None = all)")
+    ecosystem: Optional[str] = Field(
+        None, description="Specific ecosystem (None = all)"
+    )
     alert_types: List[str] = Field(..., description="Types of alerts to receive")
     channels: Dict[str, bool] = Field(
         default_factory=dict, description="Notification channels"

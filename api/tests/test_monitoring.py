@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 
-from main import app
+from api.main import app
 from api.monitoring import (
     Alert,
     AlertCategory,

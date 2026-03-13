@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ChatSession, 
@@ -54,9 +54,9 @@ export default function InteractiveChat({
     if (isOpen && !session) {
       initializeSession();
     }
-  }, [isOpen, session]);
+  }, [isOpen, session, initializeSession]);
 
-  const initializeSession = async (): Promise<void> => {
+  const initializeSession = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch("/api/v1/interactive/sessions", {
         method: "POST",
@@ -78,7 +78,7 @@ export default function InteractiveChat({
     } catch (error) {
       console.error("Session initialization error:", error);
     }
-  };
+  }, [onChatSessionUpdate, scan.id]);
 
   const sendMessage = async (message: string): Promise<void> => {
     if (!session || !message.trim() || !canAfford) return;

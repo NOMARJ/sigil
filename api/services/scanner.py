@@ -255,6 +255,105 @@ OBFUSCATION_RULES = _compile(
     ]
 )
 
+# Enhanced obfuscation detection rules for gap closure
+ENHANCED_OBFUSCATION_RULES = _compile(
+    [
+        # Base64 Chain Detection
+        {
+            "id": "obf-base64-nested-chain",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.CRITICAL,
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*(base64\.(b64decode|decodebytes)|atob)\s*\(|(\w+\s*=\s*)?(base64\.(b64decode|decodebytes)|atob)\s*\([^)]+\)\s*;\s*(\w+\s*=\s*)?(base64\.(b64decode|decodebytes)|atob)\s*\(\s*\w+",
+            "description": "Nested Base64 chain decoding — advanced obfuscation technique",
+            "weight": 2.0,
+        },
+        {
+            "id": "obf-base64-dynamic-key",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*[\w\+\.\[\]]+\s*\+\s*[\w\+\.\[\]]+",
+            "description": "Base64 decoding with dynamic key construction",
+            "weight": 1.5,
+        },
+        {
+            "id": "obf-base64-mixed-encoding",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"urllib\.parse\.unquote\s*\(\s*(base64\.(b64decode|decodebytes)|atob)\s*\(|base64\.(b64decode|decodebytes)\s*\(\s*urllib\.parse\.unquote",
+            "description": "Mixed Base64 and URL encoding chain",
+            "weight": 1.8,
+        },
+        {
+            "id": "obf-base64-pickle-combo",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.CRITICAL,
+            "pattern": r"pickle\.(loads?|Unpickler)\s*\(\s*(base64\.(b64decode|decodebytes)|atob)\s*\(",
+            "description": "Pickle deserialization with Base64 decoding — dangerous combination",
+            "weight": 2.5,
+        },
+        {
+            "id": "obf-hex-base64-chain",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*bytes\.fromhex\s*\(|bytes\.fromhex\s*\([^)]+\)\.decode\(\)\s*\)\s*;\s*(base64\.(b64decode|decodebytes)|atob)",
+            "description": "Hex to Base64 decoding chain",
+            "weight": 1.7,
+        },
+        
+        # Unicode Steganography Detection  
+        {
+            "id": "obf-unicode-zero-width",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"[\u200B-\u200D\uFEFF]",  # Zero-width characters
+            "description": "Zero-width Unicode characters detected — potential steganography",
+            "weight": 1.5,
+        },
+        {
+            "id": "obf-unicode-rtl-override",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"[\u202E\u202D\u2066-\u2069]",  # RTL/LTR override characters
+            "description": "Unicode directional override characters — text direction attack",
+            "weight": 1.8,
+        },
+        {
+            "id": "obf-unicode-invisible-chars",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.MEDIUM,
+            "pattern": r"[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F]",  # Combining characters
+            "description": "Invisible combining characters detected — potential payload hiding",
+            "weight": 1.3,
+        },
+        {
+            "id": "obf-unicode-homograph",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.MEDIUM,
+            "pattern": r"[а-яё].*\.(com|org|net|gov|edu)",  # Cyrillic chars in domains (basic check)
+            "description": "Potential Unicode homograph attack in domain",
+            "weight": 1.2,
+        },
+
+        # Dynamic Property Access Detection
+        {
+            "id": "obf-dynamic-property-access",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"(window|global|this|document)\s*\[\s*[\"\']?[\w\+\$\{\}]+[\"\']?\s*\+\s*[\"\']?[\w\+\$\{\}]+[\"\']?\s*\]|obj\s*\[\s*`[^`]*\$\{[^}]+\}[^`]*`\s*\]",
+            "description": "Dynamic property access with string concatenation or template literals",
+            "weight": 1.6,
+        },
+        {
+            "id": "obf-dynamic-function-constructor",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.CRITICAL,
+            "pattern": r"Function\s*\.\s*constructor\s*\(.*\.join\s*\(|new\s+Function\s*\(\s*[\w\[\]\.]+\s*\+",
+            "description": "Dynamic Function constructor with string building",
+            "weight": 2.2,
+        },
+    ]
+)
+
 PROVENANCE_RULES = _compile(
     [
         {
@@ -290,6 +389,7 @@ ALL_RULES: list[Rule] = (
     + NETWORK_EXFIL_RULES
     + CREDENTIAL_RULES
     + OBFUSCATION_RULES
+    + ENHANCED_OBFUSCATION_RULES
     + PROVENANCE_RULES
 )
 
@@ -436,6 +536,7 @@ def scan_directory(path: str | Path) -> list[Finding]:
         + NETWORK_EXFIL_RULES
         + CREDENTIAL_RULES
         + OBFUSCATION_RULES
+        + ENHANCED_OBFUSCATION_RULES
     )
 
     for file_path in _walk_files(root):

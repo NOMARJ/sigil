@@ -6,7 +6,9 @@
 
 ## Executive Summary
 
-This report documents a systematic analysis of 58 missed CVE detections from Sigil's production dataset of 2,847 tested vulnerabilities, representing a 97.96% detection rate. Rather than concealing these limitations, we provide transparent disclosure of failure modes to advance the state of automated security scanning research.
+This report documents a systematic analysis of 58 missed CVE detections from Sigil's production dataset of 2,847 tested vulnerabilities, representing a 97.96% detection rate. 
+
+Leading static analysis tools report 85-94% CVE detection rates but rarely publish methodology or failure analysis. Rather than concealing these limitations, we provide transparent disclosure of failure modes to advance the state of automated security scanning research.
 
 **Key Finding**: The 58 missed CVEs cluster into three distinct categories with specific technical solutions, not systemic detection failures.
 
@@ -23,17 +25,11 @@ This report documents a systematic analysis of 58 missed CVE detections from Sig
 
 **Technical Challenge**: Code obfuscation techniques that evade static analysis
 
-**Examples of Missed Patterns**:
-```javascript
-// Base64 + eval chain missed by current rules
-eval(atob("ZXZhbChhdG9iKCJabVYwWTJnb0oyZzFOemRpSURnPSIpKQ=="))
-
-// Unicode steganography in comments
-/* ‌‌‌‌‌‌‌‌‌eval(‌‌‌‌‌‌process‌‌‌‌.env‌‌‌‌.‌‌‌‌AWS_SECRET‌‌‌‌‌‌) */
-
-// Dynamic property access obfuscation  
-this[String.fromCharCode(101,118,97,108)](malicious_code)
-```
+**Examples of Missed Pattern Classes**:
+- **Multi-layer encoding chains**: Nested base64/hex encoding with delayed evaluation
+- **Unicode steganography**: Zero-width characters and combining marks hiding code execution
+- **Dynamic property access**: Runtime string construction for sensitive function calls
+- **Comment-embedded payloads**: Code hidden in seemingly benign documentation
 
 **Solution Timeline**: 4-6 weeks  
 **Approach**: Enhanced AST pattern matching, recursive deobfuscation  
@@ -43,20 +39,11 @@ this[String.fromCharCode(101,118,97,108)](malicious_code)
 
 **Technical Challenge**: New attack patterns not yet in rule database
 
-**Examples of Missed Vectors**:
-```python
-# Supply chain via package.json engines field
-"engines": {
-  "node": ">=12.0.0 && eval(require('child_process').execSync('malicious'))"
-}
-
-# Prototype pollution in unexpected contexts
-import sys
-sys.modules.__dict__['__builtins__'].__dict__['eval'] = malicious_function
-
-# WebAssembly-hidden payloads
-const wasmModule = new WebAssembly.Module(maliciousBytes)
-```
+**Examples of Missed Vector Classes**:
+- **Supply chain via metadata fields**: Executable code in package configuration fields
+- **Runtime environment manipulation**: Dynamic modification of built-in functions and modules
+- **WebAssembly payloads**: Compiled code execution bypassing traditional analysis
+- **Cross-language exploitation**: Attacks spanning multiple language runtimes
 
 **Solution Timeline**: 8-12 weeks  
 **Approach**: Machine learning on attack vector embeddings  
@@ -66,21 +53,11 @@ const wasmModule = new WebAssembly.Module(maliciousBytes)
 
 **Technical Challenge**: Attacks requiring dynamic/runtime analysis
 
-**Examples of Missed Patterns**:
-```python
-# Time-based data exfiltration
-def exfil_bit(bit_value):
-    if bit_value == 1:
-        time.sleep(0.1)  # Long delay = 1
-    else:
-        time.sleep(0.01) # Short delay = 0
-    
-# Race condition exploits  
-threading.Timer(0.001, lambda: setattr(vulnerable_obj, 'admin', True))
-
-# Delayed execution trigger
-setTimeout(() => { eval(hidden_payload) }, 24*60*60*1000)  // 24hr delay
-```
+**Examples of Missed Pattern Classes**:
+- **Time-based covert channels**: Data exfiltration via execution timing variations
+- **Race condition exploitation**: Thread timing vulnerabilities in concurrent systems
+- **Delayed activation triggers**: Time-bombed payloads with future execution
+- **Behavioral timing attacks**: Side-channel information disclosure via execution patterns
 
 **Solution Timeline**: 12-16 weeks  
 **Approach**: Hybrid static/dynamic analysis engine  
@@ -128,15 +105,13 @@ setTimeout(() => { eval(hidden_payload) }, 24*60*60*1000)  // 24hr delay
 ### Phase 3: Hybrid Analysis (Weeks 13-20)
 - **Target**: 16 timing-based CVEs  
 - **Approach**: Static + dynamic analysis pipeline
-- **Expected gain**: +0.56% detection rate (100% theoretical max)
+- **Expected gain**: +0.56% detection rate (approaches static analysis ceiling)
 - **Investment**: $195K
 
 **Total Investment**: $450K over 20 weeks  
-**Projected Outcome**: 100% coverage within static analysis limitations
+**Projected Outcome**: Eliminates known timing-based gap, approaches theoretical static ceiling
 
 ## Competitive Context
-
-**Industry Comparison**: Leading static analysis tools report 85-94% CVE detection rates but rarely publish methodology or failure analysis.
 
 **Sigil Advantage**: This transparent disclosure demonstrates:
 1. **Verifiable methodology** (2,847 CVE validation)
