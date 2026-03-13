@@ -6,9 +6,14 @@
 import { z } from "zod";
 import { request as httpsRequest } from "https";
 import { request as httpRequest } from "http";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 const FORGE_API_URL = process.env.FORGE_API_URL ?? "https://api.sigilsec.ai/forge";
 const SIGIL_API_URL = process.env.SIGIL_API_URL ?? "https://api.sigilsec.ai";
+const SIGIL_CLI_PATH = process.env.SIGIL_CLI_PATH ?? "sigil";
+
+const execFileAsync = promisify(execFile);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +68,24 @@ export interface ToolCheckResult {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+async function executeSigilCommand(args: string[], timeoutMs: number = 2000): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(SIGIL_CLI_PATH, args, {
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024, // 1MB output buffer
+    });
+    return stdout.trim();
+  } catch (error: any) {
+    if (error.killed && error.signal === 'SIGTERM') {
+      throw new Error(`CLI command timed out after ${timeoutMs}ms`);
+    }
+    if (error.code === 'ENOENT') {
+      throw new Error(`Sigil CLI not found at path: ${SIGIL_CLI_PATH}`);
+    }
+    throw new Error(`CLI command failed: ${error.message}`);
+  }
+}
 
 async function fetchForgeAPI<T = unknown>(path: string, options?: {
   method?: string;
@@ -349,20 +372,49 @@ export const forgeSearchSchema = {
 };
 
 export async function forgeSearch({ query, type = "both" }: { query: string; type?: "skill" | "mcp" | "both" }) {
-  await refreshClassificationCache();
+  let results: ToolMatch[] = [];
   
-  // Perform semantic search
-  const results = semanticSearch(query, type);
-  
-  if (results.length === 0) {
-    // Fallback to API search if no cache hits
+  // Try CLI command first
+  try {
+    const cliArgs = ["search", query];
+    if (type !== "both") {
+      cliArgs.push("--type", type);
+    }
+    
+    const cliOutput = await executeSigilCommand(cliArgs, 2000);
+    
+    // Parse CLI output - assume it returns JSON for now
     try {
-      const apiResults = await fetchForgeAPI<{ items: ToolMatch[] }>(
-        `/search?q=${encodeURIComponent(query)}&type=${type}`
-      );
-      results.push(...(apiResults.items || []));
-    } catch (error) {
-      console.error("Forge API search failed:", error);
+      const parsedResults = JSON.parse(cliOutput);
+      if (Array.isArray(parsedResults)) {
+        results = parsedResults;
+      } else if (parsedResults && Array.isArray(parsedResults.items)) {
+        results = parsedResults.items;
+      }
+    } catch (parseError) {
+      // If CLI doesn't return JSON, fall back to API
+      console.error("Failed to parse CLI output as JSON:", parseError);
+      throw new Error("CLI output not parseable");
+    }
+  } catch (cliError) {
+    console.error("CLI search failed, falling back to API:", cliError);
+    
+    // Fallback to original implementation with cache and API
+    await refreshClassificationCache();
+    
+    // Perform semantic search
+    results = semanticSearch(query, type);
+    
+    if (results.length === 0) {
+      // Fallback to API search if no cache hits
+      try {
+        const apiResults = await fetchForgeAPI<{ items: ToolMatch[] }>(
+          `/search?q=${encodeURIComponent(query)}&type=${type}`
+        );
+        results.push(...(apiResults.items || []));
+      } catch (error) {
+        console.error("Forge API search failed:", error);
+      }
     }
   }
   
@@ -440,33 +492,66 @@ export const forgeCheckSchema = {
 };
 
 export async function forgeCheck({ name, ecosystem }: { name: string; ecosystem: "skill" | "mcp" }) {
-  await refreshClassificationCache();
+  let toolInfo: ToolMatch | undefined = undefined;
+  let scanDetails: any = null;
   
-  // Check cache first
-  const cacheKey = `${ecosystem}:${name}`;
-  let toolInfo = classificationCache.get(cacheKey);
-  
-  if (!toolInfo) {
-    // Fetch from API if not in cache
+  // Try CLI command first
+  try {
+    const cliArgs = ["info", name, "--ecosystem", ecosystem];
+    const cliOutput = await executeSigilCommand(cliArgs, 2000);
+    
+    // Parse CLI output - assume it returns JSON for now
     try {
-      toolInfo = await fetchForgeAPI<ToolMatch>(`/tools/${ecosystem}/${encodeURIComponent(name)}`);
+      const parsedInfo = JSON.parse(cliOutput);
+      if (parsedInfo && typeof parsedInfo === "object") {
+        toolInfo = parsedInfo as ToolMatch;
+        scanDetails = parsedInfo.scan_details;
+      }
+    } catch (parseError) {
+      // If CLI doesn't return JSON, fall back to API
+      console.error("Failed to parse CLI info output as JSON:", parseError);
+      throw new Error("CLI output not parseable");
+    }
+  } catch (cliError) {
+    console.error("CLI info failed, falling back to API:", cliError);
+    
+    // Fallback to original implementation with cache and API
+    await refreshClassificationCache();
+    
+    // Check cache first
+    const cacheKey = `${ecosystem}:${name}`;
+    toolInfo = classificationCache.get(cacheKey);
+    
+    if (!toolInfo) {
+      // Fetch from API if not in cache
+      try {
+        toolInfo = await fetchForgeAPI<ToolMatch>(`/tools/${ecosystem}/${encodeURIComponent(name)}`);
+      } catch (error) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Tool not found: ${ecosystem}/${name}. It may not have been classified yet.`,
+          }],
+        };
+      }
+    }
+    
+    // Fetch detailed scan results from Sigil API
+    try {
+      const sigilEcosystem = ecosystem === "skill" ? "clawhub" : "github";
+      scanDetails = await fetchForgeAPI(`${SIGIL_API_URL}/registry/${sigilEcosystem}/${encodeURIComponent(name)}`);
     } catch (error) {
-      return {
-        content: [{
-          type: "text" as const,
-          text: `Tool not found: ${ecosystem}/${name}. It may not have been classified yet.`,
-        }],
-      };
+      // Scan details are optional
     }
   }
   
-  // Fetch detailed scan results from Sigil API
-  let scanDetails: any = null;
-  try {
-    const sigilEcosystem = ecosystem === "skill" ? "clawhub" : "github";
-    scanDetails = await fetchForgeAPI(`${SIGIL_API_URL}/registry/${sigilEcosystem}/${encodeURIComponent(name)}`);
-  } catch (error) {
-    // Scan details are optional
+  if (!toolInfo) {
+    return {
+      content: [{
+        type: "text" as const,
+        text: `Tool not found: ${ecosystem}/${name}. It may not have been classified yet.`,
+      }],
+    };
   }
   
   let response = `## ${ecosystem}/${name}\n\n`;
