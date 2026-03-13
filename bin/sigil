@@ -1478,6 +1478,260 @@ cmd_logout() {
     fi
 }
 
+# ── Tool Discovery Commands ────────────────────────────────────────────────────
+
+CACHE_DIR="${SIGIL_CACHE_DIR:-$HOME/.sigil/cache}"
+SEARCH_CACHE_FILE="$CACHE_DIR/search_cache.json"
+
+# Cache management functions
+cache_get() {
+    local key="$1"
+    local cache_file="$2"
+    local max_age="${3:-86400}" # 24 hours default
+    
+    [ ! -f "$cache_file" ] && return 1
+    
+    local cached_time
+    if check_tool "jq"; then
+        cached_time=$(jq -r --arg key "$key" '.[$key].timestamp // 0' "$cache_file" 2>/dev/null)
+        [ "$cached_time" = "0" ] && return 1
+        
+        local current_time
+        current_time=$(date +%s)
+        [ $((current_time - cached_time)) -gt "$max_age" ] && return 1
+        
+        jq -r --arg key "$key" '.[$key].data' "$cache_file" 2>/dev/null
+        return 0
+    fi
+    return 1
+}
+
+cache_set() {
+    local key="$1" data="$2" cache_file="$3"
+    
+    mkdir -p "$(dirname "$cache_file")"
+    
+    if check_tool "jq"; then
+        local current_time
+        current_time=$(date +%s)
+        local temp_file
+        temp_file=$(mktemp)
+        
+        # Create or update cache
+        if [ -f "$cache_file" ]; then
+            jq --arg key "$key" --arg data "$data" --arg time "$current_time" \
+               '.[$key] = {timestamp: ($time | tonumber), data: $data}' \
+               "$cache_file" > "$temp_file" && mv "$temp_file" "$cache_file"
+        else
+            echo "{}" | jq --arg key "$key" --arg data "$data" --arg time "$current_time" \
+                         '.[$key] = {timestamp: ($time | tonumber), data: $data}' \
+                         > "$cache_file"
+        fi
+    fi
+}
+
+cmd_search() {
+    local query="${1:?Usage: sigil search <query>}"
+    local cache_key="search_${query// /_}"
+    
+    log "Searching for tools: $query"
+    
+    # Try cache first
+    local cached_result
+    if cached_result=$(cache_get "$cache_key" "$SEARCH_CACHE_FILE"); then
+        echo "$cached_result"
+        echo -e "\n${DIM}(cached result)${NC}"
+        return 0
+    fi
+    
+    # API call
+    local auth_header=""
+    if [ -f "$TOKEN_FILE" ]; then
+        local token
+        token=$(cat "$TOKEN_FILE" 2>/dev/null)
+        [ -n "$token" ] && auth_header="Authorization: Bearer $token"
+    fi
+    
+    local response
+    if [ -n "$auth_header" ]; then
+        response=$(curl -sf -H "$auth_header" -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/search?q=${query}" 2>/dev/null)
+    else
+        response=$(curl -sf -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/search?q=${query}" 2>/dev/null)
+    fi
+    
+    if [ -z "$response" ]; then
+        fail "Failed to search tools. Check your connection or try: sigil login"
+        exit 1
+    fi
+    
+    # Parse and format response
+    local formatted_output=""
+    if check_tool "jq"; then
+        local tools
+        tools=$(echo "$response" | jq -r '.data.tools[]? // empty')
+        if [ -n "$tools" ]; then
+            echo -e "${BOLD}Search Results for: ${CYAN}$query${NC}\n"
+            
+            echo "$response" | jq -r '.data.tools[] | 
+                "• \(.package_name) (\(.ecosystem)) - Trust: \(.trust_score)%
+                  \(.description // "No description available")
+                  Install: \(if .ecosystem == "npm" then "npm install" elif .ecosystem == "pypi" then "pip install" else "see docs" end) \(.package_name)"' | \
+            while IFS= read -r line; do
+                echo -e "$line"
+                echo
+            done
+            
+            formatted_output=$(echo "$response" | jq -c .)
+        else
+            echo -e "${YELLOW}No tools found for: ${CYAN}$query${NC}"
+            echo "Try different search terms or check available categories with 'sigil discover'"
+            formatted_output="{\"data\":{\"tools\":[]}}"
+        fi
+    else
+        echo "$response"
+        formatted_output="$response"
+    fi
+    
+    # Cache the result
+    cache_set "$cache_key" "$formatted_output" "$SEARCH_CACHE_FILE"
+}
+
+cmd_discover() {
+    local use_case="${1:?Usage: sigil discover <use-case>}"
+    
+    log "Finding tools for use case: $use_case"
+    
+    # API call for stack generation
+    local auth_header=""
+    if [ -f "$TOKEN_FILE" ]; then
+        local token
+        token=$(cat "$TOKEN_FILE" 2>/dev/null)
+        [ -n "$token" ] && auth_header="Authorization: Bearer $token"
+    fi
+    
+    local response
+    if [ -n "$auth_header" ]; then
+        response=$(curl -sf -H "$auth_header" -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/stack?use_case=${use_case}" 2>/dev/null)
+    else
+        response=$(curl -sf -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/stack?use_case=${use_case}" 2>/dev/null)
+    fi
+    
+    if [ -z "$response" ]; then
+        fail "Failed to get recommendations. Check your connection or try: sigil login"
+        exit 1
+    fi
+    
+    # Parse and format stack recommendations
+    if check_tool "jq"; then
+        echo -e "${BOLD}Recommended Stack for: ${CYAN}$use_case${NC}\n"
+        
+        local tools
+        tools=$(echo "$response" | jq -r '.data.stack[]? // empty')
+        if [ -n "$tools" ]; then
+            echo "$response" | jq -r '.data.stack[] | 
+                "## \(.category)
+                • \(.package_name) (\(.ecosystem)) - Trust: \(.trust_score)%
+                  \(.description // "No description available")
+                  Install: \(if .ecosystem == "npm" then "npm install" elif .ecosystem == "pypi" then "pip install" else "see docs" end) \(.package_name)
+                  Security: \(.security_notes // "No security notes")"' | \
+            while IFS= read -r line; do
+                if [[ "$line" == "## "* ]]; then
+                    echo -e "\n${BOLD}${line/## /}${NC}"
+                else
+                    echo -e "$line"
+                fi
+            done
+            
+            echo -e "\n${GREEN}Installation Summary:${NC}"
+            echo "$response" | jq -r '.data.stack[] | 
+                if .ecosystem == "npm" then "npm install \(.package_name)"
+                elif .ecosystem == "pypi" then "pip install \(.package_name)"
+                else "# \(.package_name) - see documentation"
+                end' | sort -u
+        else
+            echo -e "${YELLOW}No stack recommendations found for: ${CYAN}$use_case${NC}"
+            echo "Try a more specific use case description."
+        fi
+    else
+        echo "$response"
+    fi
+}
+
+cmd_info() {
+    local tool_path="${1:?Usage: sigil info <ecosystem>/<name>}"
+    
+    # Parse ecosystem/name
+    if [[ ! "$tool_path" =~ ^([^/]+)/([^/]+)$ ]]; then
+        fail "Invalid format. Use: sigil info <ecosystem>/<name> (e.g., 'npm/lodash' or 'pypi/requests')"
+        exit 1
+    fi
+    
+    local ecosystem="${BASH_REMATCH[1]}"
+    local name="${BASH_REMATCH[2]}"
+    
+    log "Getting info for: $ecosystem/$name"
+    
+    # API call for tool details
+    local auth_header=""
+    if [ -f "$TOKEN_FILE" ]; then
+        local token
+        token=$(cat "$TOKEN_FILE" 2>/dev/null)
+        [ -n "$token" ] && auth_header="Authorization: Bearer $token"
+    fi
+    
+    local response
+    if [ -n "$auth_header" ]; then
+        response=$(curl -sf -H "$auth_header" -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/tools/${ecosystem}/${name}" 2>/dev/null)
+    else
+        response=$(curl -sf -H "Content-Type: application/json" \
+                       "$API_BASE_URL/forge/tools/${ecosystem}/${name}" 2>/dev/null)
+    fi
+    
+    if [ -z "$response" ]; then
+        fail "Tool not found: $ecosystem/$name"
+        exit 1
+    fi
+    
+    # Parse and format detailed info
+    if check_tool "jq"; then
+        echo "$response" | jq -r '
+            .data as $tool |
+            "# \($tool.package_name) (\($tool.ecosystem))
+            
+            **Trust Score**: \($tool.trust_score)%
+            **Category**: \($tool.primary_category // "Unknown")
+            **Last Updated**: \($tool.last_updated // "Unknown")
+            
+            ## Description
+            \($tool.description // "No description available")
+            
+            ## Installation
+            \(if $tool.ecosystem == "npm" then "npm install \($tool.package_name)"
+              elif $tool.ecosystem == "pypi" then "pip install \($tool.package_name)"
+              else "See package documentation for installation"
+              end)
+            
+            ## Security Assessment
+            \(if $tool.security_notes then $tool.security_notes
+              else "No specific security notes available"
+              end)
+            
+            \(if $tool.findings and ($tool.findings | length > 0) then
+              "## Security Findings
+              " + ($tool.findings | map("• " + .description) | join("
+              "))
+              else ""
+              end)"'
+    else
+        echo "$response"
+    fi
+}
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 main() {
     ensure_dirs
@@ -1497,6 +1751,9 @@ main() {
         config)     cmd_config "$@" ;;
         hooks)      cmd_install_hooks "${1:-.}" ;;
         aliases)    cmd_aliases "$@" ;;
+        search)     cmd_search "${1:?Usage: sigil search <query>}" ;;
+        discover)   cmd_discover "${1:?Usage: sigil discover <use-case>}" ;;
+        info)       cmd_info "${1:?Usage: sigil info <ecosystem>/<name>}" ;;
         login)      cmd_login "$@" ;;
         logout)     cmd_logout ;;
         version|--version|-v)
@@ -1515,6 +1772,11 @@ main() {
             echo "  aliases [--print]      Install shell aliases (or print them)"
             echo "  config [--init]        Show/initialize config"
             echo "  hooks [git-dir]        Install pre-commit hook"
+            echo ""
+            echo "Discovery:"
+            echo "  search <query>         Search for AI tools and packages"
+            echo "  discover <use-case>    Get tool recommendations for use cases"
+            echo "  info <ecosystem>/<name>  Get detailed information about a tool"
             echo ""
             echo "Audit:"
             echo "  clone <git-url>        Clone repo into quarantine and audit"

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { useRouter, useSearchParams } from "next/navigation";
-import OnboardingFlow from "@/components/OnboardingFlow";
+import { ProOnboardingFlow } from "@/components/ProOnboardingFlow";
+import * as api from "@/lib/api";
 
 export default function ProOnboardingPage(): JSX.Element {
   const { user, isLoading } = useUser();
@@ -13,15 +14,28 @@ export default function ProOnboardingPage(): JSX.Element {
 
   // Check if user has Pro subscription
   useEffect(() => {
-    // This would be replaced with actual subscription check
-    const userPlan = "pro"; // Mock - would come from user object or API call
-    const isPro = userPlan === "pro" || userPlan === "team" || userPlan === "enterprise";
-    
-    setIsProUser(isPro);
-    
-    // Redirect non-Pro users to upgrade page
-    if (!isPro && !isLoading) {
-      router.push("/pro?upgrade=true");
+    const checkSubscription = async () => {
+      try {
+        const subscription = await api.getSubscription();
+        const isPro = subscription?.plan && subscription.plan !== 'free' && 
+                     (subscription.status === 'active' || subscription.status === 'trialing');
+        
+        setIsProUser(Boolean(isPro));
+        
+        // Redirect non-Pro users to upgrade page
+        if (!isPro && !isLoading) {
+          router.push("/pricing");
+        }
+      } catch (err) {
+        // If error checking subscription, redirect to pricing
+        if (!isLoading) {
+          router.push("/pricing");
+        }
+      }
+    };
+
+    if (user && !isLoading) {
+      checkSubscription();
     }
   }, [user, isLoading, router]);
 
@@ -42,11 +56,7 @@ export default function ProOnboardingPage(): JSX.Element {
 
   // Show onboarding flow for Pro users
   if (isProUser) {
-    return (
-      <div className="min-h-screen bg-gray-900">
-        <OnboardingFlow />
-      </div>
-    );
+    return <ProOnboardingFlow />;
   }
 
   // Fallback for non-Pro users (shouldn't reach here due to redirect)
@@ -57,7 +67,7 @@ export default function ProOnboardingPage(): JSX.Element {
           Pro Subscription Required
         </h1>
         <p className="text-gray-400 mb-6">
-          This feature requires a Pro subscription to access AI-powered threat detection.
+          This feature requires a Pro subscription to access AI investigation features.
         </p>
         <button
           onClick={() => router.push("/pro")}

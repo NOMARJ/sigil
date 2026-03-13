@@ -41,7 +41,7 @@ class RateLimitTier:
         # Strict tier - expensive operations
         "/api/v1/scan": STRICT,
         "/api/v1/scan/": STRICT,
-        "/forge/": STRICT,
+        # "/forge/": STRICT,  # Forge archived - removed
         "/api/v1/threat/": STRICT,
         # Moderate tier - standard operations
         "/api/v1/publisher": MODERATE,

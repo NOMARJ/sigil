@@ -11,7 +11,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from api.services.realtime_dashboard import dashboard_service
-from api.routers.forge import get_classified_skills
+# from api.routers.forge import get_classified_skills  # Forge archived
+
+
+# Stub for get_classified_skills to prevent errors during Forge sunset
+async def get_classified_skills():
+    return []
+
 
 router = APIRouter(tags=["System"])
 
@@ -54,5 +60,8 @@ async def get_status():
 
 @router.get("/skills")
 async def get_skills(limit: int = 20):
-    """Skills endpoint (convenience wrapper for /forge/classifications/skills)."""
-    return await get_classified_skills(limit=limit, min_trust_score=0)
+    """Skills endpoint (deprecated - Forge functionality archived)."""
+    return {
+        "status": "deprecated",
+        "message": "Forge functionality has been archived. This endpoint is no longer available.",
+    }

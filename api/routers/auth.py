@@ -21,7 +21,7 @@ import re
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict, Optional
 from typing_extensions import Annotated
 from uuid import uuid4
 
@@ -198,7 +198,7 @@ def _b64url_decode(data: str) -> bytes:
 
 
 def _create_access_token(
-    data: dict[str, Any], expires_delta: timedelta | None = None
+    data: Dict[str, Any], expires_delta: Optional[timedelta] = None
 ) -> str:
     """Create a signed JWT with the given payload."""
     import time
@@ -227,7 +227,7 @@ def _create_access_token(
     return f"{signing_input}.{_b64url_encode(signature)}"
 
 
-async def _verify_token(token: str) -> dict[str, Any]:
+async def _verify_token(token: str) -> Dict[str, Any]:
     """Decode and validate a JWT.  Raises ``HTTPException`` on failure."""
     if await _is_token_revoked(token):
         raise HTTPException(
@@ -300,7 +300,7 @@ USER_TABLE = "users"
 
 
 async def get_current_user(
-    token: Annotated[str | None, Depends(oauth2_scheme)],
+    token: Annotated[Optional[str], Depends(oauth2_scheme)],
 ) -> UserResponse:
     """FastAPI dependency that extracts and validates the current user from
     the Authorization header.
@@ -315,7 +315,7 @@ async def get_current_user(
         )
 
     payload = await _verify_token(token)
-    user_id: str | None = payload.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -344,7 +344,7 @@ async def get_current_user(
 # ---------------------------------------------------------------------------
 
 # Auth0 JWKS cache (fetched once, reused)
-_auth0_jwks_cache: dict | None = None
+_auth0_jwks_cache: Optional[dict] = None
 
 
 async def _get_auth0_jwks() -> dict:
@@ -360,7 +360,7 @@ async def _get_auth0_jwks() -> dict:
     return _auth0_jwks_cache
 
 
-async def verify_auth0_token(token: str) -> dict[str, Any]:
+async def verify_auth0_token(token: str) -> Dict[str, Any]:
     """Verify an Auth0-issued RS256 JWT and return user claims.
 
     Args:
@@ -431,7 +431,7 @@ async def verify_auth0_token(token: str) -> dict[str, Any]:
     }
 
 
-async def verify_custom_jwt(token: str) -> dict[str, Any]:
+async def verify_custom_jwt(token: str) -> Dict[str, Any]:
     """Verify a custom JWT token and return user data.
 
     Args:
@@ -444,7 +444,7 @@ async def verify_custom_jwt(token: str) -> dict[str, Any]:
         HTTPException: If the token is invalid, expired, or user doesn't exist
     """
     payload = await _verify_token(token)
-    user_id: str | None = payload.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -503,7 +503,7 @@ def _get_auth_token_from_request(request: Request) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def _auto_provision_auth0_user(user_info: dict[str, Any]) -> dict[str, Any]:
+async def _auto_provision_auth0_user(user_info: Dict[str, Any]) -> Dict[str, Any]:
     """Auto-provision a user in the database on first Auth0 login.
 
     Matches by email. If no user exists, creates one with an empty password_hash
@@ -663,7 +663,7 @@ async def refresh_token(body: RefreshTokenRequest) -> AuthTokens:
     add a ``refresh_token`` field to the ``AuthTokens`` model.
     """
     payload = await _verify_token(body.refresh_token)
-    user_id: str | None = payload.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -833,13 +833,13 @@ async def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
 
 @router.get(
     "/verify",
-    response_model=dict[str, Any],
+    response_model=Dict[str, Any],
     summary="Verify API key and return user tier information",
     responses={401: {"model": ErrorResponse}},
 )
 async def verify_api_key(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """Verify API key and return user tier information for CLI tier checking.
 
     Returns:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { format } from 'date-fns';
 
@@ -54,9 +54,9 @@ export default function SessionPage() {
     if (id) {
       fetchSession();
     }
-  }, [id]);
+  }, [id, fetchSession]);
 
-  const fetchSession = async () => {
+  const fetchSession = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -78,7 +78,7 @@ export default function SessionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   const exportSession = async (format: 'markdown' | 'json') => {
     if (!session) return;

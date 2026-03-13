@@ -13,13 +13,13 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
-from typing import Any
+from typing import Any, Union
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from api.database import db
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -33,19 +33,19 @@ router = APIRouter(tags=["attestation"])
 class VerifyRequest(BaseModel):
     """Request to verify an attestation by scan_id or content_digest."""
 
-    scan_id: str | None = None
-    content_digest: str | None = None
+    scan_id: Union[str, None] = None
+    content_digest: Union[str, None] = None
 
 
 class VerifyResponse(BaseModel):
     """Response from attestation verification."""
 
     verified: bool
-    scan_id: str | None = None
-    signed_at: str | None = None
-    log_entry: str | None = None
-    key_id: str | None = None
-    error: str | None = None
+    scan_id: Union[str, None] = None
+    signed_at: Union[str, None] = None
+    log_entry: Union[str, None] = None
+    key_id: Union[str, None] = None
+    error: Union[str, None] = None
 
 
 # ---------------------------------------------------------------------------
@@ -53,29 +53,29 @@ class VerifyResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _load_public_key() -> str | None:
-    """Load the public key PEM from environment variables.
+def _load_public_key() -> Union[str, None]:
+    """Load the public key PEM from configuration settings.
 
-    Checks SIGIL_BOT_PUBLIC_KEY (base64 encoded) or SIGIL_BOT_PUBLIC_KEY_FILE (file path).
+    Checks settings.bot_public_key (base64 encoded) or settings.bot_public_key_file (file path).
     Returns the PEM string or None if not configured.
     """
-    # Try base64 encoded env var first
-    b64_key = os.getenv("SIGIL_BOT_PUBLIC_KEY")
-    if b64_key:
+    # Try base64 encoded setting first
+    if settings.bot_public_key:
         try:
-            return base64.b64decode(b64_key).decode("utf-8")
+            return base64.b64decode(settings.bot_public_key).decode("utf-8")
         except Exception as e:
-            logger.error(f"Failed to decode SIGIL_BOT_PUBLIC_KEY: {e}")
+            logger.error(f"Failed to decode bot_public_key setting: {e}")
             return None
 
     # Try file path
-    key_file = os.getenv("SIGIL_BOT_PUBLIC_KEY_FILE")
-    if key_file:
+    if settings.bot_public_key_file:
         try:
-            with open(key_file, "r") as f:
+            with open(settings.bot_public_key_file, "r") as f:
                 return f.read()
         except Exception as e:
-            logger.error(f"Failed to read public key from {key_file}: {e}")
+            logger.error(
+                f"Failed to read public key from {settings.bot_public_key_file}: {e}"
+            )
             return None
 
     return None
@@ -269,9 +269,7 @@ async def well_known_verify() -> JSONResponse:
         pub_b64 = base64.b64encode(public_key_pem.encode("utf-8")).decode("ascii")
         keys.append(
             {
-                "keyId": os.getenv(
-                    "SIGIL_BOT_SIGNING_KEY_ID", "sha256:sigil-bot-signing-key-2026"
-                ),
+                "keyId": settings.bot_signing_key_id,
                 "algorithm": "Ed25519",
                 "publicKey": pub_b64,
                 "encoding": "base64-pem",

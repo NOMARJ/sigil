@@ -286,13 +286,13 @@ export interface ApiError {
 }
 
 // ---------------------------------------------------------------------------
-// Forge Types (Premium Features)
+// Forge Types (Premium Features) - DEPRECATED/ARCHIVED
 // ---------------------------------------------------------------------------
 
 /** User subscription plan tiers. */
 export type PlanTier = "free" | "pro" | "team" | "enterprise";
 
-/** A tracked tool in Forge. */
+/** @deprecated A tracked tool in Forge - Forge functionality archived */
 export interface ForgeTool {
   id: string;
   name: string;
@@ -307,7 +307,7 @@ export interface ForgeTool {
   created_by: string;
 }
 
-/** Forge settings/preferences. */
+/** @deprecated Forge settings/preferences - Forge functionality archived */
 export interface ForgeSettings {
   notifications: {
     security_alerts: boolean;
@@ -324,7 +324,7 @@ export interface ForgeSettings {
   };
 }
 
-/** Tool tracking request. */
+/** @deprecated Tool tracking request - Forge functionality archived */
 export interface TrackToolRequest {
   name: string;
   repository_url: string;

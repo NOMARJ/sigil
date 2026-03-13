@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.database import db
 from api.rate_limit import RateLimiter
 from api.gates import check_scan_quota, get_user_plan, require_plan
+from api.middleware.tier_check import get_scan_capabilities
 from api.models import (
     DashboardStats,
     ErrorResponse,
@@ -39,16 +40,25 @@ from api.models import (
     ScanResponse,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
+from api.scanner.scanner_engine import scanner_engine
 from api.services.scoring import compute_verdict
+from api.services.subscription_service import subscription_service
 from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
-from api.services.forge_analytics import track_forge_event
-from api.models import ForgeEventType
-from api.middleware.tier_check import get_scan_capabilities
-from api.scanner.scanner_engine import scanner_engine
-from api.services.subscription_service import subscription_service
+# from api.services.forge_analytics import track_forge_event  # Forge archived
+# from api.models import ForgeEventType  # Forge archived
+
+
+# Stub for forge analytics to prevent errors during Forge sunset
+async def track_forge_event(user_id, event_type, event_data):
+    pass
+
+
+class ForgeEventType:
+    SCAN_COMPLETED = "scan_completed"
+
 
 logger = logging.getLogger(__name__)
 

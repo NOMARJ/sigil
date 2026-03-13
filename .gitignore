@@ -50,6 +50,12 @@ Cargo.lock
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+test-results/
+playwright-report/
+
+# Internal documentation (deployment notes, infrastructure details)
+docs/internal/
+docs/plans/
 
 # Build artifacts
 *.whl
@@ -67,6 +73,8 @@ classification_*.log
 
 # Internal documentation (deployment notes, infrastructure details)
 docs/internal/
+docs/plans/
+docs/Testing
 *.docx
 terraform.tfstate
 terraform.tfstate.backup

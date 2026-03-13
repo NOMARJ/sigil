@@ -8,6 +8,7 @@ Uses Pydantic BaseSettings for validation and type coercion.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Union
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -57,61 +58,83 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60
 
     # --- Auth0 (optional — for OAuth login) ------------------------------------
-    auth0_domain: str | None = None  # SIGIL_AUTH0_DOMAIN e.g. "sigil.auth0.com"
-    auth0_audience: str | None = (
+    auth0_domain: Union[str, None] = None  # SIGIL_AUTH0_DOMAIN e.g. "sigil.auth0.com"
+    auth0_audience: Union[str, None] = (
         None  # SIGIL_AUTH0_AUDIENCE e.g. "https://api.sigilsec.ai"
     )
-    auth0_client_id: str | None = None  # SIGIL_AUTH0_CLIENT_ID
+    auth0_client_id: Union[str, None] = None  # SIGIL_AUTH0_CLIENT_ID
 
     # --- Supabase (deprecated — kept for rollback during migration) -----------
-    supabase_url: str | None = None
-    supabase_key: str | None = None
-    supabase_service_key: str | None = None
-    supabase_jwt_secret: str | None = None
-    database_url: str | None = None  # SIGIL_DATABASE_URL — connection string
+    supabase_url: Union[str, None] = None
+    supabase_key: Union[str, None] = None
+    supabase_service_key: Union[str, None] = None
+    supabase_jwt_secret: Union[str, None] = None
+    database_url: Union[str, None] = None  # SIGIL_DATABASE_URL — connection string
 
     # --- Redis (optional) ------------------------------------------------------
-    redis_url: str | None = None
+    redis_url: Union[str, None] = None
 
     # --- Threat Intel ----------------------------------------------------------
     threat_intel_ttl: int = 3600  # Cache TTL in seconds
 
     # --- SMTP (optional — for email alert notifications) -----------------------
-    smtp_host: str | None = None
+    smtp_host: Union[str, None] = None
     smtp_port: int = 587
-    smtp_user: str | None = None
-    smtp_password: str | None = None
+    smtp_user: Union[str, None] = None
+    smtp_password: Union[str, None] = None
     smtp_from_email: str = "alerts@mail.sigilsec.ai"
 
     # --- Email Newsletter (Forge Weekly) --------------------------------------
-    resend_api_key: str | None = None  # SIGIL_RESEND_API_KEY
+    resend_api_key: Union[str, None] = None  # SIGIL_RESEND_API_KEY
     from_email: str = "noreply@mail.sigilsec.ai"  # SIGIL_FROM_EMAIL
     from_name: str = "Sigil Security"  # SIGIL_FROM_NAME
     base_url: str = "https://api.sigilsec.ai"  # SIGIL_BASE_URL
 
     # --- Stripe (optional — for billing) ---------------------------------------
-    stripe_secret_key: str | None = None
-    stripe_webhook_secret: str | None = None
-    stripe_price_pro: str = "price_pro_placeholder"
-    stripe_price_team: str = "price_team_placeholder"
-    stripe_price_pro_annual: str = "price_pro_annual_placeholder"
-    stripe_price_team_annual: str = "price_team_annual_placeholder"
+    stripe_secret_key: Union[str, None] = None
+    stripe_webhook_secret: Union[str, None] = None
+    stripe_publishable_key: Union[str, None] = None
+    stripe_price_pro: str = (
+        "price_1QQQKzE7LGYj7YY7YoYoYo"  # Updated Pro monthly price ID
+    )
+    stripe_price_team: str = (
+        "price_1QQQLzE7LGYj7YY7ZpZpZp"  # Updated Team monthly price ID
+    )
+    stripe_price_pro_annual: str = (
+        "price_1QQQMzE7LGYj7YY7AqAqAq"  # Updated Pro annual price ID
+    )
+    stripe_price_team_annual: str = (
+        "price_1QQQNzE7LGYj7YY7BrBrBr"  # Updated Team annual price ID
+    )
 
     # --- GitHub App (optional — for PR scanning) --------------------------------
-    github_app_id: str | None = None
-    github_app_private_key: str | None = None
-    github_webhook_secret: str | None = None
-    github_client_id: str | None = None
-    github_client_secret: str | None = None
+    github_app_id: Union[str, None] = None
+    github_app_private_key: Union[str, None] = None
+    github_webhook_secret: Union[str, None] = None
+    github_client_id: Union[str, None] = None
+    github_client_secret: Union[str, None] = None
 
     # --- Anthropic (optional — for Forge classification) ----------------------
-    anthropic_api_key: str | None = None  # SIGIL_ANTHROPIC_API_KEY
+    anthropic_api_key: Union[str, None] = None  # SIGIL_ANTHROPIC_API_KEY
+
+    # --- Bot Attestation Keys -------------------------------------------------
+    # Bot signing key for creating attestations (Ed25519)
+    bot_private_key: Union[str, None] = (
+        None  # SIGIL_BOT_PRIVATE_KEY (base64-encoded 32 bytes)
+    )
+    bot_public_key: Union[str, None] = None  # SIGIL_BOT_PUBLIC_KEY (base64-encoded PEM)
+    bot_public_key_file: Union[str, None] = (
+        None  # SIGIL_BOT_PUBLIC_KEY_FILE (path to PEM file)
+    )
+    bot_signing_key_id: str = (
+        "sha256:sigil-bot-signing-key-2026"  # SIGIL_BOT_SIGNING_KEY_ID
+    )
 
     # --- Monitoring & Observability --------------------------------------------
     metrics_enabled: bool = True  # SIGIL_METRICS_ENABLED
     health_checks_enabled: bool = True  # SIGIL_HEALTH_CHECKS_ENABLED
     structured_logging: bool = True  # SIGIL_STRUCTURED_LOGGING
-    azure_insights_key: str | None = None  # SIGIL_AZURE_INSIGHTS_KEY
+    azure_insights_key: Union[str, None] = None  # SIGIL_AZURE_INSIGHTS_KEY
     prometheus_enabled: bool = True  # SIGIL_PROMETHEUS_ENABLED
 
     @property
@@ -137,6 +160,11 @@ class Settings(BaseSettings):
     def redis_configured(self) -> bool:
         """Return True when a Redis URL is set."""
         return bool(self.redis_url)
+
+    @property
+    def bot_attestation_configured(self) -> bool:
+        """Return True when bot attestation keys are configured."""
+        return bool(self.bot_public_key or self.bot_public_key_file)
 
     @property
     def smtp_configured(self) -> bool:

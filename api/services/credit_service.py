@@ -36,14 +36,16 @@ MONTHLY_CREDITS = {
     SubscriptionTier.ENTERPRISE: 999999,  # Effectively unlimited
 }
 
-# Feature credit costs
+# Feature credit costs (optimized for constrained launch)
 SCAN_COSTS = {
-    "quick_scan": 8,  # Basic 8K token scan
-    "deep_analysis": 32,  # Comprehensive 32K scan
-    "interactive_session": 2,  # Per Q&A exchange
-    "bulk_scan": 100,  # Full repository scan
-    "investigate_finding": 4,  # Deep-dive on specific issue
-    "remediation_suggest": 6,  # Generate fix code
+    "quick_investigation": 4,  # Fast finding analysis (Haiku)
+    "thorough_investigation": 8,  # Detailed analysis (Sonnet)
+    "exhaustive_investigation": 16,  # Complete analysis (Opus)
+    "false_positive_check": 4,  # Context verification (Haiku/Sonnet)
+    "chat_message": 2,  # Per interactive message
+    "remediation_suggest": 6,  # Generate fix code (hidden in launch)
+    "bulk_scan": 20,  # Bulk analysis (hidden in launch)
+    "compliance_mapping": 3,  # Regulatory mapping (hidden in launch)
 }
 
 TransactionType = Literal[

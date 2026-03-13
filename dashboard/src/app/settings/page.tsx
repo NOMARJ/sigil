@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { SubscriptionManager } from "@/components/SubscriptionManager";
 import * as api from "@/lib/api";
 import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subscription } from "@/lib/types";
 
@@ -285,6 +286,22 @@ export default function SettingsPage() {
         err instanceof Error ? err.message : "Failed to subscribe to plan.",
       );
     }
+  };
+
+  const handleSubscriptionUpdate = (updatedSubscription: Subscription) => {
+    setSubscription(updatedSubscription);
+  };
+
+  const handleSubscriptionDetailsUpdate = (details: any) => {
+    // Convert SubscriptionDetails back to Subscription
+    const updatedSubscription: Subscription = {
+      ...details,
+      stripe_subscription_id: details.stripe_subscription_id || null,
+      current_period_end: details.current_period_end || null,
+      current_period_start: details.current_period_start || null,
+      checkout_url: details.checkout_url || null
+    };
+    handleSubscriptionUpdate(updatedSubscription);
   };
 
   // ---------------------------------------------------------------------------
@@ -618,219 +635,163 @@ export default function SettingsPage() {
       </div>
 
       {/* Billing / Subscription */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="section-header">Billing & Subscription</h2>
-          <p className="section-description">
-            Manage your plan and payment details.
-          </p>
-        </div>
-        <div className="card-body space-y-6">
-          {checkoutStatus === "success" && (
-            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-400">
-              Payment successful! Your subscription is now active.
-            </div>
-          )}
-          {checkoutStatus === "cancel" && (
-            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-400">
-              Checkout was cancelled. You can try subscribing again below.
-            </div>
-          )}
+      <div className="space-y-6">
+        {checkoutStatus === "success" && (
+          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-400">
+            Payment successful! Your subscription is now active.
+          </div>
+        )}
+        {checkoutStatus === "cancel" && (
+          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-400">
+            Checkout was cancelled. You can try subscribing again below.
+          </div>
+        )}
 
-          {billingError && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-              {billingError}
-            </div>
-          )}
-
-          {billingLoading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-4 w-32 bg-gray-800 rounded" />
-              <div className="grid grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-40 bg-gray-800/30 rounded-lg border border-gray-800" />
-                ))}
+        {billingLoading ? (
+          <div className="space-y-6">
+            <div className="h-6 bg-gray-800 rounded w-1/3 animate-pulse" />
+            <div className="card">
+              <div className="card-body">
+                <div className="space-y-4 animate-pulse">
+                  <div className="h-4 w-32 bg-gray-800 rounded" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-20 bg-gray-800/30 rounded" />
+                    <div className="h-20 bg-gray-800/30 rounded" />
+                  </div>
+                </div>
               </div>
             </div>
-          ) : (
-            <>
-              {/* Current subscription */}
-              {subscription && (() => {
-                const currentPlan = plans.find((p) => p.tier === subscription.plan);
-                const planDisplayName = currentPlan?.name ?? subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1);
-                return (
-                <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-800">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-200">
-                        Current Plan:{" "}
-                        <span className="text-brand-400">{planDisplayName}</span>
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Status:{" "}
-                        <span className={`font-medium ${
-                          subscription.status === "active"
-                            ? "text-green-400"
-                            : subscription.status === "trialing"
-                              ? "text-blue-400"
-                              : "text-yellow-400"
-                        }`}>
-                          {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
-                        </span>
-                        {subscription.cancel_at_period_end && (
-                          <span className="text-yellow-400 ml-2">
-                            (cancels at end of period)
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Billing: {subscription.billing_interval === "annual" ? "Annual" : "Monthly"}
-                      </p>
-                      {subscription.current_period_start && subscription.current_period_end && (
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Period: {new Date(subscription.current_period_start).toLocaleDateString()} --{" "}
-                          {new Date(subscription.current_period_end).toLocaleDateString()}
-                        </p>
-                      )}
-                      {currentPlan && (
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          Scan limit: {currentPlan.scans_per_month === 0 ? "Unlimited" : currentPlan.scans_per_month.toLocaleString() + "/month"}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={handleManageBilling}
-                      disabled={portalLoading}
-                      className="btn-secondary text-xs"
+          </div>
+        ) : (
+          <SubscriptionManager 
+            subscription={subscription ? {
+              ...subscription,
+              stripe_subscription_id: subscription.stripe_subscription_id || undefined,
+              current_period_end: subscription.current_period_end || undefined,
+              current_period_start: subscription.current_period_start || undefined,
+              checkout_url: subscription.checkout_url || undefined
+            } : null} 
+            onSubscriptionUpdate={handleSubscriptionDetailsUpdate}
+          />
+        )}
+
+        {/* Available plans for upgrade */}
+        {!billingLoading && subscription?.plan === 'free' && plans.length > 0 && (
+          <div className="card">
+            <div className="card-header">
+              <h2 className="section-header">Available Plans</h2>
+              <p className="section-description">
+                Upgrade to unlock AI investigation features.
+              </p>
+            </div>
+            <div className="card-body space-y-6">
+              {billingError && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                  {billingError}
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-gray-300">
+                  Choose Your Plan
+                </h3>
+                {/* Billing interval toggle */}
+                <div className="flex items-center gap-1 p-0.5 bg-gray-800 rounded-lg border border-gray-700">
+                  <button
+                    onClick={() => setBillingInterval("monthly")}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      billingInterval === "monthly"
+                        ? "bg-gray-700 text-gray-100"
+                        : "text-gray-400 hover:text-gray-300"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setBillingInterval("annual")}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      billingInterval === "annual"
+                        ? "bg-gray-700 text-gray-100"
+                        : "text-gray-400 hover:text-gray-300"
+                    }`}
+                  >
+                    Annual
+                    <span className="ml-1.5 text-green-400 font-semibold">Save 17%</span>
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {plans.filter(plan => plan.tier !== 'free').map((plan) => {
+                  const isEnterprise = plan.name === "Enterprise";
+                  const showAnnual = billingInterval === "annual" && plan.price_yearly > 0;
+                  const displayPrice = showAnnual
+                    ? (plan.price_yearly / 12).toFixed(2)
+                    : plan.price_monthly.toFixed(2);
+                  return (
+                    <div
+                      key={plan.tier}
+                      className="p-4 rounded-lg border bg-gray-800/30 border-gray-800 hover:border-gray-700 transition-colors"
                     >
-                      {portalLoading ? (
-                        <span className="flex items-center gap-2">
-                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Opening...
-                        </span>
-                      ) : (
-                        "Manage Billing"
-                      )}
-                    </button>
-                  </div>
-                </div>
-                );
-              })()}
-
-              {/* Available plans */}
-              {plans.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-300">
-                      Available Plans
-                    </h3>
-                    {/* Billing interval toggle */}
-                    <div className="flex items-center gap-1 p-0.5 bg-gray-800 rounded-lg border border-gray-700">
+                      <h4 className="text-base font-semibold text-gray-100">
+                        {plan.name}
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {plan.tier === 'pro' ? '5,000 monthly AI credits' : plan.features[0] ?? ""}
+                      </p>
+                      <div className="mt-3">
+                        {isEnterprise ? (
+                          <p className="text-2xl font-bold text-gray-100">
+                            Contact Sales
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-2xl font-bold text-gray-100">
+                              ${displayPrice}
+                              <span className="text-sm font-normal text-gray-500">/mo</span>
+                            </p>
+                            {showAnnual && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                ${plan.price_yearly}/yr — billed annually
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <ul className="mt-3 space-y-1">
+                        {plan.tier === 'pro' ? [
+                          'AI Investigation Assistant',
+                          'False Positive Verification',
+                          'Interactive Security Chat',
+                          'Attack chain analysis',
+                          'Priority support'
+                        ].map((feature, i) => (
+                          <li key={i} className="text-xs text-gray-400 flex items-center gap-2">
+                            <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {feature}
+                          </li>
+                        )) : plan.features.map((feature, i) => (
+                          <li key={i} className="text-xs text-gray-400 flex items-center gap-2">
+                            <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
                       <button
-                        onClick={() => setBillingInterval("monthly")}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                          billingInterval === "monthly"
-                            ? "bg-gray-700 text-gray-100"
-                            : "text-gray-400 hover:text-gray-300"
-                        }`}
+                        onClick={() => isEnterprise ? window.location.href = 'mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry' : handleSubscribe(plan.tier)}
+                        className="mt-4 w-full text-xs btn-primary"
                       >
-                        Monthly
-                      </button>
-                      <button
-                        onClick={() => setBillingInterval("annual")}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                          billingInterval === "annual"
-                            ? "bg-gray-700 text-gray-100"
-                            : "text-gray-400 hover:text-gray-300"
-                        }`}
-                      >
-                        Annual
-                        <span className="ml-1.5 text-green-400 font-semibold">Save 17%</span>
+                        {isEnterprise ? "Contact Sales" : "Subscribe"}
                       </button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {plans.map((plan) => {
-                      const isCurrent = subscription?.plan === plan.tier;
-                      const isEnterprise = plan.name === "Enterprise";
-                      const showAnnual = billingInterval === "annual" && plan.price_yearly > 0;
-                      const displayPrice = showAnnual
-                        ? (plan.price_yearly / 12).toFixed(2)
-                        : plan.price_monthly.toFixed(2);
-                      return (
-                        <div
-                          key={plan.tier}
-                          className={`p-4 rounded-lg border ${
-                            isCurrent
-                              ? "bg-brand-600/10 border-brand-500/30"
-                              : "bg-gray-800/30 border-gray-800 hover:border-gray-700"
-                          } transition-colors`}
-                        >
-                          <h4 className="text-base font-semibold text-gray-100">
-                            {plan.name}
-                          </h4>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {plan.features[0] ?? ""}
-                          </p>
-                          <div className="mt-3">
-                            {isEnterprise ? (
-                              <p className="text-2xl font-bold text-gray-100">
-                                Contact Sales
-                              </p>
-                            ) : (
-                              <>
-                                <p className="text-2xl font-bold text-gray-100">
-                                  ${displayPrice}
-                                  <span className="text-sm font-normal text-gray-500">/mo</span>
-                                </p>
-                                {showAnnual && (
-                                  <p className="text-xs text-gray-500 mt-0.5">
-                                    ${plan.price_yearly}/yr — billed annually
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <ul className="mt-3 space-y-1">
-                            <li className="text-xs text-gray-400">
-                              {(plan.scans_per_month ?? 0).toLocaleString()} scans/month
-                            </li>
-                            {plan.features.slice(1).map((feature, i) => (
-                              <li key={i} className="text-xs text-gray-400">
-                                {feature}
-                              </li>
-                            ))}
-                          </ul>
-                          <button
-                            onClick={() => isEnterprise ? window.location.href = 'mailto:sales@sigilsec.ai?subject=Enterprise%20Plan%20Inquiry' : handleSubscribe(plan.tier)}
-                            disabled={isCurrent}
-                            className={`mt-4 w-full text-xs ${
-                              isCurrent ? "btn-secondary cursor-not-allowed" : "btn-primary"
-                            }`}
-                          >
-                            {isCurrent ? "Current Plan" : isEnterprise ? "Contact Sales" : "Subscribe"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* If no plans or subscription */}
-              {plans.length === 0 && !subscription && (
-                <div className="text-center py-6 text-gray-500">
-                  <p className="text-sm">
-                    No billing plans available. Contact support for details.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
