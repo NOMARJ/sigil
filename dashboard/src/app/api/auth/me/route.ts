@@ -13,8 +13,10 @@ export async function GET() {
     return NextResponse.json({
       id: session.user.sub,
       email: session.user.email,
-      name: session.user.name,
+      name: session.user.name || session.user.email,
       picture: session.user.picture,
+      plan: 'pro', // Default plan for Auth0 users
+      created_at: new Date().toISOString(),
     });
   } catch (error) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
