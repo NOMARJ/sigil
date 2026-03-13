@@ -18,9 +18,9 @@ from api.model_types.suppression_rules import (
     AccuracyMetrics,
 )
 from api.models import Finding
-from ..services.credit_service import CreditService
-from ..services.claude_service import ClaudeService
-from ..utils.logger import get_logger
+from api.services.credit_service import CreditService
+from api.services.claude_service import ClaudeService
+from api.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
