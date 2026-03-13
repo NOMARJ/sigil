@@ -50,12 +50,6 @@ export default function SessionPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      fetchSession();
-    }
-  }, [id, fetchSession]);
-
   const fetchSession = useCallback(async () => {
     try {
       setLoading(true);
@@ -79,6 +73,12 @@ export default function SessionPage() {
       setLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchSession();
+    }
+  }, [id, fetchSession]);
 
   const exportSession = async (format: 'markdown' | 'json') => {
     if (!session) return;
