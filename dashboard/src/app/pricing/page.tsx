@@ -53,27 +53,27 @@ export default function PricingPage(): JSX.Element {
 
     const PLAN_FEATURES: Record<string, string[]> = {
       pro: [
-        "500 scans / month",
-        "AI-powered threat detection (LLM analysis)",
-        "Zero-day vulnerability detection",
-        "Advanced obfuscation analysis",
-        "Contextual threat correlation",
-        "AI-generated remediation suggestions",
-        "Full threat intelligence access",
-        "Priority support",
-        "API access",
+        "5,000 monthly AI credits",
+        "AI Investigation Assistant",
+        "False Positive Verification",
+        "Interactive Security Chat",
+        "Transform scanner into AI consultant",
+        "Attack chain tracing & analysis",
+        "Security version comparison",
+        "Compliance mapping & reporting",
+        "Priority support & API access",
       ],
       team: [
-        "5,000 scans / month",
+        "50,000 monthly AI credits",
         "Everything in Pro",
-        "Team dashboard",
+        "Team dashboard & management",
         "RBAC & audit log",
         "Slack / webhook alerts",
         "Custom policies",
         "SSO (SAML)",
       ],
       enterprise: [
-        "Unlimited scans",
+        "Unlimited AI credits",
         "Everything in Team",
         "Dedicated account manager",
         "Custom integrations",
@@ -140,7 +140,7 @@ export default function PricingPage(): JSX.Element {
             <div className="card-body">
               <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>Need more?</h2>
               <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-                Team plan includes 5,000 scans/month, RBAC, audit logs, and Slack alerts.
+                Team plan includes 50,000 monthly AI credits, RBAC, audit logs, and Slack alerts.
               </p>
               <button onClick={handleManage} className="btn-secondary text-sm">
                 Upgrade to Team
@@ -163,7 +163,7 @@ export default function PricingPage(): JSX.Element {
       <div>
         <h1 className="text-3xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Upgrade to Pro</h1>
         <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>
-          You&apos;re on the free plan. Get AI-powered threat detection for $29/month.
+          You&apos;re on the free plan. Transform your scanner into an AI security consultant for $29/month.
         </p>
       </div>
 
@@ -175,11 +175,11 @@ export default function PricingPage(): JSX.Element {
           </div>
           <ul className="space-y-2 mb-6">
             {[
-              "500 scans / month",
-              "AI-powered LLM threat analysis",
-              "Zero-day vulnerability detection",
-              "Advanced obfuscation analysis",
-              "Full threat intelligence access",
+              "5,000 monthly AI credits",
+              "AI Investigation Assistant",
+              "False Positive Verification",
+              "Interactive Security Chat",
+              "Attack chain tracing & analysis",
               "Priority support & API access",
             ].map((f) => (
               <li key={f} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>

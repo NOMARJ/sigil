@@ -152,3 +152,32 @@
   - Marking test file pattern as safe successfully suppresses similar test files
 
 ---
+
+## 2026-03-13 - Frontend Billing and Subscription Management (US-004 through US-010)
+
+- Implemented comprehensive frontend billing system with Pro feature focus
+- Updated pricing page to highlight AI investigation features instead of legacy threat detection
+- Created CreditUsageDashboard component with usage analytics and monthly progress tracking
+- Built SubscriptionManager component with Stripe Customer Portal integration
+- Implemented ProOnboardingFlow with guided 4-step introduction to AI features
+- Added CreditPurchase component for purchasing additional AI credits when needed
+- Files changed:
+  - dashboard/src/app/pricing/page.tsx (updated AI features messaging)
+  - dashboard/src/app/pro/page.tsx (integrated credit usage dashboard)
+  - dashboard/src/app/settings/page.tsx (enhanced subscription management)
+  - dashboard/src/app/onboarding/pro/page.tsx (Pro onboarding integration)
+  - dashboard/src/components/CreditUsageDashboard.tsx (new credit analytics)
+  - dashboard/src/components/SubscriptionManager.tsx (new subscription management)
+  - dashboard/src/components/ProOnboardingFlow.tsx (new Pro onboarding)
+  - dashboard/src/components/CreditPurchase.tsx (new credit purchase flow)
+- **Learnings:**
+  - Pricing messaging should emphasize transformation from scanner to AI consultant
+  - Credit usage visualization needs progress bars with color coding for usage levels
+  - Subscription management requires comprehensive integration with Stripe Customer Portal
+  - Pro onboarding should be educational and focus on feature discovery rather than technical setup
+  - Team plan upgrade path works through existing subscription management components
+  - TypeScript interface alignment critical for subscription data between components
+  - ESLint requires proper escaping of quotes in JSX content using &quot; and &apos;
+  - Credit purchase flow should show value comparison (price per credit) to encourage larger purchases
+
+---
