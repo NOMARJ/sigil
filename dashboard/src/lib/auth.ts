@@ -31,30 +31,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function restoreSession() {
-      // Only try Auth0 session
+      // Get user from Auth0 session via Next.js API route
       try {
-        const res = await fetch("/api/auth/token", {
+        const res = await fetch("/api/auth/me", {
           credentials: 'include',
           cache: 'no-store',
         });
         if (res.ok) {
-          const { accessToken } = await res.json();
-          if (accessToken) {
-            try {
-              const appUser = await api.getCurrentUser();
-              if (!cancelled) {
-                const userWithPlan = { ...appUser, plan: appUser.plan || "pro" as const };
-                setUser(userWithPlan);
-                setLoading(false);
-                return;
-              }
-            } catch {
-              // Token invalid, user not authenticated
-            }
+          const userData = await res.json();
+          if (!cancelled && userData.id) {
+            // Map Auth0 user data to our User type
+            const user = {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name || userData.email,
+              avatar_url: userData.picture || null,
+              role: "owner" as const, // Default role for Auth0 users
+              plan: "pro" as const, // Default plan for Auth0 users
+              created_at: userData.created_at || new Date().toISOString(),
+              last_login: new Date().toISOString(),
+            };
+            setUser(user);
+            setLoading(false);
+            return;
           }
         }
       } catch {
-        // Auth0 unavailable
+        // Auth0 session not available
       }
 
       if (!cancelled) {
