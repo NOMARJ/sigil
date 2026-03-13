@@ -209,6 +209,129 @@ RULE_EXPLANATIONS: dict[str, str] = {
         "files are common in frontend packages — but the original source should "
         "be available for comparison."
     ),
+    # --- Enhanced Obfuscation Detection (Gap Closure) ------------------------
+    "obf-base64-nested-chain": (
+        "Multiple layers of Base64 encoding detected — a sophisticated obfuscation "
+        "technique often used to hide malicious payloads. Attackers use nested "
+        "encoding to evade simple Base64 detection rules. This pattern suggests "
+        "intentional obfuscation rather than legitimate data encoding. Rated CRITICAL "
+        "because legitimate code rarely needs multiple layers of Base64 decoding."
+    ),
+    "obf-base64-dynamic-key": (
+        "Base64 decoding with dynamic key construction detected. The decoding key "
+        "is built programmatically, often to evade static analysis. This pattern "
+        "is commonly used to hide malicious payload strings that would otherwise "
+        "be detected. Rated HIGH because legitimate Base64 usage typically uses "
+        "static, well-formed encoded strings."
+    ),
+    "obf-base64-mixed-encoding": (
+        "Base64 combined with URL encoding detected — a chaining technique used "
+        "to hide malicious URLs or payloads. Attackers layer different encoding "
+        "schemes to evade detection rules that only check for single encoding types. "
+        "Rated HIGH because legitimate code rarely needs mixed encoding chains."
+    ),
+    "obf-base64-pickle-combo": (
+        "Base64-encoded pickle deserialization detected — an extremely dangerous "
+        "combination. Pickle can execute arbitrary code during deserialization, "
+        "and Base64 encoding is often used to hide malicious pickle payloads. "
+        "This is a common pattern in Python supply chain attacks. Rated CRITICAL "
+        "because pickle + Base64 is almost always malicious."
+    ),
+    "obf-hex-base64-chain": (
+        "Hex encoding followed by Base64 decoding chain detected. This multi-layer "
+        "encoding pattern is used to deeply obfuscate payload strings and evade "
+        "detection. Legitimate code rarely requires such complex encoding chains. "
+        "Rated HIGH because this level of obfuscation typically indicates malicious intent."
+    ),
+    "obf-unicode-zero-width": (
+        "Zero-width Unicode characters detected — a steganographic technique used "
+        "to hide malicious code within seemingly clean text. These invisible "
+        "characters can conceal payload instructions or be used in variable names "
+        "to create hidden backdoors. Rated HIGH because zero-width characters "
+        "have no legitimate use in source code."
+    ),
+    "obf-unicode-rtl-override": (
+        "Unicode directional override characters detected — used to visually "
+        "disguise malicious code by changing text display direction. This technique "
+        "can make dangerous commands appear safe by reversing their visual order. "
+        "Rated HIGH because RTL/LTR overrides have no legitimate use in source code "
+        "and are exclusively used for deception."
+    ),
+    "obf-unicode-invisible-chars": (
+        "Invisible Unicode combining characters detected — a steganographic technique "
+        "for hiding malicious code or payloads within normal text. These characters "
+        "are visually invisible but can carry encoded information or create hidden "
+        "execution paths. Rated MEDIUM because while suspicious, some legitimate "
+        "internationalization might use combining characters."
+    ),
+    "obf-unicode-homograph": (
+        "Unicode homograph attack detected — visually similar characters from "
+        "different scripts used to disguise malicious domains or identifiers. "
+        "For example, Cyrillic 'а' instead of Latin 'a' in domain names. "
+        "Rated MEDIUM because this could be internationalization but requires "
+        "careful review in security-sensitive contexts."
+    ),
+    "obf-dynamic-property-access": (
+        "Dynamic property access with string concatenation detected — a technique "
+        "used to build dangerous method names at runtime to evade static analysis. "
+        "For example, window['ev' + 'al'](payload) to call eval() indirectly. "
+        "Rated HIGH because legitimate code typically uses direct property access."
+    ),
+    "obf-dynamic-function-constructor": (
+        "Dynamic Function constructor with string building detected — an advanced "
+        "technique for creating executable functions from concatenated strings. "
+        "This pattern is almost exclusively used by malware to execute hidden "
+        "payloads. Rated CRITICAL because the Function constructor combined with "
+        "string building is a clear indicator of malicious code obfuscation."
+    ),
+    "obf-unicode-escape-sequences": (
+        "Multiple Unicode escape sequences detected — may be used to encode "
+        "malicious payloads as Unicode codepoints. This technique hides the "
+        "true content from static analysis while remaining executable. "
+        "Rated HIGH because legitimate code rarely needs extensive Unicode escaping."
+    ),
+    "obf-mixed-script-identifiers": (
+        "Mixed script characters in identifiers detected — potential homograph "
+        "attack using characters from different Unicode scripts. This can create "
+        "visually identical but functionally different variable names. "
+        "Rated MEDIUM because this could be legitimate internationalization."
+    ),
+    "obf-javascript-string-fromcharcode-chain": (
+        "JavaScript String.fromCharCode chain detected — character code obfuscation "
+        "technique to build strings from numeric values. Often used to hide "
+        "function names or malicious commands from static analysis. "
+        "Rated HIGH because legitimate code typically uses string literals."
+    ),
+    "obf-base64-url-double-encoding": (
+        "Base64 with URL decoding double encoding detected — layered encoding "
+        "technique to deeply obfuscate malicious content. This combination "
+        "evades simple Base64 or URL encoding detection rules. "
+        "Rated HIGH because legitimate applications rarely need such encoding chains."
+    ),
+    "obf-python-compile-exec-chain": (
+        "Python compile+exec with string concatenation detected — sophisticated "
+        "code execution technique that builds executable code dynamically. "
+        "This pattern is almost exclusively used to hide malicious code. "
+        "Rated CRITICAL because legitimate code uses direct function calls."
+    ),
+    "obf-import-time-execution": (
+        "Dynamic import with immediate method execution detected — import-time "
+        "side effect that executes code during module loading. This can bypass "
+        "static analysis and execute malicious code unexpectedly. "
+        "Rated HIGH because imports should typically be declarative."
+    ),
+    "obf-encoded-import-names": (
+        "Dynamic import with encoded module names detected — obfuscation technique "
+        "to hide the true module being imported. This prevents static analysis "
+        "from understanding the code's dependencies and behavior. "
+        "Rated MEDIUM because while suspicious, some legitimate use cases exist."
+    ),
+    "obf-reflection-method-calls": (
+        "Python getattr with concatenated attribute names detected — reflection-based "
+        "obfuscation to hide method calls from static analysis. This technique "
+        "builds method names dynamically to evade detection. "
+        "Rated HIGH because legitimate code typically uses direct method calls."
+    ),
 }
 
 

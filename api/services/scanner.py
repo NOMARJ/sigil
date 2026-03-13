@@ -20,7 +20,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
-from api.models import Finding, ScanPhase, Severity
+# Import models with fallback handling
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from api.models import Finding, ScanPhase, Severity
+except ImportError:
+    import importlib.util
+    models_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models.py')
+    spec = importlib.util.spec_from_file_location("models", models_path)
+    models_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(models_module)
+    Finding = models_module.Finding
+    ScanPhase = models_module.ScanPhase
+    Severity = models_module.Severity
 from api.services.explanations import get_explanation
 
 
@@ -263,7 +278,7 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "id": "obf-base64-nested-chain",
             "phase": ScanPhase.OBFUSCATION,
             "severity": Severity.CRITICAL,
-            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*(base64\.(b64decode|decodebytes)|atob)\s*\(|(\w+\s*=\s*)?(base64\.(b64decode|decodebytes)|atob)\s*\([^)]+\)\s*;\s*(\w+\s*=\s*)?(base64\.(b64decode|decodebytes)|atob)\s*\(\s*\w+",
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\([^)]*?(base64\.(b64decode|decodebytes)|atob)\s*\(",
             "description": "Nested Base64 chain decoding — advanced obfuscation technique",
             "weight": 2.0,
         },
@@ -295,7 +310,7 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "id": "obf-hex-base64-chain",
             "phase": ScanPhase.OBFUSCATION,
             "severity": Severity.HIGH,
-            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*bytes\.fromhex\s*\(|bytes\.fromhex\s*\([^)]+\)\.decode\(\)\s*\)\s*;\s*(base64\.(b64decode|decodebytes)|atob)",
+            "pattern": r"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*bytes\.fromhex\s*\(|bytes\.fromhex\s*\([^)]+\)\.decode\(\).*\n.*base64\.(b64decode|decodebytes)",
             "description": "Hex to Base64 decoding chain",
             "weight": 1.7,
         },
@@ -339,8 +354,8 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "id": "obf-dynamic-property-access",
             "phase": ScanPhase.OBFUSCATION,
             "severity": Severity.HIGH,
-            "pattern": r"(window|global|this|document)\s*\[\s*[\"\']?[\w\+\$\{\}]+[\"\']?\s*\+\s*[\"\']?[\w\+\$\{\}]+[\"\']?\s*\]|obj\s*\[\s*`[^`]*\$\{[^}]+\}[^`]*`\s*\]",
-            "description": "Dynamic property access with string concatenation or template literals",
+            "pattern": r"(window|global|this|document)\s*\[\s*[\"\']?[\w]+[\"\']?\s*\+\s*[\"\']?[\w]+[\"\']?\s*\]|(window|global|this|document)\s*\[\s*\w+\s*\]\s*\(",
+            "description": "Dynamic property access with string concatenation or variable reference",
             "weight": 1.6,
         },
         {
@@ -350,6 +365,72 @@ ENHANCED_OBFUSCATION_RULES = _compile(
             "pattern": r"Function\s*\.\s*constructor\s*\(.*\.join\s*\(|new\s+Function\s*\(\s*[\w\[\]\.]+\s*\+",
             "description": "Dynamic Function constructor with string building",
             "weight": 2.2,
+        },
+        
+        # Additional enhanced patterns for gap closure
+        {
+            "id": "obf-unicode-escape-sequences", 
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"\\u[0-9a-fA-F]{4}.*\\u[0-9a-fA-F]{4}.*\\u[0-9a-fA-F]{4}",
+            "description": "Multiple Unicode escape sequences — potential payload encoding",
+            "weight": 1.4,
+        },
+        {
+            "id": "obf-mixed-script-identifiers",
+            "phase": ScanPhase.OBFUSCATION, 
+            "severity": Severity.MEDIUM,
+            "pattern": r"[\u0100-\u017F\u0180-\u024F\u1E00-\u1EFF].*[a-zA-Z].*[\u0400-\u04FF]",
+            "description": "Mixed script characters in identifiers — potential homograph attack",
+            "weight": 1.2,
+        },
+        {
+            "id": "obf-javascript-string-fromcharcode-chain",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"String\.fromCharCode\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+",
+            "description": "JavaScript String.fromCharCode chain — character-based obfuscation",
+            "weight": 1.6,
+        },
+        {
+            "id": "obf-base64-url-double-encoding",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"decodeURIComponent\s*\(\s*(base64\.(b64decode|decodebytes)|atob)",
+            "description": "Base64 with URL decoding — double encoding obfuscation",
+            "weight": 1.7,
+        },
+        {
+            "id": "obf-python-compile-exec-chain",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.CRITICAL,
+            "pattern": r"exec\s*\(\s*compile\s*\(\s*[\w\.]+\s*\+\s*[\w\.]+",
+            "description": "Python compile+exec with string concatenation — advanced code execution",
+            "weight": 2.1,
+        },
+        {
+            "id": "obf-import-time-execution",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"__import__\s*\(\s*[\"\'][\w\.]+[\"\']\s*\)\s*\.\s*\w+\s*\(",
+            "description": "Dynamic import with immediate method execution — import-time side effect",
+            "weight": 1.8,
+        },
+        {
+            "id": "obf-encoded-import-names",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.MEDIUM,
+            "pattern": r"__import__\s*\(\s*(chr\s*\(|String\.fromCharCode|base64\.|atob)",
+            "description": "Dynamic import with encoded module names — import obfuscation",
+            "weight": 1.5,
+        },
+        {
+            "id": "obf-reflection-method-calls",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"getattr\s*\(\s*\w+\s*,\s*[\"\'][\w]+[\"\']?\s*\+\s*[\"\'][\w]+[\"\']?\s*\)",
+            "description": "Python getattr with concatenated attribute names — reflection-based obfuscation",
+            "weight": 1.6,
         },
     ]
 )
@@ -493,6 +574,110 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 description=rule.description,
                 explanation=get_explanation(rule.id),
             )
+    
+    # Enhanced multi-line pattern detection for nested Base64 chains
+    if _detect_base64_chain_pattern(content):
+        # Find the first base64 decode call to get line number
+        base64_match = re.search(r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content)
+        if base64_match:
+            line_no = content[:base64_match.start()].count("\n") + 1
+            lines = content.splitlines()
+            idx = line_no - 1
+            start = max(0, idx - 1)
+            end = min(len(lines), idx + 4)  # Show more context for multi-line patterns
+            snippet = "\n".join(lines[start:end])
+            
+            yield Finding(
+                phase=ScanPhase.OBFUSCATION,
+                rule="obf-base64-nested-chain",
+                severity=Severity.CRITICAL,
+                file=file_path,
+                line=line_no,
+                snippet=snippet[:500],
+                weight=2.0,
+                description="Nested Base64 chain decoding — advanced obfuscation technique",
+                explanation=get_explanation("obf-base64-nested-chain"),
+            )
+    
+    # Enhanced multi-line pattern detection for hex+Base64 chains
+    if _detect_hex_base64_chain_pattern(content):
+        hex_match = re.search(r"bytes\.fromhex\s*\(", content)
+        if hex_match:
+            line_no = content[:hex_match.start()].count("\n") + 1
+            lines = content.splitlines()
+            idx = line_no - 1
+            start = max(0, idx - 1)
+            end = min(len(lines), idx + 4)
+            snippet = "\n".join(lines[start:end])
+            
+            yield Finding(
+                phase=ScanPhase.OBFUSCATION,
+                rule="obf-hex-base64-chain",
+                severity=Severity.HIGH,
+                file=file_path,
+                line=line_no,
+                snippet=snippet[:500],
+                weight=1.7,
+                description="Hex to Base64 decoding chain",
+                explanation=get_explanation("obf-hex-base64-chain"),
+            )
+
+
+def _detect_base64_chain_pattern(content: str) -> bool:
+    """Detect Base64 chain patterns across multiple lines."""
+    # Count Base64 decode calls
+    base64_calls = len(re.findall(r"(base64\.(b64decode|decodebytes)|atob)\s*\(", content))
+    
+    # Look for variable assignment patterns with Base64 decode followed by another Base64 decode using that variable
+    if base64_calls >= 2:
+        # Pattern: var = base64.decode(...); other_var = base64.decode(var)
+        lines = content.split('\n')
+        base64_vars = []
+        
+        for line in lines:
+            # Look for Base64 decode assignment
+            b64_assign_match = re.search(r"(\w+)\s*=\s*(base64\.(b64decode|decodebytes)|atob)\s*\(", line)
+            if b64_assign_match:
+                var_name = b64_assign_match.group(1)
+                base64_vars.append(var_name)
+                continue
+            
+            # Check if this line uses a previously decoded variable in another Base64 decode
+            for var in base64_vars:
+                pattern = rf"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*{re.escape(var)}\s*\)"
+                if re.search(pattern, line):
+                    return True
+                    
+        # Also check if any variable from Base64 decode is used in another Base64 decode
+        for var in base64_vars:
+            for line in lines:
+                if var in line and re.search(rf"(base64\.(b64decode|decodebytes)|atob)\s*\([^)]*{re.escape(var)}[^)]*\)", line):
+                    return True
+                    
+    return False
+
+
+def _detect_hex_base64_chain_pattern(content: str) -> bool:
+    """Detect hex encoding followed by Base64 decoding patterns."""
+    # Look for bytes.fromhex followed by Base64 decode
+    if "bytes.fromhex" in content and re.search(r"(base64\.(b64decode|decodebytes)|atob)", content):
+        lines = content.split('\n')
+        hex_vars = []
+        
+        for line in lines:
+            # Look for hex decode assignment: var = bytes.fromhex(...).decode()
+            hex_assign_match = re.search(r"(\w+)\s*=\s*bytes\.fromhex\s*\([^)]+\)\.decode\s*\(\s*\)", line)
+            if hex_assign_match:
+                var_name = hex_assign_match.group(1)
+                hex_vars.append(var_name)
+                continue
+                
+            # Check if hex variable is used in Base64 decode
+            for var in hex_vars:
+                if var in line and re.search(rf"(base64\.(b64decode|decodebytes)|atob)\s*\(\s*{re.escape(var)}\s*\)", line):
+                    return True
+                    
+    return False
 
 
 def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:

@@ -14,8 +14,9 @@ from api.services.scanner import (
     PROVENANCE_RULES,
     scan_content,
     _scan_filename,
+    ScanPhase,
+    Severity,
 )
-from api.models import ScanPhase, Severity
 
 
 class TestInstallHookDetection:
