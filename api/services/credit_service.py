@@ -11,8 +11,15 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, Literal
 
 from api.database import db
-from api.models import SubscriptionTier
-from api.exceptions import InsufficientCreditsError, CreditTransactionError
+from api.models import PlanTier as SubscriptionTier
+# Define custom exceptions
+class InsufficientCreditsError(Exception):
+    """Raised when user doesn't have enough credits"""
+    pass
+
+class CreditTransactionError(Exception):
+    """Raised when credit transaction fails"""
+    pass
 
 logger = logging.getLogger(__name__)
 
