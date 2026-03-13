@@ -463,6 +463,167 @@ PROVENANCE_RULES = _compile(
     ]
 )
 
+# Novel Vector Rules - Advanced supply chain attack patterns
+NOVEL_VECTOR_RULES = _compile(
+    [
+        # --- Supply Chain Polymorphism (7 patterns) ---
+        {
+            "id": "novel-polymorphic-deps",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"fs\.(write|writeFile).*package\.json|dependencies.*fs\.(write|writeFile)",
+            "description": "Self-modifying package.json dependencies detected",
+            "weight": 1.5,
+        },
+        {
+            "id": "novel-version-hijack",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"[\"\'][\^~]?\d+\.\d+\.\d+\s*\|\|\s*[\^~]?\d{2,}\.|\>=\d+\.\d+\.\d+\s*<\d+\.\d+\.\d+\s*\|\|\s*\>=\d{2,}",
+            "description": "Suspicious version range that could allow hijacking",
+            "weight": 1.2,
+        },
+        {
+            "id": "novel-git-url-hijack",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"git\+(ssh|https?)://[^@]+@[^/]+/.*#(?!main|master|v\d+)",
+            "description": "Git dependency with non-standard branch reference",
+            "weight": 1.1,
+        },
+        {
+            "id": "novel-transitive-confusion",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.MEDIUM,
+            "pattern": r"require\(['\"][\./]*node_modules/[^/]+/node_modules/",
+            "description": "Direct access to transitive dependencies",
+            "weight": 1.0,
+        },
+        {
+            "id": "novel-registry-redirect",
+            "phase": ScanPhase.NETWORK_EXFIL,
+            "severity": Severity.HIGH,
+            "pattern": r"registry.*https?://[^\"']*(?<!npmjs\.org)(?<!pypi\.org)|publishConfig.*registry",
+            "description": "Non-standard package registry configured",
+            "weight": 1.3,
+        },
+        {
+            "id": "novel-phantom-dependency",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"require\.resolve\([^)]+\).*catch.*require\([^)]+\)",
+            "description": "Phantom dependency pattern with fallback",
+            "weight": 1.1,
+        },
+        {
+            "id": "novel-dependency-swapping",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"Module\._load\s*=|require\.cache\[[^\]]+\]\s*=|module\.exports\s*=.*require\(",
+            "description": "Runtime dependency replacement detected",
+            "weight": 1.2,
+        },
+        # --- Build-Time Code Generation (6 patterns) ---
+        {
+            "id": "novel-template-injection",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"new Function\([^)]*`|\$\{[^}]*eval|template\s*\([^)]*\).*exec",
+            "description": "Template literal code injection pattern",
+            "weight": 1.2,
+        },
+        {
+            "id": "novel-macro-expansion",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"define\s*\([^)]*exec|macro\s*\([^)]*Function|__macro__.*eval",
+            "description": "Macro expansion with code execution",
+            "weight": 1.1,
+        },
+        {
+            "id": "novel-source-map-poison",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.MEDIUM,
+            "pattern": r"sourceMappingURL\s*=.*data:.*base64|sourceMap\s*:.*atob\(",
+            "description": "Inline source map with base64 payload",
+            "weight": 1.0,
+        },
+        {
+            "id": "novel-ast-manipulation",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"(esprima|acorn|babel)\.parse.*traverse.*enter.*Function\(|AST.*node\.type.*=|transform.*CallExpression.*eval",
+            "description": "AST manipulation with code generation",
+            "weight": 1.3,
+        },
+        {
+            "id": "novel-webpack-plugin",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"class\s+\w+Plugin.*apply\s*\(compiler\).*eval|compiler\.(plugin|hooks).*Function\(|webpack.*plugin.*exec\(",
+            "description": "Webpack plugin with dynamic code execution",
+            "weight": 1.4,
+        },
+        {
+            "id": "novel-babel-transform",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"babel.*transform.*visitor.*Function\(|transformSync.*plugins.*eval|preset.*visitor.*exec",
+            "description": "Babel transformer with code injection",
+            "weight": 1.2,
+        },
+        # --- Cross-Language Bridge Exploits (6 patterns) ---
+        {
+            "id": "novel-wasm-payload",
+            "phase": ScanPhase.OBFUSCATION,
+            "severity": Severity.HIGH,
+            "pattern": r"WebAssembly\.(instantiate|compile)|Uint8Array\s*\(\s*\[[\d\s,]{50,}",
+            "description": "Large WASM binary payload detected",
+            "weight": 1.3,
+        },
+        {
+            "id": "novel-native-binding",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"require\(['\"]\.\.?/build/.*\.node|bindings\([^)]+\).*exec|napi.*dlopen.*system",
+            "description": "Native binding with suspicious behavior",
+            "weight": 1.2,
+        },
+        {
+            "id": "novel-ffi-boundary",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.CRITICAL,
+            "pattern": r"ffi\.(Library|Function).*\bsystem\b|Foreign.*invoke.*exec|ctypes.*CDLL.*os\.system",
+            "description": "FFI boundary violation with command execution",
+            "weight": 1.5,
+        },
+        {
+            "id": "novel-python-js-bridge",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"PythonShell|python-shell|pyodide|Pyodide",
+            "description": "Python-JavaScript bridge with code execution",
+            "weight": 1.2,
+        },
+        {
+            "id": "novel-rust-bridge",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"wasm_bindgen.*#\[wasm_bindgen\].*unsafe|wasm-pack.*--target.*eval|rustwasm.*Memory.*grow",
+            "description": "Rust-WASM bridge with unsafe operations",
+            "weight": 1.1,
+        },
+        {
+            "id": "novel-jni-exploit",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"Java\.type.*Runtime.*exec|jni.*CallStaticMethod.*system|JNI.*GetMethodID.*ProcessBuilder",
+            "description": "JNI exploitation pattern detected",
+            "weight": 1.2,
+        },
+    ]
+)
+
 ALL_RULES: list[Rule] = (
     INSTALL_HOOK_RULES
     + CODE_PATTERN_RULES
@@ -471,6 +632,7 @@ ALL_RULES: list[Rule] = (
     + OBFUSCATION_RULES
     + ENHANCED_OBFUSCATION_RULES
     + PROVENANCE_RULES
+    + NOVEL_VECTOR_RULES
 )
 
 
