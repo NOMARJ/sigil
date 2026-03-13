@@ -28,7 +28,14 @@ from api.services.realtime_dashboard import (
     dashboard_service,
     send_security_notification,
 )
-from api.services.forge_analytics import track_forge_event, ForgeEventType
+# from api.services.forge_analytics import track_forge_event, ForgeEventType  # Forge archived
+
+# Stub for forge analytics to prevent errors during Forge sunset
+async def track_forge_event(user_id, event_type, event_data): 
+    pass
+
+class ForgeEventType:
+    SUBSCRIPTION_CREATED = "subscription_created"
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time Updates"])
@@ -242,10 +249,9 @@ async def invalidate_caches(
         results = {}
 
         if "analytics" in cache_types or "personal" in cache_types:
-            from api.services.forge_analytics import analytics_service
-
-            await analytics_service.invalidate_user_cache(current_user.id)
-            results["personal_analytics"] = "invalidated"
+            # from api.services.forge_analytics import analytics_service  # Forge archived
+            # Forge analytics cache invalidation no longer available
+            results["personal_analytics"] = "skipped - forge archived"
 
         if "dashboard" in cache_types:
             await dashboard_service.invalidate_user_dashboard(current_user.id)

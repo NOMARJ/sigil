@@ -44,8 +44,15 @@ from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
 )
-from api.services.forge_analytics import track_forge_event
-from api.models import ForgeEventType
+# from api.services.forge_analytics import track_forge_event  # Forge archived
+# from api.models import ForgeEventType  # Forge archived
+
+# Stub for forge analytics to prevent errors during Forge sunset
+async def track_forge_event(user_id, event_type, event_data): 
+    pass
+
+class ForgeEventType:
+    SCAN_COMPLETED = "scan_completed"
 from api.middleware.tier_check import get_scan_capabilities
 from api.scanner.scanner_engine import scanner_engine
 from api.services.subscription_service import subscription_service

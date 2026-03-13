@@ -82,7 +82,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize analytics and dashboard services
     try:
-        from api.services.forge_analytics import analytics_service
         from api.services.realtime_dashboard import dashboard_service
 
         await analytics_service.initialize()
@@ -158,7 +157,6 @@ app = FastAPI(
         {"name": "auth", "description": "Authentication and user management"},
         {"name": "team", "description": "Team and organization management"},
         {"name": "billing", "description": "Subscription and billing operations"},
-        {"name": "forge", "description": "Tool discovery and stack analysis"},
         {"name": "registry", "description": "Public scan database and threat catalog"},
         {"name": "feed", "description": "RSS and JSON threat intelligence feeds"},
         {"name": "github", "description": "GitHub App integration"},
@@ -287,9 +285,6 @@ try:
         device_flow,
         email,
         feed,
-        forge,
-        forge_analytics,
-        forge_premium,
         github_app,
         permissions,
         policies,
@@ -325,9 +320,6 @@ app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
 app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
-app.include_router(
-    forge_premium.router
-)  # /forge/* — Forge premium features (authenticated)
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(registry.router)  # /registry/* — public scan database
@@ -335,11 +327,9 @@ app.include_router(badge.router)  # /badge/*    — SVG badge generation
 app.include_router(github_app.router)  # /github/*   — GitHub App webhooks
 app.include_router(feed.router)  # /feed.*     — RSS + JSON threat feed
 app.include_router(attestation.router)  # /api/v1/attestation/* — signed attestations
-app.include_router(forge.router)  # /forge/*    — Forge discovery and curation
-app.include_router(forge_analytics.router)  # /forge/analytics/* — Forge analytics
 app.include_router(realtime.router)  # /realtime/* — Real-time updates
 app.include_router(permissions.router)  # /permissions/* — MCP permissions mapping
-app.include_router(email.router)  # /email/*    — Forge Weekly newsletter
+app.include_router(email.router)  # /email/*    — Newsletter and email notifications
 
 # --- Dashboard-compatible routes (no /v1 prefix) --------------------------
 # The dashboard frontend calls paths like /auth/login, /scans, /team,
@@ -609,7 +599,6 @@ async def get_public_openapi_spec() -> dict:
     - Registry (public scan database)
     - Feeds (RSS/JSON threat intelligence)
     - Badges and GitHub webhooks
-    - Forge (tool discovery)
 
     Secure endpoints requiring authentication are not included.
     """
@@ -651,7 +640,6 @@ async def get_public_openapi_spec() -> dict:
                 "description": "Public scan database and threat catalog",
             },
             {"name": "feed", "description": "RSS and JSON threat intelligence feeds"},
-            {"name": "forge", "description": "Tool discovery and stack analysis"},
             {"name": "github", "description": "GitHub App webhook integration"},
             {"name": "badges", "description": "SVG badge generation"},
             {
@@ -761,30 +749,6 @@ async def get_public_openapi_spec() -> dict:
                             "content": {"application/json": {}},
                         }
                     },
-                }
-            },
-            "/forge/search": {
-                "get": {
-                    "tags": ["forge"],
-                    "summary": "Search Tools and Packages",
-                    "description": "Search for development tools and packages",
-                    "parameters": [
-                        {
-                            "name": "q",
-                            "in": "query",
-                            "description": "Search query",
-                            "schema": {"type": "string"},
-                        }
-                    ],
-                    "responses": {"200": {"description": "Search results"}},
-                }
-            },
-            "/forge/categories": {
-                "get": {
-                    "tags": ["forge"],
-                    "summary": "Tool Categories",
-                    "description": "Get available tool categories",
-                    "responses": {"200": {"description": "Category list"}},
                 }
             },
             "/badge/scan/{scan_id}": {
@@ -1127,7 +1091,6 @@ async def root() -> dict:
         },
         "public_endpoints": {
             "registry": "/registry",
-            "forge": "/forge",
             "badges": "/badge",
             "github_webhook": "/github/webhook",
         },
