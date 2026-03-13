@@ -292,6 +292,18 @@ export default function SettingsPage() {
     setSubscription(updatedSubscription);
   };
 
+  const handleSubscriptionDetailsUpdate = (details: any) => {
+    // Convert SubscriptionDetails back to Subscription
+    const updatedSubscription: Subscription = {
+      ...details,
+      stripe_subscription_id: details.stripe_subscription_id || null,
+      current_period_end: details.current_period_end || null,
+      current_period_start: details.current_period_start || null,
+      checkout_url: details.checkout_url || null
+    };
+    handleSubscriptionUpdate(updatedSubscription);
+  };
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -652,8 +664,14 @@ export default function SettingsPage() {
           </div>
         ) : (
           <SubscriptionManager 
-            subscription={subscription} 
-            onSubscriptionUpdate={handleSubscriptionUpdate}
+            subscription={subscription ? {
+              ...subscription,
+              stripe_subscription_id: subscription.stripe_subscription_id || undefined,
+              current_period_end: subscription.current_period_end || undefined,
+              current_period_start: subscription.current_period_start || undefined,
+              checkout_url: subscription.checkout_url || undefined
+            } : null} 
+            onSubscriptionUpdate={handleSubscriptionDetailsUpdate}
           />
         )}
 

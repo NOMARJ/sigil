@@ -30,12 +30,15 @@ from api.services.realtime_dashboard import (
 )
 # from api.services.forge_analytics import track_forge_event, ForgeEventType  # Forge archived
 
+
 # Stub for forge analytics to prevent errors during Forge sunset
-async def track_forge_event(user_id, event_type, event_data): 
+async def track_forge_event(user_id, event_type, event_data):
     pass
+
 
 class ForgeEventType:
     SUBSCRIPTION_CREATED = "subscription_created"
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["Real-time Updates"])

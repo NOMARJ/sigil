@@ -96,6 +96,22 @@ export default function FalsePositiveVerifier({
         </span>
       </div>
 
+      {/* Trust & Safety Disclaimer */}
+      <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <div className="text-xs text-orange-300">
+            <div className="font-medium mb-1">Limited Context Analysis</div>
+            <div className="text-orange-400">
+              AI analyzes available code but may miss runtime context. Always verify findings in your specific environment.
+            </div>
+          </div>
+        </div>
+      </div>
+
       {!showResults ? (
         <div className="space-y-4">
           <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
@@ -128,6 +144,23 @@ export default function FalsePositiveVerifier({
             </div>
           </div>
 
+          {/* Cost Preview */}
+          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <div className="text-yellow-300">
+                <span className="font-medium">Cost:</span> {cost} credits
+              </div>
+              <div className="text-yellow-400">
+                Fast ~10 second analysis
+              </div>
+            </div>
+            {!canAfford && (
+              <div className="mt-2 text-xs text-red-400">
+                ⚠️ Insufficient credits. <a href="/upgrade" className="underline">Upgrade to Pro</a> for more credits.
+              </div>
+            )}
+          </div>
+
           <Button
             onClick={handleAnalyze}
             disabled={isAnalyzing || !canAfford}
@@ -139,26 +172,32 @@ export default function FalsePositiveVerifier({
                 Analyzing Context...
               </div>
             ) : (
-              `Check if False Positive (${cost} credits)`
+              `Verify False Positive (${cost} credits)`
             )}
           </Button>
         </div>
       ) : analysis && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            {getAssessmentIcon(analysis.is_safe)}
-            <div>
-              <div className={`text-sm font-semibold ${
-                analysis.is_safe ? "text-success-500" : "text-danger-500"
-              }`}>
-                {analysis.is_safe ? "Likely Safe (False Positive)" : "Genuine Security Risk"}
+          {/* Results Header with Enhanced Confidence Display */}
+          <div className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
+            <div className="flex items-center gap-3 mb-2">
+              {getAssessmentIcon(analysis.is_safe)}
+              <div>
+                <div className={`text-sm font-semibold ${
+                  analysis.is_safe ? "text-success-500" : "text-danger-500"
+                }`}>
+                  {analysis.is_safe ? "Potentially Safe (May be False Positive)" : "Genuine Security Risk"}
+                </div>
+                <div className={`text-xs font-medium ${getConfidenceColor(analysis.confidence_percentage)}`}>
+                  {analysis.confidence_percentage}% confidence estimate
+                </div>
               </div>
-              <div className={`text-xs ${getConfidenceColor(analysis.confidence_percentage)}`}>
-                {analysis.confidence_percentage}% confidence
+              <div className="ml-auto text-xs text-gray-500">
+                {analysis.credits_used} credits used
               </div>
             </div>
-            <div className="ml-auto text-xs text-gray-500">
-              {analysis.credits_used} credits used
+            <div className="text-xs text-gray-400 italic">
+              💡 {analysis.is_safe ? "AI suggests this may be safe, but verify" : "AI indicates potential risk - investigate further"}
             </div>
           </div>
 

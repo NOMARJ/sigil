@@ -1,15 +1,27 @@
-import { useState } from "react";
+"use client";
+
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { launchConfig } from "@/lib/launch-config";
+import Link from "next/link";
 
 interface UpgradeCTAProps {
-  variant?: "banner" | "card" | "modal";
+  variant?: "banner" | "card" | "modal" | "inline";
+  feature?: string;
+  creditsNeeded?: number;
+  currentBalance?: number;
   onClose?: () => void;
 }
 
 export default function UpgradeCTA({ 
   variant = "banner",
+  feature = "interactive AI analysis",
+  creditsNeeded,
+  currentBalance = 0,
   onClose 
 }: UpgradeCTAProps): JSX.Element {
   const [isDismissed, setIsDismissed] = useState(false);
+  const constrainedFeatures = launchConfig.getConstrainedLaunchFeatures();
 
   const handleDismiss = (): void => {
     setIsDismissed(true);
@@ -18,65 +30,57 @@ export default function UpgradeCTA({
 
   if (isDismissed) return <></>;
 
-  const proFeatures = [
-    "AI-powered zero-day detection",
-    "Advanced threat correlation",
-    "Natural language explanations", 
-    "Priority support & updates",
-    "Custom detection rules",
-    "Team collaboration features"
+  const coreProFeatures = [
+    "AI-powered finding investigation",
+    "False positive verification", 
+    "Interactive security guidance",
+    "5,000 monthly credits",
+    "Smart model routing",
+    "Expert explanations"
   ];
 
   if (variant === "modal") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="card w-full max-w-2xl mx-4">
-          <div className="card-header">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-100">
-                Upgrade to Sigil Pro
-              </h2>
-              <button
-                onClick={handleDismiss}
-                className="text-gray-500 hover:text-gray-300 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg max-w-lg w-full p-6">
+          <div className="text-center">
+            <div className="w-12 h-12 mx-auto mb-4 bg-brand-600/20 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
             </div>
-          </div>
-          
-          <div className="card-body">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-200 mb-4">
-                  Unlock Advanced AI Detection
-                </h3>
-                <ul className="space-y-2">
-                  {proFeatures.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-3 text-sm text-gray-400">
-                      <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
+            <h3 className="text-xl font-semibold text-gray-200 mb-2">
+              Transform Sigil into Your Security Consultant
+            </h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Turn scan results into actionable intelligence with AI-powered investigation and guidance.
+              {creditsNeeded && ` You need ${creditsNeeded} credits, but only have ${currentBalance}.`}
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              <div className="text-sm text-gray-300 font-medium">Core Pro Features:</div>
+              <div className="grid grid-cols-1 gap-2 text-left">
+                {coreProFeatures.map((feature, index) => (
+                  <div key={index} className="flex items-start gap-2 text-sm">
+                    <svg className="w-4 h-4 text-green-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-gray-300">{feature}</span>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              <div className="text-center">
-                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-lg p-6">
-                  <div className="text-3xl font-bold text-purple-400 mb-2">$29</div>
-                  <div className="text-sm text-gray-400 mb-4">per month</div>
-                  <button className="btn-primary w-full mb-3">
-                    Start Pro Trial
-                  </button>
-                  <p className="text-xs text-gray-500">
-                    14-day free trial • Cancel anytime
-                  </p>
-                </div>
-              </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={handleDismiss} className="flex-1 text-gray-400">
+                Maybe Later
+              </Button>
+              <Link href="/upgrade" className="flex-1">
+                <Button className="w-full bg-brand-600 hover:bg-brand-700">
+                  Upgrade to Pro
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -98,7 +102,7 @@ export default function UpgradeCTA({
                 powered by Claude AI.
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
-                {proFeatures.slice(0, 3).map((feature, index) => (
+                {coreProFeatures.slice(0, 3).map((feature, index) => (
                   <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
                     {feature}
                   </span>

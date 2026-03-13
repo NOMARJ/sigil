@@ -107,7 +107,10 @@ export default function ProDashboard(): JSX.Element {
             </div>
           </div>
 
-          <CreditUsageDashboard subscription={subscription || undefined} />
+          <CreditUsageDashboard subscription={subscription ? {
+            plan: subscription.plan,
+            current_period_end: subscription.current_period_end || undefined
+          } : undefined} />
 
           <div className="card">
             <div className="card-body text-center py-8">

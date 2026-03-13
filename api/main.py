@@ -83,6 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Initialize analytics and dashboard services
     try:
         from api.services.realtime_dashboard import dashboard_service
+        from api.services.analytics_service import analytics_service
 
         await analytics_service.initialize()
         await dashboard_service.initialize()

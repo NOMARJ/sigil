@@ -19,16 +19,21 @@ import redis.asyncio as aioredis
 from api.database import db
 # from api.services.forge_analytics import analytics_service  # Forge archived
 
+
 # Stub for analytics_service to prevent errors during Forge sunset
 class _AnalyticsServiceStub:
-    async def invalidate_user_cache(self, user_id): 
+    async def invalidate_user_cache(self, user_id):
         pass
-    async def invalidate_team_cache(self, team_id): 
+
+    async def invalidate_team_cache(self, team_id):
         pass
-    async def get_personal_analytics(self, user_id, days=7): 
+
+    async def get_personal_analytics(self, user_id, days=7):
         return {}
-    async def get_team_analytics(self, team_id, days=7): 
+
+    async def get_team_analytics(self, team_id, days=7):
         return {}
+
 
 analytics_service = _AnalyticsServiceStub()
 

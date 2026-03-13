@@ -111,6 +111,22 @@ export default function FindingInvestigator({
         </span>
       </div>
 
+      {/* Trust & Safety Disclaimer */}
+      <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="text-xs text-blue-300">
+            <div className="font-medium mb-1">AI Analysis for Guidance Only</div>
+            <div className="text-blue-400">
+              This analysis supplements, not replaces, security review. Always verify findings independently before taking action.
+            </div>
+          </div>
+        </div>
+      </div>
+
       {!showResults ? (
         <div className="space-y-4">
           <div className="space-y-2">
@@ -160,6 +176,25 @@ export default function FindingInvestigator({
             </div>
           </div>
 
+          {/* Cost Preview */}
+          {selectedOption && (
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <div className="text-yellow-300">
+                  <span className="font-medium">Cost Preview:</span> {selectedOption.cost} credits
+                </div>
+                <div className="text-yellow-400">
+                  Remaining: {creditInfo.balance - selectedOption.cost} credits
+                </div>
+              </div>
+              {creditInfo.balance < selectedOption.cost && (
+                <div className="mt-2 text-xs text-red-400">
+                  ⚠️ Insufficient credits. <a href="/upgrade" className="underline">Upgrade to Pro</a> for more credits.
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Button
               onClick={handleInvestigate}
@@ -176,29 +211,35 @@ export default function FindingInvestigator({
                   Analyzing...
                 </div>
               ) : (
-                `Investigate (${selectedOption?.cost || 0} credits)`
+                `Start Investigation (${selectedOption?.cost || 0} credits)`
               )}
             </Button>
           </div>
         </div>
       ) : results && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${
-                results.confidence_score >= 70 ? "bg-danger-500" : 
-                results.confidence_score >= 40 ? "bg-warning-500" : "bg-success-500"
-              }`} />
-              <span className={`text-sm font-medium ${getConfidenceColor(results.confidence_score)}`}>
-                {getConfidenceLabel(results.confidence_score)}
-              </span>
+          {/* Confidence Score Header */}
+          <div className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  results.confidence_score >= 70 ? "bg-danger-500" : 
+                  results.confidence_score >= 40 ? "bg-warning-500" : "bg-success-500"
+                }`} />
+                <span className={`text-sm font-semibold ${getConfidenceColor(results.confidence_score)}`}>
+                  {getConfidenceLabel(results.confidence_score)}
+                </span>
+                <span className="text-xs text-gray-400">
+                  ({results.confidence_score}% confidence)
+                </span>
+              </div>
               <span className="text-xs text-gray-500">
-                ({results.confidence_score}% confidence)
+                {results.credits_used} credits used • {results.model_used}
               </span>
             </div>
-            <span className="text-xs text-gray-500">
-              {results.credits_used} credits used • {results.model_used}
-            </span>
+            <div className="text-xs text-gray-400 italic">
+              💡 AI estimate based on available evidence - verify in your specific context
+            </div>
           </div>
 
           <div className="space-y-3">

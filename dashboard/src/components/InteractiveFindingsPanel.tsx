@@ -6,6 +6,7 @@ import FalsePositiveVerifier from "./FalsePositiveVerifier";
 import RemediationViewer from "./RemediationViewer";
 import InteractiveChat from "./InteractiveChat";
 import { Button } from "@/components/ui/button";
+import { launchConfig, ProFeature } from "@/lib/launch-config";
 import {
   Finding,
   Scan,
@@ -30,7 +31,9 @@ export default function InteractiveFindingsPanel({
   onFindingSelect
 }: InteractiveFindingsPanelProps) {
   const [creditInfo, setCreditInfo] = useState<CreditInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<"investigate" | "false-positive" | "remediate">("investigate");
+  const [activeTab, setActiveTab] = useState<"investigate" | "false-positive" | "remediate">(
+    launchConfig.isFeatureVisible(ProFeature.FINDING_INVESTIGATION) ? "investigate" : "false-positive"
+  );
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatSession, setChatSession] = useState<ChatSession | null>(null);
   const [results, setResults] = useState<{
@@ -39,10 +42,60 @@ export default function InteractiveFindingsPanel({
     remediation?: RemediationResult;
   }>({});
 
+  // Filter tabs based on launch configuration
+  const availableTabs = [
+    {
+      id: "investigate" as const,
+      label: "Investigate", 
+      feature: ProFeature.FINDING_INVESTIGATION,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      ),
+      description: "Deep-dive analysis of the security threat"
+    },
+    {
+      id: "false-positive" as const,
+      label: "Check False Positive",
+      feature: ProFeature.FALSE_POSITIVE_VERIFICATION,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      ),
+      description: "Verify if this is actually safe in your context"
+    },
+    {
+      id: "remediate" as const,
+      label: "Get Fix",
+      feature: ProFeature.REMEDIATION_GENERATION,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+      ),
+      description: "Generate secure code to fix this issue"
+    }
+  ].filter(tab => launchConfig.isFeatureVisible(tab.feature));
+
+  const tabs = availableTabs;
+
   // Fetch credit info on component mount
   useEffect(() => {
     fetchCreditInfo();
   }, []);
+
+  // Ensure activeTab is valid for current launch configuration
+  useEffect(() => {
+    const validTabIds = tabs.map(tab => tab.id);
+    if (!validTabIds.includes(activeTab) && validTabIds.length > 0) {
+      setActiveTab(validTabIds[0] as "investigate" | "false-positive" | "remediate");
+    }
+  }, [activeTab, tabs]);
 
   const fetchCreditInfo = async (): Promise<void> => {
     try {
@@ -130,42 +183,6 @@ export default function InteractiveFindingsPanel({
       </div>
     );
   }
-
-  const tabs = [
-    {
-      id: "investigate" as const,
-      label: "Investigate",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      ),
-      description: "Deep-dive analysis of the security threat"
-    },
-    {
-      id: "false-positive" as const,
-      label: "Check False Positive",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-      ),
-      description: "Verify if this is actually safe in your context"
-    },
-    {
-      id: "remediate" as const,
-      label: "Get Fix",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-      ),
-      description: "Generate secure code to fix this issue"
-    }
-  ];
 
   return (
     <div className="h-full flex flex-col">

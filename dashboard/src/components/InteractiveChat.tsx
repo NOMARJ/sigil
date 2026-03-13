@@ -197,7 +197,7 @@ export default function InteractiveChat({
             Security Assistant
           </h3>
           <p className="text-xs text-gray-500">
-            Balance: {creditInfo.balance} credits
+            Balance: {creditInfo.balance} credits • AI guidance only
           </p>
         </div>
         <Button
@@ -333,13 +333,18 @@ export default function InteractiveChat({
         </div>
         
         {currentMessage.trim() && (
-          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-            <span>
-              Cost: {cost} credits
-            </span>
-            <span>
-              Press Enter to send, Shift+Enter for new line
-            </span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                Cost: {cost} credits
+              </span>
+              <span>
+                Press Enter to send
+              </span>
+            </div>
+            <div className="text-xs text-gray-400 italic">
+              💡 AI responses are guidance only - verify security advice independently
+            </div>
           </div>
         )}
       </div>

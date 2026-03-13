@@ -269,17 +269,24 @@ Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. 
 
 ## Pricing
 
-The CLI is **free and open source** with all six scan phases. Paid tiers add cloud-backed threat intelligence, scan history, team management, and CI/CD integration.
+The CLI is **free and open source** with all eight scan phases. **Sigil Pro turns your scanner into an AI security consultant.**
 
 | | Open Source | Pro — $29/mo | Team — $99/mo |
 |---|-----------|-------------|--------------|
 | Full CLI scanning | ✅ | ✅ | ✅ |
+| **🤖 AI Finding Investigation** | — | ✅ | ✅ |
+| **🔍 False Positive Verification** | — | ✅ | ✅ |
+| **💬 Interactive Security Chat** | — | ✅ | ✅ |
+| **⚡ Smart Model Routing** | — | ✅ | ✅ |
+| 5,000 monthly AI credits | — | ✅ | ✅ |
 | Cloud threat intelligence | — | ✅ | ✅ |
 | Scan history | — | 90 days | 1 year |
 | Web dashboard | — | ✅ | ✅ |
 | Team management & policies | — | — | Up to 25 seats |
 | CI/CD integration | — | — | ✅ |
 | Slack / webhook alerts | — | — | ✅ |
+
+**Why upgrade?** Transform cryptic security alerts into actionable intelligence. Instead of wondering "Is this real?", get AI-powered explanations, threat assessments, and verification in seconds.
 
 [See full pricing →](https://sigilsec.ai/pricing)
 

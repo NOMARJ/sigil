@@ -332,6 +332,174 @@ async def track_upgrade_prompt(
 
 
 # -------------------------------------------------------------------------
+# Revenue Analytics Endpoints (Team+ Users)
+# -------------------------------------------------------------------------
+
+
+@router.get("/revenue/mrr")
+async def get_mrr_metrics(
+    current_user: UserResponse = Depends(require_admin_tier),
+    months_back: int = Query(
+        default=12, ge=1, le=24, description="Months of historical data"
+    ),
+) -> dict[str, any]:
+    """
+    Get Monthly Recurring Revenue metrics and trends.
+
+    Requires admin/enterprise access.
+    """
+    try:
+        from api.analytics.revenue_metrics import revenue_analytics
+
+        mrr_data = await revenue_analytics.get_mrr_data(months_back)
+
+        return {
+            "current_mrr": float(mrr_data.current_mrr),
+            "growth_rate": mrr_data.mrr_growth_rate,
+            "mrr_by_plan": {k: float(v) for k, v in mrr_data.mrr_by_plan.items()},
+            "trend_12m": mrr_data.mrr_trend_12m,
+        }
+
+    except Exception as e:
+        logger.exception(f"Failed to get MRR metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve MRR metrics",
+        )
+
+
+@router.get("/revenue/conversions")
+async def get_conversion_metrics(
+    current_user: UserResponse = Depends(require_admin_tier),
+) -> dict[str, any]:
+    """
+    Get user conversion funnel metrics.
+
+    Requires admin/enterprise access.
+    """
+    try:
+        from api.analytics.revenue_metrics import revenue_analytics
+
+        conversion_data = await revenue_analytics.get_conversion_metrics()
+
+        return {
+            "total_signups": conversion_data.total_signups,
+            "free_to_pro_rate": conversion_data.free_to_pro_conversion_rate,
+            "pro_to_team_rate": conversion_data.pro_to_team_conversion_rate,
+            "avg_time_to_convert": conversion_data.time_to_conversion_avg_days,
+            "conversion_by_cohort": conversion_data.conversion_by_cohort,
+        }
+
+    except Exception as e:
+        logger.exception(f"Failed to get conversion metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve conversion metrics",
+        )
+
+
+@router.get("/revenue/churn")
+async def get_churn_metrics(
+    current_user: UserResponse = Depends(require_admin_tier),
+) -> dict[str, any]:
+    """
+    Get customer churn analysis.
+
+    Requires admin/enterprise access.
+    """
+    try:
+        from api.analytics.revenue_metrics import revenue_analytics
+
+        churn_data = await revenue_analytics.get_churn_analysis()
+
+        return {
+            "monthly_churn_rate": churn_data.monthly_churn_rate,
+            "churn_by_plan": churn_data.churn_by_plan,
+            "churn_by_tenure": churn_data.churn_by_tenure,
+            "churn_reasons": churn_data.churn_reasons,
+            "at_risk_customers_count": len(churn_data.at_risk_customers),
+            "at_risk_customers": churn_data.at_risk_customers[:10],  # Top 10 only
+        }
+
+    except Exception as e:
+        logger.exception(f"Failed to get churn metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve churn metrics",
+        )
+
+
+@router.get("/revenue/credits")
+async def get_credit_analytics(
+    current_user: UserResponse = Depends(require_admin_tier),
+) -> dict[str, any]:
+    """
+    Get credit usage and monetization analytics.
+
+    Requires admin/enterprise access.
+    """
+    try:
+        from api.analytics.revenue_metrics import revenue_analytics
+
+        credit_data = await revenue_analytics.get_credit_analytics()
+
+        return {
+            "consumption_trend": credit_data.credits_consumed_trend,
+            "purchase_revenue": float(credit_data.credit_purchase_revenue),
+            "avg_credits_per_user": credit_data.avg_credits_per_user,
+            "monetization_rate": credit_data.credit_monetization_rate,
+            "top_credit_features": credit_data.top_credit_features,
+        }
+
+    except Exception as e:
+        logger.exception(f"Failed to get credit analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve credit analytics",
+        )
+
+
+@router.get("/revenue/dashboard")
+async def get_revenue_dashboard(
+    current_user: UserResponse = Depends(require_admin_tier),
+) -> dict[str, any]:
+    """
+    Get comprehensive revenue dashboard summary.
+
+    Requires admin/enterprise access.
+    """
+    try:
+        from api.analytics.revenue_metrics import revenue_analytics
+        from api.monitoring.billing_metrics import billing_monitor
+
+        # Get revenue and billing data
+        revenue_data = await revenue_analytics.get_revenue_dashboard_summary()
+        billing_data = await billing_monitor.get_billing_dashboard_data()
+
+        return {
+            "revenue_metrics": revenue_data,
+            "billing_health": billing_data,
+            "summary_kpis": {
+                "mrr": revenue_data["mrr"]["current"],
+                "mrr_growth": revenue_data["mrr"]["growth_rate"],
+                "churn_rate": revenue_data["churn"]["monthly_rate"],
+                "conversion_rate": revenue_data["conversions"]["free_to_pro_rate"],
+                "ltv_cac_ratio": revenue_data["ltv"]["ltv_to_cac_ratio"],
+                "payment_success_rate": billing_data["payments"]["success_rate"],
+                "active_subscriptions": billing_data["subscriptions"]["total_active"],
+            },
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.exception(f"Failed to get revenue dashboard: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve revenue dashboard",
+        )
+
+
+# -------------------------------------------------------------------------
 # Health and Status Endpoints
 # -------------------------------------------------------------------------
 
