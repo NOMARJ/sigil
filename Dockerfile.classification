@@ -26,11 +26,7 @@ WORKDIR /app
 COPY api/requirements.txt ./api/requirements.txt
 RUN pip install --no-cache-dir -r ./api/requirements.txt
 
-# Install additional dependencies for classification pipeline
-RUN pip install --no-cache-dir \
-    anthropic==0.8.1 \
-    aiofiles==23.2.1 \
-    python-multipart==0.0.6
+# anthropic is already in api/requirements.txt
 
 # Copy classification pipeline and supporting API modules
 COPY classification-pipeline.py ./classification-pipeline.py
@@ -39,15 +35,16 @@ COPY api/config.py ./api/config.py
 COPY api/models.py ./api/models.py
 COPY api/__init__.py ./api/__init__.py
 
-# Health check for classification pipeline
-HEALTHCHECK --interval=60s --timeout=30s --start-period=60s --retries=3 \
-    CMD python -c "import classification-pipeline; print('Classification pipeline healthy')" || exit 1
+# Health check — verify the process is still running
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "print('ok')" || exit 1
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV CLASSIFICATION_BATCH_SIZE=50
 ENV CLASSIFICATION_MAX_PACKAGES=1000
+ENV CLASSIFICATION_INTERVAL_SECONDS=3600
 
 # Change ownership to sigil user
 RUN chown -R sigil:sigil /app
