@@ -11,12 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from api.services.realtime_dashboard import dashboard_service
-# from api.routers.forge import get_classified_skills  # Forge archived
-
-
-# Stub for get_classified_skills to prevent errors during Forge sunset
-async def get_classified_skills():
-    return []
+from api.routers.forge import get_classified_skills
 
 
 router = APIRouter(tags=["System"])
