@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
+import anthropic
 from api.config import settings
 from api.database import db
 from api.models import Finding, ScanPhase, Severity
@@ -74,7 +74,10 @@ class ForgeClassifier:
 
     def __init__(self):
         self.api_key = settings.anthropic_api_key
-        self.model = "claude-3-haiku-20240307"  # Cost-effective option
+        self.client = (
+            anthropic.AsyncAnthropic(api_key=self.api_key) if self.api_key else None
+        )
+        self.model = "claude-haiku-4-5-20251001"  # Cost-effective option
         self.classifier_version = "v1.0"
 
     def _extract_scan_patterns(self, findings: list[Finding]) -> dict[str, Any]:
@@ -227,7 +230,7 @@ Please respond with valid JSON only:
         self, input_data: ClassificationInput
     ) -> ClassificationResult:
         """Classify a single package using Claude Haiku."""
-        if not self.api_key:
+        if not self.client:
             logger.warning(
                 "No Anthropic API key configured, using rule-based classification"
             )
@@ -236,47 +239,36 @@ Please respond with valid JSON only:
         prompt = self._build_classification_prompt(input_data)
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": self.api_key,
-                        "content-type": "application/json",
-                        "anthropic-version": "2023-06-01",
-                    },
-                    json={
-                        "model": self.model,
-                        "max_tokens": 1024,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
-                )
-                response.raise_for_status()
-                result = response.json()
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
 
-                content = result["content"][0]["text"]
+            content = response.content[0].text
 
-                # Parse JSON response
-                classification_data = json.loads(content)
+            # Parse JSON response
+            classification_data = json.loads(content)
 
-                # Extract scan patterns for database storage
-                scan_patterns = self._extract_scan_patterns(input_data.scan_findings)
+            # Extract scan patterns for database storage
+            scan_patterns = self._extract_scan_patterns(input_data.scan_findings)
 
-                return ClassificationResult(
-                    category=classification_data.get("category", "Uncategorized"),
-                    subcategory=classification_data.get("subcategory", ""),
-                    confidence_score=classification_data.get("confidence_score", 0.0),
-                    description_summary=classification_data.get(
-                        "description_summary", input_data.description[:500]
-                    ),
-                    environment_vars=scan_patterns["environment_vars"],
-                    network_protocols=scan_patterns["network_protocols"],
-                    file_patterns=scan_patterns["file_patterns"],
-                    import_patterns=scan_patterns["import_patterns"],
-                    risk_indicators=[
-                        ri["rule"] for ri in scan_patterns["risk_indicators"]
-                    ],
-                    capabilities=classification_data.get("capabilities", []),
-                )
+            return ClassificationResult(
+                category=classification_data.get("category", "Uncategorized"),
+                subcategory=classification_data.get("subcategory", ""),
+                confidence_score=classification_data.get("confidence_score", 0.0),
+                description_summary=classification_data.get(
+                    "description_summary", input_data.description[:500]
+                ),
+                environment_vars=scan_patterns["environment_vars"],
+                network_protocols=scan_patterns["network_protocols"],
+                file_patterns=scan_patterns["file_patterns"],
+                import_patterns=scan_patterns["import_patterns"],
+                risk_indicators=[
+                    ri["rule"] for ri in scan_patterns["risk_indicators"]
+                ],
+                capabilities=classification_data.get("capabilities", []),
+            )
 
         except Exception as e:
             logger.error(
