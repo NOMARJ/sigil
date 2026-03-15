@@ -713,157 +713,161 @@ def _is_eval_in_safe_context(content: str, match_start: int) -> bool:
     """Check if eval() is in a safe context (string literal, regex, comment)."""
     # Check if we're inside a string literal
     before = content[:match_start]
-    
+
     # Count unescaped quotes to determine if we're inside a string
     in_single_quote = False
     in_double_quote = False
     in_template_literal = False
     escape_next = False
-    
+
     for char in before:
         if escape_next:
             escape_next = False
             continue
-            
-        if char == '\\':
+
+        if char == "\\":
             escape_next = True
             continue
-            
+
         if not in_single_quote and not in_template_literal and char == '"':
             in_double_quote = not in_double_quote
         elif not in_double_quote and not in_template_literal and char == "'":
             in_single_quote = not in_single_quote
-        elif not in_double_quote and not in_single_quote and char == '`':
+        elif not in_double_quote and not in_single_quote and char == "`":
             in_template_literal = not in_template_literal
-    
+
     if in_single_quote or in_double_quote or in_template_literal:
         return True
-    
+
     # Check if we're in a regex literal (basic heuristic)
-    line_start = before.rfind('\n')
-    line_content = content[line_start + 1:match_start + 10]
-    if re.search(r'/.*eval.*/', line_content):
+    line_start = before.rfind("\n")
+    line_content = content[line_start + 1 : match_start + 10]
+    if re.search(r"/.*eval.*/", line_content):
         return True
-    
+
     # Check if we're in a comment
-    line_before = before[line_start + 1:]
-    if '//' in line_before or line_before.strip().startswith('#'):
+    line_before = before[line_start + 1 :]
+    if "//" in line_before or line_before.strip().startswith("#"):
         return True
-    
+
     # Check if we're inside a block comment /* */
-    last_block_comment_start = before.rfind('/*')
-    last_block_comment_end = before.rfind('*/')
+    last_block_comment_start = before.rfind("/*")
+    last_block_comment_end = before.rfind("*/")
     if last_block_comment_start > last_block_comment_end:
         return True
-    
+
     return False
 
 
 def _is_charcode_benign(content: str, match_start: int) -> bool:
     """Check if String.fromCharCode() usage is benign (single character, Excel columns, etc.)."""
     # Extract the line containing the match for context analysis
-    line_start = content.rfind('\n', 0, match_start)
-    line_end = content.find('\n', match_start)
+    line_start = content.rfind("\n", 0, match_start)
+    line_end = content.find("\n", match_start)
     if line_end == -1:
         line_end = len(content)
-    
-    line = content[line_start + 1:line_end]
-    
+
+    line = content[line_start + 1 : line_end]
+
     # Pattern 1: Single character generation like String.fromCharCode(64 + col)
-    if re.search(r'String\.fromCharCode\s*\(\s*\d+\s*[\+\-]\s*\w+\s*\)', line):
+    if re.search(r"String\.fromCharCode\s*\(\s*\d+\s*[\+\-]\s*\w+\s*\)", line):
         return True
-    
-    # Pattern 2: Single static character like String.fromCharCode(65) 
-    if re.search(r'String\.fromCharCode\s*\(\s*\d{1,3}\s*\)', line):
+
+    # Pattern 2: Single static character like String.fromCharCode(65)
+    if re.search(r"String\.fromCharCode\s*\(\s*\d{1,3}\s*\)", line):
         return True
-    
+
     # Pattern 3: Excel column generation patterns
-    if re.search(r'(col|column|char|letter).*String\.fromCharCode', line, re.IGNORECASE):
+    if re.search(
+        r"(col|column|char|letter).*String\.fromCharCode", line, re.IGNORECASE
+    ):
         return True
-    
+
     # Pattern 4: Single chr() call with reasonable number
-    if re.search(r'chr\s*\(\s*\d{1,3}\s*\)', line):
+    if re.search(r"chr\s*\(\s*\d{1,3}\s*\)", line):
         return True
-    
+
     return False
 
 
 # Known-safe domains for API calls
 SAFE_DOMAINS = {
-    'api.anthropic.com',
-    'api.openai.com', 
-    'api.groq.com',
-    'api.cohere.ai',
-    'bedrock-runtime.us-east-1.amazonaws.com',
-    'bedrock-runtime.us-west-2.amazonaws.com',
-    'bedrock-runtime.eu-west-1.amazonaws.com',
-    'bedrock-runtime.ap-southeast-2.amazonaws.com',
-    'huggingface.co',
-    'api.huggingface.co',
-    'localhost',
-    '127.0.0.1',
-    'github.com',
-    'api.github.com',
-    'raw.githubusercontent.com',
-    'registry.npmjs.org',
-    'pypi.org',
-    'pypi.python.org',
-    'files.pythonhosted.org',
+    "api.anthropic.com",
+    "api.openai.com",
+    "api.groq.com",
+    "api.cohere.ai",
+    "bedrock-runtime.us-east-1.amazonaws.com",
+    "bedrock-runtime.us-west-2.amazonaws.com",
+    "bedrock-runtime.eu-west-1.amazonaws.com",
+    "bedrock-runtime.ap-southeast-2.amazonaws.com",
+    "huggingface.co",
+    "api.huggingface.co",
+    "localhost",
+    "127.0.0.1",
+    "github.com",
+    "api.github.com",
+    "raw.githubusercontent.com",
+    "registry.npmjs.org",
+    "pypi.org",
+    "pypi.python.org",
+    "files.pythonhosted.org",
 }
 
 
 def _is_http_request_safe(content: str, match_start: int) -> bool:
     """Check if HTTP request is to a known-safe domain."""
     # Extract context around the match to find URL
-    line_start = content.rfind('\n', 0, match_start)
-    line_end = content.find('\n', match_start)
+    line_start = content.rfind("\n", 0, match_start)
+    line_end = content.find("\n", match_start)
     if line_end == -1:
         line_end = len(content)
-    
+
     # Get a wider context (3 lines) to catch URLs that might be on different lines
     context_start = line_start
     for _ in range(2):  # Go back up to 2 more lines
-        prev_line = content.rfind('\n', 0, context_start - 1)
+        prev_line = content.rfind("\n", 0, context_start - 1)
         if prev_line == -1:
             break
         context_start = prev_line
-    
+
     context_end = line_end
     for _ in range(2):  # Go forward up to 2 more lines
-        next_line = content.find('\n', context_end + 1)
+        next_line = content.find("\n", context_end + 1)
         if next_line == -1:
             break
         context_end = next_line
-    
+
     context = content[context_start:context_end]
-    
+
     # Look for URL patterns in the context
     url_patterns = [
         r'https?://([^/\s\'"]+)',
         r'["\']https?://([^/\s\'"]+)["\']',
         r'url\s*[:=]\s*["\']https?://([^/\s\'"]+)["\']',
     ]
-    
+
     for pattern in url_patterns:
         matches = re.findall(pattern, context)
         for domain in matches:
             # Clean up domain (remove port, etc.)
-            clean_domain = domain.split(':')[0].lower()
+            clean_domain = domain.split(":")[0].lower()
             if clean_domain in SAFE_DOMAINS:
                 return True
-    
+
     return False
 
 
 def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Severity:
     """Adjust severity based on file context (documentation, tests, etc.)."""
     file_path_lower = file_path.lower()
-    
+
     # Documentation files - reduce severity by 2 levels
-    if (file_path_lower.endswith('.md') or 
-        'readme' in file_path_lower or 
-        file_path_lower.startswith('docs/') or
-        '/docs/' in file_path_lower):
+    if (
+        file_path_lower.endswith(".md")
+        or "readme" in file_path_lower
+        or file_path_lower.startswith("docs/")
+        or "/docs/" in file_path_lower
+    ):
         if severity == Severity.CRITICAL:
             return Severity.MEDIUM
         elif severity == Severity.HIGH:
@@ -871,19 +875,21 @@ def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Seve
         elif severity == Severity.MEDIUM:
             return Severity.LOW
         return severity
-    
-    # Test files - reduce severity by 1 level  
-    if ('.test.' in file_path_lower or 
-        'tests/' in file_path_lower or
-        '/tests/' in file_path_lower or
-        file_path_lower.endswith('_test.py') or
-        file_path_lower.endswith('_test.js')):
+
+    # Test files - reduce severity by 1 level
+    if (
+        ".test." in file_path_lower
+        or "tests/" in file_path_lower
+        or "/tests/" in file_path_lower
+        or file_path_lower.endswith("_test.py")
+        or file_path_lower.endswith("_test.js")
+    ):
         if severity == Severity.CRITICAL:
             return Severity.HIGH
         elif severity == Severity.HIGH:
             return Severity.MEDIUM
         return severity
-    
+
     return severity
 
 
@@ -905,13 +911,19 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
     for rule in rules:
         for match in rule.pattern.finditer(content):
             # Context-aware filtering for specific rules
-            if rule.id == "code-eval" and _is_eval_in_safe_context(content, match.start()):
+            if rule.id == "code-eval" and _is_eval_in_safe_context(
+                content, match.start()
+            ):
                 continue
-            if rule.id == "obf-charcode" and _is_charcode_benign(content, match.start()):
+            if rule.id == "obf-charcode" and _is_charcode_benign(
+                content, match.start()
+            ):
                 continue
-            if rule.id == "net-http-request" and _is_http_request_safe(content, match.start()):
+            if rule.id == "net-http-request" and _is_http_request_safe(
+                content, match.start()
+            ):
                 continue
-            
+
             line_no = content[: match.start()].count("\n") + 1
             # Extract a snippet: the matching line +-0 context
             lines = content.splitlines()
@@ -921,7 +933,9 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             snippet = "\n".join(lines[start:end])
 
             # Apply file context severity adjustment
-            adjusted_severity = _adjust_severity_by_file_context(rule.severity, file_path)
+            adjusted_severity = _adjust_severity_by_file_context(
+                rule.severity, file_path
+            )
 
             yield Finding(
                 phase=rule.phase,

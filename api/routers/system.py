@@ -11,7 +11,6 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from api.services.realtime_dashboard import dashboard_service
-from api.routers.forge import get_classified_skills
 
 
 router = APIRouter(tags=["System"])

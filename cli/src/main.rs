@@ -206,18 +206,26 @@ async fn main() {
     // Set up global panic handler to prevent crashes during scanning
     std::panic::set_hook(Box::new(|panic_info| {
         use colored::Colorize;
-        eprintln!("{} SCAN_ERROR: Panic occurred during scanning", "sigil:".bold().red());
-        
+        eprintln!(
+            "{} SCAN_ERROR: Panic occurred during scanning",
+            "sigil:".bold().red()
+        );
+
         if let Some(location) = panic_info.location() {
-            eprintln!("  Location: {}:{}:{}", location.file(), location.line(), location.column());
+            eprintln!(
+                "  Location: {}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            );
         }
-        
+
         if let Some(msg) = panic_info.payload().downcast_ref::<&str>() {
             eprintln!("  Message: {}", msg);
         } else if let Some(msg) = panic_info.payload().downcast_ref::<String>() {
             eprintln!("  Message: {}", msg);
         }
-        
+
         eprintln!("  This is likely a Unicode boundary error in file processing.");
         eprintln!("  Continuing scan with remaining files...");
     }));
@@ -929,7 +937,7 @@ fn collect_file_contents(
                     }
                     continue;
                 }
-                
+
                 let contents = String::from_utf8_lossy(&bytes).into_owned();
                 let rel_path = file_path
                     .strip_prefix(path)
