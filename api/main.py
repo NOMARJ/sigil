@@ -286,6 +286,7 @@ try:
         device_flow,
         email,
         feed,
+        forge,
         github_app,
         permissions,
         policies,
@@ -323,6 +324,7 @@ app.include_router(billing.router)
 app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
 
 # --- Public distribution routes (no auth required) -------------------------
+app.include_router(forge.router)  # /forge/*    — Forge classification & matching
 app.include_router(registry.router)  # /registry/* — public scan database
 app.include_router(badge.router)  # /badge/*    — SVG badge generation
 app.include_router(github_app.router)  # /github/*   — GitHub App webhooks

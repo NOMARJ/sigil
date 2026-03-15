@@ -53,6 +53,17 @@ class ScanPhase(str, enum.Enum):
     LLM_ANALYSIS = "llm_analysis"  # Phase 9: AI-powered threat detection (Pro)
 
 
+class PlanTier(str, enum.Enum):
+    """Subscription tier levels for feature access and credit allocation."""
+
+    ANONYMOUS = "anonymous"
+    FREE = "free"
+    PRO = "pro"
+    ELITE = "elite"
+    TEAM = "team"
+    ENTERPRISE = "enterprise"
+
+
 # ---------------------------------------------------------------------------
 # Finding
 # ---------------------------------------------------------------------------
@@ -264,15 +275,6 @@ class ChannelType(str, enum.Enum):
     SLACK = "slack"
     EMAIL = "email"
     WEBHOOK = "webhook"
-
-
-class PlanTier(str, enum.Enum):
-    """Available billing plan tiers."""
-
-    FREE = "free"
-    PRO = "pro"
-    TEAM = "team"
-    ENTERPRISE = "enterprise"
 
 
 # ---------------------------------------------------------------------------

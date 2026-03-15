@@ -264,9 +264,7 @@ Please respond with valid JSON only:
                 network_protocols=scan_patterns["network_protocols"],
                 file_patterns=scan_patterns["file_patterns"],
                 import_patterns=scan_patterns["import_patterns"],
-                risk_indicators=[
-                    ri["rule"] for ri in scan_patterns["risk_indicators"]
-                ],
+                risk_indicators=[ri["rule"] for ri in scan_patterns["risk_indicators"]],
                 capabilities=classification_data.get("capabilities", []),
             )
 

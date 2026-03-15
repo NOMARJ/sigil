@@ -14,6 +14,8 @@ from typing import Dict, List, Optional, Tuple
 import anthropic
 from pydantic import BaseModel
 
+from api.database import db
+
 logger = logging.getLogger("forge.classifier")
 
 
@@ -154,7 +156,7 @@ class ForgeClassifier:
     """Hybrid LLM + rule-based package classification."""
 
     def __init__(self, anthropic_api_key: str):
-        self.client = anthropic.Anthropic(api_key=anthropic_api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
 
     async def classify_package(
         self, input_data: ClassificationInput
@@ -246,7 +248,7 @@ class ForgeClassifier:
 
         try:
             response = await self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=500,
                 temperature=0.1,
                 messages=[{"role": "user", "content": prompt}],
@@ -411,26 +413,35 @@ Please respond with JSON:
 class BatchClassificationJob:
     """Azure Container Apps job for bulk classification."""
 
-    def __init__(self, classifier: ForgeClassifier, db_connection):
+    def __init__(self, classifier: ForgeClassifier):
         self.classifier = classifier
-        self.db = db_connection
 
     async def run_classification_batch(
         self, batch_size: int = 50, max_packages: Optional[int] = None
     ):
-        """Run classification on unclassified packages."""
+        """Run classification on unclassified and rescanned packages."""
 
         logger.info("Starting batch classification job...")
 
-        # Get unclassified packages from scan results
-        unclassified = await self._get_unclassified_packages(batch_size, max_packages)
+        # Get packages that need classification (new or rescanned)
+        packages = await self._get_packages_needing_classification(max_packages)
 
-        logger.info(f"Found {len(unclassified)} packages to classify")
+        if not packages:
+            logger.info("No packages need classification")
+            return
+
+        new_count = sum(1 for p in packages if p.get("_action") == "new")
+        rescan_count = sum(1 for p in packages if p.get("_action") == "rescan")
+        logger.info(
+            f"Found {len(packages)} packages to classify "
+            f"({new_count} new, {rescan_count} rescanned)"
+        )
 
         classified_count = 0
+        reclassified_count = 0
         error_count = 0
 
-        for batch in self._chunked(unclassified, batch_size):
+        for batch in self._chunked(packages, batch_size):
             batch_results = []
 
             for package_data in batch:
@@ -439,85 +450,105 @@ class BatchClassificationJob:
                     result = await self.classifier.classify_package(input_data)
 
                     batch_results.append((package_data, result))
-                    classified_count += 1
 
-                    logger.info(
-                        f"Classified {input_data.package_name}: {result.primary_category} "
-                        f"(confidence: {result.confidence_score:.2f})"
-                    )
+                    action = package_data.get("_action", "new")
+                    if action == "rescan":
+                        reclassified_count += 1
+                        logger.info(
+                            f"Reclassified {input_data.package_name}: "
+                            f"{result.primary_category} "
+                            f"(confidence: {result.confidence_score:.2f})"
+                        )
+                    else:
+                        classified_count += 1
+                        logger.info(
+                            f"Classified {input_data.package_name}: "
+                            f"{result.primary_category} "
+                            f"(confidence: {result.confidence_score:.2f})"
+                        )
 
                 except Exception as e:
                     logger.error(
-                        f"Classification failed for {package_data.get('package_name')}: {e}"
+                        f"Classification failed for "
+                        f"{package_data.get('package_name')}: {e}"
                     )
                     error_count += 1
 
-            # Batch insert to database
+            # Upsert results to database
             await self._save_classification_batch(batch_results)
 
             # Rate limiting (stay within Claude API limits)
             await asyncio.sleep(1.0)
 
         logger.info(
-            f"Batch classification complete: {classified_count} classified, {error_count} errors"
+            f"Batch classification complete: {classified_count} new, "
+            f"{reclassified_count} reclassified, {error_count} errors"
         )
 
         # Trigger stack generation after classification
         await self._trigger_stack_generation()
 
-    async def _get_unclassified_packages(
-        self, batch_size: int, max_packages: Optional[int]
+    async def _get_packages_needing_classification(
+        self, max_packages: Optional[int]
     ) -> List[Dict]:
-        """Fetch packages that haven't been classified yet."""
+        """Fetch packages that need classification.
 
-        query = """
-        SELECT sr.target, sr.target_type, sr.package_hash, sr.metadata, sr.findings
-        FROM scan_results sr
-        LEFT JOIN forge_classification fc ON sr.package_hash = fc.package_hash
-        WHERE fc.id IS NULL 
-          AND sr.target_type IN ('git', 'npm', 'pip')
-          AND sr.target LIKE '%clawhub%' OR sr.target LIKE '%github%mcp%'
-        ORDER BY sr.created_at DESC
+        Returns packages that either:
+        1. Have never been classified (new)
+        2. Have been rescanned since their last classification (rescan)
         """
 
-        if max_packages:
-            query += f" LIMIT {max_packages}"
+        top_clause = f"TOP {max_packages}" if max_packages else ""
 
-        # Execute query (pseudo-code, adapt to your DB layer)
-        return await self.db.fetch_all(query)
+        query = f"""
+        SELECT {top_clause}
+               ps.id, ps.ecosystem, ps.package_name,
+               ps.package_version, ps.findings_json, ps.metadata_json,
+               ps.scanned_at,
+               fc.classified_at,
+               CASE
+                   WHEN fc.id IS NULL THEN 'new'
+                   ELSE 'rescan'
+               END AS _action
+        FROM public_scans ps
+        LEFT JOIN forge_classification fc
+            ON ps.ecosystem = fc.ecosystem
+            AND ps.package_name = fc.package_name
+            AND ps.package_version = fc.package_version
+        WHERE fc.id IS NULL
+           OR ps.scanned_at > fc.classified_at
+        ORDER BY
+            CASE WHEN fc.id IS NULL THEN 0 ELSE 1 END,
+            ps.scanned_at DESC
+        """
+
+        return await db.execute_raw_sql(query)
 
     def _package_to_input(self, package_data: Dict) -> ClassificationInput:
-        """Convert database record to classification input."""
+        """Convert public_scans record to classification input."""
 
-        # Extract package name from target
-        target = package_data["target"]
-        if "clawhub.ai" in target:
-            ecosystem = "skills"
-            package_name = target.split("/")[-1]
-        elif "github.com" in target and "mcp" in target.lower():
-            ecosystem = "mcp"
-            package_name = target.split("/")[-1]
-        else:
-            ecosystem = package_data.get("target_type", "unknown")
-            package_name = target
+        ecosystem = package_data.get("ecosystem", "unknown")
+        package_name = package_data.get("package_name", "")
 
-        # Parse metadata and findings
-        metadata = json.loads(package_data.get("metadata", "{}"))
-        findings = json.loads(package_data.get("findings", "[]"))
+        # Parse metadata and findings from public_scans JSON columns
+        metadata = json.loads(package_data.get("metadata_json", "{}"))
+        findings = json.loads(package_data.get("findings_json", "[]"))
 
-        # Extract scan data
+        # Extract scan data from findings
         env_vars = []
         imports = []
         network_calls = []
 
         for finding in findings:
-            if finding.get("phase") == "credentials":
-                if "env" in finding.get("snippet", "").lower():
+            snippet = finding.get("snippet", "").lower()
+            phase = finding.get("phase", "")
+            if phase == "credentials":
+                if "env" in snippet:
                     env_vars.append(finding.get("snippet", ""))
-            elif finding.get("phase") == "code_patterns":
-                if "import" in finding.get("snippet", "").lower():
+            elif phase == "code_patterns":
+                if "import" in snippet:
                     imports.append(finding.get("snippet", ""))
-            elif finding.get("phase") == "network_exfil":
+            elif phase == "network_exfil":
                 network_calls.append(finding.get("snippet", ""))
 
         return ClassificationInput(
@@ -536,33 +567,36 @@ class BatchClassificationJob:
     async def _save_classification_batch(
         self, batch_results: List[Tuple[Dict, ClassificationResult]]
     ):
-        """Save classification results to database."""
+        """Save classification results to forge_classification table.
+
+        Uses upsert so rescanned packages update their existing classification
+        rather than failing on the unique constraint.
+        """
 
         for package_data, result in batch_results:
-            insert_query = """
-            INSERT INTO forge_classification (
-                package_name, ecosystem, package_hash,
-                primary_category, secondary_categories, capability_tags,
-                env_vars_required, protocols_supported, runtime_requirements,
-                confidence_score, classifier_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-
-            await self.db.execute(
-                insert_query,
-                [
-                    package_data["target"],
-                    result.ecosystem if hasattr(result, "ecosystem") else "unknown",
-                    package_data["package_hash"],
-                    result.primary_category,
-                    json.dumps(result.secondary_categories),
-                    json.dumps(result.capability_tags),
-                    json.dumps(result.env_vars_required),
-                    json.dumps(result.protocols_supported),
-                    json.dumps(result.runtime_requirements),
-                    result.confidence_score,
-                    "1.0",
-                ],
+            await db.upsert(
+                "forge_classification",
+                {
+                    "ecosystem": package_data.get("ecosystem", "unknown"),
+                    "package_name": package_data.get("package_name", ""),
+                    "package_version": package_data.get("package_version", ""),
+                    "category": result.primary_category,
+                    "subcategory": (
+                        result.secondary_categories[0]
+                        if result.secondary_categories
+                        else ""
+                    ),
+                    "confidence_score": result.confidence_score,
+                    "description_summary": result.reasoning[:500],
+                    "environment_vars": json.dumps(result.env_vars_required),
+                    "network_protocols": json.dumps(result.protocols_supported),
+                    "file_patterns": json.dumps([]),
+                    "import_patterns": json.dumps(result.runtime_requirements),
+                    "risk_indicators": json.dumps(result.capability_tags),
+                    "classifier_version": "1.0",
+                    "metadata_json": json.dumps({}),
+                },
+                conflict_columns=["ecosystem", "package_name", "package_version"],
             )
 
     async def _trigger_stack_generation(self):
@@ -582,28 +616,59 @@ class BatchClassificationJob:
 
 
 async def main():
-    """Main entry point for Azure Container Apps job."""
+    """Main entry point for Azure Container Apps scheduled job.
+
+    Runs classification in a loop with a configurable interval.
+    On each cycle, picks up new scans and rescanned packages only.
+
+    Environment variables:
+        ANTHROPIC_API_KEY              — Required. Claude API key.
+        CLASSIFICATION_BATCH_SIZE      — Packages per batch (default 50).
+        CLASSIFICATION_MAX_PACKAGES    — Max packages per cycle (default 1000).
+        CLASSIFICATION_INTERVAL_SECONDS — Seconds between cycles (default 3600).
+                                          Set to 0 for a single run (no loop).
+    """
 
     import os
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
     # Configuration from environment variables
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    # database_url = os.getenv("DATABASE_URL")  # TODO: Use when DB is configured
+    batch_size = int(os.getenv("CLASSIFICATION_BATCH_SIZE", "50"))
+    max_packages = int(os.getenv("CLASSIFICATION_MAX_PACKAGES", "1000"))
+    interval = int(os.getenv("CLASSIFICATION_INTERVAL_SECONDS", "3600"))
 
     if not anthropic_api_key:
         raise ValueError("ANTHROPIC_API_KEY environment variable required")
 
-    # Initialize classifier
-    # classifier = ForgeClassifier(anthropic_api_key)  # TODO: Use when processing
+    # Initialize classifier and database
+    classifier = ForgeClassifier(anthropic_api_key)
+    await db.connect()
 
-    # Initialize database connection (pseudo-code)
-    # db_connection = await get_database_connection(database_url)
+    try:
+        job = BatchClassificationJob(classifier)
 
-    # Run batch job
-    # job = BatchClassificationJob(classifier, db_connection)
-    # await job.run_classification_batch(batch_size=50, max_packages=1000)
+        while True:
+            try:
+                await job.run_classification_batch(
+                    batch_size=batch_size, max_packages=max_packages
+                )
+                logger.info("Classification cycle completed successfully")
+            except Exception as e:
+                logger.error(f"Classification cycle failed: {e}")
 
-    logger.info("Classification job completed successfully")
+            if interval <= 0:
+                # Single run mode
+                break
+
+            logger.info(f"Sleeping {interval}s until next classification cycle...")
+            await asyncio.sleep(interval)
+    finally:
+        await db.disconnect()
 
 
 if __name__ == "__main__":

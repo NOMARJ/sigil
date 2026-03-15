@@ -162,8 +162,14 @@ pub fn run_scan(
         let file_path = entry.path();
         files_scanned += 1;
 
-        let contents = match std::fs::read_to_string(file_path) {
-            Ok(c) => c,
+        let contents = match std::fs::read(file_path) {
+            Ok(bytes) => {
+                // Skip binary files (contains null bytes) and use lossy UTF-8
+                if bytes.contains(&0) {
+                    continue;
+                }
+                String::from_utf8_lossy(&bytes).into_owned()
+            }
             Err(_) => continue,
         };
 
