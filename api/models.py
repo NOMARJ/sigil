@@ -55,7 +55,7 @@ class ScanPhase(str, enum.Enum):
 
 class PlanTier(str, enum.Enum):
     """Subscription tier levels for feature access and credit allocation."""
-    
+
     ANONYMOUS = "anonymous"
     FREE = "free"
     PRO = "pro"
