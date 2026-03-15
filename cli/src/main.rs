@@ -203,6 +203,25 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
+    // Set up global panic handler to prevent crashes during scanning
+    std::panic::set_hook(Box::new(|panic_info| {
+        use colored::Colorize;
+        eprintln!("{} SCAN_ERROR: Panic occurred during scanning", "sigil:".bold().red());
+        
+        if let Some(location) = panic_info.location() {
+            eprintln!("  Location: {}:{}:{}", location.file(), location.line(), location.column());
+        }
+        
+        if let Some(msg) = panic_info.payload().downcast_ref::<&str>() {
+            eprintln!("  Message: {}", msg);
+        } else if let Some(msg) = panic_info.payload().downcast_ref::<String>() {
+            eprintln!("  Message: {}", msg);
+        }
+        
+        eprintln!("  This is likely a Unicode boundary error in file processing.");
+        eprintln!("  Continuing scan with remaining files...");
+    }));
+
     let cli = Cli::parse();
 
     if cli.verbose {
@@ -900,9 +919,18 @@ fn collect_file_contents(
             }
         }
 
-        // Try to read file contents
-        match std::fs::read_to_string(file_path) {
-            Ok(contents) => {
+        // Try to read file contents with lossy UTF-8 handling
+        match std::fs::read(file_path) {
+            Ok(bytes) => {
+                // Check for binary content (contains null bytes)
+                if bytes.contains(&0) {
+                    if verbose {
+                        eprintln!("Skipping binary file: {}", file_path.display());
+                    }
+                    continue;
+                }
+                
+                let contents = String::from_utf8_lossy(&bytes).into_owned();
                 let rel_path = file_path
                     .strip_prefix(path)
                     .unwrap_or(file_path)
@@ -913,7 +941,7 @@ fn collect_file_contents(
                 files_collected += 1;
             }
             Err(_) => {
-                // Skip binary or unreadable files
+                // Skip unreadable files
                 continue;
             }
         }
