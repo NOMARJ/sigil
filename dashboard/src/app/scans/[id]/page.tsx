@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import VerdictBadge from "@/components/VerdictBadge";
+import ScanBadge from "@/components/ScanBadge";
 import FindingsList from "@/components/FindingsList";
+import useRescan from "@/hooks/useRescan";
 import * as api from "@/lib/api";
 import type { Scan, Finding, Verdict, ScanPhase } from "@/lib/types";
 
@@ -83,6 +85,8 @@ export default function ScanDetailPage() {
   const [actionLoading, setActionLoading] = useState<"approve" | "reject" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const { isRescanning, rescanError, rescanScan } = useRescan();
+
   const fetchScanData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -134,6 +138,14 @@ export default function ScanDetailPage() {
       );
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleRescan = async () => {
+    const result = await rescanScan(scanId);
+    if (result && result.success) {
+      // Page reloads with updated scan after completion
+      await fetchScanData();
     }
   };
 
@@ -222,6 +234,13 @@ export default function ScanDetailPage() {
         </div>
       )}
 
+      {/* Rescan error */}
+      {rescanError && (
+        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          {rescanError}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -230,6 +249,11 @@ export default function ScanDetailPage() {
               {scan.target}
             </h1>
             <VerdictBadge verdict={scan.verdict} size="lg" />
+            <ScanBadge 
+              scannerVersion={scan.scanner_version} 
+              rescannedAt={scan.rescanned_at} 
+              size="md" 
+            />
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
             <span>
@@ -248,44 +272,68 @@ export default function ScanDetailPage() {
         </div>
 
         {/* Actions */}
-        {!(scan.metadata && (scan.metadata as Record<string, unknown>).approved) && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {/* Refresh button shown only for v1 scans */}
+          {(!scan.scanner_version || scan.scanner_version === "1.0.0") && (
             <button
-              className="btn-primary"
-              onClick={handleApprove}
-              disabled={actionLoading !== null}
+              className="btn-secondary"
+              onClick={handleRescan}
+              disabled={isRescanning || actionLoading !== null}
             >
-              {actionLoading === "approve" ? (
+              {isRescanning ? (
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               ) : (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}
-              Approve
+              Refresh
             </button>
-            <button
-              className="btn-danger"
-              onClick={handleReject}
-              disabled={actionLoading !== null}
-            >
-              {actionLoading === "reject" ? (
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              Reject
-            </button>
-          </div>
-        )}
+          )}
+
+          {/* Approve/Reject buttons */}
+          {!(scan.metadata && (scan.metadata as Record<string, unknown>).approved) && (
+            <>
+              <button
+                className="btn-primary"
+                onClick={handleApprove}
+                disabled={actionLoading !== null || isRescanning}
+              >
+                {actionLoading === "approve" ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                Approve
+              </button>
+              <button
+                className="btn-danger"
+                onClick={handleReject}
+                disabled={actionLoading !== null || isRescanning}
+              >
+                {actionLoading === "reject" ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                Reject
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Risk Breakdown */}
