@@ -50,6 +50,7 @@ except ImportError:
 # Whitelist patterns
 # ---------------------------------------------------------------------------
 
+
 def _load_whitelist_patterns() -> dict:
     """Load whitelist patterns from JSON file."""
     whitelist_path = Path(__file__).parent.parent / "data" / "whitelist_patterns.json"
@@ -59,38 +60,51 @@ def _load_whitelist_patterns() -> dict:
     except (FileNotFoundError, json.JSONDecodeError):
         return {"patterns": {}}
 
+
 WHITELIST_DATA = _load_whitelist_patterns()
+
 
 def _is_whitelisted_pattern(content: str, file_path: str) -> bool:
     """Check if the file contains known safe patterns that should be ignored."""
     file_path_lower = file_path.lower()
-    
+
     # Skip checks for vendor/minified files in node_modules
-    if 'node_modules/' in file_path_lower:
+    if "node_modules/" in file_path_lower:
         # Check if it's a known polyfill or library
-        for pattern in WHITELIST_DATA.get("patterns", {}).get("polyfills", {}).get("patterns", []):
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {}).get("polyfills", {}).get("patterns", [])
+        ):
             # Extract package name from pattern (e.g., "core-js" from "core-js/modules")
-            package_name = pattern.lower().split('/')[0]
-            if f'/{package_name}/' in file_path_lower:
+            package_name = pattern.lower().split("/")[0]
+            if f"/{package_name}/" in file_path_lower:
                 return True
-    
+
     # Check for UMD wrapper patterns
-    for pattern in WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", []):
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", [])
+    ):
         if pattern in content[:1000]:  # Check first 1KB
             return True
-    
+
     # Check for webpack patterns
-    for pattern in WHITELIST_DATA.get("patterns", {}).get("webpack", {}).get("patterns", []):
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("webpack", {}).get("patterns", [])
+    ):
         if pattern in content[:1000]:
             return True
-            
+
     # Check for minified library signatures
-    if file_path_lower.endswith('.min.js'):
-        for pattern in WHITELIST_DATA.get("patterns", {}).get("minified_libraries", {}).get("patterns", []):
+    if file_path_lower.endswith(".min.js"):
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {})
+            .get("minified_libraries", {})
+            .get("patterns", [])
+        ):
             if pattern in content[:500]:
                 return True
-    
+
     return False
+
 
 # ---------------------------------------------------------------------------
 # Rule definition
@@ -911,39 +925,60 @@ def _is_method_call(content: str, match_start: int) -> bool:
     if match_start > 0:
         # Get the character immediately before the match
         prev_char = content[match_start - 1]
-        if prev_char == '.':
+        if prev_char == ".":
             return True
     return False
 
 
-def _determine_confidence(rule_id: str, file_path: str, severity: Severity) -> Confidence:
+def _determine_confidence(
+    rule_id: str, file_path: str, severity: Severity
+) -> Confidence:
     """Determine confidence level based on rule, file context, and severity."""
     file_path_lower = file_path.lower()
-    
+
     # Low confidence for test files
-    if any(test_indicator in file_path_lower for test_indicator in [
-        'test/', '/test/', 'tests/', '/tests/', '.test.', '_test.py', '_test.js'
-    ]):
+    if any(
+        test_indicator in file_path_lower
+        for test_indicator in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
         return Confidence.LOW
-    
+
     # Low confidence for documentation
-    if any(doc_indicator in file_path_lower for doc_indicator in [
-        '.md', '.rst', '.txt', 'readme', 'doc/', '/doc/', 'docs/', '/docs/'
-    ]):
+    if any(
+        doc_indicator in file_path_lower
+        for doc_indicator in [
+            ".md",
+            ".rst",
+            ".txt",
+            "readme",
+            "doc/",
+            "/doc/",
+            "docs/",
+            "/docs/",
+        ]
+    ):
         return Confidence.LOW
-        
+
     # Low confidence for vendor code
-    if 'node_modules/' in file_path_lower:
+    if "node_modules/" in file_path_lower:
         return Confidence.LOW
-    
+
     # High confidence for critical severity in production code
     if severity == Severity.CRITICAL:
         return Confidence.HIGH
-    
+
     # Medium confidence for high severity in production code
     if severity == Severity.HIGH:
         return Confidence.MEDIUM
-        
+
     # Default to MEDIUM for production code
     return Confidence.MEDIUM
 
@@ -951,12 +986,26 @@ def _determine_confidence(rule_id: str, file_path: str, severity: Severity) -> C
 def _get_file_context(file_path: str) -> str:
     """Determine the context of a file (production, test, doc, vendor)."""
     file_path_lower = file_path.lower()
-    
-    if 'node_modules/' in file_path_lower:
+
+    if "node_modules/" in file_path_lower:
         return "vendor"
-    elif any(test in file_path_lower for test in ['test/', '/test/', 'tests/', '/tests/', '.test.', '_test.py', '_test.js']):
+    elif any(
+        test in file_path_lower
+        for test in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
         return "test"
-    elif any(doc in file_path_lower for doc in ['.md', '.rst', 'readme', 'doc/', '/doc/', 'docs/', '/docs/']):
+    elif any(
+        doc in file_path_lower
+        for doc in [".md", ".rst", "readme", "doc/", "/doc/", "docs/", "/docs/"]
+    ):
         return "documentation"
     else:
         return "production"
@@ -1015,14 +1064,14 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
         # Skip execution patterns in TypeScript definition files
-        if file_path.endswith('.d.ts') and rule.id in [
-            "code-eval", 
+        if file_path.endswith(".d.ts") and rule.id in [
+            "code-eval",
             "code-exec-dangerous",
             "code-exec-child-process",
-            "install-pip-setup-exec"
+            "install-pip-setup-exec",
         ]:
             continue
-            
+
         for match in rule.pattern.finditer(content):
             # Context-aware filtering for specific rules
             if rule.id == "code-eval" and _is_eval_in_safe_context(
@@ -1050,12 +1099,14 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             adjusted_severity = _adjust_severity_by_file_context(
                 rule.severity, file_path
             )
-            
+
             # Determine confidence level
             confidence = _determine_confidence(rule.id, file_path, adjusted_severity)
-            
+
             # Check if it's a method call and adjust confidence
-            if rule.id in ["code-exec-dangerous", "code-eval"] and _is_method_call(content, match.start()):
+            if rule.id in ["code-exec-dangerous", "code-eval"] and _is_method_call(
+                content, match.start()
+            ):
                 confidence = Confidence.LOW
 
             yield Finding(
@@ -1263,7 +1314,7 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
     Useful when scan content is submitted directly rather than from disk.
     """
     findings: list[Finding] = []
-    
+
     # Check if file contains whitelisted patterns
     if _is_whitelisted_pattern(content, filename):
         # Still check provenance (filenames) but skip content scanning

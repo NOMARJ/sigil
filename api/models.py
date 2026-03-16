@@ -41,7 +41,7 @@ class Severity(str, enum.Enum):
 
 class Confidence(str, enum.Enum):
     """Confidence level for findings - how certain we are this is a real issue."""
-    
+
     HIGH = "HIGH"  # Very likely a real security issue
     MEDIUM = "MEDIUM"  # Possibly a security issue, needs review
     LOW = "LOW"  # Likely a false positive
@@ -84,7 +84,8 @@ class Finding(BaseModel):
     rule: str = Field(..., description="Rule identifier (e.g. 'npm-postinstall')")
     severity: Severity = Field(..., description="Severity of the finding")
     confidence: Confidence = Field(
-        Confidence.HIGH, description="Confidence level - how certain this is a real issue"
+        Confidence.HIGH,
+        description="Confidence level - how certain this is a real issue",
     )
     file: str = Field(..., description="Relative path to the file")
     line: int = Field(0, description="Line number where the finding occurs")
