@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import VerdictBadge from "@/components/VerdictBadge";
 import ScanBadge from "@/components/ScanBadge";
+import ScoreComparison from "@/components/ScoreComparison";
 import FindingsList from "@/components/FindingsList";
 import useRescan from "@/hooks/useRescan";
 import * as api from "@/lib/api";
@@ -260,11 +261,22 @@ export default function ScanDetailPage() {
               Type:{" "}
               <span className="text-gray-300 font-medium">{scan.target_type.toUpperCase()}</span>
             </span>
-            <span>
-              Score:{" "}
-              <span className="font-mono text-gray-300">{scan.risk_score}</span>
-            </span>
+            <div className="flex items-center gap-1">
+              <span>Score: </span>
+              {scan.original_score && scan.original_score !== scan.risk_score ? (
+                <ScoreComparison 
+                  originalScore={scan.original_score} 
+                  newScore={scan.risk_score} 
+                  size="sm"
+                />
+              ) : (
+                <span className="font-mono text-gray-300">{scan.risk_score}</span>
+              )}
+            </div>
             <span>Scanned {formatDate(scan.created_at)}</span>
+            {scan.rescanned_at && (
+              <span className="text-blue-400">Rescanned {formatDate(scan.rescanned_at)}</span>
+            )}
             {scan.metadata && Boolean((scan.metadata as Record<string, unknown>).approved) && (
               <span className="text-green-400">Approved</span>
             )}
