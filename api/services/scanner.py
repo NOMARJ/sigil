@@ -39,7 +39,6 @@ except ImportError:
     Finding = models_module.Finding
     ScanPhase = models_module.ScanPhase
     Severity = models_module.Severity
-    Confidence = models_module.Confidence
 try:
     from api.services.explanations import get_explanation
 except ImportError:
@@ -757,54 +756,8 @@ def _is_scannable(path: Path) -> bool:
     return False
 
 
-def _is_method_call(content: str, match_start: int) -> bool:
-    """Check if the match is a method call (e.g., obj.exec or this.eval) or method declaration."""
-    # Look at character before the match (if not at start)
-    if match_start > 0:
-        before_char = content[match_start - 1]
-        # If preceded by a dot, it's a method call
-        if before_char == '.':
-            return True
-        
-    # Check for method definition patterns
-    # Look at broader context around the match
-    start = max(0, match_start - 50)
-    end = min(len(content), match_start + 50)
-    context_before = content[start:match_start]
-    context_after = content[match_start:end]
-    
-    # Check for TypeScript method signatures (e.g., exec(cmd: string): void)
-    if re.search(r'^\w*\([^)]*:[^)]*\)\s*:', context_after):
-        return True
-    
-    # Check for function declarations (e.g., function exec(, const exec =)
-    if re.search(r'^\w*\s*\(.*\)\s*(=>|\{)', context_after):
-        # This looks like a function declaration
-        return True
-    
-    # Method definition patterns in the context before
-    method_patterns = [
-        r'\.\s*$',  # Ends with dot (possibly with whitespace)
-        r':\s*function\s*$',  # Object method property
-        r'function\s+$',  # Function declaration
-        r'(public|private|protected|static|abstract)\s+$',  # Class method modifiers
-        r'(const|let|var)\s+$',  # Variable assignment
-        r'^\s*(class|interface)\s+\w+\s*\{',  # Inside class/interface definition
-        r'\bfunction\s+$',  # Function keyword before name
-    ]
-    
-    for pattern in method_patterns:
-        if re.search(pattern, context_before):
-            return True
-            
-    return False
-
 def _is_eval_in_safe_context(content: str, match_start: int) -> bool:
     """Check if eval() is in a safe context (string literal, regex, comment)."""
-    # Check if it's a method call first
-    if _is_method_call(content, match_start):
-        return True
-        
     # Check if we're inside a string literal
     before = content[:match_start]
 
@@ -951,79 +904,6 @@ def _is_http_request_safe(content: str, match_start: int) -> bool:
     return False
 
 
-def _get_file_context(file_path: str) -> str:
-    """Determine the context of a file (documentation, test, source, etc.)."""
-    file_path_lower = file_path.lower()
-    
-    # Documentation files
-    if any(doc in file_path_lower for doc in [
-        'readme', 'doc/', '/doc/', 'docs/', '/docs/', 
-        '.md', '.rst', '.txt', 'changelog', 'contributing'
-    ]):
-        return "documentation"
-        
-    # Test files
-    if any(test in file_path_lower for test in [
-        'test/', '/test/', 'tests/', '/tests/', 'spec/', '/spec/',
-        'test.', '.test.', 'spec.', '.spec.', '__test__', '__tests__'
-    ]):
-        return "test"
-        
-    # Example/demo files  
-    if any(ex in file_path_lower for ex in [
-        'example', 'demo', 'sample', 'tutorial'
-    ]):
-        return "example"
-        
-    return "source"  # Default to source code
-
-def _determine_confidence(rule_id: str, file_path: str, severity: Severity) -> Confidence:
-    """Determine confidence level based on rule, file context, and severity."""
-    
-    # High confidence patterns - almost certainly real issues
-    high_confidence_rules = {
-        "install-setup-py-cmdclass",
-        "install-npm-postinstall", 
-        "install-pip-setup-exec",
-        "cred-private-key",
-        "net-data-exfiltration",
-        "obf-base64-exec-chain",
-        "prov-suspicious-binary",
-        "code-exec-dangerous",  # Direct exec/os.system calls
-        "code-child-process",  # Spawning processes
-    }
-    
-    # Low confidence patterns - often false positives
-    low_confidence_rules = {
-        "obf-charcode",  # Often used legitimately
-        "obf-hex-decode",  # Common in legitimate code
-        "code-eval",  # Many false positives from strings/docs
-        "net-http-request",  # Legitimate API calls
-    }
-    
-    # Start with MEDIUM confidence
-    confidence = Confidence.MEDIUM
-    
-    # Adjust based on rule
-    if rule_id in high_confidence_rules:
-        confidence = Confidence.HIGH
-    elif rule_id in low_confidence_rules:
-        confidence = Confidence.LOW
-        
-    # Adjust based on file context
-    if _get_file_context(file_path) in ["documentation", "test"]:
-        # Lower confidence for docs and tests
-        if confidence == Confidence.HIGH:
-            confidence = Confidence.MEDIUM
-        elif confidence == Confidence.MEDIUM:
-            confidence = Confidence.LOW
-            
-    # Critical severity issues are more likely real
-    if severity == Severity.CRITICAL and confidence == Confidence.LOW:
-        confidence = Confidence.MEDIUM
-        
-    return confidence
-
 def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Severity:
     """Adjust severity based on file context (documentation, tests, etc.)."""
     file_path_lower = file_path.lower()
@@ -1091,15 +971,6 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 content, match.start()
             ):
                 continue
-            if rule.id == "code-exec-dangerous":
-                # Special handling for exec patterns - check if it's a method/declaration
-                matched_text = match.group()
-                # Find where 'exec' actually starts in the match
-                if 'exec' in matched_text:
-                    # Adjust position to where 'exec' actually begins
-                    exec_pos = content.find('exec', match.start())
-                    if exec_pos != -1 and _is_method_call(content, exec_pos):
-                        continue
             if rule.id == "obf-charcode" and _is_charcode_benign(
                 content, match.start()
             ):
@@ -1121,15 +992,11 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             adjusted_severity = _adjust_severity_by_file_context(
                 rule.severity, file_path
             )
-            
-            # Determine confidence level
-            confidence = _determine_confidence(rule.id, file_path, adjusted_severity)
 
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=adjusted_severity,
-                confidence=confidence,
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],  # Cap snippet length
