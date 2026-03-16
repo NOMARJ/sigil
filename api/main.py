@@ -154,6 +154,7 @@ app = FastAPI(
         },
         {"name": "monitoring", "description": "Health checks and system monitoring"},
         {"name": "scan", "description": "Security scanning operations"},
+        {"name": "rescan", "description": "Scanner v2 migration and on-demand rescanning"},
         {"name": "threat", "description": "Threat intelligence and management"},
         {"name": "auth", "description": "Authentication and user management"},
         {"name": "team", "description": "Team and organization management"},
@@ -294,6 +295,7 @@ try:
         realtime,
         registry,
         report,
+        rescan,
         scan,
         system,
         team,
@@ -322,6 +324,7 @@ app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
 app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
+app.include_router(rescan.router)  # /api/rescan/* — Scanner v2 migration rescan endpoints
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(forge.router)  # /forge/*    — Forge classification & matching
