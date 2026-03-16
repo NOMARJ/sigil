@@ -6,6 +6,7 @@ import { UserProvider } from "@auth0/nextjs-auth0/client";
 import { AuthProvider } from "@/lib/auth";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
+import V2NotificationBanner from "@/components/V2NotificationBanner";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 /** Routes where the sidebar should be hidden (full-screen layouts). */
@@ -50,11 +51,14 @@ export default function LayoutShell({ children }: LayoutShellProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <main className="lg:ml-64 min-h-screen">
-              <div className="p-8">
-                <ErrorBoundary>{children}</ErrorBoundary>
-              </div>
-            </main>
+            <div className="lg:ml-64">
+              <V2NotificationBanner />
+              <main className="min-h-screen">
+                <div className="p-8">
+                  <ErrorBoundary>{children}</ErrorBoundary>
+                </div>
+              </main>
+            </div>
           </>
         )}
       </AuthGuard>
