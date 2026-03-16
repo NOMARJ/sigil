@@ -39,6 +39,7 @@ from api.models import (
     ScanRequest,
     ScanResponse,
 )
+from api.schemas.scan import ScanResponseV2, ConfidenceSummary
 from api.routers.auth import get_current_user_unified, UserResponse
 from api.scanner.scanner_engine import scanner_engine
 from api.services.scoring import compute_verdict
@@ -46,6 +47,11 @@ from api.services.subscription_service import subscription_service
 from api.services.threat_intel import (
     lookup_threats_for_hashes,
     update_publisher_from_scan,
+)
+from api.services.scanner_v2 import (
+    calculate_confidence_summary,
+    get_current_scanner_version,
+    is_scanner_v2_enabled
 )
 # from api.services.forge_analytics import track_forge_event  # Forge archived
 # from api.models import ForgeEventType  # Forge archived
@@ -137,8 +143,8 @@ async def _get_scan_or_404(scan_id: str) -> dict[str, Any]:
 
 
 async def _submit_scan_impl(
-    request: ScanRequest, user_id: str | None = None
-) -> ScanResponse:
+    request: ScanRequest, user_id: str | None = None, use_v2: bool = None
+) -> ScanResponse | ScanResponseV2:
     """Shared implementation for scan submission."""
     scan_id = uuid4().hex[:16]
 
@@ -171,17 +177,49 @@ async def _submit_scan_impl(
 
     # --- 3. Build response --------------------------------------------------
     now = datetime.utcnow()
-    response = ScanResponse(
-        scan_id=scan_id,
-        target=safe_target,
-        target_type=request.target_type,
-        files_scanned=request.files_scanned,
-        findings=request.findings,
-        risk_score=round(risk_score, 2),
-        verdict=verdict,
-        threat_intel_hits=threat_hits,
-        created_at=now,
-    )
+    
+    # Determine if we should use v2 format
+    if use_v2 is None:
+        use_v2 = is_scanner_v2_enabled()
+    
+    if use_v2:
+        # Build v2 response with enhanced tracking
+        confidence_summary = calculate_confidence_summary(request.findings)
+        scanner_version = get_current_scanner_version()
+        
+        response = ScanResponseV2(
+            scan_id=scan_id,
+            scanner_version=scanner_version,
+            target=safe_target,
+            target_type=request.target_type,
+            files_scanned=request.files_scanned,
+            findings=request.findings,
+            risk_score=round(risk_score, 2),
+            verdict=verdict,
+            confidence_summary=confidence_summary,
+            threat_intel_hits=threat_hits,
+            created_at=now,
+            metadata={
+                "scanner_features": {
+                    "false_positive_reduction": True,
+                    "context_aware_analysis": True,
+                    "confidence_scoring": True
+                }
+            }
+        )
+    else:
+        # Build legacy v1 response
+        response = ScanResponse(
+            scan_id=scan_id,
+            target=safe_target,
+            target_type=request.target_type,
+            files_scanned=request.files_scanned,
+            findings=request.findings,
+            risk_score=round(risk_score, 2),
+            verdict=verdict,
+            threat_intel_hits=threat_hits,
+            created_at=now,
+        )
 
     # --- 4. Persist scan result ---------------------------------------------
     findings_data = [f.model_dump(mode="json") for f in request.findings]
@@ -199,6 +237,22 @@ async def _submit_scan_impl(
             "metadata_json": request.metadata,
             "created_at": now.isoformat(),
         }
+        
+        # Add v2 fields if using scanner v2
+        if use_v2 and hasattr(response, 'scanner_version'):
+            v2_response = response  # type: ScanResponseV2
+            row_data.update({
+                "scanner_version": v2_response.scanner_version,
+                "confidence_level": v2_response.confidence_summary.average_confidence,
+                "context_weight": v2_response.context_weight,
+            })
+        else:
+            # Default values for v1 scans
+            row_data.update({
+                "scanner_version": "1.0.0",
+                "confidence_level": None,
+                "context_weight": 1.0,
+            })
         if user_id:
             row_data["user_id"] = user_id
         await db.store_scan(row_data)
@@ -320,6 +374,47 @@ async def submit_scan_v1_scans(
     )
     payload["score"] = response.risk_score
     return payload
+
+
+@router.post(
+    "/scan/v2",
+    response_model=ScanResponseV2,
+    status_code=status.HTTP_200_OK,
+    summary="Submit scan results with v2 features (scanner version tracking)",
+    responses={
+        401: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        429: {"description": "Rate limit or monthly scan quota exceeded"},
+    },
+    dependencies=[Depends(RateLimiter(max_requests=30, window=60))],
+)
+async def submit_scan_v2(
+    request: ScanRequest,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> ScanResponseV2:
+    """
+    Submit scan results with Scanner v2 enhancements.
+    
+    This endpoint provides:
+    - Scanner version tracking 
+    - Confidence summary with false positive estimates
+    - Enhanced metadata with feature flags
+    - Backward compatible with existing scan format
+    
+    Part of the Scanner v2 migration for progressive enhancement.
+    """
+    current_tier = await get_user_plan(current_user.id)
+    await check_scan_quota(current_user.id, current_tier)
+    response = await _submit_scan_impl(request, user_id=current_user.id, use_v2=True)
+    
+    # Ensure we return ScanResponseV2 type
+    if not isinstance(response, ScanResponseV2):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create v2 response format"
+        )
+    
+    return response
 
 
 @router.post(
