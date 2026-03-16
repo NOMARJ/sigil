@@ -909,6 +909,15 @@ class PhaseResult:
 def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
+        # Skip execution patterns in TypeScript definition files
+        if file_path.endswith('.d.ts') and rule.id in [
+            "code-eval", 
+            "code-exec-dangerous",
+            "code-exec-child-process",
+            "install-pip-setup-exec"
+        ]:
+            continue
+            
         for match in rule.pattern.finditer(content):
             # Context-aware filtering for specific rules
             if rule.id == "code-eval" and _is_eval_in_safe_context(
