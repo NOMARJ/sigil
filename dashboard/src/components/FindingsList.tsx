@@ -1,5 +1,6 @@
 import type { Finding, ScanPhase } from "@/lib/types";
 import VerdictBadge from "./VerdictBadge";
+import ConfidenceBadge from "./ConfidenceBadge";
 
 interface FindingsListProps {
   findings: Finding[];
@@ -85,6 +86,7 @@ export default function FindingsList({ findings }: FindingsListProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <VerdictBadge verdict={finding.severity} size="sm" />
+                        <ConfidenceBadge confidence={finding.confidence} size="sm" />
                         <span className="text-sm font-medium text-gray-100">
                           {finding.title}
                         </span>
