@@ -53,6 +53,10 @@ from api.services.scanner_v2 import (
     get_current_scanner_version,
     is_scanner_v2_enabled
 )
+from api.services.scanner_selector import (
+    get_scanner_capabilities,
+    validate_scanner_configuration
+)
 # from api.services.forge_analytics import track_forge_event  # Forge archived
 # from api.models import ForgeEventType  # Forge archived
 
@@ -607,6 +611,44 @@ async def get_user_scan_capabilities(
     - Upgrade requirements for additional features
     """
     return capabilities
+
+
+@router.get(
+    "/scanner/status",
+    response_model=dict[str, Any],
+    summary="Get scanner configuration and capabilities",
+    responses={401: {"model": ErrorResponse}},
+)
+async def get_scanner_status(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> dict[str, Any]:
+    """
+    Return current scanner configuration, capabilities, and validation status.
+    
+    Useful for debugging scanner version issues and understanding
+    which features are available in the current configuration.
+    """
+    validation_result = validate_scanner_configuration()
+    capabilities = get_scanner_capabilities()
+    
+    return {
+        "configuration": {
+            "active_version": get_current_scanner_version(),
+            "v2_enabled": is_scanner_v2_enabled(),
+            "validation": validation_result,
+        },
+        "capabilities": capabilities,
+        "endpoints": {
+            "v1_scan": "/v1/scan",
+            "v2_scan": "/v1/scan/v2",
+            "enhanced_scan": "/v1/scan-enhanced",
+            "rescan": "/api/rescan/{scan_id}",
+        },
+        "environment": {
+            "scanner_version_env": get_current_scanner_version(),
+            "fallback_available": validation_result["capabilities"]["v1_enabled"],
+        }
+    }
 
 
 # ---------------------------------------------------------------------------

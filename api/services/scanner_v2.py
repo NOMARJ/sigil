@@ -57,14 +57,13 @@ def calculate_confidence_summary(findings: List[Finding]) -> ConfidenceSummary:
 
 def is_scanner_v2_enabled() -> bool:
     """Check if scanner v2 is enabled via feature flag."""
-    import os
+    from api.config import settings
     
-    scanner_version = os.getenv("SCANNER_VERSION", "2.0.0")
-    return scanner_version.startswith("2.")
+    return settings.scanner_version.startswith("2.")
 
 
 def get_current_scanner_version() -> str:
-    """Get the current scanner version from environment or default."""
-    import os
+    """Get the current scanner version from configuration."""
+    from api.config import settings
     
-    return os.getenv("SCANNER_VERSION", "2.0.0")
+    return settings.scanner_version
