@@ -1,0 +1,304 @@
+openapi: 3.0.0
+info:
+  title: Sigil Security Scanner API
+  version: 2.0.0
+  description: |
+    Enhanced security scanner API with Scanner v2 support.
+    
+    ## Scanner Versions
+    - **v1.0.0**: Legacy scanner with basic pattern matching
+    - **v2.0.0**: Enhanced scanner with context-aware analysis and confidence scoring
+    
+    ## New in v2:
+    - Confidence levels on findings (HIGH/MEDIUM/LOW)
+    - Scanner version tracking
+    - Rescan capabilities
+    - False positive reduction from 36% to <5%
+
+servers:
+  - url: https://api.sigilsec.com
+    description: Production API
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /v1/scan:
+    post:
+      summary: Submit a security scan (legacy)
+      description: Backward-compatible endpoint using scanner v1 by default
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponse'
+  
+  /v1/scan/v2:
+    post:
+      summary: Submit a security scan with v2 scanner
+      description: Enhanced scanner with confidence scoring and context-aware analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Scan completed with enhanced data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponseV2'
+  
+  /api/rescan/{scan_id}:
+    post:
+      summary: Rescan a package with Scanner v2
+      description: Update a legacy scan with the enhanced scanner
+      parameters:
+        - name: scan_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rescan completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RescanResult'
+        '400':
+          description: Package already scanned with v2
+        '404':
+          description: Scan not found
+  
+  /api/rescan/batch:
+    post:
+      summary: Batch rescan multiple packages
+      description: Rescan up to 20 packages in a single request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scan_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  maxItems: 20
+      responses:
+        '200':
+          description: Batch rescan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RescanResult'
+
+  /api/metrics/scanner:
+    get:
+      summary: Get scanner metrics
+      description: Compare performance between scanner versions
+      responses:
+        '200':
+          description: Scanner metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerMetrics'
+
+components:
+  schemas:
+    ScanRequest:
+      type: object
+      required:
+        - package_name
+        - package_version
+      properties:
+        package_name:
+          type: string
+          example: "express"
+        package_version:
+          type: string
+          example: "4.18.2"
+        package_type:
+          type: string
+          enum: [npm, pip]
+          example: "npm"
+    
+    ScanResponse:
+      type: object
+      properties:
+        scan_id:
+          type: string
+          format: uuid
+        package_name:
+          type: string
+        package_version:
+          type: string
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        verdict:
+          type: string
+          enum: [LOW_RISK, MEDIUM_RISK, HIGH_RISK, CRITICAL]
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Finding'
+    
+    ScanResponseV2:
+      allOf:
+        - $ref: '#/components/schemas/ScanResponse'
+        - type: object
+          properties:
+            scanner_version:
+              type: string
+              example: "2.0.0"
+              description: Version of scanner used
+            confidence_summary:
+              $ref: '#/components/schemas/ConfidenceSummary'
+            context_weight:
+              type: number
+              format: float
+              example: 1.0
+              description: Context weight applied to findings
+    
+    Finding:
+      type: object
+      properties:
+        rule:
+          type: string
+          example: "code-eval-usage"
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        description:
+          type: string
+        file_path:
+          type: string
+        line:
+          type: integer
+        confidence:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+          description: Confidence level (v2 only)
+        context_adjusted:
+          type: boolean
+          description: Whether severity was adjusted based on context (v2 only)
+    
+    ConfidenceSummary:
+      type: object
+      properties:
+        overall_confidence:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+        high_confidence_findings:
+          type: integer
+        medium_confidence_findings:
+          type: integer
+        low_confidence_findings:
+          type: integer
+        false_positive_likelihood:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Estimated false positive rate (0-1)
+    
+    RescanResult:
+      type: object
+      properties:
+        scan_id:
+          type: string
+          format: uuid
+        package_name:
+          type: string
+        original_score:
+          type: integer
+        new_score:
+          type: integer
+        score_change:
+          type: integer
+          description: Difference between new and original score
+        percentage_change:
+          type: number
+          format: float
+          description: Percentage change in score
+        original_verdict:
+          type: string
+        new_verdict:
+          type: string
+        confidence_summary:
+          $ref: '#/components/schemas/ConfidenceSummary'
+        rescanned_at:
+          type: string
+          format: date-time
+    
+    ScannerMetrics:
+      type: object
+      properties:
+        v1_stats:
+          type: object
+          properties:
+            total_scans:
+              type: integer
+            avg_risk_score:
+              type: number
+              format: float
+            false_positive_rate:
+              type: number
+              format: float
+              description: Percentage as decimal (0.36 = 36%)
+        v2_stats:
+          type: object
+          properties:
+            total_scans:
+              type: integer
+            avg_risk_score:
+              type: number
+              format: float
+            false_positive_rate:
+              type: number
+              format: float
+              description: Percentage as decimal (0.05 = 5%)
+            avg_confidence:
+              type: number
+              format: float
+        migration_progress:
+          type: object
+          properties:
+            percentage_complete:
+              type: number
+              format: float
+            rescans_completed:
+              type: integer
+            avg_score_reduction:
+              type: number
+              format: float
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
