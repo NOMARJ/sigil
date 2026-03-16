@@ -709,8 +709,54 @@ def _is_scannable(path: Path) -> bool:
     return False
 
 
+def _is_method_call(content: str, match_start: int) -> bool:
+    """Check if the match is a method call (e.g., obj.exec or this.eval) or method declaration."""
+    # Look at character before the match (if not at start)
+    if match_start > 0:
+        before_char = content[match_start - 1]
+        # If preceded by a dot, it's a method call
+        if before_char == '.':
+            return True
+        
+    # Check for method definition patterns
+    # Look at broader context around the match
+    start = max(0, match_start - 50)
+    end = min(len(content), match_start + 50)
+    context_before = content[start:match_start]
+    context_after = content[match_start:end]
+    
+    # Check for TypeScript method signatures (e.g., exec(cmd: string): void)
+    if re.search(r'^\w*\([^)]*:[^)]*\)\s*:', context_after):
+        return True
+    
+    # Check for function declarations (e.g., function exec(, const exec =)
+    if re.search(r'^\w*\s*\(.*\)\s*(=>|\{)', context_after):
+        # This looks like a function declaration
+        return True
+    
+    # Method definition patterns in the context before
+    method_patterns = [
+        r'\.\s*$',  # Ends with dot (possibly with whitespace)
+        r':\s*function\s*$',  # Object method property
+        r'function\s+$',  # Function declaration
+        r'(public|private|protected|static|abstract)\s+$',  # Class method modifiers
+        r'(const|let|var)\s+$',  # Variable assignment
+        r'^\s*(class|interface)\s+\w+\s*\{',  # Inside class/interface definition
+        r'\bfunction\s+$',  # Function keyword before name
+    ]
+    
+    for pattern in method_patterns:
+        if re.search(pattern, context_before):
+            return True
+            
+    return False
+
 def _is_eval_in_safe_context(content: str, match_start: int) -> bool:
     """Check if eval() is in a safe context (string literal, regex, comment)."""
+    # Check if it's a method call first
+    if _is_method_call(content, match_start):
+        return True
+        
     # Check if we're inside a string literal
     before = content[:match_start]
 
@@ -924,6 +970,15 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 content, match.start()
             ):
                 continue
+            if rule.id == "code-exec-dangerous":
+                # Special handling for exec patterns - check if it's a method/declaration
+                matched_text = match.group()
+                # Find where 'exec' actually starts in the match
+                if 'exec' in matched_text:
+                    # Adjust position to where 'exec' actually begins
+                    exec_pos = content.find('exec', match.start())
+                    if exec_pos != -1 and _is_method_call(content, exec_pos):
+                        continue
             if rule.id == "obf-charcode" and _is_charcode_benign(
                 content, match.start()
             ):
