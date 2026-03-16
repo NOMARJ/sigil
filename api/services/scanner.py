@@ -27,7 +27,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from api.models import Finding, ScanPhase, Severity
+    from api.models import Finding, ScanPhase, Severity, Confidence
 except ImportError:
     import importlib.util
 
@@ -38,6 +38,7 @@ except ImportError:
     Finding = models_module.Finding
     ScanPhase = models_module.ScanPhase
     Severity = models_module.Severity
+    Confidence = models_module.Confidence
 try:
     from api.services.explanations import get_explanation
 except ImportError:
@@ -903,6 +904,79 @@ def _is_http_request_safe(content: str, match_start: int) -> bool:
     return False
 
 
+def _get_file_context(file_path: str) -> str:
+    """Determine the context of a file (documentation, test, source, etc.)."""
+    file_path_lower = file_path.lower()
+    
+    # Documentation files
+    if any(doc in file_path_lower for doc in [
+        'readme', 'doc/', '/doc/', 'docs/', '/docs/', 
+        '.md', '.rst', '.txt', 'changelog', 'contributing'
+    ]):
+        return "documentation"
+        
+    # Test files
+    if any(test in file_path_lower for test in [
+        'test/', '/test/', 'tests/', '/tests/', 'spec/', '/spec/',
+        'test.', '.test.', 'spec.', '.spec.', '__test__', '__tests__'
+    ]):
+        return "test"
+        
+    # Example/demo files  
+    if any(ex in file_path_lower for ex in [
+        'example', 'demo', 'sample', 'tutorial'
+    ]):
+        return "example"
+        
+    return "source"  # Default to source code
+
+def _determine_confidence(rule_id: str, file_path: str, severity: Severity) -> Confidence:
+    """Determine confidence level based on rule, file context, and severity."""
+    
+    # High confidence patterns - almost certainly real issues
+    high_confidence_rules = {
+        "install-setup-py-cmdclass",
+        "install-npm-postinstall", 
+        "install-pip-setup-exec",
+        "cred-private-key",
+        "net-data-exfiltration",
+        "obf-base64-exec-chain",
+        "prov-suspicious-binary",
+        "code-exec-dangerous",  # Direct exec/os.system calls
+        "code-child-process",  # Spawning processes
+    }
+    
+    # Low confidence patterns - often false positives
+    low_confidence_rules = {
+        "obf-charcode",  # Often used legitimately
+        "obf-hex-decode",  # Common in legitimate code
+        "code-eval",  # Many false positives from strings/docs
+        "net-http-request",  # Legitimate API calls
+    }
+    
+    # Start with MEDIUM confidence
+    confidence = Confidence.MEDIUM
+    
+    # Adjust based on rule
+    if rule_id in high_confidence_rules:
+        confidence = Confidence.HIGH
+    elif rule_id in low_confidence_rules:
+        confidence = Confidence.LOW
+        
+    # Adjust based on file context
+    if _get_file_context(file_path) in ["documentation", "test"]:
+        # Lower confidence for docs and tests
+        if confidence == Confidence.HIGH:
+            confidence = Confidence.MEDIUM
+        elif confidence == Confidence.MEDIUM:
+            confidence = Confidence.LOW
+            
+    # Critical severity issues are more likely real
+    if severity == Severity.CRITICAL and confidence == Confidence.LOW:
+        confidence = Confidence.MEDIUM
+        
+    return confidence
+
 def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Severity:
     """Adjust severity based on file context (documentation, tests, etc.)."""
     file_path_lower = file_path.lower()
@@ -1000,11 +1074,15 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             adjusted_severity = _adjust_severity_by_file_context(
                 rule.severity, file_path
             )
+            
+            # Determine confidence level
+            confidence = _determine_confidence(rule.id, file_path, adjusted_severity)
 
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=adjusted_severity,
+                confidence=confidence,
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],  # Cap snippet length
@@ -1031,6 +1109,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-base64-nested-chain",
                 severity=Severity.CRITICAL,
+                confidence=Confidence.HIGH,  # Nested base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -1054,6 +1133,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-hex-base64-chain",
                 severity=Severity.HIGH,
+                confidence=Confidence.HIGH,  # Hex+base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -1139,10 +1219,12 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     name = Path(file_path).name
     for rule in rules:
         if rule.pattern.search(name):
+            confidence = _determine_confidence(rule.id, file_path, rule.severity)
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=rule.severity,
+                confidence=confidence,
                 file=file_path,
                 line=0,
                 snippet=name,
