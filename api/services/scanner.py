@@ -16,6 +16,7 @@ produces ``Finding`` objects.
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -44,6 +45,52 @@ try:
 except ImportError:
     from services.explanations import get_explanation
 
+
+# ---------------------------------------------------------------------------
+# Whitelist patterns
+# ---------------------------------------------------------------------------
+
+def _load_whitelist_patterns() -> dict:
+    """Load whitelist patterns from JSON file."""
+    whitelist_path = Path(__file__).parent.parent / "data" / "whitelist_patterns.json"
+    try:
+        with open(whitelist_path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"patterns": {}}
+
+WHITELIST_DATA = _load_whitelist_patterns()
+
+def _is_whitelisted_pattern(content: str, file_path: str) -> bool:
+    """Check if the file contains known safe patterns that should be ignored."""
+    file_path_lower = file_path.lower()
+    
+    # Skip checks for vendor/minified files in node_modules
+    if 'node_modules/' in file_path_lower:
+        # Check if it's a known polyfill or library
+        for pattern in WHITELIST_DATA.get("patterns", {}).get("polyfills", {}).get("patterns", []):
+            # Extract package name from pattern (e.g., "core-js" from "core-js/modules")
+            package_name = pattern.lower().split('/')[0]
+            if f'/{package_name}/' in file_path_lower:
+                return True
+    
+    # Check for UMD wrapper patterns
+    for pattern in WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", []):
+        if pattern in content[:1000]:  # Check first 1KB
+            return True
+    
+    # Check for webpack patterns
+    for pattern in WHITELIST_DATA.get("patterns", {}).get("webpack", {}).get("patterns", []):
+        if pattern in content[:1000]:
+            return True
+            
+    # Check for minified library signatures
+    if file_path_lower.endswith('.min.js'):
+        for pattern in WHITELIST_DATA.get("patterns", {}).get("minified_libraries", {}).get("patterns", []):
+            if pattern in content[:500]:
+                return True
+    
+    return False
 
 # ---------------------------------------------------------------------------
 # Rule definition
@@ -1283,6 +1330,12 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
     Useful when scan content is submitted directly rather than from disk.
     """
     findings: list[Finding] = []
+    
+    # Check if file contains whitelisted patterns
+    if _is_whitelisted_pattern(content, filename):
+        # Still check provenance (filenames) but skip content scanning
+        findings.extend(_scan_filename(filename, PROVENANCE_RULES))
+        return findings
 
     findings.extend(_scan_filename(filename, PROVENANCE_RULES))
     findings.extend(_scan_content(content, filename, ALL_RULES))
