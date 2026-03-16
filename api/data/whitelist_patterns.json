@@ -1,0 +1,52 @@
+{
+  "description": "Common safe patterns that should not trigger security warnings",
+  "patterns": {
+    "umd_wrappers": {
+      "description": "Universal Module Definition patterns",
+      "patterns": [
+        "typeof exports === 'object' && typeof module !== 'undefined'",
+        "typeof define === 'function' && define.amd",
+        "Function('return this')()",
+        "function (global, factory)",
+        "(function (root, factory)"
+      ]
+    },
+    "polyfills": {
+      "description": "Common polyfill libraries",
+      "patterns": [
+        "core-js/modules",
+        "@babel/runtime",
+        "regenerator-runtime",
+        "tslib",
+        "polyfill-library",
+        "es5-shim",
+        "es6-shim"
+      ]
+    },
+    "webpack": {
+      "description": "Webpack bundler patterns",
+      "patterns": [
+        "webpackJsonp",
+        "__webpack_require__",
+        "__webpack_modules__",
+        "__webpack_exports__",
+        "webpackChunkName",
+        "webpack/bootstrap",
+        "!function(modules){",
+        "/******/ (function(modules)"
+      ]
+    },
+    "minified_libraries": {
+      "description": "Common minified library signatures",
+      "patterns": [
+        "/*! jQuery",
+        "/*! React",
+        "/*! Vue",
+        "/*! Angular",
+        "/*! Lodash",
+        "!function(e,t){\"use strict\"",
+        "!function(e,t){\"object\"==typeof exports"
+      ]
+    }
+  }
+}

@@ -39,6 +39,14 @@ class Severity(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
+class Confidence(str, enum.Enum):
+    """Confidence level for findings - how certain we are this is a real issue."""
+
+    HIGH = "HIGH"  # Very likely a real security issue
+    MEDIUM = "MEDIUM"  # Possibly a security issue, needs review
+    LOW = "LOW"  # Likely a false positive
+
+
 class ScanPhase(str, enum.Enum):
     """The nine scan phases: original six + AI security extensions."""
 
@@ -75,6 +83,10 @@ class Finding(BaseModel):
     phase: ScanPhase = Field(..., description="Scan phase that produced this finding")
     rule: str = Field(..., description="Rule identifier (e.g. 'npm-postinstall')")
     severity: Severity = Field(..., description="Severity of the finding")
+    confidence: Confidence = Field(
+        Confidence.HIGH,
+        description="Confidence level - how certain this is a real issue",
+    )
     file: str = Field(..., description="Relative path to the file")
     line: int = Field(0, description="Line number where the finding occurs")
     snippet: str = Field("", description="Code snippet around the finding")

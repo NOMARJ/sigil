@@ -16,6 +16,7 @@ produces ``Finding`` objects.
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -27,7 +28,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from api.models import Finding, ScanPhase, Severity
+    from api.models import Finding, ScanPhase, Severity, Confidence
 except ImportError:
     import importlib.util
 
@@ -38,10 +39,71 @@ except ImportError:
     Finding = models_module.Finding
     ScanPhase = models_module.ScanPhase
     Severity = models_module.Severity
+    Confidence = models_module.Confidence
 try:
     from api.services.explanations import get_explanation
 except ImportError:
     from services.explanations import get_explanation
+
+
+# ---------------------------------------------------------------------------
+# Whitelist patterns
+# ---------------------------------------------------------------------------
+
+
+def _load_whitelist_patterns() -> dict:
+    """Load whitelist patterns from JSON file."""
+    whitelist_path = Path(__file__).parent.parent / "data" / "whitelist_patterns.json"
+    try:
+        with open(whitelist_path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"patterns": {}}
+
+
+WHITELIST_DATA = _load_whitelist_patterns()
+
+
+def _is_whitelisted_pattern(content: str, file_path: str) -> bool:
+    """Check if the file contains known safe patterns that should be ignored."""
+    file_path_lower = file_path.lower()
+
+    # Skip checks for vendor/minified files in node_modules
+    if "node_modules/" in file_path_lower:
+        # Check if it's a known polyfill or library
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {}).get("polyfills", {}).get("patterns", [])
+        ):
+            # Extract package name from pattern (e.g., "core-js" from "core-js/modules")
+            package_name = pattern.lower().split("/")[0]
+            if f"/{package_name}/" in file_path_lower:
+                return True
+
+    # Check for UMD wrapper patterns
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", [])
+    ):
+        if pattern in content[:1000]:  # Check first 1KB
+            return True
+
+    # Check for webpack patterns
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("webpack", {}).get("patterns", [])
+    ):
+        if pattern in content[:1000]:
+            return True
+
+    # Check for minified library signatures
+    if file_path_lower.endswith(".min.js"):
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {})
+            .get("minified_libraries", {})
+            .get("patterns", [])
+        ):
+            if pattern in content[:500]:
+                return True
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -857,6 +919,98 @@ def _is_http_request_safe(content: str, match_start: int) -> bool:
     return False
 
 
+def _is_method_call(content: str, match_start: int) -> bool:
+    """Check if the matched pattern is a method call (e.g., obj.exec) vs function call."""
+    # Look backwards from match position to check if there's a dot before it
+    if match_start > 0:
+        # Get the character immediately before the match
+        prev_char = content[match_start - 1]
+        if prev_char == ".":
+            return True
+    return False
+
+
+def _determine_confidence(
+    rule_id: str, file_path: str, severity: Severity
+) -> Confidence:
+    """Determine confidence level based on rule, file context, and severity."""
+    file_path_lower = file_path.lower()
+
+    # Low confidence for test files
+    if any(
+        test_indicator in file_path_lower
+        for test_indicator in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
+        return Confidence.LOW
+
+    # Low confidence for documentation
+    if any(
+        doc_indicator in file_path_lower
+        for doc_indicator in [
+            ".md",
+            ".rst",
+            ".txt",
+            "readme",
+            "doc/",
+            "/doc/",
+            "docs/",
+            "/docs/",
+        ]
+    ):
+        return Confidence.LOW
+
+    # Low confidence for vendor code
+    if "node_modules/" in file_path_lower:
+        return Confidence.LOW
+
+    # High confidence for critical severity in production code
+    if severity == Severity.CRITICAL:
+        return Confidence.HIGH
+
+    # Medium confidence for high severity in production code
+    if severity == Severity.HIGH:
+        return Confidence.MEDIUM
+
+    # Default to MEDIUM for production code
+    return Confidence.MEDIUM
+
+
+def _get_file_context(file_path: str) -> str:
+    """Determine the context of a file (production, test, doc, vendor)."""
+    file_path_lower = file_path.lower()
+
+    if "node_modules/" in file_path_lower:
+        return "vendor"
+    elif any(
+        test in file_path_lower
+        for test in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
+        return "test"
+    elif any(
+        doc in file_path_lower
+        for doc in [".md", ".rst", "readme", "doc/", "/doc/", "docs/", "/docs/"]
+    ):
+        return "documentation"
+    else:
+        return "production"
+
+
 def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Severity:
     """Adjust severity based on file context (documentation, tests, etc.)."""
     file_path_lower = file_path.lower()
@@ -909,6 +1063,15 @@ class PhaseResult:
 def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
+        # Skip execution patterns in TypeScript definition files
+        if file_path.endswith(".d.ts") and rule.id in [
+            "code-eval",
+            "code-exec-dangerous",
+            "code-exec-child-process",
+            "install-pip-setup-exec",
+        ]:
+            continue
+
         for match in rule.pattern.finditer(content):
             # Context-aware filtering for specific rules
             if rule.id == "code-eval" and _is_eval_in_safe_context(
@@ -937,10 +1100,20 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 rule.severity, file_path
             )
 
+            # Determine confidence level
+            confidence = _determine_confidence(rule.id, file_path, adjusted_severity)
+
+            # Check if it's a method call and adjust confidence
+            if rule.id in ["code-exec-dangerous", "code-eval"] and _is_method_call(
+                content, match.start()
+            ):
+                confidence = Confidence.LOW
+
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=adjusted_severity,
+                confidence=confidence,
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],  # Cap snippet length
@@ -967,6 +1140,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-base64-nested-chain",
                 severity=Severity.CRITICAL,
+                confidence=Confidence.HIGH,  # Nested base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -990,6 +1164,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-hex-base64-chain",
                 severity=Severity.HIGH,
+                confidence=Confidence.HIGH,  # Hex+base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -1075,10 +1250,12 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     name = Path(file_path).name
     for rule in rules:
         if rule.pattern.search(name):
+            confidence = _determine_confidence(rule.id, file_path, rule.severity)
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=rule.severity,
+                confidence=confidence,
                 file=file_path,
                 line=0,
                 snippet=name,
@@ -1137,6 +1314,12 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
     Useful when scan content is submitted directly rather than from disk.
     """
     findings: list[Finding] = []
+
+    # Check if file contains whitelisted patterns
+    if _is_whitelisted_pattern(content, filename):
+        # Still check provenance (filenames) but skip content scanning
+        findings.extend(_scan_filename(filename, PROVENANCE_RULES))
+        return findings
 
     findings.extend(_scan_filename(filename, PROVENANCE_RULES))
     findings.extend(_scan_content(content, filename, ALL_RULES))
