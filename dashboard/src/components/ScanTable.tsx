@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Scan } from "@/lib/types";
 import VerdictBadge from "./VerdictBadge";
+import ScanBadge from "./ScanBadge";
 
 interface ScanTableProps {
   scans: Scan[];
@@ -53,6 +54,7 @@ export default function ScanTable({ scans }: ScanTableProps) {
           <tr className="border-b border-gray-800 text-gray-500 text-left">
             <th className="pb-3 pr-4 font-medium">Target</th>
             <th className="pb-3 pr-4 font-medium">Type</th>
+            <th className="pb-3 pr-4 font-medium">Scanner</th>
             <th className="pb-3 pr-4 font-medium">Verdict</th>
             <th className="pb-3 pr-4 font-medium">Score</th>
             <th className="pb-3 pr-4 font-medium">Findings</th>
@@ -77,6 +79,13 @@ export default function ScanTable({ scans }: ScanTableProps) {
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-gray-300 border border-gray-700">
                   {targetTypeLabel(scan.target_type)}
                 </span>
+              </td>
+              <td className="py-3 pr-4">
+                <ScanBadge 
+                  scannerVersion={scan.scanner_version} 
+                  rescannedAt={scan.rescanned_at}
+                  size="sm" 
+                />
               </td>
               <td className="py-3 pr-4">
                 <VerdictBadge verdict={scan.verdict} size="sm" />

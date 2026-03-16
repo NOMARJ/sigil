@@ -22,7 +22,7 @@ export type ScanPhase =
 /** Source from which a package was scanned. */
 export type ScanSource = "pip" | "npm" | "git" | "local";
 
-/** An individual finding produced during a scan phase. */
+/** An individual finding produced during during a scan phase. */
 export interface Finding {
   id: string;
   scan_id: string;
@@ -34,6 +34,7 @@ export interface Finding {
   line_number: number | null;
   pattern_matched: string;
   weight: number;
+  confidence?: "HIGH" | "MEDIUM" | "LOW";
 }
 
 /** A completed (or in-progress) scan record.
@@ -50,6 +51,14 @@ export interface Scan {
   threat_hits: number;
   metadata: Record<string, unknown>;
   created_at: string;
+  scanner_version?: string;
+  confidence_summary?: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+  original_score?: number;
+  rescanned_at?: string;
 }
 
 /** Known-malicious package entry from the threat intelligence feed. */
