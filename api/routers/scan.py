@@ -51,11 +51,11 @@ from api.services.threat_intel import (
 from api.services.scanner_v2 import (
     calculate_confidence_summary,
     get_current_scanner_version,
-    is_scanner_v2_enabled
+    is_scanner_v2_enabled,
 )
 from api.services.scanner_selector import (
     get_scanner_capabilities,
-    validate_scanner_configuration
+    validate_scanner_configuration,
 )
 # from api.services.forge_analytics import track_forge_event  # Forge archived
 # from api.models import ForgeEventType  # Forge archived
@@ -181,16 +181,16 @@ async def _submit_scan_impl(
 
     # --- 3. Build response --------------------------------------------------
     now = datetime.utcnow()
-    
+
     # Determine if we should use v2 format
     if use_v2 is None:
         use_v2 = is_scanner_v2_enabled()
-    
+
     if use_v2:
         # Build v2 response with enhanced tracking
         confidence_summary = calculate_confidence_summary(request.findings)
         scanner_version = get_current_scanner_version()
-        
+
         response = ScanResponseV2(
             scan_id=scan_id,
             scanner_version=scanner_version,
@@ -207,9 +207,9 @@ async def _submit_scan_impl(
                 "scanner_features": {
                     "false_positive_reduction": True,
                     "context_aware_analysis": True,
-                    "confidence_scoring": True
+                    "confidence_scoring": True,
                 }
-            }
+            },
         )
     else:
         # Build legacy v1 response
@@ -241,22 +241,26 @@ async def _submit_scan_impl(
             "metadata_json": request.metadata,
             "created_at": now.isoformat(),
         }
-        
+
         # Add v2 fields if using scanner v2
-        if use_v2 and hasattr(response, 'scanner_version'):
+        if use_v2 and hasattr(response, "scanner_version"):
             v2_response = response  # type: ScanResponseV2
-            row_data.update({
-                "scanner_version": v2_response.scanner_version,
-                "confidence_level": v2_response.confidence_summary.average_confidence,
-                "context_weight": v2_response.context_weight,
-            })
+            row_data.update(
+                {
+                    "scanner_version": v2_response.scanner_version,
+                    "confidence_level": v2_response.confidence_summary.average_confidence,
+                    "context_weight": v2_response.context_weight,
+                }
+            )
         else:
             # Default values for v1 scans
-            row_data.update({
-                "scanner_version": "1.0.0",
-                "confidence_level": None,
-                "context_weight": 1.0,
-            })
+            row_data.update(
+                {
+                    "scanner_version": "1.0.0",
+                    "confidence_level": None,
+                    "context_weight": 1.0,
+                }
+            )
         if user_id:
             row_data["user_id"] = user_id
         await db.store_scan(row_data)
@@ -398,26 +402,26 @@ async def submit_scan_v2(
 ) -> ScanResponseV2:
     """
     Submit scan results with Scanner v2 enhancements.
-    
+
     This endpoint provides:
-    - Scanner version tracking 
+    - Scanner version tracking
     - Confidence summary with false positive estimates
     - Enhanced metadata with feature flags
     - Backward compatible with existing scan format
-    
+
     Part of the Scanner v2 migration for progressive enhancement.
     """
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
     response = await _submit_scan_impl(request, user_id=current_user.id, use_v2=True)
-    
+
     # Ensure we return ScanResponseV2 type
     if not isinstance(response, ScanResponseV2):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create v2 response format"
+            detail="Failed to create v2 response format",
         )
-    
+
     return response
 
 
@@ -624,13 +628,13 @@ async def get_scanner_status(
 ) -> dict[str, Any]:
     """
     Return current scanner configuration, capabilities, and validation status.
-    
+
     Useful for debugging scanner version issues and understanding
     which features are available in the current configuration.
     """
     validation_result = validate_scanner_configuration()
     capabilities = get_scanner_capabilities()
-    
+
     return {
         "configuration": {
             "active_version": get_current_scanner_version(),
@@ -647,7 +651,7 @@ async def get_scanner_status(
         "environment": {
             "scanner_version_env": get_current_scanner_version(),
             "fallback_available": validation_result["capabilities"]["v1_enabled"],
-        }
+        },
     }
 
 

@@ -1,6 +1,7 @@
 """
 Scanner v2 migration monitoring endpoints for admin dashboard
 """
+
 from fastapi import APIRouter, Depends
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -46,10 +47,10 @@ class DailyProgress(BaseModel):
 @router.get("/status", response_model=MigrationStats)
 async def get_migration_status(
     conn: asyncpg.Connection = Depends(get_db_connection),
-    _: dict = Depends(require_admin)
+    _: dict = Depends(require_admin),
 ):
     """Get overall migration status and progress"""
-    
+
     # Get scan counts by version
     stats = await conn.fetchrow("""
         SELECT 
@@ -64,11 +65,11 @@ async def get_migration_status(
         FROM scans
         WHERE created_at >= NOW() - INTERVAL '90 days'
     """)
-    
-    total = stats['total_scans']
-    v2_count = stats['v2_scans']
+
+    total = stats["total_scans"]
+    v2_count = stats["v2_scans"]
     migration_pct = (v2_count / total * 100) if total > 0 else 0
-    
+
     # Estimate completion based on migration rate
     completion_date = None
     if v2_count > 0:
@@ -77,33 +78,36 @@ async def get_migration_status(
             FROM scans
             WHERE scanner_version = '2.0.0' AND rescanned_at IS NOT NULL
         """)
-        
+
         if daily_rate and daily_rate > 0:
-            remaining = stats['v1_scans']
+            remaining = stats["v1_scans"]
             days_remaining = int(remaining / daily_rate)
-            completion_date = (datetime.now() + timedelta(days=days_remaining)).strftime("%Y-%m-%d")
-    
+            completion_date = (
+                datetime.now() + timedelta(days=days_remaining)
+            ).strftime("%Y-%m-%d")
+
     return MigrationStats(
         total_scans=total,
-        v1_scans=stats['v1_scans'],
+        v1_scans=stats["v1_scans"],
         v2_scans=v2_count,
         migration_percentage=round(migration_pct, 2),
-        avg_score_reduction=round(stats['avg_score_reduction'] or 0, 2),
-        estimated_completion_date=completion_date
+        avg_score_reduction=round(stats["avg_score_reduction"] or 0, 2),
+        estimated_completion_date=completion_date,
     )
 
 
 @router.get("/false-positives", response_model=List[FalsePositiveComparison])
 async def compare_false_positive_rates(
     conn: asyncpg.Connection = Depends(get_db_connection),
-    _: dict = Depends(require_admin)
+    _: dict = Depends(require_admin),
 ):
     """Compare false positive rates between v1 and v2"""
-    
+
     results = []
-    
-    for version in ['1.0.0', '2.0.0']:
-        stats = await conn.fetchrow("""
+
+    for version in ["1.0.0", "2.0.0"]:
+        stats = await conn.fetchrow(
+            """
             SELECT 
                 COUNT(DISTINCT f.id) as total_findings,
                 COUNT(DISTINCT f.id) FILTER (WHERE f.severity = 'info' OR f.confidence = 'LOW') as false_positives,
@@ -117,19 +121,23 @@ async def compare_false_positive_rates(
             JOIN findings f ON s.id = f.scan_id
             WHERE (s.scanner_version = $1) OR ($1 = '1.0.0' AND s.scanner_version IS NULL)
             AND s.created_at >= NOW() - INTERVAL '30 days'
-        """, version)
-        
-        total = stats['total_findings']
-        fps = stats['false_positives'] or 0
-        
-        results.append(FalsePositiveComparison(
-            scanner_version=version,
-            total_findings=total,
-            false_positives=fps,
-            false_positive_rate=round((fps / total * 100) if total > 0 else 0, 2),
-            avg_confidence=round(stats['avg_confidence'] or 0.5, 2)
-        ))
-    
+        """,
+            version,
+        )
+
+        total = stats["total_findings"]
+        fps = stats["false_positives"] or 0
+
+        results.append(
+            FalsePositiveComparison(
+                scanner_version=version,
+                total_findings=total,
+                false_positives=fps,
+                false_positive_rate=round((fps / total * 100) if total > 0 else 0, 2),
+                avg_confidence=round(stats["avg_confidence"] or 0.5, 2),
+            )
+        )
+
     return results
 
 
@@ -137,11 +145,12 @@ async def compare_false_positive_rates(
 async def get_pending_rescans(
     limit: int = 20,
     conn: asyncpg.Connection = Depends(get_db_connection),
-    _: dict = Depends(require_admin)
+    _: dict = Depends(require_admin),
 ):
     """Get list of high-priority packages pending rescan"""
-    
-    rows = await conn.fetch("""
+
+    rows = await conn.fetch(
+        """
         SELECT 
             package_name,
             package_version,
@@ -158,15 +167,17 @@ async def get_pending_rescans(
         AND risk_score >= 30
         ORDER BY risk_score DESC, created_at ASC
         LIMIT $1
-    """, limit)
-    
+    """,
+        limit,
+    )
+
     return [
         PendingRescan(
-            package_name=row['package_name'],
-            package_version=row['package_version'],
-            current_score=row['current_score'],
-            scan_date=row['scan_date'].strftime("%Y-%m-%d"),
-            priority=row['priority']
+            package_name=row["package_name"],
+            package_version=row["package_version"],
+            current_score=row["current_score"],
+            scan_date=row["scan_date"].strftime("%Y-%m-%d"),
+            priority=row["priority"],
         )
         for row in rows
     ]
@@ -176,11 +187,12 @@ async def get_pending_rescans(
 async def get_daily_migration_progress(
     days: int = 30,
     conn: asyncpg.Connection = Depends(get_db_connection),
-    _: dict = Depends(require_admin)
+    _: dict = Depends(require_admin),
 ):
     """Get daily migration progress for chart visualization"""
-    
-    rows = await conn.fetch("""
+
+    rows = await conn.fetch(
+        """
         WITH daily_counts AS (
             SELECT 
                 DATE(rescanned_at) as migration_date,
@@ -207,13 +219,15 @@ async def get_daily_migration_progress(
             ROUND((rt.cumulative_v2::FLOAT / ts.total) * 100, 2) as cumulative_percentage
         FROM running_total rt, total_scans ts
         ORDER BY rt.migration_date
-    """ % days)
-    
+    """
+        % days
+    )
+
     return [
         DailyProgress(
-            date=row['date'],
-            v2_scans=row['v2_scans'],
-            cumulative_percentage=row['cumulative_percentage']
+            date=row["date"],
+            v2_scans=row["v2_scans"],
+            cumulative_percentage=row["cumulative_percentage"],
         )
         for row in rows
     ]
@@ -222,10 +236,10 @@ async def get_daily_migration_progress(
 @router.post("/record-progress")
 async def record_migration_progress(
     conn: asyncpg.Connection = Depends(get_db_connection),
-    _: dict = Depends(require_admin)
+    _: dict = Depends(require_admin),
 ):
     """Record daily migration progress snapshot"""
-    
+
     await conn.execute("""
         INSERT INTO scanner_migration_progress (
             total_scans, v1_scans, v2_scans, avg_score_reduction, false_positive_rate
@@ -245,5 +259,5 @@ async def record_migration_progress(
         LEFT JOIN findings f ON s.id = f.scan_id
         WHERE s.created_at >= NOW() - INTERVAL '30 days'
     """)
-    
+
     return {"message": "Migration progress recorded successfully"}
