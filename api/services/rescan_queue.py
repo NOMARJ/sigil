@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
+from typing import List, Dict, Any
 from dataclasses import dataclass
 
 from api.database import db
@@ -298,7 +298,7 @@ async def main():
         print(f"  v2 packages: {status['migration_progress']['v2_packages']}")
         print(f"  total packages: {status['migration_progress']['total_packages']}")
         print()
-        print(f"Recent Activity:")
+        print("Recent Activity:")
         print(f"  Rescans in last 24h: {status['recent_activity']['rescans_last_24h']}")
         print(f"  Current hourly rate: {status['recent_activity']['hourly_rate']:.1f}/hour")
         print(f"  Max hourly rate: {status['recent_activity']['max_hourly_rate']}/hour")

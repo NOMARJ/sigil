@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from api.database import db
 from api.rate_limit import RateLimiter
 from api.routers.auth import get_current_user_unified, UserResponse
-from api.services.scoring import compute_verdict, score_to_verdict
+from api.services.scoring import compute_verdict
 from api.services.scanner_v2 import (
     calculate_confidence_summary,
     get_current_scanner_version

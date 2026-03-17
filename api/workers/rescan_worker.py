@@ -10,13 +10,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from api.database import db
 from api.services.rescan_queue import RescanQueue, RescanCandidate
-from api.services.scanner import scan_directory
-from api.services.scoring import compute_verdict
-from api.services.scanner_v2 import calculate_confidence_summary, get_current_scanner_version
+from api.services.scanner_v2 import get_current_scanner_version
 
 logger = logging.getLogger(__name__)
 

@@ -12,10 +12,8 @@ Only use when explicitly requested via SCANNER_VERSION=1.0.0.
 from __future__ import annotations
 
 import re
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
 
 from api.models import Finding, ScanPhase, Severity, Confidence
 

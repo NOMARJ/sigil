@@ -1,8 +1,8 @@
 """
 Scanner v2 migration monitoring endpoints for admin dashboard
 """
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, List, Optional
+from fastapi import APIRouter, Depends
+from typing import List, Optional
 from datetime import datetime, timedelta
 import asyncpg
 from pydantic import BaseModel

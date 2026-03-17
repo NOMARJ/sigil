@@ -147,7 +147,7 @@ def validate_scanner_configuration() -> Dict[str, Any]:
     # Check v2 availability
     if active_version.startswith("2."):
         try:
-            from api.services.scanner_v2 import calculate_confidence_summary
+            from api.services.scanner_v2 import calculate_confidence_summary  # noqa: F401
             # Test v2 features
         except ImportError:
             issues.append("Scanner v2 requested but v2 modules not available")
@@ -155,7 +155,7 @@ def validate_scanner_configuration() -> Dict[str, Any]:
     # Check v1 fallback
     if is_scanner_v1_enabled():
         try:
-            from api.services.scanner_v1 import scan_directory_v1
+            from api.services.scanner_v1 import scan_directory_v1  # noqa: F401
         except ImportError:
             warnings.append("Scanner v1 fallback enabled but v1 module not available")
     

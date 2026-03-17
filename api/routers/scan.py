@@ -39,7 +39,7 @@ from api.models import (
     ScanRequest,
     ScanResponse,
 )
-from api.schemas.scan import ScanResponseV2, ConfidenceSummary
+from api.schemas.scan import ScanResponseV2
 from api.routers.auth import get_current_user_unified, UserResponse
 from api.scanner.scanner_engine import scanner_engine
 from api.services.scoring import compute_verdict
