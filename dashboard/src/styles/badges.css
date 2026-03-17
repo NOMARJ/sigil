@@ -1,0 +1,45 @@
+/* Scanner Version Badges */
+.scanner-badge-enhanced {
+  @apply inline-flex items-center gap-1 rounded-full font-medium bg-green-500/10 text-green-400 border border-green-500/20;
+}
+
+.scanner-badge-legacy {
+  @apply inline-flex items-center gap-1 rounded-full font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20;
+}
+
+.scanner-badge-updated {
+  @apply inline-flex items-center gap-1 rounded-full font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20;
+}
+
+.scanner-badge-default {
+  @apply inline-flex items-center gap-1 rounded-full font-medium bg-gray-500/10 text-gray-400 border border-gray-500/20;
+}
+
+.scanner-badge-dot-enhanced {
+  @apply w-1.5 h-1.5 bg-green-400 rounded-full;
+}
+
+.scanner-badge-dot-legacy {
+  @apply w-1.5 h-1.5 bg-yellow-400 rounded-full;
+}
+
+.scanner-badge-dot-updated {
+  @apply w-1.5 h-1.5 bg-blue-400 rounded-full;
+}
+
+.scanner-badge-dot-default {
+  @apply w-1.5 h-1.5 bg-gray-400 rounded-full;
+}
+
+/* Size variants */
+.scanner-badge-sm {
+  @apply px-1.5 py-0.5 text-xs;
+}
+
+.scanner-badge-md {
+  @apply px-2 py-1 text-xs;
+}
+
+.scanner-badge-lg {
+  @apply px-3 py-1.5 text-sm;
+}

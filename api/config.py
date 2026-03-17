@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     # --- Threat Intel ----------------------------------------------------------
     threat_intel_ttl: int = 3600  # Cache TTL in seconds
 
+    # --- Scanner Configuration -------------------------------------------------
+    scanner_version: str = "2.0.0"  # Scanner version to use (1.0.0 or 2.0.0)
+    scanner_v1_enabled: bool = True  # Allow fallback to v1 scanner
+    scanner_v2_features: bool = True  # Enable v2 features (confidence scoring, etc.)
+
     # --- SMTP (optional — for email alert notifications) -----------------------
     smtp_host: Union[str, None] = None
     smtp_port: int = 587
