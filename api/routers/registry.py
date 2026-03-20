@@ -195,28 +195,58 @@ async def search_registry(
     per_page: int = Query(20, ge=1, le=100),
 ) -> RegistrySearchResponse:
     """Search the public scan database. Results are ordered by scan date."""
-    filters: dict[str, Any] = {}
-    if ecosystem:
-        filters["ecosystem"] = ecosystem
-    if verdict:
-        filters["verdict"] = verdict
+    # Push all filtering into SQL for performance
+    if db._pool:
+        conditions = ["verdict != 'ERROR'"]
+        params: list[Any] = []
 
-    rows = await db.select(TABLE, filters if filters else None, limit=1000)
+        if q:
+            conditions.append("LOWER(package_name) LIKE ?")
+            params.append(f"%{q.lower()}%")
+        if ecosystem:
+            conditions.append("ecosystem = ?")
+            params.append(ecosystem)
+        if verdict:
+            conditions.append("verdict = ?")
+            params.append(verdict)
 
-    # Exclude failed scans — ERROR verdicts have no meaningful results
-    rows = [r for r in rows if r.get("verdict") != "ERROR"]
+        where = " AND ".join(conditions)
+        offset = (page - 1) * per_page
 
-    if q:
-        q_lower = q.lower()
-        rows = [r for r in rows if q_lower in r.get("package_name", "").lower()]
+        # Fetch one extra row to detect if there are more results
+        # This avoids an expensive COUNT(*) over the full table
+        fetch_limit = per_page + 1
+        data_sql = (
+            f"SELECT * FROM {TABLE} WHERE {where} "
+            f"ORDER BY scanned_at DESC "
+            f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY"
+        )
+        rows = await db.execute_raw_sql(data_sql, tuple(params))
 
-    rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
-    total = len(rows)
-    start = (page - 1) * per_page
-    page_rows = rows[start : start + per_page]
+        has_more = len(rows) > per_page
+        if has_more:
+            rows = rows[:per_page]
+        # Estimate total: if on page 1 and has_more, report offset + fetched + 1
+        # This gives the frontend enough to show pagination without a full count
+        total = offset + len(rows) + (1 if has_more else 0)
+    else:
+        # In-memory fallback
+        rows = list(db._memory_store.get(TABLE, {}).values())
+        rows = [r for r in rows if r.get("verdict") != "ERROR"]
+        if q:
+            q_lower = q.lower()
+            rows = [r for r in rows if q_lower in r.get("package_name", "").lower()]
+        if ecosystem:
+            rows = [r for r in rows if r.get("ecosystem") == ecosystem]
+        if verdict:
+            rows = [r for r in rows if r.get("verdict") == verdict]
+        rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
+        total = len(rows)
+        start = (page - 1) * per_page
+        rows = rows[start : start + per_page]
 
     return RegistrySearchResponse(
-        items=[_row_to_summary(r) for r in page_rows],
+        items=[_row_to_summary(r) for r in rows],
         total=total,
         page=page,
         per_page=per_page,
