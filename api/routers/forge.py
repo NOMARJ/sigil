@@ -7,12 +7,13 @@ Supports both human and agent consumption.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal, Optional, List
 
@@ -996,6 +997,7 @@ async def browse_category(
                 capability_sql = f"SELECT * FROM forge_capabilities WHERE classification_id IN ({placeholders})"
                 async with db._pool.acquire() as conn:
                     cursor = await conn.cursor()
+                    cursor.timeout = 30
                     await cursor.execute(capability_sql, tuple(classification_ids))
                     capability_rows = await cursor.fetchall()
                     capability_rows = [
@@ -1155,6 +1157,7 @@ async def get_tool_matches(
 
             async with db._pool.acquire() as conn:
                 cursor = await conn.cursor()
+                cursor.timeout = 30
                 await cursor.execute(
                     match_sql + f" OFFSET 0 ROWS FETCH NEXT {limit} ROWS ONLY",
                     (classification_id,),
@@ -1220,6 +1223,7 @@ async def get_tool_matches(
             capability_sql = f"SELECT * FROM forge_capabilities WHERE classification_id IN ({placeholders})"
             async with db._pool.acquire() as conn:
                 cursor = await conn.cursor()
+                cursor.timeout = 30
                 await cursor.execute(capability_sql, tuple(all_classification_ids))
                 capability_rows = await cursor.fetchall()
                 capability_rows = [db._row_to_dict(cursor, r) for r in capability_rows]
@@ -1369,70 +1373,80 @@ async def get_forge_stats():
     distribution so the frontend can display them without extra requests.
     """
 
+    # Category mapping to ensure snake_case
+    category_mapping = {
+        "mcp": "api_integrations",
+        "ml": "ai_llm_tools",
+        "general": "code_tools",
+        "skills": "code_tools",
+        "security": "security_tools",
+        "ai-agents": "ai_llm_tools",
+        "web": "api_integrations",
+        "data": "data_pipeline",
+        "llm-tools": "ai_llm_tools",
+        "crypto": "security_tools",
+        "database": "database_connectors",
+        "devops": "devops_tools",
+        "testing": "testing_tools",
+        "monitoring": "monitoring",
+        "communication": "communication",
+        "search": "search_tools",
+        "file-system": "file_system_tools",
+    }
+
     try:
-        # Count tools by ecosystem
-        all_classifications = await db.select("forge_classification", {})
+        if not db._pool:
+            raise HTTPException(status_code=503, detail="Database unavailable")
 
-        ecosystem_counts: dict[str, int] = {}
-        category_counts: dict[str, int] = {}
-        total_tools = len(all_classifications)
+        async with db._pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.timeout = 30
 
-        # Category mapping to ensure snake_case
-        category_mapping = {
-            "mcp": "api_integrations",
-            "ml": "ai_llm_tools",
-            "general": "code_tools",
-            "skills": "code_tools",
-            "security": "security_tools",
-            "ai-agents": "ai_llm_tools",
-            "web": "api_integrations",
-            "data": "data_pipeline",
-            "llm-tools": "ai_llm_tools",
-            "crypto": "security_tools",
-            "database": "database_connectors",
-            "devops": "devops_tools",
-            "testing": "testing_tools",
-            "monitoring": "monitoring",
-            "communication": "communication",
-            "search": "search_tools",
-            "file-system": "file_system_tools",
-        }
+                # All aggregations via SQL to avoid loading tables into memory
 
-        for classification in all_classifications:
-            ecosystem = classification["ecosystem"]
-            category = classification["category"]
+                # 1. Classification ecosystem/category counts
+                await cursor.execute("""
+                    SELECT ecosystem, category, COUNT(*) as cnt
+                    FROM forge_classification
+                    GROUP BY ecosystem, category
+                """)
+                ecosystem_counts: dict[str, int] = {}
+                category_counts: dict[str, int] = {}
+                total_tools = 0
+                async for row in cursor:
+                    eco, cat, cnt = row[0], row[1], row[2]
+                    ecosystem_counts[eco] = ecosystem_counts.get(eco, 0) + cnt
+                    mapped = category_mapping.get(
+                        cat.lower(), cat.replace("-", "_").replace(" ", "_").lower()
+                    )
+                    category_counts[mapped] = category_counts.get(mapped, 0) + cnt
+                    total_tools += cnt
 
-            # Map category to snake_case
-            mapped_category = category_mapping.get(
-                category.lower(), category.replace("-", "_").replace(" ", "_").lower()
-            )
+                # 2. Total matches count
+                await cursor.execute("SELECT COUNT(*) FROM forge_matches")
+                row = await cursor.fetchone()
+                total_matches = row[0] if row else 0
 
-            ecosystem_counts[ecosystem] = ecosystem_counts.get(ecosystem, 0) + 1
-            category_counts[mapped_category] = (
-                category_counts.get(mapped_category, 0) + 1
-            )
-
-        # Count total matches
-        matches = await db.select("forge_matches", {})
-        total_matches = len(matches)
-
-        # Compute trust score distribution from actual risk_score in public_scans
-        # trust_score = 100 - risk_score; buckets: high ≥75, medium ≥40, low ≥15, very_low <15
-        trust_buckets = {"high": 0, "medium": 0, "low": 0, "very_low": 0}
-        all_scans = await db.select("public_scans", limit=10000)
-        for scan in all_scans:
-            risk_score = scan.get("risk_score", 0) or 0
-            trust_score = max(0, min(100, 100 - risk_score))
-            if trust_score >= 75:
-                trust_buckets["high"] += 1
-            elif trust_score >= 40:
-                trust_buckets["medium"] += 1
-            elif trust_score >= 15:
-                trust_buckets["low"] += 1
-            else:
-                trust_buckets["very_low"] += 1
-
-        trust_distribution = trust_buckets
+                # 3. Trust score distribution via SQL
+                # trust_score = 100 - risk_score
+                # high: trust >= 75 (risk <= 25), medium: 40-74 (risk 26-60),
+                # low: 15-39 (risk 61-85), very_low: < 15 (risk > 85)
+                await cursor.execute("""
+                    SELECT
+                        SUM(CASE WHEN COALESCE(risk_score, 0) <= 25 THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN COALESCE(risk_score, 0) > 25 AND COALESCE(risk_score, 0) <= 60 THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN COALESCE(risk_score, 0) > 60 AND COALESCE(risk_score, 0) <= 85 THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN COALESCE(risk_score, 0) > 85 THEN 1 ELSE 0 END)
+                    FROM public_scans
+                    WHERE verdict != 'ERROR'
+                """)
+                trust_row = await cursor.fetchone()
+                trust_distribution = {
+                    "high": trust_row[0] or 0,
+                    "medium": trust_row[1] or 0,
+                    "low": trust_row[2] or 0,
+                    "very_low": trust_row[3] or 0,
+                }
 
         # Derive ecosystem-specific counts
         mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
@@ -1462,9 +1476,11 @@ async def get_forge_stats():
             "trust_score_distribution": trust_distribution,
             "recent_scans": [],
             "top_categories": top_categories,
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Get stats failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -902,6 +902,18 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
         except Exception as e:
             logger.exception(f"Failed to update user tier and credits: {e}")
 
+    # Fire PostHog conversion event for funnel tracking
+    from api.services.posthog_service import posthog_service
+    posthog_service.capture(
+        distinct_id=user_id,
+        event="sigil_subscription",
+        properties={
+            "plan": plan,
+            "billing_interval": interval,
+            "stripe_customer_id": customer_id,
+        },
+    )
+
 
 async def _handle_subscription_updated(event: dict[str, Any]) -> None:
     """Process a subscription update event from Stripe."""
@@ -1080,6 +1092,18 @@ async def _handle_subscription_created(event: dict[str, Any]) -> None:
             logger.info(f"Activated user {user_id} with {plan} subscription")
         except Exception as e:
             logger.exception(f"Failed to activate user tier: {e}")
+
+        # Fire PostHog trial event for funnel tracking
+        if sub_status == "trialing":
+            from api.services.posthog_service import posthog_service
+            posthog_service.capture(
+                distinct_id=user_id,
+                event="sigil_trial_started",
+                properties={
+                    "plan": plan,
+                    "source": "stripe_subscription",
+                },
+            )
     else:
         logger.warning(
             f"Received subscription.created for unknown customer: {customer_id}"

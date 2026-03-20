@@ -2,6 +2,7 @@ fastapi>=0.109.0
 uvicorn>=0.27.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+posthog>=3.0.0
 httpx>=0.26.0
 aiohttp>=3.9.0
 jinja2>=3.1.0
@@ -17,6 +18,7 @@ anthropic>=0.40.0
 stripe>=7.0.0
 eval_type_backport>=0.3.0
 tenacity>=8.2.0
+resend>=2.0.0
 # --- Monitoring & Observability ---
 prometheus-client>=0.19.0
 opencensus-ext-azure>=1.1.13
