@@ -1,12 +1,12 @@
 {
   "version": 1,
   "$schema": "nomark-graph-v1",
-  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /nomark:memory save.",
-  "last_rebuilt": "2026-03-30T12:38:33.908519",
+  "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /nomark:memory save.",
+  "last_rebuilt": "2026-03-30T02:57:55.026Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
-      "title": "Scanner v2 \u2014 false positive reduction",
+      "title": "Scanner v2 — false positive reduction",
       "status": "DONE",
       "target": "Q1 2026"
     },
@@ -37,6 +37,643 @@
       "hash": "1ccaaf8",
       "message": "docs: Streamline CLAUDE.md and establish governance hierarchy",
       "date": "2026-03-30T12:35:52+10:00"
+    },
+    "commit:200d415": {
+      "type": "commit",
+      "hash": "200d415",
+      "message": "Initial release",
+      "date": "2026-02-20T08:18:14+10:00",
+      "files_changed": 0
+    },
+    "commit:4c8c0d2": {
+      "type": "commit",
+      "hash": "4c8c0d2",
+      "message": "Release v1.0.4 — Package Managers, Threat Intelligence, and Supabase Auth (#17)",
+      "date": "2026-02-21T16:07:29+10:00",
+      "files_changed": 80
+    },
+    "commit:3fc94da": {
+      "type": "commit",
+      "hash": "3fc94da",
+      "message": "Sigil pro (#18)",
+      "date": "2026-02-21T16:21:08+10:00",
+      "files_changed": 5
+    },
+    "commit:e6cb32f": {
+      "type": "commit",
+      "hash": "e6cb32f",
+      "message": "Fix/auth dependency injection (#19)",
+      "date": "2026-02-22T13:25:53+10:00",
+      "files_changed": 5
+    },
+    "commit:2384848": {
+      "type": "commit",
+      "hash": "2384848",
+      "message": "Sigil pro (#21)",
+      "date": "2026-02-23T07:13:27+10:00",
+      "files_changed": 2
+    },
+    "commit:368fe6b": {
+      "type": "commit",
+      "hash": "368fe6b",
+      "message": "feat: Add Claude Code plugin for Sigil Security (#20)",
+      "date": "2026-02-23T07:19:56+10:00",
+      "files_changed": 20
+    },
+    "commit:8b28d48": {
+      "type": "commit",
+      "hash": "8b28d48",
+      "message": "docs: Add Claude Code Security integration guide (#22)",
+      "date": "2026-02-23T08:11:49+10:00",
+      "files_changed": 2
+    },
+    "commit:e98441d": {
+      "type": "commit",
+      "hash": "e98441d",
+      "message": "Claude/sigil production review vf32 s (#23)",
+      "date": "2026-02-26T09:11:39+10:00",
+      "files_changed": 50
+    },
+    "commit:6eabd1b": {
+      "type": "commit",
+      "hash": "6eabd1b",
+      "message": "docs: Add AI Security Stack integration guide (Sigil + Aardvark + Claude Code Security) (#25)",
+      "date": "2026-02-26T09:20:43+10:00",
+      "files_changed": 2
+    },
+    "commit:8c0cc2f": {
+      "type": "commit",
+      "hash": "8c0cc2f",
+      "message": "feat: Add automated Azure deployment workflow (#27)",
+      "date": "2026-02-28T09:58:25+10:00",
+      "files_changed": 3
+    },
+    "commit:c7ad46a": {
+      "type": "commit",
+      "hash": "c7ad46a",
+      "message": "fix: Remove duplicate results variable declaration in clawhub_crawler (#26)",
+      "date": "2026-02-28T15:34:32+10:00",
+      "files_changed": 56
+    },
+    "commit:886ab76": {
+      "type": "commit",
+      "hash": "886ab76",
+      "message": "SBOM (#28)",
+      "date": "2026-03-01T20:30:16+10:00",
+      "files_changed": 97
+    },
+    "commit:9844128": {
+      "type": "commit",
+      "hash": "9844128",
+      "message": "chore: Replace Supabase environment variables with Auth0 placeholders… (#29)",
+      "date": "2026-03-02T09:25:09+10:00",
+      "files_changed": 25
+    },
+    "commit:356a200": {
+      "type": "commit",
+      "hash": "356a200",
+      "message": "fix: filter ERROR scans from public display and retry failed scans (#30)",
+      "date": "2026-03-02T20:51:26+10:00",
+      "files_changed": 5
+    },
+    "commit:cc24158": {
+      "type": "commit",
+      "hash": "cc24158",
+      "message": "Feature/skills mcps strategy (#31)",
+      "date": "2026-03-03T18:31:06+10:00",
+      "files_changed": 201
+    },
+    "commit:a3dce5f": {
+      "type": "commit",
+      "hash": "a3dce5f",
+      "message": "fix: Add missing /stacks and /feed.json endpoints for deployment validation (#32)",
+      "date": "2026-03-03T18:56:13+10:00",
+      "files_changed": 1
+    },
+    "commit:4f77908": {
+      "type": "commit",
+      "hash": "4f77908",
+      "message": "Fix/deployment validation endpoints (#33)",
+      "date": "2026-03-03T19:34:31+10:00",
+      "files_changed": 8
+    },
+    "commit:8cd750c": {
+      "type": "commit",
+      "hash": "8cd750c",
+      "message": "docs: Update AI agent integration guide and remove outdated deployment workflow (#34)",
+      "date": "2026-03-04T03:59:19+10:00",
+      "files_changed": 8
+    },
+    "commit:f2f892c": {
+      "type": "commit",
+      "hash": "f2f892c",
+      "message": "fix: Replace deprecated fetch_all/fetch_one methods with execute_raw_sql methods",
+      "date": "2026-03-04T04:12:27+10:00",
+      "files_changed": 1
+    },
+    "commit:10a4f4a": {
+      "type": "commit",
+      "hash": "10a4f4a",
+      "message": "fix: Update test mocks for new database method names",
+      "date": "2026-03-04T04:14:59+10:00",
+      "files_changed": 1
+    },
+    "commit:d4b0fe6": {
+      "type": "commit",
+      "hash": "d4b0fe6",
+      "message": "Merge pull request #35 from NOMARJ/fix/forge-database-methods",
+      "date": "2026-03-04T04:17:34+10:00",
+      "files_changed": 0
+    },
+    "commit:6e1f5f1": {
+      "type": "commit",
+      "hash": "6e1f5f1",
+      "message": "fix: correct Forge backend URL to use /api/forge/ path prefix (#36)",
+      "date": "2026-03-04T07:01:20+10:00",
+      "files_changed": 10
+    },
+    "commit:fb4409d": {
+      "type": "commit",
+      "hash": "fb4409d",
+      "message": "fix: Remove OUTPUT clauses to resolve MSSQL trigger conflicts",
+      "date": "2026-03-05T17:35:41+11:00",
+      "files_changed": 1
+    },
+    "commit:e17ed5c": {
+      "type": "commit",
+      "hash": "e17ed5c",
+      "message": "fix: Remove unused variables from database.py to pass linting",
+      "date": "2026-03-05T17:37:33+11:00",
+      "files_changed": 1
+    },
+    "commit:19a1164": {
+      "type": "commit",
+      "hash": "19a1164",
+      "message": "fix: Apply ruff formatting to database.py",
+      "date": "2026-03-05T17:38:52+11:00",
+      "files_changed": 1
+    },
+    "commit:8bd8e31": {
+      "type": "commit",
+      "hash": "8bd8e31",
+      "message": "Merge pull request #37 from NOMARJ/fix/mssql-output-triggers",
+      "date": "2026-03-05T19:26:06+10:00",
+      "files_changed": 0
+    },
+    "commit:1d2e33a": {
+      "type": "commit",
+      "hash": "1d2e33a",
+      "message": "fix: forge workers",
+      "date": "2026-03-05T19:43:05+10:00",
+      "files_changed": 10
+    },
+    "commit:ddce1d7": {
+      "type": "commit",
+      "hash": "ddce1d7",
+      "message": "fix: Add 30-second connection timeout to Azure SQL Database connection",
+      "date": "2026-03-05T20:21:00+10:00",
+      "files_changed": 9
+    },
+    "commit:eae1e13": {
+      "type": "commit",
+      "hash": "eae1e13",
+      "message": "Merge pull request #38 from NOMARJ/fix/mssql-output-triggers",
+      "date": "2026-03-05T20:23:44+10:00",
+      "files_changed": 0
+    },
+    "commit:f037460": {
+      "type": "commit",
+      "hash": "f037460",
+      "message": "Claude/document api endpoints 0 v mi s (#39)",
+      "date": "2026-03-05T20:41:03+10:00",
+      "files_changed": 3
+    },
+    "commit:7d84b92": {
+      "type": "commit",
+      "hash": "7d84b92",
+      "message": "fix: Resolve Forge API backend issues (#40)",
+      "date": "2026-03-05T21:38:27+10:00",
+      "files_changed": 4
+    },
+    "commit:6565007": {
+      "type": "commit",
+      "hash": "6565007",
+      "message": "fix: Enhance Forge API with UUID support and improved fields (#41)",
+      "date": "2026-03-06T10:23:54+10:00",
+      "files_changed": 1
+    },
+    "commit:09a3163": {
+      "type": "commit",
+      "hash": "09a3163",
+      "message": "fix: Correct MCP install commands and stats category formatting (#42)",
+      "date": "2026-03-06T12:01:38+10:00",
+      "files_changed": 2
+    },
+    "commit:c1b484f": {
+      "type": "commit",
+      "hash": "c1b484f",
+      "message": "Fix/forge api audit fixes (#43)",
+      "date": "2026-03-06T14:36:24+10:00",
+      "files_changed": 0
+    },
+    "commit:471113f": {
+      "type": "commit",
+      "hash": "471113f",
+      "message": "feat: Forge enrichment worker for new API specification (#44)",
+      "date": "2026-03-06T21:56:43+10:00",
+      "files_changed": 38
+    },
+    "commit:7204bf6": {
+      "type": "commit",
+      "hash": "7204bf6",
+      "message": "Enable Forge enrichment worker in production (#45)",
+      "date": "2026-03-07T08:30:34+10:00",
+      "files_changed": 7
+    },
+    "commit:38650c1": {
+      "type": "commit",
+      "hash": "38650c1",
+      "message": "🚨 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
+      "date": "2026-03-07T09:28:41+10:00",
+      "files_changed": 55
+    },
+    "commit:75b64b7": {
+      "type": "commit",
+      "hash": "75b64b7",
+      "message": "feat: Phase 9 Pro Frontend Implementation",
+      "date": "2026-03-07T20:25:16+10:00",
+      "files_changed": 164
+    },
+    "commit:e6cf8b1": {
+      "type": "commit",
+      "hash": "e6cf8b1",
+      "message": "🔒 Security: Remove sensitive infrastructure data and move internal docs",
+      "date": "2026-03-08T08:28:36+10:00",
+      "files_changed": 12
+    },
+    "commit:fe8390b": {
+      "type": "commit",
+      "hash": "fe8390b",
+      "message": "fix: Resolve production Azure issues",
+      "date": "2026-03-08T08:36:35+10:00",
+      "files_changed": 4
+    },
+    "commit:d62c548": {
+      "type": "commit",
+      "hash": "d62c548",
+      "message": "fix: Resolve production Azure issues",
+      "date": "2026-03-08T08:36:35+10:00",
+      "files_changed": 4
+    },
+    "commit:e46cfdf": {
+      "type": "commit",
+      "hash": "e46cfdf",
+      "message": "resolve merge conflicts in system router",
+      "date": "2026-03-08T08:48:29+10:00",
+      "files_changed": 0
+    },
+    "commit:9907889": {
+      "type": "commit",
+      "hash": "9907889",
+      "message": "fix: Correct import path in api.database to fix bot workers",
+      "date": "2026-03-08T08:53:02+10:00",
+      "files_changed": 1
+    },
+    "commit:2f4a4c3": {
+      "type": "commit",
+      "hash": "2f4a4c3",
+      "message": "fix: appease shellcheck",
+      "date": "2026-03-08T17:03:28+10:00",
+      "files_changed": 1
+    },
+    "commit:9dedc34": {
+      "type": "commit",
+      "hash": "9dedc34",
+      "message": "fix: avoid unbound ignore patterns in self-scan",
+      "date": "2026-03-08T17:06:20+10:00",
+      "files_changed": 1
+    },
+    "commit:8fe59c1": {
+      "type": "commit",
+      "hash": "8fe59c1",
+      "message": "fix: make self-scan robust",
+      "date": "2026-03-08T17:14:53+10:00",
+      "files_changed": 1
+    },
+    "commit:ab32437": {
+      "type": "commit",
+      "hash": "ab32437",
+      "message": "ci: narrow pro-tier workflow triggers and update artifact actions",
+      "date": "2026-03-08T17:17:05+10:00",
+      "files_changed": 1
+    },
+    "commit:bcee422": {
+      "type": "commit",
+      "hash": "bcee422",
+      "message": "fix: stabilize prompt building and monitoring email tests",
+      "date": "2026-03-08T17:22:53+10:00",
+      "files_changed": 2
+    },
+    "commit:b32a255": {
+      "type": "commit",
+      "hash": "b32a255",
+      "message": "style: ruff format",
+      "date": "2026-03-08T17:25:56+10:00",
+      "files_changed": 2
+    },
+    "commit:9d27afd": {
+      "type": "commit",
+      "hash": "9d27afd",
+      "message": "style: fix prompt formatting",
+      "date": "2026-03-08T17:29:18+10:00",
+      "files_changed": 1
+    },
+    "commit:16a8859": {
+      "type": "commit",
+      "hash": "16a8859",
+      "message": "fix: make prompt injection + email channel tests pass",
+      "date": "2026-03-08T17:35:08+10:00",
+      "files_changed": 2
+    },
+    "commit:62cf232": {
+      "type": "commit",
+      "hash": "62cf232",
+      "message": "test: add missing fixtures + enum alias",
+      "date": "2026-03-08T17:42:07+10:00",
+      "files_changed": 2
+    },
+    "commit:459a373": {
+      "type": "commit",
+      "hash": "459a373",
+      "message": "fix: align billing/forge patching + analytics API",
+      "date": "2026-03-08T17:52:06+10:00",
+      "files_changed": 3
+    },
+    "commit:079c74a": {
+      "type": "commit",
+      "hash": "079c74a",
+      "message": "chore: fix ruff unused import",
+      "date": "2026-03-08T17:55:07+10:00",
+      "files_changed": 1
+    },
+    "commit:1471f6b": {
+      "type": "commit",
+      "hash": "1471f6b",
+      "message": "test: skip pro/perf suites by default",
+      "date": "2026-03-08T17:59:01+10:00",
+      "files_changed": 1
+    },
+    "commit:4cda2fe": {
+      "type": "commit",
+      "hash": "4cda2fe",
+      "message": "test: skip billing/analytics/forge/phase9 suites by default",
+      "date": "2026-03-08T18:02:40+10:00",
+      "files_changed": 1
+    },
+    "commit:2409776": {
+      "type": "commit",
+      "hash": "2409776",
+      "message": "Merge pull request #50 from NOMARJ/cherry-pick/keep-20260308",
+      "date": "2026-03-08T18:12:39+10:00",
+      "files_changed": 0
+    },
+    "commit:38714a3": {
+      "type": "commit",
+      "hash": "38714a3",
+      "message": "feat(api): Add trending tools backend infrastructure (#51)",
+      "date": "2026-03-08T19:37:17+10:00",
+      "files_changed": 11
+    },
+    "commit:4eb5ef9": {
+      "type": "commit",
+      "hash": "4eb5ef9",
+      "message": "🚨 CRITICAL: Fix Docker import paths causing container crashes (#52)",
+      "date": "2026-03-08T20:14:19+10:00",
+      "files_changed": 64
+    },
+    "commit:ce79f5d": {
+      "type": "commit",
+      "hash": "ce79f5d",
+      "message": "fix: Complete Docker import fixes for database.py (#53)",
+      "date": "2026-03-08T20:30:23+10:00",
+      "files_changed": 0
+    },
+    "commit:748d6cc": {
+      "type": "commit",
+      "hash": "748d6cc",
+      "message": "fix: Actually fix database.py import to use api.config (#54)",
+      "date": "2026-03-08T20:41:05+10:00",
+      "files_changed": 1
+    },
+    "commit:f5496a6": {
+      "type": "commit",
+      "hash": "f5496a6",
+      "message": "fix: Fix ALL remaining Python import paths for Docker (#55)",
+      "date": "2026-03-08T20:49:25+10:00",
+      "files_changed": 6
+    },
+    "commit:7f83f7f": {
+      "type": "commit",
+      "hash": "7f83f7f",
+      "message": "fix: Final comprehensive import fixes for all Python files (#56)",
+      "date": "2026-03-08T20:56:13+10:00",
+      "files_changed": 7
+    },
+    "commit:8acc9e3": {
+      "type": "commit",
+      "hash": "8acc9e3",
+      "message": "fix: ULTIMATE import fix for ALL Python files in project (#57)",
+      "date": "2026-03-08T21:03:40+10:00",
+      "files_changed": 18
+    },
+    "commit:a593edd": {
+      "type": "commit",
+      "hash": "a593edd",
+      "message": "fix: ABSOLUTELY FINAL import fix - services imports (#58)",
+      "date": "2026-03-08T21:10:19+10:00",
+      "files_changed": 34
+    },
+    "commit:f049ae1": {
+      "type": "commit",
+      "hash": "f049ae1",
+      "message": "fix: Complete and final import fixes including function-level imports (#59)",
+      "date": "2026-03-08T21:19:36+10:00",
+      "files_changed": 24
+    },
+    "commit:556a2df": {
+      "type": "commit",
+      "hash": "556a2df",
+      "message": "fix: Fix usage_metrics imports in analytics files (#60)",
+      "date": "2026-03-08T21:26:40+10:00",
+      "files_changed": 2
+    },
+    "commit:22d3401": {
+      "type": "commit",
+      "hash": "22d3401",
+      "message": "fix: ALL Python import paths in Docker (#61)",
+      "date": "2026-03-08T21:39:16+10:00",
+      "files_changed": 39
+    },
+    "commit:c4e2354": {
+      "type": "commit",
+      "hash": "c4e2354",
+      "message": "fix: FINAL critical import fixes missed in previous PR (#62)",
+      "date": "2026-03-08T21:47:12+10:00",
+      "files_changed": 3
+    },
+    "commit:5e1a0f6": {
+      "type": "commit",
+      "hash": "5e1a0f6",
+      "message": "docs: Add v1.1.1 changelog entry (#64)",
+      "date": "2026-03-08T22:10:05+10:00",
+      "files_changed": 1
+    },
+    "commit:684bbf7": {
+      "type": "commit",
+      "hash": "684bbf7",
+      "message": "fix: re-apply cursor context managers to prevent SQL Server connection busy errors (#65)",
+      "date": "2026-03-08T22:33:18+10:00",
+      "files_changed": 2
+    },
+    "commit:09f94ef": {
+      "type": "commit",
+      "hash": "09f94ef",
+      "message": "fix: forge pagination, category filtering, and trust score distribution (#66)",
+      "date": "2026-03-09T07:39:35+10:00",
+      "files_changed": 1
+    },
+    "commit:09f93a9": {
+      "type": "commit",
+      "hash": "09f93a9",
+      "message": "fix: correct forge health check URLs in deploy-forge workflow (#67)",
+      "date": "2026-03-09T09:02:01+10:00",
+      "files_changed": 1
+    },
+    "commit:3348ff4": {
+      "type": "commit",
+      "hash": "3348ff4",
+      "message": "feat: Major UI/UX improvements for Sigil dashboard (#68)",
+      "date": "2026-03-12T07:33:25+10:00",
+      "files_changed": 23
+    },
+    "commit:bca7285": {
+      "type": "commit",
+      "hash": "bca7285",
+      "message": "feat: dashboard fixes, real scan data, and subscription management (#69)",
+      "date": "2026-03-12T09:51:29+10:00",
+      "files_changed": 0
+    },
+    "commit:d7ffa81": {
+      "type": "commit",
+      "hash": "d7ffa81",
+      "message": "feat: Apply improved UI/UX design system to main app pages (#70)",
+      "date": "2026-03-12T09:56:26+10:00",
+      "files_changed": 7
+    },
+    "commit:950dae5": {
+      "type": "commit",
+      "hash": "950dae5",
+      "message": "fix: Dashboard build errors from PR #70 (#71)",
+      "date": "2026-03-12T10:28:36+10:00",
+      "files_changed": 1
+    },
+    "commit:2662d1f": {
+      "type": "commit",
+      "hash": "2662d1f",
+      "message": "feat: Interactive LLM Analysis System with Feedback Learning (#72)",
+      "date": "2026-03-12T17:20:07+10:00",
+      "files_changed": 88
+    },
+    "commit:d76f410": {
+      "type": "commit",
+      "hash": "d76f410",
+      "message": "fix: add missing date-fns dependency to dashboard (#73)",
+      "date": "2026-03-12T17:37:35+10:00",
+      "files_changed": 1
+    },
+    "commit:863751c": {
+      "type": "commit",
+      "hash": "863751c",
+      "message": "fix: update package-lock.json for date-fns dependency (#74)",
+      "date": "2026-03-12T17:52:55+10:00",
+      "files_changed": 1
+    },
+    "commit:d6da966": {
+      "type": "commit",
+      "hash": "d6da966",
+      "message": "refactor: optimize findings grouping and analysis functions with useCallback (#75)",
+      "date": "2026-03-12T19:08:33+10:00",
+      "files_changed": 1
+    },
+    "commit:2748082": {
+      "type": "commit",
+      "hash": "2748082",
+      "message": "refactor: optimize findings grouping and analysis functions with useCallback (#76)",
+      "date": "2026-03-13T06:56:29+10:00",
+      "files_changed": 0
+    },
+    "commit:ff33824": {
+      "type": "commit",
+      "hash": "ff33824",
+      "message": "Feature/auth0 unified authentication (#77)",
+      "date": "2026-03-13T08:35:21+10:00",
+      "files_changed": 26
+    },
+    "commit:1ddfb1e": {
+      "type": "commit",
+      "hash": "1ddfb1e",
+      "message": "feat: Add Auth0 production setup with Azure deployment scripts (#78)",
+      "date": "2026-03-13T10:21:02+10:00",
+      "files_changed": 8
+    },
+    "commit:c5921d3": {
+      "type": "commit",
+      "hash": "c5921d3",
+      "message": "Feature/auth0 production setup (#79)",
+      "date": "2026-03-13T13:46:46+10:00",
+      "files_changed": 4
+    },
+    "commit:b9baca4": {
+      "type": "commit",
+      "hash": "b9baca4",
+      "message": "Enhanced Obfuscation Detection for CVE Gap Closure (#80)",
+      "date": "2026-03-13T21:02:12+10:00",
+      "files_changed": 318
+    },
+    "commit:5be2516": {
+      "type": "commit",
+      "hash": "5be2516",
+      "message": "Fix: Remove deceptive evaluation scripts and implement honesty safeguards (#81)",
+      "date": "2026-03-14T09:54:46+10:00",
+      "files_changed": 15
+    },
+    "commit:3254df4": {
+      "type": "commit",
+      "hash": "3254df4",
+      "message": "fix: Remediate critical false positives in Sigil scanner (#82)",
+      "date": "2026-03-15T19:21:05+10:00",
+      "files_changed": 35
+    },
+    "commit:0f8fdc6": {
+      "type": "commit",
+      "hash": "0f8fdc6",
+      "message": "Feature/reduce false positives (#83)",
+      "date": "2026-03-17T08:53:14+10:00",
+      "files_changed": 9
+    },
+    "commit:99c46af": {
+      "type": "commit",
+      "hash": "99c46af",
+      "message": "feat: Scanner v2 Migration - Reduce false positives from 36% to <5% (#84)",
+      "date": "2026-03-17T10:37:27+10:00",
+      "files_changed": 37
+    },
+    "commit:c31a67f": {
+      "type": "commit",
+      "hash": "c31a67f",
+      "message": "memory: 2026-03-30 12:38 — sigil",
+      "date": "2026-03-30T12:38:33+10:00",
+      "files_changed": 2
     }
   },
   "edges": [
@@ -49,6 +686,101 @@
       "from": "EP-002",
       "to": "F-002",
       "rel": "contains"
+    },
+    {
+      "from": "commit:d4b0fe6",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:6e1f5f1",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:1d2e33a",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:7d84b92",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:6565007",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:c1b484f",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:471113f",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:7204bf6",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:38650c1",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:459a373",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:4cda2fe",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:38714a3",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:09f94ef",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:09f93a9",
+      "to": "F-002",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:b9baca4",
+      "to": "F-001",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:5be2516",
+      "to": "F-001",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:3254df4",
+      "to": "F-001",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:0f8fdc6",
+      "to": "F-001",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:99c46af",
+      "to": "F-001",
+      "rel": "contributes_to"
     }
   ]
 }

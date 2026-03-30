@@ -126,6 +126,50 @@ Govern the deployment decision. NOMARK doesn't deploy — it governs the decisio
 
 ---
 
+## Skill Orchestration Engine
+
+Three config files in `.nomark/` automate skill selection, composition, and handoff:
+
+### Layered Composition (`.nomark/layers.json`)
+
+Every skill invocation is structured as three composable layers:
+
+```
+[Execution Layer] + [0-N Enhancement Layers] + [Optional Guarantee Layer]
+```
+
+| Layer | Role | Examples |
+|-------|------|----------|
+| **Execution** | Primary task handler. One per invocation. | build, discover, plan, experiment |
+| **Enhancement** | Behavior injections. Zero or more. | git, hcd, terraform, security |
+| **Guarantee** | Integrity wrapper. Zero or one. | trust-agent, governance |
+
+On task start, detect task type and select the matching composition from `layers.json`. Override with explicit layers: `/nomark:build +security +terraform`.
+
+### Pipeline Handoff (`.nomark/pipeline.json`)
+
+When skills chain across stages (e.g., discovery → experiment → build), each stage produces a handoff artifact in `.nomark/artifacts/`. The next stage's prompt includes a `## Pipeline Context` block with the previous artifact path and required output fields. Missing required fields block stage completion.
+
+### Task-Category Routing (`.nomark/routing.json`)
+
+At task start, match user prompt keywords against routing categories. First match wins. Each category specifies model preference, temperature, and thinking depth. Log the routing decision to `progress.md`.
+
+### Instinct Quality Gates (`.nomark/instincts/gates.json`)
+
+Learned patterns follow a structured promotion lifecycle:
+
+```
+CANDIDATE → PROVEN → INSTINCT
+```
+
+- **Candidate:** Stored only. Never auto-injected.
+- **Proven:** 3+ successful applications, zero rollbacks, 7+ days old. Auto-suggested on context match.
+- **Instinct:** 7+ applications, trust-agent endorsed, 14+ days old. Auto-injected silently.
+
+Any rollback demotes to candidate and resets the counter.
+
+---
+
 ## Skill-Chained Lifecycle
 
 Skills activate automatically at each phase. Check before every significant action.
