@@ -1,5 +1,54 @@
 {
-  "version": "1.0.0",
-  "lastUpdated": "2026-03-29",
-  "edges": []
+  "version": 1,
+  "$schema": "nomark-graph-v1",
+  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /nomark:memory save.",
+  "last_rebuilt": "2026-03-30T12:38:33.908519",
+  "nodes": {
+    "EP-001": {
+      "type": "epic",
+      "title": "Scanner v2 \u2014 false positive reduction",
+      "status": "DONE",
+      "target": "Q1 2026"
+    },
+    "EP-002": {
+      "type": "epic",
+      "title": "Forge stats + registry search optimization",
+      "status": "DONE",
+      "target": "Q1 2026"
+    },
+    "F-001": {
+      "type": "feature",
+      "title": "Scanner v2 Migration",
+      "status": "DONE",
+      "started": "2026-03",
+      "shipped": "2026-03",
+      "prd": ""
+    },
+    "F-002": {
+      "type": "feature",
+      "title": "Forge Stats and Registry Search",
+      "status": "DONE",
+      "started": "2026-03",
+      "shipped": "2026-03",
+      "prd": ""
+    },
+    "commit:1ccaaf8": {
+      "type": "commit",
+      "hash": "1ccaaf8",
+      "message": "docs: Streamline CLAUDE.md and establish governance hierarchy",
+      "date": "2026-03-30T12:35:52+10:00"
+    }
+  },
+  "edges": [
+    {
+      "from": "EP-001",
+      "to": "F-001",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-002",
+      "to": "F-002",
+      "rel": "contains"
+    }
+  ]
 }
