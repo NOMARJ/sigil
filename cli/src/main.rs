@@ -216,6 +216,22 @@ enum Commands {
         action: PolicyAction,
     },
 
+    /// Run a command in a sandboxed environment with policy enforcement
+    Run {
+        /// Policy file or preset name (strict, standard, permissive)
+        #[arg(short, long, default_value = "standard")]
+        policy: String,
+        /// Credential providers to include (comma-separated)
+        #[arg(long)]
+        providers: Option<String>,
+        /// Show detailed sandbox configuration
+        #[arg(short, long)]
+        verbose: bool,
+        /// Command and arguments to run (after --)
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
+
     /// Generate Software Bill of Materials for a project
     Sbom {
         /// Project path to analyze
@@ -232,25 +248,6 @@ enum Commands {
         /// Output to file instead of stdout
         #[arg(short, long)]
         output: Option<PathBuf>,
-    },
-
-    /// Run a command in a sandboxed environment with policy enforcement
-    Run {
-        /// Policy file path or preset name (strict, standard, permissive)
-        #[arg(short, long, default_value = "standard")]
-        policy: String,
-
-        /// Credential providers to include (comma-separated)
-        #[arg(long)]
-        providers: Option<String>,
-
-        /// Show detailed sandbox configuration
-        #[arg(short, long)]
-        verbose: bool,
-
-        /// Command and arguments to run (after --)
-        #[arg(last = true, required = true)]
-        command: Vec<String>,
     },
 
     /// Scan a path, generate a security policy, and run a command in a sandbox
@@ -467,6 +464,13 @@ async fn main() {
             cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
         }
 
+        Commands::Run {
+            policy,
+            providers,
+            verbose,
+            command,
+        } => cmd_run(&policy, providers.as_deref(), verbose, command).await,
+
         Commands::Provider { action } => cmd_provider(action).await,
 
         Commands::Policy { action } => cmd_policy(action).await,
@@ -477,78 +481,6 @@ async fn main() {
             threats_db,
             output,
         } => cmd_sbom(&path, &sbom_format, threats_db.as_deref(), output.as_deref(), cli.verbose).await,
-
-        Commands::Run {
-            policy,
-            providers,
-            verbose,
-            command,
-        } => {
-            // Load policy: try file path first, then preset name
-            let loaded_policy = if std::path::Path::new(&policy).exists() {
-                match crate::policy::SigilPolicy::from_file(std::path::Path::new(&policy)) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        eprintln!(
-                            "{} failed to load policy '{}': {}",
-                            "error:".bold().red(),
-                            policy,
-                            e
-                        );
-                        process::exit(1);
-                    }
-                }
-            } else {
-                match crate::policy::SigilPolicy::preset(&policy) {
-                    Some(p) => p,
-                    None => {
-                        eprintln!(
-                            "{} unknown policy '{}'. Use a file path or preset: strict, standard, permissive",
-                            "error:".bold().red(),
-                            policy
-                        );
-                        process::exit(1);
-                    }
-                }
-            };
-
-            // Resolve credentials
-            let env_vars = if let Some(ref prov) = providers {
-                let names: Vec<String> = prov.split(',').map(|s| s.trim().to_string()).collect();
-                provider::resolve_env(&names)
-            } else {
-                // Default: pass allowed env vars from the policy
-                let mut env = std::collections::HashMap::new();
-                for key in &loaded_policy.credentials.allowed_env {
-                    if key == "*" {
-                        // Pass all env vars
-                        for (k, v) in std::env::vars() {
-                            env.insert(k, v);
-                        }
-                        break;
-                    }
-                    if let Ok(val) = std::env::var(key) {
-                        env.insert(key.clone(), val);
-                    }
-                }
-                // Always include PATH, HOME, TERM
-                for key in &["PATH", "HOME", "TERM"] {
-                    if let Ok(val) = std::env::var(key) {
-                        env.entry(key.to_string()).or_insert(val);
-                    }
-                }
-                env
-            };
-
-            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-            match sandbox::container::run_sandboxed(&loaded_policy, &cwd, &command, &env_vars, verbose) {
-                Ok(code) => code,
-                Err(e) => {
-                    eprintln!("{} sandbox failed: {}", "error:".bold().red(), e);
-                    1
-                }
-            }
-        }
 
         Commands::SafeRun {
             path,
@@ -1529,6 +1461,104 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
         }
         Err(err) => {
             eprintln!("{} failed to report threat: {}", "error:".bold().red(), err);
+            1
+        }
+    }
+}
+
+async fn cmd_run(
+    policy_name: &str,
+    providers: Option<&str>,
+    verbose: bool,
+    command: Vec<String>,
+) -> i32 {
+    use std::collections::HashMap;
+
+    // 1. Load policy: try as file path first, then as preset name
+    let policy_path = std::path::Path::new(policy_name);
+    let policy = if policy_path.exists() {
+        match policy::schema::SigilPolicy::from_file(policy_path) {
+            Ok(p) => p,
+            Err(err) => {
+                eprintln!(
+                    "{} failed to load policy file '{}': {}",
+                    "error:".bold().red(),
+                    policy_name,
+                    err
+                );
+                return 1;
+            }
+        }
+    } else {
+        match policy::schema::SigilPolicy::preset(policy_name) {
+            Some(p) => p,
+            None => {
+                eprintln!(
+                    "{} unknown policy '{}'. Use: strict, standard, permissive, or a file path.",
+                    "error:".bold().red(),
+                    policy_name
+                );
+                return 1;
+            }
+        }
+    };
+
+    // 2. Resolve credentials
+    let env_vars: HashMap<String, String> = if let Some(provider_list) = providers {
+        // Explicit --providers flag: use provider::resolve_env()
+        let provider_names: Vec<String> = provider_list
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+        provider::resolve_env(&provider_names)
+    } else {
+        // No explicit providers: filter current env by policy's allowed_env list
+        let mut filtered = HashMap::new();
+        for pattern in &policy.credentials.allowed_env {
+            if pattern == "*" {
+                // Wildcard: include all env vars
+                for (key, value) in std::env::vars() {
+                    // Still respect denied list
+                    if !policy.credentials.denied_env.contains(&key)
+                        && !policy.credentials.denied_env.contains(&"*".to_string())
+                    {
+                        filtered.insert(key, value);
+                    }
+                }
+            } else if let Ok(value) = std::env::var(pattern) {
+                filtered.insert(pattern.clone(), value);
+            }
+        }
+        filtered
+    };
+
+    if verbose {
+        println!(
+            "{} policy: {} ({})",
+            "sigil:".bold().cyan(),
+            policy.name.bold(),
+            policy.description.as_deref().unwrap_or("no description")
+        );
+        println!(
+            "  {} environment variables injected",
+            env_vars.len().to_string().bold()
+        );
+        for key in env_vars.keys() {
+            println!("    - {}", key);
+        }
+    }
+
+    let workdir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // 3. Run sandboxed
+    match sandbox::container::run_sandboxed(&policy, &workdir, &command, &env_vars, verbose) {
+        Ok(exit_code) => exit_code,
+        Err(err) => {
+            eprintln!(
+                "{} sandbox execution failed: {}",
+                "error:".bold().red(),
+                err
+            );
             1
         }
     }
