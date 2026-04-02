@@ -19,6 +19,9 @@ pub fn phase_weight(phase: Phase) -> u32 {
         // Provenance uses per-finding weights (1-3), so default to 1 here.
         // Individual findings carry their own weight field.
         Phase::Provenance => 1,
+        Phase::PromptInjection => 10,
+        Phase::SkillSecurity => 5,
+        Phase::InferenceSecurity => 5,
     }
 }
 

@@ -117,6 +117,9 @@ fn phase_weight(phase: Phase) -> u32 {
         Phase::Credentials => 2,
         Phase::Obfuscation => 5,
         Phase::Provenance => 1,
+        Phase::PromptInjection => 10,
+        Phase::SkillSecurity => 5,
+        Phase::InferenceSecurity => 5,
     }
 }
 
