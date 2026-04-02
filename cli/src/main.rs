@@ -5,6 +5,7 @@ mod output;
 mod policy;
 mod provider;
 mod quarantine;
+mod sandbox;
 mod sbom;
 mod scanner;
 
@@ -232,6 +233,28 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Scan a path, generate a security policy, and run a command in a sandbox
+    SafeRun {
+        /// Path to scan and use as working directory
+        path: PathBuf,
+
+        /// Credential providers (comma-separated)
+        #[arg(long)]
+        providers: Option<String>,
+
+        /// Auto-approve HIGH risk (skip confirmation prompt)
+        #[arg(long)]
+        auto_approve: bool,
+
+        /// Show detailed output
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Command to run (after --)
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -435,6 +458,30 @@ async fn main() {
             threats_db,
             output,
         } => cmd_sbom(&path, &sbom_format, threats_db.as_deref(), output.as_deref(), cli.verbose).await,
+
+        Commands::SafeRun {
+            path,
+            providers,
+            auto_approve,
+            verbose,
+            command,
+        } => {
+            let provider_list: Option<Vec<String>> = providers
+                .map(|p| p.split(',').map(|s| s.trim().to_string()).collect());
+            match sandbox::safe_run::safe_run(
+                &path,
+                &command,
+                provider_list.as_deref(),
+                auto_approve,
+                verbose,
+            ) {
+                Ok(code) => code,
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    1
+                }
+            }
+        }
     };
 
     process::exit(exit_code);
