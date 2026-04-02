@@ -5,6 +5,7 @@ mod output;
 mod policy;
 mod provider;
 mod quarantine;
+mod sbom;
 mod scanner;
 
 use clap::{Parser, Subcommand};
@@ -207,6 +208,24 @@ enum Commands {
         #[command(subcommand)]
         action: ProviderAction,
     },
+
+    /// Generate Software Bill of Materials for a project
+    Sbom {
+        /// Project path to analyze
+        path: PathBuf,
+
+        /// Output format: table, cyclonedx, json
+        #[arg(short = 'F', long, default_value = "table")]
+        sbom_format: String,
+
+        /// Path to known_threats.json for cross-referencing
+        #[arg(long)]
+        threats_db: Option<PathBuf>,
+
+        /// Output to file instead of stdout
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -376,6 +395,13 @@ async fn main() {
         }
 
         Commands::Provider { action } => cmd_provider(action).await,
+
+        Commands::Sbom {
+            path,
+            sbom_format,
+            threats_db,
+            output,
+        } => cmd_sbom(&path, &sbom_format, threats_db.as_deref(), output.as_deref(), cli.verbose).await,
     };
 
     process::exit(exit_code);
@@ -1550,5 +1576,93 @@ async fn cmd_config(key: Option<&str>, value: Option<&str>, list: bool, _verbose
     } else {
         eprintln!("{} specify a key or use --list", "sigil:".bold().yellow());
         1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// sbom command
+// ---------------------------------------------------------------------------
+
+async fn cmd_sbom(
+    path: &Path,
+    format: &str,
+    threats_db: Option<&Path>,
+    output: Option<&Path>,
+    verbose: bool,
+) -> i32 {
+    if verbose {
+        eprintln!(
+            "{} generating SBOM for {}",
+            "sigil:".bold().cyan(),
+            path.display()
+        );
+    }
+
+    if !path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
+        return 1;
+    }
+
+    let sbom = match sbom::generate_sbom(path, threats_db) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{} failed to generate SBOM: {}", "error:".bold().red(), e);
+            return 1;
+        }
+    };
+
+    if verbose {
+        eprintln!(
+            "{} found {} components, {} threats",
+            "sigil:".bold().cyan(),
+            sbom.total_count,
+            sbom.threat_count
+        );
+    }
+
+    let formatted = match format {
+        "table" => sbom::format_table(&sbom),
+        "cyclonedx" => sbom::format_cyclonedx(&sbom),
+        "json" => serde_json::to_string_pretty(&sbom).unwrap_or_else(|_| "{}".to_string()),
+        _ => {
+            eprintln!(
+                "{} unknown format '{}', use table, cyclonedx, or json",
+                "error:".bold().red(),
+                format
+            );
+            return 1;
+        }
+    };
+
+    if let Some(out_path) = output {
+        match std::fs::write(out_path, &formatted) {
+            Ok(_) => {
+                eprintln!(
+                    "{} SBOM written to {}",
+                    "sigil:".bold().green(),
+                    out_path.display()
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "{} failed to write output: {}",
+                    "error:".bold().red(),
+                    e
+                );
+                return 1;
+            }
+        }
+    } else {
+        print!("{}", formatted);
+    }
+
+    if sbom.threat_count > 0 {
+        1
+    } else {
+        0
     }
 }
