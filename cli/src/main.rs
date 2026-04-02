@@ -234,6 +234,25 @@ enum Commands {
         output: Option<PathBuf>,
     },
 
+    /// Run a command in a sandboxed environment with policy enforcement
+    Run {
+        /// Policy file path or preset name (strict, standard, permissive)
+        #[arg(short, long, default_value = "standard")]
+        policy: String,
+
+        /// Credential providers to include (comma-separated)
+        #[arg(long)]
+        providers: Option<String>,
+
+        /// Show detailed sandbox configuration
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Command and arguments to run (after --)
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
+
     /// Scan a path, generate a security policy, and run a command in a sandbox
     SafeRun {
         /// Path to scan and use as working directory
@@ -458,6 +477,78 @@ async fn main() {
             threats_db,
             output,
         } => cmd_sbom(&path, &sbom_format, threats_db.as_deref(), output.as_deref(), cli.verbose).await,
+
+        Commands::Run {
+            policy,
+            providers,
+            verbose,
+            command,
+        } => {
+            // Load policy: try file path first, then preset name
+            let loaded_policy = if std::path::Path::new(&policy).exists() {
+                match crate::policy::SigilPolicy::from_file(std::path::Path::new(&policy)) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!(
+                            "{} failed to load policy '{}': {}",
+                            "error:".bold().red(),
+                            policy,
+                            e
+                        );
+                        process::exit(1);
+                    }
+                }
+            } else {
+                match crate::policy::SigilPolicy::preset(&policy) {
+                    Some(p) => p,
+                    None => {
+                        eprintln!(
+                            "{} unknown policy '{}'. Use a file path or preset: strict, standard, permissive",
+                            "error:".bold().red(),
+                            policy
+                        );
+                        process::exit(1);
+                    }
+                }
+            };
+
+            // Resolve credentials
+            let env_vars = if let Some(ref prov) = providers {
+                let names: Vec<String> = prov.split(',').map(|s| s.trim().to_string()).collect();
+                provider::resolve_env(&names)
+            } else {
+                // Default: pass allowed env vars from the policy
+                let mut env = std::collections::HashMap::new();
+                for key in &loaded_policy.credentials.allowed_env {
+                    if key == "*" {
+                        // Pass all env vars
+                        for (k, v) in std::env::vars() {
+                            env.insert(k, v);
+                        }
+                        break;
+                    }
+                    if let Ok(val) = std::env::var(key) {
+                        env.insert(key.clone(), val);
+                    }
+                }
+                // Always include PATH, HOME, TERM
+                for key in &["PATH", "HOME", "TERM"] {
+                    if let Ok(val) = std::env::var(key) {
+                        env.entry(key.to_string()).or_insert(val);
+                    }
+                }
+                env
+            };
+
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            match sandbox::container::run_sandboxed(&loaded_policy, &cwd, &command, &env_vars, verbose) {
+                Ok(code) => code,
+                Err(e) => {
+                    eprintln!("{} sandbox failed: {}", "error:".bold().red(), e);
+                    1
+                }
+            }
+        }
 
         Commands::SafeRun {
             path,

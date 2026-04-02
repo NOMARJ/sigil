@@ -16,7 +16,7 @@
 - **Notes:** Inspired by OpenShell's static/dynamic policy split. Keep filesystem+process immutable, network hot-reloadable. Use `serde` + `serde_yaml` for deserialization. Add `serde_yaml` to Cargo.toml.
 
 ### STORY-002: `sigil policy generate` — Auto-Generate Policies from Scan Results
-- **Status:** IN PROGRESS 🔨
+- **Status:** DONE ✅
 - **Goal:** Add a CLI command that runs a scan and translates findings into a recommended policy YAML
 - **Done when:** `sigil policy generate <path>` outputs a valid policy YAML to stdout (or `--output file.yaml`). Phase 3 findings → network deny rules, Phase 4 → credential restrictions, Phase 1 → filesystem lockdowns. The generated policy is parseable by the schema from STORY-001.
 - **Files:** `cli/src/main.rs` (add Policy subcommand), `cli/src/policy/generate.rs` (new)
@@ -41,7 +41,7 @@
 ## Phase 2: Runtime Enforcement
 
 ### STORY-005: `sigil run` — Sandboxed Execution with Policy Enforcement
-- **Status:** IN PROGRESS 🔨
+- **Status:** DONE ✅
 - **Goal:** Add a `sigil run --policy <file> -- <command>` command that executes a command inside an isolated environment with policy enforcement
 - **Done when:** Command launches a Docker/Podman container with: filesystem mounts restricted to policy read_only/read_write paths, network egress filtered to allowed endpoints (using container networking), only specified env vars passed through. Exit code of the inner command is propagated. Works with `sigil run --policy strict -- python agent.py`.
 - **Files:** `cli/src/main.rs` (add Run subcommand), `cli/src/sandbox/mod.rs` (new), `cli/src/sandbox/container.rs` (new)
@@ -55,7 +55,7 @@
 - **Notes:** Inspired by OpenShell's provider system. Credentials stored as JSON in `~/.sigil/providers/<name>.json`, never written to container filesystem — only injected as env vars via `docker run -e`.
 
 ### STORY-007: `sigil safe-run` — Scan + Sandbox in One Command
-- **Status:** IN PROGRESS 🔨
+- **Status:** DONE ✅
 - **Goal:** Combine scanning and sandboxed execution: scan first, auto-generate policy, run in sandbox
 - **Done when:** `sigil safe-run <path> -- <command>` runs a scan, generates a policy from findings, and launches the command in a sandbox with that policy. If scan verdict is CRITICAL_RISK, execution is blocked. If HIGH_RISK, user is prompted for confirmation. LOW/MEDIUM proceed with generated policy.
 - **Files:** `cli/src/main.rs` (add SafeRun subcommand), `cli/src/sandbox/safe_run.rs` (new)
