@@ -90,7 +90,7 @@ claude --plugin-dir /path/to/sigil/plugins/claude-code
 
 ### Skills (Invoke with `/`)
 
-The plugin provides 4 skills for security scanning:
+The plugin provides 6 skills for security scanning and remediation:
 
 #### 1. Scan Repository
 ```
@@ -135,6 +135,30 @@ Analyzes a specific file for security vulnerabilities.
 ```
 
 Reviews all quarantined items and helps decide whether to approve or reject.
+
+#### 5. Fix Finding
+```
+/sigil-security:fix-finding
+```
+
+Analyzes a Sigil scan finding and proposes a code fix with explanation. Provide a finding from scan output, a file path and line number, or a description of the security issue.
+
+**Example:**
+```
+/sigil-security:fix-finding Phase 2 finding in src/agent/tools.py line 42: eval() usage
+```
+
+#### 6. Generate Policy
+```
+/sigil-security:generate-policy /path/to/project
+```
+
+Generates a Sigil sandbox policy YAML (`sigil-policy.yaml`) from scan results. The policy controls filesystem, network, process, and credential access for sandboxed agent execution.
+
+**Example:**
+```
+/sigil-security:generate-policy ~/projects/my-mcp-server
+```
 
 ### Agents
 
