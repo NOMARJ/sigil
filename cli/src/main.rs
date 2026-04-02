@@ -209,6 +209,12 @@ enum Commands {
         action: ProviderAction,
     },
 
+    /// Generate or inspect security policies
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+
     /// Generate Software Bill of Materials for a project
     Sbom {
         /// Project path to analyze
@@ -256,6 +262,31 @@ enum ProviderAction {
     },
     /// Auto-discover credentials in current environment
     Discover,
+}
+
+#[derive(Subcommand)]
+enum PolicyAction {
+    /// Generate a policy from scan results
+    Generate {
+        /// Path to scan
+        path: PathBuf,
+        /// Output file (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Show the scan results alongside the policy
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// Validate a policy file
+    Validate {
+        /// Path to policy YAML file
+        file: PathBuf,
+    },
+    /// Show a built-in preset policy
+    Preset {
+        /// Preset name: strict, standard, permissive
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -395,6 +426,8 @@ async fn main() {
         }
 
         Commands::Provider { action } => cmd_provider(action).await,
+
+        Commands::Policy { action } => cmd_policy(action).await,
 
         Commands::Sbom {
             path,
@@ -1664,5 +1697,144 @@ async fn cmd_sbom(
         1
     } else {
         0
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Policy command
+// ---------------------------------------------------------------------------
+
+async fn cmd_policy(action: PolicyAction) -> i32 {
+    match action {
+        PolicyAction::Generate {
+            path,
+            output,
+            verbose,
+        } => {
+            println!(
+                "{} scanning {} to generate policy...",
+                "sigil:".bold().cyan(),
+                path.display().to_string().bold()
+            );
+
+            let (policy_result, scan) = match policy::generate::generate_for_path(&path) {
+                Ok(result) => result,
+                Err(e) => {
+                    eprintln!(
+                        "{} failed to generate policy: {}",
+                        "error:".bold().red(),
+                        e
+                    );
+                    return 1;
+                }
+            };
+
+            if verbose {
+                eprintln!(
+                    "{} scan complete: {} findings, score {}, verdict {}",
+                    "sigil:".bold().cyan(),
+                    scan.findings.len(),
+                    scan.score,
+                    scan.verdict
+                );
+                for finding in &scan.findings {
+                    eprintln!(
+                        "  [{}] {} — {} ({}:{})",
+                        finding.severity,
+                        finding.phase,
+                        finding.rule,
+                        finding.file,
+                        finding.line.map(|l| l.to_string()).unwrap_or_default()
+                    );
+                }
+                eprintln!();
+            }
+
+            let yaml = match policy_result.to_yaml() {
+                Ok(y) => y,
+                Err(e) => {
+                    eprintln!(
+                        "{} failed to serialize policy: {}",
+                        "error:".bold().red(),
+                        e
+                    );
+                    return 1;
+                }
+            };
+
+            if let Some(out_path) = output {
+                match std::fs::write(&out_path, &yaml) {
+                    Ok(_) => {
+                        println!(
+                            "{} policy written to {}",
+                            "sigil:".bold().green(),
+                            out_path.display()
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "{} failed to write policy: {}",
+                            "error:".bold().red(),
+                            e
+                        );
+                        return 1;
+                    }
+                }
+            } else {
+                print!("{}", yaml);
+            }
+
+            0
+        }
+
+        PolicyAction::Validate { file } => {
+            match policy::SigilPolicy::from_file(&file) {
+                Ok(_policy) => {
+                    println!(
+                        "{} policy {} is valid",
+                        "sigil:".bold().green(),
+                        file.display()
+                    );
+                    0
+                }
+                Err(e) => {
+                    eprintln!(
+                        "{} policy validation failed: {}",
+                        "error:".bold().red(),
+                        e
+                    );
+                    1
+                }
+            }
+        }
+
+        PolicyAction::Preset { name } => {
+            match policy::SigilPolicy::preset(&name) {
+                Some(policy) => {
+                    match policy.to_yaml() {
+                        Ok(yaml) => {
+                            print!("{}", yaml);
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "{} failed to serialize preset: {}",
+                                "error:".bold().red(),
+                                e
+                            );
+                            1
+                        }
+                    }
+                }
+                None => {
+                    eprintln!(
+                        "{} unknown preset '{}'. Available: strict, standard, permissive",
+                        "error:".bold().red(),
+                        name
+                    );
+                    1
+                }
+            }
+        }
     }
 }

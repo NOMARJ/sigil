@@ -1,4 +1,4 @@
-pub mod generate; // placeholder, will be implemented in STORY-002
+pub mod generate;
 pub mod schema;
 
 pub use schema::*;
