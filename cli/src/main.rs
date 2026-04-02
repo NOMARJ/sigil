@@ -2,6 +2,7 @@ mod api;
 mod cache;
 mod diff;
 mod output;
+mod policy;
 mod quarantine;
 mod scanner;
 
