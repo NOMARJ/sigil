@@ -3,6 +3,7 @@ mod cache;
 mod diff;
 mod output;
 mod policy;
+mod provider;
 mod quarantine;
 mod scanner;
 
@@ -200,6 +201,42 @@ enum Commands {
         #[arg(short, long)]
         list: bool,
     },
+
+    /// Manage credential providers for sandboxed execution
+    Provider {
+        #[command(subcommand)]
+        action: ProviderAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProviderAction {
+    /// Create a new credential provider
+    Create {
+        /// Provider name
+        #[arg(short, long)]
+        name: String,
+        /// Comma-separated env var names
+        #[arg(short, long)]
+        vars: String,
+        /// Description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+    /// List all saved providers
+    List,
+    /// Show details of a provider
+    Show {
+        /// Provider name
+        name: String,
+    },
+    /// Delete a provider
+    Delete {
+        /// Provider name
+        name: String,
+    },
+    /// Auto-discover credentials in current environment
+    Discover,
 }
 
 #[tokio::main]
@@ -337,6 +374,8 @@ async fn main() {
         Commands::Config { key, value, list } => {
             cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
         }
+
+        Commands::Provider { action } => cmd_provider(action).await,
     };
 
     process::exit(exit_code);
@@ -1294,6 +1333,150 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
         Err(err) => {
             eprintln!("{} failed to report threat: {}", "error:".bold().red(), err);
             1
+        }
+    }
+}
+
+async fn cmd_provider(action: ProviderAction) -> i32 {
+    match action {
+        ProviderAction::Create {
+            name,
+            vars,
+            description,
+        } => {
+            let var_list: Vec<String> = vars.split(',').map(|s| s.trim().to_string()).collect();
+
+            if var_list.is_empty() || var_list.iter().all(|v| v.is_empty()) {
+                eprintln!(
+                    "{} no environment variable names provided",
+                    "error:".bold().red()
+                );
+                return 1;
+            }
+
+            let p = provider::Provider::new(&name, var_list, description);
+            match provider::save(&p) {
+                Ok(_) => {
+                    println!(
+                        "{} created provider '{}' with {} var(s)",
+                        "sigil:".bold().green(),
+                        p.name.bold(),
+                        p.vars.len()
+                    );
+                    for v in &p.vars {
+                        println!("  - {}", v.yellow());
+                    }
+                    0
+                }
+                Err(err) => {
+                    eprintln!(
+                        "{} failed to save provider: {}",
+                        "error:".bold().red(),
+                        err
+                    );
+                    1
+                }
+            }
+        }
+
+        ProviderAction::List => {
+            let providers = provider::list_providers();
+            if providers.is_empty() {
+                println!(
+                    "{} no credential providers configured",
+                    "sigil:".bold().cyan()
+                );
+                println!(
+                    "  hint: run {} to detect available credentials",
+                    "sigil provider discover".bold()
+                );
+                return 0;
+            }
+
+            println!(
+                "{} {} provider(s):\n",
+                "sigil:".bold().cyan(),
+                providers.len()
+            );
+            for p in &providers {
+                println!(
+                    "  {} ({} var{})",
+                    p.name.bold().green(),
+                    p.vars.len(),
+                    if p.vars.len() == 1 { "" } else { "s" }
+                );
+                if let Some(desc) = &p.description {
+                    println!("    {}", desc.dimmed());
+                }
+            }
+            0
+        }
+
+        ProviderAction::Show { name } => match provider::load(&name) {
+            Ok(p) => {
+                println!("{} provider '{}'", "sigil:".bold().cyan(), p.name.bold());
+                if let Some(desc) = &p.description {
+                    println!("  Description: {}", desc);
+                }
+                println!("  Created: {}", p.created_at);
+                println!("  Variables:");
+                for v in &p.vars {
+                    let status = if std::env::var(v).is_ok() {
+                        "SET".green()
+                    } else {
+                        "NOT SET".yellow()
+                    };
+                    println!("    {} [{}]", v, status);
+                }
+                0
+            }
+            Err(err) => {
+                eprintln!("{} {}", "error:".bold().red(), err);
+                1
+            }
+        },
+
+        ProviderAction::Delete { name } => match provider::delete(&name) {
+            Ok(_) => {
+                println!(
+                    "{} deleted provider '{}'",
+                    "sigil:".bold().green(),
+                    name.bold()
+                );
+                0
+            }
+            Err(err) => {
+                eprintln!("{} {}", "error:".bold().red(), err);
+                1
+            }
+        },
+
+        ProviderAction::Discover => {
+            let discovered = provider::auto_discover();
+            if discovered.is_empty() {
+                println!(
+                    "{} no well-known agent credentials detected in environment",
+                    "sigil:".bold().yellow()
+                );
+                return 0;
+            }
+
+            println!(
+                "{} detected {} credential bundle(s):\n",
+                "sigil:".bold().green(),
+                discovered.len()
+            );
+            for (name, vars) in &discovered {
+                println!("  {} {}", "+".green(), name.bold());
+                for v in vars {
+                    println!("    - {}", v.yellow());
+                }
+            }
+            println!(
+                "\n  To create a provider, run: {}",
+                "sigil provider create --name <name> --vars <VARS>".bold()
+            );
+            0
         }
     }
 }
