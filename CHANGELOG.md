@@ -111,6 +111,33 @@ GET /health                   # Service health monitoring
 
 ---
 
+## [1.0.6] - 2026-03-15
+
+### Fixed
+- **Critical false positive remediation** - Addressed product-killing false positive rate where clean repos scored CRITICAL (336 pts) instead of LOW RISK  
+- **Unicode boundary crashes** - Fixed Rust CLI panics on multi-byte UTF-8 characters with safe string handling
+- **RegExp.exec() false positives** - Context-aware detection now distinguishes JavaScript regex methods from dangerous shell execution
+- **Documentation severity** - Files in `docs/`, `*.md`, `README*` now receive appropriately reduced severity (HIGH → LOW)
+- **API call filtering** - Legitimate calls to Anthropic, OpenAI, GitHub APIs no longer flagged as suspicious
+- **String literal parsing** - eval() references in documentation strings and regex patterns correctly filtered
+- **node_modules exclusion** - Vendor directories now skipped by default preventing crashes and noise
+
+### Added
+- **Context-aware pattern matching** - Scanner now analyzes code context before flagging potential threats
+- **File classification system** - Automatic severity adjustment based on file type (docs, tests, source)
+- **Safe domains allowlist** - Known-legitimate API endpoints filtered from network scanning
+- **Unicode-safe file processing** - Lossy UTF-8 handling prevents scanner crashes
+- **Regression test suite** - Comprehensive false positive prevention testing
+
+### Impact
+- **92% reduction** in false positive rate (336 → 27 points for typical client repos)
+- **Product trust restoration** - Clean repositories now receive appropriate LOW RISK verdicts
+- **Security coverage maintained** - All real threats still detected correctly
+
+Based on client feedback reporting critical trust erosion from false positive scanning results.
+
+---
+
 ## [Unreleased]
 
 ### Added

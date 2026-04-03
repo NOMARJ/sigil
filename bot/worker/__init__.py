@@ -145,23 +145,29 @@ async def _download_fallback(job: ScanJob, dest: str) -> bool:
 
 async def _run_scan(directory: str) -> dict | None:
     """Run Sigil scan on a directory. Returns parsed scan output."""
-    # Prefer the Python scanner directly
+    # Prefer the Python scanner directly with Scanner v2 enhancements
     try:
         from api.services.scanner import scan_directory, count_scannable_files
         from api.services.scoring import compute_verdict
+        from api.services.scanner_v2 import calculate_confidence_summary
 
         start = time.monotonic()
         findings = scan_directory(directory)
         score, verdict = compute_verdict(findings)
         file_count = count_scannable_files(directory)
         elapsed = int((time.monotonic() - start) * 1000)
-
+        
+        # Calculate confidence summary for v2 enhanced output
+        confidence_summary = calculate_confidence_summary(findings)
+        
         return {
             "score": round(score, 2),
             "verdict": verdict.value,
             "files_scanned": file_count,
             "findings": [f.model_dump(mode="json") for f in findings],
             "duration_ms": elapsed,
+            "scanner_version": "2.0.0",
+            "confidence_summary": confidence_summary.model_dump(mode="json"),
         }
     except ImportError:
         pass

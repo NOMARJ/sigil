@@ -39,6 +39,14 @@ class Severity(str, enum.Enum):
     CRITICAL = "CRITICAL"
 
 
+class Confidence(str, enum.Enum):
+    """Confidence level for findings - how certain we are this is a real issue."""
+
+    HIGH = "HIGH"  # Very likely a real security issue
+    MEDIUM = "MEDIUM"  # Possibly a security issue, needs review
+    LOW = "LOW"  # Likely a false positive
+
+
 class ScanPhase(str, enum.Enum):
     """The nine scan phases: original six + AI security extensions."""
 
@@ -53,6 +61,17 @@ class ScanPhase(str, enum.Enum):
     LLM_ANALYSIS = "llm_analysis"  # Phase 9: AI-powered threat detection (Pro)
 
 
+class PlanTier(str, enum.Enum):
+    """Subscription tier levels for feature access and credit allocation."""
+
+    ANONYMOUS = "anonymous"
+    FREE = "free"
+    PRO = "pro"
+    ELITE = "elite"
+    TEAM = "team"
+    ENTERPRISE = "enterprise"
+
+
 # ---------------------------------------------------------------------------
 # Finding
 # ---------------------------------------------------------------------------
@@ -64,6 +83,10 @@ class Finding(BaseModel):
     phase: ScanPhase = Field(..., description="Scan phase that produced this finding")
     rule: str = Field(..., description="Rule identifier (e.g. 'npm-postinstall')")
     severity: Severity = Field(..., description="Severity of the finding")
+    confidence: Confidence = Field(
+        Confidence.HIGH,
+        description="Confidence level - how certain this is a real issue",
+    )
     file: str = Field(..., description="Relative path to the file")
     line: int = Field(0, description="Line number where the finding occurs")
     snippet: str = Field("", description="Code snippet around the finding")
@@ -264,15 +287,6 @@ class ChannelType(str, enum.Enum):
     SLACK = "slack"
     EMAIL = "email"
     WEBHOOK = "webhook"
-
-
-class PlanTier(str, enum.Enum):
-    """Available billing plan tiers."""
-
-    FREE = "free"
-    PRO = "pro"
-    TEAM = "team"
-    ENTERPRISE = "enterprise"
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.suppression_rules import FeedbackType
+from model_types.suppression_rules import FeedbackType
 from models import Finding
 from services.feedback_processor import FeedbackProcessor
 

@@ -20,7 +20,15 @@ Risk classification thresholds:
 
 from __future__ import annotations
 
-from api.models import Finding, ScanPhase, Severity, Verdict
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from api.models import Finding, ScanPhase, Severity, Verdict
+except ImportError:
+    from models import Finding, ScanPhase, Severity, Verdict
 
 
 # ---------------------------------------------------------------------------
@@ -52,14 +60,72 @@ SEVERITY_SCORES: dict[Severity, float] = {
 }
 
 
+def get_context_weight(file_path: str) -> float:
+    """Get the weight multiplier based on file context.
+
+    Test files are less risky than production code.
+    Documentation files are even less risky.
+    node_modules are vendor code and typically less concerning.
+    """
+    file_path_lower = file_path.lower()
+
+    # node_modules are vendor code - very low weight
+    if "node_modules/" in file_path_lower or "/node_modules/" in file_path_lower:
+        return 0.1
+
+    # Documentation files - low weight
+    if any(
+        doc in file_path_lower
+        for doc in [
+            "readme",
+            "doc/",
+            "/doc/",
+            "docs/",
+            "/docs/",
+            ".md",
+            ".rst",
+            ".txt",
+            "changelog",
+            "contributing",
+        ]
+    ):
+        return 0.2
+
+    # Test files - reduced weight
+    if any(
+        test in file_path_lower
+        for test in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            "spec/",
+            "/spec/",
+            "test.",
+            ".test.",
+            "spec.",
+            ".spec.",
+            "__test__",
+            "__tests__",
+            "test_",
+            "_test.py",
+        ]
+    ):
+        return 0.3
+
+    # Production code - full weight
+    return 1.0
+
+
 def score_finding(finding: Finding) -> float:
     """Compute the weighted score for a single finding.
 
-    ``score = base_severity * phase_weight * finding.weight``
+    ``score = base_severity * phase_weight * finding.weight * context_weight``
     """
     base = SEVERITY_SCORES.get(finding.severity, 1.0)
     phase_w = PHASE_WEIGHTS.get(finding.phase, 1.0)
-    return base * phase_w * finding.weight
+    context_w = get_context_weight(finding.file)
+    return base * phase_w * finding.weight * context_w
 
 
 def aggregate_score(findings: list[Finding]) -> float:

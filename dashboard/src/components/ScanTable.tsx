@@ -3,6 +3,8 @@
 import Link from "next/link";
 import type { Scan } from "@/lib/types";
 import VerdictBadge from "./VerdictBadge";
+import ScanBadge from "./ScanBadge";
+import ScoreComparison from "./ScoreComparison";
 
 interface ScanTableProps {
   scans: Scan[];
@@ -53,6 +55,7 @@ export default function ScanTable({ scans }: ScanTableProps) {
           <tr className="border-b border-gray-800 text-gray-500 text-left">
             <th className="pb-3 pr-4 font-medium">Target</th>
             <th className="pb-3 pr-4 font-medium">Type</th>
+            <th className="pb-3 pr-4 font-medium">Scanner</th>
             <th className="pb-3 pr-4 font-medium">Verdict</th>
             <th className="pb-3 pr-4 font-medium">Score</th>
             <th className="pb-3 pr-4 font-medium">Findings</th>
@@ -79,10 +82,26 @@ export default function ScanTable({ scans }: ScanTableProps) {
                 </span>
               </td>
               <td className="py-3 pr-4">
+                <ScanBadge 
+                  scannerVersion={scan.scanner_version} 
+                  rescannedAt={scan.rescanned_at}
+                  size="sm" 
+                />
+              </td>
+              <td className="py-3 pr-4">
                 <VerdictBadge verdict={scan.verdict} size="sm" />
               </td>
               <td className="py-3 pr-4 font-mono text-gray-300">
-                {scan.risk_score}
+                {scan.original_score && scan.original_score !== scan.risk_score ? (
+                  <ScoreComparison 
+                    originalScore={scan.original_score} 
+                    newScore={scan.risk_score} 
+                    size="sm"
+                    showPercentage={false}
+                  />
+                ) : (
+                  scan.risk_score
+                )}
               </td>
               <td className="py-3 pr-4 text-gray-400">
                 {scan.findings_count}

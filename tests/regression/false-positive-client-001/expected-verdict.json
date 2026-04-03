@@ -1,0 +1,78 @@
+{
+  "description": "Regression test for false positive fixes in client-like codebase",
+  "expected_verdict": "LOW_RISK",
+  "max_score": 25,
+  "test_purpose": "Verify that legitimate client code patterns are not incorrectly flagged as high-severity security threats",
+  
+  "fixes_tested": {
+    "p0_unicode_crash": {
+      "description": "Unicode boundary crash fix in Rust CLI",
+      "status": "fixed",
+      "test_coverage": "Handled by separate Unicode test fixture"
+    },
+    "p0_node_modules_exclusion": {
+      "description": "Scanner should skip node_modules directories by default", 
+      "status": "fixed",
+      "test_coverage": "Verified by separate node_modules exclusion test"
+    },
+    "p1_regexp_exec_vs_shell": {
+      "description": "RegExp.exec() should not be flagged as dangerous shell execution",
+      "status": "fixed",
+      "test_files": [
+        "lib/matching-rules.ts",
+        "functions/board-reports-templates-upload.ts"
+      ]
+    },
+    "p1_eval_context_detection": {
+      "description": "eval() in strings, regex, and comments should not be flagged",
+      "status": "fixed", 
+      "test_files": [
+        "functions/dry-run-test.ts"
+      ]
+    },
+    "p1_documentation_severity": {
+      "description": "Documentation files should have reduced severity (2 levels lower)",
+      "status": "fixed",
+      "test_files": [
+        "functions/README.md",
+        "reports/QUICKSTART.md"
+      ]
+    },
+    "p2_charcode_benign": {
+      "description": "Single character String.fromCharCode() should not be flagged as obfuscation",
+      "status": "fixed",
+      "test_files": [
+        "reports/platform-comparison.ts"
+      ]
+    },
+    "p2_safe_domains": {
+      "description": "API calls to known-safe domains should not be flagged",
+      "status": "fixed",
+      "test_files": [
+        "reports/platform-comparison.ts"
+      ]
+    }
+  },
+  
+  "expected_findings": {
+    "should_not_detect": [
+      "RegExp.exec() operations in matching-rules.ts",
+      "eval() references in string literals and regex patterns", 
+      "Single character String.fromCharCode() for Excel columns",
+      "API calls to api.openai.com, api.anthropic.com, api.huggingface.co",
+      "Example credentials in documentation files (should have LOW severity only)"
+    ],
+    "should_still_detect": [
+      "Real eval() call in dangerousExample() function",
+      "Function constructor in dangerousExample() function",
+      "Multi-character String.fromCharCode() obfuscation in getSuspiciousMessage()"
+    ]
+  },
+  
+  "validation_criteria": {
+    "total_score": "Must be < 25 (LOW_RISK threshold)",
+    "critical_findings": 0,
+    "high_severity_findings": "≤ 3",
+    "documentation_findings": "Should have reduced severity (LOW instead of HIGH/CRITICAL)"
+  }
+}

@@ -221,7 +221,7 @@ def _enrich_metadata(
     meta["source"] = meta.get("source", "sigil-bot")
     meta["bot_scan"] = True
     meta["files_scanned"] = files_scanned
-    meta["scanner_version"] = "1.0.0"
+    meta["scanner_version"] = "2.0.0"  # Updated to Scanner v2 for bot operations
     meta["duration_ms"] = duration_ms
 
     # Truncate description to 200 chars per spec
@@ -286,6 +286,30 @@ async def store_scan_result(
     files_scanned = scan_output.get("files_scanned", 0)
     duration_ms = scan_output.get("duration_ms", 0)
 
+    # Calculate confidence summary for Scanner v2
+    confidence_level = None
+    try:
+        # Convert findings to Finding objects for confidence calculation
+        from api.models import Finding
+        from api.services.scanner_v2 import calculate_confidence_summary
+        
+        finding_objects = []
+        for f_dict in findings:
+            if isinstance(f_dict, dict) and 'confidence' in f_dict:
+                try:
+                    finding_obj = Finding.model_validate(f_dict)
+                    finding_objects.append(finding_obj)
+                except Exception:
+                    # Skip malformed findings
+                    continue
+        
+        if finding_objects:
+            confidence_summary = calculate_confidence_summary(finding_objects)
+            confidence_level = confidence_summary.average_confidence
+    except Exception as e:
+        logger.warning("Failed to calculate confidence summary: %s", e)
+        confidence_level = None
+
     row = {
         "id": scan_id,
         "ecosystem": job.ecosystem,
@@ -299,6 +323,10 @@ async def store_scan_result(
         "metadata_json": _enrich_metadata(job, files_scanned, duration_ms),
         "scanned_at": now,
         "created_at": now,
+        # Scanner v2 fields
+        "scanner_version": "2.0.0",
+        "confidence_level": confidence_level,
+        "context_weight": 1.0,
     }
 
     # Initiative 2: extract provider assessments for skills ecosystem scans.
@@ -400,7 +428,7 @@ async def store_scan_error(
             "error": True,
             "error_type": error_type,
             "error_message": error,
-            "scanner_version": "1.0.0",
+            "scanner_version": "2.0.0",
             "registry_url": _build_registry_url(job.ecosystem, job.name, job.version),
         },
         "scanned_at": now,

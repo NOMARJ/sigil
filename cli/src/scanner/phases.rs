@@ -42,7 +42,14 @@ fn scan_lines(
         for (re, rule, severity, description) in patterns {
             if re.is_match(line) {
                 let snippet = if line.len() > 200 {
-                    format!("{} ...", &line[..200])
+                    // Safe truncation at char boundary to avoid Unicode boundary panic
+                    let truncated = line
+                        .char_indices()
+                        .take_while(|(i, _)| *i < 200)
+                        .last()
+                        .map(|(i, ch)| i + ch.len_utf8())
+                        .unwrap_or(0);
+                    format!("{} ...", &line[..truncated])
                 } else {
                     line.to_string()
                 };

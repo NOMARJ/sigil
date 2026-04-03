@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing_extensions import Annotated
@@ -342,7 +342,7 @@ async def get_mrr_metrics(
     months_back: int = Query(
         default=12, ge=1, le=24, description="Months of historical data"
     ),
-) -> dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get Monthly Recurring Revenue metrics and trends.
 
@@ -371,7 +371,7 @@ async def get_mrr_metrics(
 @router.get("/revenue/conversions")
 async def get_conversion_metrics(
     current_user: UserResponse = Depends(require_admin_tier),
-) -> dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get user conversion funnel metrics.
 
@@ -401,7 +401,7 @@ async def get_conversion_metrics(
 @router.get("/revenue/churn")
 async def get_churn_metrics(
     current_user: UserResponse = Depends(require_admin_tier),
-) -> dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get customer churn analysis.
 
@@ -432,7 +432,7 @@ async def get_churn_metrics(
 @router.get("/revenue/credits")
 async def get_credit_analytics(
     current_user: UserResponse = Depends(require_admin_tier),
-) -> dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get credit usage and monetization analytics.
 
@@ -462,7 +462,7 @@ async def get_credit_analytics(
 @router.get("/revenue/dashboard")
 async def get_revenue_dashboard(
     current_user: UserResponse = Depends(require_admin_tier),
-) -> dict[str, any]:
+) -> Dict[str, Any]:
     """
     Get comprehensive revenue dashboard summary.
 

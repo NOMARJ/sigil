@@ -18,6 +18,7 @@ class TestSupplyChainPolymorphism:
     def test_detect_polymorphic_deps(self):
         """Test detection of self-modifying package.json."""
         code = '''
+        code = """
         const fs = require('fs');
         const pkg = JSON.parse(fs.readFileSync('package.json'));
         pkg.dependencies['malicious-package'] = '^1.0.0';
@@ -29,6 +30,13 @@ class TestSupplyChainPolymorphism:
     def test_detect_version_hijack(self):
         """Test detection of version range exploitation."""
         code = '''
+        """
+        findings = scan_content(code, "installer.js")
+        assert any(f.rule == "novel-polymorphic-deps" for f in findings)
+
+    def test_detect_version_hijack(self):
+        """Test detection of version range exploitation."""
+        code = """
         {
             "dependencies": {
                 "lodash": ">=1.0.0 <2.0.0 || >=99.0.0",
@@ -42,6 +50,13 @@ class TestSupplyChainPolymorphism:
     def test_detect_git_url_hijack(self):
         """Test detection of suspicious git dependencies."""
         code = '''
+        """
+        findings = scan_content(code, "package.json")
+        assert any(f.rule == "novel-version-hijack" for f in findings)
+
+    def test_detect_git_url_hijack(self):
+        """Test detection of suspicious git dependencies."""
+        code = """
         {
             "dependencies": {
                 "mylib": "git+ssh://github.com/user/repo.git#evil-branch",
@@ -64,6 +79,22 @@ class TestSupplyChainPolymorphism:
     def test_detect_registry_redirect(self):
         """Test detection of custom registry configuration."""
         code = '''
+        """
+        findings = scan_content(code, "package.json")
+        assert any(f.rule == "novel-git-url-hijack" for f in findings)
+
+    def test_detect_transitive_confusion(self):
+        """Test detection of transitive dependency access."""
+        code = """
+        const deepDep = require('./node_modules/express/node_modules/body-parser');
+        const nested = require('node_modules/react/node_modules/scheduler');
+        """
+        findings = scan_content(code, "index.js")
+        assert any(f.rule == "novel-transitive-confusion" for f in findings)
+
+    def test_detect_registry_redirect(self):
+        """Test detection of custom registry configuration."""
+        code = """
         {
             "publishConfig": {
                 "registry": "https://malicious-registry.com"
@@ -79,6 +110,13 @@ class TestSupplyChainPolymorphism:
     def test_detect_phantom_dependency(self):
         """Test detection of phantom dependency patterns."""
         code = '''
+        """
+        findings = scan_content(code, ".npmrc")
+        assert any(f.rule == "novel-registry-redirect" for f in findings)
+
+    def test_detect_phantom_dependency(self):
+        """Test detection of phantom dependency patterns."""
+        code = """
         let lib;
         try {
             lib = require.resolve('legitimate-package');
@@ -92,6 +130,13 @@ class TestSupplyChainPolymorphism:
     def test_detect_dependency_swapping(self):
         """Test detection of runtime dependency replacement."""
         code = '''
+        """
+        findings = scan_content(code, "loader.js")
+        assert any(f.rule == "novel-phantom-dependency" for f in findings)
+
+    def test_detect_dependency_swapping(self):
+        """Test detection of runtime dependency replacement."""
+        code = """
         const originalLoad = Module._load;
         Module._load = function(request, parent) {
             if (request === 'fs') {
@@ -106,6 +151,13 @@ class TestSupplyChainPolymorphism:
     def test_benign_package_json(self):
         """Verify benign package.json doesn't trigger false positives."""
         code = '''
+        """
+        findings = scan_content(code, "hijack.js")
+        assert any(f.rule == "novel-dependency-swapping" for f in findings)
+
+    def test_benign_package_json(self):
+        """Verify benign package.json doesn't trigger false positives."""
+        code = """
         {
             "dependencies": {
                 "express": "^4.18.0",
@@ -116,6 +168,9 @@ class TestSupplyChainPolymorphism:
         '''
         findings = scan_content(code, 'package.json')
         novel_findings = [f for f in findings if f.rule.startswith('novel-')]
+        """
+        findings = scan_content(code, "package.json")
+        novel_findings = [f for f in findings if f.rule.startswith("novel-")]
         assert len(novel_findings) == 0
 
 
@@ -135,6 +190,17 @@ class TestBuildTimeCodeGeneration:
     def test_detect_macro_expansion(self):
         """Test detection of macro expansion attacks."""
         code = '''
+        code = """
+        const payload = `alert('xss')`;
+        const func = new Function(`return ${payload}`);
+        const evil = eval(`(() => { ${userInput} })()`);
+        """
+        findings = scan_content(code, "template.js")
+        assert any(f.rule == "novel-template-injection" for f in findings)
+
+    def test_detect_macro_expansion(self):
+        """Test detection of macro expansion attacks."""
+        code = """
         function define(name, code) {
             return exec(code);
         }
@@ -156,6 +222,22 @@ class TestBuildTimeCodeGeneration:
     def test_detect_ast_manipulation(self):
         """Test detection of AST manipulation."""
         code = '''
+        """
+        findings = scan_content(code, "macros.js")
+        assert any(f.rule == "novel-macro-expansion" for f in findings)
+
+    def test_detect_source_map_poison(self):
+        """Test detection of poisoned source maps."""
+        code = """
+        //# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbXX0=
+        const sourceMap = { mappings: atob('bWFsaWNpb3VzIGNvZGU=') };
+        """
+        findings = scan_content(code, "bundle.js")
+        assert any(f.rule == "novel-source-map-poison" for f in findings)
+
+    def test_detect_ast_manipulation(self):
+        """Test detection of AST manipulation."""
+        code = """
         const esprima = require('esprima');
         const ast = esprima.parse(code);
         ast.body.forEach(node => {
@@ -170,6 +252,13 @@ class TestBuildTimeCodeGeneration:
     def test_detect_webpack_plugin(self):
         """Test detection of malicious webpack plugins."""
         code = '''
+        """
+        findings = scan_content(code, "transform.js")
+        assert any(f.rule == "novel-ast-manipulation" for f in findings)
+
+    def test_detect_webpack_plugin(self):
+        """Test detection of malicious webpack plugins."""
+        code = """
         class MaliciousPlugin {
             apply(compiler) {
                 compiler.hooks.emit.tap('Evil', compilation => {
@@ -184,6 +273,13 @@ class TestBuildTimeCodeGeneration:
     def test_detect_babel_transform(self):
         """Test detection of malicious Babel transforms."""
         code = '''
+        """
+        findings = scan_content(code, "webpack.config.js")
+        assert any(f.rule == "novel-webpack-plugin" for f in findings)
+
+    def test_detect_babel_transform(self):
+        """Test detection of malicious Babel transforms."""
+        code = """
         module.exports = function babelPlugin(babel) {
             return {
                 visitor: {
@@ -196,6 +292,9 @@ class TestBuildTimeCodeGeneration:
         '''
         findings = scan_content(code, 'babel-plugin.js')
         assert any(f.rule == 'novel-babel-transform' for f in findings)
+        """
+        findings = scan_content(code, "babel-plugin.js")
+        assert any(f.rule == "novel-babel-transform" for f in findings)
 
 
 class TestCrossLanguageBridgeExploits:
@@ -213,6 +312,16 @@ class TestCrossLanguageBridgeExploits:
     def test_detect_native_binding(self):
         """Test detection of native binding exploits."""
         code = '''
+        code = """
+        const wasmCode = new Uint8Array([0,97,115,109,1,0,0,0,1,133,128,128,128,0,1,96,1,127,1,127,3,130,128,128,128,0,1,0,4,132,128,128,128,0,1,112,1,3,3,5,131,128,128,128,0,1,0,1,6,129,128,128,128,0,0,7,145,128,128,128,0,2,6,109,101,109,111,114,121,2,0,4,116,101,115,116,0,0,10,138,128,128,128,0,1,132,128,128,128,0,0,65,42,11]);
+        WebAssembly.instantiate(wasmCode).then(obj => obj.instance.exports.test());
+        """
+        findings = scan_content(code, "wasm-loader.js")
+        assert any(f.rule == "novel-wasm-payload" for f in findings)
+
+    def test_detect_native_binding(self):
+        """Test detection of native binding exploits."""
+        code = """
         const native = require('../build/Release/addon.node');
         const binding = bindings('native.node');
         binding.exec('rm -rf /');
@@ -224,6 +333,13 @@ class TestCrossLanguageBridgeExploits:
     def test_detect_ffi_boundary(self):
         """Test detection of FFI boundary violations."""
         code = '''
+        """
+        findings = scan_content(code, "native.js")
+        assert any(f.rule == "novel-native-binding" for f in findings)
+
+    def test_detect_ffi_boundary(self):
+        """Test detection of FFI boundary violations."""
+        code = """
         const ffi = require('ffi');
         const lib = ffi.Library('libc', {
             'system': ['int', ['string']]
@@ -246,6 +362,23 @@ class TestCrossLanguageBridgeExploits:
     def test_detect_rust_bridge(self):
         """Test detection of Rust-WASM bridge exploits."""
         code = '''
+        """
+        findings = scan_content(code, "ffi-exploit.js")
+        assert any(f.rule == "novel-ffi-boundary" for f in findings)
+
+    def test_detect_python_js_bridge(self):
+        """Test detection of Python-JS bridge exploits."""
+        code = """
+        const { PythonShell } = require('python-shell');
+        PythonShell.runString('import os; os.system("evil")', null, (err, res) => {});
+        pyodide.runPython('exec(open("/etc/passwd").read())');
+        """
+        findings = scan_content(code, "py-bridge.js")
+        assert any(f.rule == "novel-python-js-bridge" for f in findings)
+
+    def test_detect_rust_bridge(self):
+        """Test detection of Rust-WASM bridge exploits."""
+        code = """
         import init from './pkg/rust_wasm.js';
         
         #[wasm_bindgen]
@@ -261,6 +394,13 @@ class TestCrossLanguageBridgeExploits:
     def test_detect_jni_exploit(self):
         """Test detection of JNI exploitation."""
         code = '''
+        """
+        findings = scan_content(code, "rust-bridge.rs")
+        assert any(f.rule == "novel-rust-bridge" for f in findings)
+
+    def test_detect_jni_exploit(self):
+        """Test detection of JNI exploitation."""
+        code = """
         const java = require('java');
         const Runtime = java.import('java.lang.Runtime');
         Runtime.getRuntime().exec('malicious command');
@@ -268,6 +408,9 @@ class TestCrossLanguageBridgeExploits:
         '''
         findings = scan_content(code, 'jni-exploit.js')
         assert any(f.rule == 'novel-jni-exploit' for f in findings)
+        """
+        findings = scan_content(code, "jni-exploit.js")
+        assert any(f.rule == "novel-jni-exploit" for f in findings)
 
 
 class TestNovelVectorPerformance:
@@ -279,6 +422,9 @@ class TestNovelVectorPerformance:
         
         # Create a test file with mixed content
         code = '''
+
+        # Create a test file with mixed content
+        code = """
         const express = require('express');
         const app = express();
         
@@ -293,6 +439,8 @@ class TestNovelVectorPerformance:
         app.listen(3000);
         '''
         
+        """
+
         # Run 100 scans to get average
         times = []
         for _ in range(100):
@@ -304,6 +452,13 @@ class TestNovelVectorPerformance:
         avg_time = sum(times) / len(times)
         print(f"Average scan time with novel vectors: {avg_time:.2f}ms")
         
+            _ = scan_content(code, "app.js")  # Run scan for timing
+            elapsed = (time.time() - start) * 1000  # Convert to ms
+            times.append(elapsed)
+
+        avg_time = sum(times) / len(times)
+        print(f"Average scan time with novel vectors: {avg_time:.2f}ms")
+
         # Assert performance is maintained
         assert avg_time < 2.0, f"Performance regression: {avg_time:.2f}ms > 2.0ms"
 
@@ -328,6 +483,28 @@ class TestNovelVectorPerformance:
         false_positive_rate = false_positives / len(benign_samples)
         print(f"False positive rate: {false_positive_rate * 100:.1f}%")
         assert false_positive_rate < 0.1, f"False positive rate too high: {false_positive_rate * 100:.1f}%"
+            ('const a = require("express");', "normal_require.js"),
+            ("app.use(express.json());", "middleware.js"),
+            ('{"name": "myapp", "version": "1.0.0"}', "package.json"),
+            ('import React from "react";', "component.jsx"),
+            ('def hello(): print("world")', "script.py"),
+        ]
+
+        false_positives = 0
+        for code, filename in benign_samples:
+            findings = scan_content(code, filename)
+            novel_findings = [f for f in findings if f.rule.startswith("novel-")]
+            if novel_findings:
+                false_positives += 1
+                print(
+                    f"False positive in {filename}: {[f.rule for f in novel_findings]}"
+                )
+
+        false_positive_rate = false_positives / len(benign_samples)
+        print(f"False positive rate: {false_positive_rate * 100:.1f}%")
+        assert false_positive_rate < 0.1, (
+            f"False positive rate too high: {false_positive_rate * 100:.1f}%"
+        )
 
 
 class TestNovelVectorCoverage:
@@ -342,6 +519,16 @@ class TestNovelVectorCoverage:
             instance = test_class()
             for method_name in dir(instance):
                 if method_name.startswith('test_detect_'):
+
+        # Run all test methods
+        for test_class in [
+            TestSupplyChainPolymorphism,
+            TestBuildTimeCodeGeneration,
+            TestCrossLanguageBridgeExploits,
+        ]:
+            instance = test_class()
+            for method_name in dir(instance):
+                if method_name.startswith("test_detect_"):
                     method = getattr(instance, method_name)
                     try:
                         method()
@@ -380,8 +567,47 @@ class TestNovelVectorCoverage:
         print(f"Missing patterns: {expected_patterns - patterns_tested}")
         
         assert len(patterns_tested) >= 18, f"Only {len(patterns_tested)}/19 patterns tested"
+                        pattern = method_name.replace("test_detect_", "novel-").replace(
+                            "_", "-"
+                        )
+                        patterns_tested.add(pattern)
+                    except AssertionError:
+                        pass  # Some tests might fail, that's ok for coverage check
+
+        expected_patterns = {
+            # Supply Chain Polymorphism (7)
+            "novel-polymorphic-deps",
+            "novel-version-hijack",
+            "novel-git-url-hijack",
+            "novel-transitive-confusion",
+            "novel-registry-redirect",
+            "novel-phantom-dependency",
+            "novel-dependency-swapping",
+            # Build-Time Code Generation (6)
+            "novel-template-injection",
+            "novel-macro-expansion",
+            "novel-source-map-poison",
+            "novel-ast-manipulation",
+            "novel-webpack-plugin",
+            "novel-babel-transform",
+            # Cross-Language Bridge (6)
+            "novel-wasm-payload",
+            "novel-native-binding",
+            "novel-ffi-boundary",
+            "novel-python-js-bridge",
+            "novel-rust-bridge",
+            "novel-jni-exploit",
+        }
+
+        print(f"Patterns tested: {len(patterns_tested)}/19")
+        print(f"Missing patterns: {expected_patterns - patterns_tested}")
+
+        assert len(patterns_tested) >= 18, (
+            f"Only {len(patterns_tested)}/19 patterns tested"
+        )
 
 
 if __name__ == "__main__":
     # Run all tests
+    pytest.main([__file__, "-v", "-s"])
     pytest.main([__file__, "-v", "-s"])

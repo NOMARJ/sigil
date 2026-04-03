@@ -18,16 +18,17 @@ Options:
 import asyncio
 import argparse
 import logging
+import pathlib
 import sys
 import time
 from typing import Any
 
-# Add parent directory to path to import API modules
-sys.path.append("/Users/reecefrazier/CascadeProjects/sigil")
+# Add project root to path to import API modules
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from api.config import settings
 from api.database import db
-from api.services.forge_matcher import forge_matcher
+from archive.services.forge_matcher import forge_matcher
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

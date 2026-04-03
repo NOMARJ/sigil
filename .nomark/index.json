@@ -1,0 +1,16 @@
+{
+  "$schema": "nomark-index-v1",
+  "last_rebuilt": "2026-03-30T12:38:33.889596",
+  "sessions": [],
+  "decisions": [],
+  "tags": {},
+  "features_active": [],
+  "stories_by_status": {
+    "TODO": [],
+    "IN_PROGRESS": [],
+    "DONE": [],
+    "BLOCKED": []
+  },
+  "session_count": 0,
+  "structured_count": 0
+}

@@ -16,6 +16,7 @@ produces ``Finding`` objects.
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -27,7 +28,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from api.models import Finding, ScanPhase, Severity
+    from api.models import Finding, ScanPhase, Severity, Confidence
 except ImportError:
     import importlib.util
 
@@ -38,7 +39,71 @@ except ImportError:
     Finding = models_module.Finding
     ScanPhase = models_module.ScanPhase
     Severity = models_module.Severity
-from api.services.explanations import get_explanation
+    Confidence = models_module.Confidence
+try:
+    from api.services.explanations import get_explanation
+except ImportError:
+    from services.explanations import get_explanation
+
+
+# ---------------------------------------------------------------------------
+# Whitelist patterns
+# ---------------------------------------------------------------------------
+
+
+def _load_whitelist_patterns() -> dict:
+    """Load whitelist patterns from JSON file."""
+    whitelist_path = Path(__file__).parent.parent / "data" / "whitelist_patterns.json"
+    try:
+        with open(whitelist_path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"patterns": {}}
+
+
+WHITELIST_DATA = _load_whitelist_patterns()
+
+
+def _is_whitelisted_pattern(content: str, file_path: str) -> bool:
+    """Check if the file contains known safe patterns that should be ignored."""
+    file_path_lower = file_path.lower()
+
+    # Skip checks for vendor/minified files in node_modules
+    if "node_modules/" in file_path_lower:
+        # Check if it's a known polyfill or library
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {}).get("polyfills", {}).get("patterns", [])
+        ):
+            # Extract package name from pattern (e.g., "core-js" from "core-js/modules")
+            package_name = pattern.lower().split("/")[0]
+            if f"/{package_name}/" in file_path_lower:
+                return True
+
+    # Check for UMD wrapper patterns
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", [])
+    ):
+        if pattern in content[:1000]:  # Check first 1KB
+            return True
+
+    # Check for webpack patterns
+    for pattern in (
+        WHITELIST_DATA.get("patterns", {}).get("webpack", {}).get("patterns", [])
+    ):
+        if pattern in content[:1000]:
+            return True
+
+    # Check for minified library signatures
+    if file_path_lower.endswith(".min.js"):
+        for pattern in (
+            WHITELIST_DATA.get("patterns", {})
+            .get("minified_libraries", {})
+            .get("patterns", [])
+        ):
+            if pattern in content[:500]:
+                return True
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -128,11 +193,18 @@ CODE_PATTERN_RULES = _compile(
             "description": "Dynamic code execution via eval()",
         },
         {
-            "id": "code-exec",
+            "id": "code-exec-dangerous",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"\bexec\s*\(",
-            "description": "Dynamic code execution via exec()",
+            "pattern": r"(?:^|[^.\w])(exec|os\.system|subprocess\.call)\s*\(",
+            "description": "Dynamic code execution via exec(), os.system(), or subprocess.call()",
+        },
+        {
+            "id": "code-exec-child-process",
+            "phase": ScanPhase.CODE_PATTERNS,
+            "severity": Severity.HIGH,
+            "pattern": r"child_process\.exec\s*\(",
+            "description": "Node.js child_process.exec() - shell command execution",
         },
         {
             "id": "code-pickle-load",
@@ -699,6 +771,282 @@ def _is_scannable(path: Path) -> bool:
     return False
 
 
+def _is_eval_in_safe_context(content: str, match_start: int) -> bool:
+    """Check if eval() is in a safe context (string literal, regex, comment)."""
+    # Check if we're inside a string literal
+    before = content[:match_start]
+
+    # Count unescaped quotes to determine if we're inside a string
+    in_single_quote = False
+    in_double_quote = False
+    in_template_literal = False
+    escape_next = False
+
+    for char in before:
+        if escape_next:
+            escape_next = False
+            continue
+
+        if char == "\\":
+            escape_next = True
+            continue
+
+        if not in_single_quote and not in_template_literal and char == '"':
+            in_double_quote = not in_double_quote
+        elif not in_double_quote and not in_template_literal and char == "'":
+            in_single_quote = not in_single_quote
+        elif not in_double_quote and not in_single_quote and char == "`":
+            in_template_literal = not in_template_literal
+
+    if in_single_quote or in_double_quote or in_template_literal:
+        return True
+
+    # Check if we're in a regex literal (basic heuristic)
+    line_start = before.rfind("\n")
+    line_content = content[line_start + 1 : match_start + 10]
+    if re.search(r"/.*eval.*/", line_content):
+        return True
+
+    # Check if we're in a comment
+    line_before = before[line_start + 1 :]
+    if "//" in line_before or line_before.strip().startswith("#"):
+        return True
+
+    # Check if we're inside a block comment /* */
+    last_block_comment_start = before.rfind("/*")
+    last_block_comment_end = before.rfind("*/")
+    if last_block_comment_start > last_block_comment_end:
+        return True
+
+    return False
+
+
+def _is_charcode_benign(content: str, match_start: int) -> bool:
+    """Check if String.fromCharCode() usage is benign (single character, Excel columns, etc.)."""
+    # Extract the line containing the match for context analysis
+    line_start = content.rfind("\n", 0, match_start)
+    line_end = content.find("\n", match_start)
+    if line_end == -1:
+        line_end = len(content)
+
+    line = content[line_start + 1 : line_end]
+
+    # Pattern 1: Single character generation like String.fromCharCode(64 + col)
+    if re.search(r"String\.fromCharCode\s*\(\s*\d+\s*[\+\-]\s*\w+\s*\)", line):
+        return True
+
+    # Pattern 2: Single static character like String.fromCharCode(65)
+    if re.search(r"String\.fromCharCode\s*\(\s*\d{1,3}\s*\)", line):
+        return True
+
+    # Pattern 3: Excel column generation patterns
+    if re.search(
+        r"(col|column|char|letter).*String\.fromCharCode", line, re.IGNORECASE
+    ):
+        return True
+
+    # Pattern 4: Single chr() call with reasonable number
+    if re.search(r"chr\s*\(\s*\d{1,3}\s*\)", line):
+        return True
+
+    return False
+
+
+# Known-safe domains for API calls
+SAFE_DOMAINS = {
+    "api.anthropic.com",
+    "api.openai.com",
+    "api.groq.com",
+    "api.cohere.ai",
+    "bedrock-runtime.us-east-1.amazonaws.com",
+    "bedrock-runtime.us-west-2.amazonaws.com",
+    "bedrock-runtime.eu-west-1.amazonaws.com",
+    "bedrock-runtime.ap-southeast-2.amazonaws.com",
+    "huggingface.co",
+    "api.huggingface.co",
+    "localhost",
+    "127.0.0.1",
+    "github.com",
+    "api.github.com",
+    "raw.githubusercontent.com",
+    "registry.npmjs.org",
+    "pypi.org",
+    "pypi.python.org",
+    "files.pythonhosted.org",
+}
+
+
+def _is_http_request_safe(content: str, match_start: int) -> bool:
+    """Check if HTTP request is to a known-safe domain."""
+    # Extract context around the match to find URL
+    line_start = content.rfind("\n", 0, match_start)
+    line_end = content.find("\n", match_start)
+    if line_end == -1:
+        line_end = len(content)
+
+    # Get a wider context (3 lines) to catch URLs that might be on different lines
+    context_start = line_start
+    for _ in range(2):  # Go back up to 2 more lines
+        prev_line = content.rfind("\n", 0, context_start - 1)
+        if prev_line == -1:
+            break
+        context_start = prev_line
+
+    context_end = line_end
+    for _ in range(2):  # Go forward up to 2 more lines
+        next_line = content.find("\n", context_end + 1)
+        if next_line == -1:
+            break
+        context_end = next_line
+
+    context = content[context_start:context_end]
+
+    # Look for URL patterns in the context
+    url_patterns = [
+        r'https?://([^/\s\'"]+)',
+        r'["\']https?://([^/\s\'"]+)["\']',
+        r'url\s*[:=]\s*["\']https?://([^/\s\'"]+)["\']',
+    ]
+
+    for pattern in url_patterns:
+        matches = re.findall(pattern, context)
+        for domain in matches:
+            # Clean up domain (remove port, etc.)
+            clean_domain = domain.split(":")[0].lower()
+            if clean_domain in SAFE_DOMAINS:
+                return True
+
+    return False
+
+
+def _is_method_call(content: str, match_start: int) -> bool:
+    """Check if the matched pattern is a method call (e.g., obj.exec) vs function call."""
+    # Look backwards from match position to check if there's a dot before it
+    if match_start > 0:
+        # Get the character immediately before the match
+        prev_char = content[match_start - 1]
+        if prev_char == ".":
+            return True
+    return False
+
+
+def _determine_confidence(
+    rule_id: str, file_path: str, severity: Severity
+) -> Confidence:
+    """Determine confidence level based on rule, file context, and severity."""
+    file_path_lower = file_path.lower()
+
+    # Low confidence for test files
+    if any(
+        test_indicator in file_path_lower
+        for test_indicator in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
+        return Confidence.LOW
+
+    # Low confidence for documentation
+    if any(
+        doc_indicator in file_path_lower
+        for doc_indicator in [
+            ".md",
+            ".rst",
+            ".txt",
+            "readme",
+            "doc/",
+            "/doc/",
+            "docs/",
+            "/docs/",
+        ]
+    ):
+        return Confidence.LOW
+
+    # Low confidence for vendor code
+    if "node_modules/" in file_path_lower:
+        return Confidence.LOW
+
+    # High confidence for critical severity in production code
+    if severity == Severity.CRITICAL:
+        return Confidence.HIGH
+
+    # Medium confidence for high severity in production code
+    if severity == Severity.HIGH:
+        return Confidence.MEDIUM
+
+    # Default to MEDIUM for production code
+    return Confidence.MEDIUM
+
+
+def _get_file_context(file_path: str) -> str:
+    """Determine the context of a file (production, test, doc, vendor)."""
+    file_path_lower = file_path.lower()
+
+    if "node_modules/" in file_path_lower:
+        return "vendor"
+    elif any(
+        test in file_path_lower
+        for test in [
+            "test/",
+            "/test/",
+            "tests/",
+            "/tests/",
+            ".test.",
+            "_test.py",
+            "_test.js",
+        ]
+    ):
+        return "test"
+    elif any(
+        doc in file_path_lower
+        for doc in [".md", ".rst", "readme", "doc/", "/doc/", "docs/", "/docs/"]
+    ):
+        return "documentation"
+    else:
+        return "production"
+
+
+def _adjust_severity_by_file_context(severity: Severity, file_path: str) -> Severity:
+    """Adjust severity based on file context (documentation, tests, etc.)."""
+    file_path_lower = file_path.lower()
+
+    # Documentation files - reduce severity by 2 levels
+    if (
+        file_path_lower.endswith(".md")
+        or "readme" in file_path_lower
+        or file_path_lower.startswith("docs/")
+        or "/docs/" in file_path_lower
+    ):
+        if severity == Severity.CRITICAL:
+            return Severity.MEDIUM
+        elif severity == Severity.HIGH:
+            return Severity.LOW
+        elif severity == Severity.MEDIUM:
+            return Severity.LOW
+        return severity
+
+    # Test files - reduce severity by 1 level
+    if (
+        ".test." in file_path_lower
+        or "tests/" in file_path_lower
+        or "/tests/" in file_path_lower
+        or file_path_lower.endswith("_test.py")
+        or file_path_lower.endswith("_test.js")
+    ):
+        if severity == Severity.CRITICAL:
+            return Severity.HIGH
+        elif severity == Severity.HIGH:
+            return Severity.MEDIUM
+        return severity
+
+    return severity
+
+
 # ---------------------------------------------------------------------------
 # Phase-specific scanner
 # ---------------------------------------------------------------------------
@@ -715,7 +1063,30 @@ class PhaseResult:
 def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
+        # Skip execution patterns in TypeScript definition files
+        if file_path.endswith(".d.ts") and rule.id in [
+            "code-eval",
+            "code-exec-dangerous",
+            "code-exec-child-process",
+            "install-pip-setup-exec",
+        ]:
+            continue
+
         for match in rule.pattern.finditer(content):
+            # Context-aware filtering for specific rules
+            if rule.id == "code-eval" and _is_eval_in_safe_context(
+                content, match.start()
+            ):
+                continue
+            if rule.id == "obf-charcode" and _is_charcode_benign(
+                content, match.start()
+            ):
+                continue
+            if rule.id == "net-http-request" and _is_http_request_safe(
+                content, match.start()
+            ):
+                continue
+
             line_no = content[: match.start()].count("\n") + 1
             # Extract a snippet: the matching line +-0 context
             lines = content.splitlines()
@@ -724,10 +1095,25 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             end = min(len(lines), idx + 2)
             snippet = "\n".join(lines[start:end])
 
+            # Apply file context severity adjustment
+            adjusted_severity = _adjust_severity_by_file_context(
+                rule.severity, file_path
+            )
+
+            # Determine confidence level
+            confidence = _determine_confidence(rule.id, file_path, adjusted_severity)
+
+            # Check if it's a method call and adjust confidence
+            if rule.id in ["code-exec-dangerous", "code-eval"] and _is_method_call(
+                content, match.start()
+            ):
+                confidence = Confidence.LOW
+
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
-                severity=rule.severity,
+                severity=adjusted_severity,
+                confidence=confidence,
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],  # Cap snippet length
@@ -754,6 +1140,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-base64-nested-chain",
                 severity=Severity.CRITICAL,
+                confidence=Confidence.HIGH,  # Nested base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -777,6 +1164,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
                 phase=ScanPhase.OBFUSCATION,
                 rule="obf-hex-base64-chain",
                 severity=Severity.HIGH,
+                confidence=Confidence.HIGH,  # Hex+base64 chains are very suspicious
                 file=file_path,
                 line=line_no,
                 snippet=snippet[:500],
@@ -862,10 +1250,12 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     name = Path(file_path).name
     for rule in rules:
         if rule.pattern.search(name):
+            confidence = _determine_confidence(rule.id, file_path, rule.severity)
             yield Finding(
                 phase=rule.phase,
                 rule=rule.id,
                 severity=rule.severity,
+                confidence=confidence,
                 file=file_path,
                 line=0,
                 snippet=name,
@@ -924,6 +1314,12 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
     Useful when scan content is submitted directly rather than from disk.
     """
     findings: list[Finding] = []
+
+    # Check if file contains whitelisted patterns
+    if _is_whitelisted_pattern(content, filename):
+        # Still check provenance (filenames) but skip content scanning
+        findings.extend(_scan_filename(filename, PROVENANCE_RULES))
+        return findings
 
     findings.extend(_scan_filename(filename, PROVENANCE_RULES))
     findings.extend(_scan_content(content, filename, ALL_RULES))
