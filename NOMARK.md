@@ -56,7 +56,7 @@ Before touching code, challenge assumptions. Use brainstorming skill for interac
 4. Identify fundamentals (what's truly non-negotiable?)
 5. Rebuild from scratch (if we started today...)
 
-**Command:** `/nomark:think`
+**Command:** `/think`
 **Skills:** brainstorming (interactive), inverted-thinking (risk check)
 
 ### PLAN
@@ -64,7 +64,7 @@ Before touching code, challenge assumptions. Use brainstorming skill for interac
 Design the solution before implementation. Enter plan mode for 3+ step tasks.
 
 1. Ensure a SOLUTION.md Feature entry exists (create one if not)
-2. Generate a PRD linked to the Feature (`/nomark:prd`)
+2. Generate a PRD linked to the Feature (`/prd`)
 3. Explore the codebase — understand existing patterns
 4. Break into atomic stories — each completable in one session
 5. Get approval, then execute
@@ -73,7 +73,7 @@ Design the solution before implementation. Enter plan mode for 3+ step tasks.
 
 Each story must be: **Atomic** (one outcome), **Ordered** (dependencies first), **Verifiable** (concrete done condition).
 
-**Command:** `/nomark:plan`
+**Command:** `/plan`
 **Skills:** tdd (test strategy), git-worktrees (if parallel), conductor (if multi-track)
 
 ### BUILD
@@ -90,7 +90,7 @@ For each story:
   6. If 3 failures: STOP, write BLOCKED, escalate
 ```
 
-**Command:** `/nomark:build`
+**Command:** `/build`
 **Skills:** tdd (Red-Green-Refactor), systematic-debugging (if stuck), subagent-dispatch (if parallel)
 
 ### VERIFY
@@ -102,26 +102,26 @@ Layer 1: Static Analysis     — typecheck + format + lint
 Layer 2: Automated Tests     — unit + integration
 Layer 3: Security Scan       — SIGIL supply chain + OWASP review
 Layer 4: Browser / Manual    — visual confirmation (UI) or plan review (infra)
-Layer 5: Simplification      — /nomark:simplify, remove accidental complexity
+Layer 5: Simplification      — /simplify, remove accidental complexity
 ```
 
 Three-tier security: Tier 1 (static, every change) → Tier 2 (differential review, every PR) → Tier 3 (multi-model review, critical changes to auth/payments/PII/crypto).
 
-**Command:** `/nomark:verify`
+**Command:** `/verify`
 **Skills:** verification-before-completion (Iron Law), owasp-security, receiving-code-review
 
 ### SHIP
 
 Govern the deployment decision. NOMARK doesn't deploy — it governs the decision to deploy and verifies the outcome.
 
-1. Generate CI pipeline from project context (`/nomark:ci`)
+1. Generate CI pipeline from project context (`/ci`)
 2. Pre-flight checklist (verification, attestation, clean tree, branch, CI)
 3. Attestation gate — RED = blocked, override with reason (logged)
 4. Environment promotion — non-prod default, `--env prod` explicit
 5. Post-deploy health check — verify deploy worked
 6. Rollback governance — confirmation required, reason logged
 
-**Commands:** `/nomark:ci`, `/nomark:ship`
+**Commands:** `/ci`, `/ship`
 **Skills:** deploy-pack (provider interface), verification-before-completion (pre-flight)
 
 ---
@@ -144,7 +144,7 @@ Every skill invocation is structured as three composable layers:
 | **Enhancement** | Behavior injections. Zero or more. | git, hcd, terraform, security |
 | **Guarantee** | Integrity wrapper. Zero or one. | trust-agent, governance |
 
-On task start, detect task type and select the matching composition from `layers.json`. Override with explicit layers: `/nomark:build +security +terraform`.
+On task start, detect task type and select the matching composition from `layers.json`. Override with explicit layers: `/build +security +terraform`.
 
 ### Pipeline Handoff (`.nomark/pipeline.json`)
 
@@ -205,7 +205,7 @@ SHIP   → deploy-pack (provider execution), verification-before-completion (pre
 Primary workflow for features:
 
 ```
-/nomark:plan       → atomic stories with test acceptance criteria
+/plan       → atomic stories with test acceptance criteria
       ↓
 RED                → write failing test from acceptance criteria
       ↓
@@ -213,10 +213,10 @@ GREEN              → implement minimum code to pass
       ↓
 REFACTOR           → clean up without breaking tests
       ↓
-/nomark:verify     → 5-layer check
+/verify     → 5-layer check
       ↓
 [FAIL] → fix → verify again
-[PASS] → /nomark:simplify → /nomark:commit → /nomark:ship
+[PASS] → /simplify → /commit → /ship
 ```
 
 **Rules:** No production code without a failing test. Coverage ≥ 80% for modified files. A story is never DONE without a passing test.
@@ -303,11 +303,11 @@ tags: [auth, architecture]
 
 | Command | Action |
 |---------|--------|
-| `/nomark:memory save` | Write session with frontmatter |
-| `/nomark:memory <query>` | Index search + full-text search |
-| `/nomark:memory graph` | Show traceability chain |
-| `/nomark:lessons add` | Capture correction rule |
-| `/nomark:progress` | Status overview |
+| `/memory save` | Write session with frontmatter |
+| `/memory <query>` | Index search + full-text search |
+| `/memory graph` | Show traceability chain |
+| `/lessons add` | Capture correction rule |
+| `/progress` | Status overview |
 
 The session-end hook automatically: commits memory files, parses YAML frontmatter, rebuilds `index.json`. Zero manual maintenance.
 

@@ -1,0 +1,48 @@
+{
+  "name": "business",
+  "version": "1.0.0",
+  "description": "McKinsey-style business strategy suite, growth/GTM execution, financial modeling, and startup commands.",
+  "agents": [
+    { "file": "agents/engagement-partner.md", "description": "Senior strategy consulting partner" },
+    { "file": "agents/engagement-runner.md", "description": "Full engagement orchestrator across all specialists" },
+    { "file": "agents/financial-modeler.md", "description": "Unit economics, projections, scenario models" },
+    { "file": "agents/growth-strategist.md", "description": "Growth execution based on GTM spec" },
+    { "file": "agents/gtm-architect.md", "description": "GTM strategy from first principles" },
+    { "file": "agents/industry-analyst.md", "description": "Market research, benchmarks, trend analysis" },
+    { "file": "agents/due-diligence-lead.md", "description": "Assumption validation, risk assessment" },
+    { "file": "agents/competitive-intel-analyst.md", "description": "Competitor research, battlecards" },
+    { "file": "agents/customer-insights-lead.md", "description": "Personas, JTBD, voice of customer" },
+    { "file": "agents/communications-advisor.md", "description": "Positioning, investor narratives" },
+    { "file": "agents/operations-strategist.md", "description": "Scalability, org design, process efficiency" },
+    { "file": "agents/pricing-architect.md", "description": "Monetization models, willingness-to-pay" },
+    { "file": "agents/legal-advisor.md", "description": "Privacy policies, terms of service, compliance" },
+    { "file": "agents/hr-pro.md", "description": "Hiring, onboarding, PTO, performance" },
+    { "file": "agents/content-marketer.md", "description": "Blog posts, social media, email newsletters" },
+    { "file": "agents/sales-automator.md", "description": "Cold emails, follow-ups, proposals" },
+    { "file": "agents/seo-authority-builder.md", "description": "E-E-A-T signals and authority building" },
+    { "file": "agents/seo-cannibalization-detector.md", "description": "Keyword overlap and cannibalization analysis" },
+    { "file": "agents/seo-content-auditor.md", "description": "Content quality and SEO best practices audit" },
+    { "file": "agents/seo-content-planner.md", "description": "Content outlines and topic clusters" },
+    { "file": "agents/seo-content-refresher.md", "description": "Outdated content identification and refresh" },
+    { "file": "agents/seo-content-writer.md", "description": "SEO-optimized content creation" },
+    { "file": "agents/seo-keyword-strategist.md", "description": "Keyword analysis, density, LSI suggestions" },
+    { "file": "agents/seo-meta-optimizer.md", "description": "Meta titles, descriptions, URL optimization" },
+    { "file": "agents/seo-snippet-hunter.md", "description": "Featured snippet and SERP optimization" },
+    { "file": "agents/seo-structure-architect.md", "description": "Header hierarchy, schema markup, internal linking" }
+  ],
+  "commands": [
+    { "file": "commands/startup/business-case.md", "description": "Investor-ready business case document" },
+    { "file": "commands/startup/financial-projections.md", "description": "3-5 year financial model" },
+    { "file": "commands/startup/market-opportunity.md", "description": "TAM/SAM/SOM market analysis" },
+    { "file": "commands/growth/gtm.md", "description": "GTM strategy derivation" },
+    { "file": "commands/growth/content.md", "description": "Content creation execution" },
+    { "file": "commands/growth/outreach.md", "description": "Outreach campaign execution" },
+    { "file": "commands/growth/launch.md", "description": "Product launch playbook" },
+    { "file": "commands/growth/metrics.md", "description": "Growth metrics review" }
+  ],
+  "skills": [
+    { "dir": "skills/business-strategy/", "description": "Business diagnosis, market reality check, offer testing, bottleneck analysis" },
+    { "dir": "skills/growth/", "description": "GTM strategy, content engine, ICP builder, outreach, launch playbooks" }
+  ],
+  "token_impact": "~26 agent defs + 8 commands + 14 skill files — high impact (install selectively)"
+}

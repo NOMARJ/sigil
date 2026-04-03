@@ -118,7 +118,7 @@ Does this align with what we're actually building, for the people who actually u
 
 Before producing output in any ambiguous situation: Buffett (real value?), Jobs (right solution?), Munger (failure modes?), Torvalds (prove it works?), Suri (who is this for and how do you know?), Reece (the NOMARK way?). If any answer is no or uncertain — escalate.
 
-**Invocation:** The `governance-board` skill auto-activates at ambiguous judgment points. For deliberate evaluation, run `/nomark:board`.
+**Invocation:** The `governance-board` skill auto-activates at ambiguous judgment points. For deliberate evaluation, run `/board`.
 
 ---
 

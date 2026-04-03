@@ -1,0 +1,49 @@
+{
+  "name": "infra",
+  "version": "1.0.0",
+  "description": "Infrastructure, DevOps, and cloud deployment agents, commands, and skills.",
+  "agents": [
+    { "file": "agents/terraform-specialist.md", "description": "IaC, air-gap deployments, security patterns" },
+    { "file": "agents/kubernetes-architect.md", "description": "EKS/AKS/GKE, GitOps, service mesh" },
+    { "file": "agents/cloud-architect.md", "description": "AWS/Azure/GCP, cost optimization, multi-region" },
+    { "file": "agents/hybrid-cloud-architect.md", "description": "Multi-cloud, OpenStack, on-prem integration" },
+    { "file": "agents/deployment-engineer.md", "description": "CI/CD, Docker, GitHub Actions, Kubernetes" },
+    { "file": "agents/devops-troubleshooter.md", "description": "Production debugging, log analysis, root cause" },
+    { "file": "agents/database-admin.md", "description": "Backups, replication, monitoring, recovery" },
+    { "file": "agents/database-optimizer.md", "description": "Query optimization, indexes, N+1 problems" },
+    { "file": "agents/monorepo-architect.md", "description": "Nx, Turborepo, Bazel, dependency management" },
+    { "file": "agents/network-engineer.md", "description": "DNS, SSL/TLS, CDN, load balancers" },
+    { "file": "agents/legacy-modernizer.md", "description": "Framework migration, technical debt reduction" },
+    { "file": "agents/incident-responder.md", "description": "Production incidents, debugging, post-mortems" },
+    { "file": "agents/performance-engineer.md", "description": "Profiling, bottlenecks, caching, load testing" },
+    { "file": "agents/dx-optimizer.md", "description": "Developer experience, tooling, setup, workflows" }
+  ],
+  "commands": [
+    { "file": "commands/infra/k8s-manifest.md", "description": "Kubernetes manifest generation" },
+    { "file": "commands/infra/deploy-checklist.md", "description": "Deployment checklist and configuration" },
+    { "file": "commands/infra/deps-audit.md", "description": "Dependency audit and security analysis" },
+    { "file": "commands/infra/deps-upgrade.md", "description": "Dependency upgrade strategy" },
+    { "file": "commands/infra/docker-optimize.md", "description": "Docker optimization" },
+    { "file": "commands/infra/git-workflow.md", "description": "Git workflow using specialized agents" },
+    { "file": "commands/ops/incident-response.md", "description": "Production incident coordination" },
+    { "file": "commands/ops/monitor-setup.md", "description": "Monitoring and observability setup" },
+    { "file": "commands/ops/cost-optimize.md", "description": "Cloud cost optimization" },
+    { "file": "commands/ops/tech-debt.md", "description": "Technical debt analysis" },
+    { "file": "commands/ops/compliance-check.md", "description": "Regulatory compliance check" },
+    { "file": "commands/ops/config-validate.md", "description": "Configuration validation" },
+    { "file": "commands/ops/legacy-modernize.md", "description": "Legacy code modernization" },
+    { "file": "commands/ops/onboard.md", "description": "Developer onboarding guide" },
+    { "file": "commands/ops/performance-optimization.md", "description": "End-to-end performance optimization" },
+    { "file": "commands/ops/slo-implement.md", "description": "SLO implementation guide" },
+    { "file": "commands/ops/standup-notes.md", "description": "Standup notes generator" },
+    { "file": "commands/ops/workflow-automate.md", "description": "Workflow automation" }
+  ],
+  "skills": [
+    { "dir": "skills/kubernetes/", "description": "Manifests, Helm, GitOps, security policies" },
+    { "dir": "skills/cloud/", "description": "Terraform, multi-cloud, service mesh, cost optimization" },
+    { "dir": "skills/cicd/", "description": "Pipeline design, GitHub Actions, GitLab CI, secrets" },
+    { "dir": "skills/observability/", "description": "Distributed tracing, Grafana, Prometheus, SLOs" },
+    { "dir": "skills/infrastructure-development/", "description": "VPC, ECS, PrivateLink patterns" }
+  ],
+  "token_impact": "~14 agent defs + 18 commands + 21 skill files — high impact"
+}

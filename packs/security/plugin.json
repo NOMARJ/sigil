@@ -1,0 +1,25 @@
+{
+  "name": "security",
+  "version": "1.0.0",
+  "description": "OWASP security agents, security skills, and scan commands for vulnerability detection and security auditing.",
+  "agents": [
+    { "file": "agents/owasp-injection-specialist.md", "description": "SQL injection, NoSQL injection, command injection detection" },
+    { "file": "agents/owasp-auth-specialist.md", "description": "JWT security, OAuth2 flows, session management" },
+    { "file": "agents/owasp-crypto-specialist.md", "description": "Encryption, key management, TLS configuration" },
+    { "file": "agents/owasp-access-control-specialist.md", "description": "RBAC, workspace isolation, privilege escalation prevention" },
+    { "file": "agents/owasp-data-specialist.md", "description": "Audit logging, security monitoring, SIEM integration" },
+    { "file": "agents/threat-modeling-expert.md", "description": "STRIDE, PASTA, attack trees, security requirements" }
+  ],
+  "commands": [
+    { "file": "commands/security/owasp-scan.md", "description": "Comprehensive OWASP Top 10 vulnerability scan" },
+    { "file": "commands/security/vuln-fix.md", "description": "Automated vulnerability remediation" },
+    { "file": "commands/security/security-hardening.md", "description": "Security-first architecture hardening" },
+    { "file": "commands/security/security-training.md", "description": "Interactive security education" },
+    { "file": "commands/security/security-review.md", "description": "Security review of pending changes" },
+    { "file": "commands/security/security-scan.md", "description": "Full security scan with SIGIL + Claude" }
+  ],
+  "skills": [
+    { "dir": "skills/owasp-security/", "description": "OWASP scanning, differential review, false positive check, insecure defaults, sharp edges, supply chain audit, second opinion" }
+  ],
+  "token_impact": "~6 agent defs + 6 commands + 7 skill files — medium impact"
+}
