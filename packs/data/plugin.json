@@ -1,0 +1,31 @@
+{
+  "name": "data",
+  "version": "1.0.0",
+  "description": "Data engineering, ML/AI pipelines, vector databases, and LLM integration agents, commands, and skills.",
+  "agents": [
+    { "file": "agents/ai-engineer.md", "description": "LLM applications, RAG systems, prompt pipelines, and AI API integrations" },
+    { "file": "agents/blockchain-developer.md", "description": "Web3 applications, smart contracts, DeFi protocols, and blockchain infrastructure" },
+    { "file": "agents/data-engineer.md", "description": "ETL pipelines, data warehouses, Spark jobs, Airflow DAGs, and streaming architectures" },
+    { "file": "agents/data-scientist.md", "description": "Data analysis, SQL queries, BigQuery operations, and data insights" },
+    { "file": "agents/ml-engineer.md", "description": "ML pipelines, model serving, feature engineering, and production deployment" },
+    { "file": "agents/mlops-engineer.md", "description": "ML infrastructure, experiment tracking, model registries, and pipeline automation" },
+    { "file": "agents/payment-integration.md", "description": "Stripe, PayPal integration, checkout flows, subscriptions, and PCI compliance" },
+    { "file": "agents/prompt-engineer.md", "description": "Prompt optimization for LLMs, AI features, and system prompts" },
+    { "file": "agents/quant-analyst.md", "description": "Financial models, trading strategies, risk metrics, and portfolio optimization" },
+    { "file": "agents/risk-manager.md", "description": "Portfolio risk monitoring, hedging strategies, and position management" },
+    { "file": "agents/vector-database-engineer.md", "description": "Vector databases, embedding strategies, and semantic search implementation" }
+  ],
+  "commands": [
+    { "file": "commands/data/data-pipeline.md", "description": "Design and implement scalable data pipeline architecture" },
+    { "file": "commands/data/data-validation.md", "description": "Comprehensive data validation system" },
+    { "file": "commands/data/db-migrate.md", "description": "Database migration with zero-downtime and rollback strategies" },
+    { "file": "commands/data/ml-pipeline.md", "description": "Complete ML pipeline design and implementation" }
+  ],
+  "skills": [
+    { "dir": "skills/data-engineering/", "description": "Airflow DAGs, dbt transformations, Spark optimization, data quality, financial ops, dashboards, data context extraction" },
+    { "dir": "skills/mlops/", "description": "ML pipeline workflows, experiment tracking, model registry patterns" },
+    { "dir": "skills/database/", "description": "PostgreSQL patterns and optimization" },
+    { "dir": "skills/llm/", "description": "RAG, embeddings, LangChain, prompt engineering, vector index tuning, hybrid search, similarity search, LLM evaluation" }
+  ],
+  "token_impact": "~11 agent defs + 4 commands + 25 skill files — high impact"
+}

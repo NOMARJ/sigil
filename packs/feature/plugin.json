@@ -1,0 +1,19 @@
+{
+  "name": "feature",
+  "version": "1.0.0",
+  "description": "Feature development workflows including full-stack, API scaffold, data-driven features, and multi-platform builds.",
+  "agents": [],
+  "commands": [
+    { "file": "commands/feature/api-mock.md", "description": "API mocking framework for development, testing, and demonstration" },
+    { "file": "commands/feature/api-scaffold.md", "description": "Production-ready REST API scaffold with architecture and security" },
+    { "file": "commands/feature/data-driven-feature.md", "description": "Build data-driven features with pipelines and ML capabilities" },
+    { "file": "commands/feature/feature-development.md", "description": "Guided feature development with codebase understanding and approval gates" },
+    { "file": "commands/feature/full-review.md", "description": "Comprehensive multi-perspective review with specialized agents" },
+    { "file": "commands/feature/full-stack-feature.md", "description": "Full-stack feature across backend, frontend, mobile, and API layers" },
+    { "file": "commands/feature/improve-agent.md", "description": "Improve an existing agent based on recent performance analysis" },
+    { "file": "commands/feature/langchain-agent.md", "description": "LangChain/LangGraph agent scaffold for production-ready agents" },
+    { "file": "commands/feature/multi-platform.md", "description": "Build the same feature across web, mobile, and other platforms" }
+  ],
+  "skills": [],
+  "token_impact": "~9 commands — low impact"
+}

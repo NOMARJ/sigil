@@ -1,0 +1,32 @@
+{
+  "name": "discovery",
+  "version": "1.0.0",
+  "description": "Human-Centered Design pack. Evidence-grounded persona panels, synthetic interviews, silence audits, and HMW generation. Adds the DISCOVER capability to the NOMARK lifecycle. Based on IDEO Field Guide to Human-Centered Design (57 methods) with dual-consumer lens (human + AI agent).",
+  "requires": {
+    "nomark_core": ">=2.0.0",
+    "capabilities": ["web_search"]
+  },
+  "agents": [
+    { "file": "agents/empathy-researcher.md", "description": "DISCOVER phase facilitation — persona construction, synthetic interviews, insight extraction" },
+    { "file": "agents/agent-experience-mapper.md", "description": "AI agent consumer simulation — discovery, evaluation, transaction, failure testing" }
+  ],
+  "commands": [
+    { "file": "commands/nomark/discover.md", "description": "Run full DISCOVER phase (persona panel + synthetic interviews + insights)" },
+    { "file": "commands/nomark/empathy.md", "description": "Quick empathy check — Suri test against current Feature" },
+    { "file": "commands/nomark/silence-audit.md", "description": "Who is missing from the evidence base?" },
+    { "file": "commands/nomark/hmw.md", "description": "Generate How Might We variants from insight statements" }
+  ],
+  "skills": [
+    { "dir": "skills/empathy-engine/", "description": "Full Empathy Engine — persona panel construction, evidence harvesting, synthetic interviews" },
+    { "dir": "skills/silence-audit/", "description": "Bias detection — identifies who is missing from evidence and what that means" },
+    { "dir": "skills/hmw-generator/", "description": "Bridges insight statements to opportunity questions for both human and agent consumers" },
+    { "dir": "skills/hostile-critic/", "description": "Mandatory adversarial persona — breaks sycophancy bias in synthetic interviews" }
+  ],
+  "templates": [
+    { "file": "templates/solution-who-it-serves.md", "description": "Evidence-aware Who It Serves section for SOLUTION.md" },
+    { "file": "templates/insight-registry.md", "description": "Part I.5 Insight Registry template for SOLUTION.md" },
+    { "file": "templates/persona-profile.md", "description": "Individual persona profile template with evidence chain" },
+    { "file": "templates/agent-persona-profile.md", "description": "AI agent consumer persona profile template" }
+  ],
+  "token_impact": "~2 agent defs + 4 commands + 4 skills loaded on demand. Skills are invoked, not preloaded. Low passive impact."
+}

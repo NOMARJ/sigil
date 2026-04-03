@@ -1,0 +1,26 @@
+{
+  "name": "team",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration, parallel story execution, and conductor track management.",
+  "agents": [],
+  "commands": [
+    { "file": "commands/team/multi-agent-optimize.md", "description": "Optimize application stack using specialized optimization agents" },
+    { "file": "commands/team/multi-agent-review.md", "description": "Multi-specialist parallel code review" },
+    { "file": "commands/team/team-bugfix.md", "description": "Cross-component team bug diagnosis and fix" },
+    { "file": "commands/team/team-build.md", "description": "Parallel story execution via agent team with integrity checks" },
+    { "file": "commands/team/team-deploy.md", "description": "Agent team for deployment preparation" },
+    { "file": "commands/team/team-infra.md", "description": "Agent team for infrastructure changes" },
+    { "file": "commands/team/team-review.md", "description": "Agent team for parallel code review" },
+    { "file": "commands/conductor/implement.md", "description": "Execute tasks from a track's implementation plan" },
+    { "file": "commands/conductor/manage.md", "description": "Manage track lifecycle: archive, restore, delete, rename" },
+    { "file": "commands/conductor/new-track.md", "description": "Create a new track with specification and phased plan" },
+    { "file": "commands/conductor/revert.md", "description": "Git-aware undo by logical work unit" },
+    { "file": "commands/conductor/setup.md", "description": "Initialize project with Conductor artifacts" },
+    { "file": "commands/conductor/status.md", "description": "Display project status, active tracks, and next actions" }
+  ],
+  "skills": [
+    { "dir": "skills/conductor/", "description": "Context-driven development, track management, workflow patterns, and handoff protocol" },
+    { "dir": "skills/devops-teams/", "description": "DevOps agent team coordination and multi-agent workflow patterns" }
+  ],
+  "token_impact": "~13 commands + 6 skill files — medium impact"
+}
