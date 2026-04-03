@@ -48,6 +48,7 @@ pub struct Sbom {
 pub struct ThreatInfo {
     pub severity: String,
     pub description: String,
+    #[allow(dead_code)]
     pub version: Option<String>,
 }
 
@@ -91,7 +92,7 @@ pub fn load_known_threats(path: &Path) -> HashMap<String, ThreatInfo> {
                 .map(String::from);
 
             // Keep higher severity entries (CRITICAL > HIGH > MEDIUM > LOW)
-            let dominated = map.get(&package_name).map_or(false, |existing: &ThreatInfo| {
+            let dominated = map.get(&package_name).is_some_and(|existing: &ThreatInfo| {
                 severity_rank(&existing.severity) >= severity_rank(&severity)
             });
             if !dominated {
