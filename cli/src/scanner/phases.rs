@@ -826,7 +826,10 @@ pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // 2. Excessive permissions
         (
-            Regex::new(r#"(?i)"permissions"\s*:\s*\[.*("filesystem"|"network"|"env"|"shell"|"\*")"#).unwrap(),
+            Regex::new(
+                r#"(?i)"permissions"\s*:\s*\[.*("filesystem"|"network"|"env"|"shell"|"\*")"#,
+            )
+            .unwrap(),
             "SKILL-002",
             Severity::Critical,
             "Skill manifest — excessive permission request",
@@ -847,14 +850,18 @@ pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
         ),
         // 5. Credential embedding in config
         (
-            Regex::new(r#"(?i)(api[_-]?key|secret|token|password|credential)\s*"?\s*:\s*"[a-zA-Z0-9]{8,}"#).unwrap(),
+            Regex::new(
+                r#"(?i)(api[_-]?key|secret|token|password|credential)\s*"?\s*:\s*"[a-zA-Z0-9]{8,}"#,
+            )
+            .unwrap(),
             "SKILL-005",
             Severity::Critical,
             "Skill manifest — embedded credential",
         ),
         // 6. Postinstall/activate hooks in plugin manifests
         (
-            Regex::new(r#"(?i)(postinstall|preinstall|activate|on_install|on_load)\s*"?\s*:"#).unwrap(),
+            Regex::new(r#"(?i)(postinstall|preinstall|activate|on_install|on_load)\s*"?\s*:"#)
+                .unwrap(),
             "SKILL-006",
             Severity::High,
             "Skill manifest — lifecycle hook (code runs on install/activate)",
@@ -948,7 +955,10 @@ pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
             "Inference security — prompt content sent via HTTP",
         ),
         (
-            Regex::new(r#"(?i)(prompt|completion|response).*\.write\s*\(|open\s*\(.*["']w["'].*prompt"#).unwrap(),
+            Regex::new(
+                r#"(?i)(prompt|completion|response).*\.write\s*\(|open\s*\(.*["']w["'].*prompt"#,
+            )
+            .unwrap(),
             "INFER-011",
             Severity::High,
             "Inference security — prompt/completion content written to file",

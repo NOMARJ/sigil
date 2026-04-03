@@ -1,7 +1,7 @@
+use super::container;
 use crate::policy::generate::generate_from_scan;
 use crate::provider;
 use crate::scanner::{self, Verdict};
-use super::container;
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::Path;
@@ -57,7 +57,12 @@ pub fn safe_run(
 
     // Step 4: Resolve credentials
     let env_vars = if let Some(provider_names) = providers {
-        provider::resolve_env(&provider_names.iter().map(|s| s.to_string()).collect::<Vec<_>>())
+        provider::resolve_env(
+            &provider_names
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        )
     } else {
         // Default: only pass PATH, HOME, TERM
         let mut env = HashMap::new();

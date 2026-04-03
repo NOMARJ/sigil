@@ -142,11 +142,7 @@ pub fn generate_sbom(
     let mut all_components: Vec<Component> = Vec::new();
 
     // Walk the directory looking for dependency files
-    let lockfile_names = [
-        "package-lock.json",
-        "requirements.txt",
-        "Cargo.lock",
-    ];
+    let lockfile_names = ["package-lock.json", "requirements.txt", "Cargo.lock"];
 
     for entry in WalkDir::new(path)
         .follow_links(false)
@@ -179,11 +175,7 @@ pub fn generate_sbom(
         match parsed {
             Ok(mut components) => all_components.append(&mut components),
             Err(e) => {
-                eprintln!(
-                    "Warning: failed to parse {}: {}",
-                    file_path.display(),
-                    e
-                );
+                eprintln!("Warning: failed to parse {}: {}", file_path.display(), e);
             }
         }
     }

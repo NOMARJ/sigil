@@ -117,9 +117,7 @@ fn phase_from_name(name: &str) -> Option<Phase> {
         "credentials" => Some(Phase::Credentials),
         "obfuscation" => Some(Phase::Obfuscation),
         "provenance" => Some(Phase::Provenance),
-        "prompt-injection" | "prompt_injection" | "promptinjection" => {
-            Some(Phase::PromptInjection)
-        }
+        "prompt-injection" | "prompt_injection" | "promptinjection" => Some(Phase::PromptInjection),
         "skill-security" | "skill_security" | "skillsecurity" => Some(Phase::SkillSecurity),
         "inference-security" | "inference_security" | "inferencesecurity" => {
             Some(Phase::InferenceSecurity)

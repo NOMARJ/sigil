@@ -138,11 +138,9 @@ impl SigilPolicy {
                 return Err(format!("network rule '{}' has empty host", rule.name).into());
             }
             if !["read-only", "read-write"].contains(&rule.access.as_str()) {
-                return Err(format!(
-                    "invalid access '{}' in rule '{}'",
-                    rule.access, rule.name
-                )
-                .into());
+                return Err(
+                    format!("invalid access '{}' in rule '{}'", rule.access, rule.name).into(),
+                );
             }
             if !["enforce", "log"].contains(&rule.enforcement.as_str()) {
                 return Err(format!(
@@ -188,12 +186,7 @@ impl SigilPolicy {
             name: "standard".into(),
             description: Some("Common endpoints allowed, working credentials".into()),
             filesystem: FilesystemPolicy {
-                read_only: vec![
-                    "/usr".into(),
-                    "/lib".into(),
-                    "/etc".into(),
-                    "/proc".into(),
-                ],
+                read_only: vec!["/usr".into(), "/lib".into(), "/etc".into(), "/proc".into()],
                 read_write: vec!["/tmp".into()],
                 include_workdir: true,
             },

@@ -480,7 +480,16 @@ async fn main() {
             sbom_format,
             threats_db,
             output,
-        } => cmd_sbom(&path, &sbom_format, threats_db.as_deref(), output.as_deref(), cli.verbose).await,
+        } => {
+            cmd_sbom(
+                &path,
+                &sbom_format,
+                threats_db.as_deref(),
+                output.as_deref(),
+                cli.verbose,
+            )
+            .await
+        }
 
         Commands::SafeRun {
             path,
@@ -489,8 +498,8 @@ async fn main() {
             verbose,
             command,
         } => {
-            let provider_list: Option<Vec<String>> = providers
-                .map(|p| p.split(',').map(|s| s.trim().to_string()).collect());
+            let provider_list: Option<Vec<String>> =
+                providers.map(|p| p.split(',').map(|s| s.trim().to_string()).collect());
             match sandbox::safe_run::safe_run(
                 &path,
                 &command,
@@ -1596,11 +1605,7 @@ async fn cmd_provider(action: ProviderAction) -> i32 {
                     0
                 }
                 Err(err) => {
-                    eprintln!(
-                        "{} failed to save provider: {}",
-                        "error:".bold().red(),
-                        err
-                    );
+                    eprintln!("{} failed to save provider: {}", "error:".bold().red(), err);
                     1
                 }
             }
@@ -1849,11 +1854,7 @@ async fn cmd_sbom(
                 );
             }
             Err(e) => {
-                eprintln!(
-                    "{} failed to write output: {}",
-                    "error:".bold().red(),
-                    e
-                );
+                eprintln!("{} failed to write output: {}", "error:".bold().red(), e);
                 return 1;
             }
         }
@@ -1888,11 +1889,7 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
             let (policy_result, scan) = match policy::generate::generate_for_path(&path) {
                 Ok(result) => result,
                 Err(e) => {
-                    eprintln!(
-                        "{} failed to generate policy: {}",
-                        "error:".bold().red(),
-                        e
-                    );
+                    eprintln!("{} failed to generate policy: {}", "error:".bold().red(), e);
                     return 1;
                 }
             };
@@ -1940,11 +1937,7 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
                         );
                     }
                     Err(e) => {
-                        eprintln!(
-                            "{} failed to write policy: {}",
-                            "error:".bold().red(),
-                            e
-                        );
+                        eprintln!("{} failed to write policy: {}", "error:".bold().red(), e);
                         return 1;
                     }
                 }
@@ -1955,54 +1948,44 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
             0
         }
 
-        PolicyAction::Validate { file } => {
-            match policy::SigilPolicy::from_file(&file) {
-                Ok(_policy) => {
-                    println!(
-                        "{} policy {} is valid",
-                        "sigil:".bold().green(),
-                        file.display()
-                    );
+        PolicyAction::Validate { file } => match policy::SigilPolicy::from_file(&file) {
+            Ok(_policy) => {
+                println!(
+                    "{} policy {} is valid",
+                    "sigil:".bold().green(),
+                    file.display()
+                );
+                0
+            }
+            Err(e) => {
+                eprintln!("{} policy validation failed: {}", "error:".bold().red(), e);
+                1
+            }
+        },
+
+        PolicyAction::Preset { name } => match policy::SigilPolicy::preset(&name) {
+            Some(policy) => match policy.to_yaml() {
+                Ok(yaml) => {
+                    print!("{}", yaml);
                     0
                 }
                 Err(e) => {
                     eprintln!(
-                        "{} policy validation failed: {}",
+                        "{} failed to serialize preset: {}",
                         "error:".bold().red(),
                         e
                     );
                     1
                 }
+            },
+            None => {
+                eprintln!(
+                    "{} unknown preset '{}'. Available: strict, standard, permissive",
+                    "error:".bold().red(),
+                    name
+                );
+                1
             }
-        }
-
-        PolicyAction::Preset { name } => {
-            match policy::SigilPolicy::preset(&name) {
-                Some(policy) => {
-                    match policy.to_yaml() {
-                        Ok(yaml) => {
-                            print!("{}", yaml);
-                            0
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "{} failed to serialize preset: {}",
-                                "error:".bold().red(),
-                                e
-                            );
-                            1
-                        }
-                    }
-                }
-                None => {
-                    eprintln!(
-                        "{} unknown preset '{}'. Available: strict, standard, permissive",
-                        "error:".bold().red(),
-                        name
-                    );
-                    1
-                }
-            }
-        }
+        },
     }
 }

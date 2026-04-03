@@ -24,7 +24,10 @@ pub fn parse_package_lock(path: &Path) -> Result<Vec<Component>, Box<dyn std::er
             if name.is_empty() {
                 continue;
             }
-            let version = value.get("version").and_then(|v| v.as_str()).map(String::from);
+            let version = value
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             components.push(Component {
                 package_type: "npm".to_string(),
                 name,
@@ -49,7 +52,10 @@ fn parse_npm_dependencies_recursive(
     components: &mut Vec<Component>,
 ) {
     for (name, value) in deps {
-        let version = value.get("version").and_then(|v| v.as_str()).map(String::from);
+        let version = value
+            .get("version")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         components.push(Component {
             package_type: "npm".to_string(),
             name: name.clone(),
@@ -80,15 +86,30 @@ pub fn parse_requirements_txt(path: &Path) -> Result<Vec<Component>, Box<dyn std
 
         // Handle: package==version, package>=version, package~=version, package!=version, package<=version, package
         let (name, version) = if let Some(pos) = line.find("==") {
-            (line[..pos].trim().to_string(), Some(line[pos + 2..].trim().to_string()))
+            (
+                line[..pos].trim().to_string(),
+                Some(line[pos + 2..].trim().to_string()),
+            )
         } else if let Some(pos) = line.find(">=") {
-            (line[..pos].trim().to_string(), Some(line[pos + 2..].trim().to_string()))
+            (
+                line[..pos].trim().to_string(),
+                Some(line[pos + 2..].trim().to_string()),
+            )
         } else if let Some(pos) = line.find("<=") {
-            (line[..pos].trim().to_string(), Some(line[pos + 2..].trim().to_string()))
+            (
+                line[..pos].trim().to_string(),
+                Some(line[pos + 2..].trim().to_string()),
+            )
         } else if let Some(pos) = line.find("~=") {
-            (line[..pos].trim().to_string(), Some(line[pos + 2..].trim().to_string()))
+            (
+                line[..pos].trim().to_string(),
+                Some(line[pos + 2..].trim().to_string()),
+            )
         } else if let Some(pos) = line.find("!=") {
-            (line[..pos].trim().to_string(), Some(line[pos + 2..].trim().to_string()))
+            (
+                line[..pos].trim().to_string(),
+                Some(line[pos + 2..].trim().to_string()),
+            )
         } else {
             (line.to_string(), None)
         };

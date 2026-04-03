@@ -31,8 +31,7 @@ pub fn build_run_command(
 
     // Working directory mount
     if policy.filesystem.include_workdir {
-        let abs_workdir = std::fs::canonicalize(workdir)
-            .unwrap_or_else(|_| workdir.to_path_buf());
+        let abs_workdir = std::fs::canonicalize(workdir).unwrap_or_else(|_| workdir.to_path_buf());
         cmd.arg("-v")
             .arg(format!("{}:/workspace", abs_workdir.display()))
             .arg("-w")
@@ -116,10 +115,17 @@ pub fn run_sandboxed(
         Some(runtime) => {
             if verbose {
                 eprintln!("sandbox: using {} runtime", runtime);
-                eprintln!("sandbox: policy={} ({})", policy.name, policy.description.as_deref().unwrap_or(""));
+                eprintln!(
+                    "sandbox: policy={} ({})",
+                    policy.name,
+                    policy.description.as_deref().unwrap_or("")
+                );
                 eprintln!("sandbox: workdir={}", workdir.display());
                 eprintln!("sandbox: command={:?}", command);
-                eprintln!("sandbox: env_vars={:?}", env_vars.keys().collect::<Vec<_>>());
+                eprintln!(
+                    "sandbox: env_vars={:?}",
+                    env_vars.keys().collect::<Vec<_>>()
+                );
             }
 
             let mut cmd = build_run_command(&runtime, policy, workdir, command, env_vars);
@@ -132,9 +138,7 @@ pub fn run_sandboxed(
             Ok(status.code().unwrap_or(1))
         }
         None => {
-            eprintln!(
-                "warning: no container runtime (docker/podman) found, running unsandboxed"
-            );
+            eprintln!("warning: no container runtime (docker/podman) found, running unsandboxed");
 
             if verbose {
                 eprintln!("sandbox: fallback direct execution");

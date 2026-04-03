@@ -114,7 +114,10 @@ pub fn auto_discover() -> Vec<(String, Vec<String>)> {
 
     // Anthropic
     if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-        suggestions.push(("anthropic".to_string(), vec!["ANTHROPIC_API_KEY".to_string()]));
+        suggestions.push((
+            "anthropic".to_string(),
+            vec!["ANTHROPIC_API_KEY".to_string()],
+        ));
     }
 
     // OpenAI
