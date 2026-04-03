@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /nomark:memory save.",
-  "last_rebuilt": "2026-04-03T12:51:07.310681",
+  "last_rebuilt": "2026-04-03T12:52:01.039086",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -755,6 +755,12 @@
       "hash": "0e7f52d",
       "message": "Feature/reduce false positives (#85)",
       "date": "2026-04-03T12:03:00+10:00"
+    },
+    "commit:e591efd": {
+      "type": "commit",
+      "hash": "e591efd",
+      "message": "memory: 2026-04-03 12:51 \u2014 sigil",
+      "date": "2026-04-03T12:51:07+10:00"
     }
   },
   "edges": [
