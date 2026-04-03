@@ -2,7 +2,11 @@ mod api;
 mod cache;
 mod diff;
 mod output;
+mod policy;
+mod provider;
 mod quarantine;
+mod sandbox;
+mod sbom;
 mod scanner;
 
 use clap::{Parser, Subcommand};
@@ -199,6 +203,129 @@ enum Commands {
         #[arg(short, long)]
         list: bool,
     },
+
+    /// Manage credential providers for sandboxed execution
+    Provider {
+        #[command(subcommand)]
+        action: ProviderAction,
+    },
+
+    /// Generate or inspect security policies
+    Policy {
+        #[command(subcommand)]
+        action: PolicyAction,
+    },
+
+    /// Run a command in a sandboxed environment with policy enforcement
+    Run {
+        /// Policy file or preset name (strict, standard, permissive)
+        #[arg(short, long, default_value = "standard")]
+        policy: String,
+        /// Credential providers to include (comma-separated)
+        #[arg(long)]
+        providers: Option<String>,
+        /// Show detailed sandbox configuration
+        #[arg(short, long)]
+        verbose: bool,
+        /// Command and arguments to run (after --)
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
+
+    /// Generate Software Bill of Materials for a project
+    Sbom {
+        /// Project path to analyze
+        path: PathBuf,
+
+        /// Output format: table, cyclonedx, json
+        #[arg(short = 'F', long, default_value = "table")]
+        sbom_format: String,
+
+        /// Path to known_threats.json for cross-referencing
+        #[arg(long)]
+        threats_db: Option<PathBuf>,
+
+        /// Output to file instead of stdout
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Scan a path, generate a security policy, and run a command in a sandbox
+    SafeRun {
+        /// Path to scan and use as working directory
+        path: PathBuf,
+
+        /// Credential providers (comma-separated)
+        #[arg(long)]
+        providers: Option<String>,
+
+        /// Auto-approve HIGH risk (skip confirmation prompt)
+        #[arg(long)]
+        auto_approve: bool,
+
+        /// Show detailed output
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Command to run (after --)
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProviderAction {
+    /// Create a new credential provider
+    Create {
+        /// Provider name
+        #[arg(short, long)]
+        name: String,
+        /// Comma-separated env var names
+        #[arg(short, long)]
+        vars: String,
+        /// Description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+    /// List all saved providers
+    List,
+    /// Show details of a provider
+    Show {
+        /// Provider name
+        name: String,
+    },
+    /// Delete a provider
+    Delete {
+        /// Provider name
+        name: String,
+    },
+    /// Auto-discover credentials in current environment
+    Discover,
+}
+
+#[derive(Subcommand)]
+enum PolicyAction {
+    /// Generate a policy from scan results
+    Generate {
+        /// Path to scan
+        path: PathBuf,
+        /// Output file (default: stdout)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Show the scan results alongside the policy
+        #[arg(long)]
+        verbose: bool,
+    },
+    /// Validate a policy file
+    Validate {
+        /// Path to policy YAML file
+        file: PathBuf,
+    },
+    /// Show a built-in preset policy
+    Preset {
+        /// Preset name: strict, standard, permissive
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -335,6 +462,57 @@ async fn main() {
 
         Commands::Config { key, value, list } => {
             cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
+        }
+
+        Commands::Run {
+            policy,
+            providers,
+            verbose,
+            command,
+        } => cmd_run(&policy, providers.as_deref(), verbose, command).await,
+
+        Commands::Provider { action } => cmd_provider(action).await,
+
+        Commands::Policy { action } => cmd_policy(action).await,
+
+        Commands::Sbom {
+            path,
+            sbom_format,
+            threats_db,
+            output,
+        } => {
+            cmd_sbom(
+                &path,
+                &sbom_format,
+                threats_db.as_deref(),
+                output.as_deref(),
+                cli.verbose,
+            )
+            .await
+        }
+
+        Commands::SafeRun {
+            path,
+            providers,
+            auto_approve,
+            verbose,
+            command,
+        } => {
+            let provider_list: Option<Vec<String>> =
+                providers.map(|p| p.split(',').map(|s| s.trim().to_string()).collect());
+            match sandbox::safe_run::safe_run(
+                &path,
+                &command,
+                provider_list.as_deref(),
+                auto_approve,
+                verbose,
+            ) {
+                Ok(code) => code,
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    1
+                }
+            }
         }
     };
 
@@ -1297,6 +1475,244 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
     }
 }
 
+async fn cmd_run(
+    policy_name: &str,
+    providers: Option<&str>,
+    verbose: bool,
+    command: Vec<String>,
+) -> i32 {
+    use std::collections::HashMap;
+
+    // 1. Load policy: try as file path first, then as preset name
+    let policy_path = std::path::Path::new(policy_name);
+    let policy = if policy_path.exists() {
+        match policy::schema::SigilPolicy::from_file(policy_path) {
+            Ok(p) => p,
+            Err(err) => {
+                eprintln!(
+                    "{} failed to load policy file '{}': {}",
+                    "error:".bold().red(),
+                    policy_name,
+                    err
+                );
+                return 1;
+            }
+        }
+    } else {
+        match policy::schema::SigilPolicy::preset(policy_name) {
+            Some(p) => p,
+            None => {
+                eprintln!(
+                    "{} unknown policy '{}'. Use: strict, standard, permissive, or a file path.",
+                    "error:".bold().red(),
+                    policy_name
+                );
+                return 1;
+            }
+        }
+    };
+
+    // 2. Resolve credentials
+    let env_vars: HashMap<String, String> = if let Some(provider_list) = providers {
+        // Explicit --providers flag: use provider::resolve_env()
+        let provider_names: Vec<String> = provider_list
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+        provider::resolve_env(&provider_names)
+    } else {
+        // No explicit providers: filter current env by policy's allowed_env list
+        let mut filtered = HashMap::new();
+        for pattern in &policy.credentials.allowed_env {
+            if pattern == "*" {
+                // Wildcard: include all env vars
+                for (key, value) in std::env::vars() {
+                    // Still respect denied list
+                    if !policy.credentials.denied_env.contains(&key)
+                        && !policy.credentials.denied_env.contains(&"*".to_string())
+                    {
+                        filtered.insert(key, value);
+                    }
+                }
+            } else if let Ok(value) = std::env::var(pattern) {
+                filtered.insert(pattern.clone(), value);
+            }
+        }
+        filtered
+    };
+
+    if verbose {
+        println!(
+            "{} policy: {} ({})",
+            "sigil:".bold().cyan(),
+            policy.name.bold(),
+            policy.description.as_deref().unwrap_or("no description")
+        );
+        println!(
+            "  {} environment variables injected",
+            env_vars.len().to_string().bold()
+        );
+        for key in env_vars.keys() {
+            println!("    - {}", key);
+        }
+    }
+
+    let workdir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // 3. Run sandboxed
+    match sandbox::container::run_sandboxed(&policy, &workdir, &command, &env_vars, verbose) {
+        Ok(exit_code) => exit_code,
+        Err(err) => {
+            eprintln!(
+                "{} sandbox execution failed: {}",
+                "error:".bold().red(),
+                err
+            );
+            1
+        }
+    }
+}
+
+async fn cmd_provider(action: ProviderAction) -> i32 {
+    match action {
+        ProviderAction::Create {
+            name,
+            vars,
+            description,
+        } => {
+            let var_list: Vec<String> = vars.split(',').map(|s| s.trim().to_string()).collect();
+
+            if var_list.is_empty() || var_list.iter().all(|v| v.is_empty()) {
+                eprintln!(
+                    "{} no environment variable names provided",
+                    "error:".bold().red()
+                );
+                return 1;
+            }
+
+            let p = provider::Provider::new(&name, var_list, description);
+            match provider::save(&p) {
+                Ok(_) => {
+                    println!(
+                        "{} created provider '{}' with {} var(s)",
+                        "sigil:".bold().green(),
+                        p.name.bold(),
+                        p.vars.len()
+                    );
+                    for v in &p.vars {
+                        println!("  - {}", v.yellow());
+                    }
+                    0
+                }
+                Err(err) => {
+                    eprintln!("{} failed to save provider: {}", "error:".bold().red(), err);
+                    1
+                }
+            }
+        }
+
+        ProviderAction::List => {
+            let providers = provider::list_providers();
+            if providers.is_empty() {
+                println!(
+                    "{} no credential providers configured",
+                    "sigil:".bold().cyan()
+                );
+                println!(
+                    "  hint: run {} to detect available credentials",
+                    "sigil provider discover".bold()
+                );
+                return 0;
+            }
+
+            println!(
+                "{} {} provider(s):\n",
+                "sigil:".bold().cyan(),
+                providers.len()
+            );
+            for p in &providers {
+                println!(
+                    "  {} ({} var{})",
+                    p.name.bold().green(),
+                    p.vars.len(),
+                    if p.vars.len() == 1 { "" } else { "s" }
+                );
+                if let Some(desc) = &p.description {
+                    println!("    {}", desc.dimmed());
+                }
+            }
+            0
+        }
+
+        ProviderAction::Show { name } => match provider::load(&name) {
+            Ok(p) => {
+                println!("{} provider '{}'", "sigil:".bold().cyan(), p.name.bold());
+                if let Some(desc) = &p.description {
+                    println!("  Description: {}", desc);
+                }
+                println!("  Created: {}", p.created_at);
+                println!("  Variables:");
+                for v in &p.vars {
+                    let status = if std::env::var(v).is_ok() {
+                        "SET".green()
+                    } else {
+                        "NOT SET".yellow()
+                    };
+                    println!("    {} [{}]", v, status);
+                }
+                0
+            }
+            Err(err) => {
+                eprintln!("{} {}", "error:".bold().red(), err);
+                1
+            }
+        },
+
+        ProviderAction::Delete { name } => match provider::delete(&name) {
+            Ok(_) => {
+                println!(
+                    "{} deleted provider '{}'",
+                    "sigil:".bold().green(),
+                    name.bold()
+                );
+                0
+            }
+            Err(err) => {
+                eprintln!("{} {}", "error:".bold().red(), err);
+                1
+            }
+        },
+
+        ProviderAction::Discover => {
+            let discovered = provider::auto_discover();
+            if discovered.is_empty() {
+                println!(
+                    "{} no well-known agent credentials detected in environment",
+                    "sigil:".bold().yellow()
+                );
+                return 0;
+            }
+
+            println!(
+                "{} detected {} credential bundle(s):\n",
+                "sigil:".bold().green(),
+                discovered.len()
+            );
+            for (name, vars) in &discovered {
+                println!("  {} {}", "+".green(), name.bold());
+                for v in vars {
+                    println!("    - {}", v.yellow());
+                }
+            }
+            println!(
+                "\n  To create a provider, run: {}",
+                "sigil provider create --name <name> --vars <VARS>".bold()
+            );
+            0
+        }
+    }
+}
+
 async fn cmd_config(key: Option<&str>, value: Option<&str>, list: bool, _verbose: bool) -> i32 {
     let config_path = dirs::home_dir()
         .map(|h| h.join(".sigil").join("config.json"))
@@ -1366,5 +1782,210 @@ async fn cmd_config(key: Option<&str>, value: Option<&str>, list: bool, _verbose
     } else {
         eprintln!("{} specify a key or use --list", "sigil:".bold().yellow());
         1
+    }
+}
+
+// ---------------------------------------------------------------------------
+// sbom command
+// ---------------------------------------------------------------------------
+
+async fn cmd_sbom(
+    path: &Path,
+    format: &str,
+    threats_db: Option<&Path>,
+    output: Option<&Path>,
+    verbose: bool,
+) -> i32 {
+    if verbose {
+        eprintln!(
+            "{} generating SBOM for {}",
+            "sigil:".bold().cyan(),
+            path.display()
+        );
+    }
+
+    if !path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
+        return 1;
+    }
+
+    let sbom = match sbom::generate_sbom(path, threats_db) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{} failed to generate SBOM: {}", "error:".bold().red(), e);
+            return 1;
+        }
+    };
+
+    if verbose {
+        eprintln!(
+            "{} found {} components, {} threats",
+            "sigil:".bold().cyan(),
+            sbom.total_count,
+            sbom.threat_count
+        );
+    }
+
+    let formatted = match format {
+        "table" => sbom::format_table(&sbom),
+        "cyclonedx" => sbom::format_cyclonedx(&sbom),
+        "json" => serde_json::to_string_pretty(&sbom).unwrap_or_else(|_| "{}".to_string()),
+        _ => {
+            eprintln!(
+                "{} unknown format '{}', use table, cyclonedx, or json",
+                "error:".bold().red(),
+                format
+            );
+            return 1;
+        }
+    };
+
+    if let Some(out_path) = output {
+        match std::fs::write(out_path, &formatted) {
+            Ok(_) => {
+                eprintln!(
+                    "{} SBOM written to {}",
+                    "sigil:".bold().green(),
+                    out_path.display()
+                );
+            }
+            Err(e) => {
+                eprintln!("{} failed to write output: {}", "error:".bold().red(), e);
+                return 1;
+            }
+        }
+    } else {
+        print!("{}", formatted);
+    }
+
+    if sbom.threat_count > 0 {
+        1
+    } else {
+        0
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Policy command
+// ---------------------------------------------------------------------------
+
+async fn cmd_policy(action: PolicyAction) -> i32 {
+    match action {
+        PolicyAction::Generate {
+            path,
+            output,
+            verbose,
+        } => {
+            println!(
+                "{} scanning {} to generate policy...",
+                "sigil:".bold().cyan(),
+                path.display().to_string().bold()
+            );
+
+            let (policy_result, scan) = match policy::generate::generate_for_path(&path) {
+                Ok(result) => result,
+                Err(e) => {
+                    eprintln!("{} failed to generate policy: {}", "error:".bold().red(), e);
+                    return 1;
+                }
+            };
+
+            if verbose {
+                eprintln!(
+                    "{} scan complete: {} findings, score {}, verdict {}",
+                    "sigil:".bold().cyan(),
+                    scan.findings.len(),
+                    scan.score,
+                    scan.verdict
+                );
+                for finding in &scan.findings {
+                    eprintln!(
+                        "  [{}] {} — {} ({}:{})",
+                        finding.severity,
+                        finding.phase,
+                        finding.rule,
+                        finding.file,
+                        finding.line.map(|l| l.to_string()).unwrap_or_default()
+                    );
+                }
+                eprintln!();
+            }
+
+            let yaml = match policy_result.to_yaml() {
+                Ok(y) => y,
+                Err(e) => {
+                    eprintln!(
+                        "{} failed to serialize policy: {}",
+                        "error:".bold().red(),
+                        e
+                    );
+                    return 1;
+                }
+            };
+
+            if let Some(out_path) = output {
+                match std::fs::write(&out_path, &yaml) {
+                    Ok(_) => {
+                        println!(
+                            "{} policy written to {}",
+                            "sigil:".bold().green(),
+                            out_path.display()
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("{} failed to write policy: {}", "error:".bold().red(), e);
+                        return 1;
+                    }
+                }
+            } else {
+                print!("{}", yaml);
+            }
+
+            0
+        }
+
+        PolicyAction::Validate { file } => match policy::SigilPolicy::from_file(&file) {
+            Ok(_policy) => {
+                println!(
+                    "{} policy {} is valid",
+                    "sigil:".bold().green(),
+                    file.display()
+                );
+                0
+            }
+            Err(e) => {
+                eprintln!("{} policy validation failed: {}", "error:".bold().red(), e);
+                1
+            }
+        },
+
+        PolicyAction::Preset { name } => match policy::SigilPolicy::preset(&name) {
+            Some(policy) => match policy.to_yaml() {
+                Ok(yaml) => {
+                    print!("{}", yaml);
+                    0
+                }
+                Err(e) => {
+                    eprintln!(
+                        "{} failed to serialize preset: {}",
+                        "error:".bold().red(),
+                        e
+                    );
+                    1
+                }
+            },
+            None => {
+                eprintln!(
+                    "{} unknown preset '{}'. Available: strict, standard, permissive",
+                    "error:".bold().red(),
+                    name
+                );
+                1
+            }
+        },
     }
 }

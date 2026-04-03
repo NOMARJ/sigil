@@ -7,7 +7,7 @@ use std::fmt;
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// The six scan phases, each targeting a different threat category.
+/// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
     /// Phase 1: Install hooks
@@ -22,6 +22,12 @@ pub enum Phase {
     Obfuscation,
     /// Phase 6: Provenance
     Provenance,
+    /// Phase 7: Prompt injection detection
+    PromptInjection,
+    /// Phase 8: Skill / plugin security
+    SkillSecurity,
+    /// Phase 10: Inference security
+    InferenceSecurity,
 }
 
 impl fmt::Display for Phase {
@@ -33,6 +39,9 @@ impl fmt::Display for Phase {
             Phase::Credentials => write!(f, "Credentials"),
             Phase::Obfuscation => write!(f, "Obfuscation"),
             Phase::Provenance => write!(f, "Provenance"),
+            Phase::PromptInjection => write!(f, "Prompt Injection"),
+            Phase::SkillSecurity => write!(f, "Skill Security"),
+            Phase::InferenceSecurity => write!(f, "Inference Security"),
         }
     }
 }
@@ -108,6 +117,11 @@ fn phase_from_name(name: &str) -> Option<Phase> {
         "credentials" => Some(Phase::Credentials),
         "obfuscation" => Some(Phase::Obfuscation),
         "provenance" => Some(Phase::Provenance),
+        "prompt-injection" | "prompt_injection" | "promptinjection" => Some(Phase::PromptInjection),
+        "skill-security" | "skill_security" | "skillsecurity" => Some(Phase::SkillSecurity),
+        "inference-security" | "inference_security" | "inferencesecurity" => {
+            Some(Phase::InferenceSecurity)
+        }
         _ => None,
     }
 }
@@ -193,6 +207,15 @@ pub fn run_scan(
         }
         if should_run_phase(Phase::Obfuscation) {
             findings.extend(phases::scan_obfuscation(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::PromptInjection) {
+            findings.extend(phases::scan_prompt_injection(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::SkillSecurity) {
+            findings.extend(phases::scan_skill_security(&rel_path, &contents));
+        }
+        if should_run_phase(Phase::InferenceSecurity) {
+            findings.extend(phases::scan_inference_security(&rel_path, &contents));
         }
 
         // Apply cloud signatures (from ~/.sigil/signatures.json)

@@ -711,6 +711,264 @@ pub fn scan_provenance(base_path: &std::path::Path, entries: &[DirEntry]) -> Vec
 }
 
 // ---------------------------------------------------------------------------
+// Phase 7: Prompt Injection (Critical, 10x weight)
+// ---------------------------------------------------------------------------
+
+/// Detect prompt injection patterns: instruction overrides, role reassignment,
+/// system prompt extraction, jailbreak markers, and delimiter injection.
+pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
+    let ext = Path::new(file)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    let applicable_extensions = [
+        "md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt",
+    ];
+    if !applicable_extensions.contains(&ext.as_str()) {
+        return Vec::new();
+    }
+
+    let patterns = vec![
+        // 1. Ignore previous instructions
+        (
+            Regex::new(r"(?i)(ignore\s+(all\s+)?previous\s+instructions|disregard\s+(the\s+)?above)").unwrap(),
+            "PROMPT-001",
+            Severity::Critical,
+            "Prompt injection — ignore previous instructions",
+        ),
+        // 2. Role reassignment
+        (
+            Regex::new(r"(?i)you\s+are\s+now\s+(a|an|the|my)\s+").unwrap(),
+            "PROMPT-002",
+            Severity::High,
+            "Prompt injection — role reassignment",
+        ),
+        // 3. System/instruction tags in non-XML files
+        (
+            Regex::new(r"<\s*/?\s*(system|instructions)\s*>").unwrap(),
+            "PROMPT-003",
+            Severity::High,
+            "Prompt injection — system/instruction XML tags",
+        ),
+        // 4. Instruction override via IMPORTANT/CRITICAL prefix
+        (
+            Regex::new(r"(?i)(IMPORTANT|CRITICAL)\s*:\s*.*(override|ignore|disregard|forget|bypass)").unwrap(),
+            "PROMPT-004",
+            Severity::High,
+            "Prompt injection — instruction override via emphasis marker",
+        ),
+        // 5. System prompt extraction
+        (
+            Regex::new(r"(?i)(repeat\s+your\s+system\s+prompt|output\s+your\s+instructions|show\s+me\s+your\s+prompt|print\s+your\s+(system\s+)?instructions)").unwrap(),
+            "PROMPT-005",
+            Severity::Critical,
+            "Prompt injection — system prompt extraction attempt",
+        ),
+        // 6. Jailbreak markers
+        (
+            Regex::new(r"(?i)\b(DAN\s+mode|developer\s+mode\s+(enabled|activated)|jailbreak)\b").unwrap(),
+            "PROMPT-006",
+            Severity::Critical,
+            "Prompt injection — jailbreak marker",
+        ),
+        // 7. Delimiter injection
+        (
+            Regex::new(r#"("""\s*\n|\\n---\\n|\[INST\]|<<SYS>>|<\|im_start\|>|<\|im_end\|>)"#).unwrap(),
+            "PROMPT-007",
+            Severity::High,
+            "Prompt injection — delimiter injection",
+        ),
+        // 8. Tool/function abuse in suspicious context
+        (
+            Regex::new(r"(?i)(call\s+the\s+function|execute\s+tool|use\s+the\s+tool)\s").unwrap(),
+            "PROMPT-008",
+            Severity::High,
+            "Prompt injection — tool/function abuse instruction",
+        ),
+    ];
+
+    scan_lines(file, contents, Phase::PromptInjection, 10, &patterns)
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8: Skill Security (High, 5x weight)
+// ---------------------------------------------------------------------------
+
+/// Detect skill/plugin manifest security issues: undeclared capabilities,
+/// excessive permissions, eval/exec in manifests, and credential embedding.
+pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
+    let filename = Path::new(file)
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let applicable_files = [
+        "manifest.json",
+        "plugin.json",
+        "package.json",
+        "SKILL.md",
+        "mcp.json",
+        "tool.json",
+    ];
+    let is_mcp_yaml = filename.ends_with(".mcp.yaml") || filename.ends_with(".mcp.yml");
+    if !applicable_files.contains(&filename.as_str()) && !is_mcp_yaml {
+        return Vec::new();
+    }
+
+    let patterns = vec![
+        // 1. Undeclared tool_calls or execute capabilities in MCP manifests
+        (
+            Regex::new(r#"(?i)(tool_calls|"execute"|execute_command|run_command)"#).unwrap(),
+            "SKILL-001",
+            Severity::High,
+            "Skill manifest — undeclared execution capability",
+        ),
+        // 2. Excessive permissions
+        (
+            Regex::new(
+                r#"(?i)"permissions"\s*:\s*\[.*("filesystem"|"network"|"env"|"shell"|"\*")"#,
+            )
+            .unwrap(),
+            "SKILL-002",
+            Severity::Critical,
+            "Skill manifest — excessive permission request",
+        ),
+        // 3. Eval/exec/shell in manifests
+        (
+            Regex::new(r#"(?i)(eval|exec|shell|subprocess|child_process|os\.system)"#).unwrap(),
+            "SKILL-003",
+            Severity::Critical,
+            "Skill manifest — code execution reference",
+        ),
+        // 4. Hidden capabilities: mismatch indicators
+        (
+            Regex::new(r#"(?i)(hidden|internal|private|undocumented)\s*"?\s*:\s*true"#).unwrap(),
+            "SKILL-004",
+            Severity::High,
+            "Skill manifest — hidden/undocumented capability flag",
+        ),
+        // 5. Credential embedding in config
+        (
+            Regex::new(
+                r#"(?i)(api[_-]?key|secret|token|password|credential)\s*"?\s*:\s*"[a-zA-Z0-9]{8,}"#,
+            )
+            .unwrap(),
+            "SKILL-005",
+            Severity::Critical,
+            "Skill manifest — embedded credential",
+        ),
+        // 6. Postinstall/activate hooks in plugin manifests
+        (
+            Regex::new(r#"(?i)(postinstall|preinstall|activate|on_install|on_load)\s*"?\s*:"#)
+                .unwrap(),
+            "SKILL-006",
+            Severity::High,
+            "Skill manifest — lifecycle hook (code runs on install/activate)",
+        ),
+    ];
+
+    scan_lines(file, contents, Phase::SkillSecurity, 5, &patterns)
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10: Inference Security (High, 5x weight)
+// ---------------------------------------------------------------------------
+
+/// Detect inference security issues: hardcoded API base URLs, env vars in prompts,
+/// hardcoded API keys, model endpoint redirection, and prompt exfiltration.
+pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
+    let ext = Path::new(file)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    let applicable_extensions = ["py", "js", "ts", "jsx", "tsx"];
+    if !applicable_extensions.contains(&ext.as_str()) {
+        return Vec::new();
+    }
+
+    let patterns = vec![
+        // 1. Hardcoded base_url in OpenAI/Anthropic clients pointing to non-standard hosts
+        (
+            Regex::new(r#"(?i)(OpenAI|Anthropic)\s*\(.*base_url\s*="#).unwrap(),
+            "INFER-001",
+            Severity::High,
+            "Inference security — custom base_url in LLM client (potential endpoint hijack)",
+        ),
+        (
+            Regex::new(r#"(?i)baseURL\s*:\s*['"][^'"]*['"]"#).unwrap(),
+            "INFER-002",
+            Severity::High,
+            "Inference security — custom baseURL in JS LLM client config",
+        ),
+        // 2. Environment variables interpolated into prompt strings
+        (
+            Regex::new(r#"f["'].*\{os\.(environ|getenv)"#).unwrap(),
+            "INFER-003",
+            Severity::High,
+            "Inference security — env var interpolated into prompt string",
+        ),
+        (
+            Regex::new(r"process\.env\.\w+.*(`|\$\{)").unwrap(),
+            "INFER-004",
+            Severity::High,
+            "Inference security — process.env in template literal prompt",
+        ),
+        (
+            Regex::new(r"(`|\$\{).*process\.env\.\w+").unwrap(),
+            "INFER-005",
+            Severity::High,
+            "Inference security — template literal with process.env",
+        ),
+        // 3. API key override with hardcoded string
+        (
+            Regex::new(r#"api_key\s*=\s*["'][a-zA-Z0-9_\-]{20,}["']"#).unwrap(),
+            "INFER-006",
+            Severity::Critical,
+            "Inference security — hardcoded API key in client config",
+        ),
+        (
+            Regex::new(r#"apiKey\s*:\s*["'][a-zA-Z0-9_\-]{20,}["']"#).unwrap(),
+            "INFER-007",
+            Severity::Critical,
+            "Inference security — hardcoded apiKey in JS client config",
+        ),
+        // 4. Model endpoint redirection via custom HTTP clients
+        (
+            Regex::new(r#"httpx\.Client\s*\(.*base_url"#).unwrap(),
+            "INFER-008",
+            Severity::High,
+            "Inference security — custom httpx client wrapping API calls",
+        ),
+        (
+            Regex::new(r#"requests\.Session\s*\(.*proxy|proxies\s*=\s*\{"#).unwrap(),
+            "INFER-009",
+            Severity::High,
+            "Inference security — proxy config for API requests",
+        ),
+        // 5. Prompt exfiltration patterns
+        (
+            Regex::new(r#"(?i)(requests\.(post|put|get)|fetch\s*\().*prompt"#).unwrap(),
+            "INFER-010",
+            Severity::High,
+            "Inference security — prompt content sent via HTTP",
+        ),
+        (
+            Regex::new(
+                r#"(?i)(prompt|completion|response).*\.write\s*\(|open\s*\(.*["']w["'].*prompt"#,
+            )
+            .unwrap(),
+            "INFER-011",
+            Severity::High,
+            "Inference security — prompt/completion content written to file",
+        ),
+    ];
+
+    scan_lines(file, contents, Phase::InferenceSecurity, 5, &patterns)
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
