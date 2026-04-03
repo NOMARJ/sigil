@@ -1,0 +1,111 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-03-30",
+  "nodes": [
+    {
+      "id": "rg:sigil-rg",
+      "type": "resource_group",
+      "provider": "azure",
+      "name": "sigil-rg",
+      "region": "eastus",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "acr:sigilacr46iy6y",
+      "type": "container_registry",
+      "provider": "azure",
+      "name": "sigilacr46iy6y",
+      "host": "sigilacr46iy6y.azurecr.io",
+      "region": "eastus",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "sql:sigil-sql-w2",
+      "type": "sql_server",
+      "provider": "azure",
+      "name": "sigil-sql-w2-46iy6y",
+      "host": "sigil-sql-w2-46iy6y.database.windows.net",
+      "region": "westus2",
+      "database": "sigil",
+      "sku": "Standard (10 DTU)",
+      "admin": "sigil_admin",
+      "driver": "ODBC Driver 18 for SQL Server",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "ca:sigil-api",
+      "type": "container_app",
+      "provider": "azure",
+      "name": "sigil-api",
+      "resource_group": "sigil-rg",
+      "image": "sigilacr46iy6y.azurecr.io/sigil-api:latest",
+      "dockerfile": "Dockerfile",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "ca:sigil-bot-watchers",
+      "type": "container_app",
+      "provider": "azure",
+      "name": "sigil-bot-watchers",
+      "resource_group": "sigil-rg",
+      "image": "sigilacr46iy6y.azurecr.io/sigil-bot:latest",
+      "dockerfile": "Dockerfile.bot",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "ca:sigil-bot-workers",
+      "type": "container_app",
+      "provider": "azure",
+      "name": "sigil-bot-workers",
+      "resource_group": "sigil-rg",
+      "image": "sigilacr46iy6y.azurecr.io/sigil-bot:latest",
+      "dockerfile": "Dockerfile.bot",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "ca:sigil-bot-pr-worker",
+      "type": "container_app",
+      "provider": "azure",
+      "name": "sigil-bot-pr-worker",
+      "resource_group": "sigil-rg",
+      "image": "sigilacr46iy6y.azurecr.io/sigil-bot:latest",
+      "dockerfile": "Dockerfile.bot",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "redis:sigil-redis",
+      "type": "redis_cache",
+      "provider": "azure",
+      "name": "sigil-redis",
+      "resource_group": "sigil-rg",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "kv:sigil-kv",
+      "type": "key_vault",
+      "provider": "azure",
+      "name": "sigil-kv-46iy6y",
+      "resource_group": "sigil-rg",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    },
+    {
+      "id": "nat:sigil-nat",
+      "type": "nat_gateway",
+      "provider": "azure",
+      "name": "sigil-nat",
+      "ip": "20.127.119.78",
+      "resource_group": "sigil-rg",
+      "verified_at": "2026-03-30",
+      "source": "memory"
+    }
+  ]
+}
