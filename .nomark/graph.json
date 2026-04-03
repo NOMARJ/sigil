@@ -1,12 +1,12 @@
 {
   "version": 1,
   "$schema": "nomark-graph-v1",
-  "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /nomark:memory save.",
-  "last_rebuilt": "2026-03-30T02:57:55.026Z",
+  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /nomark:memory save.",
+  "last_rebuilt": "2026-04-03T12:51:07.310681",
   "nodes": {
     "EP-001": {
       "type": "epic",
-      "title": "Scanner v2 — false positive reduction",
+      "title": "Scanner v2 \u2014 false positive reduction",
       "status": "DONE",
       "target": "Q1 2026"
     },
@@ -32,6 +32,69 @@
       "shipped": "2026-03",
       "prd": ""
     },
+    "STORY-001": {
+      "type": "story",
+      "title": "Define Sigil Policy YAML Schema",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-001"
+    },
+    "STORY-002": {
+      "type": "story",
+      "title": "`sigil policy generate` \u2014 Auto-Generate Policies from Scan Results",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-002"
+    },
+    "STORY-003": {
+      "type": "story",
+      "title": "Add Phase 10 \u2014 Inference Security Detection (Rust CLI)",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-003"
+    },
+    "STORY-004": {
+      "type": "story",
+      "title": "Add Phases 7-8 to Rust CLI (Prompt Injection & Skill Security)",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-004"
+    },
+    "STORY-005": {
+      "type": "story",
+      "title": "`sigil run` \u2014 Sandboxed Execution with Policy Enforcement",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-005"
+    },
+    "STORY-006": {
+      "type": "story",
+      "title": "Credential Provider System",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-006"
+    },
+    "STORY-007": {
+      "type": "story",
+      "title": "`sigil safe-run` \u2014 Scan + Sandbox in One Command",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-007"
+    },
+    "STORY-008": {
+      "type": "story",
+      "title": "`sigil sbom` \u2014 Software Bill of Materials Generation",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-008"
+    },
+    "STORY-009": {
+      "type": "story",
+      "title": "Claude Code Skills \u2014 `/fix-finding` and `/generate-policy`",
+      "status": "DONE",
+      "linear_id": "",
+      "raw_id": "STORY-009"
+    },
     "commit:1ccaaf8": {
       "type": "commit",
       "hash": "1ccaaf8",
@@ -48,7 +111,7 @@
     "commit:4c8c0d2": {
       "type": "commit",
       "hash": "4c8c0d2",
-      "message": "Release v1.0.4 — Package Managers, Threat Intelligence, and Supabase Auth (#17)",
+      "message": "Release v1.0.4 \u2014 Package Managers, Threat Intelligence, and Supabase Auth (#17)",
       "date": "2026-02-21T16:07:29+10:00",
       "files_changed": 80
     },
@@ -125,7 +188,7 @@
     "commit:9844128": {
       "type": "commit",
       "hash": "9844128",
-      "message": "chore: Replace Supabase environment variables with Auth0 placeholders… (#29)",
+      "message": "chore: Replace Supabase environment variables with Auth0 placeholders\u2026 (#29)",
       "date": "2026-03-02T09:25:09+10:00",
       "files_changed": 25
     },
@@ -293,7 +356,7 @@
     "commit:38650c1": {
       "type": "commit",
       "hash": "38650c1",
-      "message": "🚨 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
+      "message": "\ud83d\udea8 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
       "date": "2026-03-07T09:28:41+10:00",
       "files_changed": 55
     },
@@ -307,7 +370,7 @@
     "commit:e6cf8b1": {
       "type": "commit",
       "hash": "e6cf8b1",
-      "message": "🔒 Security: Remove sensitive infrastructure data and move internal docs",
+      "message": "\ud83d\udd12 Security: Remove sensitive infrastructure data and move internal docs",
       "date": "2026-03-08T08:28:36+10:00",
       "files_changed": 12
     },
@@ -447,7 +510,7 @@
     "commit:4eb5ef9": {
       "type": "commit",
       "hash": "4eb5ef9",
-      "message": "🚨 CRITICAL: Fix Docker import paths causing container crashes (#52)",
+      "message": "\ud83d\udea8 CRITICAL: Fix Docker import paths causing container crashes (#52)",
       "date": "2026-03-08T20:14:19+10:00",
       "files_changed": 64
     },
@@ -671,9 +734,27 @@
     "commit:c31a67f": {
       "type": "commit",
       "hash": "c31a67f",
-      "message": "memory: 2026-03-30 12:38 — sigil",
+      "message": "memory: 2026-03-30 12:38 \u2014 sigil",
       "date": "2026-03-30T12:38:33+10:00",
       "files_changed": 2
+    },
+    "commit:5f3fc06": {
+      "type": "commit",
+      "hash": "5f3fc06",
+      "message": "Claude/sigil openshell research px lv2 (#88)",
+      "date": "2026-04-03T12:45:35+10:00"
+    },
+    "commit:6d49a01": {
+      "type": "commit",
+      "hash": "6d49a01",
+      "message": "Feature/add claude commands (#86)",
+      "date": "2026-04-03T12:09:29+10:00"
+    },
+    "commit:0e7f52d": {
+      "type": "commit",
+      "hash": "0e7f52d",
+      "message": "Feature/reduce false positives (#85)",
+      "date": "2026-04-03T12:03:00+10:00"
     }
   },
   "edges": [
