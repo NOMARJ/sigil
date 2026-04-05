@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "created": "2026-04-05T06:30:19.628Z",
+  "created": "2026-04-05T06:39:43.907Z",
   "status": "pending",
   "session": {
     "date": "2026-04-05",
     "project": "sigil",
     "feature": "ad-hoc",
-    "start_score": 0.5,
+    "start_score": 0,
     "end_score": 0,
     "autonomy_level": "probation",
     "events": [
@@ -17,7 +17,7 @@
         "description": "9 story(ies) marked DONE without evidence in progress.md",
         "evidence": "Total DONE: 9, with evidence: 0",
         "delta": -0.5,
-        "timestamp": "2026-04-05T06:30:19.628Z"
+        "timestamp": "2026-04-05T06:39:43.907Z"
       }
     ],
     "behavioural_signals": {
@@ -43,7 +43,7 @@
         "early_session_read_ratio": 1,
         "late_session_read_ratio": 1,
         "drift_detected": false,
-        "session_exchange_count": 0
+        "session_exchange_count": 1
       },
       "complexity_distribution": {
         "trivial": 0,
@@ -62,7 +62,7 @@
     },
     "reputation_summary": "Concerning session. 9 breach(es) with 0 verified completions. Breach rate exceeds acceptable threshold. Trajectory: declining."
   },
-  "score_before": 0.5,
+  "score_before": 0,
   "score_after": 0,
   "requires_enforcer": true,
   "enforcer_verdict": null

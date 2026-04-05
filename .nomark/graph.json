@@ -1,12 +1,12 @@
 {
   "version": 1,
   "$schema": "nomark-graph-v1",
-  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-04-03T15:27:47.152738",
+  "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
+  "last_rebuilt": "2026-04-05T06:32:18.905Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
-      "title": "Scanner v2 \u2014 false positive reduction",
+      "title": "Scanner v2 — false positive reduction",
       "status": "DONE",
       "target": "Q1 2026"
     },
@@ -41,14 +41,14 @@
     },
     "STORY-002": {
       "type": "story",
-      "title": "`sigil policy generate` \u2014 Auto-Generate Policies from Scan Results",
+      "title": "`sigil policy generate` — Auto-Generate Policies from Scan Results",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-002"
     },
     "STORY-003": {
       "type": "story",
-      "title": "Add Phase 10 \u2014 Inference Security Detection (Rust CLI)",
+      "title": "Add Phase 10 — Inference Security Detection (Rust CLI)",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-003"
@@ -62,7 +62,7 @@
     },
     "STORY-005": {
       "type": "story",
-      "title": "`sigil run` \u2014 Sandboxed Execution with Policy Enforcement",
+      "title": "`sigil run` — Sandboxed Execution with Policy Enforcement",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-005"
@@ -76,21 +76,21 @@
     },
     "STORY-007": {
       "type": "story",
-      "title": "`sigil safe-run` \u2014 Scan + Sandbox in One Command",
+      "title": "`sigil safe-run` — Scan + Sandbox in One Command",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-007"
     },
     "STORY-008": {
       "type": "story",
-      "title": "`sigil sbom` \u2014 Software Bill of Materials Generation",
+      "title": "`sigil sbom` — Software Bill of Materials Generation",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-008"
     },
     "STORY-009": {
       "type": "story",
-      "title": "Claude Code Skills \u2014 `/fix-finding` and `/generate-policy`",
+      "title": "Claude Code Skills — `/fix-finding` and `/generate-policy`",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-009"
@@ -111,7 +111,7 @@
     "commit:4c8c0d2": {
       "type": "commit",
       "hash": "4c8c0d2",
-      "message": "Release v1.0.4 \u2014 Package Managers, Threat Intelligence, and Supabase Auth (#17)",
+      "message": "Release v1.0.4 — Package Managers, Threat Intelligence, and Supabase Auth (#17)",
       "date": "2026-02-21T16:07:29+10:00",
       "files_changed": 80
     },
@@ -188,7 +188,7 @@
     "commit:9844128": {
       "type": "commit",
       "hash": "9844128",
-      "message": "chore: Replace Supabase environment variables with Auth0 placeholders\u2026 (#29)",
+      "message": "chore: Replace Supabase environment variables with Auth0 placeholders… (#29)",
       "date": "2026-03-02T09:25:09+10:00",
       "files_changed": 25
     },
@@ -356,7 +356,7 @@
     "commit:38650c1": {
       "type": "commit",
       "hash": "38650c1",
-      "message": "\ud83d\udea8 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
+      "message": "🚨 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
       "date": "2026-03-07T09:28:41+10:00",
       "files_changed": 55
     },
@@ -370,7 +370,7 @@
     "commit:e6cf8b1": {
       "type": "commit",
       "hash": "e6cf8b1",
-      "message": "\ud83d\udd12 Security: Remove sensitive infrastructure data and move internal docs",
+      "message": "🔒 Security: Remove sensitive infrastructure data and move internal docs",
       "date": "2026-03-08T08:28:36+10:00",
       "files_changed": 12
     },
@@ -510,7 +510,7 @@
     "commit:4eb5ef9": {
       "type": "commit",
       "hash": "4eb5ef9",
-      "message": "\ud83d\udea8 CRITICAL: Fix Docker import paths causing container crashes (#52)",
+      "message": "🚨 CRITICAL: Fix Docker import paths causing container crashes (#52)",
       "date": "2026-03-08T20:14:19+10:00",
       "files_changed": 64
     },
@@ -734,7 +734,7 @@
     "commit:c31a67f": {
       "type": "commit",
       "hash": "c31a67f",
-      "message": "memory: 2026-03-30 12:38 \u2014 sigil",
+      "message": "memory: 2026-03-30 12:38 — sigil",
       "date": "2026-03-30T12:38:33+10:00",
       "files_changed": 2
     },
@@ -759,26 +759,33 @@
     "commit:e591efd": {
       "type": "commit",
       "hash": "e591efd",
-      "message": "memory: 2026-04-03 12:51 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:51 — sigil",
       "date": "2026-04-03T12:51:07+10:00"
     },
     "commit:d9a0c49": {
       "type": "commit",
       "hash": "d9a0c49",
-      "message": "memory: 2026-04-03 12:52 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:52 — sigil",
       "date": "2026-04-03T12:52:01+10:00"
     },
     "commit:a60ca86": {
       "type": "commit",
       "hash": "a60ca86",
-      "message": "memory: 2026-04-03 13:00 \u2014 sigil",
+      "message": "memory: 2026-04-03 13:00 — sigil",
       "date": "2026-04-03T13:00:10+10:00"
     },
     "commit:78d4fa7": {
       "type": "commit",
       "hash": "78d4fa7",
-      "message": "chore: update NOMARK harness v2.1.0 \u2192 v3.0.1 (#89)",
+      "message": "chore: update NOMARK harness v2.1.0 → v3.0.1 (#89)",
       "date": "2026-04-03T15:04:12+10:00"
+    },
+    "commit:6337abd": {
+      "type": "commit",
+      "hash": "6337abd",
+      "message": "chore: update NOMARK harness v3.0.1 → v3.0.130",
+      "date": "2026-04-05T16:32:18+10:00",
+      "files_changed": 14
     }
   },
   "edges": [
