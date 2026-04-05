@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "$schema": "nomark-trust-graph-v1",
+  "sessions": [
+    {
+      "date": "2026-04-05",
+      "project": "sigil",
+      "feature": "ad-hoc",
+      "start_score": 1,
+      "end_score": 0.5,
+      "autonomy_level": "supervised",
+      "events": [
+        {
+          "type": "breach",
+          "severity": "S3",
+          "category": "false_completion",
+          "description": "9 story(ies) marked DONE without evidence in progress.md",
+          "evidence": "Total DONE: 9, with evidence: 0",
+          "delta": -0.5,
+          "timestamp": "2026-04-05T06:30:14.081Z"
+        }
+      ],
+      "behavioural_signals": {
+        "process_discipline": {
+          "resource_graph_consultations": 0,
+          "lessons_consulted": true
+        },
+        "work_quality": {
+          "stories_completed": 0,
+          "stories_abandoned": 0,
+          "rework_events": 0,
+          "self_corrections": 0,
+          "scope_creep_ratio": 0
+        },
+        "decision_quality": {
+          "escalations": 0,
+          "board_invocations": 0,
+          "alternatives_considered": 0,
+          "owner_interventions": 0
+        },
+        "drift_indicators": {
+          "verification_rigour_trend": "stable",
+          "early_session_read_ratio": 1,
+          "late_session_read_ratio": 1,
+          "drift_detected": false,
+          "session_exchange_count": 0
+        },
+        "complexity_distribution": {
+          "trivial": 0,
+          "moderate": 0,
+          "complex": 0
+        },
+        "monotony_detected": false
+      },
+      "auditor_report": {
+        "claims_checked": 9,
+        "claims_verified": 0,
+        "claims_failed": 9,
+        "sealed": true,
+        "auditor_model": "same-model-sealed",
+        "report_version": 2
+      },
+      "reputation_summary": "Concerning session. 9 breach(es) with 0 verified completions. Breach rate exceeds acceptable threshold. Trajectory: declining."
+    },
+    {
+      "date": "2026-04-05",
+      "project": "sigil",
+      "feature": "ad-hoc",
+      "start_score": 0.5,
+      "end_score": 0,
+      "autonomy_level": "probation",
+      "events": [
+        {
+          "type": "breach",
+          "severity": "S3",
+          "category": "false_completion",
+          "description": "9 story(ies) marked DONE without evidence in progress.md",
+          "evidence": "Total DONE: 9, with evidence: 0",
+          "delta": -0.5,
+          "timestamp": "2026-04-05T06:30:19.628Z"
+        }
+      ],
+      "behavioural_signals": {
+        "process_discipline": {
+          "resource_graph_consultations": 0,
+          "lessons_consulted": true
+        },
+        "work_quality": {
+          "stories_completed": 0,
+          "stories_abandoned": 0,
+          "rework_events": 0,
+          "self_corrections": 0,
+          "scope_creep_ratio": 0
+        },
+        "decision_quality": {
+          "escalations": 0,
+          "board_invocations": 0,
+          "alternatives_considered": 0,
+          "owner_interventions": 0
+        },
+        "drift_indicators": {
+          "verification_rigour_trend": "stable",
+          "early_session_read_ratio": 1,
+          "late_session_read_ratio": 1,
+          "drift_detected": false,
+          "session_exchange_count": 0
+        },
+        "complexity_distribution": {
+          "trivial": 0,
+          "moderate": 0,
+          "complex": 0
+        },
+        "monotony_detected": false
+      },
+      "auditor_report": {
+        "claims_checked": 9,
+        "claims_verified": 0,
+        "claims_failed": 9,
+        "sealed": true,
+        "auditor_model": "same-model-sealed",
+        "report_version": 2
+      },
+      "reputation_summary": "Concerning session. 9 breach(es) with 0 verified completions. Breach rate exceeds acceptable threshold. Trajectory: declining."
+    }
+  ],
+  "edges": []
+}
