@@ -1,0 +1,145 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    tags:
+      - 'vscode-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Extension version to publish (e.g., 1.0.5)'
+        required: true
+
+jobs:
+  build-and-publish:
+    name: Build and Publish to VS Code Marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: plugins/vscode
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        with:
+          node-version: '20'
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/vscode-v}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Publishing VS Code extension version: ${VERSION}"
+
+      - name: Update package version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          npm pkg set version="${VERSION}"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Compile TypeScript
+        run: npm run compile
+
+      - name: Package extension
+        run: npx vsce package
+
+      - name: Publish to VS Code Marketplace
+        run: npx vsce publish --pat "${{ secrets.VSCE_PAT }}"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sigil-security-${{ steps.version.outputs.version }}.vsix
+          path: plugins/vscode/*.vsix
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/vscode-v}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sigil-security-${{ steps.version.outputs.version }}.vsix
+          path: vsix-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a07e6cbe3bec84981614 # v1
+        with:
+          tag_name: vscode-v${{ steps.version.outputs.version }}
+          name: Sigil VS Code Extension v${{ steps.version.outputs.version }}
+          body: |
+            # Sigil Security — VS Code Extension v${{ steps.version.outputs.version }}
+
+            Automated security auditing for AI agent code, right in your editor.
+
+            ## Installation
+
+            ### From VS Code Marketplace (recommended)
+
+            Search for **"Sigil"** in the VS Code Extensions panel, or install via:
+
+            ```bash
+            code --install-extension nomark.sigil-security
+            ```
+
+            Or visit the [VS Code Marketplace listing](https://marketplace.visualstudio.com/items?itemName=nomark.sigil-security).
+
+            ### From VSIX (manual)
+
+            ```bash
+            code --install-extension sigil-security-${{ steps.version.outputs.version }}.vsix
+            ```
+
+            ## Prerequisites
+
+            Sigil CLI must be installed and available on your `PATH`:
+
+            ```bash
+            # Homebrew
+            brew install nomarj/tap/sigil
+
+            # npm
+            npm install -g @nomarj/sigil
+
+            # Or from source
+            cargo build --release -p sigil
+            sudo cp cli/target/release/sigil /usr/local/bin/
+            ```
+
+            ## Documentation
+
+            - [Extension README](https://github.com/NOMARJ/sigil/blob/main/plugins/vscode/README.md)
+            - [Sigil Documentation](https://github.com/NOMARJ/sigil)
+          files: |
+            vsix-release/*.vsix
+          draft: false
+          prerelease: false
+
