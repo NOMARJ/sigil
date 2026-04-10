@@ -79,13 +79,6 @@ class BotSettings(BaseSettings):
     rescan_popular_days: int = 30  # >10K downloads rescanned monthly
     rescan_default_days: int = 90  # all others rescanned quarterly
 
-    # --- Forge enrichment worker settings -------------------------------------
-    forge_enrichment_enabled: bool = True
-    forge_enrichment_batch_size: int = 10
-    forge_enrichment_delay: float = 1.0  # seconds between batches
-    forge_enrichment_max_records: int = 1000  # max records per run
-    forge_enrichment_poll_interval: int = 300  # 5 minutes
-
     # --- Alert thresholds ------------------------------------------------------
     dead_letter_alert_threshold: int = 10  # per hour
     queue_depth_alert_threshold: int = 500
