@@ -1,14 +1,14 @@
 {
   "current": 0,
   "autonomy_level": "probation",
-  "last_updated": "2026-04-11T10:20:45.318Z",
+  "last_updated": "2026-04-11T10:54:12.774Z",
   "lifetime": {
-    "sessions": 4,
+    "sessions": 9,
     "breaches": {
       "S0": 0,
       "S1": 0,
       "S2": 0,
-      "S3": 36,
+      "S3": 81,
       "S4": 0
     },
     "commends": 0,

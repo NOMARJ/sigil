@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "created": "2026-04-11T10:20:45.318Z",
+  "created": "2026-04-11T10:54:12.774Z",
   "status": "pending",
   "session": {
     "date": "2026-04-11",
@@ -17,7 +17,7 @@
         "description": "9 story(ies) marked DONE without evidence in progress.md",
         "evidence": "Total DONE: 9, with evidence: 0",
         "delta": -0.5,
-        "timestamp": "2026-04-11T10:20:45.318Z"
+        "timestamp": "2026-04-11T10:54:12.774Z"
       }
     ],
     "behavioural_signals": {
@@ -43,7 +43,7 @@
         "early_session_read_ratio": 1,
         "late_session_read_ratio": 1,
         "drift_detected": false,
-        "session_exchange_count": 1
+        "session_exchange_count": 4
       },
       "complexity_distribution": {
         "trivial": 0,
