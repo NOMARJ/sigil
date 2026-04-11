@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-04-11T21:40:24.843069",
+  "last_rebuilt": "2026-04-11T21:40:48.290674",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -828,6 +828,12 @@
       "hash": "106fe7b",
       "message": "chore: update NOMARK harness v3.0.1 \u2192 v3.0.130 (#90)",
       "date": "2026-04-06T10:07:52+10:00"
+    },
+    "commit:bdc9e99": {
+      "type": "commit",
+      "hash": "bdc9e99",
+      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "date": "2026-04-11T21:40:24+10:00"
     }
   },
   "edges": [
