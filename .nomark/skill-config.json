@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-04-11",
+  "profile": "custom",
+  "base_preset": "developer",
+  "categories": {
+    "core": { "enabled": true, "note": "always enabled" },
+    "business": { "enabled": false },
+    "data": { "enabled": true },
+    "discovery": { "enabled": false },
+    "feature": { "enabled": true },
+    "infra": { "enabled": true },
+    "languages": { "enabled": false, "note": "enable specific items via overrides" },
+    "quality": { "enabled": true },
+    "security": { "enabled": true },
+    "team": { "enabled": false }
+  },
+  "overrides": {
+    "skills": {},
+    "agents": {}
+  }
+}
