@@ -48,7 +48,7 @@ A web dashboard gives your team visibility into scan history, threat intelligenc
 - **Policies & alerts** — auto-approve low-risk packages, require manual review for high-risk, get Slack or webhook notifications when something bad is found
 
 ### Use it wherever you work
-- **VS Code / Cursor / Windsurf** — packaged `.vsix` available; scan files and packages from the editor, findings in the Problems panel
+- **VS Code / Cursor / Windsurf** — available on the VS Code Marketplace as `nomark.sigil-security`; scan files and packages from the editor, findings in the Problems panel
 - **JetBrains** — IntelliJ, WebStorm, PyCharm, GoLand and more; build with `gradle buildPlugin`, inline annotations and tool window
 - **Claude Code plugin** — native plugin with 4 skills (`scan-repo`, `scan-package`, `scan-file`, `quarantine-review`) and 2 security agents (`@security-auditor`, `@quarantine-manager`)
 - **Claude Code / AI agents (MCP)** — MCP server exposes scan, approve, and reject as tools your agent can call; run via `node plugins/mcp-server/dist/index.js`
@@ -82,7 +82,7 @@ The Rust binary and both IDE plugins now build and run. The remaining distributi
 
 - `brew install nomarj/tap/sigil` — Homebrew tap
 - `npm install -g @nomarj/sigil` — npm global package
-- VS Code Marketplace listing (`.vsix` is built; listing pending)
+- VS Code Marketplace listing — published as `nomark.sigil-security`
 - JetBrains Marketplace listing (plugin builds; listing pending)
 
 Once on the package managers, `sigil install --update` will handle automatic updates so users always have the latest signatures and scan rules.

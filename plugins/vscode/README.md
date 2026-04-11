@@ -14,13 +14,23 @@ Automated security auditing for AI agent code — right in your editor.
 
 ## Installation
 
+### From VS Code Marketplace (recommended)
+
+Search for **"Sigil"** in the VS Code Extensions panel, or run:
+
+```bash
+code --install-extension nomark.sigil-security
+```
+
+Or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=nomark.sigil-security).
+
 ### From VSIX (local)
 ```bash
 cd plugins/vscode
 npm install
 npm run compile
 npx vsce package
-code --install-extension sigil-security-0.1.0.vsix
+code --install-extension sigil-security-*.vsix
 ```
 
 ### Prerequisites
