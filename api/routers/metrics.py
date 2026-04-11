@@ -13,6 +13,7 @@ from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
+from api.database import db
 from api.rate_limit import RateLimiter
 from api.routers.auth import get_current_user_unified, UserResponse
 from api.services.scanner_metrics import scanner_metrics
@@ -261,3 +262,133 @@ async def get_false_positive_analysis(
             "validation": {"target_achieved": False},
             "error": str(e),
         }
+
+
+@router.get(
+    "/github",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Get archived GitHub traffic metrics",
+    responses={
+        401: {"model": ErrorResponse},
+        429: {"description": "Rate limit exceeded"},
+    },
+    dependencies=[
+        Depends(RateLimiter(max_requests=30, window=300))
+    ],
+)
+async def get_github_metrics(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    start_date: str = Query(
+        None, description="Start date (YYYY-MM-DD). Defaults to 30 days ago."
+    ),
+    end_date: str = Query(
+        None, description="End date (YYYY-MM-DD). Defaults to today."
+    ),
+) -> Dict[str, Any]:
+    """
+    Get archived GitHub traffic metrics for the Sigil repository.
+
+    Returns daily clones, views, referrer sources, repo snapshots (stars/forks),
+    and download counts for the specified date range.
+
+    Data is archived daily from the GitHub Traffic API (which only retains 14 days).
+    """
+    from datetime import datetime, timedelta
+
+    try:
+        # Default date range: last 30 days
+        if end_date is None:
+            end_dt = datetime.utcnow()
+        else:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+
+        if start_date is None:
+            start_dt = end_dt - timedelta(days=30)
+        else:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+
+        start_str = start_dt.strftime("%Y-%m-%d")
+        end_str = end_dt.strftime("%Y-%m-%d")
+
+        # Fetch all metric types for the date range
+        clones = await db.execute_raw_sql(
+            "SELECT date, total_clones, unique_cloners FROM github_traffic_clones WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+            (start_str, end_str),
+        )
+
+        views = await db.execute_raw_sql(
+            "SELECT date, total_views, unique_visitors FROM github_traffic_views WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+            (start_str, end_str),
+        )
+
+        referrers = await db.execute_raw_sql(
+            "SELECT date, referrer, total, [unique] FROM github_traffic_referrers WHERE date BETWEEN ? AND ? ORDER BY date DESC, total DESC",
+            (start_str, end_str),
+        )
+
+        snapshots = await db.execute_raw_sql(
+            "SELECT date, stars, forks, open_issues, watchers FROM github_repo_snapshots WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+            (start_str, end_str),
+        )
+
+        downloads = await db.execute_raw_sql(
+            "SELECT date, source, download_count FROM github_download_counts WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+            (start_str, end_str),
+        )
+
+        return {
+            "date_range": {"start": start_str, "end": end_str},
+            "clones": clones,
+            "views": views,
+            "referrers": referrers,
+            "snapshots": snapshots,
+            "downloads": downloads,
+        }
+
+    except Exception as e:
+        logger.exception(
+            "Failed to get GitHub metrics for user %s: %s", current_user.id, e
+        )
+        return {
+            "date_range": {"start": start_date, "end": end_date},
+            "clones": [],
+            "views": [],
+            "referrers": [],
+            "snapshots": [],
+            "downloads": [],
+            "error": str(e),
+        }
+
+
+@router.post(
+    "/github/sync",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Manually trigger GitHub metrics sync",
+    responses={
+        401: {"model": ErrorResponse},
+        429: {"description": "Rate limit exceeded"},
+    },
+    dependencies=[
+        Depends(RateLimiter(max_requests=5, window=3600))  # Max 5 syncs per hour
+    ],
+)
+async def sync_github_metrics(
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> Dict[str, Any]:
+    """
+    Manually trigger a GitHub traffic data sync.
+
+    Fetches the latest traffic data from the GitHub API and archives it to MSSQL.
+    Rate limited to 5 requests per hour to avoid GitHub API rate limits.
+    """
+    try:
+        from api.services.github_metrics_service import github_metrics_service
+        result = await github_metrics_service.sync_all()
+        return result
+    except Exception as e:
+        logger.exception(
+            "Failed to sync GitHub metrics for user %s: %s", current_user.id, e
+        )
+        return {"status": "error", "error": str(e)}

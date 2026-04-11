@@ -73,15 +73,26 @@ class RegistryStatsUpdater:
 
     async def _run(self) -> None:
         """Main loop that updates stats periodically."""
-        # Run immediately on startup
-        await self._update_stats()
+        # Run first update after a short delay to avoid blocking startup
+        # and give the DB pool time to fully initialize
+        await asyncio.sleep(5)
+        try:
+            await asyncio.wait_for(self._update_stats(), timeout=60)
+        except asyncio.TimeoutError:
+            logger.error("Initial registry stats update timed out after 60s")
+            print("[REGISTRY_STATS] ✗ Initial update timed out after 60s")
+        except Exception:
+            logger.exception("Initial registry stats update failed")
 
         # Then run every UPDATE_INTERVAL_SECONDS
         while self._running:
             try:
                 await asyncio.sleep(UPDATE_INTERVAL_SECONDS)
                 if self._running:  # Check again after sleep
-                    await self._update_stats()
+                    await asyncio.wait_for(self._update_stats(), timeout=120)
+            except asyncio.TimeoutError:
+                logger.error("Registry stats update timed out after 120s")
+                print("[REGISTRY_STATS] ✗ Periodic update timed out after 120s")
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -100,8 +111,14 @@ class RegistryStatsUpdater:
             # This query computes all stats directly in the database
             print("[REGISTRY_STATS] Computing stats via SQL aggregation...")
 
+            if not db._pool:
+                logger.warning("Database pool not available, skipping stats update")
+                print("[REGISTRY_STATS] ✗ Database pool not available")
+                return
+
             async with db._pool.acquire() as conn:
                 async with conn.cursor() as cursor:
+                    cursor.timeout = 30  # 30s timeout per query
                     # Exclude ERROR scans — they represent failed scans, not results
                     _where = "WHERE verdict != 'ERROR'"
 
@@ -209,7 +226,15 @@ async def get_cached_stats() -> dict[str, Any] | None:
 
     Returns None if no stats are available yet.
     """
-    row = await db.select_one(CACHE_TABLE, {"id": CACHE_ROW_ID})
+    try:
+        row = await asyncio.wait_for(
+            db.select_one(CACHE_TABLE, {"id": CACHE_ROW_ID}),
+            timeout=10,
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        logger.warning("Failed to fetch cached stats: %s", e)
+        return None
+
     if not row:
         return None
 

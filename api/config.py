@@ -48,6 +48,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "https://app.sigilsec.ai",
         "https://sigilsec.ai",
+        "https://www.sigilsec.ai",
         "https://forge.sigilsec.ai",
     ]
     frontend_url: str = "https://app.sigilsec.ai"
@@ -118,6 +119,7 @@ class Settings(BaseSettings):
     github_webhook_secret: Union[str, None] = None
     github_client_id: Union[str, None] = None
     github_client_secret: Union[str, None] = None
+    github_token: Union[str, None] = None  # SIGIL_GITHUB_TOKEN — PAT for traffic API
 
     # --- Anthropic (optional — for Forge classification) ----------------------
     anthropic_api_key: Union[str, None] = None  # SIGIL_ANTHROPIC_API_KEY
@@ -141,6 +143,10 @@ class Settings(BaseSettings):
     structured_logging: bool = True  # SIGIL_STRUCTURED_LOGGING
     azure_insights_key: Union[str, None] = None  # SIGIL_AZURE_INSIGHTS_KEY
     prometheus_enabled: bool = True  # SIGIL_PROMETHEUS_ENABLED
+
+    # --- PostHog (optional — for conversion funnel analytics) ----------------
+    posthog_api_key: Union[str, None] = None  # SIGIL_POSTHOG_API_KEY
+    posthog_host: str = "https://app.posthog.com"  # SIGIL_POSTHOG_HOST
 
     @property
     def auth0_configured(self) -> bool:
@@ -192,6 +198,11 @@ class Settings(BaseSettings):
         return bool(self.github_app_id and self.github_app_private_key)
 
     @property
+    def github_token_configured(self) -> bool:
+        """Return True when a GitHub PAT for traffic API is set."""
+        return bool(self.github_token)
+
+    @property
     def jwt_secret_is_insecure(self) -> bool:
         """Return True when the JWT secret has not been changed from the default."""
         return self.jwt_secret == "changeme-generate-a-real-secret"
@@ -200,6 +211,11 @@ class Settings(BaseSettings):
     def azure_insights_configured(self) -> bool:
         """Return True when Azure Application Insights is configured."""
         return bool(self.azure_insights_key)
+
+    @property
+    def posthog_configured(self) -> bool:
+        """Return True when PostHog API key is set."""
+        return bool(self.posthog_api_key)
 
 
 # Singleton — importable from anywhere as `from config import settings`.

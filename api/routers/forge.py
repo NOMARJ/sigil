@@ -7,12 +7,13 @@ Supports both human and agent consumption.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Literal, Optional, List
 
@@ -996,6 +997,7 @@ async def browse_category(
                 capability_sql = f"SELECT * FROM forge_capabilities WHERE classification_id IN ({placeholders})"
                 async with db._pool.acquire() as conn:
                     cursor = await conn.cursor()
+                    cursor.timeout = 30
                     await cursor.execute(capability_sql, tuple(classification_ids))
                     capability_rows = await cursor.fetchall()
                     capability_rows = [
@@ -1155,6 +1157,7 @@ async def get_tool_matches(
 
             async with db._pool.acquire() as conn:
                 cursor = await conn.cursor()
+                cursor.timeout = 30
                 await cursor.execute(
                     match_sql + f" OFFSET 0 ROWS FETCH NEXT {limit} ROWS ONLY",
                     (classification_id,),
@@ -1220,6 +1223,7 @@ async def get_tool_matches(
             capability_sql = f"SELECT * FROM forge_capabilities WHERE classification_id IN ({placeholders})"
             async with db._pool.acquire() as conn:
                 cursor = await conn.cursor()
+                cursor.timeout = 30
                 await cursor.execute(capability_sql, tuple(all_classification_ids))
                 capability_rows = await cursor.fetchall()
                 capability_rows = [db._row_to_dict(cursor, r) for r in capability_rows]
@@ -1365,109 +1369,49 @@ async def generate_stack(request: StackRequest):
 async def get_forge_stats():
     """Get Forge statistics.
 
-    Returns enriched stats including ecosystem breakdowns and trust score
-    distribution so the frontend can display them without extra requests.
+    Returns pre-computed statistics from the cache table, updated every 15
+    minutes by a background task. This avoids expensive table scans.
     """
+    from api.services import forge_stats_updater
 
-    try:
-        # Count tools by ecosystem
-        all_classifications = await db.select("forge_classification", {})
+    cached = await forge_stats_updater.get_cached_stats()
 
-        ecosystem_counts: dict[str, int] = {}
-        category_counts: dict[str, int] = {}
-        total_tools = len(all_classifications)
-
-        # Category mapping to ensure snake_case
-        category_mapping = {
-            "mcp": "api_integrations",
-            "ml": "ai_llm_tools",
-            "general": "code_tools",
-            "skills": "code_tools",
-            "security": "security_tools",
-            "ai-agents": "ai_llm_tools",
-            "web": "api_integrations",
-            "data": "data_pipeline",
-            "llm-tools": "ai_llm_tools",
-            "crypto": "security_tools",
-            "database": "database_connectors",
-            "devops": "devops_tools",
-            "testing": "testing_tools",
-            "monitoring": "monitoring",
-            "communication": "communication",
-            "search": "search_tools",
-            "file-system": "file_system_tools",
-        }
-
-        for classification in all_classifications:
-            ecosystem = classification["ecosystem"]
-            category = classification["category"]
-
-            # Map category to snake_case
-            mapped_category = category_mapping.get(
-                category.lower(), category.replace("-", "_").replace(" ", "_").lower()
-            )
-
-            ecosystem_counts[ecosystem] = ecosystem_counts.get(ecosystem, 0) + 1
-            category_counts[mapped_category] = (
-                category_counts.get(mapped_category, 0) + 1
-            )
-
-        # Count total matches
-        matches = await db.select("forge_matches", {})
-        total_matches = len(matches)
-
-        # Compute trust score distribution from actual risk_score in public_scans
-        # trust_score = 100 - risk_score; buckets: high ≥75, medium ≥40, low ≥15, very_low <15
-        trust_buckets = {"high": 0, "medium": 0, "low": 0, "very_low": 0}
-        all_scans = await db.select("public_scans", limit=10000)
-        for scan in all_scans:
-            risk_score = scan.get("risk_score", 0) or 0
-            trust_score = max(0, min(100, 100 - risk_score))
-            if trust_score >= 75:
-                trust_buckets["high"] += 1
-            elif trust_score >= 40:
-                trust_buckets["medium"] += 1
-            elif trust_score >= 15:
-                trust_buckets["low"] += 1
-            else:
-                trust_buckets["very_low"] += 1
-
-        trust_distribution = trust_buckets
-
-        # Derive ecosystem-specific counts
-        mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
-        skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get(
-            "clawhub", 0
-        )
-        npm_packages = ecosystem_counts.get("npm", 0)
-        pypi_packages = ecosystem_counts.get("pypi", 0)
-
-        # Top categories sorted by count
-        top_categories = sorted(
-            [{"name": k, "count": v} for k, v in category_counts.items()],
-            key=lambda x: x["count"],
-            reverse=True,
-        )[:10]
-
+    if cached:
         return {
-            "total_tools": total_tools,
-            "total_categories": len(category_counts),
-            "total_matches": total_matches,
-            "mcp_servers": mcp_servers,
-            "skills_count": skills_count,
-            "npm_packages": npm_packages,
-            "pypi_packages": pypi_packages,
-            "ecosystems": ecosystem_counts,
-            "categories": category_counts,
-            "trust_score_distribution": trust_distribution,
+            "total_tools": cached["total_tools"],
+            "total_categories": cached["total_categories"],
+            "total_matches": cached["total_matches"],
+            "mcp_servers": cached["mcp_servers"],
+            "skills_count": cached["skills_count"],
+            "npm_packages": cached["npm_packages"],
+            "pypi_packages": cached["pypi_packages"],
+            "ecosystems": cached["ecosystems"],
+            "categories": cached["categories"],
+            "trust_score_distribution": cached["trust_score_distribution"],
             "recent_scans": [],
-            "top_categories": top_categories,
-            "last_updated": datetime.utcnow().isoformat(),
+            "top_categories": cached["top_categories"],
+            "last_updated": cached["computed_at"].isoformat()
+            if cached["computed_at"]
+            else datetime.now(timezone.utc).isoformat(),
         }
 
-    except Exception as e:
-        logger.error(f"Get stats failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Fallback if cache not populated yet
+    logger.warning("Forge stats cache not available, returning empty stats")
+    return {
+        "total_tools": 0,
+        "total_categories": 0,
+        "total_matches": 0,
+        "mcp_servers": 0,
+        "skills_count": 0,
+        "npm_packages": 0,
+        "pypi_packages": 0,
+        "ecosystems": {},
+        "categories": {},
+        "trust_score_distribution": {"high": 0, "medium": 0, "low": 0, "very_low": 0},
+        "recent_scans": [],
+        "top_categories": [],
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # MCP-compatible endpoints for agent consumption

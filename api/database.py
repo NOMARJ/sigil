@@ -98,11 +98,10 @@ class MssqlClient:
 
             self._pool = await aioodbc.create_pool(
                 dsn=settings.database_url,
-                minsize=5,  # Increased for better performance
-                maxsize=50,  # Increased to handle concurrent load
-                timeout=30,  # Connection timeout
+                minsize=2,  # Conservative for 10 DTU Standard tier
+                maxsize=10,  # Avoid saturating DTU budget
+                timeout=30,  # Connection creation timeout
                 after_created=self._configure_connection,
-                # Additional performance settings
                 echo=False,
                 pool_recycle=3600,  # Recycle connections after 1 hour
             )
@@ -281,6 +280,7 @@ class MssqlClient:
 
         async with self._pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                cursor.timeout = 60
                 await cursor.execute(sql, tuple(vals))
                 rows = await cursor.fetchall()
                 return [self._row_to_dict(cursor, r) for r in rows]

@@ -99,6 +99,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await registry_stats_updater.start_updater()
     print("[LIFESPAN] Background updater started")
 
+    # Start Forge stats background updater
+    print("[LIFESPAN] Starting Forge stats updater...")
+    from api.services import forge_stats_updater
+
+    await forge_stats_updater.start_updater()
+    print("[LIFESPAN] Forge stats updater started")
+
     # Start monitoring and alerting
     if settings.metrics_enabled:
         print("[LIFESPAN] Starting monitoring system...")
@@ -112,6 +119,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     logger.info("Shutting down Sigil API")
+    await forge_stats_updater.stop_updater()
     await registry_stats_updater.stop_updater()
     await cache.disconnect()
     await db.disconnect()

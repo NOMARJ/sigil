@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import LayoutShell from "@/components/LayoutShell";
+import PostHogProvider from "@/components/PostHogProvider";
 
 export const metadata: Metadata = {
   title: "Sigil — Security Audit Dashboard",
@@ -31,7 +32,9 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-gray-950 text-gray-100">
-        <LayoutShell>{children}</LayoutShell>
+        <PostHogProvider>
+          <LayoutShell>{children}</LayoutShell>
+        </PostHogProvider>
       </body>
     </html>
   );
