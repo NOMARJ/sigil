@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-04-11T21:40:48.290674",
+  "last_rebuilt": "2026-04-11T21:40:52.016175",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -834,6 +834,12 @@
       "hash": "bdc9e99",
       "message": "memory: 2026-04-11 21:40 \u2014 sigil",
       "date": "2026-04-11T21:40:24+10:00"
+    },
+    "commit:ba20a1a": {
+      "type": "commit",
+      "hash": "ba20a1a",
+      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "date": "2026-04-11T21:40:48+10:00"
     }
   },
   "edges": [
