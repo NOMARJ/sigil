@@ -63,6 +63,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
+    if: github.event_name == 'push'
     needs: build-and-publish
     runs-on: ubuntu-latest
     permissions:
