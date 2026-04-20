@@ -1,0 +1,118 @@
+name: Publish JetBrains Plugin
+
+on:
+  push:
+    tags:
+      - 'jetbrains-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Plugin version to publish (e.g., 0.1.0)'
+        required: true
+
+jobs:
+  build-and-publish:
+    name: Build and Publish to JetBrains Marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: plugins/jetbrains
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Publishing JetBrains plugin version: ${VERSION}"
+
+      - name: Build and publish plugin
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+          CERTIFICATE_CHAIN: ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.JETBRAINS_PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gradle --no-daemon -PpluginVersion="${VERSION}" buildPlugin publishPlugin
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sigil-jetbrains-${{ steps.version.outputs.version }}.zip
+          path: plugins/jetbrains/build/distributions/*.zip
+          retention-days: 90
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Download ZIP artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sigil-jetbrains-${{ steps.version.outputs.version }}.zip
+          path: jetbrains-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a07e6cbe3bec84981614 # v1
+        with:
+          tag_name: jetbrains-v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Sigil JetBrains Plugin v${{ steps.version.outputs.version }}
+          body: |
+            # Sigil JetBrains Plugin v${{ steps.version.outputs.version }}
+
+            Published to JetBrains Marketplace as **dev.nomark.sigil**.
+
+            ## Installation
+
+            ### From JetBrains Marketplace (recommended)
+
+            Open **Settings > Plugins > Marketplace**, search for **Sigil**, then install.
+
+            ### From ZIP (manual)
+
+            Download the attached ZIP and install via:
+            **Settings > Plugins > ⚙ > Install Plugin from Disk...**
+
+            ## Compatibility
+
+            IntelliJ IDEA, WebStorm, PyCharm, GoLand and other JetBrains IDEs on 2024.1+.
+          files: |
+            jetbrains-release/*.zip
+          draft: false
+          prerelease: false

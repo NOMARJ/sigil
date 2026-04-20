@@ -5,7 +5,8 @@ plugins {
 }
 
 group = "dev.nomark.sigil"
-version = "0.1.0"
+val pluginVersion = providers.gradleProperty("pluginVersion").orElse("0.1.0").get()
+version = pluginVersion
 
 repositories {
     mavenCentral()
@@ -32,7 +33,7 @@ intellijPlatform {
     pluginConfiguration {
         id = "dev.nomark.sigil"
         name = "Sigil"
-        version = "0.1.0"
+        version = pluginVersion
         description = "Automated security auditing for AI agent code"
 
         ideaVersion {

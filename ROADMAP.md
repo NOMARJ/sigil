@@ -83,7 +83,7 @@ The Rust binary and both IDE plugins now build and run. The remaining distributi
 - `brew install nomarj/tap/sigil` — Homebrew tap
 - `npm install -g @nomarj/sigil` — npm global package
 - VS Code Marketplace listing — published as `nomark.sigil-security`
-- JetBrains Marketplace listing (plugin builds; listing pending)
+- JetBrains Marketplace listing — published as `dev.nomark.sigil`
 
 Once on the package managers, `sigil install --update` will handle automatic updates so users always have the latest signatures and scan rules.
 

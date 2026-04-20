@@ -72,6 +72,14 @@ Works with IntelliJ IDEA, WebStorm, PyCharm, GoLand, CLion, Rider, RubyMine, Php
 
 ### Install
 
+From JetBrains Marketplace (recommended):
+
+1. Open **Settings > Plugins > Marketplace**
+2. Search for **Sigil**
+3. Install plugin ID **`dev.nomark.sigil`** (publisher: NOMARK)
+
+Or build from source:
+
 ```bash
 cd plugins/jetbrains
 gradle buildPlugin
