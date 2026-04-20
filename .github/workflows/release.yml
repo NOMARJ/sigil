@@ -202,7 +202,7 @@ jobs:
             -d "$PAYLOAD")"
 
           if [[ ! "$HTTP_CODE" =~ ^2[0-9]{2}$ ]]; then
-            echo "::error::Failed to trigger update-homebrew.yml (HTTP $HTTP_CODE)."
+            echo "::error::Failed to dispatch update-homebrew.yml workflow (HTTP $HTTP_CODE)."
             if [ -s "$RESPONSE_FILE" ]; then
               cat "$RESPONSE_FILE"
             fi
