@@ -6,6 +6,7 @@ on:
       - "v*"
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -183,3 +184,30 @@ jobs:
             ```bash
             sha256sum -c SHA256SUMS.txt
             ```
+
+      - name: Trigger Homebrew formula update
+        run: |
+          set -eo pipefail
+          PAYLOAD="$(jq -nc \
+            --arg ref "${{ github.event.repository.default_branch }}" \
+            --arg tag "${{ github.ref_name }}" \
+            '{ref:$ref, inputs:{tag:$tag}}')"
+
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_CODE="$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/update-homebrew.yml/dispatches" \
+            -d "$PAYLOAD")"
+
+          if [[ ! "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::error::Failed to dispatch update-homebrew.yml workflow (HTTP $HTTP_CODE)."
+            if [ -s "$RESPONSE_FILE" ]; then
+              cat "$RESPONSE_FILE"
+            fi
+            exit 1
+          fi
+
+          rm -f "$RESPONSE_FILE"
+          echo "Triggered update-homebrew.yml for tag ${{ github.ref_name }}"
