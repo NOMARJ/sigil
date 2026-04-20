@@ -36,7 +36,11 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Publishing JetBrains plugin version: ${VERSION}"
 
@@ -71,11 +75,7 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
-          fi
+          VERSION="${GITHUB_REF#refs/tags/jetbrains-v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Download ZIP artifact
