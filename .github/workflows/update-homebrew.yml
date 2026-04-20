@@ -39,6 +39,9 @@ jobs:
 
             if [[ ! "$HTTP_CODE" =~ ^2[0-9]{2}$ ]]; then
               echo "::error::Failed to fetch latest release tag (HTTP $HTTP_CODE)."
+              if [ -s "$RELEASE_JSON_FILE" ]; then
+                cat "$RELEASE_JSON_FILE"
+              fi
               exit 1
             fi
 
