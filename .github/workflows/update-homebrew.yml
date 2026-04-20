@@ -31,10 +31,19 @@ jobs:
           elif [ -n "${{ inputs.tag }}" ]; then
             TAG="${{ inputs.tag }}"
           else
-            TAG="$(curl -fsSL \
+            RELEASE_JSON_FILE="$(mktemp)"
+            HTTP_CODE="$(curl -sS -o "$RELEASE_JSON_FILE" -w '%{http_code}' \
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')"
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest")"
+
+            if [[ ! "$HTTP_CODE" =~ ^2 ]]; then
+              echo "::error::Failed to fetch latest release tag (HTTP $HTTP_CODE)."
+              exit 1
+            fi
+
+            TAG="$(jq -r '.tag_name' < "$RELEASE_JSON_FILE")"
+            rm -f "$RELEASE_JSON_FILE"
           fi
 
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
