@@ -200,7 +200,7 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/update-homebrew.yml/dispatches" \
             -d "$PAYLOAD")"
 
-          if [[ ! "$HTTP_CODE" =~ ^2 ]]; then
+          if [[ ! "$HTTP_CODE" =~ ^2[0-9]{2}$ ]]; then
             echo "::error::Failed to trigger update-homebrew.yml (HTTP $HTTP_CODE)."
             exit 1
           fi
