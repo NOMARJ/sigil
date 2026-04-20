@@ -3,6 +3,12 @@ name: Update Homebrew Formula
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.0.6). Defaults to latest release if omitted."
+        required: false
+        type: string
 
 jobs:
   update-formula:
@@ -18,10 +24,19 @@ jobs:
       - name: Get release info
         id: release
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
+          TAG=""
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="$(curl -fsSL "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')"
+          fi
+
+          VERSION="$TAG"
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Download checksums
         run: |
