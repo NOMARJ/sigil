@@ -24,6 +24,7 @@ jobs:
       - name: Get release info
         id: release
         run: |
+          set -eo pipefail
           TAG=""
           if [ "${{ github.event_name }}" = "release" ]; then
             TAG="${{ github.event.release.tag_name }}"
@@ -31,6 +32,11 @@ jobs:
             TAG="${{ inputs.tag }}"
           else
             TAG="$(curl -fsSL "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')"
+          fi
+
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::Unable to determine release tag for Homebrew update."
+            exit 1
           fi
 
           VERSION="$TAG"
