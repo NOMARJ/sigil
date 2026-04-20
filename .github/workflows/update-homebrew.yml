@@ -31,7 +31,10 @@ jobs:
           elif [ -n "${{ inputs.tag }}" ]; then
             TAG="${{ inputs.tag }}"
           else
-            TAG="$(curl -fsSL "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')"
+            TAG="$(curl -fsSL \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')"
           fi
 
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then

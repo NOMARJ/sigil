@@ -187,6 +187,7 @@ jobs:
 
       - name: Trigger Homebrew formula update
         run: |
+          set -eo pipefail
           PAYLOAD="$(jq -nc \
             --arg ref "${{ github.event.repository.default_branch }}" \
             --arg tag "${{ github.ref_name }}" \
@@ -198,3 +199,4 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/update-homebrew.yml/dispatches" \
             -d "$PAYLOAD"
+          echo "Triggered update-homebrew.yml for tag ${{ github.ref_name }}"
