@@ -3,6 +3,12 @@ name: Update Homebrew Formula
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.0.6). Defaults to latest release if omitted."
+        required: false
+        type: string
 
 jobs:
   update-formula:
@@ -18,10 +24,40 @@ jobs:
       - name: Get release info
         id: release
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
+          set -eo pipefail
+          TAG=""
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            RELEASE_JSON_FILE="$(mktemp)"
+            HTTP_CODE="$(curl -sS -o "$RELEASE_JSON_FILE" -w '%{http_code}' \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest")"
+
+            if [[ ! "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+              echo "::error::GitHub API request failed while fetching latest release tag (HTTP $HTTP_CODE)."
+              if [ -s "$RELEASE_JSON_FILE" ]; then
+                cat "$RELEASE_JSON_FILE"
+              fi
+              exit 1
+            fi
+
+            TAG="$(jq -r '.tag_name' < "$RELEASE_JSON_FILE")"
+            rm -f "$RELEASE_JSON_FILE"
+          fi
+
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::Unable to determine release tag for Homebrew update."
+            exit 1
+          fi
+
+          VERSION="$TAG"
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Download checksums
         run: |
