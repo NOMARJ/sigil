@@ -13,6 +13,9 @@ Automated security auditing for AI agent code — for IntelliJ IDEA, WebStorm, P
 
 ## Installation
 
+### From JetBrains Marketplace (recommended)
+Open **Settings > Plugins > Marketplace**, search for **Sigil**, and install the plugin published by **NOMARK** (`dev.nomark.sigil`).
+
 ### Build from source
 ```bash
 cd plugins/jetbrains
