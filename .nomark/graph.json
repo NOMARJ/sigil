@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-04-30T17:53:04.469567",
+  "last_rebuilt": "2026-05-01T08:33:54.484941",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -852,6 +852,42 @@
       "hash": "cb01036",
       "message": "memory: 2026-04-11 21:40 \u2014 sigil",
       "date": "2026-04-11T21:40:52+10:00"
+    },
+    "commit:f1ed54f": {
+      "type": "commit",
+      "hash": "f1ed54f",
+      "message": "chore: add 10 trust graph breach entries for 2026-04-30 sessions",
+      "date": "2026-04-30T19:16:44+10:00"
+    },
+    "commit:70c04eb": {
+      "type": "commit",
+      "hash": "70c04eb",
+      "message": "fix(forge): use COUNT(*) for ecosystem stats to avoid 30s cursor timeout (#97)",
+      "date": "2026-05-01T08:03:33+10:00"
+    },
+    "commit:ad49494": {
+      "type": "commit",
+      "hash": "ad49494",
+      "message": "fix(forge): derive stats ecosystem counts from public_scans (#96)",
+      "date": "2026-04-30T19:23:41+10:00"
+    },
+    "commit:d3b2846": {
+      "type": "commit",
+      "hash": "d3b2846",
+      "message": "NOM-29: Ensure release pipeline publishes latest Sigil to Homebrew tap (#95)",
+      "date": "2026-04-30T18:23:57+10:00"
+    },
+    "commit:4aa419e": {
+      "type": "commit",
+      "hash": "4aa419e",
+      "message": "NOM-31: Add JetBrains Marketplace publish pipeline and versioned plugin release path (#94)",
+      "date": "2026-04-30T18:23:30+10:00"
+    },
+    "commit:8b2f289": {
+      "type": "commit",
+      "hash": "8b2f289",
+      "message": "memory: 2026-05-01 08:32 \u2014 sigil",
+      "date": "2026-05-01T08:32:20+10:00"
     }
   },
   "edges": [
@@ -963,6 +999,16 @@
     {
       "from": "commit:132d85c",
       "to": "NOM-30",
+      "rel": "resolves"
+    },
+    {
+      "from": "commit:d3b2846",
+      "to": "NOM-29",
+      "rel": "resolves"
+    },
+    {
+      "from": "commit:4aa419e",
+      "to": "NOM-31",
       "rel": "resolves"
     }
   ]
