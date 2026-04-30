@@ -250,41 +250,37 @@ class TestAuthenticationOnNonGatedEndpoints:
     def test_jwt_token_generation_works(
         self,
         client: TestClient,
-        test_user_data: dict[str, str],
+        registered_user: dict,
     ) -> None:
-        """User registration generates valid JWT tokens."""
-        resp = client.post("/v1/auth/register", json=test_user_data)
-        assert resp.status_code == 201
+        """Auth0 migration: the test fixture provides valid JWT tokens.
 
-        data = resp.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        assert data["expires_in"] > 0
+        POST /v1/auth/register now returns 410 Gone. Tokens are issued by
+        Auth0 in production; in tests the registered_user fixture creates a
+        user directly and signs a HS256 JWT with the same secret.
+        """
+        assert "access_token" in registered_user
+        assert registered_user["token_type"] == "bearer"
+        assert registered_user["expires_in"] > 0
 
     def test_login_generates_valid_token(
         self,
         client: TestClient,
         registered_user: dict,
-        test_user_data: dict[str, str],
     ) -> None:
-        """User login generates valid tokens that work with /auth/me."""
-        # Login with already registered user
-        login_resp = client.post(
-            "/v1/auth/login",
-            json={
-                "email": test_user_data["email"],
-                "password": test_user_data["password"],
-            },
-        )
-        assert login_resp.status_code == 200
+        """Auth0 migration: token from fixture works with /auth/me.
 
-        # Use token
-        token = login_resp.json()["access_token"]
+        POST /v1/auth/login now returns 410 Gone. Tokens are issued by Auth0
+        in production; in tests the registered_user fixture provides a valid
+        JWT that authenticated endpoints accept via the dependency override.
+        """
+        token = registered_user["access_token"]
         me_resp = client.get(
             "/v1/auth/me",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert me_resp.status_code == 200
+        data = me_resp.json()
+        assert data["email"] == registered_user["user"]["email"]
 
     def test_invalid_token_rejected_on_non_gated_endpoint(
         self, client: TestClient
