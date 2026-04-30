@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-01T08:32:20.743750",
+  "last_rebuilt": "2026-05-01T08:33:54.484941",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -882,6 +882,12 @@
       "hash": "4aa419e",
       "message": "NOM-31: Add JetBrains Marketplace publish pipeline and versioned plugin release path (#94)",
       "date": "2026-04-30T18:23:30+10:00"
+    },
+    "commit:8b2f289": {
+      "type": "commit",
+      "hash": "8b2f289",
+      "message": "memory: 2026-05-01 08:32 \u2014 sigil",
+      "date": "2026-05-01T08:32:20+10:00"
     }
   },
   "edges": [
