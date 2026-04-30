@@ -240,7 +240,9 @@ async def search_registry(
             rows = [r for r in rows if r.get("ecosystem") == ecosystem]
         if verdict:
             rows = [r for r in rows if r.get("verdict") == verdict]
-        rows.sort(key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True)
+        rows.sort(
+            key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
+        )
         total = len(rows)
         start = (page - 1) * per_page
         rows = rows[start : start + per_page]

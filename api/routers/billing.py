@@ -904,6 +904,7 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
 
     # Fire PostHog conversion event for funnel tracking
     from api.services.posthog_service import posthog_service
+
     posthog_service.capture(
         distinct_id=user_id,
         event="sigil_subscription",
@@ -1096,6 +1097,7 @@ async def _handle_subscription_created(event: dict[str, Any]) -> None:
         # Fire PostHog trial event for funnel tracking
         if sub_status == "trialing":
             from api.services.posthog_service import posthog_service
+
             posthog_service.capture(
                 distinct_id=user_id,
                 event="sigil_trial_started",

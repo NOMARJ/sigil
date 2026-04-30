@@ -7,7 +7,6 @@ Supports both human and agent consumption.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re

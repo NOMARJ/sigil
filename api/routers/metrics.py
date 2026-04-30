@@ -273,9 +273,7 @@ async def get_false_positive_analysis(
         401: {"model": ErrorResponse},
         429: {"description": "Rate limit exceeded"},
     },
-    dependencies=[
-        Depends(RateLimiter(max_requests=30, window=300))
-    ],
+    dependencies=[Depends(RateLimiter(max_requests=30, window=300))],
 )
 async def get_github_metrics(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
@@ -385,6 +383,7 @@ async def sync_github_metrics(
     """
     try:
         from api.services.github_metrics_service import github_metrics_service
+
         result = await github_metrics_service.sync_all()
         return result
     except Exception as e:
