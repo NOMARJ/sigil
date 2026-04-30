@@ -52,7 +52,7 @@ jobs:
           PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          gradle --no-daemon -PpluginVersion="${VERSION}" buildPlugin publishPlugin
+          ./gradlew --no-daemon -PpluginVersion="${VERSION}" buildPlugin publishPlugin
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
