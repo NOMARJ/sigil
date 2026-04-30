@@ -80,3 +80,21 @@ terraform.tfstate
 terraform.tfstate.backup
 *.tfstate
 ui-ux-pro-max
+
+# BEGIN NOMARK telemetry ignore — managed by scripts/ensure-telemetry-ignored.cjs
+# NOMARK telemetry — high-churn session state, flows to portfolio via graph-portfolio-sync.
+# Do not hand-commit these paths. Edit the canonical list in scripts/ensure-telemetry-ignored.cjs.
+.nomark/metrics/trust/events/
+.nomark/metrics/trust/graph.json
+.nomark/metrics/trust/ledger.jsonl
+.nomark/metrics/trust/pending-audit.json
+.nomark/metrics/trust/preferences/preferences.json
+.nomark/metrics/trust/reports/
+.nomark/metrics/trust/score.json
+.nomark/metrics/drift.json
+.nomark/metrics/costs.jsonl
+.nomark/metrics/relay-log.jsonl
+.nomark/observations/
+tasks/instincts/pending/
+tasks/instincts/index.json
+# END NOMARK telemetry ignore

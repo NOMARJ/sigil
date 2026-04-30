@@ -1,0 +1,42 @@
+name: nomark-hygiene
+
+# NOMARK telemetry hygiene check. Fails if session telemetry has leaked into
+# git tracking, or if the .gitignore marker block is missing. Runs on every
+# push/PR to main and weekly as a drift canary.
+#
+# Why: cloud sessions (Codespaces, RemoteTrigger, CI runners) don't run local
+# session-end hooks, so telemetry can leak in if someone commits from an
+# environment that wasn't bootstrapped. This action catches that.
+#
+# Install:
+#   mkdir -p .github/workflows
+#   cp nomark_v2/code/templates/github-actions/nomark-hygiene.yml .github/workflows/
+#   # or, in a synced project:
+#   cp ~/.nomark/templates/github-actions/nomark-hygiene.yml .github/workflows/
+#
+# Fix locally when this action fails:
+#   node scripts/ensure-telemetry-ignored.cjs
+#   git add -A && git commit -m "chore: untrack NOMARK telemetry"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 14 * * 1"  # Mondays 14:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  telemetry-ignore-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Verify NOMARK telemetry is gitignored and untracked
+        run: node scripts/ensure-telemetry-ignored.cjs --check
