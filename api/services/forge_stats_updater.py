@@ -23,27 +23,6 @@ CACHE_TABLE = "forge_stats_cache"
 CACHE_ROW_ID = "00000000-0000-0000-0000-000000000002"
 UPDATE_INTERVAL_SECONDS = 15 * 60  # 15 minutes
 
-# Category mapping to ensure snake_case (shared with endpoint)
-CATEGORY_MAPPING = {
-    "mcp": "api_integrations",
-    "ml": "ai_llm_tools",
-    "general": "code_tools",
-    "skills": "code_tools",
-    "security": "security_tools",
-    "ai-agents": "ai_llm_tools",
-    "web": "api_integrations",
-    "data": "data_pipeline",
-    "llm-tools": "ai_llm_tools",
-    "crypto": "security_tools",
-    "database": "database_connectors",
-    "devops": "devops_tools",
-    "testing": "testing_tools",
-    "monitoring": "monitoring",
-    "communication": "communication",
-    "search": "search_tools",
-    "file-system": "file_system_tools",
-}
-
 
 class ForgeStatsUpdater:
     """Background task that updates Forge statistics cache."""
@@ -106,23 +85,23 @@ class ForgeStatsUpdater:
                 async with conn.cursor() as cursor:
                     cursor.timeout = 30
 
-                    # 1. Classification ecosystem/category counts via SQL
+                    # 1. Ecosystem counts from public_scans (distinct packages).
+                    # forge_classification is not currently populated by the bot
+                    # publisher, so derive package counts directly from scans.
+                    # Categories require classifier output and stay empty until
+                    # the classification pipeline is wired back to the publisher.
                     await cursor.execute("""
-                        SELECT ecosystem, category, COUNT(*) as cnt
-                        FROM forge_classification
-                        GROUP BY ecosystem, category
+                        SELECT ecosystem, COUNT(DISTINCT package_name) as cnt
+                        FROM public_scans
+                        WHERE verdict != 'ERROR'
+                        GROUP BY ecosystem
                     """)
                     ecosystem_counts: dict[str, int] = {}
                     category_counts: dict[str, int] = {}
                     total_tools = 0
                     async for row in cursor:
-                        eco, cat, cnt = row[0], row[1], row[2]
-                        ecosystem_counts[eco] = ecosystem_counts.get(eco, 0) + cnt
-                        mapped = CATEGORY_MAPPING.get(
-                            cat.lower(),
-                            cat.replace("-", "_").replace(" ", "_").lower(),
-                        )
-                        category_counts[mapped] = category_counts.get(mapped, 0) + cnt
+                        eco, cnt = row[0], row[1]
+                        ecosystem_counts[eco] = cnt
                         total_tools += cnt
 
                     # 2. Total matches count
