@@ -36,7 +36,9 @@ class ForgeStatsUpdater:
             return
         self._running = True
         self._task = asyncio.create_task(self._run())
-        logger.info("Started Forge stats updater (interval: %ds)", UPDATE_INTERVAL_SECONDS)
+        logger.info(
+            "Started Forge stats updater (interval: %ds)", UPDATE_INTERVAL_SECONDS
+        )
 
     async def stop(self) -> None:
         if not self._running:
@@ -128,8 +130,12 @@ class ForgeStatsUpdater:
                     }
 
             # Derived counts
-            mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get("github", 0)
-            skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get("clawhub", 0)
+            mcp_servers = ecosystem_counts.get("mcp", 0) + ecosystem_counts.get(
+                "github", 0
+            )
+            skills_count = ecosystem_counts.get("skill", 0) + ecosystem_counts.get(
+                "clawhub", 0
+            )
             npm_packages = ecosystem_counts.get("npm", 0)
             pypi_packages = ecosystem_counts.get("pypi", 0)
 
@@ -212,7 +218,9 @@ async def get_cached_stats() -> dict[str, Any] | None:
         "pypi_packages": row.get("pypi_packages", 0),
         "ecosystems": json.loads(row.get("ecosystems_json", "{}")),
         "categories": json.loads(row.get("categories_json", "{}")),
-        "trust_score_distribution": json.loads(row.get("trust_distribution_json", "{}")),
+        "trust_score_distribution": json.loads(
+            row.get("trust_distribution_json", "{}")
+        ),
         "top_categories": json.loads(row.get("top_categories_json", "[]")),
         "computed_at": row.get("computed_at"),
         "computation_duration_ms": row.get("computation_duration_ms", 0),

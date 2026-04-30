@@ -27,11 +27,14 @@ class PostHogService:
     def initialize(self):
         """Initialize PostHog client if configured."""
         if not settings.posthog_configured:
-            logger.info("PostHogService: not configured (set SIGIL_POSTHOG_API_KEY to enable)")
+            logger.info(
+                "PostHogService: not configured (set SIGIL_POSTHOG_API_KEY to enable)"
+            )
             return
 
         try:
             import posthog
+
             posthog.project_api_key = settings.posthog_api_key
             posthog.host = settings.posthog_host
             # Batch mode is default in posthog-python — events are flushed
