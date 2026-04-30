@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 
-import pytest
 from unittest.mock import patch
 
 from api.services.posthog_service import PostHogService
