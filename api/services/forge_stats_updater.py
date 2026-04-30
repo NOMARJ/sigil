@@ -87,13 +87,14 @@ class ForgeStatsUpdater:
                 async with conn.cursor() as cursor:
                     cursor.timeout = 30
 
-                    # 1. Ecosystem counts from public_scans (distinct packages).
+                    # 1. Ecosystem scan counts from public_scans.
                     # forge_classification is not currently populated by the bot
-                    # publisher, so derive package counts directly from scans.
-                    # Categories require classifier output and stay empty until
-                    # the classification pipeline is wired back to the publisher.
+                    # publisher, so derive ecosystem counts directly from scans.
+                    # Uses the same COUNT(*)/GROUP BY pattern as registry_stats_updater
+                    # (proven to complete inside the 30s cursor timeout on 10 DTU).
+                    # Categories stay empty until the classifier is wired back.
                     await cursor.execute("""
-                        SELECT ecosystem, COUNT(DISTINCT package_name) as cnt
+                        SELECT ecosystem, COUNT(*) as cnt
                         FROM public_scans
                         WHERE verdict != 'ERROR'
                         GROUP BY ecosystem
