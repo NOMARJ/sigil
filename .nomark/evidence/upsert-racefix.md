@@ -3,7 +3,7 @@
 **Date:** 2026-05-01
 **Story:** ad-hoc — race-safe upsert + Scanner v2 columns on public_scans
 **Commit:** 6591cb8 (`fix(store): race-safe upsert and Scanner v2 columns on public_scans`)
-**Result:** PASS
+**Result:** PASS (no new failures; 28 pre-existing test failures)
 
 Files changed:
 - `bot/store/__init__.py` — race-safe upsert
@@ -23,12 +23,12 @@ $ ruff format --check api/
 163 files already formatted
 ```
 
-Note: After initial commit, `ruff format --check` flagged line-wrapping in upsert functions. Fixed in working tree (uncommitted) — applies cleanly with `ruff format`.
+Note: After the initial verification pass, `ruff format --check` flagged line-wrapping in the upsert functions. That formatting fix is included in this PR/commit and applies cleanly with `ruff format`.
 
 ## Layer 2: Automated Tests
 
 ```
-$ SIGIL_JWT_SECRET=test-secret-for-ci SIGIL_DEBUG=true pytest /Users/reecefrazier/CascadeProjects/sigil/api --tb=short -q
+$ SIGIL_JWT_SECRET=test-secret-for-ci SIGIL_DEBUG=true pytest api --tb=short -q
 28 failed, 193 passed, 339 skipped, 7 warnings in 57.03s
 ```
 
