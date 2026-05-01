@@ -312,9 +312,7 @@ class MssqlClient:
         update_cols = [c for c in cols if c not in conflict]
 
         placeholders = ", ".join(["?"] * len(cols))
-        insert_sql = (
-            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
-        )
+        insert_sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
 
         async with self._pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -327,9 +325,7 @@ class MssqlClient:
                     # NOT NULL also raise IntegrityError under SQLSTATE 23000.
                     sqlstate = e.args[0] if e.args else ""
                     msg = str(e)
-                    if sqlstate != "23000" or (
-                        "2627" not in msg and "2601" not in msg
-                    ):
+                    if sqlstate != "23000" or ("2627" not in msg and "2601" not in msg):
                         raise
                     await conn.rollback()
 
@@ -344,9 +340,7 @@ class MssqlClient:
                     f"UPDATE {table} SET {', '.join(set_parts)} "
                     f"WHERE {' AND '.join(where_parts)}"
                 )
-                await cursor.execute(
-                    update_sql, tuple(update_values + where_values)
-                )
+                await cursor.execute(update_sql, tuple(update_values + where_values))
                 await conn.commit()
 
             conflict_filters = {c: data[c] for c in conflict}

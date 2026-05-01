@@ -134,9 +134,7 @@ class _MssqlStore:
         update_cols = [c for c in cols if c not in conflict]
 
         placeholders = ", ".join(["?" for _ in cols])
-        insert_sql = (
-            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
-        )
+        insert_sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
 
         async with self._pool.acquire() as conn:
             cursor = await conn.cursor()
@@ -149,9 +147,7 @@ class _MssqlStore:
                 # NULL also raise IntegrityError under SQLSTATE 23000 — re-raise.
                 sqlstate = e.args[0] if e.args else ""
                 msg = str(e)
-                if sqlstate != "23000" or (
-                    "2627" not in msg and "2601" not in msg
-                ):
+                if sqlstate != "23000" or ("2627" not in msg and "2601" not in msg):
                     raise
                 await conn.rollback()
 
@@ -163,12 +159,8 @@ class _MssqlStore:
             where_clause = " AND ".join([f"{c} = ?" for c in conflict])
             update_values = [values[cols.index(c)] for c in update_cols]
             where_values = [values[cols.index(c)] for c in conflict]
-            update_sql = (
-                f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
-            )
-            await cursor.execute(
-                update_sql, tuple(update_values + where_values)
-            )
+            update_sql = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+            await cursor.execute(update_sql, tuple(update_values + where_values))
             await conn.commit()
             return data
 
@@ -299,17 +291,17 @@ async def store_scan_result(
         # Convert findings to Finding objects for confidence calculation
         from api.models import Finding
         from api.services.scanner_v2 import calculate_confidence_summary
-        
+
         finding_objects = []
         for f_dict in findings:
-            if isinstance(f_dict, dict) and 'confidence' in f_dict:
+            if isinstance(f_dict, dict) and "confidence" in f_dict:
                 try:
                     finding_obj = Finding.model_validate(f_dict)
                     finding_objects.append(finding_obj)
                 except Exception:
                     # Skip malformed findings
                     continue
-        
+
         if finding_objects:
             confidence_summary = calculate_confidence_summary(finding_objects)
             confidence_level = confidence_summary.average_confidence
