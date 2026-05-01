@@ -119,51 +119,58 @@ class _MssqlStore:
         data: dict[str, Any],
         conflict_columns: list[str] | None = None,
     ) -> dict[str, Any]:
+        # Optimistic INSERT, fall through to UPDATE on UNIQUE violation.
+        # Race-safe under concurrent writers — SELECT-then-INSERT is not.
+        import pyodbc
+
         cols = list(data.keys())
-        values = []
+        values: list[Any] = []
         for c in cols:
             v = data[c]
             if isinstance(v, (dict, list)):
                 v = json.dumps(v)
             values.append(v)
         conflict = conflict_columns or ["id"]
-
-        # Build MERGE statement for SQL Server
-        " AND ".join([f"target.{c} = source.{c}" for c in conflict])
         update_cols = [c for c in cols if c not in conflict]
-        ", ".join([f"? AS {c}" for c in cols])
-        ", ".join(cols)
-        ", ".join([f"source.{c}" for c in cols])
 
-        if update_cols:
-            set_clause = ", ".join([f"target.{c} = source.{c}" for c in update_cols])
+        placeholders = ", ".join(["?" for _ in cols])
+        insert_sql = (
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
+        )
 
-        # Use a two-step approach to work around SQL Server trigger limitations
-        # First, try to update existing record
-        update_filters = {c: values[cols.index(c)] for c in conflict}
-        existing = await self.select_one(table, update_filters)
-
-        if existing and update_cols:
-            # Update existing record
-            set_clause = ", ".join([f"{c} = ?" for c in update_cols])
-            update_values = [values[cols.index(c)] for c in update_cols]
-            where_clause = " AND ".join([f"{c} = ?" for c in conflict])
-            where_values = [values[cols.index(c)] for c in conflict]
-
-            sql = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
-            async with self._pool.acquire() as conn:
-                cursor = await conn.cursor()
-                await cursor.execute(sql, tuple(update_values + where_values))
+        async with self._pool.acquire() as conn:
+            cursor = await conn.cursor()
+            try:
+                await cursor.execute(insert_sql, tuple(values))
                 await conn.commit()
+                return data
+            except pyodbc.IntegrityError as e:
+                # Only swallow UNIQUE-key violations (2627, 2601). FK/CHECK/NOT
+                # NULL also raise IntegrityError under SQLSTATE 23000 — re-raise.
+                sqlstate = e.args[0] if e.args else ""
+                msg = str(e)
+                if sqlstate != "23000" or (
+                    "2627" not in msg and "2601" not in msg
+                ):
+                    raise
+                await conn.rollback()
 
-            # Return updated record
-            return await self.select_one(table, update_filters)
-        elif not existing:
-            # Insert new record using regular insert method
-            return await self.insert(table, data)
-        else:
-            # Record exists but no updates needed
-            return existing
+            if not update_cols:
+                # All columns are conflict columns; nothing to update.
+                return data
+
+            set_clause = ", ".join([f"{c} = ?" for c in update_cols])
+            where_clause = " AND ".join([f"{c} = ?" for c in conflict])
+            update_values = [values[cols.index(c)] for c in update_cols]
+            where_values = [values[cols.index(c)] for c in conflict]
+            update_sql = (
+                f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+            )
+            await cursor.execute(
+                update_sql, tuple(update_values + where_values)
+            )
+            await conn.commit()
+            return data
 
     async def select_one(
         self, table: str, filters: dict[str, Any]

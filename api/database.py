@@ -301,39 +301,56 @@ class MssqlClient:
             key = data.get("id", str(uuid.uuid4()))
             self._mem(table)[key] = {**self._mem(table).get(key, {}), **data}
             return self._mem(table)[key]
+
+        # Optimistic INSERT, fall through to UPDATE on UNIQUE violation.
+        # Race-safe under concurrent writers — SELECT-then-INSERT is not.
+        import pyodbc
+
         cols = list(data.keys())
         values = [self._serialize_value(data[c]) for c in cols]
         conflict = conflict_columns or ["id"]
-
-        # Build conditions for checking existence
         update_cols = [c for c in cols if c not in conflict]
 
-        # Use a two-step approach to work around SQL Server trigger limitations
-        # First, check if record exists
-        conflict_filters = {c: data[c] for c in conflict}
-        existing = await self.select_one(table, conflict_filters)
+        placeholders = ", ".join(["?"] * len(cols))
+        insert_sql = (
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
+        )
 
-        if existing and update_cols:
-            # Update existing record
-            set_parts = [f"{c} = ?" for c in update_cols]
-            update_values = [values[cols.index(c)] for c in update_cols]
-            where_parts = [f"{c} = ?" for c in conflict]
-            where_values = [values[cols.index(c)] for c in conflict]
-
-            sql = f"UPDATE {table} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
-            async with self._pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(sql, tuple(update_values + where_values))
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                try:
+                    await cursor.execute(insert_sql, tuple(values))
                     await conn.commit()
+                    return data
+                except pyodbc.IntegrityError as e:
+                    # Only swallow UNIQUE-key violations (2627, 2601). FK/CHECK/
+                    # NOT NULL also raise IntegrityError under SQLSTATE 23000.
+                    sqlstate = e.args[0] if e.args else ""
+                    msg = str(e)
+                    if sqlstate != "23000" or (
+                        "2627" not in msg and "2601" not in msg
+                    ):
+                        raise
+                    await conn.rollback()
 
-            # Return updated record
+                if not update_cols:
+                    return data
+
+                set_parts = [f"{c} = ?" for c in update_cols]
+                where_parts = [f"{c} = ?" for c in conflict]
+                update_values = [values[cols.index(c)] for c in update_cols]
+                where_values = [values[cols.index(c)] for c in conflict]
+                update_sql = (
+                    f"UPDATE {table} SET {', '.join(set_parts)} "
+                    f"WHERE {' AND '.join(where_parts)}"
+                )
+                await cursor.execute(
+                    update_sql, tuple(update_values + where_values)
+                )
+                await conn.commit()
+
+            conflict_filters = {c: data[c] for c in conflict}
             return await self.select_one(table, conflict_filters) or data
-        elif not existing:
-            # Insert new record
-            return await self.insert(table, data)
-        else:
-            # Record exists but no updates needed
-            return existing
 
     async def update(
         self, table: str, filters: dict[str, Any], data: dict[str, Any]
