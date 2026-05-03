@@ -2,8 +2,9 @@
 
 **Feature:** F-003
 **Epic:** EP-003 — Sigil Pro commercial launch
-**Status:** Draft
+**Status:** approved
 **Created:** 2026-05-03
+**Approved:** 2026-05-03
 **Source brief:** `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md`
 
 ---

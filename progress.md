@@ -119,13 +119,14 @@
 - **Notes:** PRD US-003 forbids direct value comparison — round-trip 200 + negative 400 is the only acceptable evidence pair.
 
 ### STORY-103: Audit `require_plan(PlanTier.PRO)` route inventory
-- **Status:** TODO
+- **Status:** DONE (2026-05-03, autopilot)
 - **Goal:** Reproducible list of all Pro-gated routes; canary route for STORY-105 named.
 - **Done when:** `evidence/F-003/US-103-pro-gated-routes.md` exists with `grep -rn "require_plan(PlanTier.PRO)" api/routers/` output, HTTP method + path resolved per line, recommended canary `POST /v1/interactive/investigate` named at bottom with rationale.
-- **Files:** `evidence/F-003/US-103-pro-gated-routes.md` (new)
+- **Files:** `evidence/F-003/US-103-pro-gated-routes.md` (new) ✓
 - **Dependencies:** none
 - **TDD anchor:** Grep returns ≥18 hits per PRD intro. <18 = red flag, gate may have been removed.
 - **Scope:** trivial
+- **Evidence:** `evidence/F-003/US-103-pro-gated-routes.md` — 33 hits across 5 routers (15 interactive, 8 threat, 5 policies, 4 scan via dashboard_router, 1 billing). Floor of ≥18 met. Canary: `POST /v1/interactive/investigate`. Findings: PRD figure of "18 in interactive.py" is stale (actual 15 in interactive.py, 33 total); scan.py Pro routes live on dashboard_router (no `/v1` prefix).
 - **Notes:** Locks in canary so STORY-105 evidence is comparable to a documented baseline.
 
 ### STORY-104: Free-mode 403 baseline probe
@@ -149,33 +150,36 @@
 - **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
 
 ### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
-- **Status:** TODO
+- **Status:** TODO (precursor done — zero callers; trivial path confirmed)
 - **Goal:** No production code path returns a fabricated `cs_test_…` URL after this story (FR-5).
 - **Done when:** (1) `grep -rn "/api/billing/create-checkout" dashboard/src` returns zero matches; (2) the file does not exist; (3) dashboard build exits 0; (4) STORY-105 step 4 re-probe still returns a real `checkout.stripe.com` URL. Evidence at `evidence/F-003/US-106-dead-route-removed.md`.
 - **Files:** `dashboard/src/app/api/billing/create-checkout/route.ts` (delete), `evidence/F-003/US-106-dead-route-removed.md` (new)
 - **Dependencies:** STORY-105
 - **TDD anchor:** Empty grep + zero exit code from build.
 - **Scope:** trivial
-- **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first).
+- **Precursor finding (2026-05-03, autopilot):** `grep -rn "/api/billing/create-checkout" dashboard/src` returns ZERO matches (exit 1). No callers exist. Once STORY-105 confirms the real path returns `checkout.stripe.com`, STORY-106 is a clean delete + build verification — no caller migration needed.
+- **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first). Precursor confirms trivial-path holds.
 
 ### STORY-107: Free-trial decision and pricing-page reconciliation
-- **Status:** BLOCKED-pending-owner-decision
+- **Status:** BLOCKED-pending-owner-decision (de-risked — see precursor)
 - **Goal:** Pricing-page free-trial copy reflects an owner decision (enabled-and-working OR removed).
 - **Done when:** Branch A (REMOVE) — owner ADR row added to SOLUTION.md, pricing page free-trial copy stripped, post-cache-fix production HTML grep `free trial` returns zero. Branch B (ENABLE) — owner ADR + Stripe Price `trial_period_days` set + STORY-105 re-run with `subscription.status='trialing'` captured + trial-end transition captured. Evidence at `evidence/F-003/US-107-free-trial-resolution.md`.
 - **Files:** `evidence/F-003/US-107-free-trial-resolution.md` (new), `SOLUTION.md` (append ADR row), `dashboard/src/app/pricing/page.tsx` (modify if Branch A)
 - **Dependencies:** STORY-105 (Branch B), STORY-112 (Branch A)
 - **TDD anchor:** Branch A — `curl -sS https://www.sigilsec.ai/pricing | grep -i 'free trial'` returns empty. Branch B — `subscription.status='trialing'` row in MSSQL.
 - **Scope:** moderate (manual verification + owner-gated)
-- **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II.
+- **Precursor finding (2026-05-03, autopilot — see `evidence/F-003/US-108-cdn-investigation.md` §"Side Finding"):** Source code in `dashboard/src/app/pricing/page.tsx` has NO "free trial" copy (only `subscription?.status === "trialing"` for state checking). Deployed HTML at production has 2 occurrences of "Free Trial" — but that HTML is 21 days stale. Branch A (REMOVE) was effectively already taken in source. Owner decision lightens to "ratify the existing source state via ADR" — no fresh design call required.
+- **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II. Precursor strengthens this default.
 
 ### STORY-108: Investigate CDN cache `age: ~1.8M` on www.sigilsec.ai/pricing
-- **Status:** TODO
+- **Status:** DONE (2026-05-03, autopilot)
 - **Goal:** Root cause of 21-day-stale `age` header documented before any fix is applied.
 - **Done when:** `evidence/F-003/US-108-cdn-investigation.md` exists with full curl headers, Vercel deploy list, second-region probe, named root cause from {stale Vercel build cache, origin header misconfig, CDN never invalidated, other}, recommended fix sized.
-- **Files:** `evidence/F-003/US-108-cdn-investigation.md` (new)
+- **Files:** `evidence/F-003/US-108-cdn-investigation.md` (new) ✓
 - **Dependencies:** none
 - **TDD anchor:** Diagnostic — curl headers IS the data.
 - **Scope:** moderate (manual verification)
+- **Evidence:** `evidence/F-003/US-108-cdn-investigation.md` — root cause: pricing route is `"use client"` with no `export const revalidate`, so Next.js + Vercel only refresh edge artefact on redeploy. Last deploy was ~21 days ago. Tier-1 fix (recommended): redeploy dashboard to Vercel; expect age <60s post-deploy. Side findings: CSP retains foreign domains (`*.cakewalk.ai`, `cw-ai-prod.s3.us-west-1.amazonaws.com`) — separate hygiene cleanup; deployed HTML has "Free Trial" copy but source does not (de-risks STORY-107 Branch A).
 - **Notes:** Split from PRD US-006 because fix differs by cause.
 
 ### STORY-109: Stripe LIVE-mode end-to-end round-trip with one real $29 charge
@@ -189,14 +193,15 @@
 - **Notes:** PRD Q2 — owner has live-mode access. Auto-mode rule 6 forbids destructive financial actions without explicit owner go-ahead. Hard escalation gate.
 
 ### STORY-110: Probe `/v1/billing/plans` for live Pro pricing surface
-- **Status:** TODO
+- **Status:** DONE (2026-05-03, autopilot)
 - **Goal:** Documented snapshot of `/v1/billing/plans` in production; API-side mirror to pricing-page audit.
 - **Done when:** `evidence/F-003/US-110-billing-plans-snapshot.md` contains verbatim `curl ... | jq` output, per-tier row showing tier name + price ($29 for Pro) + interval support + feature count, discrepancies vs pricing page flagged.
-- **Files:** `evidence/F-003/US-110-billing-plans-snapshot.md` (new)
+- **Files:** `evidence/F-003/US-110-billing-plans-snapshot.md` (new) ✓
 - **Dependencies:** none
 - **TDD anchor:** `jq '.[] | select(.tier=="pro") | .price_monthly'` — expected `29`.
 - **Scope:** trivial
-- **Notes:** Useful diagnostic for STORY-108/STORY-112 (API current but page stale → CDN; both stale → code).
+- **Evidence:** `evidence/F-003/US-110-billing-plans-snapshot.md` — HTTP 200, Pro $29/mo $232/yr w/ 12 features matching PRD intro. Confirms API surface is current; pricing page is stale (STORY-108). API does NOT expose Stripe Price IDs (correct — those stay backend-only; STORY-100 covers env-var alignment).
+- **Notes:** Useful diagnostic for STORY-108/STORY-112 (API current, page stale → CDN root cause confirmed).
 
 ### STORY-111: Pricing-page byte-equal probe (localhost vs production)
 - **Status:** TODO
