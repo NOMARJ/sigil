@@ -1,0 +1,47 @@
+name: Republish to npm (one-shot)
+
+# One-off recovery workflow used when release.yml's npm publish step soft-failed
+# (e.g. expired or wrong-scope NPM_TOKEN). Checks out a specific tag and re-runs
+# `npm publish` for that tag. Delete this file after the publish lands.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish to npm (e.g. v1.1.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  republish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify package.json version matches tag
+        run: |
+          set -eo pipefail
+          TAG="${{ inputs.tag }}"
+          EXPECTED="${TAG#v}"
+          ACTUAL="$(jq -r '.version' package.json)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::package.json version ($ACTUAL) does not match tag ($EXPECTED). Refusing to publish."
+            exit 1
+          fi
+          echo "package.json version matches tag: $ACTUAL"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
