@@ -112,13 +112,14 @@
 - **Notes:** Split from PRD US-003. Missing events → owner-driven Dashboard fix, then re-verify. **STORY-105 is hard-blocked by this defect — round-trip cannot succeed until fixed.**
 
 ### STORY-102: Verify webhook signing-secret alignment via Dashboard test send
-- **Status:** TODO
+- **Status:** PARTIAL (2026-05-03, autopilot — negative control captured; positive control awaits operator)
 - **Goal:** Prove `STRIPE_WEBHOOK_SECRET` matches the live endpoint signing secret WITHOUT logging either value.
 - **Done when:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` exists with: Dashboard test-send timestamp + event ID, container log line showing handler returned 200 for that event ID, NEGATIVE control curl with bogus signature returns 400.
-- **Files:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (append)
+- **Files:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` (new) ✓ (partial)
 - **Dependencies:** STORY-101
-- **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/v1/billing/webhook -H 'Stripe-Signature: t=1,v1=bad' -d '{}' -w '%{http_code}'` — expected `400`.
+- **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/v1/billing/webhook -H 'Stripe-Signature: t=1,v1=bad' -d '{}' -w '%{http_code}'` — expected `400`. **MET (got 400 + `Invalid webhook signature`).**
 - **Scope:** moderate (manual verification)
+- **Evidence (partial):** `evidence/F-003/US-102-webhook-signature-roundtrip.md` — negative control PASS (HTTP 400 for bogus signature; HTTP 400 for unsigned request). FR-4 satisfied. Positive control (Dashboard test send → handler 200) deferred to operator AND should run AFTER STORY-101 P0 fix lands.
 - **Notes:** PRD US-003 forbids direct value comparison — round-trip 200 + negative 400 is the only acceptable evidence pair.
 
 ### STORY-103: Audit `require_plan(PlanTier.PRO)` route inventory
