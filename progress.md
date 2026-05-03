@@ -100,16 +100,16 @@
 - **Notes:** CHARTER II — if `az` access unavailable, escalate; do NOT mark DONE on partial evidence. `livemode: true` on the Price object is ground-truth; do not infer from key prefix alone.
 
 ### STORY-101: Capture Stripe Dashboard webhook subscription audit
-- **Status:** FAIL (2026-05-03, autopilot — P0 SHIP-BLOCKING DEFECT FOUND)
+- **Status:** DONE (2026-05-03, autopilot — P0 fix applied + re-verified)
 - **Goal:** Documented evidence that the live-mode Stripe Dashboard has exactly one webhook endpoint at `https://api.sigilsec.ai/v1/billing/webhook` subscribed to all six required event types.
 - **Done when:** `evidence/F-003/US-101-webhook-subscription-audit.md` exists with `stripe webhook_endpoints list --live` output, exact membership check vs `{customer.subscription.{created,updated,deleted}, invoice.{paid,payment_failed}, checkout.session.completed}`, endpoint `enabled: true`. Append findings to config audit doc.
-- **Files:** `evidence/F-003/US-101-webhook-subscription-audit.md` (new) ✓
+- **Files:** `evidence/F-003/US-101-webhook-subscription-audit.md` (audit) ✓ + `evidence/F-003/US-101-fix-applied.md` (fix evidence) ✓
 - **Dependencies:** none
-- **TDD anchor:** Manual verification via `stripe` CLI live-mode access.
-- **Scope:** moderate (manual verification)
-- **Evidence:** `evidence/F-003/US-101-webhook-subscription-audit.md` — Sigil endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` is `enabled:true, livemode:true` at correct URL. **BUT subscribed events MISSING: `checkout.session.completed` AND `customer.subscription.created`.** Handler dispatches on both (`api/routers/billing.py:782, 784`). Without these events, paid checkout completion will NOT trigger tier flip — F-003 round-trip is currently broken in live mode AND will fail STORY-105 in test mode unless test webhook has same fix. Naming-mismatch finding: PRD says `invoice.paid` but handler+Stripe use `invoice.payment_succeeded` (functionally OK; PRD wording should be amended). Side-finding: shared Stripe account also hosts `instaindex.ai/api/webhook` — config data point only.
-- **Operator P0 fix:** Stripe Dashboard live-mode → Webhooks → endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` → add `checkout.session.completed` and `customer.subscription.created`. Apply same fix to test-mode webhook. Then re-run audit.
-- **Notes:** Split from PRD US-003. Missing events → owner-driven Dashboard fix, then re-verify. **STORY-105 is hard-blocked by this defect — round-trip cannot succeed until fixed.**
+- **TDD anchor:** Manual verification via Stripe API. Pre-fix `enabled_events|length == 4`, post-fix `== 6` containing both `checkout.session.completed` and `customer.subscription.created`.
+- **Scope:** moderate (manual verification + fix)
+- **Audit evidence:** `evidence/F-003/US-101-webhook-subscription-audit.md` — Sigil endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` is `enabled:true, livemode:true` at correct URL. Pre-fix subscribed events were `customer.subscription.{updated,deleted}, invoice.{payment_failed,payment_succeeded}` — MISSING `checkout.session.completed` and `customer.subscription.created`.
+- **Fix evidence:** `evidence/F-003/US-101-fix-applied.md` — owner-authorized POST `/v1/webhook_endpoints/we_1T2AXKFhPhxEz27fCYP53mKc` replacing `enabled_events` with the full 6-event union. Stripe response: `count: 6`. Independent re-verify GET confirms `count: 6` containing all 6 PRD-required events. Live-mode only — test-mode webhook (separate ID, separate audit) still requires the same fix before STORY-105 can run in test mode.
+- **Notes:** Split from PRD US-003. Naming-mismatch finding stands: PRD says `invoice.paid` but handler+Stripe use `invoice.payment_succeeded` (functionally OK for subscription billing; PRD wording amendment is non-blocking). Side-finding: shared Stripe account also hosts `instaindex.ai/api/webhook` — config data point only. **STORY-105 unblocked for live-mode; test-mode webhook subscription audit is the remaining gate before TEST-mode round-trip.**
 
 ### STORY-102: Verify webhook signing-secret alignment via Dashboard test send
 - **Status:** PARTIAL (2026-05-03, autopilot — negative control captured; positive control awaits operator)
@@ -144,14 +144,14 @@
 - **Notes:** Use `?` placeholder per aioodbc conventions. JWT must come from real Auth0 sign-in, not minted.
 
 ### STORY-105: Stripe TEST-mode end-to-end round-trip
-- **Status:** HARD-BLOCKED (2026-05-03, autopilot — STORY-101 P0 defect must land first)
+- **Status:** BLOCKED (2026-05-03, autopilot — STORY-101 live-mode fix LANDED; test-mode webhook subscription audit + browser-driven Stripe Checkout still required)
 - **Goal:** Observed and recorded full PRD §3 loop in test mode: signup → 403 → checkout → webhook → tier=pro → 200 → portal cancel → tier=free → 403.
 - **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` exists with 12 timestamped sections (Auth0 signup, MSSQL T0 free, 403, real `checkout.stripe.com` URL from `/v1/billing/subscribe`, Stripe test-card completion + `customer.subscription.created` event ID, container log 200 for that event, MSSQL T1 pro w/ stripe_customer_id + stripe_subscription_id populated, Pro route 200 with real LLM body, `/v1/billing/portal` returning `billing.stripe.com/…` URL, portal cancel `customer.subscription.deleted` event ID, MSSQL T2 free, Pro route 403).
 - **Files:** `evidence/F-003/US-105-testmode-roundtrip.md` (new)
 - **Dependencies:** STORY-100, STORY-101, STORY-102, STORY-103, STORY-104
 - **TDD anchor:** 12-section evidence file IS the assertion. No automated substitute for an actual paid Checkout session.
 - **Scope:** complex (manual verification)
-- **Block reason (2026-05-03):** Per `evidence/F-003/US-101-webhook-subscription-audit.md`, the live Sigil webhook is NOT subscribed to `checkout.session.completed` or `customer.subscription.created`. Handler dispatches on both. Test-mode webhook likely has the same gap. STORY-105 round-trip CANNOT succeed in current state — webhook will not fire those events, tier flip will not happen, story §sections 5-7 will fail. Operator must fix subscription membership in BOTH live and test-mode Dashboard endpoints before STORY-105 is attempted.
+- **Block reason (2026-05-03, updated):** Live-mode webhook fix LANDED (see `evidence/F-003/US-101-fix-applied.md`). Test-mode webhook is a separate endpoint with separate subscriptions and was NOT touched by the live-mode fix — it is likely missing the same 2 events. Before STORY-105 can run in test mode: (a) operator runs `curl -sS https://api.stripe.com/v1/webhook_endpoints -H "Authorization: Bearer $TEST_KEY"` to enumerate test-mode endpoints, (b) applies the same 6-event subscription set, (c) drives a browser Stripe Checkout session with `4242 4242 4242 4242` to capture the round-trip evidence. Browser session is operator-only.
 - **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
 
 ### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
@@ -431,10 +431,28 @@
 
 - 4: react, hooks, frontend [confidence: 0.8]
 
+
+### Session 2026-05-03
+
+**Start:** 2026-05-03T09:07:46.542Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 23 stories (4/8/2)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-03T09:08:06.607Z
+**Outcome:** BLOCKED
+**Stories:** 12/18 (2 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
 
 
 
