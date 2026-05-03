@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-03T11:32:01.453Z",
+  "last_rebuilt": "2026-05-03T21:40:50.964Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -1199,6 +1199,13 @@
       "message": "docs(ops): F2 deployed to prod (rev 0017 / 9b13983); sigil-infra PR #1 open",
       "date": "2026-05-03T21:31:59+10:00",
       "files_changed": 1
+    },
+    "commit:5f6ac0c": {
+      "type": "commit",
+      "hash": "5f6ac0c",
+      "message": "docs(ops): dashboard auth restored via sigil-infra PR #2 + pod restart",
+      "date": "2026-05-03T22:20:23+10:00",
+      "files_changed": 5
     }
   },
   "edges": [

@@ -36,7 +36,10 @@ set-cookie: auth_verification=...; Secure; HttpOnly; SameSite=lax
 ## Outstanding (separate work)
 
 - 5 `azurerm_monitor_metric_alert` resources need `terraform import` — they exist in Azure but not in TF state. Apply step will keep failing on those until imported. Operator-only state surgery.
-- sigil-api was hotfixed via `az containerapp update --set-env-vars SIGIL_AUTH0_DOMAIN=auth.sigilsec.ai SIGIL_AUTH0_AUDIENCE=https://api.sigilsec.ai` (rev 0075) — same risk as the dashboard wipe will happen on the next sigil-api terraform change. Should declare those vars in container_apps.tf for sigil-api too.
+
+## sigil-api Drift Status: Already Resolved by PR #2
+
+PR #2 (`9821c44`) declared `SIGIL_AUTH0_DOMAIN` + `SIGIL_AUTH0_AUDIENCE` on `azurerm_container_app.api` at the same time as the dashboard fix. Verified 2026-05-04: TF declares 29 env vars, runtime has 29, diff is empty. No PR #3 needed.
 
 ## Current Live State
 
