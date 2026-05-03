@@ -89,24 +89,27 @@
 > **Mode:** verification (no new build, prove the existing path carries water)
 
 ### STORY-100: Capture Stripe key environment audit (Container Apps env)
-- **Status:** TODO
+- **Status:** PARTIAL (2026-05-03, autopilot — 2/4 Price IDs verified live; Container Apps env audit deferred to operator)
 - **Goal:** Documented evidence that all six STRIPE_* env vars are present on the running `sigil-api` Container App and the four Price IDs resolve to live-mode Stripe Products.
 - **Done when:** `evidence/F-003/US-100-stripe-env-audit.md` exists with raw `az containerapp show` env output, `livemode: true` per Price ID, secretRef names (NOT values) for secret keys, pass/fail verdict per var.
-- **Files:** `evidence/F-003/US-100-stripe-env-audit.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (new — "Env vars" section)
+- **Files:** `evidence/F-003/US-100-stripe-env-audit.md` (new) ✓ (partial)
 - **Dependencies:** none
 - **TDD anchor:** Manual verification — verbatim `az` command logged in evidence is the reproducibility surface.
 - **Scope:** moderate (manual verification)
+- **Evidence (partial):** `evidence/F-003/US-100-stripe-env-audit.md` — Pro Price ID `price_1T2AOLFhPhxEz27fs0Z2nU4y` and Team `price_1T2AQCFhPhxEz27fOjCVsuwe`: both `livemode:true, active:true`, $29/$99 monthly, USD, recurring, **`trial_period_days: null`** (direct evidence supporting STORY-107 Branch A). FINDINGS: (1) `STRIPE_PRICE_PRO_ANNUAL` and `STRIPE_PRICE_TEAM_ANNUAL` MISSING from local api/.env — could be configured only on Container App OR could be stub annual pricing without backing Stripe Price (would fail at Checkout); operator audit required. (2) `az containerapp show` snapshot not captured (no Azure CLI access from this session).
 - **Notes:** CHARTER II — if `az` access unavailable, escalate; do NOT mark DONE on partial evidence. `livemode: true` on the Price object is ground-truth; do not infer from key prefix alone.
 
 ### STORY-101: Capture Stripe Dashboard webhook subscription audit
-- **Status:** TODO
+- **Status:** FAIL (2026-05-03, autopilot — P0 SHIP-BLOCKING DEFECT FOUND)
 - **Goal:** Documented evidence that the live-mode Stripe Dashboard has exactly one webhook endpoint at `https://api.sigilsec.ai/v1/billing/webhook` subscribed to all six required event types.
 - **Done when:** `evidence/F-003/US-101-webhook-subscription-audit.md` exists with `stripe webhook_endpoints list --live` output, exact membership check vs `{customer.subscription.{created,updated,deleted}, invoice.{paid,payment_failed}, checkout.session.completed}`, endpoint `enabled: true`. Append findings to config audit doc.
-- **Files:** `evidence/F-003/US-101-webhook-subscription-audit.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (append)
+- **Files:** `evidence/F-003/US-101-webhook-subscription-audit.md` (new) ✓
 - **Dependencies:** none
 - **TDD anchor:** Manual verification via `stripe` CLI live-mode access.
 - **Scope:** moderate (manual verification)
-- **Notes:** Split from PRD US-003. Missing events → owner-driven Dashboard fix, then re-verify.
+- **Evidence:** `evidence/F-003/US-101-webhook-subscription-audit.md` — Sigil endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` is `enabled:true, livemode:true` at correct URL. **BUT subscribed events MISSING: `checkout.session.completed` AND `customer.subscription.created`.** Handler dispatches on both (`api/routers/billing.py:782, 784`). Without these events, paid checkout completion will NOT trigger tier flip — F-003 round-trip is currently broken in live mode AND will fail STORY-105 in test mode unless test webhook has same fix. Naming-mismatch finding: PRD says `invoice.paid` but handler+Stripe use `invoice.payment_succeeded` (functionally OK; PRD wording should be amended). Side-finding: shared Stripe account also hosts `instaindex.ai/api/webhook` — config data point only.
+- **Operator P0 fix:** Stripe Dashboard live-mode → Webhooks → endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` → add `checkout.session.completed` and `customer.subscription.created`. Apply same fix to test-mode webhook. Then re-run audit.
+- **Notes:** Split from PRD US-003. Missing events → owner-driven Dashboard fix, then re-verify. **STORY-105 is hard-blocked by this defect — round-trip cannot succeed until fixed.**
 
 ### STORY-102: Verify webhook signing-secret alignment via Dashboard test send
 - **Status:** TODO
@@ -140,13 +143,14 @@
 - **Notes:** Use `?` placeholder per aioodbc conventions. JWT must come from real Auth0 sign-in, not minted.
 
 ### STORY-105: Stripe TEST-mode end-to-end round-trip
-- **Status:** TODO
+- **Status:** HARD-BLOCKED (2026-05-03, autopilot — STORY-101 P0 defect must land first)
 - **Goal:** Observed and recorded full PRD §3 loop in test mode: signup → 403 → checkout → webhook → tier=pro → 200 → portal cancel → tier=free → 403.
 - **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` exists with 12 timestamped sections (Auth0 signup, MSSQL T0 free, 403, real `checkout.stripe.com` URL from `/v1/billing/subscribe`, Stripe test-card completion + `customer.subscription.created` event ID, container log 200 for that event, MSSQL T1 pro w/ stripe_customer_id + stripe_subscription_id populated, Pro route 200 with real LLM body, `/v1/billing/portal` returning `billing.stripe.com/…` URL, portal cancel `customer.subscription.deleted` event ID, MSSQL T2 free, Pro route 403).
 - **Files:** `evidence/F-003/US-105-testmode-roundtrip.md` (new)
 - **Dependencies:** STORY-100, STORY-101, STORY-102, STORY-103, STORY-104
 - **TDD anchor:** 12-section evidence file IS the assertion. No automated substitute for an actual paid Checkout session.
 - **Scope:** complex (manual verification)
+- **Block reason (2026-05-03):** Per `evidence/F-003/US-101-webhook-subscription-audit.md`, the live Sigil webhook is NOT subscribed to `checkout.session.completed` or `customer.subscription.created`. Handler dispatches on both. Test-mode webhook likely has the same gap. STORY-105 round-trip CANNOT succeed in current state — webhook will not fire those events, tier flip will not happen, story §sections 5-7 will fail. Operator must fix subscription membership in BOTH live and test-mode Dashboard endpoints before STORY-105 is attempted.
 - **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
 
 ### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
@@ -169,7 +173,8 @@
 - **TDD anchor:** Branch A — `curl -sS https://www.sigilsec.ai/pricing | grep -i 'free trial'` returns empty. Branch B — `subscription.status='trialing'` row in MSSQL.
 - **Scope:** moderate (manual verification + owner-gated)
 - **Precursor finding (2026-05-03, autopilot — see `evidence/F-003/US-108-cdn-investigation.md` §"Side Finding" + `evidence/F-003/US-112-cdn-fix-verification.md` §"STORY-107 Implications"):** Free-trial copy is not in current `dashboard/` source (verified via aggressive grep across the full tree). HOWEVER, STORY-112's `vercel redeploy` rebuilt the 23-day-old source (which DID have the copy somewhere), so production HTML post-redeploy STILL shows "30-day free trial". Source-level removal: verified. Production-level removal: requires a fresh build from current main HEAD (operator's `git push` flow or `vercel deploy --prod --yes`). Owner ADR (Branch A) should follow a confirmed clean-source deploy.
-- **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II. Precursor strengthens this default.
+- **Stripe-side evidence (2026-05-03, autopilot — see `evidence/F-003/US-100-stripe-env-audit.md` §F3):** Both live monthly Prices have `trial_period_days: null`. Stripe will not honor any trial — a user is charged at Checkout regardless of pricing-page copy. Branch A (REMOVE) is the correct choice unless Branch B also configures `trial_period_days` on Stripe Prices. **Decision is now low-stakes; default firmly toward Branch A.**
+- **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II. Precursor + Stripe-side evidence strengthen this default.
 
 ### STORY-108: Investigate CDN cache `age: ~1.8M` on www.sigilsec.ai/pricing
 - **Status:** DONE (2026-05-03, autopilot)
