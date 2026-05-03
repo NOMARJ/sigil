@@ -4,7 +4,7 @@ name: SBOM Generation & Attestation
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
 # Required permissions for SBOM generation, signing, and release publishing
