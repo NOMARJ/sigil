@@ -142,7 +142,9 @@
 - **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/<canary> -H "Authorization: Bearer <free-jwt>" -w '\n%{http_code}\n'` — expected 403.
 - **Scope:** moderate (manual verification)
 - **Evidence:** `evidence/F-003/US-104-105-agent-browser-roundtrip.md` — Created Auth0 user `auth0|69f71abe8253a1122bb3acd9` (`reece+sigil-f003-1777801888@nomark.au`) via agent-browser. `/api/auth/me` returns user info; `/api/auth/token` returns a valid 776-byte RS256 JWT. **But the production API returns 503 `"Authentication service not configured"` for ALL protected endpoints — not the expected 403.** Same JWT, no JWT → API returns proper 401, so the 503 is post-Bearer-extraction in `api/routers/auth.py:557` (`if not settings.auth0_configured`).
-- **Notes:** Cleanup required: operator deletes Auth0 user `reece+sigil-f003-1777801888@nomark.au` after F1 fixed and stories closed. MSSQL row was NOT created (`_auto_provision_auth0_user` runs after the 503-throwing check, so no `users` row).
+- **F1 fix (2026-05-03, autopilot):** Container App env vars `SIGIL_AUTH0_DOMAIN=auth.sigilsec.ai` + `SIGIL_AUTH0_AUDIENCE=https://api.sigilsec.ai` set via `az containerapp update`. New revision `sigil-api--0000071` Running + Healthy + 100% traffic. Verified by 503→401 transition: pre-fix any Bearer → 503 "Authentication service not configured"; post-fix → 401 "Invalid or expired Auth0 token" (verify_auth0_token reached). See `evidence/F-003/F1-fix-applied.md`.
+- **F1.5 (NEW finding, exposed by F1 fix):** Real-JWT round-trip with newly-created `auth0|69f7205bc86474842dbb1ed3` returns 401 "Auth0 token missing email claim". Auth0 access tokens lack `email` claim by default; the API's `verify_auth0_token` at `api/routers/auth.py:432-434` reads `https://api.sigilsec.ai/email` namespaced claim first, then plain `email`, then defaults to "". A Post-Login Action must be configured in Auth0 to populate the namespaced claim, OR the backend must add a `/userinfo` fallback. STORY-104 stays PARTIAL until F1.5 resolved.
+- **Notes:** Cleanup required: operator deletes 2 test users from Auth0 Dashboard → Users (`reece+sigil-f003-1777801888@nomark.au`, `reece+sigil-f003-f1verify-1777803354@nomark.au`). Neither has an MSSQL row (auto-provision blocked at F1.5 email-claim check).
 
 ### STORY-105: Stripe TEST-mode end-to-end round-trip
 - **Status:** BLOCKED (2026-05-03, autopilot — STORY-101 live-mode fix LANDED; test-mode webhook subscription audit + browser-driven Stripe Checkout still required)
@@ -152,7 +154,7 @@
 - **Dependencies:** STORY-100, STORY-101, STORY-102, STORY-103, STORY-104
 - **TDD anchor:** 12-section evidence file IS the assertion. No automated substitute for an actual paid Checkout session.
 - **Scope:** complex (manual verification)
-- **Block reason (2026-05-03, autopilot via agent-browser):** Webhook fix is real (STORY-101 DONE) but downstream of a deeper P0 ship-blocker discovered via the round-trip probe. **F1 — production API Auth0 config drift:** the `sigil-api` Container App is missing `SIGIL_AUTH0_DOMAIN` and/or `SIGIL_AUTH0_AUDIENCE`. Every protected endpoint returns 503 "Authentication service not configured" when handed a valid Auth0 JWT. See `evidence/F-003/US-104-105-agent-browser-roundtrip.md` F1 for verbatim 503s and operator `az containerapp` fix command. Until F1 is fixed, NO paid Pro user can authenticate against the API — the round-trip is structurally impossible regardless of webhook subscription state. **F2 — dashboard `/api/v1/billing/*` proxy 404s** (SubscriptionManager.tsx call sites) is a secondary blocker visible after F1.
+- **Block reason (2026-05-03, autopilot, updated post-F1+F2 fix):** Three stacked ship-blockers in priority order: (1) STORY-101 webhook events — DONE (`evidence/F-003/US-101-fix-applied.md`). (2) F1 production API Auth0 config drift — DONE (`evidence/F-003/F1-fix-applied.md`, revision `sigil-api--0000071`). (3) F2 dashboard `/api/v1/billing/*` proxy 404s — DONE (`evidence/F-003/F2-fix-applied.md`, commit `2a72827`). **NEW remaining blocker: F1.5 — Auth0 access token lacks email claim.** API at `auth.py:432-434` expects `https://api.sigilsec.ai/email` namespaced claim or plain `email`, neither present in default Auth0 access tokens. Operator must configure an Auth0 Post-Login Action OR maintainer must add a `/userinfo` fallback in `verify_auth0_token`. Once F1.5 resolved, STORY-104 progresses (signup → free user → 403 from canary Pro endpoint), then STORY-105 needs (a) test-mode webhook subscription audit + fix and (b) browser-driven Stripe Checkout with test card.
 - **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
 
 ### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
@@ -450,10 +452,46 @@
 
 - 4: react, hooks, frontend [confidence: 0.8]
 
+
+### Session 2026-05-03
+
+**Start:** 2026-05-03T10:06:54.865Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 23 stories (4/8/2)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-03T10:07:23.498Z
+**Outcome:** BLOCKED
+**Stories:** 13/19 (3 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
+
+### Session 2026-05-03
+
+**Start:** 2026-05-03T10:08:26.650Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 23 stories (4/8/2)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-03T10:11:42.534Z
+**Outcome:** BLOCKED
+**Stories:** 13/19 (3 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
+
 
 
 
