@@ -195,9 +195,11 @@ $ grep -nE 'free trial|trial' dashboard/src/app/pricing/page.tsx
 
 Source has only one match — `subscription?.status === "trialing"` — which is internal state-checking code, not user-facing CTA copy. **No "free trial" string exists in the page source.**
 
-**Implication for STORY-107:** The free-trial copy was already removed from source (presumably by a prior commit). The 21-day-stale CDN is the only reason production still shows it. Once STORY-112 redeploys, STORY-107 Branch A (REMOVE) auto-resolves at the rendering level — the operator only needs to add the ADR row to `SOLUTION.md` recording the decision. The owner-decision blocker becomes lighter weight (essentially "ratify the change that already happened in source"), not a fresh design call.
+**Implication for STORY-107 (CORRECTED 2026-05-03 post-redeploy):** The free-trial copy is not in `dashboard/src/app/pricing/page.tsx` and (verified later via aggressive grep) is not anywhere in the local `dashboard/` source tree. Initial reading: STORY-107 Branch A (REMOVE) was already taken in source.
 
-This does **not** automatically un-block STORY-107 — owner ADR is still required per the story's acceptance criteria — but it materially reduces the work and the decision surface.
+**Revision after STORY-112 redeploy revealed more nuance:** The redeploy used `vercel redeploy <prior-url>` which **rebuilds the previous deployment's frozen source** (23 days old) — not current main. The deployed HTML still shows "30-day free trial" because the build is from the 23-day-old git ref, in which the copy DID exist somewhere (since refactored away). To verify the current-source state on production, a fresh build from current `main` HEAD is required (`git push origin main` per operator's standard flow, or `vercel deploy --prod --yes` from `dashboard/`). See `evidence/F-003/US-112-cdn-fix-verification.md` §"Critical Finding: Content Currency" for the full picture.
+
+**Net for STORY-107:** Source-level removal is verified (free-trial copy not in current main `dashboard/` source). Production state cannot be confirmed until a current-source deploy lands. The owner ADR (Branch A) is still required, ideally after a fresh deploy proves the production HTML matches.
 
 ## Limitations / Out of Scope
 

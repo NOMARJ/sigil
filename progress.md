@@ -168,7 +168,7 @@
 - **Dependencies:** STORY-105 (Branch B), STORY-112 (Branch A)
 - **TDD anchor:** Branch A — `curl -sS https://www.sigilsec.ai/pricing | grep -i 'free trial'` returns empty. Branch B — `subscription.status='trialing'` row in MSSQL.
 - **Scope:** moderate (manual verification + owner-gated)
-- **Precursor finding (2026-05-03, autopilot — see `evidence/F-003/US-108-cdn-investigation.md` §"Side Finding"):** Source code in `dashboard/src/app/pricing/page.tsx` has NO "free trial" copy (only `subscription?.status === "trialing"` for state checking). Deployed HTML at production has 2 occurrences of "Free Trial" — but that HTML is 21 days stale. Branch A (REMOVE) was effectively already taken in source. Owner decision lightens to "ratify the existing source state via ADR" — no fresh design call required.
+- **Precursor finding (2026-05-03, autopilot — see `evidence/F-003/US-108-cdn-investigation.md` §"Side Finding" + `evidence/F-003/US-112-cdn-fix-verification.md` §"STORY-107 Implications"):** Free-trial copy is not in current `dashboard/` source (verified via aggressive grep across the full tree). HOWEVER, STORY-112's `vercel redeploy` rebuilt the 23-day-old source (which DID have the copy somewhere), so production HTML post-redeploy STILL shows "30-day free trial". Source-level removal: verified. Production-level removal: requires a fresh build from current main HEAD (operator's `git push` flow or `vercel deploy --prod --yes`). Owner ADR (Branch A) should follow a confirmed clean-source deploy.
 - **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II. Precursor strengthens this default.
 
 ### STORY-108: Investigate CDN cache `age: ~1.8M` on www.sigilsec.ai/pricing
@@ -214,14 +214,15 @@
 - **Notes:** Must run AFTER STORY-112 to be meaningful.
 
 ### STORY-112: CDN cache fix — apply remediation from STORY-108 root cause
-- **Status:** TODO
+- **Status:** PARTIAL (2026-05-03, autopilot — cache flushed; content currency open)
 - **Goal:** Production www.sigilsec.ai/pricing serves `age` header < 3600 on a fresh probe.
 - **Done when:** Fix applied (purge / redeploy / config change per STORY-108), evidence has pre-fix stale curl, exact remediation command + timestamp, post-fix curl (≥60s wait) showing `age` < 3600, second probe 5min later showing monotonically increasing age.
-- **Files:** `evidence/F-003/US-112-cdn-fix-verification.md` (new); other files depend on root cause.
+- **Files:** `evidence/F-003/US-112-cdn-fix-verification.md` (new) ✓
 - **Dependencies:** STORY-108
 - **TDD anchor:** `curl -sS -I https://www.sigilsec.ai/pricing | grep -i '^age:' | awk '{print $2}'` < 3600.
 - **Scope:** moderate (could be trivial if pure purge)
-- **Notes:** Sizing TBD by STORY-108 outcome.
+- **Evidence:** `evidence/F-003/US-112-cdn-fix-verification.md` — cache freshness verified (`age: 0`, ETag changed `8f3abbb...` → `b08afad...`). BUT: `vercel redeploy <url>` rebuilds the prior deployment's source (frozen 23 days ago), so deployed HTML still shows old "30-day free trial" copy that has since been removed from current `dashboard/` source. To ship current content: operator pushes `7f874b6` to `origin/main` (Vercel auto-deploys from main per their flow) OR runs `vercel deploy --prod --yes` from `dashboard/`. Monotonic-age probe at +5min not captured (autopilot foreground-wait constraint).
+- **Notes:** Sizing TBD by STORY-108 outcome. Cache-freshness AC met; full content-update AC pending operator-driven fresh deploy.
 
 ### STORY-113: Flip F-003 status in SOLUTION.md and progress.md
 - **Status:** TODO

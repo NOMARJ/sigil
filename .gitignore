@@ -98,3 +98,4 @@ ui-ux-pro-max
 tasks/instincts/pending/
 tasks/instincts/index.json
 # END NOMARK telemetry ignore
+.vercel
