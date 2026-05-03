@@ -27,7 +27,7 @@ jobs:
     steps:
       # Checkout the repository at the tagged version
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Install Syft for SBOM generation
       - name: Install Syft
@@ -72,7 +72,7 @@ jobs:
 
       # Upload SBOMs as artifacts for downstream jobs
       - name: Upload source SBOMs
-        uses: actions/upload-artifact@ea165f8d65b6db9e3571be2fd0a5c22ddb4a36c0 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: source-sboms
           path: |
@@ -88,7 +88,7 @@ jobs:
     steps:
       # Checkout for context
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Install Syft for container SBOM generation
       - name: Install Syft
@@ -172,7 +172,7 @@ jobs:
 
       # Upload container SBOMs as artifacts
       - name: Upload container SBOMs
-        uses: actions/upload-artifact@ea165f8d65b6db9e3571be2fd0a5c22ddb4a36c0 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: container-sboms
           path: |
@@ -191,7 +191,7 @@ jobs:
     steps:
       # Checkout for release context
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Install Cosign for keyless signing
       - name: Install Cosign
@@ -303,7 +303,7 @@ jobs:
 
       # Upload all SBOMs and attestations to GitHub release
       - name: Upload SBOMs to release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             sboms/sbom-source.cdx.json
