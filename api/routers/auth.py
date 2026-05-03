@@ -424,11 +424,25 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
         )
 
     namespace = "https://api.sigilsec.ai"
-    return {
-        "sub": payload["sub"],
-        "email": payload.get(f"{namespace}/email", payload.get("email", "")),
-        "name": payload.get(f"{namespace}/name", payload.get("name", "")),
-    }
+    email = payload.get(f"{namespace}/email", payload.get("email", ""))
+    name = payload.get(f"{namespace}/name", payload.get("name", ""))
+
+    if not email:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"https://{settings.auth0_domain}/userinfo",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                resp.raise_for_status()
+                userinfo = resp.json()
+                email = userinfo.get("email", "")
+                if not name:
+                    name = userinfo.get("name", "")
+        except Exception as e:
+            logger.error("Auth0 /userinfo fallback failed: %s", e)
+
+    return {"sub": payload["sub"], "email": email, "name": name}
 
 
 async def verify_custom_jwt(token: str) -> Dict[str, Any]:
