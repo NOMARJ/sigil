@@ -134,14 +134,15 @@
 - **Notes:** Locks in canary so STORY-105 evidence is comparable to a documented baseline.
 
 ### STORY-104: Free-mode 403 baseline probe
-- **Status:** TODO
+- **Status:** PARTIAL (2026-05-03, autopilot via agent-browser — Auth0 sign-up + JWT issuance PASS; 403 NOT MET because production API returns 503 for the JWT — see F1 in fix evidence)
 - **Goal:** Document that the canary Pro route returns 403 for an authenticated free-tier user.
 - **Done when:** `evidence/F-003/US-104-free-403-baseline.md` exists with: real Auth0 free-tier JWT curl (token redacted), full response showing 403, MSSQL parameterised query confirming `subscription_tier='free'` for that user.
-- **Files:** `evidence/F-003/US-104-free-403-baseline.md` (new)
+- **Files:** `evidence/F-003/US-104-105-agent-browser-roundtrip.md` (covers US-104 + US-105) ✓
 - **Dependencies:** STORY-103
 - **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/<canary> -H "Authorization: Bearer <free-jwt>" -w '\n%{http_code}\n'` — expected 403.
 - **Scope:** moderate (manual verification)
-- **Notes:** Use `?` placeholder per aioodbc conventions. JWT must come from real Auth0 sign-in, not minted.
+- **Evidence:** `evidence/F-003/US-104-105-agent-browser-roundtrip.md` — Created Auth0 user `auth0|69f71abe8253a1122bb3acd9` (`reece+sigil-f003-1777801888@nomark.au`) via agent-browser. `/api/auth/me` returns user info; `/api/auth/token` returns a valid 776-byte RS256 JWT. **But the production API returns 503 `"Authentication service not configured"` for ALL protected endpoints — not the expected 403.** Same JWT, no JWT → API returns proper 401, so the 503 is post-Bearer-extraction in `api/routers/auth.py:557` (`if not settings.auth0_configured`).
+- **Notes:** Cleanup required: operator deletes Auth0 user `reece+sigil-f003-1777801888@nomark.au` after F1 fixed and stories closed. MSSQL row was NOT created (`_auto_provision_auth0_user` runs after the 503-throwing check, so no `users` row).
 
 ### STORY-105: Stripe TEST-mode end-to-end round-trip
 - **Status:** BLOCKED (2026-05-03, autopilot — STORY-101 live-mode fix LANDED; test-mode webhook subscription audit + browser-driven Stripe Checkout still required)
@@ -151,7 +152,7 @@
 - **Dependencies:** STORY-100, STORY-101, STORY-102, STORY-103, STORY-104
 - **TDD anchor:** 12-section evidence file IS the assertion. No automated substitute for an actual paid Checkout session.
 - **Scope:** complex (manual verification)
-- **Block reason (2026-05-03, updated):** Live-mode webhook fix LANDED (see `evidence/F-003/US-101-fix-applied.md`). Test-mode webhook is a separate endpoint with separate subscriptions and was NOT touched by the live-mode fix — it is likely missing the same 2 events. Before STORY-105 can run in test mode: (a) operator runs `curl -sS https://api.stripe.com/v1/webhook_endpoints -H "Authorization: Bearer $TEST_KEY"` to enumerate test-mode endpoints, (b) applies the same 6-event subscription set, (c) drives a browser Stripe Checkout session with `4242 4242 4242 4242` to capture the round-trip evidence. Browser session is operator-only.
+- **Block reason (2026-05-03, autopilot via agent-browser):** Webhook fix is real (STORY-101 DONE) but downstream of a deeper P0 ship-blocker discovered via the round-trip probe. **F1 — production API Auth0 config drift:** the `sigil-api` Container App is missing `SIGIL_AUTH0_DOMAIN` and/or `SIGIL_AUTH0_AUDIENCE`. Every protected endpoint returns 503 "Authentication service not configured" when handed a valid Auth0 JWT. See `evidence/F-003/US-104-105-agent-browser-roundtrip.md` F1 for verbatim 503s and operator `az containerapp` fix command. Until F1 is fixed, NO paid Pro user can authenticate against the API — the round-trip is structurally impossible regardless of webhook subscription state. **F2 — dashboard `/api/v1/billing/*` proxy 404s** (SubscriptionManager.tsx call sites) is a secondary blocker visible after F1.
 - **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
 
 ### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
