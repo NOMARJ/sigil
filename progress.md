@@ -164,7 +164,8 @@
 - **TDD anchor:** Empty grep + zero exit code from build.
 - **Scope:** trivial
 - **Precursor finding (2026-05-03, autopilot):** `grep -rn "/api/billing/create-checkout" dashboard/src` returns ZERO matches (exit 1). No callers exist. Once STORY-105 confirms the real path returns `checkout.stripe.com`, STORY-106 is a clean delete + build verification — no caller migration needed.
-- **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first). Precursor confirms trivial-path holds.
+- **Sibling defect (F2) FIXED 2026-05-03 via /bugfix:** SubscriptionManager.tsx had four raw `fetch('/api/v1/billing/{portal,cancel,reactivate,invoices}')` calls — all 404 in production (none have FastAPI implementations except `/portal`, which was being called via a non-existent Next.js proxy path). Rewritten to call `api.createPortalSession()` (the working FastAPI wrapper); cancel/reactivate/invoice management delegated to Stripe Customer Portal (the canonical path). TDD red→green via `dashboard/src/__tests__/components/SubscriptionManager.routes.test.ts`. Full Jest suite 21/21 PASS. Evidence: `evidence/F-003/F2-fix-applied.md`.
+- **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first). Precursor confirms trivial-path holds. F2 sibling fix above does NOT discharge STORY-106 — that file (`create-checkout/route.ts`) is a different dead-route from the F2 set and stays gated on STORY-105.
 
 ### STORY-107: Free-trial decision and pricing-page reconciliation
 - **Status:** BLOCKED-pending-owner-decision (de-risked — see precursor)
