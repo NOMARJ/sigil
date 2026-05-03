@@ -151,6 +151,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans repos, p
 |----|------|--------|--------|----------|----------|
 | EP-001 | Scanner v2 — false positive reduction | DONE | Q1 2026 | F-001 | INS-001, PR #84 |
 | EP-002 | Forge stats + registry search optimization | DONE | Q1 2026 | F-002 | Background caching, SQL filtering |
+| EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
 
 ---
 
@@ -189,3 +190,64 @@ Optimized Forge stats and registry search with background caching and SQL filter
 - [x] Background caching for registry data
 - [x] SQL-based filtering for search
 - [x] PostHog analytics integration
+
+---
+
+### F-003 · Pro Billing + Tier Gating Verification
+
+**Epic:** EP-003
+**Status:** BUILT — pending end-to-end verification
+**Started:** 2026-03
+**Shipped:** —
+
+**What it delivers:**
+Verified, money-flowing Pro subscription path: signup → 403 on Pro endpoint → Stripe Checkout → webhook → MSSQL tier update → 200 on Pro endpoint → portal cancellation reverses access. Code paths exist (`api/routers/billing.py`, `api/gates.py`, 18 routes with `require_plan(PlanTier.PRO)`); verification loop has not been executed against live mode.
+
+**Acceptance criteria (feature level):**
+- [ ] Stripe test-mode round-trip: signup → 403 → checkout → webhook → tier flip → 200 → cancel → 403
+- [ ] Stripe live-mode round-trip with one real $29 payment (refunded after)
+- [ ] `stripe_price_pro` and `stripe_price_pro_annual` confirmed as live-mode Price IDs in Container Apps env
+- [ ] Webhook registered in Stripe Dashboard with `customer.subscription.{created,updated,deleted}`, `invoice.{paid,payment_failed}`, `checkout.session.completed`
+- [ ] Free trial behavior verified or removed from pricing page
+- [ ] Stripe customer portal cancellation flips `users.subscription_tier` to `free`
+- [ ] Dead `dashboard/src/app/api/billing/create-checkout/route.ts` deleted or wired to real backend
+
+---
+
+### F-004 · Distribution Surface
+
+**Epic:** EP-003
+**Status:** PARTIAL — pipelines merged, listings unverified
+**Started:** 2026-04
+**Shipped:** —
+
+**What it delivers:**
+Sigil installable from every channel a target developer would use to discover security tooling for AI agent code. Pipelines for Homebrew (NOM-29) and JetBrains Marketplace (NOM-31) are merged; listings and install paths are unverified.
+
+**Acceptance criteria (feature level):**
+- [ ] `brew install sigil` succeeds on a clean macOS machine
+- [ ] JetBrains Marketplace listing is published and discoverable by name
+- [ ] VS Code / Cursor / Windsurf extension status confirmed (published or explicitly deferred)
+- [ ] MCP server registry/listing status confirmed
+- [ ] Install instructions on sigilsec.ai resolve to working downloads/commands
+- [ ] CDN cache for www.sigilsec.ai serves current build (21-day stale `age` header investigated and resolved)
+
+---
+
+### F-005 · Public Launch
+
+**Epic:** EP-003
+**Status:** PLANNED
+**Started:** —
+**Shipped:** —
+
+**What it delivers:**
+Coordinated public launch: threat report from existing 17,937-tool corpus, in-CLI upgrade trigger when SKILL.md detected (Phase 7 LLM gate), launch announcement on HN/Reddit/MCP community, post-launch soak. Distribution and billing must be verified before this feature opens.
+
+**Acceptance criteria (feature level):**
+- [ ] Threat report published from `api/data/known_threats.json` corpus with disclosed sample size and limitations (per CLAUDE.md no-fake-data rules)
+- [ ] In-CLI upgrade trigger fires on SKILL.md detection during `sigil scan`
+- [ ] Launch announcement post merged from `docs/internal/LAUNCH-ANNOUNCEMENT.md` to public channel
+- [ ] HN/Reddit/MCP-community posts published
+- [ ] 24-hour post-launch soak: error rates, webhook delivery, signup→checkout funnel reviewed; visible breakages fixed
+- [ ] First paid customer (other than internal) recorded in MSSQL with active Pro tier

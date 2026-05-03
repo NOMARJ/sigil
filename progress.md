@@ -81,6 +81,155 @@
 
 ---
 
+## Feature: F-003 Pro Billing + Tier Gating Verification (EP-003)
+
+> **PRD:** `tasks/prd-pro-billing-gating-verification.md`
+> **Plan:** `.nomark/artifacts/plans/pro-billing-gating-verification-plan.md`
+> **Started:** 2026-05-03
+> **Mode:** verification (no new build, prove the existing path carries water)
+
+### STORY-100: Capture Stripe key environment audit (Container Apps env)
+- **Status:** TODO
+- **Goal:** Documented evidence that all six STRIPE_* env vars are present on the running `sigil-api` Container App and the four Price IDs resolve to live-mode Stripe Products.
+- **Done when:** `evidence/F-003/US-100-stripe-env-audit.md` exists with raw `az containerapp show` env output, `livemode: true` per Price ID, secretRef names (NOT values) for secret keys, pass/fail verdict per var.
+- **Files:** `evidence/F-003/US-100-stripe-env-audit.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (new — "Env vars" section)
+- **Dependencies:** none
+- **TDD anchor:** Manual verification — verbatim `az` command logged in evidence is the reproducibility surface.
+- **Scope:** moderate (manual verification)
+- **Notes:** CHARTER II — if `az` access unavailable, escalate; do NOT mark DONE on partial evidence. `livemode: true` on the Price object is ground-truth; do not infer from key prefix alone.
+
+### STORY-101: Capture Stripe Dashboard webhook subscription audit
+- **Status:** TODO
+- **Goal:** Documented evidence that the live-mode Stripe Dashboard has exactly one webhook endpoint at `https://api.sigilsec.ai/v1/billing/webhook` subscribed to all six required event types.
+- **Done when:** `evidence/F-003/US-101-webhook-subscription-audit.md` exists with `stripe webhook_endpoints list --live` output, exact membership check vs `{customer.subscription.{created,updated,deleted}, invoice.{paid,payment_failed}, checkout.session.completed}`, endpoint `enabled: true`. Append findings to config audit doc.
+- **Files:** `evidence/F-003/US-101-webhook-subscription-audit.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (append)
+- **Dependencies:** none
+- **TDD anchor:** Manual verification via `stripe` CLI live-mode access.
+- **Scope:** moderate (manual verification)
+- **Notes:** Split from PRD US-003. Missing events → owner-driven Dashboard fix, then re-verify.
+
+### STORY-102: Verify webhook signing-secret alignment via Dashboard test send
+- **Status:** TODO
+- **Goal:** Prove `STRIPE_WEBHOOK_SECRET` matches the live endpoint signing secret WITHOUT logging either value.
+- **Done when:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` exists with: Dashboard test-send timestamp + event ID, container log line showing handler returned 200 for that event ID, NEGATIVE control curl with bogus signature returns 400.
+- **Files:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` (new), `docs/internal/2026-05-stripe-config-audit.md` (append)
+- **Dependencies:** STORY-101
+- **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/v1/billing/webhook -H 'Stripe-Signature: t=1,v1=bad' -d '{}' -w '%{http_code}'` — expected `400`.
+- **Scope:** moderate (manual verification)
+- **Notes:** PRD US-003 forbids direct value comparison — round-trip 200 + negative 400 is the only acceptable evidence pair.
+
+### STORY-103: Audit `require_plan(PlanTier.PRO)` route inventory
+- **Status:** TODO
+- **Goal:** Reproducible list of all Pro-gated routes; canary route for STORY-105 named.
+- **Done when:** `evidence/F-003/US-103-pro-gated-routes.md` exists with `grep -rn "require_plan(PlanTier.PRO)" api/routers/` output, HTTP method + path resolved per line, recommended canary `POST /v1/interactive/investigate` named at bottom with rationale.
+- **Files:** `evidence/F-003/US-103-pro-gated-routes.md` (new)
+- **Dependencies:** none
+- **TDD anchor:** Grep returns ≥18 hits per PRD intro. <18 = red flag, gate may have been removed.
+- **Scope:** trivial
+- **Notes:** Locks in canary so STORY-105 evidence is comparable to a documented baseline.
+
+### STORY-104: Free-mode 403 baseline probe
+- **Status:** TODO
+- **Goal:** Document that the canary Pro route returns 403 for an authenticated free-tier user.
+- **Done when:** `evidence/F-003/US-104-free-403-baseline.md` exists with: real Auth0 free-tier JWT curl (token redacted), full response showing 403, MSSQL parameterised query confirming `subscription_tier='free'` for that user.
+- **Files:** `evidence/F-003/US-104-free-403-baseline.md` (new)
+- **Dependencies:** STORY-103
+- **TDD anchor:** `curl -sS -X POST https://api.sigilsec.ai/<canary> -H "Authorization: Bearer <free-jwt>" -w '\n%{http_code}\n'` — expected 403.
+- **Scope:** moderate (manual verification)
+- **Notes:** Use `?` placeholder per aioodbc conventions. JWT must come from real Auth0 sign-in, not minted.
+
+### STORY-105: Stripe TEST-mode end-to-end round-trip
+- **Status:** TODO
+- **Goal:** Observed and recorded full PRD §3 loop in test mode: signup → 403 → checkout → webhook → tier=pro → 200 → portal cancel → tier=free → 403.
+- **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` exists with 12 timestamped sections (Auth0 signup, MSSQL T0 free, 403, real `checkout.stripe.com` URL from `/v1/billing/subscribe`, Stripe test-card completion + `customer.subscription.created` event ID, container log 200 for that event, MSSQL T1 pro w/ stripe_customer_id + stripe_subscription_id populated, Pro route 200 with real LLM body, `/v1/billing/portal` returning `billing.stripe.com/…` URL, portal cancel `customer.subscription.deleted` event ID, MSSQL T2 free, Pro route 403).
+- **Files:** `evidence/F-003/US-105-testmode-roundtrip.md` (new)
+- **Dependencies:** STORY-100, STORY-101, STORY-102, STORY-103, STORY-104
+- **TDD anchor:** 12-section evidence file IS the assertion. No automated substitute for an actual paid Checkout session.
+- **Scope:** complex (manual verification)
+- **Notes:** CHARTER II — do NOT fabricate any section. If section 4 returns `cs_test_<tier>_<cycle>_<ts>` (the dashboard stub), wrong path was taken; STORY-106 must run first. Webhook must fire within 30s or story stays TODO.
+
+### STORY-106: Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`
+- **Status:** TODO
+- **Goal:** No production code path returns a fabricated `cs_test_…` URL after this story (FR-5).
+- **Done when:** (1) `grep -rn "/api/billing/create-checkout" dashboard/src` returns zero matches; (2) the file does not exist; (3) dashboard build exits 0; (4) STORY-105 step 4 re-probe still returns a real `checkout.stripe.com` URL. Evidence at `evidence/F-003/US-106-dead-route-removed.md`.
+- **Files:** `dashboard/src/app/api/billing/create-checkout/route.ts` (delete), `evidence/F-003/US-106-dead-route-removed.md` (new)
+- **Dependencies:** STORY-105
+- **TDD anchor:** Empty grep + zero exit code from build.
+- **Scope:** trivial
+- **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first).
+
+### STORY-107: Free-trial decision and pricing-page reconciliation
+- **Status:** BLOCKED-pending-owner-decision
+- **Goal:** Pricing-page free-trial copy reflects an owner decision (enabled-and-working OR removed).
+- **Done when:** Branch A (REMOVE) — owner ADR row added to SOLUTION.md, pricing page free-trial copy stripped, post-cache-fix production HTML grep `free trial` returns zero. Branch B (ENABLE) — owner ADR + Stripe Price `trial_period_days` set + STORY-105 re-run with `subscription.status='trialing'` captured + trial-end transition captured. Evidence at `evidence/F-003/US-107-free-trial-resolution.md`.
+- **Files:** `evidence/F-003/US-107-free-trial-resolution.md` (new), `SOLUTION.md` (append ADR row), `dashboard/src/app/pricing/page.tsx` (modify if Branch A)
+- **Dependencies:** STORY-105 (Branch B), STORY-112 (Branch A)
+- **TDD anchor:** Branch A — `curl -sS https://www.sigilsec.ai/pricing | grep -i 'free trial'` returns empty. Branch B — `subscription.status='trialing'` row in MSSQL.
+- **Scope:** moderate (manual verification + owner-gated)
+- **Notes:** PRD Q3. Default recommendation: Branch A (remove) — shipping advertised-but-unverified behavior violates CHARTER II.
+
+### STORY-108: Investigate CDN cache `age: ~1.8M` on www.sigilsec.ai/pricing
+- **Status:** TODO
+- **Goal:** Root cause of 21-day-stale `age` header documented before any fix is applied.
+- **Done when:** `evidence/F-003/US-108-cdn-investigation.md` exists with full curl headers, Vercel deploy list, second-region probe, named root cause from {stale Vercel build cache, origin header misconfig, CDN never invalidated, other}, recommended fix sized.
+- **Files:** `evidence/F-003/US-108-cdn-investigation.md` (new)
+- **Dependencies:** none
+- **TDD anchor:** Diagnostic — curl headers IS the data.
+- **Scope:** moderate (manual verification)
+- **Notes:** Split from PRD US-006 because fix differs by cause.
+
+### STORY-109: Stripe LIVE-mode end-to-end round-trip with one real $29 charge
+- **Status:** BLOCKED-pending-owner-action
+- **Goal:** Observed full PRD §3 loop in live mode using a real card; refund issued; webhook reverses tier on refund.
+- **Done when:** `evidence/F-003/US-109-livemode-roundtrip.md` exists with same 12 sections as STORY-105 PLUS section 13 (Stripe invoice `paid:true, amount:2900, currency:usd, livemode:true`), section 14 (refund event ID), section 15 (MSSQL T3 free post-refund). Refund within 24h.
+- **Files:** `evidence/F-003/US-109-livemode-roundtrip.md` (new)
+- **Dependencies:** STORY-105, STORY-100, STORY-101, STORY-102
+- **TDD anchor:** 15-section evidence file IS the assertion.
+- **Scope:** complex (manual verification, owner-only)
+- **Notes:** PRD Q2 — owner has live-mode access. Auto-mode rule 6 forbids destructive financial actions without explicit owner go-ahead. Hard escalation gate.
+
+### STORY-110: Probe `/v1/billing/plans` for live Pro pricing surface
+- **Status:** TODO
+- **Goal:** Documented snapshot of `/v1/billing/plans` in production; API-side mirror to pricing-page audit.
+- **Done when:** `evidence/F-003/US-110-billing-plans-snapshot.md` contains verbatim `curl ... | jq` output, per-tier row showing tier name + price ($29 for Pro) + interval support + feature count, discrepancies vs pricing page flagged.
+- **Files:** `evidence/F-003/US-110-billing-plans-snapshot.md` (new)
+- **Dependencies:** none
+- **TDD anchor:** `jq '.[] | select(.tier=="pro") | .price_monthly'` — expected `29`.
+- **Scope:** trivial
+- **Notes:** Useful diagnostic for STORY-108/STORY-112 (API current but page stale → CDN; both stale → code).
+
+### STORY-111: Pricing-page byte-equal probe (localhost vs production)
+- **Status:** TODO
+- **Goal:** Diff between localhost-built pricing page and production-fetched HTML; freshness assertion for STORY-112.
+- **Done when:** `evidence/F-003/US-111-pricing-page-diff.md` contains localhost build curl, production curl, diff with every divergence explained (nonces/build hashes expected; copy text divergence is the signal).
+- **Files:** `evidence/F-003/US-111-pricing-page-diff.md` (new)
+- **Dependencies:** STORY-112
+- **TDD anchor:** `diff <(curl localhost ... | sed nonces) <(curl prod ... | sed nonces)` — zero meaningful divergence.
+- **Scope:** moderate
+- **Notes:** Must run AFTER STORY-112 to be meaningful.
+
+### STORY-112: CDN cache fix — apply remediation from STORY-108 root cause
+- **Status:** TODO
+- **Goal:** Production www.sigilsec.ai/pricing serves `age` header < 3600 on a fresh probe.
+- **Done when:** Fix applied (purge / redeploy / config change per STORY-108), evidence has pre-fix stale curl, exact remediation command + timestamp, post-fix curl (≥60s wait) showing `age` < 3600, second probe 5min later showing monotonically increasing age.
+- **Files:** `evidence/F-003/US-112-cdn-fix-verification.md` (new); other files depend on root cause.
+- **Dependencies:** STORY-108
+- **TDD anchor:** `curl -sS -I https://www.sigilsec.ai/pricing | grep -i '^age:' | awk '{print $2}'` < 3600.
+- **Scope:** moderate (could be trivial if pure purge)
+- **Notes:** Sizing TBD by STORY-108 outcome.
+
+### STORY-113: Flip F-003 status in SOLUTION.md and progress.md
+- **Status:** TODO
+- **Goal:** F-003 marked DONE with evidence pointers; close-out gate.
+- **Done when:** SOLUTION.md F-003 status = DONE w/ shipped date, all 7 ACs ticked with evidence file paths inline; progress.md STORY-100..STORY-112 all DONE pointing at evidence files; PRD Success Criteria items 1–8 each marked complete.
+- **Files:** `SOLUTION.md`, `progress.md`, `tasks/prd-pro-billing-gating-verification.md`
+- **Dependencies:** STORY-100..STORY-112
+- **TDD anchor:** `grep -E '^\*\*Status:\*\* DONE' SOLUTION.md` after F-003; `grep -c "STORY-1[01][0-9]" progress.md` ≥ 13.
+- **Scope:** trivial
+- **Notes:** Does NOT get DONE if any prior story is TODO/BLOCKED — including STORY-109.
+
+---
+
 ## Decisions Log
 
 | Date | Decision | Rationale |
@@ -90,6 +239,7 @@
 | 2026-04-02 | Port Phases 7-8 before adding Phase 10 | Phases 7-8 already exist in Python API — port is lower risk than new phase design |
 | 2026-04-02 | SBOM in Rust CLI, not Python API | Aligns with Rust CLI strategy; parsing lockfiles is well-suited to Rust |
 | 2026-04-02 | 9 stories across 3 phases, not 10+ | Scoped to actionable deliverables; bypass monitoring and OCSF deferred to future phase |
+| 2026-05-03 | Story IDs for F-003 use STORY-100+ prefix | Avoid collision with existing OpenShell STORY-001..STORY-009 in same progress.md |
 
 
 ## session-observations
@@ -218,10 +368,64 @@
 
 - 4: react, hooks, frontend [confidence: 0.8]
 
+
+### Session 2026-05-02
+
+**Start:** 2026-05-02T22:36:15.564Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** unknown — 9 stories (0/0/0)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-02T22:41:35.574Z
+**Outcome:** DONE
+**Stories:** 9/9 (0 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
+
+### Session 2026-05-02
+
+**Start:** 2026-05-02T22:42:31.496Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** unknown — 9 stories (0/0/0)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-02T22:48:18.290Z
+**Outcome:** DONE
+**Stories:** 9/9 (0 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
+
+### Session 2026-05-03
+
+**Start:** 2026-05-03T07:54:40.333Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** unknown — 9 stories (0/0/0)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-03T07:57:40.521Z
+**Outcome:** BLOCKED
+**Stories:** 9/23 (2 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
+
+
 
 
 

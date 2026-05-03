@@ -1,0 +1,6 @@
+{"type":"session-meta","id":"code-2026-05-02-manual-1777762082314","date":"2026-05-02","features":[],"topics":["bash","/users/reecefrazier/cascadeprojects/sigil/","2>/dev/null","claude/commands/","echo"],"scope":"general","story_count":0,"duration_minutes":363}
+{"ts":"2026-05-03T04:48:31.802Z","role":"tool","tool":"Bash","summary":"Bash: ls /Users/reecefrazier/CascadeProjects/sigil/.claude/commands/ 2>/dev/null | grep -iE \"(prd|plan_feature|feature)\" | hea","tags":[]}
+{"ts":"2026-05-03T04:48:34.700Z","role":"tool","tool":"Bash","summary":"Bash: ls /Users/reecefrazier/CascadeProjects/sigil/.claude/commands/ 2>/dev/null | head -50","tags":[]}
+{"ts":"2026-05-03T04:48:38.090Z","role":"tool","tool":"Bash","summary":"Bash: ls /Users/reecefrazier/CascadeProjects/sigil/.claude/ 2>/dev/null; echo \"---\"; find /Users/reecefrazier/CascadeProjects/","tags":[]}
+{"ts":"2026-05-03T04:48:42.135Z","role":"tool","tool":"Bash","summary":"Bash: ls /Users/reecefrazier/CascadeProjects/sigil/.claude/skills/prd/ 2>/dev/null; echo \"---\"; cat /Users/reecefrazier/Cascad","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}
