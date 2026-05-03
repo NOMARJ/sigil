@@ -1,12 +1,12 @@
 {
   "version": 1,
   "$schema": "nomark-graph-v1",
-  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-03T08:36:06.745642",
+  "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
+  "last_rebuilt": "2026-05-03T11:32:01.453Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
-      "title": "Scanner v2 \u2014 false positive reduction",
+      "title": "Scanner v2 — false positive reduction",
       "status": "DONE",
       "target": "Q1 2026"
     },
@@ -15,6 +15,12 @@
       "title": "Forge stats + registry search optimization",
       "status": "DONE",
       "target": "Q1 2026"
+    },
+    "EP-003": {
+      "type": "epic",
+      "title": "Sigil Pro commercial launch",
+      "status": "ACTIVE",
+      "target": "Q2 2026"
     },
     "F-001": {
       "type": "feature",
@@ -32,6 +38,14 @@
       "shipped": "2026-03",
       "prd": ""
     },
+    "F-003": {
+      "type": "feature",
+      "title": "Pro Billing + Tier Gating Verification",
+      "status": "PLANNED",
+      "started": "2026-03",
+      "shipped": "",
+      "prd": ""
+    },
     "STORY-001": {
       "type": "story",
       "title": "Define Sigil Policy YAML Schema",
@@ -41,14 +55,14 @@
     },
     "STORY-002": {
       "type": "story",
-      "title": "`sigil policy generate` \u2014 Auto-Generate Policies from Scan Results",
+      "title": "`sigil policy generate` — Auto-Generate Policies from Scan Results",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-002"
     },
     "STORY-003": {
       "type": "story",
-      "title": "Add Phase 10 \u2014 Inference Security Detection (Rust CLI)",
+      "title": "Add Phase 10 — Inference Security Detection (Rust CLI)",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-003"
@@ -62,7 +76,7 @@
     },
     "STORY-005": {
       "type": "story",
-      "title": "`sigil run` \u2014 Sandboxed Execution with Policy Enforcement",
+      "title": "`sigil run` — Sandboxed Execution with Policy Enforcement",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-005"
@@ -76,24 +90,122 @@
     },
     "STORY-007": {
       "type": "story",
-      "title": "`sigil safe-run` \u2014 Scan + Sandbox in One Command",
+      "title": "`sigil safe-run` — Scan + Sandbox in One Command",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-007"
     },
     "STORY-008": {
       "type": "story",
-      "title": "`sigil sbom` \u2014 Software Bill of Materials Generation",
+      "title": "`sigil sbom` — Software Bill of Materials Generation",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-008"
     },
     "STORY-009": {
       "type": "story",
-      "title": "Claude Code Skills \u2014 `/fix-finding` and `/generate-policy`",
+      "title": "Claude Code Skills — `/fix-finding` and `/generate-policy`",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-009"
+    },
+    "F-003/STORY-100": {
+      "type": "story",
+      "title": "Capture Stripe key environment audit (Container Apps env)",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-100"
+    },
+    "F-003/STORY-101": {
+      "type": "story",
+      "title": "Capture Stripe Dashboard webhook subscription audit",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-101"
+    },
+    "F-003/STORY-102": {
+      "type": "story",
+      "title": "Verify webhook signing-secret alignment via Dashboard test send",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-102"
+    },
+    "F-003/STORY-103": {
+      "type": "story",
+      "title": "Audit `require_plan(PlanTier.PRO)` route inventory",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-103"
+    },
+    "F-003/STORY-104": {
+      "type": "story",
+      "title": "Free-mode 403 baseline probe",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-104"
+    },
+    "F-003/STORY-105": {
+      "type": "story",
+      "title": "Stripe TEST-mode end-to-end round-trip",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-105"
+    },
+    "F-003/STORY-106": {
+      "type": "story",
+      "title": "Delete dead `dashboard/src/app/api/billing/create-checkout/route.ts`",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-106"
+    },
+    "F-003/STORY-107": {
+      "type": "story",
+      "title": "Free-trial decision and pricing-page reconciliation",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-107"
+    },
+    "F-003/STORY-108": {
+      "type": "story",
+      "title": "Investigate CDN cache `age: ~1.8M` on www.sigilsec.ai/pricing",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-108"
+    },
+    "F-003/STORY-109": {
+      "type": "story",
+      "title": "Stripe LIVE-mode end-to-end round-trip with one real $29 charge",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-109"
+    },
+    "F-003/STORY-110": {
+      "type": "story",
+      "title": "Probe `/v1/billing/plans` for live Pro pricing surface",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-110"
+    },
+    "F-003/STORY-111": {
+      "type": "story",
+      "title": "Pricing-page byte-equal probe (localhost vs production)",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-111"
+    },
+    "F-003/STORY-112": {
+      "type": "story",
+      "title": "CDN cache fix — apply remediation from STORY-108 root cause",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-112"
+    },
+    "F-003/STORY-113": {
+      "type": "story",
+      "title": "Flip F-003 status in SOLUTION.md and progress.md",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "STORY-113"
     },
     "commit:1ccaaf8": {
       "type": "commit",
@@ -111,7 +223,7 @@
     "commit:4c8c0d2": {
       "type": "commit",
       "hash": "4c8c0d2",
-      "message": "Release v1.0.4 \u2014 Package Managers, Threat Intelligence, and Supabase Auth (#17)",
+      "message": "Release v1.0.4 — Package Managers, Threat Intelligence, and Supabase Auth (#17)",
       "date": "2026-02-21T16:07:29+10:00",
       "files_changed": 80
     },
@@ -188,7 +300,7 @@
     "commit:9844128": {
       "type": "commit",
       "hash": "9844128",
-      "message": "chore: Replace Supabase environment variables with Auth0 placeholders\u2026 (#29)",
+      "message": "chore: Replace Supabase environment variables with Auth0 placeholders… (#29)",
       "date": "2026-03-02T09:25:09+10:00",
       "files_changed": 25
     },
@@ -356,7 +468,7 @@
     "commit:38650c1": {
       "type": "commit",
       "hash": "38650c1",
-      "message": "\ud83d\udea8 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
+      "message": "🚨 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
       "date": "2026-03-07T09:28:41+10:00",
       "files_changed": 55
     },
@@ -370,7 +482,7 @@
     "commit:e6cf8b1": {
       "type": "commit",
       "hash": "e6cf8b1",
-      "message": "\ud83d\udd12 Security: Remove sensitive infrastructure data and move internal docs",
+      "message": "🔒 Security: Remove sensitive infrastructure data and move internal docs",
       "date": "2026-03-08T08:28:36+10:00",
       "files_changed": 12
     },
@@ -510,7 +622,7 @@
     "commit:4eb5ef9": {
       "type": "commit",
       "hash": "4eb5ef9",
-      "message": "\ud83d\udea8 CRITICAL: Fix Docker import paths causing container crashes (#52)",
+      "message": "🚨 CRITICAL: Fix Docker import paths causing container crashes (#52)",
       "date": "2026-03-08T20:14:19+10:00",
       "files_changed": 64
     },
@@ -734,7 +846,7 @@
     "commit:c31a67f": {
       "type": "commit",
       "hash": "c31a67f",
-      "message": "memory: 2026-03-30 12:38 \u2014 sigil",
+      "message": "memory: 2026-03-30 12:38 — sigil",
       "date": "2026-03-30T12:38:33+10:00",
       "files_changed": 2
     },
@@ -759,31 +871,31 @@
     "commit:e591efd": {
       "type": "commit",
       "hash": "e591efd",
-      "message": "memory: 2026-04-03 12:51 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:51 — sigil",
       "date": "2026-04-03T12:51:07+10:00"
     },
     "commit:d9a0c49": {
       "type": "commit",
       "hash": "d9a0c49",
-      "message": "memory: 2026-04-03 12:52 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:52 — sigil",
       "date": "2026-04-03T12:52:01+10:00"
     },
     "commit:a60ca86": {
       "type": "commit",
       "hash": "a60ca86",
-      "message": "memory: 2026-04-03 13:00 \u2014 sigil",
+      "message": "memory: 2026-04-03 13:00 — sigil",
       "date": "2026-04-03T13:00:10+10:00"
     },
     "commit:78d4fa7": {
       "type": "commit",
       "hash": "78d4fa7",
-      "message": "chore: update NOMARK harness v2.1.0 \u2192 v3.0.1 (#89)",
+      "message": "chore: update NOMARK harness v2.1.0 → v3.0.1 (#89)",
       "date": "2026-04-03T15:04:12+10:00"
     },
     "commit:6337abd": {
       "type": "commit",
       "hash": "6337abd",
-      "message": "chore: update NOMARK harness v3.0.1 \u2192 v3.0.130",
+      "message": "chore: update NOMARK harness v3.0.1 → v3.0.130",
       "date": "2026-04-05T16:32:18+10:00",
       "files_changed": 14
     },
@@ -808,13 +920,13 @@
     "commit:6dcb760": {
       "type": "commit",
       "hash": "6dcb760",
-      "message": "chore: update trust metrics \u2014 add 2026-04-11 session #2 with 9 false completion breaches",
+      "message": "chore: update trust metrics — add 2026-04-11 session #2 with 9 false completion breaches",
       "date": "2026-04-11T20:30:52+10:00"
     },
     "commit:cf25386": {
       "type": "commit",
       "hash": "cf25386",
-      "message": "chore: update NOMARK harness v3.0.130 \u2192 v4.0.6",
+      "message": "chore: update NOMARK harness v3.0.130 → v4.0.6",
       "date": "2026-04-11T20:20:21+10:00"
     },
     "commit:22f4f2b": {
@@ -826,19 +938,19 @@
     "commit:106fe7b": {
       "type": "commit",
       "hash": "106fe7b",
-      "message": "chore: update NOMARK harness v3.0.1 \u2192 v3.0.130 (#90)",
+      "message": "chore: update NOMARK harness v3.0.1 → v3.0.130 (#90)",
       "date": "2026-04-06T10:07:52+10:00"
     },
     "commit:bdc9e99": {
       "type": "commit",
       "hash": "bdc9e99",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:24+10:00"
     },
     "commit:ba20a1a": {
       "type": "commit",
       "hash": "ba20a1a",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:48+10:00"
     },
     "commit:b6350c1": {
@@ -850,7 +962,7 @@
     "commit:cb01036": {
       "type": "commit",
       "hash": "cb01036",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:52+10:00"
     },
     "commit:f1ed54f": {
@@ -886,7 +998,7 @@
     "commit:8b2f289": {
       "type": "commit",
       "hash": "8b2f289",
-      "message": "memory: 2026-05-01 08:32 \u2014 sigil",
+      "message": "memory: 2026-05-01 08:32 — sigil",
       "date": "2026-05-01T08:32:20+10:00"
     },
     "commit:170ff5e": {
@@ -926,6 +1038,167 @@
       "hash": "259678f",
       "message": "style: ruff format upsert race-fix + verify evidence (#103)",
       "date": "2026-05-01T17:35:54+10:00"
+    },
+    "commit:519e54c": {
+      "type": "commit",
+      "hash": "519e54c",
+      "message": "chore(deps): refresh dead GitHub Actions SHA pins across remaining workflows",
+      "date": "2026-05-03T18:04:05+10:00",
+      "files_changed": 7
+    },
+    "commit:052200c": {
+      "type": "commit",
+      "hash": "052200c",
+      "message": "chore(release): bump version to 1.1.2",
+      "date": "2026-05-03T18:10:04+10:00",
+      "files_changed": 2
+    },
+    "commit:7f874b6": {
+      "type": "commit",
+      "hash": "7f874b6",
+      "message": "docs(F-003): autopilot evidence for STORY-103/108/110",
+      "date": "2026-05-03T18:13:25+10:00",
+      "files_changed": 5
+    },
+    "commit:6364292": {
+      "type": "commit",
+      "hash": "6364292",
+      "message": "docs(F-003): STORY-112 cache flush + STORY-108 correction",
+      "date": "2026-05-03T18:35:14+10:00",
+      "files_changed": 5
+    },
+    "commit:7823154": {
+      "type": "commit",
+      "hash": "7823154",
+      "message": "fix(release): allow npm version step when manifest already matches tag",
+      "date": "2026-05-03T18:44:33+10:00",
+      "files_changed": 1
+    },
+    "commit:c331b0e": {
+      "type": "commit",
+      "hash": "c331b0e",
+      "message": "docs(F-003): STORY-102 negative-control evidence",
+      "date": "2026-05-03T18:47:29+10:00",
+      "files_changed": 2
+    },
+    "commit:3b4fb95": {
+      "type": "commit",
+      "hash": "3b4fb95",
+      "message": "docs(F-003): STORY-101 P0 webhook defect + STORY-100 partial Price audit",
+      "date": "2026-05-03T18:54:52+10:00",
+      "files_changed": 3
+    },
+    "commit:2db511c": {
+      "type": "commit",
+      "hash": "2db511c",
+      "message": "docs(F-003): re-add STORY-102 negative-control evidence on main",
+      "date": "2026-05-03T18:56:23+10:00",
+      "files_changed": 2
+    },
+    "commit:1d9e5a1": {
+      "type": "commit",
+      "hash": "1d9e5a1",
+      "message": "ops: add one-shot republish-npm.yml for v1.1.2 recovery",
+      "date": "2026-05-03T19:03:15+10:00",
+      "files_changed": 1
+    },
+    "commit:8bd0009": {
+      "type": "commit",
+      "hash": "8bd0009",
+      "message": "fix(billing): STORY-101 P0 — add 2 missing Stripe webhook events (4 → 6)",
+      "date": "2026-05-03T19:35:25+10:00",
+      "files_changed": 2
+    },
+    "commit:fe4991a": {
+      "type": "commit",
+      "hash": "fe4991a",
+      "message": "ops: remove one-shot republish-npm.yml",
+      "date": "2026-05-03T19:44:15+10:00",
+      "files_changed": 1
+    },
+    "commit:1f699ea": {
+      "type": "commit",
+      "hash": "1f699ea",
+      "message": "chore(ci): scope tag-triggered workflows to full semver only",
+      "date": "2026-05-03T19:49:56+10:00",
+      "files_changed": 3
+    },
+    "commit:11bf971": {
+      "type": "commit",
+      "hash": "11bf971",
+      "message": "test(F-003): agent-browser round-trip surfaces P0 production API Auth0 drift",
+      "date": "2026-05-03T19:58:49+10:00",
+      "files_changed": 12
+    },
+    "commit:2a72827": {
+      "type": "commit",
+      "hash": "2a72827",
+      "message": "fix(F2): route subscription management through Stripe Customer Portal",
+      "date": "2026-05-03T20:06:44+10:00",
+      "files_changed": 4
+    },
+    "commit:c4e3550": {
+      "type": "commit",
+      "hash": "c4e3550",
+      "message": "blog: add post 09 — The Three-Layer AI Security Stack",
+      "date": "2026-05-03T20:10:53+10:00",
+      "files_changed": 1
+    },
+    "commit:98bc67d": {
+      "type": "commit",
+      "hash": "98bc67d",
+      "message": "fix(F1): set SIGIL_AUTH0_{DOMAIN,AUDIENCE} on sigil-api Container App",
+      "date": "2026-05-03T20:19:49+10:00",
+      "files_changed": 2
+    },
+    "commit:69b9f13": {
+      "type": "commit",
+      "hash": "69b9f13",
+      "message": "fix(F1.5): /userinfo fallback in verify_auth0_token",
+      "date": "2026-05-03T20:30:21+10:00",
+      "files_changed": 2
+    },
+    "commit:43f2165": {
+      "type": "commit",
+      "hash": "43f2165",
+      "message": "fix(F1.6): bracket-quote column names in T-SQL gen for reserved words",
+      "date": "2026-05-03T20:39:20+10:00",
+      "files_changed": 2
+    },
+    "commit:fe0c301": {
+      "type": "commit",
+      "hash": "fe0c301",
+      "message": "docs(F-003): STORY-104 DONE; F1.5+F1.6 fix cascade verified end-to-end",
+      "date": "2026-05-03T20:46:29+10:00",
+      "files_changed": 2
+    },
+    "commit:9b13983": {
+      "type": "commit",
+      "hash": "9b13983",
+      "message": "fix(ci): regen dashboard/package-lock.json + add api/exceptions.py",
+      "date": "2026-05-03T21:02:41+10:00",
+      "files_changed": 5
+    },
+    "commit:062e9a1": {
+      "type": "commit",
+      "hash": "062e9a1",
+      "message": "docs(F-003): record F1.7 BLOCKED + CI dashboard fix status in progress.md",
+      "date": "2026-05-03T21:05:47+10:00",
+      "files_changed": 1
+    },
+    "commit:127052c": {
+      "type": "commit",
+      "hash": "127052c",
+      "message": "docs(ops): record INFRA_REPO_PAT 'Bad credentials' on dispatch step",
+      "date": "2026-05-03T21:10:24+10:00",
+      "files_changed": 2
+    },
+    "commit:0249f95": {
+      "type": "commit",
+      "hash": "0249f95",
+      "message": "docs(ops): F2 deployed to prod (rev 0017 / 9b13983); sigil-infra PR #1 open",
+      "date": "2026-05-03T21:31:59+10:00",
+      "files_changed": 1
     }
   },
   "edges": [
@@ -937,6 +1210,91 @@
     {
       "from": "EP-002",
       "to": "F-002",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-003",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-004",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-005",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-100",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-101",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-102",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-103",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-104",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-105",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-106",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-107",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-108",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-109",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-110",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-111",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-112",
+      "rel": "contains"
+    },
+    {
+      "from": "F-003",
+      "to": "F-003/STORY-113",
       "rel": "contains"
     },
     {
@@ -1048,6 +1406,91 @@
       "from": "commit:4aa419e",
       "to": "NOM-31",
       "rel": "resolves"
+    },
+    {
+      "from": "STORY-103",
+      "to": "commit:7f874b6",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:7f874b6",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-112",
+      "to": "commit:6364292",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-108",
+      "to": "commit:6364292",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:6364292",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-102",
+      "to": "commit:c331b0e",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:c331b0e",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-101",
+      "to": "commit:3b4fb95",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-100",
+      "to": "commit:3b4fb95",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:3b4fb95",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-102",
+      "to": "commit:2db511c",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:2db511c",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-101",
+      "to": "commit:8bd0009",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:11bf971",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-003/STORY-104",
+      "to": "commit:fe0c301",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:fe0c301",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:062e9a1",
+      "to": "F-003",
+      "rel": "contributes_to"
     }
   ]
 }
