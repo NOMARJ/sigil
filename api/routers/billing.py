@@ -204,6 +204,9 @@ PLANS: list[PlanInfo] = [
 ]
 
 
+_TRIAL_PERIOD_DAYS = 14
+
+
 def _get_price_id(plan: PlanTier, interval: str) -> str | None:
     if plan in (PlanTier.FREE, PlanTier.ENTERPRISE):
         return None
@@ -368,7 +371,8 @@ async def subscribe(
             # only after successful payment — no more "overdue" invoices.
             try:
                 customer_id = sub_data.get("stripe_customer_id")
-                if not customer_id:
+                is_new_customer = not customer_id
+                if is_new_customer:
                     customer = stripe.Customer.create(
                         email=current_user.email,
                         metadata={"sigil_user_id": current_user.id},
@@ -391,18 +395,26 @@ async def subscribe(
                 success_url = f"{frontend_url}/settings?checkout=success"
                 cancel_url = f"{frontend_url}/settings?checkout=cancel"
 
-                checkout_session = stripe.checkout.Session.create(
-                    customer=customer_id,
-                    mode="subscription",
-                    line_items=[{"price": price_id, "quantity": 1}],
-                    success_url=success_url,
-                    cancel_url=cancel_url,
-                    metadata={
+                # Gate the 14-day trial to first-time Stripe customers — a
+                # returning user (existing stripe_customer_id) skips the trial
+                # so cancel/resubscribe doesn't recycle free Pro access.
+                checkout_kwargs: dict[str, Any] = {
+                    "customer": customer_id,
+                    "mode": "subscription",
+                    "line_items": [{"price": price_id, "quantity": 1}],
+                    "success_url": success_url,
+                    "cancel_url": cancel_url,
+                    "metadata": {
                         "sigil_user_id": current_user.id,
                         "sigil_plan": body.plan.value,
                         "sigil_interval": interval,
                     },
-                )
+                }
+                if is_new_customer:
+                    checkout_kwargs["subscription_data"] = {
+                        "trial_period_days": _TRIAL_PERIOD_DAYS,
+                    }
+                checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
 
                 # Return a response with the checkout URL for the frontend
                 # to redirect to. The subscription isn't created yet — Stripe
