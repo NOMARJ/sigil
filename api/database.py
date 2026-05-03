@@ -156,6 +156,13 @@ class MssqlClient:
             return json.dumps(v)
         return v
 
+    @staticmethod
+    def _q(name: str) -> str:
+        """Bracket-quote an identifier so reserved words like `plan`, `status`,
+        `references` don't break T-SQL parsing. Caller must pass a single
+        column name, not a qualified path or expression."""
+        return f"[{name}]"
+
     async def execute_raw_sql(
         self, sql: str, params: tuple = ()
     ) -> list[dict[str, Any]]:
@@ -213,7 +220,7 @@ class MssqlClient:
             cols = list(data.keys())
             placeholders = ", ".join(["?"] * len(cols))
             values = [self._serialize_value(data[c]) for c in cols]
-            sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
+            sql = f"INSERT INTO {table} ({', '.join(self._q(c) for c in cols)}) VALUES ({placeholders})"
             async with self._pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(sql, tuple(values))
@@ -255,13 +262,13 @@ class MssqlClient:
         conditions, vals = [], []
         if filters:
             for k, v in filters.items():
-                conditions.append(f"{k} = ?")
+                conditions.append(f"{self._q(k)} = ?")
                 vals.append(self._serialize_value(v))
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         order = ""
         if order_by:
             direction = "DESC" if order_desc else "ASC"
-            order = f"ORDER BY {order_by} {direction}"
+            order = f"ORDER BY {self._q(order_by)} {direction}"
 
         # Build SELECT clause with optional column specification
         select_clause = "*"
@@ -312,7 +319,7 @@ class MssqlClient:
         update_cols = [c for c in cols if c not in conflict]
 
         placeholders = ", ".join(["?"] * len(cols))
-        insert_sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
+        insert_sql = f"INSERT INTO {table} ({', '.join(self._q(c) for c in cols)}) VALUES ({placeholders})"
 
         async with self._pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -332,8 +339,8 @@ class MssqlClient:
                 if not update_cols:
                     return data
 
-                set_parts = [f"{c} = ?" for c in update_cols]
-                where_parts = [f"{c} = ?" for c in conflict]
+                set_parts = [f"{self._q(c)} = ?" for c in update_cols]
+                where_parts = [f"{self._q(c)} = ?" for c in conflict]
                 update_values = [values[cols.index(c)] for c in update_cols]
                 where_values = [values[cols.index(c)] for c in conflict]
                 update_sql = (
@@ -357,11 +364,11 @@ class MssqlClient:
             return None
         set_parts, vals = [], []
         for k, v in data.items():
-            set_parts.append(f"{k} = ?")
+            set_parts.append(f"{self._q(k)} = ?")
             vals.append(self._serialize_value(v))
         where_parts = []
         for k, v in filters.items():
-            where_parts.append(f"{k} = ?")
+            where_parts.append(f"{self._q(k)} = ?")
             vals.append(self._serialize_value(v))
         sql = (
             f"UPDATE {table} SET {', '.join(set_parts)} "
@@ -387,7 +394,7 @@ class MssqlClient:
             return
         conditions, vals = [], []
         for k, v in filters.items():
-            conditions.append(f"{k} = ?")
+            conditions.append(f"{self._q(k)} = ?")
             vals.append(self._serialize_value(v))
         sql = f"DELETE FROM {table} WHERE {' AND '.join(conditions)}"
         async with self._pool.acquire() as conn:
