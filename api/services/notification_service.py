@@ -309,6 +309,15 @@ The Sigil Team
             logger.exception(f"SMTP email failed: {e}")
             return False
 
+    async def send_email(self, to_email: str, subject: str, content: str) -> bool:
+        """Public dispatcher: send a transactional email via Resend or SMTP.
+
+        Used by callers that don't fit the domain-specific helpers above
+        (e.g. password reset). Returns False if no email provider is
+        configured — caller should treat as silent failure if needed.
+        """
+        return await self._send_email(to_email, subject, content)
+
 
 # Global service instance
 notification_service = NotificationService()

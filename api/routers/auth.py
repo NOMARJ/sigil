@@ -742,18 +742,32 @@ async def logout(
 
 
 async def _send_reset_email(email: str, reset_link: str) -> None:
-    """Send a password reset email via the notifications service."""
-    from api.services.notifications import send_email_notification
+    """Send a password reset email via Resend (preferred) or SMTP fallback.
 
-    await send_email_notification(
-        recipients=[email],
-        subject="Reset your Sigil password",
-        body_text=(
-            f"Click the link below to reset your password (expires in 1 hour):\n\n"
-            f"{reset_link}\n\n"
-            f"If you didn't request this, ignore this email."
-        ),
+    Routes through `notification_service.send_email`, which dispatches to
+    Resend when `SIGIL_RESEND_API_KEY` is configured and falls back to SMTP
+    when only SMTP env is set. The legacy `send_email_notification` helper
+    in `api/services/notifications.py` is SMTP-only and silently no-ops in
+    production where SMTP is intentionally unconfigured.
+    """
+    from api.services.notification_service import notification_service
+
+    body = (
+        f"Click the link below to reset your password (expires in 1 hour):\n\n"
+        f"{reset_link}\n\n"
+        f"If you didn't request this, ignore this email."
     )
+    sent = await notification_service.send_email(
+        to_email=email,
+        subject="Reset your Sigil password",
+        content=body,
+    )
+    if not sent:
+        logger.warning(
+            "Password reset email could not be sent for %s — no email "
+            "provider configured or send failed",
+            email,
+        )
 
 
 # ---------------------------------------------------------------------------
