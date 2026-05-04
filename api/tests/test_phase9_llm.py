@@ -56,7 +56,7 @@ class TestLLMServiceConfiguration:
             mock_session = MagicMock()
             mock_session_class.return_value = mock_session
 
-            with patch.object(service, "_call_llm_api") as mock_call:
+            with patch.object(service, "call_llm_api") as mock_call:
                 mock_call.return_value = '{"insights": []}'
 
                 request = LLMAnalysisRequest(
@@ -170,7 +170,7 @@ class TestLLMAnalysisRequests:
             },
         }
 
-        with patch.object(llm_service, "_call_llm_api") as mock_call:
+        with patch.object(llm_service, "call_llm_api") as mock_call:
             mock_call.return_value = json.dumps(mock_llm_response)
 
             with patch.object(llm_config, "is_configured", return_value=True):
@@ -219,7 +219,7 @@ class TestLLMAnalysisRequests:
             assert response.analysis_id == "test_analysis_123"
 
             # Should not have called LLM API due to cache hit
-            with patch.object(llm_service, "_call_llm_api") as mock_api:
+            with patch.object(llm_service, "call_llm_api") as mock_api:
                 await llm_service.analyze_threat(sample_analysis_request)
                 mock_api.assert_not_called()
 
@@ -396,7 +396,7 @@ class TestLLMProviderIntegration:
                     mock_post.return_value.__aenter__.return_value = mock_response
 
                     service = LLMService()
-                    result = await service._call_llm_api("test prompt", 1000)
+                    result = await service.call_llm_api("test prompt", 1000)
 
                     assert result == '{"insights": []}'
 
@@ -422,7 +422,7 @@ class TestLLMProviderIntegration:
                     mock_post.return_value.__aenter__.return_value = mock_response
 
                     service = LLMService()
-                    result = await service._call_llm_api("test prompt", 1000)
+                    result = await service.call_llm_api("test prompt", 1000)
 
                     assert result == '{"insights": []}'
 
@@ -449,7 +449,7 @@ class TestLLMProviderIntegration:
             service = LLMService()
 
             with pytest.raises(Exception) as exc_info:
-                await service._call_llm_api("test prompt", 1000)
+                await service.call_llm_api("test prompt", 1000)
 
             assert "LLM API error 429" in str(exc_info.value)
 
@@ -461,7 +461,7 @@ class TestLLMProviderIntegration:
             service = LLMService()
 
             with pytest.raises(ValueError) as exc_info:
-                await service._call_llm_api("test prompt", 1000)
+                await service.call_llm_api("test prompt", 1000)
 
             assert "Unsupported provider: unsupported_provider" in str(exc_info.value)
 
@@ -612,7 +612,7 @@ class TestLLMAnalyticsTracking:
             with patch(
                 "api.services.analytics_service.analytics_service.track_threat_discovery"
             ) as mock_track_threat:
-                with patch.object(llm_service, "_call_llm_api") as mock_call:
+                with patch.object(llm_service, "call_llm_api") as mock_call:
                     mock_call.return_value = json.dumps(
                         {
                             "insights": [

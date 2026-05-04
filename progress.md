@@ -272,15 +272,15 @@
 - **Notes:** Branches per `evidence/F-003/F1.7-BLOCKED.md`: (a) thin shim — RECOMMENDED, (b) bulk_analyzer refactor, (c) drop bulk routes. Implementation sketch + test surface included in the ADR for US-002 reviewer.
 
 ### US-002: Implement claude_service per ADR-0003 + register interactive.router
-- **Status:** BLOCKED on US-001
+- **Status:** DONE locally (2026-05-04, autopilot, branch `feature/f-003-closeout`) — 5 of 6 ACs verified locally; AC #6 (production curl 401/422) gated on deploy. Evidence: `evidence/F-003/US-002-claude-service-implementation.md`. Closes F1.7.
 - **Linear:** [NOM-892](https://linear.app/nomark/issue/NOM-892)
 - **Goal:** 33 Pro-gated interactive routes load and respond 401/422 (not 404) in production.
-- **Done when:** `python3 -c 'from api.routers import interactive'` exits 0; both `@pytest.mark.skip` decorators removed in `api/tests/test_interactive_router_registered.py`; `pytest api/tests/test_interactive_router_registered.py` shows 2 PASSED; `curl -X POST .../v1/interactive/investigate` returns 401 or 422.
-- **Files:** `api/services/claude_service.py` (new — or modified per ADR), `api/main.py`, `api/tests/test_interactive_router_registered.py`
-- **Dependencies:** US-001
-- **TDD anchor:** existing skip-marked tests in `test_interactive_router_registered.py` flip to PASS once skip is removed.
+- **Done when:** `python3 -c 'from api.routers import interactive'` exits 0 ✓; both `@pytest.mark.skip` decorators removed ✓; `pytest api/tests/test_interactive_router_registered.py` shows 2 PASSED ✓; `curl -X POST .../v1/interactive/investigate` returns 401 or 422 (post-deploy).
+- **Files:** `api/services/llm_service.py` (rename + model param), `api/services/claude_service.py` (new), `api/main.py` (router registration), `api/tests/test_claude_service.py` (new, 4 tests), `api/tests/test_interactive_router_registered.py` (un-skipped), `api/tests/test_pro_performance.py` + `api/tests/test_phase9_llm.py` (rename pass-through).
+- **Dependencies:** US-001 ✓
+- **TDD anchor:** existing skip-marked tests in `test_interactive_router_registered.py` flip to PASS once skip is removed ✓ + 4 new claude_service tests including a concurrent-calls regression test that pins the no-global-mutation contract from ADR-0003.
 - **Scope:** complex (feature work)
-- **Notes:** Highest-leverage remaining item — unblocks every Pro feature mentioned on the pricing page.
+- **Notes:** Highest-leverage remaining item — unblocks every Pro feature mentioned on the pricing page. Branch A implementation per ADR-0003: thin wrapper, model threaded as parameter (not via global mutation). Test sweep confirmed no regressions; failures in `test_scan.py`/`test_threat.py`/`test_auth_dependency_injection.py` are pre-existing event-loop fixture issues (verified by stashing my changes and reproducing the same errors on unmodified tree).
 
 ### US-003: Test-mode Stripe webhook subscription audit + fix
 - **Status:** PARTIAL (autopilot 2026-05-04) — evidence file exists with operator runbook (Options A/B/C); verbatim `enabled_events` capture + fix application require Stripe credentials for `acct_1RkD8NFhPhxEz27f` that autopilot does not hold (local Stripe CLI is configured for a different account; Stripe MCP does not surface webhook endpoint operations; reading test-mode secret from Container App env was declined per CHARTER II.5).

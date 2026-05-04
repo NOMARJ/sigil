@@ -51,7 +51,7 @@ class TestLLMServicePerformance:
             analysis_types=[LLMAnalysisType.ZERO_DAY_DETECTION],
         )
 
-        with patch.object(llm_service, "_call_llm_api") as mock_api:
+        with patch.object(llm_service, "call_llm_api") as mock_api:
             # Mock fast LLM response
             mock_api.return_value = '{"insights": []}'
 
@@ -77,7 +77,7 @@ class TestLLMServicePerformance:
                 user_id=f"perf_user_{request_id}",
             )
 
-            with patch.object(llm_service, "_call_llm_api") as mock_api:
+            with patch.object(llm_service, "call_llm_api") as mock_api:
                 # Simulate variable LLM response times
                 await asyncio.sleep(0.1 + (request_id % 3) * 0.05)  # 100-200ms
                 mock_api.return_value = '{"insights": []}'
@@ -146,7 +146,7 @@ class TestLLMServicePerformance:
         )
 
         # First request - cache miss
-        with patch.object(llm_service, "_call_llm_api") as mock_api:
+        with patch.object(llm_service, "call_llm_api") as mock_api:
             with patch.object(llm_service, "_get_cached_analysis") as mock_cache_get:
                 with patch.object(llm_service, "_cache_analysis"):
                     # No cache hit initially
@@ -161,7 +161,7 @@ class TestLLMServicePerformance:
                     mock_api.assert_called_once()
 
         # Second request - cache hit
-        with patch.object(llm_service, "_call_llm_api") as mock_api:
+        with patch.object(llm_service, "call_llm_api") as mock_api:
             with patch.object(llm_service, "_get_cached_analysis") as mock_cache_get:
                 # Return cached response
                 mock_cache_get.return_value = response1
@@ -419,7 +419,7 @@ class TestMemoryAndResourceUsage:
             requests.append(request)
 
         # Process requests and measure memory
-        with patch.object(LLMService, "_call_llm_api") as mock_api:
+        with patch.object(LLMService, "call_llm_api") as mock_api:
             mock_api.return_value = '{"insights": []}'
 
             for service, request in zip(services, requests[:5]):
@@ -452,7 +452,7 @@ class TestMemoryAndResourceUsage:
                 mock_post.return_value.__aenter__.return_value = mock_response
 
                 start_time = time.time()
-                await service._call_llm_api(f"test prompt {call_id}", 1000)
+                await service.call_llm_api(f"test prompt {call_id}", 1000)
                 end_time = time.time()
 
                 return (end_time - start_time) * 1000
@@ -489,7 +489,7 @@ class TestStressTestingAndLimits:
                     user_id=f"stress_user_{request_id}",
                 )
 
-                with patch.object(llm_service, "_call_llm_api") as mock_api:
+                with patch.object(llm_service, "call_llm_api") as mock_api:
                     # Vary response times to simulate real conditions
                     await asyncio.sleep(0.05 + (request_id % 10) * 0.01)
                     mock_api.return_value = '{"insights": []}'
@@ -599,7 +599,7 @@ class TestStressTestingAndLimits:
         # Process large requests concurrently
         async def process_large_request(request):
             """Process single large request"""
-            with patch.object(llm_service, "_call_llm_api") as mock_api:
+            with patch.object(llm_service, "call_llm_api") as mock_api:
                 mock_api.return_value = '{"insights": []}'
 
                 try:
@@ -634,7 +634,7 @@ class TestTimeoutAndCircuitBreaking:
                 service = LLMService()
 
                 try:
-                    await service._call_llm_api("test prompt", 1000)
+                    await service.call_llm_api("test prompt", 1000)
                     return {"success": True}
                 except Exception as e:
                     return {"success": False, "error": str(e)}
