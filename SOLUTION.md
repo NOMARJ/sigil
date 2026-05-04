@@ -281,6 +281,6 @@ Rolls Brand v1.0 across every Sigil surface in this repo: dashboard, CLI, API em
 - [ ] CLI (`bin/sigil`) banner uses the brand wordmark style; verdict words are paired with status glyphs (●/◐/○) per directive §6
 - [ ] API email templates (`api/templates/email/`) use brand greens, not blue
 - [ ] Brand brief HTML §06 demo copy updated: "Safe to install" → "8/8 phases passed"; verdict family expanded to 5-tier with all SVG filenames listed
-- [ ] `SealVerdict.tsx` exists and renders 5 Seal variants — **BLOCKED** until `sigil-seal-{low,medium,high,critical}.svg` are produced
-- [ ] `SealVerdict` mounted on scan-detail page — **BLOCKED** by component
-- [ ] Brand asset directory tracked in git ✓ (closed in commit `4c9a46b`)
+- [x] `SealVerdict.tsx` exists and renders 5 Seal variants — closed via colour-instantiation of the currentcolor template; owner-authorised
+- [x] `SealVerdict` mounted on scan-detail page header
+- [x] Brand asset directory tracked in git ✓ (closed in commit `4c9a46b`)

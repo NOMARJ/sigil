@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import VerdictBadge from "@/components/VerdictBadge";
+import SealVerdict, { scoreToVerdict } from "@/components/SealVerdict";
 import ScanBadge from "@/components/ScanBadge";
 import ScoreComparison from "@/components/ScoreComparison";
 import FindingsList from "@/components/FindingsList";
@@ -243,17 +244,26 @@ export default function ScanDetailPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start gap-5">
+          {/* Brand v1.0 attestation Seal — directive §1 (Seal = verification artefact). */}
+          <SealVerdict
+            verdict={scoreToVerdict(scan.risk_score)}
+            size="lg"
+            score={scan.risk_score}
+            phasesPassed={scan.risk_score === 0 ? 8 : undefined}
+            showLabel={false}
+          />
+          <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-100 tracking-tight">
               {scan.target}
             </h1>
             <VerdictBadge verdict={scan.verdict} size="lg" />
-            <ScanBadge 
-              scannerVersion={scan.scanner_version} 
-              rescannedAt={scan.rescanned_at} 
-              size="md" 
+            <ScanBadge
+              scannerVersion={scan.scanner_version}
+              rescannedAt={scan.rescanned_at}
+              size="md"
             />
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
@@ -280,6 +290,7 @@ export default function ScanDetailPage() {
             {scan.metadata && Boolean((scan.metadata as Record<string, unknown>).approved) && (
               <span className="text-green-400">Approved</span>
             )}
+          </div>
           </div>
         </div>
 

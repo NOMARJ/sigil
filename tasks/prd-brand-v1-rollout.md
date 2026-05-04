@@ -117,38 +117,35 @@ Four Seal SVG variants required by the new verdict family (`sigil-seal-low.svg`,
 
 ---
 
-### US-006: SealVerdict component (5-tier) — **BLOCKED**
+### US-006: SealVerdict component (5-tier) ✓ DONE
 
-**Description:** Component to render scan-level attestation Seal + verdict label. Blocked until four missing Seal SVGs are produced.
+**Description:** Component to render scan-level attestation Seal + verdict label. The four missing Seal SVGs were produced via colour-instantiation from `sigil-seal-currentcolor.svg` (the same approach the brand designer used to produce the existing clean variant — find/replace `currentColor` with the verdict hex). Owner-authorised in the autopilot turn 2026-05-04.
 
-**Blocker:** `dashboard/public/brand/seal/sigil-seal-low.svg`, `sigil-seal-medium.svg`, `sigil-seal-high.svg`, `sigil-seal-critical.svg` do not exist. Owner action required to produce or commission.
+**Acceptance Criteria:**
+- [x] `dashboard/public/brand/seal/sigil-seal-{low,medium,high,critical}.svg` produced and committed (colour-instantiated from currentcolor template)
+- [x] `dashboard/src/components/SealVerdict.tsx` exists
+- [x] Props: `verdict: "clean" | "low" | "medium" | "high" | "critical"`, `size?: "sm" | "md" | "lg"`, `phasesPassed?: number`, `score?: number`, `showLabel?: boolean`
+- [x] Renders `<img src="/brand/seal/sigil-seal-{verdict}.svg" />`; at `size="sm"` (≤24px) renders `sigil-seal-small.svg` regardless of verdict
+- [x] Always pairs with text label (`CLEAN` / `LOW RISK` / `MEDIUM RISK` / `HIGH RISK` / `CRITICAL`) — never colour alone
+- [x] Label colour uses matching directive verdict hex
+- [x] Optional `phasesPassed` renders attestation suffix; when verdict is `clean` and `phasesPassed===8`, label subtext reads "8/8 phases passed" (per directive §4 strict-liability rule — never "Safe to install")
+- [x] Helper export `scoreToVerdict(score: number)` implements the directive §3 mapping
+- [x] Unit test in `dashboard/src/__tests__/components/SealVerdict.test.tsx` — 20 tests, all passing (5 verdict variants × small-variant switch × strict-liability assertions × label-pairing × scoreToVerdict mapping)
 
-**Acceptance Criteria (when unblocked):**
-- [ ] `dashboard/src/components/SealVerdict.tsx` exists
-- [ ] Props: `verdict: "clean" | "low" | "medium" | "high" | "critical"`, `size?: "sm" | "md" | "lg"`, `phasesPassed?: number`, `score?: number`
-- [ ] Renders `<img src="/brand/seal/sigil-seal-{verdict}.svg" />`; at `size="sm"` (≤24px) renders `sigil-seal-small.svg` regardless of verdict
-- [ ] Always pairs with text label (`CLEAN` / `LOW RISK` / `MEDIUM RISK` / `HIGH RISK` / `CRITICAL`) — never colour alone
-- [ ] Label colour uses matching `--color-{clean,low,medium,high,critical}` token
-- [ ] Optional `phasesPassed` renders `{n}/8 phases` muted suffix; when verdict is `clean`, label reads "8/8 phases passed" (per directive §4 strict-liability rule — never "Safe to install")
-- [ ] Unit test in `dashboard/src/__tests__/SealVerdict.test.tsx` covers all 5 verdicts + small-variant + label-pairing + the strict-liability label assertion
-
-**Priority:** 2 (blocked)
-**Files:** `dashboard/src/components/SealVerdict.tsx` (new), `dashboard/src/__tests__/SealVerdict.test.tsx` (new)
+**Files:** `dashboard/src/components/SealVerdict.tsx`, `dashboard/src/__tests__/components/SealVerdict.test.tsx`, `dashboard/public/brand/seal/sigil-seal-{low,medium,high,critical}.svg`
 
 ---
 
-### US-007: Mount SealVerdict on scan-detail page — **BLOCKED**
+### US-007: Mount SealVerdict on scan-detail page ✓ DONE
 
-**Blocker:** depends on US-006.
+**Acceptance Criteria:**
+- [x] `dashboard/src/app/scans/[id]/page.tsx` renders `<SealVerdict>` in the header
+- [x] Verdict mapping rule applied via `scoreToVerdict(scan.risk_score)` — `0 → clean; 1-9 → low; 10-24 → medium; 25-49 → high; 50+ → critical`
+- [x] When `scan.risk_score === 0`, `phasesPassed={8}` is passed so the Seal renders with "8/8 phases passed" semantics — strict liability preserved
+- [x] Mounted to the left of the existing `<h1>` + `VerdictBadge` cluster as the visual anchor of the header
+- [x] Typecheck passes (`npx tsc --noEmit` exit 0); 41/41 tests pass
 
-**Acceptance Criteria (when unblocked):**
-- [ ] Scan-detail page renders `<SealVerdict>` in its header
-- [ ] Verdict mapping rule: `score=0 → clean`; `1-9 → low`; `10-24 → medium`; `25-49 → high`; `50+ → critical`
-- [ ] `phasesPassed` passes the count of phases that completed without findings (max 8)
-- [ ] Verify: a known clean scan renders with "8/8 phases passed" suffix; a known critical scan renders with `CRITICAL` label
-
-**Priority:** 2 (blocked)
-**Files:** `dashboard/src/app/scans/[id]/page.tsx` (or canonical scan-detail path)
+**Files:** `dashboard/src/app/scans/[id]/page.tsx`
 
 ---
 
