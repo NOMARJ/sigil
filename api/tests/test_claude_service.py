@@ -10,7 +10,10 @@ concurrent coroutines). These tests pin the contract:
 3. When model is provided, the HTTP payload uses the override.
 4. claude_service.analyze_with_claude threads model through to call_llm_api.
 5. Two concurrent claude_service calls with different model overrides each
-   see their own model — proof that no global state is mutated mid-await.
+   see their own model parameter — pins the wrapper's parameter-threading
+   contract end-to-end. Note: the no-global-mutation property is enforced
+   by construction in call_llm_api (local read of llm_config.model, never
+   a write) and by ADR-0003 review, not directly by this test.
 
 These tests use the in-memory ASGI test client only via the import side-effect;
 the actual HTTP layer is mocked at the aiohttp.ClientSession.post boundary so
@@ -105,7 +108,16 @@ async def test_call_llm_api_uses_default_model_when_none() -> None:
 
 @pytest.mark.asyncio
 async def test_call_llm_api_uses_override_model_when_provided() -> None:
-    """When model is passed, the HTTP payload uses that override (no global mutation)."""
+    """When model is passed, the HTTP payload uses that override.
+
+    Also asserts llm_config.model is unchanged after the call returns. NOTE:
+    this post-call assertion alone does NOT prove the absence of an
+    llm_config.model save/set/restore pattern — such a pattern would also
+    pass this test. Concurrency safety is enforced by construction
+    (call_llm_api uses `effective_model = model or llm_config.model` as a
+    local read, never `llm_config.model = ...` as a write) and validated
+    end-to-end by test_concurrent_claude_calls_do_not_share_model_state.
+    """
     from api.services.llm_service import LLMService
     from api.llm_config import llm_config
 
@@ -125,8 +137,9 @@ async def test_call_llm_api_uses_override_model_when_provided() -> None:
         f"got {mock_session.captured['json'].get('model')!r}"
     )
     assert llm_config.model == pre_call_global_model, (
-        "llm_config.model must NOT be mutated by call_llm_api — "
-        "that pattern races under concurrent coroutines"
+        "llm_config.model must equal pre-call value after call returns. "
+        "(Note: full no-mutation contract is enforced by construction and "
+        "by ADR-0003 review, not by this single-coroutine assertion.)"
     )
 
 
@@ -168,9 +181,22 @@ async def test_claude_service_threads_model_through() -> None:
 @pytest.mark.asyncio
 async def test_concurrent_claude_calls_do_not_share_model_state() -> None:
     """Two concurrent analyze_with_claude calls with different model overrides
-    must each observe their own model. This is the regression test for the
-    'save / set llm_config.model / await / restore' pattern that was
-    explicitly rejected in ADR-0003 because it races.
+    must each observe their own model parameter end-to-end through the wrapper.
+
+    SCOPE — what this test pins:
+      The wrapper's parameter-threading contract: each concurrent caller sees
+      its own `model` argument arriving at call_llm_api, with a deliberate
+      `await asyncio.sleep(0.01)` interleave between capture and return.
+
+    SCOPE — what this test does NOT pin:
+      It does NOT directly catch a save/set/await/restore mutation of
+      `llm_config.model`, because the fake reads `model` from the parameter
+      it was called with, not from `llm_config.model`. A naive
+      save/set/restore implementation could still pass this test by setting
+      `llm_config.model` before forwarding the parameter. The
+      no-global-mutation property is enforced by construction in
+      call_llm_api (local read of llm_config.model, never a write) and by
+      ADR-0003 review.
     """
     from api.services.claude_service import claude_service
     from api.services import claude_service as cs_module

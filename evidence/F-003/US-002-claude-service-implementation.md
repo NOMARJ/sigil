@@ -16,11 +16,11 @@ Per ADR-0003 (`status: accepted`, owner-approved 2026-05-04), Branch A implement
 2. `api/services/claude_service.py` (new, 39 lines) — `ClaudeService` class with `analyze_with_claude(prompt, model=None, max_tokens=2000)` that delegates to `llm_service.call_llm_api(prompt, max_tokens, model=model)`. Module-level `claude_service = ClaudeService()` singleton.
 3. `api/main.py` — added `interactive` to the router import block; added `app.include_router(interactive.router)` after `billing.router`.
 4. `api/tests/test_interactive_router_registered.py` — removed both `@pytest.mark.skip` decorators (the F1.7 BLOCKED reason no longer applies).
-5. `api/tests/test_claude_service.py` (new, 195 lines) — 4 tests pinning the contract:
+5. `api/tests/test_claude_service.py` (new, 195 lines) — 4 tests pinning the wrapper contract:
    - `test_call_llm_api_uses_default_model_when_none` — payload uses `llm_config.model` when `model=None`.
-   - `test_call_llm_api_uses_override_model_when_provided` — payload uses override; `llm_config.model` is NOT mutated.
+   - `test_call_llm_api_uses_override_model_when_provided` — payload uses override; `llm_config.model` equals its pre-call value after the call returns. Note: this single-coroutine post-call assertion does NOT exclude a save/set/restore pattern by itself.
    - `test_claude_service_threads_model_through` — wrapper forwards model to `call_llm_api`.
-   - `test_concurrent_claude_calls_do_not_share_model_state` — two concurrent calls with different model overrides each see their own model after a deliberate `await asyncio.sleep(0.01)` interleave.
+   - `test_concurrent_claude_calls_do_not_share_model_state` — pins the wrapper's parameter-threading contract end-to-end: two concurrent calls with different model overrides each see their own `model` parameter arriving at the inner call after a deliberate `await asyncio.sleep(0.01)` interleave. Does NOT directly catch a save/set/await/restore mutation pattern (the fake captures `model` from its parameter, not from `llm_config.model`); the no-global-mutation property is enforced by construction in `call_llm_api` (local read, never a write) and by ADR-0003 review.
 6. `api/tests/test_pro_performance.py` and `api/tests/test_phase9_llm.py` — updated `_call_llm_api` references to the new public name (these files are in the `extended_files` skip-set in `conftest.py:60-79`, so they don't run by default; updated for codebase coherence).
 
 ## Acceptance Criteria — Verification
