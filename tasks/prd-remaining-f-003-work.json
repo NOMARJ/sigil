@@ -1,0 +1,252 @@
+{
+  "feature": "remaining-f-003-work",
+  "branchName": "feature/f-003-closeout",
+  "feature_registry_id": "F-003",
+  "epic": "EP-003",
+  "description": "Closeout PRD for F-003 (Pro Billing + Tier Gating Verification). The original F-003 PRD covers the full verification surface; this closeout PRD contains only the work still open as of 2026-05-04. It groups the remaining items into atomic, ordered stories and treats them as an independent shippable bundle. Highest-leverage item is US-002 (write `api/services/claude_service.py`), which unblocks the 33 Pro-gated interactive routes — the headline 'Pro features' the pricing page advertises. The remaining stories are verification, cleanup, and operator-gated end-to-end round-trips.",
+  "started": "2026-05-04",
+  "context": {
+    "commits_today": [
+      "7b60315 feat(billing): 14-day trial on Pro/Team Checkout for first-time customers",
+      "16ee5cf docs(adr): ADR-0001 — 14-day Pro/Team trial",
+      "a09aaec fix(auth): wire password reset email through Resend",
+      "6d3b173 refactor(auth): delegate password reset to Auth0 universal login (ADR-0002)"
+    ],
+    "sigil_infra_prs_today": [
+      "#1 fix(ci): hashicorp/setup-terraform wrapper exitcode",
+      "#2 fix(tf): declare AUTH0 + GitHub OAuth env vars in TF",
+      "#3 fix(tf): declare Stripe Price IDs in CI tfvars",
+      "#4 fix(tf): SIGIL_FROM_EMAIL → noreply@mail.sigilsec.ai (Resend-verified subdomain)"
+    ],
+    "stories_done_in_F_003": [
+      "STORY-100", "STORY-101", "STORY-103", "STORY-104", "STORY-108", "STORY-110", "STORY-112"
+    ],
+    "stories_partial": ["STORY-102", "STORY-107"],
+    "stories_blocked_or_todo": ["STORY-105", "STORY-106", "STORY-109", "F1.7"]
+  },
+  "dependencies": [
+    "F-003 verification PRD: tasks/prd-pro-billing-gating-verification.md",
+    "ADR-0001 (free-trial Branch C, 14 days)",
+    "ADR-0002 (Auth0 password-reset delegation)",
+    "sigil-infra at HEAD includes PRs #1-#4"
+  ],
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Decide claude_service shape: shim vs refactor vs drop-bulk",
+      "description": "As a maintainer, I want a documented decision (ADR-0003) on how to provide the missing `api/services/claude_service.py` so that downstream stories implement against an agreed contract — not against three open branches.",
+      "acceptanceCriteria": [
+        "ADR-0003 exists at docs/adr/ADR-0003-claude-service-strategy.md with `status: accepted` after owner approval",
+        "ADR enumerates the three branches from F1.7-BLOCKED.md (a) thin shim over LLMService, (b) refactor bulk_analyzer to use LLMService directly, (c) drop bulk-analyze endpoints from interactive.py",
+        "ADR records chosen branch + rationale + reversibility",
+        "Verification: `test -f docs/adr/ADR-0003-claude-service-strategy.md && grep -q '^status: accepted' docs/adr/ADR-0003-claude-service-strategy.md` exits 0"
+      ],
+      "priority": 1,
+      "files": [
+        "docs/adr/ADR-0003-claude-service-strategy.md",
+        "SOLUTION.md (ADR log row)"
+      ],
+      "passes": false,
+      "scope": "trivial",
+      "dependencies": [],
+      "owner_gate": true
+    },
+    {
+      "id": "US-002",
+      "title": "Implement claude_service per ADR-0003 + unblock interactive.router",
+      "description": "As a paying Pro customer, I want the 33 interactive routes (AI Investigation, False Positive Verification, Interactive Chat, Attack Chain, Compliance Mapping) to load so that the features I'm paying for actually exist at runtime.",
+      "acceptanceCriteria": [
+        "Branch chosen in ADR-0003 is implemented (shim, refactor, or route-removal)",
+        "`python3 -c 'from api.routers import interactive; assert interactive.router is not None'` exits 0",
+        "Removed both `@pytest.mark.skip` decorators in `api/tests/test_interactive_router_registered.py`",
+        "`python3 -m pytest api/tests/test_interactive_router_registered.py -v` shows 2 PASSED, 0 SKIPPED",
+        "`api/main.py` imports `interactive.router` and registers it via `app.include_router(...)`",
+        "`curl -sS -o /dev/null -w '%{http_code}' -X POST https://api.sigilsec.ai/v1/interactive/investigate -H 'Content-Type: application/json' -d '{}'` returns 401 or 422 (auth/validation), NOT 404"
+      ],
+      "priority": 2,
+      "files": [
+        "api/services/claude_service.py (or removed depending on ADR branch)",
+        "api/main.py (router registration)",
+        "api/tests/test_interactive_router_registered.py (remove skip markers)"
+      ],
+      "passes": false,
+      "scope": "complex",
+      "dependencies": ["US-001"]
+    },
+    {
+      "id": "US-003",
+      "title": "Test-mode Stripe webhook subscription audit + fix",
+      "description": "As the launch operator, I want test-mode Stripe to fire all six required events to `https://api.sigilsec.ai/v1/billing/webhook` so that STORY-105 can run end-to-end against a real Stripe Checkout test card.",
+      "acceptanceCriteria": [
+        "evidence/F-003/US-105a-test-mode-webhook-audit.md captures the test-mode webhook endpoint ID + the verbatim list of `enabled_events`",
+        "If event list is missing any of the 6 required events (checkout.session.completed, customer.subscription.created/updated/deleted, invoice.payment_succeeded, invoice.payment_failed), POST the same fix as STORY-101 against the test-mode endpoint and re-verify",
+        "Re-verify GET on the test-mode endpoint: `count: 6` containing all 6 required events",
+        "Verification: evidence file exists + final GET shows 6/6 events"
+      ],
+      "priority": 3,
+      "files": [
+        "evidence/F-003/US-105a-test-mode-webhook-audit.md"
+      ],
+      "passes": false,
+      "scope": "moderate",
+      "dependencies": []
+    },
+    {
+      "id": "US-004",
+      "title": "Stripe Dashboard test-send positive control — close STORY-102",
+      "description": "As the launch operator, I want to confirm the live-mode webhook handler returns 200 to a Dashboard test-send so that we know the signing secret on prod matches the configured endpoint.",
+      "acceptanceCriteria": [
+        "Operator triggers a Dashboard test-send on the live-mode webhook endpoint (`we_1T2AXKFhPhxEz27fCYP53mKc`)",
+        "Container log for `sigil-api` shows the corresponding event reaching `/v1/billing/webhook` with HTTP 200 within 30s",
+        "evidence/F-003/US-102-webhook-signature-roundtrip.md updated with positive-control section: event ID + container log timestamp + 200 verdict",
+        "Verification: grep '^## Positive Control' evidence/F-003/US-102-webhook-signature-roundtrip.md returns content"
+      ],
+      "priority": 3,
+      "files": [
+        "evidence/F-003/US-102-webhook-signature-roundtrip.md"
+      ],
+      "passes": false,
+      "scope": "trivial",
+      "dependencies": ["STORY-101 (already DONE)"],
+      "owner_gate": true
+    },
+    {
+      "id": "US-005",
+      "title": "Test-mode end-to-end round-trip — close STORY-105",
+      "description": "As the launch operator, I want a 12-section evidence file capturing the full Free → Pro → cancel loop in Stripe TEST mode so that we know every gate, webhook, and DB update works without spending real money.",
+      "acceptanceCriteria": [
+        "evidence/F-003/US-105-testmode-roundtrip.md exists with all 12 sections per existing STORY-105 spec (Auth0 signup, MSSQL T0=free, 403 baseline, real checkout.stripe.com URL, 4242 card completion, customer.subscription.created event ID, container log 200 within 30s, MSSQL T1=pro with stripe_customer_id+stripe_subscription_id populated, Pro endpoint 200 with real LLM body, /v1/billing/portal returns billing.stripe.com URL, customer.subscription.deleted event ID from portal cancel, MSSQL T2=free + Pro endpoint 403)",
+        "All test card numbers are Stripe TEST cards (4242 4242 4242 4242)",
+        "Webhook timing: each event reflects in MSSQL within 30s",
+        "Verification: `wc -l evidence/F-003/US-105-testmode-roundtrip.md` returns ≥ 200 lines AND each of 12 sections has a `## Section N` header"
+      ],
+      "priority": 4,
+      "files": [
+        "evidence/F-003/US-105-testmode-roundtrip.md"
+      ],
+      "passes": false,
+      "scope": "complex",
+      "dependencies": ["US-002", "US-003"],
+      "owner_gate": true
+    },
+    {
+      "id": "US-006",
+      "title": "Trialing-state verification — close STORY-107 Branch C",
+      "description": "As the launch operator, I want the test-mode round-trip from US-005 to capture `subscription.status='trialing'` rows so that ADR-0001 (14-day trial) graduates from `outcome: pending` to `outcome: success`.",
+      "acceptanceCriteria": [
+        "During US-005 execution, MSSQL T1 row for the test-mode subscription has `status='trialing'` (NOT `active`) immediately after checkout completion",
+        "Stripe webhook event payload includes `trial_end` timestamp ~14 days in the future",
+        "evidence/F-003/US-107-trialing-state-verification.md captures the verbatim row and webhook payload snippet",
+        "ADR-0001 frontmatter updated: `outcome: success`, `outcome_date: <today>`, with a one-line note linking to evidence",
+        "Verification: `grep -E '^outcome: success' docs/adr/ADR-0001-stripe-free-trial.md` exits 0"
+      ],
+      "priority": 4,
+      "files": [
+        "evidence/F-003/US-107-trialing-state-verification.md",
+        "docs/adr/ADR-0001-stripe-free-trial.md"
+      ],
+      "passes": false,
+      "scope": "moderate",
+      "dependencies": ["US-005"]
+    },
+    {
+      "id": "US-007",
+      "title": "Delete dead create-checkout route — close STORY-106",
+      "description": "As a maintainer, I want the unreferenced `dashboard/src/app/api/billing/create-checkout/route.ts` deleted so that no production code path can return a fabricated `cs_test_<tier>_<cycle>_<ts>` URL.",
+      "acceptanceCriteria": [
+        "`grep -rn '/api/billing/create-checkout' dashboard/src` returns ZERO matches (exits 1)",
+        "`test -e dashboard/src/app/api/billing/create-checkout/route.ts` returns false (file deleted)",
+        "`pnpm --dir dashboard build` exits 0 (no missing import errors)",
+        "evidence/F-003/US-106-dead-route-removed.md records pre/post grep + build output",
+        "Verification: build passes + grep is empty"
+      ],
+      "priority": 5,
+      "files": [
+        "dashboard/src/app/api/billing/create-checkout/route.ts (delete)",
+        "evidence/F-003/US-106-dead-route-removed.md"
+      ],
+      "passes": false,
+      "scope": "trivial",
+      "dependencies": ["US-005"]
+    },
+    {
+      "id": "US-008",
+      "title": "Live-mode end-to-end round-trip with one real $29 charge + refund — close STORY-109",
+      "description": "As the launch operator (owner-only), I want one real Pro Checkout completed with a real card, the resulting Stripe invoice paid for $29.00, then refunded within 24h — proving end-to-end live-mode operation with documented refund safety.",
+      "acceptanceCriteria": [
+        "evidence/F-003/US-109-livemode-roundtrip.md contains the same 12 sections as US-005 (live-mode, real card)",
+        "Section 13: Stripe invoice `paid:true, amount:2900, currency:usd, livemode:true`",
+        "Section 14: refund event ID + Stripe response showing `status: succeeded, amount: 2900`",
+        "Section 15: MSSQL T3 row shows subscription_tier reverted (free) post-refund",
+        "Refund initiated within 24 hours of charge",
+        "Verification: 15-section evidence file + Stripe invoice + Stripe refund both visible in dashboard"
+      ],
+      "priority": 6,
+      "files": [
+        "evidence/F-003/US-109-livemode-roundtrip.md"
+      ],
+      "passes": false,
+      "scope": "complex",
+      "dependencies": ["US-005"],
+      "owner_gate": true,
+      "irreversible_action": "real $29 charge — owner explicit go-ahead required per Auto-Mode rule 5"
+    },
+    {
+      "id": "US-009",
+      "title": "Terraform-import 5 stale monitor_metric_alert resources",
+      "description": "As an operator, I want the 5 `azurerm_monitor_metric_alert` resources that exist in Azure but are not in TF state to be imported so that every CI Apply step stops failing on these out-of-band resources.",
+      "acceptanceCriteria": [
+        "`terraform import` succeeds for all 5: `azurerm_monitor_metric_alert.api_response_time`, `azurerm_monitor_metric_alert.api_replicas_down`, `azurerm_monitor_metric_alert.api_high_cpu`, `azurerm_monitor_metric_alert.dashboard_replicas_down`, `azurerm_monitor_metric_alert.redis_down`",
+        "Subsequent `terraform plan` shows zero `to be created` for these 5 resources (state matches reality)",
+        "Next CI Apply on a sigil-infra change exits 0 (or only fails for unrelated reasons)",
+        "evidence/F-003/US-009-monitor-alert-imports.md captures the 5 import commands + plan diff before/after",
+        "Verification: most recent sigil-infra workflow run after the imports exits 0 on the Apply job"
+      ],
+      "priority": 5,
+      "files": [
+        "evidence/F-003/US-009-monitor-alert-imports.md",
+        "(no code changes — state-only operation in sigil-infra)"
+      ],
+      "passes": false,
+      "scope": "moderate",
+      "dependencies": [],
+      "owner_gate": true,
+      "operator_only": "requires terraform CLI access + Azure credentials, not a code commit"
+    },
+    {
+      "id": "US-010",
+      "title": "Auth0 test-user cleanup",
+      "description": "As an operator, I want the 3 test users created during the agent-browser round-trip on 2026-05-03 deleted from the Auth0 tenant so that prod identity store is hygienic.",
+      "acceptanceCriteria": [
+        "Auth0 Dashboard → User Management shows zero users matching the test-email pattern from `evidence/F-003/US-104-105-agent-browser-roundtrip.md`",
+        "MSSQL `users` table — corresponding rows either deleted or marked `email LIKE '%@test.invalid'` (whichever the operator prefers)",
+        "evidence/F-003/US-010-auth0-cleanup.md records the user IDs deleted (no PII beyond Auth0 user_id)",
+        "Verification: Auth0 dashboard search by domain returns 0 results"
+      ],
+      "priority": 7,
+      "files": [
+        "evidence/F-003/US-010-auth0-cleanup.md"
+      ],
+      "passes": false,
+      "scope": "trivial",
+      "dependencies": ["US-005"],
+      "owner_gate": true,
+      "note": "Defer until US-005 done — those test users are still needed for the round-trip evidence"
+    }
+  ],
+  "ordering_notes": [
+    "Critical path: US-001 → US-002 → US-003 → US-005 → (US-006, US-007, US-008, US-010 in parallel)",
+    "Off critical path: US-004 (operator-only, run anytime), US-009 (operator-only, run anytime)",
+    "Owner gates marked: US-001 (ADR approval), US-004 (operator action), US-005 (owner-supervised checkout), US-008 (real-money charge), US-009 (state surgery), US-010 (identity cleanup)",
+    "F-003 closes when all 10 stories pass + ADR-0001 graduates to outcome: success"
+  ],
+  "out_of_scope": [
+    "Auth0 tenant email provider config (already done — Resend SMTP via mail.sigilsec.ai verified, password reset confirmed working)",
+    "sigil-api transactional email migration to from `noreply@mail.sigilsec.ai` (PR #4 merged)",
+    "Stripe Price ID env-var drift (PR #3 merged)",
+    "Auth0 + GitHub OAuth env-var drift (PR #2 merged)",
+    "Terraform wrapper exitcode bug (PR #1 merged)",
+    "Pricing-page CDN cache freshness (STORY-108/STORY-112 — DONE)",
+    "Dashboard /reset-password legacy flow (ADR-0002 — DONE, code removed in commit 6d3b173)"
+  ]
+}

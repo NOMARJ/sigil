@@ -1,0 +1,5 @@
+{"type":"session-meta","id":"code-2026-05-03-manual-1777803528240","date":"2026-05-03","features":[],"topics":["bash","progress","head","sigil-api"],"scope":"general","story_count":0,"duration_minutes":1}
+{"ts":"2026-05-03T10:19:01.636Z","role":"tool","tool":"Bash","summary":"Bash: grep -nE \"STORY-104|STORY-105\" progress.md | head -8","tags":[]}
+{"ts":"2026-05-03T10:19:34.317Z","role":"tool","tool":"Bash","summary":"Bash: git add evidence/F-003/F1-fix-applied.md progress.md && git status --short | head -10","tags":[]}
+{"ts":"2026-05-03T10:19:50.868Z","role":"tool","tool":"Bash","summary":"Bash: git commit -m \"$(cat <<'EOF'\nfix(F1): set SIGIL_AUTH0_{DOMAIN,AUDIENCE} on sigil-api Container App\n\nProduction sigil-api","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

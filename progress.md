@@ -254,6 +254,98 @@
 
 ---
 
+## F-003 Closeout (PRD: tasks/prd-remaining-f-003-work.json)
+
+> **Created:** 2026-05-04
+> **Mode:** verification + one feature-work item (claude_service)
+> Atomic stories that close out the open F-003 surface. Owner-gated items flagged inline.
+
+### US-001: Decide claude_service shape (ADR-0003)
+- **Status:** TODO
+- **Goal:** Documented decision on shim vs refactor vs drop-bulk, owner-approved.
+- **Done when:** `docs/adr/ADR-0003-claude-service-strategy.md` exists with `status: accepted`; SOLUTION.md ADR log row added.
+- **Files:** `docs/adr/ADR-0003-claude-service-strategy.md`, `SOLUTION.md`
+- **Dependencies:** none
+- **TDD anchor:** `test -f docs/adr/ADR-0003-claude-service-strategy.md && grep -q '^status: accepted' docs/adr/ADR-0003-claude-service-strategy.md`
+- **Scope:** trivial (writeup) — gate is owner approval
+- **Notes:** Branches per `evidence/F-003/F1.7-BLOCKED.md`: (a) thin shim, (b) bulk_analyzer refactor, (c) drop bulk routes.
+
+### US-002: Implement claude_service per ADR-0003 + register interactive.router
+- **Status:** BLOCKED on US-001
+- **Goal:** 33 Pro-gated interactive routes load and respond 401/422 (not 404) in production.
+- **Done when:** `python3 -c 'from api.routers import interactive'` exits 0; both `@pytest.mark.skip` decorators removed in `api/tests/test_interactive_router_registered.py`; `pytest api/tests/test_interactive_router_registered.py` shows 2 PASSED; `curl -X POST .../v1/interactive/investigate` returns 401 or 422.
+- **Files:** `api/services/claude_service.py` (new — or modified per ADR), `api/main.py`, `api/tests/test_interactive_router_registered.py`
+- **Dependencies:** US-001
+- **TDD anchor:** existing skip-marked tests in `test_interactive_router_registered.py` flip to PASS once skip is removed.
+- **Scope:** complex (feature work)
+- **Notes:** Highest-leverage remaining item — unblocks every Pro feature mentioned on the pricing page.
+
+### US-003: Test-mode Stripe webhook subscription audit + fix
+- **Status:** TODO
+- **Goal:** test-mode Stripe webhook endpoint subscribes to all 6 required events.
+- **Done when:** `evidence/F-003/US-105a-test-mode-webhook-audit.md` with verbatim `enabled_events`; if missing events, fix applied + re-verify shows 6/6.
+- **Files:** `evidence/F-003/US-105a-test-mode-webhook-audit.md`
+- **Dependencies:** none
+- **Scope:** moderate
+
+### US-004: Stripe Dashboard test-send positive control (closes STORY-102)
+- **Status:** TODO (operator-only)
+- **Goal:** prove signing-secret alignment with a real Dashboard test-send.
+- **Done when:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` gains a `## Positive Control` section with event ID + container log timestamp + 200.
+- **Files:** `evidence/F-003/US-102-webhook-signature-roundtrip.md`
+- **Dependencies:** STORY-101 (DONE)
+- **Scope:** trivial
+
+### US-005: Test-mode end-to-end round-trip (closes STORY-105)
+- **Status:** BLOCKED on US-002, US-003
+- **Goal:** 12-section evidence file proving Free → Pro → cancel works in test mode.
+- **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` has all 12 sections per existing STORY-105 spec; webhook events reach MSSQL within 30s; portal cancel flips tier back to free.
+- **Files:** `evidence/F-003/US-105-testmode-roundtrip.md`
+- **Dependencies:** US-002, US-003
+- **Scope:** complex (manual + browser-driven)
+- **Notes:** Owner-supervised — uses Stripe TEST card `4242 4242 4242 4242`.
+
+### US-006: Trialing-state verification (closes STORY-107 Branch C)
+- **Status:** BLOCKED on US-005
+- **Goal:** Capture `subscription.status='trialing'` in MSSQL during US-005; flip ADR-0001 outcome to `success`.
+- **Done when:** `evidence/F-003/US-107-trialing-state-verification.md` has the verbatim row + webhook payload; `docs/adr/ADR-0001-stripe-free-trial.md` frontmatter shows `outcome: success`.
+- **Files:** `evidence/F-003/US-107-trialing-state-verification.md`, `docs/adr/ADR-0001-stripe-free-trial.md`
+- **Dependencies:** US-005
+- **Scope:** moderate
+
+### US-007: Delete dead create-checkout route (closes STORY-106)
+- **Status:** BLOCKED on US-005
+- **Done when:** file deleted, `grep` returns zero matches, dashboard build exits 0, evidence file captures pre/post.
+- **Files:** `dashboard/src/app/api/billing/create-checkout/route.ts` (delete), `evidence/F-003/US-106-dead-route-removed.md`
+- **Dependencies:** US-005
+- **Scope:** trivial
+
+### US-008: Live-mode round-trip with $29 charge + refund (closes STORY-109)
+- **Status:** BLOCKED on US-005 + owner-only
+- **Goal:** prove live-mode operation end-to-end with one real charge, refunded within 24h.
+- **Done when:** `evidence/F-003/US-109-livemode-roundtrip.md` has the 12 sections from US-005 PLUS section 13 (paid invoice $29), 14 (refund event), 15 (MSSQL T3 free post-refund).
+- **Files:** `evidence/F-003/US-109-livemode-roundtrip.md`
+- **Dependencies:** US-005
+- **Scope:** complex
+- **Notes:** Auto-Mode rule 5 — irreversible action, requires explicit owner go-ahead per charge AND per refund.
+
+### US-009: Terraform-import 5 stale monitor_metric_alert resources
+- **Status:** TODO (operator-only — sigil-infra terraform CLI access required)
+- **Goal:** stop CI Apply step from erroring on the same 5 already-exist resources every run.
+- **Done when:** `terraform import` succeeds for `api_response_time`, `api_replicas_down`, `api_high_cpu`, `dashboard_replicas_down`, `redis_down`; next CI Apply exits 0; evidence file captures import commands + plan diff.
+- **Files:** `evidence/F-003/US-009-monitor-alert-imports.md`
+- **Dependencies:** none
+- **Scope:** moderate
+
+### US-010: Auth0 test-user cleanup
+- **Status:** BLOCKED on US-005 (need users intact for round-trip)
+- **Done when:** Auth0 dashboard search returns 0 test users; corresponding MSSQL rows deleted or tagged.
+- **Files:** `evidence/F-003/US-010-auth0-cleanup.md`
+- **Dependencies:** US-005
+- **Scope:** trivial
+
+---
+
 ## Decisions Log
 
 | Date | Decision | Rationale |
@@ -534,10 +626,51 @@
 - 8: github-actions, tags, ci-cd [confidence: 0.3]
 - 9: npm, release, ci-cd [confidence: 0.3]
 
+
+### Session 2026-05-04
+
+**Start:** 2026-05-04T03:03:59.582Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 23 stories (4/8/2)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-04T03:04:59.352Z
+**Outcome:** BLOCKED
+**Stories:** 15/20 (2 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
+
+### Session 2026-05-04
+
+**Start:** 2026-05-04T04:26:36.196Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
 
 
 

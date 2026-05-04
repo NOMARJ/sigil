@@ -1,0 +1,6 @@
+{"type":"session-meta","id":"code-2026-05-03-manual-1777795428173","date":"2026-05-03","features":[],"topics":["bash","push","json","2>&1","tail"],"scope":"general","story_count":0,"duration_minutes":1}
+{"ts":"2026-05-03T08:03:51.267Z","role":"tool","tool":"Bash","summary":"Bash: git stash push -m \"pre-pr-stash\" -- .nomark/graph.json .nomark/index.json 2>&1 | tail -3\necho \"---\"\ngit checkout -b fix/","tags":[]}
+{"ts":"2026-05-03T08:04:06.073Z","role":"tool","tool":"Bash","summary":"Bash: git add .github/workflows/ci.yml .github/workflows/deploy-azure.yml .github/workflows/docker.yml .github/workflows/publi","tags":[]}
+{"ts":"2026-05-03T08:04:12.601Z","role":"tool","tool":"Bash","summary":"Bash: git push -u origin fix/workflow-sha-pins-bulk 2>&1 | tail -10","tags":[]}
+{"ts":"2026-05-03T08:04:37.102Z","role":"tool","tool":"Bash","summary":"Bash: gh pr create --title \"chore(deps): refresh dead Actions SHA pins across remaining workflows\" --body \"$(cat <<'EOF'\n## Su","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

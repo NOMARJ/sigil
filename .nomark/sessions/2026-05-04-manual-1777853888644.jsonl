@@ -1,0 +1,5 @@
+{"type":"session-meta","id":"code-2026-05-04-manual-1777853888644","date":"2026-05-04","features":[],"topics":["bash","grep","2>&1","/users/reecefrazier/cascadeprojects/sigil/docs/adr"],"scope":"architecture","story_count":0,"duration_minutes":2}
+{"ts":"2026-05-04T00:18:08.645Z","role":"tool","tool":"Bash","summary":"Bash: grep -n \"ADR\\|adr\\|Decision Log\\|Architecture Decision\" /Users/reecefrazier/CascadeProjects/sigil/SOLUTION.md 2>&1 | hea","tags":[]}
+{"ts":"2026-05-04T00:18:19.687Z","role":"tool","tool":"Bash","summary":"Bash: mkdir -p /Users/reecefrazier/CascadeProjects/sigil/docs/adr && ls /Users/reecefrazier/CascadeProjects/sigil/docs/adr","tags":[]}
+{"ts":"2026-05-04T00:19:14.447Z","role":"tool","tool":"Bash","summary":"Bash: grep -n \"STORY-107\\|US-107\\|free.trial\\|free trial\" /Users/reecefrazier/CascadeProjects/sigil/progress.md 2>&1 | head -1","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}
