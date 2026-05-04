@@ -302,12 +302,13 @@
 - **Scope:** trivial
 
 ### US-005: Test-mode end-to-end round-trip (closes STORY-105)
-- **Status:** BLOCKED on US-002, US-003
+- **Status:** PARTIAL (autopilot 2026-05-04 via agent-browser 0.26.0, owner-authorized) — Sections 1–3 PASS + Section 4 PASS-for-no-stub-regression / STOPPED-for-completion. Sections 5–12 BLOCKED on a structural finding: production sigil-api hardcodes `sk_live_*` (`api/.env:41`) and has no test-mode toggle on the billing path, so `/v1/billing/subscribe` returns a `cs_live_*` Checkout Session, not `cs_test_*`. Test card 4242 is rejected against live mode. Side-finding: dashboard `/api/auth/me` reports `plan: pro` for a free user (frontend defect — backend tier authoritative). Evidence: `evidence/F-003/US-105-testmode-roundtrip.md` + 6 screenshots in `US-105-roundtrip-trace/`. Cleanup: Auth0 user `auth0|69f843dba30893f65d3c543a` (`reece+sigil-f003-1777875215@nomark.au`) added to NOM-891 list.
+- **Decision needed:** Path A (staging environment), B (local API run with test keys), C (re-scope to US-008 live-mode), or D (accept Section 4 as sufficient, cancel sections 5–12).
 - **Linear:** [NOM-886](https://linear.app/nomark/issue/NOM-886)
 - **Goal:** 12-section evidence file proving Free → Pro → cancel works in test mode.
 - **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` has all 12 sections per existing STORY-105 spec; webhook events reach MSSQL within 30s; portal cancel flips tier back to free.
 - **Files:** `evidence/F-003/US-105-testmode-roundtrip.md`
-- **Dependencies:** US-002, US-003
+- **Dependencies:** US-002 ✓, US-003 (PARTIAL — operator-gated)
 - **Scope:** complex (manual + browser-driven)
 - **Notes:** Owner-supervised — uses Stripe TEST card `4242 4242 4242 4242`.
 
@@ -714,6 +715,10 @@
 - 1: scanner, false-positives, patterns [confidence: 0.9]
 - 2: python, imports, packaging [confidence: 0.8]
 - 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-04T05:18:45.892Z
+**Outcome:** BLOCKED
+**Stories:** 17/29 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.8]
 - 5: npm, sigil, scope [confidence: 0.3]
 - 6: agents, verification, brief-compliance [confidence: 0.3]
@@ -725,6 +730,7 @@
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
 
 
 
