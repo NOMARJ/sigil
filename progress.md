@@ -261,17 +261,19 @@
 > Atomic stories that close out the open F-003 surface. Owner-gated items flagged inline.
 
 ### US-001: Decide claude_service shape (ADR-0003)
-- **Status:** TODO
+- **Status:** AWAITING-OWNER (autopilot 2026-05-04, branch `feature/f-003-closeout`) — ADR drafted with `status: proposed`; recommends Branch A (thin shim wrapper over `LLMService._call_llm_api`); SOLUTION.md ADR log row added (marked `pending`). Owner edits frontmatter to `status: accepted` to flip story to DONE and unblock US-002.
+- **Linear:** [NOM-883](https://linear.app/nomark/issue/NOM-883)
 - **Goal:** Documented decision on shim vs refactor vs drop-bulk, owner-approved.
 - **Done when:** `docs/adr/ADR-0003-claude-service-strategy.md` exists with `status: accepted`; SOLUTION.md ADR log row added.
-- **Files:** `docs/adr/ADR-0003-claude-service-strategy.md`, `SOLUTION.md`
+- **Files:** `docs/adr/ADR-0003-claude-service-strategy.md` ✓ (proposed), `SOLUTION.md` ✓
 - **Dependencies:** none
-- **TDD anchor:** `test -f docs/adr/ADR-0003-claude-service-strategy.md && grep -q '^status: accepted' docs/adr/ADR-0003-claude-service-strategy.md`
+- **TDD anchor:** `test -f docs/adr/ADR-0003-claude-service-strategy.md && grep -q '^status: accepted' docs/adr/ADR-0003-claude-service-strategy.md` — currently grep matches `status: proposed`, not `status: accepted`; flips when owner approves.
 - **Scope:** trivial (writeup) — gate is owner approval
-- **Notes:** Branches per `evidence/F-003/F1.7-BLOCKED.md`: (a) thin shim, (b) bulk_analyzer refactor, (c) drop bulk routes.
+- **Notes:** Branches per `evidence/F-003/F1.7-BLOCKED.md`: (a) thin shim — RECOMMENDED, (b) bulk_analyzer refactor, (c) drop bulk routes. Implementation sketch + test surface included in the ADR for US-002 reviewer.
 
 ### US-002: Implement claude_service per ADR-0003 + register interactive.router
 - **Status:** BLOCKED on US-001
+- **Linear:** [NOM-892](https://linear.app/nomark/issue/NOM-892)
 - **Goal:** 33 Pro-gated interactive routes load and respond 401/422 (not 404) in production.
 - **Done when:** `python3 -c 'from api.routers import interactive'` exits 0; both `@pytest.mark.skip` decorators removed in `api/tests/test_interactive_router_registered.py`; `pytest api/tests/test_interactive_router_registered.py` shows 2 PASSED; `curl -X POST .../v1/interactive/investigate` returns 401 or 422.
 - **Files:** `api/services/claude_service.py` (new — or modified per ADR), `api/main.py`, `api/tests/test_interactive_router_registered.py`
@@ -281,15 +283,18 @@
 - **Notes:** Highest-leverage remaining item — unblocks every Pro feature mentioned on the pricing page.
 
 ### US-003: Test-mode Stripe webhook subscription audit + fix
-- **Status:** TODO
+- **Status:** PARTIAL (autopilot 2026-05-04) — evidence file exists with operator runbook (Options A/B/C); verbatim `enabled_events` capture + fix application require Stripe credentials for `acct_1RkD8NFhPhxEz27f` that autopilot does not hold (local Stripe CLI is configured for a different account; Stripe MCP does not surface webhook endpoint operations; reading test-mode secret from Container App env was declined per CHARTER II.5).
+- **Linear:** [NOM-884](https://linear.app/nomark/issue/NOM-884)
 - **Goal:** test-mode Stripe webhook endpoint subscribes to all 6 required events.
 - **Done when:** `evidence/F-003/US-105a-test-mode-webhook-audit.md` with verbatim `enabled_events`; if missing events, fix applied + re-verify shows 6/6.
-- **Files:** `evidence/F-003/US-105a-test-mode-webhook-audit.md`
+- **Files:** `evidence/F-003/US-105a-test-mode-webhook-audit.md` ✓ (runbook only — verbatim list pending)
 - **Dependencies:** none
 - **Scope:** moderate
+- **Operator action:** Run Option A (`stripe webhook_endpoints list --project-name sigil` after `stripe login --project-name sigil`), Option B (Dashboard → toggle Test mode → Developers → Webhooks), or Option C (curl with test-mode `sk_test_…` against `https://api.stripe.com/v1/webhook_endpoints`). Append the result block at the bottom of the evidence file using the template provided.
 
 ### US-004: Stripe Dashboard test-send positive control (closes STORY-102)
 - **Status:** TODO (operator-only)
+- **Linear:** [NOM-885](https://linear.app/nomark/issue/NOM-885)
 - **Goal:** prove signing-secret alignment with a real Dashboard test-send.
 - **Done when:** `evidence/F-003/US-102-webhook-signature-roundtrip.md` gains a `## Positive Control` section with event ID + container log timestamp + 200.
 - **Files:** `evidence/F-003/US-102-webhook-signature-roundtrip.md`
@@ -298,6 +303,7 @@
 
 ### US-005: Test-mode end-to-end round-trip (closes STORY-105)
 - **Status:** BLOCKED on US-002, US-003
+- **Linear:** [NOM-886](https://linear.app/nomark/issue/NOM-886)
 - **Goal:** 12-section evidence file proving Free → Pro → cancel works in test mode.
 - **Done when:** `evidence/F-003/US-105-testmode-roundtrip.md` has all 12 sections per existing STORY-105 spec; webhook events reach MSSQL within 30s; portal cancel flips tier back to free.
 - **Files:** `evidence/F-003/US-105-testmode-roundtrip.md`
@@ -307,6 +313,7 @@
 
 ### US-006: Trialing-state verification (closes STORY-107 Branch C)
 - **Status:** BLOCKED on US-005
+- **Linear:** [NOM-887](https://linear.app/nomark/issue/NOM-887)
 - **Goal:** Capture `subscription.status='trialing'` in MSSQL during US-005; flip ADR-0001 outcome to `success`.
 - **Done when:** `evidence/F-003/US-107-trialing-state-verification.md` has the verbatim row + webhook payload; `docs/adr/ADR-0001-stripe-free-trial.md` frontmatter shows `outcome: success`.
 - **Files:** `evidence/F-003/US-107-trialing-state-verification.md`, `docs/adr/ADR-0001-stripe-free-trial.md`
@@ -315,6 +322,7 @@
 
 ### US-007: Delete dead create-checkout route (closes STORY-106)
 - **Status:** BLOCKED on US-005
+- **Linear:** [NOM-888](https://linear.app/nomark/issue/NOM-888)
 - **Done when:** file deleted, `grep` returns zero matches, dashboard build exits 0, evidence file captures pre/post.
 - **Files:** `dashboard/src/app/api/billing/create-checkout/route.ts` (delete), `evidence/F-003/US-106-dead-route-removed.md`
 - **Dependencies:** US-005
@@ -322,6 +330,7 @@
 
 ### US-008: Live-mode round-trip with $29 charge + refund (closes STORY-109)
 - **Status:** BLOCKED on US-005 + owner-only
+- **Linear:** [NOM-889](https://linear.app/nomark/issue/NOM-889)
 - **Goal:** prove live-mode operation end-to-end with one real charge, refunded within 24h.
 - **Done when:** `evidence/F-003/US-109-livemode-roundtrip.md` has the 12 sections from US-005 PLUS section 13 (paid invoice $29), 14 (refund event), 15 (MSSQL T3 free post-refund).
 - **Files:** `evidence/F-003/US-109-livemode-roundtrip.md`
@@ -331,6 +340,7 @@
 
 ### US-009: Terraform-import 5 stale monitor_metric_alert resources
 - **Status:** TODO (operator-only — sigil-infra terraform CLI access required)
+- **Linear:** [NOM-890](https://linear.app/nomark/issue/NOM-890) (sigil-infra project)
 - **Goal:** stop CI Apply step from erroring on the same 5 already-exist resources every run.
 - **Done when:** `terraform import` succeeds for `api_response_time`, `api_replicas_down`, `api_high_cpu`, `dashboard_replicas_down`, `redis_down`; next CI Apply exits 0; evidence file captures import commands + plan diff.
 - **Files:** `evidence/F-003/US-009-monitor-alert-imports.md`
@@ -339,6 +349,7 @@
 
 ### US-010: Auth0 test-user cleanup
 - **Status:** BLOCKED on US-005 (need users intact for round-trip)
+- **Linear:** [NOM-891](https://linear.app/nomark/issue/NOM-891)
 - **Done when:** Auth0 dashboard search returns 0 test users; corresponding MSSQL rows deleted or tagged.
 - **Files:** `evidence/F-003/US-010-auth0-cleanup.md`
 - **Dependencies:** US-005
@@ -659,6 +670,10 @@
 - 1: scanner, false-positives, patterns [confidence: 0.9]
 - 2: python, imports, packaging [confidence: 0.8]
 - 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-04T04:30:47.435Z
+**Outcome:** BLOCKED
+**Stories:** 15/30 (8 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.8]
 - 5: npm, sigil, scope [confidence: 0.3]
 - 6: agents, verification, brief-compliance [confidence: 0.3]
@@ -670,6 +685,7 @@
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
 
 
 
