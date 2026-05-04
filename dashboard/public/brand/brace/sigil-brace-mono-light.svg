@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <path d="M 168 80 L 112 80 L 112 432 L 168 432" stroke="#FAFAFA" stroke-width="22" stroke-linecap="square" stroke-linejoin="miter"></path>
+  <path d="M 344 80 L 400 80 L 400 432 L 344 432" stroke="#FAFAFA" stroke-width="22" stroke-linecap="square" stroke-linejoin="miter"></path>
+  <g stroke="#FAFAFA" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="256" y1="148" x2="256" y2="364"></line>
+    <line x1="222" y1="148" x2="290" y2="148"></line>
+    <line x1="222" y1="364" x2="290" y2="364"></line>
+    <line x1="256" y1="218" x2="200" y2="184"></line>
+    <line x1="256" y1="218" x2="312" y2="184"></line>
+    <line x1="256" y1="294" x2="200" y2="328"></line>
+    <line x1="256" y1="294" x2="312" y2="328"></line>
+  </g>
+</svg>

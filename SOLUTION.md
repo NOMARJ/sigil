@@ -155,6 +155,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans repos, p
 | EP-001 | Scanner v2 — false positive reduction | DONE | Q1 2026 | F-001 | INS-001, PR #84 |
 | EP-002 | Forge stats + registry search optimization | DONE | Q1 2026 | F-002 | Background caching, SQL filtering |
 | EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
+| EP-004 | Brand & Identity System | ACTIVE | Q2 2026 | F-006 | `dashboard/public/brand/Sigil Brand Brief.html` v1.0 |
 
 ---
 
@@ -254,3 +255,26 @@ Coordinated public launch: threat report from existing 17,937-tool corpus, in-CL
 - [ ] HN/Reddit/MCP-community posts published
 - [ ] 24-hour post-launch soak: error rates, webhook delivery, signup→checkout funnel reviewed; visible breakages fixed
 - [ ] First paid customer (other than internal) recorded in MSSQL with active Pro tier
+
+---
+
+### F-006 · Brand v1.0 Rollout
+
+**Epic:** EP-004
+**Status:** ACTIVE
+**Started:** 2026-05-04
+**Shipped:** —
+
+**What it delivers:**
+Aligns the dashboard and the `sigil` CLI surfaces with the canonical Brand Brief v1.0 (`dashboard/public/brand/Sigil Brand Brief.html`). Replaces the ad-hoc emerald-on-blue dark theme with the brief's pure-black surface palette and exact brand greens. Loads JetBrains Mono alongside Inter. Replaces the hardcoded `S` letter in the sidebar with the Brace SVG. Points the favicon at the brand SVG. Adds a `SealVerdict` component using the three Seal SVG variants for scan-level attestation. Preserves the existing 4-tier per-finding severity taxonomy (CVSS-like) — that is a different domain from the brief's 3-state Seal verdict and stays.
+
+**Acceptance criteria (feature level):**
+- [ ] `globals.css` surface tokens match brief §04 exactly (`#0A0A0A` → `#262626`); brand greens match (`#196C2E/#238636/#3FB950/#56D364`); verdict palette matches (`#22C55E/#EAB308/#EF4444`)
+- [ ] `tailwind.config.ts` exposes `brand`, `surface`, and `verdict` palettes whose values match the brief — verifiable via grep
+- [ ] `<head>` loads both Inter and JetBrains Mono Google Font families
+- [ ] Favicon resolves to `/brand/favicon/favicon.svg` (not `/favicon.ico`)
+- [ ] Sidebar header renders the Brace SVG asset, not a CSS letter — verifiable by inspecting `Sidebar.tsx` for `<img src="/brand/brace/...">`
+- [ ] `SealVerdict.tsx` exists and renders the matching Seal SVG + text label for `clean | quarantine | risk`; pairs colour with text per brief rule
+- [ ] `SealVerdict` is mounted on the scan-detail page header so the Seal lands somewhere visible
+- [ ] Brand asset directory `dashboard/public/brand/` is tracked in git
+- [ ] No regression in existing `VerdictBadge` (4-tier per-finding severity) — colours shift to brief verdict palette where they map (clean/danger), but taxonomy unchanged

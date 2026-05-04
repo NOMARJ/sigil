@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sigil — Brand Brief</title>
+<link rel="icon" href="brand/favicon/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0A0A0A;
+    --surface: #161616;
+    --elevated: #1C1C1C;
+    --border: #262626;
+    --muted: #404040;
+    --gray: #787878;
+    --light: #A3A3A3;
+    --offwhite: #E5E5E5;
+    --white: #FAFAFA;
+    --green: #3FB950;
+    --green-mid: #238636;
+    --green-deep: #196C2E;
+    --green-soft: #56D364;
+    --clean: #22C55E;
+    --warn: #EAB308;
+    --danger: #EF4444;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--black); color: var(--offwhite); font-family: var(--sans); }
+  body { font-size: 15px; line-height: 1.6; }
+  a { color: var(--green-soft); text-decoration: none; border-bottom: 1px solid rgba(86,211,100,0.3); }
+  a:hover { border-bottom-color: var(--green-soft); }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 80px 48px 120px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 48px; margin-bottom: 64px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 1.4px; color: var(--gray); text-transform: uppercase; margin-bottom: 16px; }
+  h1 { font-size: 56px; line-height: 1.05; letter-spacing: -1.5px; font-weight: 700; color: var(--white); margin: 0 0 20px; }
+  h2 { font-size: 28px; letter-spacing: -0.4px; font-weight: 700; color: var(--white); margin: 80px 0 8px; }
+  h2 + .lede { color: var(--light); font-size: 16px; max-width: 720px; margin-bottom: 32px; }
+  h3 { font-family: var(--mono); font-size: 11px; letter-spacing: 1.4px; color: var(--gray); text-transform: uppercase; font-weight: 700; margin: 32px 0 12px; }
+  p { max-width: 760px; color: var(--offwhite); }
+  p.muted { color: var(--light); }
+  .lede-hero { font-size: 19px; line-height: 1.5; color: var(--light); max-width: 720px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 80px 0 0; }
+
+  /* TOC */
+  .toc { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 32px; font-family: var(--mono); font-size: 12px; }
+  .toc a { color: var(--light); border-bottom: none; }
+  .toc a:hover { color: var(--white); }
+  .toc span { color: var(--muted); }
+
+  /* Hero marks */
+  .hero-marks { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+  .hero-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 32px; }
+  .hero-card .label { font-family: var(--mono); font-size: 11px; letter-spacing: 1.4px; color: var(--gray); text-transform: uppercase; margin-bottom: 16px; }
+  .hero-card .row { display: flex; align-items: center; gap: 24px; }
+  .hero-card img { width: 96px; height: 96px; }
+  .hero-card .name { font-family: var(--mono); font-weight: 700; font-size: 32px; color: var(--white); letter-spacing: -0.5px; }
+  .hero-card .role { font-family: var(--mono); font-size: 12px; color: var(--gray); letter-spacing: 1px; margin-top: 4px; }
+  .hero-card p { font-size: 13px; color: var(--light); margin: 16px 0 0; }
+
+  /* Cards / grid */
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+
+  .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .swatch { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .swatch .chip { height: 80px; }
+  .swatch .meta { padding: 12px 14px; font-family: var(--mono); font-size: 11px; }
+  .swatch .name { color: var(--white); }
+  .swatch .hex { color: var(--gray); margin-top: 2px; }
+
+  .specimen { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
+  .spec-row { display: grid; grid-template-columns: 120px 1fr; gap: 24px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .spec-row:last-child { border-bottom: none; }
+  .spec-row .label { font-family: var(--mono); font-size: 11px; letter-spacing: 1.2px; color: var(--gray); text-transform: uppercase; }
+
+  .display-mono { font-family: var(--mono); font-weight: 700; color: var(--white); letter-spacing: -1px; }
+  .body-sans { font-family: var(--sans); color: var(--offwhite); }
+
+  /* Mark cells */
+  .cell { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .cell.bg-light { background: var(--white); }
+  .cell img { width: 96px; height: 96px; }
+  .cell .label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; color: var(--gray); text-transform: uppercase; }
+
+  /* Status family */
+  .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .status-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; align-items: center; gap: 18px; }
+  .status-cell img { width: 64px; height: 64px; flex-shrink: 0; }
+  .status-cell .verdict { font-family: var(--mono); font-weight: 700; font-size: 13px; letter-spacing: 1.2px; }
+  .status-cell .desc { font-size: 12px; color: var(--light); margin-top: 4px; }
+
+  /* Scale row */
+  .scale-row { display: flex; align-items: flex-end; gap: 28px; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
+  .scale-row .item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .scale-row .item img { display: block; }
+  .scale-row .item .px { font-family: var(--mono); font-size: 10px; color: var(--gray); }
+
+  /* Lockups */
+  .lockup-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; display: flex; align-items: center; justify-content: center; min-height: 160px; }
+  .lockup-card.light { background: var(--white); }
+  .lockup-card img { max-width: 100%; max-height: 120px; }
+
+  /* Clear space */
+  .clearspace { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 48px; display: flex; justify-content: center; }
+  .clearspace .frame { position: relative; padding: 48px; border: 1px dashed var(--muted); border-radius: 8px; }
+  .clearspace .frame::before, .clearspace .frame::after { content: 'x'; font-family: var(--mono); font-size: 11px; color: var(--gray); position: absolute; }
+  .clearspace .frame::before { top: 18px; right: 18px; }
+  .clearspace .frame::after { bottom: 18px; left: 18px; }
+
+  /* Do / Don't */
+  .dodont { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .dodont .item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .dodont .item.do { border-color: rgba(34,197,94,0.4); }
+  .dodont .item.dont { border-color: rgba(239,68,68,0.4); }
+  .dodont .heading { font-family: var(--mono); font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 14px; }
+  .dodont .do .heading { color: var(--clean); }
+  .dodont .dont .heading { color: var(--danger); }
+  .dodont ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--offwhite); line-height: 1.7; }
+
+  /* Code */
+  pre { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; color: var(--offwhite); }
+  pre .c { color: var(--gray); }
+  pre .k { color: var(--green-soft); }
+  pre .s { color: #d4a373; }
+  code:not(pre code) { font-family: var(--mono); font-size: 0.92em; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--green-soft); }
+
+  /* File table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  th { font-family: var(--mono); font-size: 11px; letter-spacing: 1.2px; color: var(--gray); text-transform: uppercase; font-weight: 700; background: var(--surface); }
+  td { color: var(--offwhite); }
+  td code { color: var(--green-soft); background: transparent; border: none; padding: 0; font-size: 12px; }
+  td.muted { color: var(--light); }
+
+  /* Demo blocks */
+  .demo-cli { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; font-family: var(--mono); font-size: 13px; }
+  .demo-cli .row { display: flex; align-items: center; gap: 10px; }
+  .demo-cli img { width: 22px; height: 22px; }
+  .demo-cli .prompt { color: var(--gray); }
+  .demo-cli .arrow { color: var(--muted); }
+  .demo-cli .clean { color: var(--clean); font-weight: 700; letter-spacing: 0.6px; }
+  .demo-cli .meta { color: var(--gray); padding-left: 32px; margin-top: 4px; }
+
+  .demo-pkg { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; display: flex; align-items: center; gap: 16px; }
+  .demo-pkg img { width: 56px; height: 56px; flex-shrink: 0; }
+  .demo-pkg .verified { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; color: var(--clean); text-transform: uppercase; }
+  .demo-pkg .name { font-size: 14px; font-weight: 600; color: var(--white); margin-top: 2px; }
+  .demo-pkg .meta { font-size: 12px; color: var(--light); margin-top: 2px; }
+
+  .demo-badge { display: inline-flex; align-items: stretch; font-family: var(--mono); font-size: 12px; }
+  .demo-badge .left { background: var(--border); color: var(--offwhite); padding: 6px 10px 6px 8px; border-radius: 6px 0 0 6px; display: flex; align-items: center; gap: 6px; }
+  .demo-badge .left img { width: 14px; height: 14px; }
+  .demo-badge .right { background: var(--clean); color: var(--black); font-weight: 700; padding: 6px 10px; border-radius: 0 6px 6px 0; }
+
+  .principle { display: grid; grid-template-columns: 60px 1fr; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--border); align-items: baseline; }
+  .principle:last-child { border-bottom: none; }
+  .principle .num { font-family: var(--mono); font-size: 11px; color: var(--gray); letter-spacing: 1.2px; }
+  .principle h4 { font-size: 18px; color: var(--white); margin: 0 0 6px; font-weight: 600; }
+  .principle p { font-size: 14px; color: var(--light); margin: 0; }
+
+  .footer { margin-top: 100px; padding-top: 32px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--gray); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Sigil · Brand brief · v1.0</div>
+    <h1>Sigil identity system.</h1>
+    <p class="lede-hero">Two marks, one family. The <strong style="color:var(--white)">Brace</strong> is the primary identity — the brand you see at every product surface. The <strong style="color:var(--white)">Seal</strong> is the verification artefact — a sister mark that signs scanned packages.</p>
+    <nav class="toc">
+      <a href="#principles">01 Principles</a><span>·</span>
+      <a href="#marks">02 Marks</a><span>·</span>
+      <a href="#wordmark">03 Wordmark & lockups</a><span>·</span>
+      <a href="#color">04 Colour</a><span>·</span>
+      <a href="#type">05 Type</a><span>·</span>
+      <a href="#status">06 Verdict family</a><span>·</span>
+      <a href="#applications">07 Applications</a><span>·</span>
+      <a href="#dodont">08 Do / Don't</a><span>·</span>
+      <a href="#files">09 Files & usage</a>
+    </nav>
+  </header>
+
+  <!-- 01 PRINCIPLES -->
+  <section id="principles">
+    <h2>01 · Principles</h2>
+    <p class="lede">What the system has to do, and what it must never do.</p>
+
+    <div class="card">
+      <div class="principle">
+        <div class="num">001</div>
+        <div>
+          <h4>Read as quarantine, not decoration.</h4>
+          <p>The Brace is a containment vessel — brackets sealing an unknown. Sigil's job is to hold something potentially hostile in place while we look at it. The mark must communicate that pause.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="num">002</div>
+        <div>
+          <h4>Built for terminals, not just websites.</h4>
+          <p>The mark must hold its meaning at 16px in a CLI line, in a README badge, and on a browser favicon. If it doesn't survive the smallest surface, it doesn't ship.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="num">003</div>
+        <div>
+          <h4>The bind-rune is the soul.</h4>
+          <p>The vertical stave with four branches is a protective seal — historically, a mark scratched onto a thing that needed warding. It's the one element that ties every artefact in the system together.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="num">004</div>
+        <div>
+          <h4>Verdicts have shape, not just colour.</h4>
+          <p>Clean, Quarantine, and High-risk states share the Seal silhouette but shift colour. Colour-blind users still get a recognisable verification artefact; sighted users get an instant verdict.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 MARKS -->
+  <section id="marks">
+    <h2>02 · Marks</h2>
+    <p class="lede">Two distinct artefacts with shared DNA. Use the right one for the job — they are not interchangeable.</p>
+
+    <div class="hero-marks">
+      <div class="hero-card">
+        <div class="label">Primary mark · Brace</div>
+        <div class="row">
+          <img src="brand/brace/sigil-brace.svg" alt="Sigil Brace mark" />
+          <div>
+            <div class="name">SIGIL</div>
+            <div class="role">PRIMARY IDENTITY</div>
+          </div>
+        </div>
+        <p>Used everywhere the brand appears: site, product chrome, CLI, docs, social, favicon. Reads as a sealed input — a quarantined unknown made safe.</p>
+      </div>
+      <div class="hero-card">
+        <div class="label">Sister mark · Seal</div>
+        <div class="row">
+          <img src="brand/seal/sigil-seal.svg" alt="Sigil Seal mark" />
+          <div>
+            <div class="name" style="font-size:24px">VERIFIED</div>
+            <div class="role">ATTESTATION ARTEFACT</div>
+          </div>
+        </div>
+        <p>Used as a verification artefact: package pages, marketplace listings, README badges, attestation receipts. Eight ring dots = the eight scan phases.</p>
+      </div>
+    </div>
+
+    <h3>Mono &amp; reverse</h3>
+    <div class="grid grid-4">
+      <div class="cell"><img src="brand/brace/sigil-brace.svg" alt="" /><div class="label">Brace · primary</div></div>
+      <div class="cell bg-light"><img src="brand/brace/sigil-brace-mono-dark.svg" alt="" /><div class="label">Brace · mono dark</div></div>
+      <div class="cell"><img src="brand/brace/sigil-brace-mono-light.svg" alt="" /><div class="label">Brace · mono light</div></div>
+      <div class="cell"><img src="brand/seal/sigil-seal.svg" alt="" /><div class="label">Seal · primary</div></div>
+      <div class="cell bg-light"><img src="brand/seal/sigil-seal-mono-dark.svg" alt="" /><div class="label">Seal · mono dark</div></div>
+      <div class="cell"><img src="brand/seal/sigil-seal-mono-light.svg" alt="" /><div class="label">Seal · mono light</div></div>
+    </div>
+
+    <h3>Scale behaviour</h3>
+    <div class="scale-row">
+      <div class="item"><img src="brand/brace/sigil-brace.svg" width="96" height="96" /><div class="px">Brace · 96</div></div>
+      <div class="item"><img src="brand/brace/sigil-brace.svg" width="48" height="48" /><div class="px">48</div></div>
+      <div class="item"><img src="brand/brace/sigil-brace.svg" width="32" height="32" /><div class="px">32</div></div>
+      <div class="item"><img src="brand/brace/sigil-brace.svg" width="24" height="24" /><div class="px">24</div></div>
+      <div class="item"><img src="brand/brace/sigil-brace.svg" width="16" height="16" /><div class="px">16 · min</div></div>
+      <div style="width:1px;align-self:stretch;background:var(--border);"></div>
+      <div class="item"><img src="brand/seal/sigil-seal.svg" width="96" height="96" /><div class="px">Seal · 96</div></div>
+      <div class="item"><img src="brand/seal/sigil-seal.svg" width="56" height="56" /><div class="px">56</div></div>
+      <div class="item"><img src="brand/seal/sigil-seal.svg" width="40" height="40" /><div class="px">40</div></div>
+      <div class="item"><img src="brand/seal/sigil-seal-small.svg" width="24" height="24" /><div class="px">24 · small variant</div></div>
+      <div class="item"><img src="brand/seal/sigil-seal-small.svg" width="16" height="16" /><div class="px">16 · small variant</div></div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:13px">Below 32px the Seal switches to <code>sigil-seal-small.svg</code> — dots and inner ring removed for legibility.</p>
+
+    <h3>Clear space</h3>
+    <div class="clearspace">
+      <div class="frame"><img src="brand/brace/sigil-brace.svg" width="120" height="120" /></div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:13px">Reserve clear space equal to the inner bracket gap (≈ x) on all sides. Never let other elements cross the dashed boundary.</p>
+  </section>
+
+  <!-- 03 WORDMARK -->
+  <section id="wordmark">
+    <h2>03 · Wordmark &amp; lockups</h2>
+    <p class="lede">JetBrains Mono Bold, all caps, locked tracking. The wordmark is a typographic asset, not a freeform setting — use the lockup files; do not retype.</p>
+
+    <div class="grid grid-2">
+      <div class="lockup-card"><img src="brand/lockups/sigil-lockup-horizontal.svg" alt="" /></div>
+      <div class="lockup-card"><img src="brand/lockups/sigil-lockup-stacked.svg" alt="" /></div>
+      <div class="lockup-card light"><img src="brand/lockups/sigil-lockup-horizontal-light.svg" alt="" /></div>
+      <div class="lockup-card light"><img src="brand/lockups/sigil-lockup-stacked-light.svg" alt="" /></div>
+    </div>
+  </section>
+
+  <!-- 04 COLOR -->
+  <section id="color">
+    <h2>04 · Colour</h2>
+    <p class="lede">A black-mode-first system. Brand greens are the accent — used for the mark, success states, and emphasis. Verdict colours are reserved for the Seal status family and matching UI signals.</p>
+
+    <h3>Surface &amp; ink</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="chip" style="background:#0A0A0A;border-bottom:1px solid var(--border)"></div><div class="meta"><div class="name">Black</div><div class="hex">#0A0A0A</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#161616"></div><div class="meta"><div class="name">Surface</div><div class="hex">#161616</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#1C1C1C"></div><div class="meta"><div class="name">Elevated</div><div class="hex">#1C1C1C</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#262626"></div><div class="meta"><div class="name">Border</div><div class="hex">#262626</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#787878"></div><div class="meta"><div class="name">Gray</div><div class="hex">#787878</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#A3A3A3"></div><div class="meta"><div class="name">Light</div><div class="hex">#A3A3A3</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#E5E5E5"></div><div class="meta"><div class="name">Offwhite</div><div class="hex">#E5E5E5</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#FAFAFA"></div><div class="meta"><div class="name">White</div><div class="hex">#FAFAFA</div></div></div>
+    </div>
+
+    <h3>Brand greens</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="chip" style="background:#196C2E"></div><div class="meta"><div class="name">Green Deep</div><div class="hex">#196C2E</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#238636"></div><div class="meta"><div class="name">Green Mid</div><div class="hex">#238636</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#3FB950"></div><div class="meta"><div class="name">Green</div><div class="hex">#3FB950</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#56D364"></div><div class="meta"><div class="name">Green Soft</div><div class="hex">#56D364</div></div></div>
+    </div>
+
+    <h3>Verdict</h3>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="chip" style="background:#22C55E"></div><div class="meta"><div class="name">Clean</div><div class="hex">#22C55E</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#EAB308"></div><div class="meta"><div class="name">Quarantine</div><div class="hex">#EAB308</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#EF4444"></div><div class="meta"><div class="name">High risk</div><div class="hex">#EF4444</div></div></div>
+    </div>
+  </section>
+
+  <!-- 05 TYPE -->
+  <section id="type">
+    <h2>05 · Type</h2>
+    <p class="lede">Two families. JetBrains Mono carries the brand voice; Inter handles long-form copy.</p>
+    <div class="specimen">
+      <div class="spec-row">
+        <div class="label">Display / Mono</div>
+        <div>
+          <div class="display-mono" style="font-size:48px">SIGIL</div>
+          <div class="display-mono" style="font-size:20px;color:var(--light);margin-top:8px;letter-spacing:0">JetBrains Mono · 700 · −1px tracking</div>
+        </div>
+      </div>
+      <div class="spec-row">
+        <div class="label">Eyebrow</div>
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.4px;color:var(--gray);text-transform:uppercase">SCAN COMPLETE · 8 PHASES</div>
+          <div class="display-mono" style="font-size:13px;color:var(--light);margin-top:8px;letter-spacing:0;font-weight:400">JetBrains Mono · 400 · 11px · 1.4 letter-spacing · UPPERCASE</div>
+        </div>
+      </div>
+      <div class="spec-row">
+        <div class="label">H1</div>
+        <div>
+          <div style="font-family:var(--sans);font-size:40px;line-height:1.1;letter-spacing:-1px;font-weight:700;color:var(--white)">Sign every package, then pause.</div>
+          <div class="display-mono" style="font-size:13px;color:var(--light);margin-top:8px;letter-spacing:0;font-weight:400">Inter · 700 · 40–56px · −1px tracking · 1.05 line-height</div>
+        </div>
+      </div>
+      <div class="spec-row">
+        <div class="label">Body</div>
+        <div>
+          <div style="font-size:15px;line-height:1.6;color:var(--offwhite);max-width:520px">Sigil quarantines unknown MCP servers and packages, runs eight signed scan phases, and only then issues a verifiable seal of attestation.</div>
+          <div class="display-mono" style="font-size:13px;color:var(--light);margin-top:8px;letter-spacing:0;font-weight:400">Inter · 400 · 15px · 1.6 line-height</div>
+        </div>
+      </div>
+      <div class="spec-row">
+        <div class="label">Code</div>
+        <div>
+          <div class="display-mono" style="font-size:14px;font-weight:400;color:var(--green-soft);letter-spacing:0">$ sigil scan ./mcp-server</div>
+          <div class="display-mono" style="font-size:13px;color:var(--light);margin-top:8px;letter-spacing:0;font-weight:400">JetBrains Mono · 400 · 13–14px</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 STATUS -->
+  <section id="status">
+    <h2>06 · Verdict family</h2>
+    <p class="lede">Three Seal variants for the three terminal states of a scan. The shape stays constant; colour carries meaning. Always pair with a text label — never colour alone.</p>
+    <div class="status-grid">
+      <div class="status-cell">
+        <img src="brand/seal/sigil-seal-clean.svg" alt="" />
+        <div>
+          <div class="verdict" style="color:var(--clean)">CLEAN</div>
+          <div class="desc">All 8 phases passed. Safe to install.</div>
+        </div>
+      </div>
+      <div class="status-cell">
+        <img src="brand/seal/sigil-seal-quarantine.svg" alt="" />
+        <div>
+          <div class="verdict" style="color:var(--warn)">QUARANTINE</div>
+          <div class="desc">Suspicious behaviour. Manual review required.</div>
+        </div>
+      </div>
+      <div class="status-cell">
+        <img src="brand/seal/sigil-seal-risk.svg" alt="" />
+        <div>
+          <div class="verdict" style="color:var(--danger)">HIGH RISK</div>
+          <div class="desc">Active threat detected. Do not install.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 APPLICATIONS -->
+  <section id="applications">
+    <h2>07 · Applications</h2>
+    <p class="lede">Where each artefact actually lives.</p>
+
+    <h3>CLI · Brace as the prompt-line mark</h3>
+    <div class="demo-cli">
+      <div class="row">
+        <img src="brand/brace/sigil-brace.svg" alt="" />
+        <span class="prompt">$ sigil scan ./mcp-server</span>
+      </div>
+      <div class="meta">scanning · 8 phases</div>
+      <div class="meta"><span class="clean">✓ CLEAN</span> &nbsp; · &nbsp; 8/8 · 1.2s</div>
+    </div>
+
+    <h3>Package page · Seal as the attestation row</h3>
+    <div class="demo-pkg">
+      <img src="brand/seal/sigil-seal-clean.svg" alt="" />
+      <div>
+        <div class="verified">Sigil Verified · Clean</div>
+        <div class="name">@anthropic/mcp-fs</div>
+        <div class="meta">8/8 phases · sha256 b9f1…04c2 · 2h ago</div>
+      </div>
+    </div>
+
+    <h3>README badge · Brace as identity, verdict as colour</h3>
+    <div class="demo-badge">
+      <span class="left"><img src="brand/brace/sigil-brace.svg" alt="" />sigil</span>
+      <span class="right">clean</span>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:13px">Markdown: <code>![sigil: clean](https://sigilsec.ai/badge/clean.svg)</code></p>
+
+    <h3>Favicon · Brace at 16px</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;display:flex;align-items:center;gap:16px">
+      <div style="width:280px;height:32px;background:var(--elevated);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;display:flex;align-items:center;gap:8px;padding:0 12px">
+        <img src="brand/favicon/favicon.svg" width="16" height="16" />
+        <span style="font-size:11px;color:var(--light);">sigilsec.ai · scan results</span>
+        <span style="margin-left:auto;color:var(--muted);font-size:11px">×</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 DO / DON'T -->
+  <section id="dodont">
+    <h2>08 · Do / Don't</h2>
+    <p class="lede">Hard rules. The system breaks fast if these slip.</p>
+    <div class="dodont">
+      <div class="item do">
+        <div class="heading">✓ Do</div>
+        <ul>
+          <li>Use the supplied SVG files. Don't regenerate or trace.</li>
+          <li>Pair the Seal with a text verdict label, always.</li>
+          <li>Use Brace below 32px; switch Seal to <code>sigil-seal-small.svg</code>.</li>
+          <li>Maintain clear space equal to the inner bracket gap.</li>
+          <li>Pin the wordmark to JetBrains Mono Bold, all caps.</li>
+        </ul>
+      </div>
+      <div class="item dont">
+        <div class="heading">× Don't</div>
+        <ul>
+          <li>Don't recolour the rune separately from the bracket.</li>
+          <li>Don't apply gradients, glows, drop-shadows, or strokes.</li>
+          <li>Don't rotate, skew, or stretch either mark.</li>
+          <li>Don't replace the bind-rune with a checkmark or padlock.</li>
+          <li>Don't use the Seal as a primary identity — that's Brace's job.</li>
+          <li>Don't use Brace as a verdict — that's Seal's job.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 FILES -->
+  <section id="files">
+    <h2>09 · Files &amp; usage</h2>
+    <p class="lede">All artefacts ship as flat SVG. <code>currentColor</code> variants inherit colour from CSS — use those for icon-style embedding.</p>
+
+    <h3>File index</h3>
+    <table>
+      <thead><tr><th style="width:42%">File</th><th style="width:18%">Usage</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>brand/brace/sigil-brace.svg</code></td><td>Primary</td><td>Default mark. Brand greens.</td></tr>
+        <tr><td><code>brand/brace/sigil-brace-mono-dark.svg</code></td><td>On light</td><td>Single ink. Print, light backgrounds.</td></tr>
+        <tr><td><code>brand/brace/sigil-brace-mono-light.svg</code></td><td>On dark</td><td>Single ink. Reverse contexts.</td></tr>
+        <tr><td><code>brand/brace/sigil-brace-currentcolor.svg</code></td><td>Inline</td><td>Inherits CSS <code>color</code>.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal.svg</code></td><td>Sister</td><td>Verified attestation, neutral.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-clean.svg</code></td><td>Verdict</td><td>All 8 phases passed.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-quarantine.svg</code></td><td>Verdict</td><td>Manual review required.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-risk.svg</code></td><td>Verdict</td><td>Active threat.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-small.svg</code></td><td>≤ 24px</td><td>No dots, no inner ring.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-currentcolor.svg</code></td><td>Inline</td><td>Inherits CSS <code>color</code>.</td></tr>
+        <tr><td><code>brand/favicon/favicon.svg</code></td><td>Browser</td><td>Brace, brand greens.</td></tr>
+        <tr><td><code>brand/lockups/sigil-lockup-horizontal.svg</code></td><td>Header</td><td>Mark + wordmark, on dark.</td></tr>
+        <tr><td><code>brand/lockups/sigil-lockup-stacked.svg</code></td><td>Hero</td><td>Stacked, on dark.</td></tr>
+        <tr class="muted"><td colspan="3">Plus light/mono variants of each lockup.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>HTML &mdash; site &amp; app</h3>
+<pre><span class="c">&lt;!-- Favicon --&gt;</span>
+<span class="k">&lt;link</span> rel=<span class="s">"icon"</span> href=<span class="s">"/brand/favicon/favicon.svg"</span> <span class="k">/&gt;</span>
+
+<span class="c">&lt;!-- Header lockup --&gt;</span>
+<span class="k">&lt;img</span> src=<span class="s">"/brand/lockups/sigil-lockup-horizontal.svg"</span>
+     alt=<span class="s">"Sigil"</span> width=<span class="s">"152"</span> height=<span class="s">"40"</span> <span class="k">/&gt;</span>
+
+<span class="c">&lt;!-- Inline icon, inherits text color --&gt;</span>
+<span class="k">&lt;span</span> style=<span class="s">"color: var(--green-soft)"</span><span class="k">&gt;</span>
+  <span class="k">&lt;img</span> src=<span class="s">"/brand/brace/sigil-brace-currentcolor.svg"</span>
+       alt=<span class="s">""</span> width=<span class="s">"16"</span> height=<span class="s">"16"</span> <span class="k">/&gt;</span>
+<span class="k">&lt;/span&gt;</span></pre>
+
+    <h3>CLI &mdash; Unicode fallback</h3>
+    <p class="muted" style="font-size:14px">Where SVG isn't possible (terminal output), fall back to a typographic representation that preserves the bracket+stave reading.</p>
+<pre><span class="c"># Inline brace</span>
+<span class="k">[ᛁ]</span>  sigil scan ./mcp-server  <span class="k">✓ CLEAN</span>  8/8
+
+<span class="c"># Status glyphs (always paired with the verdict word)</span>
+<span class="k">●</span>  CLEAN
+<span class="k">◐</span>  QUARANTINE
+<span class="k">○</span>  HIGH RISK</pre>
+
+    <h3>React &mdash; component wrapper</h3>
+<pre><span class="k">import</span> Brace <span class="k">from</span> <span class="s">'./brand/brace/sigil-brace-currentcolor.svg'</span>;
+<span class="k">import</span> Seal  <span class="k">from</span> <span class="s">'./brand/seal/sigil-seal-currentcolor.svg'</span>;
+
+<span class="k">export const</span> SigilMark = ({ size = 24, color = <span class="s">'currentColor'</span> }) =&gt;
+  &lt;span style={{ color, display: <span class="s">'inline-flex'</span> }}&gt;
+    &lt;Brace width={size} height={size} /&gt;
+  &lt;/span&gt;;
+
+<span class="k">export const</span> VerdictSeal = ({ verdict, size = 24 }) =&gt; {
+  <span class="k">const</span> src = {
+    clean:      <span class="s">'/brand/seal/sigil-seal-clean.svg'</span>,
+    quarantine: <span class="s">'/brand/seal/sigil-seal-quarantine.svg'</span>,
+    risk:       <span class="s">'/brand/seal/sigil-seal-risk.svg'</span>,
+  }[verdict];
+  <span class="k">return</span> &lt;img src={src} width={size} height={size} alt={verdict} /&gt;;
+};</pre>
+
+    <h3>CSS tokens</h3>
+<pre>:root {
+  <span class="c">/* surface */</span>
+  --sigil-black:    #0A0A0A;
+  --sigil-surface:  #161616;
+  --sigil-elevated: #1C1C1C;
+  --sigil-border:   #262626;
+  --sigil-gray:     #787878;
+  --sigil-light:    #A3A3A3;
+  --sigil-offwhite: #E5E5E5;
+  --sigil-white:    #FAFAFA;
+
+  <span class="c">/* brand */</span>
+  --sigil-green:      #3FB950;
+  --sigil-green-mid:  #238636;
+  --sigil-green-deep: #196C2E;
+  --sigil-green-soft: #56D364;
+
+  <span class="c">/* verdict */</span>
+  --sigil-clean:  #22C55E;
+  --sigil-warn:   #EAB308;
+  --sigil-risk:   #EF4444;
+
+  <span class="c">/* type */</span>
+  --sigil-mono: <span class="s">'JetBrains Mono'</span>, ui-monospace, SFMono-Regular, monospace;
+  --sigil-sans: <span class="s">'Inter'</span>, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}</pre>
+  </section>
+
+  <div class="footer">
+    <span>Sigil · brand brief v1.0 · ${new Date().getFullYear()}</span>
+    <span>Maintained by Nomark · <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="aeccdccfc0caeec0c1c3cfdcc580cfdb">[email&#160;protected]</a></span>
+  </div>
+
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

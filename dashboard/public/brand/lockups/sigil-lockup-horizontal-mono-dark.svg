@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 200" fill="none">
+  <g transform="translate(20 20) scale(0.3125)">
+    <path d="M 168 80 L 112 80 L 112 432 L 168 432" stroke="#0A0A0A" stroke-width="22" stroke-linecap="square"></path>
+    <path d="M 344 80 L 400 80 L 400 432 L 344 432" stroke="#0A0A0A" stroke-width="22" stroke-linecap="square"></path>
+    <g stroke="#0A0A0A" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="256" y1="148" x2="256" y2="364"></line>
+      <line x1="222" y1="148" x2="290" y2="148"></line>
+      <line x1="222" y1="364" x2="290" y2="364"></line>
+      <line x1="256" y1="218" x2="200" y2="184"></line>
+      <line x1="256" y1="218" x2="312" y2="184"></line>
+      <line x1="256" y1="294" x2="200" y2="328"></line>
+      <line x1="256" y1="294" x2="312" y2="328"></line>
+    </g>
+  </g>
+  <text x="200" y="105" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="700" font-size="76" letter-spacing="-2" fill="#0A0A0A">SIGIL</text>
+  <text x="201" y="148" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="400" font-size="22" letter-spacing="2" fill="#787878">BY NOMARK</text>
+</svg>
