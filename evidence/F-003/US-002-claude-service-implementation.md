@@ -3,7 +3,7 @@
 **Feature:** F-003 Pro Billing + Tier Gating Verification (closeout PRD)
 **Story:** US-002
 **Branch:** `feature/f-003-closeout`
-**Status:** DONE locally (5 of 6 ACs verified); AC #6 (production curl) requires deploy.
+**Status:** DONE — all 6 ACs verified (PR #111 merged, deployed 2026-05-04, production curl returns 401).
 **Captured:** 2026-05-04 (autopilot, TDD)
 
 ---
@@ -32,7 +32,7 @@ Per ADR-0003 (`status: accepted`, owner-approved 2026-05-04), Branch A implement
 | 3 | Removed both `@pytest.mark.skip` decorators in `test_interactive_router_registered.py` | ✅ | `grep -c '@pytest.mark.skip' api/tests/test_interactive_router_registered.py` returns 0 |
 | 4 | `pytest test_interactive_router_registered.py` shows 2 PASSED, 0 SKIPPED | ✅ | See "Reproduction" — both `test_interactive_router_is_importable` and `test_interactive_router_is_mounted_in_main` PASS |
 | 5 | `api/main.py` imports `interactive.router` and registers it via `app.include_router(...)` | ✅ | `api/main.py` line 295 (import block), line 343 (`app.include_router(interactive.router)`) |
-| 6 | Production curl `POST .../v1/interactive/investigate` returns 401 or 422, NOT 404 | ⏳ | Requires deploy — local TestClient already returns non-404 (asserted in test #4 above); production verification is post-merge step |
+| 6 | Production curl `POST .../v1/interactive/investigate` returns 401 or 422, NOT 404 | ✅ | After PR #111 merge + deploy: `curl -sS -o /dev/null -w '%{http_code}' -X POST https://api.sigilsec.ai/v1/interactive/investigate -H 'Content-Type: application/json' -d '{}'` → **401** (body: `{"detail":"Bad request: not authenticated"}`). Verified 2026-05-04. |
 
 ## Reproduction
 

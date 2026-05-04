@@ -272,18 +272,18 @@
 - **Notes:** Branches per `evidence/F-003/F1.7-BLOCKED.md`: (a) thin shim — RECOMMENDED, (b) bulk_analyzer refactor, (c) drop bulk routes. Implementation sketch + test surface included in the ADR for US-002 reviewer.
 
 ### US-002: Implement claude_service per ADR-0003 + register interactive.router
-- **Status:** DONE locally (2026-05-04, autopilot, branch `feature/f-003-closeout`) — 5 of 6 ACs verified locally; AC #6 (production curl 401/422) gated on deploy. Evidence: `evidence/F-003/US-002-claude-service-implementation.md`. Closes F1.7.
+- **Status:** DONE (2026-05-04, autopilot, PR #111 squash-merged into `main` as `853b718`; deployed) — all 6 ACs verified. AC #6 confirmed against production: `curl -sS -X POST https://api.sigilsec.ai/v1/interactive/investigate -H 'Content-Type: application/json' -d '{}'` → **HTTP 401** (`{"detail":"Bad request: not authenticated"}`), not 404. F1.7 fully resolved. Evidence: `evidence/F-003/US-002-claude-service-implementation.md`.
 - **Linear:** [NOM-892](https://linear.app/nomark/issue/NOM-892)
 - **Goal:** 33 Pro-gated interactive routes load and respond 401/422 (not 404) in production.
 - **Done when:** `python3 -c 'from api.routers import interactive'` exits 0 ✓; both `@pytest.mark.skip` decorators removed ✓; `pytest api/tests/test_interactive_router_registered.py` shows 2 PASSED ✓; `curl -X POST .../v1/interactive/investigate` returns 401 or 422 (post-deploy).
 - **Files:** `api/services/llm_service.py` (rename + model param), `api/services/claude_service.py` (new), `api/main.py` (router registration), `api/tests/test_claude_service.py` (new, 4 tests), `api/tests/test_interactive_router_registered.py` (un-skipped), `api/tests/test_pro_performance.py` + `api/tests/test_phase9_llm.py` (rename pass-through).
 - **Dependencies:** US-001 ✓
-- **TDD anchor:** existing skip-marked tests in `test_interactive_router_registered.py` flip to PASS once skip is removed ✓ + 4 new claude_service tests including a concurrent-calls regression test that pins the no-global-mutation contract from ADR-0003.
+- **TDD anchor:** existing skip-marked tests in `test_interactive_router_registered.py` flip to PASS once skip is removed ✓ + 4 new claude_service tests, including a concurrent-calls regression that pins the wrapper's parameter-threading contract end-to-end (the no-global-mutation property is enforced by construction in `call_llm_api` and by ADR-0003 review, not directly by this single test — see test docstring for honest scope).
 - **Scope:** complex (feature work)
 - **Notes:** Highest-leverage remaining item — unblocks every Pro feature mentioned on the pricing page. Branch A implementation per ADR-0003: thin wrapper, model threaded as parameter (not via global mutation). Test sweep confirmed no regressions; failures in `test_scan.py`/`test_threat.py`/`test_auth_dependency_injection.py` are pre-existing event-loop fixture issues (verified by stashing my changes and reproducing the same errors on unmodified tree).
 
 ### US-003: Test-mode Stripe webhook subscription audit + fix
-- **Status:** PARTIAL (autopilot 2026-05-04) — evidence file exists with operator runbook (Options A/B/C); verbatim `enabled_events` capture + fix application require Stripe credentials for `acct_1RkD8NFhPhxEz27f` that autopilot does not hold (local Stripe CLI is configured for a different account; Stripe MCP does not surface webhook endpoint operations; reading test-mode secret from Container App env was declined per CHARTER II.5).
+- **Status:** PARTIAL — operator-gated. Re-attempted 2026-05-04 post-merge against `main`: Stripe MCP confirmed connected to the correct NOMARK account (`acct_1RkD8NFhPhxEz27f`), but its surfaced operations (`fetch_stripe_resources`, `search_stripe_resources`, `stripe_api_execute`) do not include `webhook_endpoints` resource — `GetWebhookEndpoints` returns "Operation not available". Evidence file `evidence/F-003/US-105a-test-mode-webhook-audit.md` captures the runbook (Options A/B/C); verbatim `enabled_events` capture + any fix application require operator.
 - **Linear:** [NOM-884](https://linear.app/nomark/issue/NOM-884)
 - **Goal:** test-mode Stripe webhook endpoint subscribes to all 6 required events.
 - **Done when:** `evidence/F-003/US-105a-test-mode-webhook-audit.md` with verbatim `enabled_events`; if missing events, fix applied + re-verify shows 6/6.
@@ -696,6 +696,24 @@
 **Outcome:** BLOCKED
 **Stories:** 17/29 (7 blocked)
 
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
+
+### Session 2026-05-04
+
+**Start:** 2026-05-04T05:15:40.599Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
 - 4: react, hooks, frontend [confidence: 0.8]
 - 5: npm, sigil, scope [confidence: 0.3]
 - 6: agents, verification, brief-compliance [confidence: 0.3]
