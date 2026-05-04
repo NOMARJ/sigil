@@ -140,6 +140,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans repos, p
 | 2026-03-29 | MSSQL not Supabase | Owner decision | Supabase | Reece |
 | 2026-03-17 | Separate sigil-infra repo | Protect sensitive subscription/deployment details | Monorepo with infra | Reece |
 | 2026-03 | Scanner v2 with SQL filtering | Reduce false positives from 36% to <5% | Tuning v1 rules — too fragile | Reece |
+| 2026-05-04 | 14-day Pro/Team trial via Checkout Session, gated to first-time Stripe customers (ADR-0001) | Match advertised pricing-page free-trial copy without re-creating Stripe Prices; cancel/resubscribe abuse blocked by `is_new_customer` gate | Remove trial copy (Branch A); set `recurring.trial_period_days` on the Price (Branch B, requires new Price objects) | Reece |
 
 ---
 

@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-03T21:40:50.964Z",
+  "last_rebuilt": "2026-05-03T23:48:45.275Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -1206,6 +1206,20 @@
       "message": "docs(ops): dashboard auth restored via sigil-infra PR #2 + pod restart",
       "date": "2026-05-03T22:20:23+10:00",
       "files_changed": 5
+    },
+    "commit:3217cd2": {
+      "type": "commit",
+      "hash": "3217cd2",
+      "message": "docs(F-003): STORY-100 — 4 live Stripe Price IDs confirmed via MCP, applied via sigil-infra PR #3",
+      "date": "2026-05-04T08:27:26+10:00",
+      "files_changed": 3
+    },
+    "commit:7b60315": {
+      "type": "commit",
+      "hash": "7b60315",
+      "message": "feat(billing): 14-day trial on Pro/Team Checkout for first-time customers",
+      "date": "2026-05-04T09:48:43+10:00",
+      "files_changed": 2
     }
   },
   "edges": [
@@ -1496,6 +1510,16 @@
     },
     {
       "from": "commit:062e9a1",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-003/STORY-100",
+      "to": "commit:3217cd2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:3217cd2",
       "to": "F-003",
       "rel": "contributes_to"
     }

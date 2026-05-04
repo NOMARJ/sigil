@@ -89,7 +89,8 @@
 > **Mode:** verification (no new build, prove the existing path carries water)
 
 ### STORY-100: Capture Stripe key environment audit (Container Apps env)
-- **Status:** PARTIAL (2026-05-03, autopilot — 2/4 Price IDs verified live; Container Apps env audit deferred to operator)
+- **Status:** DONE (2026-05-04, autopilot — all 4 Price IDs verified live via Stripe MCP, sigil-infra PR #3 wired them durably into TF, `az containerapp show` snapshot captured post-deploy)
+- **Closure evidence:** `evidence/F-003/US-100-stripe-price-ids-live-confirmation.md` — all 4 prices (Pro mo/yr + Team mo/yr) `active=true`, `recurring`, `usd`, `trial_period_days=null`. sigil-infra PR #3 (`737891f`) declared all 4 in TF; rev `sigil-api--0000077` populated post-apply. Branch C trial decision (STORY-107) documented in ADR-0001.
 - **Goal:** Documented evidence that all six STRIPE_* env vars are present on the running `sigil-api` Container App and the four Price IDs resolve to live-mode Stripe Products.
 - **Done when:** `evidence/F-003/US-100-stripe-env-audit.md` exists with raw `az containerapp show` env output, `livemode: true` per Price ID, secretRef names (NOT values) for secret keys, pass/fail verdict per var.
 - **Files:** `evidence/F-003/US-100-stripe-env-audit.md` (new) ✓ (partial)
@@ -176,9 +177,10 @@
 - **Notes:** If STORY-105 returned the stub, this flips to moderate (callers must be re-pointed at `/v1/billing/subscribe` first). Precursor confirms trivial-path holds. F2 sibling fix above does NOT discharge STORY-106 — that file (`create-checkout/route.ts`) is a different dead-route from the F2 set and stays gated on STORY-105.
 
 ### STORY-107: Free-trial decision and pricing-page reconciliation
-- **Status:** BLOCKED-pending-owner-decision (de-risked — see precursor)
+- **Status:** ADR DONE (2026-05-04, owner approved Branch C). Live trialing-state verification deferred to STORY-105 unblock.
+- **Owner decision (2026-05-04):** Branch C — 14-day trial set on Stripe Checkout Session (`subscription_data.trial_period_days=14`), gated to first-time customers. Implementation: `api/routers/billing.py:207` `_TRIAL_PERIOD_DAYS = 14`, commit `7b60315`, live on `sigil-api--0000078`. ADR-0001 at `docs/adr/ADR-0001-stripe-free-trial.md`. SOLUTION.md ADR log updated.
 - **Goal:** Pricing-page free-trial copy reflects an owner decision (enabled-and-working OR removed).
-- **Done when:** Branch A (REMOVE) — owner ADR row added to SOLUTION.md, pricing page free-trial copy stripped, post-cache-fix production HTML grep `free trial` returns zero. Branch B (ENABLE) — owner ADR + Stripe Price `trial_period_days` set + STORY-105 re-run with `subscription.status='trialing'` captured + trial-end transition captured. Evidence at `evidence/F-003/US-107-free-trial-resolution.md`.
+- **Done when:** Branch A (REMOVE) — owner ADR row added to SOLUTION.md, pricing page free-trial copy stripped, post-cache-fix production HTML grep `free trial` returns zero. Branch B (ENABLE on Stripe Price) — owner ADR + Stripe Price `trial_period_days` set + STORY-105 re-run with `subscription.status='trialing'` captured + trial-end transition captured. **Branch C (ENABLE on Checkout Session — chosen):** owner ADR ✓, code-level trial gate ✓, regression tests ✓, STORY-105 re-run with `subscription.status='trialing'` PENDING (blocked on F1.7 + test-mode webhook setup), trial→active transition PENDING. Evidence: `docs/adr/ADR-0001-stripe-free-trial.md` + `api/tests/test_billing_trial_period.py`.
 - **Files:** `evidence/F-003/US-107-free-trial-resolution.md` (new), `SOLUTION.md` (append ADR row), `dashboard/src/app/pricing/page.tsx` (modify if Branch A)
 - **Dependencies:** STORY-105 (Branch B), STORY-112 (Branch A)
 - **TDD anchor:** Branch A — `curl -sS https://www.sigilsec.ai/pricing | grep -i 'free trial'` returns empty. Branch B — `subscription.status='trialing'` row in MSSQL.
