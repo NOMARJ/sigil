@@ -261,7 +261,7 @@
 > Atomic stories that close out the open F-003 surface. Owner-gated items flagged inline.
 
 ### US-001: Decide claude_service shape (ADR-0003)
-- **Status:** AWAITING-OWNER (autopilot 2026-05-04, branch `feature/f-003-closeout`) — ADR drafted with `status: proposed`; recommends Branch A (thin shim wrapper over `LLMService._call_llm_api`); SOLUTION.md ADR log row added (marked `pending`). Owner edits frontmatter to `status: accepted` to flip story to DONE and unblock US-002.
+- **Status:** DONE (2026-05-04, owner approved Branch A) — ADR-0003 `status: accepted`. SOLUTION.md ADR log row marked owned. US-002 unblocked.
 - **Linear:** [NOM-883](https://linear.app/nomark/issue/NOM-883)
 - **Goal:** Documented decision on shim vs refactor vs drop-bulk, owner-approved.
 - **Done when:** `docs/adr/ADR-0003-claude-service-strategy.md` exists with `status: accepted`; SOLUTION.md ADR log row added.

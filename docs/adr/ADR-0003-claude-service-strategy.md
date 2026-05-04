@@ -1,7 +1,7 @@
 ---
 id: ADR-0003
 title: "claude_service is a thin wrapper over LLMService's HTTP primitive — not a refactor of bulk_analyzer, not a route deletion"
-status: proposed
+status: accepted
 date: 2026-05-04
 venture: sigil
 tags: [llm, claude, refactor, story-002, f-003, f1.7]
