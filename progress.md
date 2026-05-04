@@ -681,10 +681,33 @@
 - 8: github-actions, tags, ci-cd [confidence: 0.3]
 - 9: npm, release, ci-cd [confidence: 0.3]
 
+
+### Session 2026-05-04
+
+**Start:** 2026-05-04T05:01:55.907Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-04T05:03:52.164Z
+**Outcome:** BLOCKED
+**Stories:** 17/29 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
+
 
 
 
