@@ -1,0 +1,388 @@
+{
+  "version": 1,
+  "$schema": "nomark-graph-v1",
+  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
+  "last_rebuilt": "2026-05-04T14:45:09.984961",
+  "nodes": {
+    "commit:e44d5ac": {
+      "type": "commit",
+      "hash": "e44d5ac",
+      "message": "docs(F-003 closeout): ADR-0003 (Branch A proposed) + US-003 webhook runbook",
+      "date": "2026-05-04T14:39:57+10:00"
+    },
+    "commit:5a06994": {
+      "type": "commit",
+      "hash": "5a06994",
+      "message": "docs(F-003): add closeout PRD with 10 atomic stories (US-001 to US-010)",
+      "date": "2026-05-04T14:26:41+10:00"
+    },
+    "commit:6d3b173": {
+      "type": "commit",
+      "hash": "6d3b173",
+      "message": "refactor(auth): delegate password reset to Auth0 universal login (ADR-0002)",
+      "date": "2026-05-04T11:28:16+10:00"
+    },
+    "commit:a09aaec": {
+      "type": "commit",
+      "hash": "a09aaec",
+      "message": "fix(auth): wire password reset email through Resend (was silently dropping)",
+      "date": "2026-05-04T10:36:29+10:00"
+    },
+    "commit:16ee5cf": {
+      "type": "commit",
+      "hash": "16ee5cf",
+      "message": "docs(adr): ADR-0001 \u2014 14-day Pro/Team trial, code-level not Price-level",
+      "date": "2026-05-04T10:20:15+10:00"
+    },
+    "commit:7b60315": {
+      "type": "commit",
+      "hash": "7b60315",
+      "message": "feat(billing): 14-day trial on Pro/Team Checkout for first-time customers",
+      "date": "2026-05-04T09:48:43+10:00"
+    },
+    "commit:3217cd2": {
+      "type": "commit",
+      "hash": "3217cd2",
+      "message": "docs(F-003): STORY-100 \u2014 4 live Stripe Price IDs confirmed via MCP, applied via sigil-infra PR #3",
+      "date": "2026-05-04T08:27:26+10:00"
+    },
+    "commit:5f6ac0c": {
+      "type": "commit",
+      "hash": "5f6ac0c",
+      "message": "docs(ops): dashboard auth restored via sigil-infra PR #2 + pod restart",
+      "date": "2026-05-03T22:20:23+10:00"
+    },
+    "commit:0249f95": {
+      "type": "commit",
+      "hash": "0249f95",
+      "message": "docs(ops): F2 deployed to prod (rev 0017 / 9b13983); sigil-infra PR #1 open",
+      "date": "2026-05-03T21:31:59+10:00"
+    },
+    "commit:127052c": {
+      "type": "commit",
+      "hash": "127052c",
+      "message": "docs(ops): record INFRA_REPO_PAT 'Bad credentials' on dispatch step",
+      "date": "2026-05-03T21:10:24+10:00"
+    },
+    "commit:062e9a1": {
+      "type": "commit",
+      "hash": "062e9a1",
+      "message": "docs(F-003): record F1.7 BLOCKED + CI dashboard fix status in progress.md",
+      "date": "2026-05-03T21:05:47+10:00"
+    },
+    "commit:9b13983": {
+      "type": "commit",
+      "hash": "9b13983",
+      "message": "fix(ci): regen dashboard/package-lock.json + add api/exceptions.py",
+      "date": "2026-05-03T21:02:41+10:00"
+    },
+    "commit:fe0c301": {
+      "type": "commit",
+      "hash": "fe0c301",
+      "message": "docs(F-003): STORY-104 DONE; F1.5+F1.6 fix cascade verified end-to-end",
+      "date": "2026-05-03T20:46:29+10:00"
+    },
+    "commit:43f2165": {
+      "type": "commit",
+      "hash": "43f2165",
+      "message": "fix(F1.6): bracket-quote column names in T-SQL gen for reserved words",
+      "date": "2026-05-03T20:39:20+10:00"
+    },
+    "commit:69b9f13": {
+      "type": "commit",
+      "hash": "69b9f13",
+      "message": "fix(F1.5): /userinfo fallback in verify_auth0_token",
+      "date": "2026-05-03T20:30:21+10:00"
+    },
+    "commit:98bc67d": {
+      "type": "commit",
+      "hash": "98bc67d",
+      "message": "fix(F1): set SIGIL_AUTH0_{DOMAIN,AUDIENCE} on sigil-api Container App",
+      "date": "2026-05-03T20:19:49+10:00"
+    },
+    "commit:3cb3ac5": {
+      "type": "commit",
+      "hash": "3cb3ac5",
+      "message": "blog: add post 09 \u2014 The Three-Layer AI Security Stack (#110)",
+      "date": "2026-05-03T20:13:05+10:00"
+    },
+    "commit:2a72827": {
+      "type": "commit",
+      "hash": "2a72827",
+      "message": "fix(F2): route subscription management through Stripe Customer Portal",
+      "date": "2026-05-03T20:06:44+10:00"
+    },
+    "commit:11bf971": {
+      "type": "commit",
+      "hash": "11bf971",
+      "message": "test(F-003): agent-browser round-trip surfaces P0 production API Auth0 drift",
+      "date": "2026-05-03T19:58:49+10:00"
+    },
+    "commit:830b1ed": {
+      "type": "commit",
+      "hash": "830b1ed",
+      "message": "chore(ci): scope tag-triggered workflows to full semver only (#109)",
+      "date": "2026-05-03T19:50:24+10:00"
+    },
+    "commit:94c119b": {
+      "type": "commit",
+      "hash": "94c119b",
+      "message": "ops: remove one-shot republish-npm.yml after v1.1.2 recovery",
+      "date": "2026-05-03T19:44:38+10:00"
+    },
+    "commit:8bd0009": {
+      "type": "commit",
+      "hash": "8bd0009",
+      "message": "fix(billing): STORY-101 P0 \u2014 add 2 missing Stripe webhook events (4 \u2192 6)",
+      "date": "2026-05-03T19:35:25+10:00"
+    },
+    "commit:83fc75e": {
+      "type": "commit",
+      "hash": "83fc75e",
+      "message": "docs(F-003): re-add STORY-102 negative-control evidence on main",
+      "date": "2026-05-03T18:56:23+10:00"
+    },
+    "commit:9aaaf58": {
+      "type": "commit",
+      "hash": "9aaaf58",
+      "message": "docs(F-003): STORY-101 P0 webhook defect + STORY-100 partial Price audit",
+      "date": "2026-05-03T18:54:52+10:00"
+    },
+    "commit:fc59060": {
+      "type": "commit",
+      "hash": "fc59060",
+      "message": "docs(F-003): STORY-112 cache flush + STORY-108 correction",
+      "date": "2026-05-03T18:35:14+10:00"
+    },
+    "commit:85600e7": {
+      "type": "commit",
+      "hash": "85600e7",
+      "message": "docs(F-003): autopilot evidence for STORY-103/108/110",
+      "date": "2026-05-03T18:13:25+10:00"
+    },
+    "commit:6d2dd6f": {
+      "type": "commit",
+      "hash": "6d2dd6f",
+      "message": "ops: one-shot republish-npm.yml for v1.1.2 npm recovery (#107)",
+      "date": "2026-05-03T19:03:45+10:00"
+    },
+    "commit:d8de2b1": {
+      "type": "commit",
+      "hash": "d8de2b1",
+      "message": "fix(release): allow npm version step when manifest already matches tag (#106)",
+      "date": "2026-05-03T18:47:45+10:00"
+    },
+    "commit:76bacab": {
+      "type": "commit",
+      "hash": "76bacab",
+      "message": "chore(release): bump version to 1.1.2 (#105)",
+      "date": "2026-05-03T18:12:56+10:00"
+    },
+    "commit:c782001": {
+      "type": "commit",
+      "hash": "c782001",
+      "message": "chore(deps): refresh dead Actions SHA pins across remaining workflows (#104)",
+      "date": "2026-05-03T18:08:27+10:00"
+    },
+    "commit:176a69d": {
+      "type": "commit",
+      "hash": "176a69d",
+      "message": "chore(deps): bump GitHub Actions to latest commit SHAs",
+      "date": "2026-05-03T18:00:53+10:00"
+    },
+    "commit:259678f": {
+      "type": "commit",
+      "hash": "259678f",
+      "message": "style: ruff format upsert race-fix + verify evidence (#103)",
+      "date": "2026-05-01T17:35:54+10:00"
+    },
+    "commit:5675f84": {
+      "type": "commit",
+      "hash": "5675f84",
+      "message": "chore: normalize Unicode in graph.json and add 2026-04-30 session to progress",
+      "date": "2026-05-01T13:28:11+10:00"
+    },
+    "commit:6591cb8": {
+      "type": "commit",
+      "hash": "6591cb8",
+      "message": "fix(store): race-safe upsert and Scanner v2 columns on public_scans",
+      "date": "2026-05-01T13:13:20+10:00"
+    },
+    "commit:170ff5e": {
+      "type": "commit",
+      "hash": "170ff5e",
+      "message": "Sync main updates (#102)",
+      "date": "2026-05-01T09:02:00+10:00"
+    },
+    "commit:706bc35": {
+      "type": "commit",
+      "hash": "706bc35",
+      "message": "Hygiene workflow updates (#101)",
+      "date": "2026-05-01T09:00:16+10:00"
+    },
+    "commit:531db9a": {
+      "type": "commit",
+      "hash": "531db9a",
+      "message": "Merge all branches (#100)",
+      "date": "2026-05-01T08:46:51+10:00"
+    },
+    "commit:252c584": {
+      "type": "commit",
+      "hash": "252c584",
+      "message": "fix(tests): migrate deprecated /register usage to Auth0 login flow (#98)",
+      "date": "2026-05-01T08:23:41+10:00"
+    },
+    "commit:c7e4f92": {
+      "type": "commit",
+      "hash": "c7e4f92",
+      "message": "Update trust metrics (#99)",
+      "date": "2026-05-01T08:22:48+10:00"
+    },
+    "commit:70c04eb": {
+      "type": "commit",
+      "hash": "70c04eb",
+      "message": "fix(forge): use COUNT(*) for ecosystem stats to avoid 30s cursor timeout (#97)",
+      "date": "2026-05-01T08:03:33+10:00"
+    },
+    "commit:ad49494": {
+      "type": "commit",
+      "hash": "ad49494",
+      "message": "fix(forge): derive stats ecosystem counts from public_scans (#96)",
+      "date": "2026-04-30T19:23:41+10:00"
+    },
+    "commit:d3b2846": {
+      "type": "commit",
+      "hash": "d3b2846",
+      "message": "NOM-29: Ensure release pipeline publishes latest Sigil to Homebrew tap (#95)",
+      "date": "2026-04-30T18:23:57+10:00"
+    },
+    "commit:4aa419e": {
+      "type": "commit",
+      "hash": "4aa419e",
+      "message": "NOM-31: Add JetBrains Marketplace publish pipeline and versioned plugin release path (#94)",
+      "date": "2026-04-30T18:23:30+10:00"
+    }
+  },
+  "edges": [
+    {
+      "from": "US-003",
+      "to": "commit:e44d5ac",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:e44d5ac",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-001",
+      "to": "commit:5a06994",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "US-010",
+      "to": "commit:5a06994",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:5a06994",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-100",
+      "to": "commit:3217cd2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:3217cd2",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:062e9a1",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-104",
+      "to": "commit:fe0c301",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:fe0c301",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:11bf971",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-101",
+      "to": "commit:8bd0009",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-102",
+      "to": "commit:83fc75e",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:83fc75e",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-101",
+      "to": "commit:9aaaf58",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-100",
+      "to": "commit:9aaaf58",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:9aaaf58",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-112",
+      "to": "commit:fc59060",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-108",
+      "to": "commit:fc59060",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:fc59060",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-103",
+      "to": "commit:85600e7",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:85600e7",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:d3b2846",
+      "to": "NOM-29",
+      "rel": "resolves"
+    },
+    {
+      "from": "commit:4aa419e",
+      "to": "NOM-31",
+      "rel": "resolves"
+    }
+  ]
+}
