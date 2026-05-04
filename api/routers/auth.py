@@ -39,11 +39,7 @@ from api.rate_limit import RateLimiter
 from api.models import (
     AuthTokens,
     ErrorResponse,
-    ForgotPasswordRequest,
-    ForgotPasswordResponse,
     RefreshTokenRequest,
-    ResetPasswordRequest,
-    ResetPasswordResponse,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -736,127 +732,13 @@ async def logout(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ---------------------------------------------------------------------------
-# Password reset helpers
-# ---------------------------------------------------------------------------
-
-
-async def _send_reset_email(email: str, reset_link: str) -> None:
-    """Send a password reset email via Resend (preferred) or SMTP fallback.
-
-    Routes through `notification_service.send_email`, which dispatches to
-    Resend when `SIGIL_RESEND_API_KEY` is configured and falls back to SMTP
-    when only SMTP env is set. The legacy `send_email_notification` helper
-    in `api/services/notifications.py` is SMTP-only and silently no-ops in
-    production where SMTP is intentionally unconfigured.
-    """
-    from api.services.notification_service import notification_service
-
-    body = (
-        f"Click the link below to reset your password (expires in 1 hour):\n\n"
-        f"{reset_link}\n\n"
-        f"If you didn't request this, ignore this email."
-    )
-    sent = await notification_service.send_email(
-        to_email=email,
-        subject="Reset your Sigil password",
-        content=body,
-    )
-    if not sent:
-        logger.warning(
-            "Password reset email could not be sent for %s — no email "
-            "provider configured or send failed",
-            email,
-        )
-
-
-# ---------------------------------------------------------------------------
-# Password reset endpoints
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/forgot-password",
-    response_model=ForgotPasswordResponse,
-    summary="Request a password reset link",
-    dependencies=[Depends(RateLimiter(max_requests=3, window=60))],
-)
-async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse:
-    """Generate a password reset token and send it via email.
-
-    Always returns a success message to prevent email enumeration attacks.
-    The reset link is only sent when the email address matches an existing user.
-    """
-    user = await db.get_user_by_email(body.email)
-    if user:
-        raw_token = secrets.token_hex(32)  # 64-char hex string
-        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-        expires_at = datetime.utcnow() + timedelta(hours=1)
-
-        await db.create_password_reset_token(user["id"], token_hash, expires_at)
-
-        reset_link = f"{settings.cors_origins[0]}/reset-password?token={raw_token}"
-        try:
-            await _send_reset_email(user["email"], reset_link)
-        except Exception:
-            logger.exception("Failed to send password reset email to %s", user["email"])
-
-        logger.info("Password reset requested for user: %s", user["id"])
-
-    # Always return success to prevent email enumeration
-    return ForgotPasswordResponse(
-        message="If that email exists, a reset link has been sent."
-    )
-
-
-@router.post(
-    "/reset-password",
-    response_model=ResetPasswordResponse,
-    summary="Reset password using a reset token",
-    responses={400: {"model": ErrorResponse}},
-)
-async def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
-    """Validate a reset token and update the user's password.
-
-    The token is single-use and expires after 1 hour.
-    Returns 400 if the token is invalid or expired.
-    """
-    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
-    token_record = await db.get_password_reset_token(token_hash)
-
-    if not token_record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token",
-        )
-
-    # Double-check expiry (get_password_reset_token may return None for expired,
-    # but guard here for any DB backends that skip expiry filtering)
-    expires_at_raw = token_record.get("expires_at")
-    if expires_at_raw:
-        try:
-            expires_dt = datetime.fromisoformat(
-                str(expires_at_raw).replace("Z", "").split("+")[0]
-            )
-            if datetime.utcnow() > expires_dt:
-                await db.delete_password_reset_token(token_hash)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Reset token has expired",
-                )
-        except HTTPException:
-            raise
-        except (ValueError, TypeError):
-            pass
-
-    new_hash = _hash_password(body.new_password)
-
-    await db.update_user_password(token_record["user_id"], new_hash)
-    await db.delete_password_reset_token(token_hash)
-
-    logger.info("Password reset completed for user: %s", token_record["user_id"])
-
-    return ResetPasswordResponse(message="Password reset successfully")
+# NOTE: Password reset endpoints (`/forgot-password`, `/reset-password`) and
+# the `_send_reset_email` helper were removed 2026-05-04 per ADR-0002 — Auth0
+# Universal Login owns identity, including password reset. The dashboard's
+# `/reset-password` page now redirects to `/api/auth/login`, where Auth0's
+# hosted "Don't remember your password?" link triggers an Auth0-managed reset
+# email. The MSSQL `password_reset_tokens` table and `users.password_hash`
+# column remain in the schema as legacy storage but are no longer written to.
 
 
 @router.get(

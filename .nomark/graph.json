@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-03T23:48:45.275Z",
+  "last_rebuilt": "2026-05-04T00:36:35.184Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -1220,6 +1220,20 @@
       "message": "feat(billing): 14-day trial on Pro/Team Checkout for first-time customers",
       "date": "2026-05-04T09:48:43+10:00",
       "files_changed": 2
+    },
+    "commit:16ee5cf": {
+      "type": "commit",
+      "hash": "16ee5cf",
+      "message": "docs(adr): ADR-0001 — 14-day Pro/Team trial, code-level not Price-level",
+      "date": "2026-05-04T10:20:15+10:00",
+      "files_changed": 4
+    },
+    "commit:a09aaec": {
+      "type": "commit",
+      "hash": "a09aaec",
+      "message": "fix(auth): wire password reset email through Resend (was silently dropping)",
+      "date": "2026-05-04T10:36:29+10:00",
+      "files_changed": 3
     }
   },
   "edges": [
