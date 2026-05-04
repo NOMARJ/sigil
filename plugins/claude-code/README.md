@@ -268,7 +268,7 @@ The requests library is a well-maintained, widely-used HTTP library
 from the Python community. No malicious patterns found.
 
 ✅ Recommendations:
-- Safe to install
+- 8/8 phases passed — no findings detected
 - Official PyPI package
 - 50M+ downloads/month, trusted maintainer
 

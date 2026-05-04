@@ -17,26 +17,28 @@ interface ScanPhaseCardProps {
   rules: Rule[];
 }
 
+// Brand v1.0 — 5-tier verdict family per directive 2026-05-04 §3.
+// (CLEAN belongs on SealVerdict, not on per-phase badges.)
 const severityStyles = {
   critical: {
-    badge: "bg-red-500/10 text-red-400 border-red-500/20",
-    border: "border-red-500/20",
-    glow: "hover:shadow-[0_0_15px_rgba(239,68,68,0.1)]",
+    badge: "bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20",
+    border: "border-[#DC2626]/20",
+    glow: "hover:shadow-[0_0_15px_rgba(220,38,38,0.1)]",
   },
   high: {
-    badge: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-    border: "border-orange-500/20",
-    glow: "hover:shadow-[0_0_15px_rgba(249,115,22,0.1)]",
+    badge: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
+    border: "border-[#EF4444]/20",
+    glow: "hover:shadow-[0_0_15px_rgba(239,68,68,0.1)]",
   },
   medium: {
-    badge: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    border: "border-yellow-500/20",
-    glow: "hover:shadow-[0_0_15px_rgba(234,179,8,0.1)]",
+    badge: "bg-[#F97316]/10 text-[#F97316] border-[#F97316]/20",
+    border: "border-[#F97316]/20",
+    glow: "hover:shadow-[0_0_15px_rgba(249,115,22,0.1)]",
   },
   low: {
-    badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    border: "border-blue-500/20",
-    glow: "hover:shadow-[0_0_15px_rgba(59,130,246,0.1)]",
+    badge: "bg-[#EAB308]/10 text-[#EAB308] border-[#EAB308]/20",
+    border: "border-[#EAB308]/20",
+    glow: "hover:shadow-[0_0_15px_rgba(234,179,8,0.1)]",
   },
 };
 

@@ -185,15 +185,19 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         } lg:translate-x-0`}
       >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-800">
-        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-brand-600 text-white font-bold text-lg">
-          S
-        </div>
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-[#262626]">
+        <img
+          src="/brand/brace/sigil-brace.svg"
+          alt="Sigil"
+          width={36}
+          height={36}
+          className="block"
+        />
         <div>
-          <span className="text-lg font-bold text-white tracking-tight">
+          <span className="font-mono font-bold text-lg text-white tracking-tight uppercase">
             Sigil
           </span>
-          <span className="ml-1.5 text-xs font-medium text-gray-500 uppercase tracking-widest">
+          <span className="ml-1.5 font-mono text-[10px] font-medium text-[#787878] uppercase tracking-widest">
             Security
           </span>
         </div>

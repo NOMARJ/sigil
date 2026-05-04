@@ -2,243 +2,308 @@
 
 **Feature:** F-006
 **Epic:** EP-004 — Brand & Identity System
-**Status:** approved
+**Status:** approved (revised)
 **Created:** 2026-05-04
 **Approved:** 2026-05-04
-**Source brief:** `dashboard/public/brand/Sigil Brand Brief.html` (v1.0)
+**Revised:** 2026-05-04 — directive expanded the verdict family from 3-tier to 5-tier, added a strict liability stance, and broadened scope to all surfaces in this repo (CLI, API email, docs, brief HTML).
+**Source directive:** owner message 2026-05-04 ("SIGIL BRAND v1.0 — APPLY TO THIS SURFACE")
+**Reference brief (subordinate):** `dashboard/public/brand/Sigil Brand Brief.html` v1.0 — directive overrides §06 demo copy
 **First-principles plan:** `docs/plans/2026-05-04-brand-rollout-first-principles.md`
 
 ---
 
 ## Introduction
 
-A canonical Brand Brief v1.0 has been authored at `dashboard/public/brand/Sigil Brand Brief.html`. It defines a complete identity system: two marks (Brace primary + Seal attestation), a black-mode-first surface palette, a fixed brand-green scale, a three-state verdict family, type pairing (Inter + JetBrains Mono), and explicit "do / don't" rules.
+Brand v1.0 was re-locked on 2026-05-04. The owner issued a directive expanding the verdict family from 3-tier (clean / quarantine / risk) to **5-tier** (clean / low / medium / high / critical) and introducing a **strict liability stance** that forbids "Safe to install", "Verified safe", "Sigil guarantees", and "Malware-free" wording anywhere in product, docs, or marketing. The directive also enumerates explicit blue→green hex replacements (`#3B82F6 → #3FB950`, `#2563EB → #56D364`, `#1D4ED8 → #196C2E`).
 
-The brief ships with 20 finished SVG assets in `dashboard/public/brand/` — but those files are currently untracked, no code references them, and the dashboard runs an ad-hoc emerald-on-blue theme that diverges from the brief on every dimension (surface tones, brand-green hex values, missing JetBrains Mono, hardcoded `S` letter mark in the sidebar that violates the brief's "don't trace" rule).
+This PRD rolls Brand v1.0 across every surface in this repo: dashboard (Next.js), CLI (`bin/sigil`), API email templates, public docs, and the brand brief HTML itself. The 4-tier per-finding severity taxonomy (`LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL_RISK`) collapses cleanly into the new 5-tier scale by adding `CLEAN` for score 0 — they are now the same taxonomy, not separate domains.
 
-This PRD aligns the dashboard surfaces with the brief without breaking working components. It is a **visual / token alignment** rollout, not a behaviour change. The 4-tier per-finding severity taxonomy (LOW/MEDIUM/HIGH/CRITICAL_RISK) is a different domain from the brief's 3-state Seal verdict and is preserved as-is. The `sigil` CLI is not visually rebranded — its ANSI output already matches the brief's "CLI Unicode fallback" pattern.
+Four Seal SVG variants required by the new verdict family (`sigil-seal-low.svg`, `sigil-seal-medium.svg`, `sigil-seal-high.svg`, `sigil-seal-critical.svg`) do not yet exist on disk. Stories that depend on them (US-006, US-007) are blocked until those assets are produced. All other stories are unblocked.
 
 ---
 
 ## Goals
 
-- Make the brand brief enforceable in code: tokens, fonts, marks, and favicon all flow from the brief
-- Land the Brace SVG on the primary chrome surface (sidebar) so users see the real mark, not a traced letter
-- Land the Seal SVG on attestation surfaces (scan detail) via a dedicated `SealVerdict` component paired with text labels
-- Commit the brand asset directory to the repo (currently untracked)
-- Preserve the existing 4-tier per-finding severity taxonomy — the brief does not address per-finding severity, only scan-level attestation
+- Tokens, fonts, marks, and favicon flow from the directive — brief is enforceable in code
+- Brace SVG renders on every chrome surface (sidebar, favicon)
+- 5-tier verdict family rendered consistently in dashboard and CLI; per-finding severity uses the same taxonomy
+- Strict liability copy enforced — every "Safe to install"-style phrase replaced with attestation-only wording
+- Every blue accent in active code paths replaced with brand greens
+- CLI banner and ANSI output align with the directive §6 (status glyphs paired with verdict words)
+- API email templates use brand greens
+- Brand brief HTML self-corrects: §06 demo copy and §09 file index updated to match the directive
 
 ---
 
 ## Non-goals
 
-- Rewriting every component to consume `--sigil-*` tokens directly (incremental — values are aligned, refactor follows over time)
-- Changing CLI verdict-word semantics (LOW_RISK → CLEAN, etc.) — that touches exit codes; separate ADR
-- Marketing site / docs site styling (separate repos)
-- Email templates, README badge generator, partner badge endpoints (later — they live on `sigilsec.ai`, not in this dashboard)
-- Replacing or sunsetting `VerdictBadge.tsx` (per-finding severity stays)
-- Building dark/light theme switching — the brief is black-mode-first; light variants exist as SVG mono-light files for inversions only
+- Updating NOMARK org surfaces — separate scope, owned elsewhere
+- Producing the four missing Seal SVG variants — that's a design task, not engineering
+- Light-mode theming — brief is black-mode-first
+- Changing CLI exit-code semantics — verdict words shift visually but exit codes stay (`SEVERITY_*` constants in `bin/sigil` remain)
+- Refactoring every dashboard component to consume `--sigil-*` tokens directly — values are aligned at the source so legacy `--color-*` tokens render brief-correct values transparently
+- Touching `archive/`, `packs/` template placeholders, or `docs/internal/flowbite-ui-files/` — those are illustrative or third-party
 
 ---
 
 ## User Stories
 
-### US-001: Surface palette and brand greens match the brief
+### US-001: Surface palette, brand greens, and 5-tier verdict tokens match the directive
 
-**Description:** As a designer cross-checking the live dashboard against the brand brief, I want every surface tone, brand-green value, and verdict colour in the live app to match the brief's hex codes exactly so that the brief is enforceable, not aspirational.
+**Description:** As a designer cross-checking the live dashboard against the brand directive, I want every surface tone, brand-green value, and verdict colour in `globals.css` to match the directive's hex codes exactly.
 
 **Acceptance Criteria:**
-- [ ] `dashboard/src/app/globals.css` `--color-bg-primary` value is `#0A0A0A`
-- [ ] `--color-bg-secondary` is `#161616`, `--color-bg-tertiary` is `#1C1C1C`, `--color-border` is `#262626`
-- [ ] `--color-accent` is `#3FB950` (replacing the previous emerald `#10b981`); accent-hover `#56D364`; accent-muted `#238636`; accent-dark `#196C2E`
-- [ ] `--color-success` is `#22C55E` (brief's `clean` verdict); `--color-warning` is `#EAB308` (brief's `quarantine`); `--color-danger` is `#EF4444` (brief's `risk`)
-- [ ] `--sigil-*` token aliases per brief §09 added to `:root` (sigil-black, sigil-surface, sigil-elevated, sigil-border, sigil-gray, sigil-light, sigil-offwhite, sigil-white, sigil-green, sigil-green-mid, sigil-green-deep, sigil-green-soft, sigil-clean, sigil-warn, sigil-risk, sigil-mono, sigil-sans)
-- [ ] Verify: `grep -c "#0A0A0A\|#161616\|#1C1C1C\|#262626\|#3FB950\|#56D364\|#238636\|#196C2E\|#22C55E\|#EAB308\|#EF4444" dashboard/src/app/globals.css` returns ≥ 11
+- [ ] `dashboard/src/app/globals.css` surface tokens: `--color-bg-primary:#0A0A0A`, `--color-bg-secondary:#161616`, `--color-bg-tertiary:#1C1C1C`, `--color-border:#262626`
+- [ ] Accent: `--color-accent:#3FB950` (was `#10b981`), `--color-accent-hover:#56D364`, `--color-accent-muted:#238636`, `--color-accent-dark:#196C2E`
+- [ ] 5-tier verdict tokens added: `--color-clean:#22C55E`, `--color-low:#EAB308`, `--color-medium:#F97316`, `--color-high:#EF4444`, `--color-critical:#DC2626`
+- [ ] Legacy `--color-success:#22C55E`, `--color-warning:#EAB308`, `--color-danger:#EF4444` kept as aliases for backward compatibility
+- [ ] `--sigil-*` token aliases added per directive §2 (sigil-black, sigil-surface, sigil-elevated, sigil-border, sigil-gray, sigil-light, sigil-offwhite, sigil-white, sigil-green-deep, sigil-green-mid, sigil-green, sigil-green-soft, sigil-clean, sigil-low, sigil-medium, sigil-high, sigil-critical, sigil-mono, sigil-sans)
+- [ ] No `#3b82f6`, `#2563eb`, `#1d4ed8`, or `rgba(59, 130, 246, *)` remains in `globals.css` (verifiable via grep)
+- [ ] Verify: `grep -ic "#3b82f6\|#2563eb\|#1d4ed8\|rgba(59, ?130, ?246" dashboard/src/app/globals.css` returns `0`
 
 **Priority:** 1
-**Files:**
-- `dashboard/src/app/globals.css` (modify)
+**Files:** `dashboard/src/app/globals.css`
 
 ---
 
-### US-002: Tailwind palette aligns to the brief
-
-**Description:** As a frontend developer using Tailwind utility classes, I want `bg-brand-500`, `border-surface-border`, and `text-verdict-risk` to render the brief's exact hex values so that I can write component code without hand-rolling raw CSS.
+### US-002: Tailwind palette aligns to the directive
 
 **Acceptance Criteria:**
-- [ ] `tailwind.config.ts` `colors.brand.500` is `#3FB950` (was `#10b981`)
-- [ ] `colors.brand` scale is `{deep:#196C2E, mid:#238636, 500:#3FB950, soft:#56D364}` plus the existing 50-950 ramp regenerated around `#3FB950`
-- [ ] A new `colors.surface` palette is added with keys matching the brief: `black:#0A0A0A, surface:#161616, elevated:#1C1C1C, border:#262626, muted:#404040, gray:#787878, light:#A3A3A3, offwhite:#E5E5E5, white:#FAFAFA`
-- [ ] A new `colors.verdict` palette is added: `{clean:#22C55E, warn:#EAB308, risk:#EF4444}`
+- [ ] `dashboard/tailwind.config.ts` `colors.brand.500 = "#3FB950"` (was `#10b981`); the 50-950 ramp regenerated around `#3FB950`
+- [ ] `colors.brand.deep`, `.mid`, `.soft` exposed as named keys for `#196C2E`, `#238636`, `#56D364`
+- [ ] New `colors.surface` palette: `black:#0A0A0A, surface:#161616, elevated:#1C1C1C, border:#262626, muted:#404040, gray:#787878, light:#A3A3A3, offwhite:#E5E5E5, white:#FAFAFA`
+- [ ] New `colors.verdict` palette: `clean:#22C55E, low:#EAB308, medium:#F97316, high:#EF4444, critical:#DC2626`
+- [ ] `colors.info.500` no longer `#3b82f6` — either removed or remapped to a non-brand neutral (e.g., gray) since blue is no longer in the system
 - [ ] `theme.extend.fontFamily.mono` lists `'JetBrains Mono'` first
-- [ ] Verify: build succeeds (`cd dashboard && npm run build`) without Tailwind config errors
+- [ ] Verify: `cd dashboard && npm run build` succeeds; `grep -E '#3[bB]82[fF]6|#2563[eE][bB]|#1[dD]4[eE][dD]8' dashboard/tailwind.config.ts` returns nothing
 
 **Priority:** 1
-**Files:**
-- `dashboard/tailwind.config.ts` (modify)
-- `dashboard/src/app/globals.css` (cross-reference for token consistency)
+**Files:** `dashboard/tailwind.config.ts`
 
 ---
 
 ### US-003: JetBrains Mono is loaded alongside Inter
 
-**Description:** As a designer applying the brief's typography spec (display/mono surfaces use JetBrains Mono), I want the JetBrains Mono webfont actually loaded in the document so that mono surfaces render in the brand typeface, not in the OS fallback.
-
 **Acceptance Criteria:**
-- [ ] `dashboard/src/app/layout.tsx` `<head>` includes a `<link>` to `https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap` (or equivalent — both families in one request)
-- [ ] Verify in browser DevTools Network tab: `JetBrains+Mono` font file requested on page load
-- [ ] Verify: any element styled `font-family: var(--sigil-mono)` or Tailwind `font-mono` renders in JetBrains Mono (visual check on `/scans` page)
+- [ ] `dashboard/src/app/layout.tsx` `<head>` requests both `Inter:wght@400;500;600;700;800` and `JetBrains+Mono:wght@400;500;700` from Google Fonts
+- [ ] Verify: any element styled `font-mono` renders in JetBrains Mono on `/scans` (visual check)
 
 **Priority:** 1
-**Files:**
-- `dashboard/src/app/layout.tsx` (modify)
+**Files:** `dashboard/src/app/layout.tsx`
 
 ---
 
 ### US-004: Favicon points to the brand SVG
 
-**Description:** As a user with the dashboard pinned in a browser tab, I want to see the Brace mark in the tab favicon so that the product is recognisable at 16px alongside other open tabs.
-
 **Acceptance Criteria:**
-- [ ] `dashboard/src/app/layout.tsx` `metadata.icons.icon` points to `/brand/favicon/favicon.svg`
-- [ ] `metadata.icons` also exposes `/brand/favicon/favicon-dark.svg` via `media: '(prefers-color-scheme: light)'` for the inverted variant
-- [ ] `viewport.themeColor` updated to `#0A0A0A` (was `#111827`)
-- [ ] Verify: `curl -sI http://localhost:3000/brand/favicon/favicon.svg` returns `200 OK` with `content-type: image/svg+xml`
-- [ ] Verify: opening the dashboard in a fresh browser tab shows the Brace favicon
+- [ ] `dashboard/src/app/layout.tsx` `metadata.icons.icon` is `/brand/favicon/favicon.svg`
+- [ ] `viewport.themeColor` is `#0A0A0A` (was `#111827`)
+- [ ] Verify: `curl -sI http://localhost:3000/brand/favicon/favicon.svg` returns `200 OK`
 
 **Priority:** 1
-**Files:**
-- `dashboard/src/app/layout.tsx` (modify)
+**Files:** `dashboard/src/app/layout.tsx`
 
 ---
 
-### US-005: Sidebar header uses the Brace SVG, not a CSS letter
-
-**Description:** As a brand-conscious operator, I want the sidebar mark to render the actual Brace SVG so that the dashboard does not violate the brief's "Don't regenerate or trace" rule with its current hardcoded `<div>S</div>`.
+### US-005: Sidebar header renders the Brace SVG
 
 **Acceptance Criteria:**
-- [ ] `dashboard/src/components/Sidebar.tsx` lines 188-200 (the brand block) replace the `<div>S</div>` letter with `<img src="/brand/brace/sigil-brace.svg" alt="Sigil" width="36" height="36" />`
-- [ ] The "Sigil" wordmark text next to it uses JetBrains Mono Bold (Tailwind `font-mono font-bold`) per brief §03
-- [ ] The "SECURITY" eyebrow stays in the existing mono uppercase style
-- [ ] Verify: `grep -A2 "Brand" dashboard/src/components/Sidebar.tsx` shows `<img src="/brand/brace/sigil-brace.svg"` and no `>S<` letter mark
-- [ ] Visual: sidebar at 1440×900 renders the Brace mark + "SIGIL" wordmark; mark does not appear pixelated or stretched
+- [ ] `dashboard/src/components/Sidebar.tsx` brand block (around lines 188-200) replaces the `<div>S</div>` letter with `<img src="/brand/brace/sigil-brace.svg" alt="Sigil" width="36" height="36" />`
+- [ ] "Sigil" wordmark uses Tailwind `font-mono font-bold` per directive §1 (lockup wordmark = JetBrains Mono Bold)
+- [ ] Verify: `grep -A5 "/\* Brand \*/" dashboard/src/components/Sidebar.tsx` shows the `<img src="/brand/brace/sigil-brace.svg"` line and no `>S<` letter mark
 
 **Priority:** 1
-**Files:**
-- `dashboard/src/components/Sidebar.tsx` (modify)
+**Files:** `dashboard/src/components/Sidebar.tsx`
 
 ---
 
-### US-006: SealVerdict component exists and is reusable
+### US-006: SealVerdict component (5-tier) — **BLOCKED**
 
-**Description:** As a frontend developer rendering scan-level attestation, I want a single `SealVerdict` component that resolves the correct Seal SVG variant and pairs it with a text label so that scan-detail pages, future package pages, and badge surfaces can all consume the same primitive.
+**Description:** Component to render scan-level attestation Seal + verdict label. Blocked until four missing Seal SVGs are produced.
 
-**Acceptance Criteria:**
+**Blocker:** `dashboard/public/brand/seal/sigil-seal-low.svg`, `sigil-seal-medium.svg`, `sigil-seal-high.svg`, `sigil-seal-critical.svg` do not exist. Owner action required to produce or commission.
+
+**Acceptance Criteria (when unblocked):**
 - [ ] `dashboard/src/components/SealVerdict.tsx` exists
-- [ ] Props: `verdict: "clean" | "quarantine" | "risk"`, `size?: "sm" | "md" | "lg"`, `phasesPassed?: number`
-- [ ] Renders `<img src="/brand/seal/sigil-seal-{clean|quarantine|risk}.svg" />` matching the verdict prop
-- [ ] At `size="sm"` (≤24px) renders `sigil-seal-small.svg` regardless of verdict (per brief: dots and inner ring removed for legibility)
-- [ ] Always renders a paired text label (`CLEAN` / `QUARANTINE` / `HIGH RISK`) — never colour alone (brief §06 hard rule)
-- [ ] Label colour uses the matching verdict CSS token (`--sigil-clean | --sigil-warn | --sigil-risk`)
-- [ ] Optional `phasesPassed` prop renders `{n}/8 phases` muted-grey suffix
-- [ ] Verify: unit test in `dashboard/src/__tests__/SealVerdict.test.tsx` covers all three verdicts + small-variant switch + label-pairing assertion
+- [ ] Props: `verdict: "clean" | "low" | "medium" | "high" | "critical"`, `size?: "sm" | "md" | "lg"`, `phasesPassed?: number`, `score?: number`
+- [ ] Renders `<img src="/brand/seal/sigil-seal-{verdict}.svg" />`; at `size="sm"` (≤24px) renders `sigil-seal-small.svg` regardless of verdict
+- [ ] Always pairs with text label (`CLEAN` / `LOW RISK` / `MEDIUM RISK` / `HIGH RISK` / `CRITICAL`) — never colour alone
+- [ ] Label colour uses matching `--color-{clean,low,medium,high,critical}` token
+- [ ] Optional `phasesPassed` renders `{n}/8 phases` muted suffix; when verdict is `clean`, label reads "8/8 phases passed" (per directive §4 strict-liability rule — never "Safe to install")
+- [ ] Unit test in `dashboard/src/__tests__/SealVerdict.test.tsx` covers all 5 verdicts + small-variant + label-pairing + the strict-liability label assertion
 
-**Priority:** 2
-**Files:**
-- `dashboard/src/components/SealVerdict.tsx` (new)
-- `dashboard/src/__tests__/SealVerdict.test.tsx` (new)
+**Priority:** 2 (blocked)
+**Files:** `dashboard/src/components/SealVerdict.tsx` (new), `dashboard/src/__tests__/SealVerdict.test.tsx` (new)
 
 ---
 
-### US-007: SealVerdict is mounted on the scan-detail page
+### US-007: Mount SealVerdict on scan-detail page — **BLOCKED**
 
-**Description:** As a user reviewing a scan result, I want the Seal mark visible at the top of the scan detail so that the attestation artefact has a real product home and the Seal SVGs are not orphaned design assets.
+**Blocker:** depends on US-006.
 
-**Acceptance Criteria:**
-- [ ] Scan-detail page (under `dashboard/src/app/scans/`) renders a `<SealVerdict>` in its header region
-- [ ] Verdict mapping rule documented in the page: scan with `severity=LOW_RISK` and zero CRITICAL/HIGH findings → `clean`; scan with at least one CRITICAL finding → `risk`; everything else → `quarantine`
-- [ ] `phasesPassed` prop passes the count of phases that completed without findings (max 8)
-- [ ] Verify: open `/scans/<id>` for a known clean scan — clean Seal renders with `8/8 phases` suffix
-- [ ] Verify: open `/scans/<id>` for a known critical scan — risk Seal renders with the verdict label `HIGH RISK`
+**Acceptance Criteria (when unblocked):**
+- [ ] Scan-detail page renders `<SealVerdict>` in its header
+- [ ] Verdict mapping rule: `score=0 → clean`; `1-9 → low`; `10-24 → medium`; `25-49 → high`; `50+ → critical`
+- [ ] `phasesPassed` passes the count of phases that completed without findings (max 8)
+- [ ] Verify: a known clean scan renders with "8/8 phases passed" suffix; a known critical scan renders with `CRITICAL` label
 
-**Priority:** 2
-**Files:**
-- `dashboard/src/app/scans/[id]/page.tsx` (or whichever scan detail page is canonical — confirm during build) (modify)
+**Priority:** 2 (blocked)
+**Files:** `dashboard/src/app/scans/[id]/page.tsx` (or canonical scan-detail path)
 
 ---
 
-### US-008: Brand asset directory is tracked in git
+### US-008: Brand asset directory tracked in git ✓ DONE
 
-**Description:** As a teammate cloning the repo, I want the brand SVGs and the brand brief HTML to be in the repo so that the build does not depend on assets sitting on one machine.
+Closed in commit `4c9a46b` (2026-05-04). 21 files added: 20 SVGs + brand brief HTML.
+
+---
+
+### US-009: VerdictBadge consumes the unified 5-tier scale
+
+**Description:** Per-finding severity already uses `LOW_RISK / MEDIUM_RISK / HIGH_RISK / CRITICAL_RISK`. The directive collapses this into the unified 5-tier verdict family by adding `CLEAN` (score 0) and re-mapping colours.
 
 **Acceptance Criteria:**
-- [ ] `git ls-files dashboard/public/brand/` returns the 20 SVGs + the brand brief HTML (21 files total)
-- [ ] `dashboard/public/brand/.DS_Store` is NOT tracked (verify gitignore covers it — already confirmed at PRD authoring time)
-- [ ] No binary `.docx`/`.pdf`/`.pptx` files smuggled in (per CLAUDE.md docs rule)
+- [ ] `dashboard/src/components/VerdictBadge.tsx` colour map updated:
+    - `LOW_RISK` → `#EAB308` (was green `bg-green-500/10 text-green-400`)
+    - `MEDIUM_RISK` → `#F97316` (was yellow)
+    - `HIGH_RISK` → `#EF4444` (was orange)
+    - `CRITICAL_RISK` → `#DC2626` (was red)
+    - new `CLEAN` (or `NO_FINDINGS`) state → `#22C55E`
+- [ ] Existing usages of `VerdictBadge` continue to compile and render (verified via build)
+- [ ] No regression — the `_RISK` suffix label-stripping in `verdictLabel()` preserved
+
+**Priority:** 2
+**Files:** `dashboard/src/components/VerdictBadge.tsx`
+
+---
+
+### US-010: Build, typecheck, and lint pass
+
+**Acceptance Criteria:**
+- [ ] `cd dashboard && npm run build` exit 0
+- [ ] `cd dashboard && npx tsc --noEmit` no new errors
+- [ ] No regressions in existing test suite
+
+**Priority:** 1 (gates closing)
+**Files:** verification only
+
+---
+
+### US-011: Strict-liability copy scrubbed across the repo
+
+**Description:** The directive §4 forbids "Safe to install", "Verified safe", "Sigil guarantees…", "Malware-free". Replace with attestation phrasing: "8/8 phases passed", "No findings detected", "Sigil verified · clean", "Attestation: clean".
+
+**Found at PRD revision time:**
+- `plugins/claude-code/README.md:271` — "Safe to install"
+- `docs/claude-code-security-integration.md:61` — "✅ Safe to install"
+- `docs/ai-security-stack-integration.md:137` — "✅ Safe to install"
+- `dashboard/public/brand/Sigil Brand Brief.html:391` — "All 8 phases passed. Safe to install."
+
+**Acceptance Criteria:**
+- [ ] All four occurrences replaced with attestation phrasing per directive §4
+- [ ] No new occurrences introduced — verify: `grep -rIin -E "safe to install|verified safe|sigil guarantees|malware-free" /Users/reecefrazier/CascadeProjects/sigil --include="*.tsx" --include="*.ts" --include="*.md" --include="*.json" --include="*.py" --include="*.html" --include="*.sh" 2>/dev/null | grep -v node_modules | grep -v archive/ | grep -v docs/internal/flowbite-ui-files/` returns nothing
 
 **Priority:** 1
-**Files:**
-- `dashboard/public/brand/**/*.svg` (new — staged)
-- `dashboard/public/brand/Sigil Brand Brief.html` (new — staged)
+**Files:** the four files listed above + the brand brief HTML
 
 ---
 
-### US-009: No regression in existing 4-tier severity badge
+### US-012: Blue accent hexes replaced with brand greens
 
-**Description:** As a security analyst reading scan findings, I want the per-finding severity badges (LOW / MEDIUM / HIGH / CRITICAL) to keep working with brief-aligned colours so that the rollout doesn't silently change semantics.
+**Description:** Directive §2 mandates replacing every blue accent with the matching brand green. Replacements: `#3B82F6 → #3FB950`, `#2563EB → #56D364`, `#1D4ED8 → #196C2E`, `rgba(59,130,246,*) → rgba(63,185,80,*)`.
+
+**Found at PRD revision time (active code paths only — excludes archive/, packs/ placeholders, third-party flowbite):**
+- `dashboard/tailwind.config.ts:68-69` — info palette `#3b82f6, #2563eb`
+- `dashboard/src/app/globals.css:51` — `--color-low: #3b82f6`
+- `dashboard/src/app/globals.css:373, 378` — `rgba(59, 130, 246, *)` glow rules
+- `dashboard/src/components/docs/ScanPhaseCard.tsx:39` — `rgba(59,130,246,0.1)` glow
+- `api/templates/email/base.html:139-140` — `border: 1px solid #3b82f6; color: #1d4ed8`
 
 **Acceptance Criteria:**
-- [ ] `dashboard/src/components/VerdictBadge.tsx` still exports the 4-tier component
-- [ ] LOW_RISK badge colour now sources `--sigil-clean` / `var(--color-success)` (`#22C55E` post-rollout)
-- [ ] CRITICAL_RISK badge colour now sources `--color-danger` (`#EF4444` post-rollout)
-- [ ] MEDIUM_RISK and HIGH_RISK colours remain in the orange/yellow band — no brief value to map to, but updated to brief's `--sigil-warn` (`#EAB308`) for MEDIUM and a darker amber for HIGH so the 4-tier remains visually distinguishable
-- [ ] Verify: snapshot or visual test shows all four badges render with distinct colours and clear labels
+- [ ] All 5 active-path occurrences replaced per the directive's mapping
+- [ ] Verify: `grep -rIin -E "#3[bB]82[fF]6|#2563[eE][bB]|#1[dD]4[eE][dD]8|rgba\(59, ?130, ?246" dashboard/src/ dashboard/tailwind.config.ts api/templates/ bin/sigil 2>/dev/null` returns nothing
+- [ ] Build still passes after the swap
 
-**Priority:** 3
-**Files:**
-- `dashboard/src/components/VerdictBadge.tsx` (modify)
+**Priority:** 1
+**Files:** the 5 files listed
 
 ---
 
-### US-010: Build, typecheck, and lint pass after rollout
+### US-013: CLI (`bin/sigil`) banner and verdict glyphs align with directive §6
 
-**Description:** As the deploy operator, I want CI to be green after the rollout so that the brand changes can ship without blocking unrelated work.
+**Description:** Directive §6 enumerates ANSI codes per verdict and status glyphs (●/◐/○) that must pair with the verdict word.
 
 **Acceptance Criteria:**
-- [ ] `cd dashboard && npm run build` succeeds with exit code 0
-- [ ] `cd dashboard && npx tsc --noEmit` reports no new errors introduced by the rollout
-- [ ] `cd dashboard && npm run lint` (if configured) reports no new errors introduced by the rollout
-- [ ] Existing test suite (`npm test`) passes — no regressions from the colour token swap or component changes
-- [ ] Manual smoke: `/`, `/scans`, `/threats`, `/pricing` all render without console errors after the rollout
+- [ ] `bin/sigil` exports verdict-pretty-print helpers using:
+    - `CLEAN` → `\x1b[32m`, glyph `●`
+    - `LOW RISK` → `\x1b[33m`, glyph `◐`
+    - `MEDIUM RISK` → `\x1b[33m`, glyph `◐`
+    - `HIGH RISK` → `\x1b[31m`, glyph `◐`
+    - `CRITICAL` → `\x1b[31;1m`, glyph `○`
+- [ ] Existing scan output paths use the helpers — verify by running `./bin/sigil scan .` and seeing `●` paired with `CLEAN`
+- [ ] Banner in CLI `--help` output keeps the existing "by NOMARK / A protective mark for every line of code" tagline (already brand-aligned)
+- [ ] No exit-code semantics changed — `SEVERITY_*` constants stay
+- [ ] No "Safe to install" output anywhere in CLI
 
-**Priority:** 1 (gates US-001 through US-009 closing)
-**Files:**
-- N/A (verification only)
+**Priority:** 2
+**Files:** `bin/sigil`
+
+---
+
+### US-014: API email templates use brand greens
+
+**Acceptance Criteria:**
+- [ ] `api/templates/email/base.html` lines 139-140 replace `#3b82f6` and `#1d4ed8` with `#3FB950` and `#196C2E`
+- [ ] Any other `#3b82f6 / #2563eb / #1d4ed8` occurrences in `api/templates/email/` replaced per directive §2 mapping
+- [ ] No "Safe to install"-style copy in any email template — verify via grep
+
+**Priority:** 2
+**Files:** `api/templates/email/base.html` (and other email templates if present)
+
+---
+
+### US-015: Brand brief HTML self-corrects to the new directive
+
+**Description:** The brand brief HTML at `dashboard/public/brand/Sigil Brand Brief.html` is itself part of the brand surface. Its §06 demo copy ("Safe to install") and 3-tier verdict family contradict the directive.
+
+**Acceptance Criteria:**
+- [ ] §06 verdict family expanded from 3-tier to 5-tier (CLEAN / LOW / MEDIUM / HIGH / CRITICAL) with directive hex codes
+- [ ] §06 "Safe to install. All 8 phases passed." replaced with "8/8 phases passed."
+- [ ] §09 file index lists the four new Seal SVG paths (`sigil-seal-low.svg`, `-medium.svg`, `-high.svg`, `-critical.svg`) with a "pending design" note where the SVG is not yet on disk
+- [ ] §07 demo blocks updated: any "Safe to install" / "Verified safe" copy in the package-page or badge demos replaced with attestation phrasing
+- [ ] Header eyebrow updated: "Sigil · Brand brief · v1.0 (revised 2026-05-04)"
+
+**Priority:** 1
+**Files:** `dashboard/public/brand/Sigil Brand Brief.html`
 
 ---
 
 ## Out of scope (explicit)
 
-- CLI verdict-word semantic refactor (`LOW_RISK → CLEAN` etc. would change exit codes — separate ADR, not this rollout)
-- Marketing site (`sigilsec.ai`) — separate repo
-- Email templates, README badge generator endpoint, partner badges
-- Cutover of every existing component to consume `--sigil-*` tokens directly (incremental; values are aligned at the source so legacy `--color-*` tokens render brief-correct values transparently)
-- Light-mode theming (brief is black-mode-first)
-- Replacement of the 4-tier per-finding severity taxonomy with the 3-state Seal verdict — they represent different things and both stay
+- NOMARK org surfaces (separate scope)
+- CLI verdict-word semantic refactor that changes exit codes (CLI verdict glyphs/colours align, exit codes don't)
+- Marketing site (`sigilsec.ai`)
+- Generating the four missing Seal SVGs (design task)
+- Email templates beyond `base.html` if no other templates use blue accents (verified at PRD time)
+- Light-mode theming
+- README badge generator endpoints (live elsewhere)
 
 ---
 
 ## Dependencies
 
-- Brand brief HTML at `dashboard/public/brand/Sigil Brand Brief.html` (v1.0) is the canonical source — any conflict between this PRD and the brief is resolved in favour of the brief
-- 20 brand SVGs in `dashboard/public/brand/` already exist on disk; US-008 commits them
-- No blocking external dependencies — this is a pure dashboard rollout
+- Owner directive 2026-05-04 is canonical
+- Four Seal SVG variants (low / medium / high / critical) gate US-006 and US-007 — no engineering dependency, but design dependency
+- Brand asset directory committed in `4c9a46b` (US-008 closed)
 
 ---
 
-## Open decisions (resolved at PRD approval)
+## Decisions resolved at revision
 
-- **Sidebar mark:** Brace SVG only (not the horizontal lockup) — confirmed 2026-05-04
-- **Brand asset commit:** part of this PRD (US-008) — confirmed 2026-05-04
-- **CLI rebrand:** out of scope — confirmed 2026-05-04
-- **4-tier severity taxonomy:** preserved — confirmed 2026-05-04 in first-principles plan §3
+- **Verdict taxonomy unified:** 4-tier finding severity collapses into 5-tier (adding CLEAN for score 0) — confirmed 2026-05-04
+- **Liability stance:** strict; "Safe to install" / "Verified safe" / "Sigil guarantees" / "Malware-free" forbidden everywhere — confirmed 2026-05-04
+- **Blue → green:** explicit hex map in directive §2; applied to active code paths only
+- **Sidebar mark:** Brace SVG only (not lockup) — confirmed 2026-05-04
+- **CLI rebrand:** in scope (visual only — exit codes preserved) — revised 2026-05-04
+- **Light-mode:** out of scope
+- **NOMARK surfaces:** out of scope (different repo)

@@ -266,15 +266,21 @@ Coordinated public launch: threat report from existing 17,937-tool corpus, in-CL
 **Shipped:** —
 
 **What it delivers:**
-Aligns the dashboard and the `sigil` CLI surfaces with the canonical Brand Brief v1.0 (`dashboard/public/brand/Sigil Brand Brief.html`). Replaces the ad-hoc emerald-on-blue dark theme with the brief's pure-black surface palette and exact brand greens. Loads JetBrains Mono alongside Inter. Replaces the hardcoded `S` letter in the sidebar with the Brace SVG. Points the favicon at the brand SVG. Adds a `SealVerdict` component using the three Seal SVG variants for scan-level attestation. Preserves the existing 4-tier per-finding severity taxonomy (CVSS-like) — that is a different domain from the brief's 3-state Seal verdict and stays.
+Rolls Brand v1.0 across every Sigil surface in this repo: dashboard, CLI, API email templates, docs, and the brand brief HTML itself. Replaces blue accents with the brand greens. Unifies the verdict taxonomy on the 5-tier scale (CLEAN / LOW / MEDIUM / HIGH / CRITICAL) — the existing per-finding severity collapses cleanly into this scale (0=CLEAN, 1-9=LOW, 10-24=MEDIUM, 25-49=HIGH, 50+=CRITICAL). Enforces the strict liability stance: scrubs "Safe to install" / "Verified safe" / "Sigil guarantees" / "Malware-free" wording from product, docs, and the brand brief; replaces with attestation-only phrasing. Loads JetBrains Mono. Replaces the sidebar's hardcoded `S` letter with the Brace SVG. Points favicon at brand SVG. Adds `SealVerdict` component (gated on the four missing Seal SVG variants landing).
+
+**Authoritative source:** the directive issued 2026-05-04 supersedes `dashboard/public/brand/Sigil Brand Brief.html` v1.0 §06 demo copy. In any conflict, the directive wins. Brief HTML must be updated to match.
 
 **Acceptance criteria (feature level):**
-- [ ] `globals.css` surface tokens match brief §04 exactly (`#0A0A0A` → `#262626`); brand greens match (`#196C2E/#238636/#3FB950/#56D364`); verdict palette matches (`#22C55E/#EAB308/#EF4444`)
-- [ ] `tailwind.config.ts` exposes `brand`, `surface`, and `verdict` palettes whose values match the brief — verifiable via grep
-- [ ] `<head>` loads both Inter and JetBrains Mono Google Font families
-- [ ] Favicon resolves to `/brand/favicon/favicon.svg` (not `/favicon.ico`)
-- [ ] Sidebar header renders the Brace SVG asset, not a CSS letter — verifiable by inspecting `Sidebar.tsx` for `<img src="/brand/brace/...">`
-- [ ] `SealVerdict.tsx` exists and renders the matching Seal SVG + text label for `clean | quarantine | risk`; pairs colour with text per brief rule
-- [ ] `SealVerdict` is mounted on the scan-detail page header so the Seal lands somewhere visible
-- [ ] Brand asset directory `dashboard/public/brand/` is tracked in git
-- [ ] No regression in existing `VerdictBadge` (4-tier per-finding severity) — colours shift to brief verdict palette where they map (clean/danger), but taxonomy unchanged
+- [ ] `globals.css` surface tokens match `#0A0A0A → #262626`; brand greens match (`#196C2E/#238636/#3FB950/#56D364`); verdict palette is 5-tier (`#22C55E / #EAB308 / #F97316 / #EF4444 / #DC2626`)
+- [ ] `tailwind.config.ts` exposes `brand`, `surface`, and `verdict` palettes whose values match the directive
+- [ ] `<head>` loads both Inter and JetBrains Mono
+- [ ] Favicon resolves to `/brand/favicon/favicon.svg`
+- [ ] Sidebar header renders Brace SVG, not a CSS letter
+- [ ] No `#3B82F6` / `#2563EB` / `#1D4ED8` / `rgba(59,130,246,*)` remains in active code paths (`dashboard/src/`, `dashboard/tailwind.config.ts`, `api/templates/`, `bin/sigil`, `plugins/`, top-level `docs/`). Excludes `archive/`, `packs/` placeholders, third-party `docs/internal/flowbite-ui-files/`
+- [ ] No "Safe to install" / "Verified safe" / "Sigil guarantees" / "Malware-free" copy remains anywhere in the repo (verified by grep)
+- [ ] CLI (`bin/sigil`) banner uses the brand wordmark style; verdict words are paired with status glyphs (●/◐/○) per directive §6
+- [ ] API email templates (`api/templates/email/`) use brand greens, not blue
+- [ ] Brand brief HTML §06 demo copy updated: "Safe to install" → "8/8 phases passed"; verdict family expanded to 5-tier with all SVG filenames listed
+- [ ] `SealVerdict.tsx` exists and renders 5 Seal variants — **BLOCKED** until `sigil-seal-{low,medium,high,critical}.svg` are produced
+- [ ] `SealVerdict` mounted on scan-detail page — **BLOCKED** by component
+- [ ] Brand asset directory tracked in git ✓ (closed in commit `4c9a46b`)

@@ -74,9 +74,9 @@ For per-project setup, add `.mcp.json` to your project root:
 
 Once connected, the agent has six security tools available. You do not need special syntax — just ask naturally:
 
-**"Is this package safe?"**
+**"Should I install this package?"**
 
-> You: "Is the `fastapi-cache2` pip package safe to install?"
+> You: "Should I install the `fastapi-cache2` pip package?"
 
 The agent calls `sigil_scan_package` and reports the verdict. If CLEAN, it proceeds. If findings exist, it shows you what triggered and asks for your decision.
 

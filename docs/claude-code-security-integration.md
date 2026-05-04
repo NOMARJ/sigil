@@ -58,7 +58,7 @@ sigil npm @anthropic/sdk
 # Output:
 🔍 SCAN RESULTS: CLEAN
 Risk Score: 0 / 100
-✅ Safe to install
+● 8/8 phases passed — no findings detected
 ```
 
 ### 2. **Before Cloning Repositories** (Sigil)

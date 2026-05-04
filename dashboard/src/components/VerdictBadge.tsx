@@ -1,17 +1,25 @@
 import type { Verdict } from "@/lib/types";
 
+// Brand v1.0 verdict family — 5-tier scale (directive 2026-05-04 §3).
+//   CLEAN    score 0      #22C55E
+//   LOW      score 1-9    #EAB308
+//   MEDIUM   score 10-24  #F97316
+//   HIGH     score 25-49  #EF4444
+//   CRITICAL score 50+    #DC2626
 const verdictStyles: Record<string, string> = {
-  LOW_RISK: "bg-green-500/10 text-green-400 border-green-500/20",
-  MEDIUM_RISK: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  HIGH_RISK: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  CRITICAL_RISK: "bg-red-500/10 text-red-400 border-red-500/20",
+  CLEAN:         "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20",
+  LOW_RISK:      "bg-[#EAB308]/10 text-[#EAB308] border-[#EAB308]/20",
+  MEDIUM_RISK:   "bg-[#F97316]/10 text-[#F97316] border-[#F97316]/20",
+  HIGH_RISK:     "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
+  CRITICAL_RISK: "bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/30",
 };
 
 const verdictDots: Record<string, string> = {
-  LOW_RISK: "bg-green-400",
-  MEDIUM_RISK: "bg-yellow-400",
-  HIGH_RISK: "bg-orange-400",
-  CRITICAL_RISK: "bg-red-400",
+  CLEAN:         "bg-[#22C55E]",
+  LOW_RISK:      "bg-[#EAB308]",
+  MEDIUM_RISK:   "bg-[#F97316]",
+  HIGH_RISK:     "bg-[#EF4444]",
+  CRITICAL_RISK: "bg-[#DC2626]",
 };
 
 /** Display label for verdict (strip _RISK suffix for readability). */

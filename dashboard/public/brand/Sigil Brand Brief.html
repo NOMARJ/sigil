@@ -174,7 +174,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Sigil · Brand brief · v1.0</div>
+    <div class="eyebrow">Sigil · Brand brief · v1.0 · revised 2026-05-04</div>
     <h1>Sigil identity system.</h1>
     <p class="lede-hero">Two marks, one family. The <strong style="color:var(--white)">Brace</strong> is the primary identity — the brand you see at every product surface. The <strong style="color:var(--white)">Seal</strong> is the verification artefact — a sister mark that signs scanned packages.</p>
     <nav class="toc">
@@ -382,30 +382,46 @@
   <!-- 06 STATUS -->
   <section id="status">
     <h2>06 · Verdict family</h2>
-    <p class="lede">Three Seal variants for the three terminal states of a scan. The shape stays constant; colour carries meaning. Always pair with a text label — never colour alone.</p>
-    <div class="status-grid">
+    <p class="lede">Five Seal variants for the five terminal states of a scan, scored by weighted finding severity. The shape stays constant; colour carries meaning. Always pair with a text label — never colour alone. CLEAN means "no findings detected" — it is not a safety claim.</p>
+    <div class="status-grid" style="grid-template-columns: repeat(5, 1fr)">
       <div class="status-cell">
         <img src="brand/seal/sigil-seal-clean.svg" alt="" />
         <div>
-          <div class="verdict" style="color:var(--clean)">CLEAN</div>
-          <div class="desc">All 8 phases passed. Safe to install.</div>
+          <div class="verdict" style="color:#22C55E">CLEAN</div>
+          <div class="desc">Score 0 · 8/8 phases passed.</div>
         </div>
       </div>
       <div class="status-cell">
-        <img src="brand/seal/sigil-seal-quarantine.svg" alt="" />
+        <img src="brand/seal/sigil-seal-low.svg" alt="" onerror="this.style.opacity='0.3'" />
         <div>
-          <div class="verdict" style="color:var(--warn)">QUARANTINE</div>
-          <div class="desc">Suspicious behaviour. Manual review required.</div>
+          <div class="verdict" style="color:#EAB308">LOW RISK</div>
+          <div class="desc">Score 1–9 · low-weight findings only.</div>
         </div>
       </div>
       <div class="status-cell">
-        <img src="brand/seal/sigil-seal-risk.svg" alt="" />
+        <img src="brand/seal/sigil-seal-medium.svg" alt="" onerror="this.style.opacity='0.3'" />
         <div>
-          <div class="verdict" style="color:var(--danger)">HIGH RISK</div>
-          <div class="desc">Active threat detected. Do not install.</div>
+          <div class="verdict" style="color:#F97316">MEDIUM RISK</div>
+          <div class="desc">Score 10–24 · review required.</div>
+        </div>
+      </div>
+      <div class="status-cell">
+        <img src="brand/seal/sigil-seal-high.svg" alt="" onerror="this.style.opacity='0.3'" />
+        <div>
+          <div class="verdict" style="color:#EF4444">HIGH RISK</div>
+          <div class="desc">Score 25–49 · do not install without review.</div>
+        </div>
+      </div>
+      <div class="status-cell">
+        <img src="brand/seal/sigil-seal-critical.svg" alt="" onerror="this.style.opacity='0.3'" />
+        <div>
+          <div class="verdict" style="color:#DC2626;font-weight:700">CRITICAL</div>
+          <div class="desc">Score 50+ · active threat detected.</div>
         </div>
       </div>
     </div>
+    <p class="muted" style="margin-top:14px;font-size:13px">Liability stance — never use the phrases "Safe to install", "Verified safe", "Sigil guarantees…", or "Malware-free". Use "8/8 phases passed", "No findings detected", "Sigil verified · clean", or "Attestation: clean".</p>
+    <p class="muted" style="margin-top:6px;font-size:12px">Note: <code>sigil-seal-low.svg</code>, <code>sigil-seal-medium.svg</code>, <code>sigil-seal-high.svg</code>, and <code>sigil-seal-critical.svg</code> are pending design — placeholders shown above will render at reduced opacity until the SVGs land.</p>
   </section>
 
   <!-- 07 APPLICATIONS -->
@@ -494,8 +510,10 @@
         <tr><td><code>brand/brace/sigil-brace-currentcolor.svg</code></td><td>Inline</td><td>Inherits CSS <code>color</code>.</td></tr>
         <tr><td><code>brand/seal/sigil-seal.svg</code></td><td>Sister</td><td>Verified attestation, neutral.</td></tr>
         <tr><td><code>brand/seal/sigil-seal-clean.svg</code></td><td>Verdict</td><td>All 8 phases passed.</td></tr>
-        <tr><td><code>brand/seal/sigil-seal-quarantine.svg</code></td><td>Verdict</td><td>Manual review required.</td></tr>
-        <tr><td><code>brand/seal/sigil-seal-risk.svg</code></td><td>Verdict</td><td>Active threat.</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-low.svg</code></td><td>Verdict</td><td>Score 1–9 · low-weight findings (pending design).</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-medium.svg</code></td><td>Verdict</td><td>Score 10–24 · review required (pending design).</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-high.svg</code></td><td>Verdict</td><td>Score 25–49 · do not install without review (pending design).</td></tr>
+        <tr><td><code>brand/seal/sigil-seal-critical.svg</code></td><td>Verdict</td><td>Score 50+ · active threat (pending design).</td></tr>
         <tr><td><code>brand/seal/sigil-seal-small.svg</code></td><td>≤ 24px</td><td>No dots, no inner ring.</td></tr>
         <tr><td><code>brand/seal/sigil-seal-currentcolor.svg</code></td><td>Inline</td><td>Inherits CSS <code>color</code>.</td></tr>
         <tr><td><code>brand/favicon/favicon.svg</code></td><td>Browser</td><td>Brace, brand greens.</td></tr>
@@ -541,8 +559,10 @@
 <span class="k">export const</span> VerdictSeal = ({ verdict, size = 24 }) =&gt; {
   <span class="k">const</span> src = {
     clean:      <span class="s">'/brand/seal/sigil-seal-clean.svg'</span>,
-    quarantine: <span class="s">'/brand/seal/sigil-seal-quarantine.svg'</span>,
-    risk:       <span class="s">'/brand/seal/sigil-seal-risk.svg'</span>,
+    low:        <span class="s">'/brand/seal/sigil-seal-low.svg'</span>,
+    medium:     <span class="s">'/brand/seal/sigil-seal-medium.svg'</span>,
+    high:       <span class="s">'/brand/seal/sigil-seal-high.svg'</span>,
+    critical:   <span class="s">'/brand/seal/sigil-seal-critical.svg'</span>,
   }[verdict];
   <span class="k">return</span> &lt;img src={src} width={size} height={size} alt={verdict} /&gt;;
 };</pre>

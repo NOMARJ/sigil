@@ -157,7 +157,7 @@ cd plugins/mcp-server && npm install && npm run build
 Once configured, just ask naturally:
 
 - "Scan this project for security issues"
-- "Is the `left-pad` npm package safe to install?"
+- "Should I install the `left-pad` npm package?"
 - "Audit this repo before I clone it: https://github.com/example/repo"
 - "Show me what's in quarantine"
 

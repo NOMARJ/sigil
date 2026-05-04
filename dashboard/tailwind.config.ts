@@ -19,58 +19,84 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Professional security green brand colors (replacing purple AI look)
+        // Brand v1.0 greens (directive 2026-05-04 §2)
         brand: {
-          50: "#ecfdf5",
-          100: "#d1fae5",
-          200: "#a7f3d0",
-          300: "#6ee7b7",
-          400: "#34d399",
-          500: "#10b981",  // Primary brand green
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
-          950: "#022c22",
+          50: "#ecfdf3",
+          100: "#d1fadf",
+          200: "#a6f4c5",
+          300: "#6ee7b0",
+          400: "#56D364",   // sigil-green-soft (hover/active)
+          500: "#3FB950",   // sigil-green — primary mark colour, primary CTA
+          600: "#238636",   // sigil-green-mid — secondary emphasis
+          700: "#196C2E",   // sigil-green-deep — pressed
+          800: "#0f4d20",
+          900: "#0a3417",
+          950: "#04190a",
+          deep: "#196C2E",
+          mid:  "#238636",
+          soft: "#56D364",
         },
-        // Custom dark theme colors
+        // Brand v1.0 surface scale
+        surface: {
+          black:    "#0A0A0A",
+          surface:  "#161616",
+          elevated: "#1C1C1C",
+          border:   "#262626",
+          muted:    "#404040",
+          gray:     "#787878",
+          light:    "#A3A3A3",
+          offwhite: "#E5E5E5",
+          white:    "#FAFAFA",
+        },
+        // Verdict family — 5-tier (directive §3)
+        verdict: {
+          clean:    "#22C55E",
+          low:      "#EAB308",
+          medium:   "#F97316",
+          high:     "#EF4444",
+          critical: "#DC2626",
+        },
+        // Legacy `dark` palette — kept so existing `bg-dark-900` etc still resolve.
+        // Values now follow the brand surface scale; map index by approximate luminance.
         dark: {
-          50: "#e8ebf0",
-          100: "#d1d8e3",
-          200: "#a3b1c7",
-          300: "#7589ab",
-          400: "#47628f",
-          500: "#2a3551",
-          600: "#1f2842",
-          700: "#1a2236",
-          800: "#141b2d",
-          900: "#0a0f1b",
-          950: "#050812",
+          50:  "#FAFAFA",
+          100: "#E5E5E5",
+          200: "#A3A3A3",
+          300: "#787878",
+          400: "#404040",
+          500: "#262626",
+          600: "#1C1C1C",
+          700: "#161616",
+          800: "#0F0F0F",
+          900: "#0A0A0A",
+          950: "#000000",
         },
-        // Improved status colors
+        // Status colours — aligned with the 5-tier verdict family
         success: {
           400: "#4ade80",
-          500: "#22c55e",
+          500: "#22C55E",   // verdict-clean
           600: "#16a34a",
         },
         warning: {
-          400: "#fbbf24",
-          500: "#f59e0b",
-          600: "#d97706",
+          400: "#facc15",
+          500: "#EAB308",   // verdict-low
+          600: "#ca8a04",
         },
         danger: {
           400: "#f87171",
-          500: "#ef4444",
-          600: "#dc2626",
+          500: "#EF4444",   // verdict-high
+          600: "#DC2626",   // verdict-critical
         },
+        // Blue removed from the system per directive §2 — neutral grey for legacy `info` refs.
         info: {
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
+          400: "#A3A3A3",
+          500: "#787878",
+          600: "#404040",
         },
       },
       fontFamily: {
         sans: [
+          "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
@@ -78,9 +104,17 @@ const config: Config = {
           "Arial",
           "sans-serif",
           "Apple Color Emoji",
-          "Segoe UI Emoji"
+          "Segoe UI Emoji",
         ],
-        mono: ["SF Mono", "Monaco", "Inconsolata", "Fira Code", "monospace"],
+        mono: [
+          "JetBrains Mono",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "monospace",
+        ],
       },
       fontSize: {
         'xs': ['0.75rem', { lineHeight: '1.5' }],

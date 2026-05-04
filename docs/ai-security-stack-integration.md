@@ -134,7 +134,7 @@ sigil npm langchain
 🔍 SCAN RESULTS: CLEAN
 Risk Score: 0 / 100
 Threat Level: CLEAN
-✅ Safe to install
+● 8/8 phases passed — no findings detected
 
 # Now install
 npm install langchain
