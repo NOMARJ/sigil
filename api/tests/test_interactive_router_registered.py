@@ -19,24 +19,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-# F1.7 is BLOCKED on a missing api.services.claude_service module that
-# bulk_analyzer.py imports. Interactive.py transitively imports
-# bulk_analyzer, so the entire router fails at module load. Fixing this
-# requires either writing a real Claude API wrapper service (feature
-# work, not a bug fix) or refactoring bulk_analyzer's dependency
-# direction. See evidence/F-003/F1.7-BLOCKED.md.
-#
-# These tests stay in the suite as living regression specs. When F1.7 is
-# resolved, remove the skip and the suite immediately enforces that
-# interactive stays mounted.
-_F17_BLOCKED_REASON = (
-    "F1.7 BLOCKED: api/services/claude_service.py does not exist; "
-    "bulk_analyzer.py:17 needs it to load, blocking interactive.router "
-    "registration. See evidence/F-003/F1.7-BLOCKED.md."
-)
+# F1.7 resolved 2026-05-04 by ADR-0003 Branch A (claude_service thin shim).
+# These two tests now actively enforce the contract — no @pytest.mark.skip.
 
 
-@pytest.mark.skip(reason=_F17_BLOCKED_REASON)
 def test_interactive_router_is_importable():
     """The router file's import chain must be clean."""
     from api.routers import interactive
@@ -45,7 +31,6 @@ def test_interactive_router_is_importable():
     assert interactive.router.prefix == "/v1/interactive"
 
 
-@pytest.mark.skip(reason=_F17_BLOCKED_REASON)
 def test_interactive_router_is_mounted_in_main(client: TestClient) -> None:
     """A Pro-gated interactive route must reach the auth layer (401), not 404."""
     resp = client.post(

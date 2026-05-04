@@ -1,5 +1,7 @@
 # Session Transcript Index
 
+- [code-2026-05-04-manual-1777869140797](2026-05-04-manual-1777869140797.jsonl) —  general: bash, stripe, 2>&1, head, echo
+- [code-2026-05-04-manual-1777868842961](2026-05-04-manual-1777868842961.jsonl) —  general: bash, grep, 7-blocked, echo
 - [code-2026-05-04-manual-1777858053797](2026-05-04-manual-1777858053797.jsonl) —  general: bash, 2>&1, python3, auth, print, models
 - [code-2026-05-04-manual-1777853888644](2026-05-04-manual-1777853888644.jsonl) —  architecture: bash, grep, 2>&1, /users/reecefrazier/cascadeprojects/sigil/docs/adr
 - [code-2026-05-03-manual-1777803528240](2026-05-03-manual-1777803528240.jsonl) —  general: bash, progress, head, sigil-api

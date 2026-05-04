@@ -94,7 +94,7 @@ class LLMService:
         prompt = await self._build_analysis_prompt(request)
 
         # Make API request
-        llm_response = await self._call_llm_api(prompt, request.max_tokens)
+        llm_response = await self.call_llm_api(prompt, request.max_tokens)
 
         # Parse response
         insights = self._parse_llm_insights(llm_response, request)
@@ -138,8 +138,20 @@ class LLMService:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    async def _call_llm_api(self, prompt: str, max_tokens: int) -> str:
-        """Make HTTP request to LLM API with retry logic."""
+    async def call_llm_api(
+        self, prompt: str, max_tokens: int, model: str | None = None
+    ) -> str:
+        """Make HTTP request to the configured LLM provider with retry logic.
+
+        Args:
+            prompt: user-content string for the model.
+            max_tokens: completion token cap.
+            model: optional per-call model override (e.g. "claude-3-haiku-20240307").
+                When None, falls back to llm_config.model. Threaded through as a
+                parameter — must NOT be implemented by mutating llm_config.model
+                across an await (that pattern races under concurrent coroutines
+                and is explicitly rejected by ADR-0003).
+        """
 
         if not self._session:
             self._session = aiohttp.ClientSession(
@@ -148,11 +160,12 @@ class LLMService:
 
         headers = llm_config.get_headers()
         url = llm_config.get_endpoint_url()
+        effective_model = model or llm_config.model
 
         # Build request payload based on provider
         if llm_config.provider in ("openai", "azure"):
             payload = {
-                "model": llm_config.model,
+                "model": effective_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": max_tokens,
                 "temperature": llm_config.temperature,
@@ -160,7 +173,7 @@ class LLMService:
             }
         elif llm_config.provider == "anthropic":
             payload = {
-                "model": llm_config.model,
+                "model": effective_model,
                 "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": llm_config.temperature,

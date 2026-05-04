@@ -1,0 +1,6 @@
+{"type":"session-meta","id":"code-2026-05-04-manual-1777869140797","date":"2026-05-04","features":[],"topics":["bash","stripe","2>&1","head","echo"],"scope":"general","story_count":0,"duration_minutes":8}
+{"ts":"2026-05-04T04:32:42.402Z","role":"tool","tool":"Bash","summary":"Bash: test -f /Users/reecefrazier/CascadeProjects/sigil/docs/adr/ADR-0003-claude-service-strategy.md && grep -q '^status: prop","tags":[]}
+{"ts":"2026-05-04T04:33:51.675Z","role":"tool","tool":"Bash","summary":"Bash: which stripe 2>&1; command -v stripe 2>&1; echo \"---\"; ls ~/.config/stripe 2>&1 | head -5","tags":[]}
+{"ts":"2026-05-04T04:34:00.220Z","role":"tool","tool":"Bash","summary":"Bash: stripe --version && echo \"---\" && stripe config --list 2>&1 | head -30","tags":[]}
+{"ts":"2026-05-04T04:34:09.160Z","role":"tool","tool":"Bash","summary":"Bash: cat ~/.config/stripe/config.toml | head -80","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}
