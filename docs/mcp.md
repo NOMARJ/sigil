@@ -209,11 +209,11 @@ A read-only resource that provides documentation about Sigil's six scan phases. 
 
 ## Example Workflows
 
-### "Should I install this package?"
+### "Is this package safe to install?"
 
 Ask your AI agent naturally:
 
-> "Should I install the `langchain-community` pip package?"
+> "Is the `langchain-community` pip package safe to install?"
 
 The agent calls `sigil_scan_package` with `manager: "pip"` and `package_name: "langchain-community"`, reviews the verdict, and tells you whether to proceed.
 

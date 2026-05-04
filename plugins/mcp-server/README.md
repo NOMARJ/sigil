@@ -104,7 +104,7 @@ Once configured, AI agents can use Sigil tools naturally:
 > "Scan this project for security issues"
 > → Agent calls `sigil_scan` with the project path
 
-> "Should I install the `left-pad` npm package?"
+> "Is the `left-pad` npm package safe to install?"
 > → Agent calls `sigil_scan_package` with manager="npm", package_name="left-pad"
 
 > "Audit this GitHub repo before I clone it: https://github.com/example/repo"

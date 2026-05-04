@@ -189,22 +189,34 @@ Closed in commit `4c9a46b` (2026-05-04). 21 files added: 20 SVGs + brand brief H
 
 ---
 
-### US-011: Strict-liability copy scrubbed across the repo
+### US-011: Strict-liability copy scrubbed across Sigil claims
 
-**Description:** The directive §4 forbids "Safe to install", "Verified safe", "Sigil guarantees…", "Malware-free". Replace with attestation phrasing: "8/8 phases passed", "No findings detected", "Sigil verified · clean", "Attestation: clean".
+**Description:** The directive §4 forbids Sigil from saying "Safe to install", "Verified safe", "Sigil guarantees…", "Malware-free". Sigil's own claims (CLI output, scan-result copy, status footers) must not contain these phrases. **User-query examples** that quote a natural human question ("Is X safe to install?") are out of scope — those are quotations of how users phrase questions, not Sigil's own claims (owner-confirmed 2026-05-04).
 
-**Found at PRD revision time:**
-- `plugins/claude-code/README.md:271` — "Safe to install"
-- `docs/claude-code-security-integration.md:61` — "✅ Safe to install"
-- `docs/ai-security-stack-integration.md:137` — "✅ Safe to install"
-- `dashboard/public/brand/Sigil Brand Brief.html:391` — "All 8 phases passed. Safe to install."
+**Found at PRD revision time and scrubbed:**
+- `plugins/claude-code/README.md:271` — bullet "Safe to install" → "8/8 phases passed — no findings detected"
+- `docs/claude-code-security-integration.md:61` — "✅ Safe to install" → "● 8/8 phases passed — no findings detected"
+- `docs/ai-security-stack-integration.md:137` — "✅ Safe to install" → "● 8/8 phases passed — no findings detected"
+- `dashboard/public/brand/Sigil Brand Brief.html:391` — "All 8 phases passed. Safe to install." → "Score 0 · 8/8 phases passed."
+- `docs/internal/BLOG-AI-SECURITY-STACK.md:226` — "Package is safe to install. No install hooks…" → "8/8 phases passed — no findings detected. No install hooks…" *(internal — gitignored)*
+- `docs/internal/MERGE_READINESS_SUMMARY.md:153` — "verified safe for open source" → "reviewed and approved for open-source release" *(internal — gitignored)*
+
+**Out of scope (user-query examples — kept verbatim):**
+- `plugins/mcp-server/README.md:107`, `docs/ide-plugins.md:160`, `docs/mcp.md:212/216`, `blog/04-securing-ai-agents-with-mcp.md:79`, `docs/internal/spec-sigil-bot-aeo.md:14`, `docs/internal/sigil-bot-spec.md:20`
 
 **Acceptance Criteria:**
-- [ ] All four occurrences replaced with attestation phrasing per directive §4
-- [ ] No new occurrences introduced — verify: `grep -rIin -E "safe to install|verified safe|sigil guarantees|malware-free" /Users/reecefrazier/CascadeProjects/sigil --include="*.tsx" --include="*.ts" --include="*.md" --include="*.json" --include="*.py" --include="*.html" --include="*.sh" 2>/dev/null | grep -v node_modules | grep -v archive/ | grep -v docs/internal/flowbite-ui-files/` returns nothing
+- [x] All Sigil-claim occurrences replaced with attestation phrasing per directive §4 (6 files)
+- [x] User-query examples preserved verbatim — they quote how humans naturally phrase questions
+- [ ] No new Sigil-claim occurrences introduced in future commits — verify with the grep below, manually classifying each hit as user-query (allowed) vs Sigil-claim (forbidden):
+  ```
+  grep -rIin -E "safe to install|verified safe|sigil guarantees|malware-free" \
+    --include="*.tsx" --include="*.ts" --include="*.md" --include="*.json" \
+    --include="*.py" --include="*.html" --include="*.sh" \
+    | grep -v node_modules | grep -v archive/ | grep -v flowbite-ui-files/
+  ```
 
 **Priority:** 1
-**Files:** the four files listed above + the brand brief HTML
+**Files:** the six files listed above as scrubbed
 
 ---
 
