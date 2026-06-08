@@ -182,7 +182,7 @@ class TestTrendingService:
             {"tool_id": "tool2", "rank_position": 10},
         ]
 
-        with patch("services.trending_service.db") as mock_db:
+        with patch("api.services.trending_service.db") as mock_db:
             mock_db.execute_raw_sql = AsyncMock(return_value=mock_rows)
 
             rankings = await trending_service._get_previous_rankings("7d", "all", "all")
@@ -192,7 +192,7 @@ class TestTrendingService:
     @pytest.mark.asyncio
     async def test_fetch_tool_metrics(self, trending_service, mock_db_data):
         """Test tool metrics fetching from api.database."""
-        with patch("services.trending_service.db") as mock_db:
+        with patch("api.services.trending_service.db") as mock_db:
             mock_db.execute_raw_sql = AsyncMock(return_value=mock_db_data)
 
             metrics = await trending_service._fetch_tool_metrics(
