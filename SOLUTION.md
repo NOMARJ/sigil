@@ -307,5 +307,5 @@ Launch-gate umbrella that closes the six blockers in the 2026-06-08 launch-readi
 - [ ] CRITICAL-003: `curl https://www.sigilsec.ai/install.sh` serves the real installer, not the private-development copy — closed via F-004 + CDN fresh-deploy root cause (cross-ref)
 - [ ] CRITICAL-004: `python3 -m pytest api/tests -q` exits 0 (or all residual failures are owner-accepted, documented protected-scope items with evidence)
 - [ ] HIGH-001: `cd dashboard && npm audit --audit-level=high --omit=dev` exits 0 after a planned Next.js upgrade (operator-gated)
-- [ ] HIGH-002: Rust CLI is verifiable — `cargo test` passes in CI or a documented local toolchain (environment/operator-gated)
+- [x] HIGH-002: Rust CLI is verifiable — `cargo test` passes in CI. `rust-cli.yml` on `main` (pinned Rust 1.90.0) → `test result: ok. 6 passed; 0 failed` (run 27110957847, PR #115/#116). Evidence: `evidence/launch-readiness/US-009-rust-verification.md`
 - [ ] Launch-readiness report re-run shows verdict READY with refreshed evidence

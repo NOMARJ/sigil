@@ -434,7 +434,7 @@
 
 ### US-009: Verify Rust CLI builds and tests pass
 - **Linear:** NOM-1077
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot via CI, owner-approved) — `rust-cli.yml` ran on CI. First run (PR #115) failed: `clap_builder 4.6` needs `edition2024` (Cargo ≥1.85); bumped pin 1.82.0→1.90.0 (PR #116). Re-run green: `rustc 1.90.0`, `cargo build` + `cargo test` → `test result: ok. 6 passed; 0 failed`. Run 27110957847 success. **HIGH-002 closed.** Evidence: `evidence/launch-readiness/US-009-rust-verification.md`.
 - **Executor:** environment-gated · **Blocker:** HIGH-002 · **Scope:** moderate · **Deps:** US-008
 - **Goal:** `cargo test` passes for the CLI (CI or configured toolchain).
 - **Done when:** `cargo test` exits 0 for `cli/`; evidence captures toolchain version + full test output.
