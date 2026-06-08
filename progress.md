@@ -369,7 +369,7 @@
 
 ### US-001: Triage API test-suite failures into fix-categories
 - **Linear:** NOM-1069
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — baseline `25 failed/167 passed/31 errors` = 56 (matches report). All 56 categorized: 34 event-loop, 6 legacy-auth-410, 15 real-bug-protected, 1 test-only-mock. `grep -c 'category:'` = 57 (≥56). Evidence: `evidence/launch-readiness/US-001-pytest-triage.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate
 - **Goal:** Categorize the 25 failures + 31 errors into {test-only fixture, stale-expectation, real-bug-protected}.
 - **Done when:** `evidence/launch-readiness/US-001-pytest-triage.md` with verbatim pytest tail; `grep -c 'category:'` >= 56.
@@ -377,15 +377,16 @@
 
 ### US-002: Fix event-loop fixture errors in API test suite
 - **Linear:** NOM-1070
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — root cause: local `SIGIL_DATABASE_URL` made lifespan build a real MSSQL pool vs the suite's intended in-memory store. Fix: session-autouse `_force_in_memory_db` in `conftest.py` (test-infra only, no `api/database.py` edit). Errors 31→0; passed 167→197; no regression. Evidence: `evidence/launch-readiness/US-002-event-loop-fix.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate · **Deps:** US-001
 - **Goal:** Resolve `got Future attached to a different loop` errors at the fixture layer (no production db edits).
 - **Done when:** `pytest api/tests -q` reports 0 event-loop errors; count strictly decreases vs US-001 baseline.
 - **Files:** `api/tests/conftest.py`, `evidence/launch-readiness/US-002-event-loop-fix.md`
+- **Note:** Removing the loop error exposed 7 `test_scan` submission tests as `422` schema-drift failures (stale fixture, test-only, buildable but UNSCOPED by any F-007 story). Surfaced, not fixed (probation scope discipline).
 
 ### US-003: Update legacy auth test expectations to 410 post-Auth0
 - **Linear:** NOM-1071
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — 6 legacy register/login tests flipped 200/201/401/409 → 410 (test-only; production `api/routers/auth.py:605-640` already returns 410). `-k auth`: 38 passed/0 failed. Full suite 20 failed/203 passed/0 errors (203=197+6, no regression). Evidence: `evidence/launch-readiness/US-003-legacy-auth-410.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** trivial · **Deps:** US-001
 - **Goal:** Flip stale 200-expecting legacy auth tests to assert 410 (test-only, no endpoint edits).
 - **Done when:** `pytest api/tests -q -k auth` shows previously-failing legacy-auth tests pass.
@@ -886,6 +887,19 @@
 **Outcome:** BLOCKED
 **Stories:** 18/45 (6 blocked)
 
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T00:42:41.303Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (9/22/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
