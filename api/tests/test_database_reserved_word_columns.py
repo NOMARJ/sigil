@@ -76,7 +76,9 @@ async def test_upsert_brackets_reserved_word_columns():
     assert len(captured) >= 1
     insert_sql, _ = captured[0]
     assert "[plan]" in insert_sql, f"plan column not bracketed in INSERT: {insert_sql}"
-    assert "[status]" in insert_sql, f"status column not bracketed in INSERT: {insert_sql}"
+    assert "[status]" in insert_sql, (
+        f"status column not bracketed in INSERT: {insert_sql}"
+    )
 
 
 @pytest.mark.asyncio

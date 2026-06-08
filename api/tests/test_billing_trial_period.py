@@ -71,12 +71,19 @@ async def test_new_customer_gets_14_day_trial():
 
     with (
         patch("api.routers.billing._get_stripe", return_value=mock_stripe),
-        patch("api.routers.billing._get_or_create_subscription", AsyncMock(return_value=fresh_sub)),
+        patch(
+            "api.routers.billing._get_or_create_subscription",
+            AsyncMock(return_value=fresh_sub),
+        ),
         patch("api.routers.billing.db", mock_db),
         _settings_patch(),
     ):
-        body = SubscribeRequest(plan=billing.PlanTier.PRO, interval="monthly", payment_method_id=None)
-        await billing.subscribe(body=body, current_user=_user("user_new_1", "new@example.com"))
+        body = SubscribeRequest(
+            plan=billing.PlanTier.PRO, interval="monthly", payment_method_id=None
+        )
+        await billing.subscribe(
+            body=body, current_user=_user("user_new_1", "new@example.com")
+        )
 
     mock_stripe.Customer.create.assert_called_once()
     kwargs = mock_stripe.checkout.Session.create.call_args.kwargs
@@ -104,12 +111,19 @@ async def test_existing_customer_no_trial():
 
     with (
         patch("api.routers.billing._get_stripe", return_value=mock_stripe),
-        patch("api.routers.billing._get_or_create_subscription", AsyncMock(return_value=returning_sub)),
+        patch(
+            "api.routers.billing._get_or_create_subscription",
+            AsyncMock(return_value=returning_sub),
+        ),
         patch("api.routers.billing.db", mock_db),
         _settings_patch(),
     ):
-        body = SubscribeRequest(plan=billing.PlanTier.PRO, interval="monthly", payment_method_id=None)
-        await billing.subscribe(body=body, current_user=_user("user_returning_1", "back@example.com"))
+        body = SubscribeRequest(
+            plan=billing.PlanTier.PRO, interval="monthly", payment_method_id=None
+        )
+        await billing.subscribe(
+            body=body, current_user=_user("user_returning_1", "back@example.com")
+        )
 
     mock_stripe.Customer.create.assert_not_called()
     kwargs = mock_stripe.checkout.Session.create.call_args.kwargs

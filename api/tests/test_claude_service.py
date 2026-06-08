@@ -64,7 +64,12 @@ class _MockSession:
         self.captured: dict[str, Any] = {}
         self._response_payload = response_payload
 
-    def post(self, url: str, headers: dict[str, str] | None = None, json: dict[str, Any] | None = None):  # noqa: A002
+    def post(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        json: dict[str, Any] | None = None,
+    ):  # noqa: A002
         self.captured["url"] = url
         self.captured["headers"] = headers
         self.captured["json"] = json
@@ -214,8 +219,12 @@ async def test_concurrent_claude_calls_do_not_share_model_state() -> None:
 
     with patch.object(cs_module.llm_service, "call_llm_api", fake_call_llm_api):
         results = await asyncio.gather(
-            claude_service.analyze_with_claude("p-A", model="model-alpha", max_tokens=10),
-            claude_service.analyze_with_claude("p-B", model="model-beta", max_tokens=10),
+            claude_service.analyze_with_claude(
+                "p-A", model="model-alpha", max_tokens=10
+            ),
+            claude_service.analyze_with_claude(
+                "p-B", model="model-beta", max_tokens=10
+            ),
         )
 
     assert sorted(results) == ["resp-for-model-alpha", "resp-for-model-beta"]
