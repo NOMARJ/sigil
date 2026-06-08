@@ -125,9 +125,27 @@ class TestScanSubmission:
     def test_submit_scan_validation_error(
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
-        """Invalid payload should return 422."""
-        resp = client.post("/v1/scan", json={"invalid": True}, headers=auth_headers)
+        """Invalid payload should return 422 with actionable, sanitised field errors."""
+        canary = "ECHO-CANARY-VALUE-12345"
+        resp = client.post(
+            "/v1/scan",
+            json={"target_type": "pip", "metadata": {"marker": canary}},
+            headers=auth_headers,
+        )
         assert resp.status_code == 422
+
+        data = resp.json()
+        assert data["detail"] == "Validation error"
+        # Actionable: points the caller at the missing required field.
+        locs = [tuple(e["loc"]) for e in data["errors"]]
+        assert ("body", "target") in locs
+        assert all({"loc", "msg", "type"} >= set(e) for e in data["errors"])
+
+        # Sanitised: the caller's submitted input is never echoed back.
+        body_text = resp.text
+        assert canary not in body_text
+        assert "input" not in body_text
+        assert "errors.pydantic.dev" not in body_text
 
     def test_submit_scan_medium_risk_verdict(
         self, client: TestClient, auth_headers: dict[str, str]

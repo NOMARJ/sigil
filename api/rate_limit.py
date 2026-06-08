@@ -14,11 +14,19 @@ works across multiple API instances.  When Redis is unavailable they fall
 back to in-memory counters (via RedisClient internals).
 """
 
-from __future__ import annotations
+# NOTE: Do NOT add `from __future__ import annotations` to this module.
+# RateLimiter is used as a class-instance dependency (`Depends(RateLimiter(...))`).
+# FastAPI resolves a callable's annotations via `getattr(call, "__globals__", {})`,
+# but an *instance* has no `__globals__`, so a stringised `request: "Request"`
+# forward ref would resolve against an empty namespace and stay a ForwardRef.
+# FastAPI then fails to recognise the special `Request` param, treats it as a
+# required query parameter, and every rate-limited endpoint returns 422.
+# Keeping annotations eager makes `request: Request` a real class object.
 
 import logging
 import os
 import time
+from typing import Optional
 
 from fastapi import HTTPException, Request, status
 from api.middleware.security import SecurityHeaders
@@ -62,7 +70,7 @@ class RateLimiter:
         self,
         max_requests: int = 60,
         window: int = 60,
-        key_prefix: str | None = None,
+        key_prefix: Optional[str] = None,
     ) -> None:
         self.max_requests = max_requests
         self.window = window

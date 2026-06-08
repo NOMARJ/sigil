@@ -280,9 +280,21 @@ async def http_exception_handler(
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    # Return actionable field-level errors so callers can fix their request,
+    # while sanitising the raw Pydantic error: the `input`, `ctx`, and `url`
+    # fields echo the caller's submitted data (possibly secrets/PII) back to
+    # them and leak Pydantic internals, so we keep only loc/msg/type.
+    errors = [
+        {
+            "loc": list(err.get("loc", ())),
+            "msg": err.get("msg", ""),
+            "type": err.get("type", ""),
+        }
+        for err in exc.errors()
+    ]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": "Bad request"},
+        content={"detail": "Validation error", "errors": errors},
     )
 
 

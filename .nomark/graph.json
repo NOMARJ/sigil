@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-06-08T10:01:44.228506",
+  "last_rebuilt": "2026-06-08T12:27:50.578831",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -290,6 +290,90 @@
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-010"
+    },
+    "F-007/US-001": {
+      "type": "story",
+      "title": "Triage API test-suite failures into fix-categories",
+      "status": "TODO",
+      "linear_id": "NOM-1069",
+      "raw_id": "US-001"
+    },
+    "F-007/US-002": {
+      "type": "story",
+      "title": "Fix event-loop fixture errors in API test suite",
+      "status": "TODO",
+      "linear_id": "NOM-1070",
+      "raw_id": "US-002"
+    },
+    "F-007/US-003": {
+      "type": "story",
+      "title": "Update legacy auth test expectations to 410 post-Auth0",
+      "status": "TODO",
+      "linear_id": "NOM-1071",
+      "raw_id": "US-003"
+    },
+    "F-007/US-004": {
+      "type": "story",
+      "title": "Diagnose /v1/report uniqueidentifier 500 (protected fix)",
+      "status": "TODO",
+      "linear_id": "NOM-1072",
+      "raw_id": "US-004"
+    },
+    "F-007/US-005": {
+      "type": "story",
+      "title": "Repair public signup CTA (404 -> working signup)",
+      "status": "TODO",
+      "linear_id": "NOM-1073",
+      "raw_id": "US-005"
+    },
+    "F-007/US-006": {
+      "type": "story",
+      "title": "Next.js upgrade assessment for high-severity advisory",
+      "status": "TODO",
+      "linear_id": "NOM-1074",
+      "raw_id": "US-006"
+    },
+    "F-007/US-007": {
+      "type": "story",
+      "title": "Execute Next.js upgrade and clear audit",
+      "status": "TODO",
+      "linear_id": "NOM-1075",
+      "raw_id": "US-007"
+    },
+    "F-007/US-008": {
+      "type": "story",
+      "title": "Draft Rust CLI verification CI job",
+      "status": "TODO",
+      "linear_id": "NOM-1076",
+      "raw_id": "US-008"
+    },
+    "F-007/US-009": {
+      "type": "story",
+      "title": "Verify Rust CLI builds and tests pass",
+      "status": "TODO",
+      "linear_id": "NOM-1077",
+      "raw_id": "US-009"
+    },
+    "F-007/US-010": {
+      "type": "story",
+      "title": "[cross-ref] Pricing page reconciliation",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-010"
+    },
+    "F-007/US-011": {
+      "type": "story",
+      "title": "[cross-ref] Installer URL serves real installer",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-011"
+    },
+    "F-007/US-012": {
+      "type": "story",
+      "title": "Re-run launch-readiness report and flip verdict",
+      "status": "TODO",
+      "linear_id": "NOM-1078",
+      "raw_id": "US-012"
     },
     "commit:1ccaaf8": {
       "type": "commit",
@@ -1400,6 +1484,36 @@
       "hash": "e44164f",
       "message": "NOM-891: Auth0 test-user cleanup evidence (US-010) (#112)",
       "date": "2026-05-05T06:20:27+10:00"
+    },
+    "commit:ded5ed2": {
+      "type": "commit",
+      "hash": "ded5ed2",
+      "message": "docs: [US-009] Rust CLI verified on CI (6 passed) \u2014 HIGH-002 closed (#117)",
+      "date": "2026-06-08T11:29:56+10:00"
+    },
+    "commit:39ed7c1": {
+      "type": "commit",
+      "hash": "39ed7c1",
+      "message": "ci: [US-009] bump Rust CI pin 1.82.0 -> 1.90.0 (deps require edition2024) (#116)",
+      "date": "2026-06-08T11:28:06+10:00"
+    },
+    "commit:b166903": {
+      "type": "commit",
+      "hash": "b166903",
+      "message": "F-007: Launch-readiness remediation \u2014 agent-buildable subset (US-001/002/003/006/008) (#115)",
+      "date": "2026-06-08T11:23:58+10:00"
+    },
+    "commit:cf4391d": {
+      "type": "commit",
+      "hash": "cf4391d",
+      "message": "memory: 2026-06-08 10:01 \u2014 graph rebuild + instinct decay + resource catalog",
+      "date": "2026-06-08T10:42:06+10:00"
+    },
+    "commit:5cdb2a2": {
+      "type": "commit",
+      "hash": "5cdb2a2",
+      "message": "memory: 2026-06-08 10:01 \u2014 sigil",
+      "date": "2026-06-08T10:01:45+10:00"
     }
   },
   "edges": [
@@ -1426,6 +1540,11 @@
     {
       "from": "EP-003",
       "to": "F-005",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-007",
       "rel": "contains"
     },
     {
@@ -1551,6 +1670,116 @@
     {
       "from": "F-003",
       "to": "F-003/US-010",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-001",
+      "to": "NOM-1069",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-001",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-002",
+      "to": "NOM-1070",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-002",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-003",
+      "to": "NOM-1071",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-003",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-004",
+      "to": "NOM-1072",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-004",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-005",
+      "to": "NOM-1073",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-005",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-006",
+      "to": "NOM-1074",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-006",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-007",
+      "to": "NOM-1075",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-007",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-008",
+      "to": "NOM-1076",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-008",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-009",
+      "to": "NOM-1077",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-009",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-010",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-011",
+      "rel": "contains"
+    },
+    {
+      "from": "F-007/US-012",
+      "to": "NOM-1078",
+      "rel": "tracked_in"
+    },
+    {
+      "from": "F-007",
+      "to": "F-007/US-012",
       "rel": "contains"
     },
     {
@@ -1852,6 +2081,41 @@
       "from": "commit:e44164f",
       "to": "NOM-891",
       "rel": "resolves"
+    },
+    {
+      "from": "F-003/US-009",
+      "to": "commit:ded5ed2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-007/US-009",
+      "to": "commit:ded5ed2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-003/US-009",
+      "to": "commit:39ed7c1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-007/US-009",
+      "to": "commit:39ed7c1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-003/US-001",
+      "to": "commit:b166903",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-007/US-001",
+      "to": "commit:b166903",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:b166903",
+      "to": "F-007",
+      "rel": "contributes_to"
     }
   ]
 }

@@ -900,6 +900,40 @@
 - 1: scanner, false-positives, patterns [confidence: 0.8]
 - 2: python, imports, packaging [confidence: 0.7]
 - 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-08T01:32:51.095Z
+**Outcome:** BLOCKED
+**Stories:** 24/45 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T02:00:00.463Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (9/22/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T02:00:31.961Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (9/22/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-08T02:21:23.012Z
+**Outcome:** BLOCKED
+**Stories:** 25/46 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
@@ -963,3 +997,16 @@
 
 
 
+
+---
+
+## Bugfix Log
+
+### BUGFIX: POST /v1/scan 422 "Bad request" on valid bodies (2026-06-08)
+- **Status:** DONE ✅
+- **Symptom:** `POST /v1/scan` (and every other `Depends(RateLimiter(...))`-protected endpoint) returned `422 {"detail":"Bad request"}` on valid JSON bodies, on Python 3.11 (Docker/CI) and 3.9 (local).
+- **Root cause:** `api/rate_limit.py` had `from __future__ import annotations`, stringising `RateLimiter.__call__`'s `request: Request` to `"Request"`. `RateLimiter` is used as a class-*instance* dependency; FastAPI resolves annotations via `getattr(call, "__globals__", {})`, and an instance has no `__globals__`, so the forward ref evaluated against an empty namespace and stayed `ForwardRef('Request')`. FastAPI then failed to recognise the special `Request` param and registered `request` as a **required query parameter** → 422 `Field required (query, request)`. The global `RequestValidationError` handler masked the real detail as `"Bad request"`.
+- **Fix:** Removed `from __future__ import annotations` from `api/rate_limit.py` (so `request: Request` is a real class object) and converted `key_prefix: str | None` → `Optional[str]` for 3.9 compatibility. Added a regression-guard comment.
+- **Blast radius:** `RateLimiter` is the only callable-class dependency in `api/`; one fix covers scan (×4), metrics, billing, email, rescan.
+- **Evidence:** `api/tests/test_scan.py` 8/8 pass (were failing pre-fix). Full `api/` suite: 210 passed, 13 failed — all 13 pre-existing (identical on baseline, in scanner-detection/scoring/monitoring, unrelated to rate limiting). Field-level check: `RateLimiter query=[] req_param=request`.
+- **Follow-up (DONE, owner-approved 2026-06-08):** The `RequestValidationError` handler in `api/main.py` flattened every client validation error to `{"detail":"Bad request"}`, which made this near-undebuggable and gave API callers no actionable detail. Now returns `{"detail":"Validation error","errors":[{loc,msg,type},...]}` — actionable field locations while sanitising the raw Pydantic error (drops `input`/`ctx`/`url`, which echo the caller's submitted data and leak internals). Regression test in `api/tests/test_scan.py::test_submit_scan_validation_error` asserts both the actionable shape and that a submitted canary value is never echoed back.
