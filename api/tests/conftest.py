@@ -157,6 +157,34 @@ def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
 
 
 # ---------------------------------------------------------------------------
+# Pin the suite to the in-memory store (test-infra only)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _force_in_memory_db() -> Iterator[None]:
+    """Disable the real Azure MSSQL pool for the whole test session.
+
+    When a developer's api/.env sets SIGIL_DATABASE_URL, the app lifespan
+    (main.py -> db.connect) builds a real aioodbc pool bound to the TestClient
+    event loop. Fixtures that call asyncio.run(db.insert(...)) then execute on
+    ephemeral loops, yielding "got Future attached to a different loop" and
+    "Cannot acquire connection after closing pool" errors. The suite is designed
+    for the in-memory store (db._memory_store / _reset_memory_stores), so we pin
+    settings.database_configured to False, which makes db.connect() a no-op and
+    routes every db operation through the in-memory branch. Test-infra only — no
+    production code path is modified.
+    """
+    from api.config import settings
+
+    original_url = settings.database_url
+    settings.database_url = None
+    db._pool = None
+    yield
+    settings.database_url = original_url
+
+
+# ---------------------------------------------------------------------------
 # Reset in-memory stores between tests
 # ---------------------------------------------------------------------------
 
