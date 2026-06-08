@@ -352,7 +352,9 @@ app.include_router(device_flow.router)  # /v1/auth/device/* — CLI device flow
 app.include_router(policies.router)
 app.include_router(alerts.router)
 app.include_router(billing.router)
-app.include_router(interactive.router)  # /v1/interactive/* — Pro AI investigation, FP, remediation, sessions, compliance
+app.include_router(
+    interactive.router
+)  # /v1/interactive/* — Pro AI investigation, FP, remediation, sessions, compliance
 app.include_router(analytics.router)  # /v1/analytics/* — Usage analytics and metrics
 app.include_router(
     rescan.router
