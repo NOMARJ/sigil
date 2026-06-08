@@ -1,0 +1,48 @@
+name: Rust CLI
+
+# Verifies the Rust CLI (cli/) builds and its tests pass on a pinned toolchain.
+# Closes HIGH-002: the Rust CLI was previously unverifiable because the local
+# workstation had no default rustup toolchain (`cargo --version` failed). CI
+# installs a pinned toolchain so `cargo test` is reproducible.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cli/**"
+      - ".github/workflows/rust-cli.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cli/**"
+      - ".github/workflows/rust-cli.yml"
+
+concurrency:
+  group: rust-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-rust-cli:
+    name: Build & Test Rust CLI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    env:
+      RUST_TOOLCHAIN: "1.82.0"
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Pin Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy,rustfmt
+          rustup default "$RUST_TOOLCHAIN"
+          rustc --version
+          cargo --version
+
+      - name: cargo build
+        run: cargo build --verbose
+
+      - name: cargo test
+        run: cargo test --verbose

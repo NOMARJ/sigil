@@ -410,7 +410,7 @@
 
 ### US-006: Next.js upgrade assessment for high-severity advisory
 - **Linear:** NOM-1074
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — real `npm audit` (1 high next + 1 moderate postcss → next@16.2.7 breaking). Blast radius mapped to actual dashboard usage: React 18→19, 6 async-request-API files, caching defaults, eslint-config-next bump. Rollback + verify commands listed. `--force` NOT run. Evidence: `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md`.
 - **Executor:** agent (buildable) · **Blocker:** HIGH-001 · **Scope:** moderate
 - **Goal:** Written upgrade assessment for the breaking Next.js bump (-> 16.2.7), no forced fix run.
 - **Done when:** `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md` with audit output, breaking surface, rollback plan.
@@ -426,7 +426,7 @@
 
 ### US-008: Draft Rust CLI verification CI job
 - **Linear:** NOM-1076
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — `.github/workflows/rust-cli.yml` drafted: ubuntu-latest, `rustup default 1.82.0` then `cargo build/test` with `working-directory: cli`. `actionlint 1.7.12` CLEAN (exit 0). checkout SHA-pinned to repo's existing v4 SHA. Enabling as required check = operator action. Evidence: `evidence/launch-readiness/US-008-rust-ci.md`.
 - **Executor:** agent (buildable) · **Blocker:** HIGH-002 · **Scope:** moderate
 - **Goal:** CI workflow installing a pinned Rust toolchain and running `cargo test` against `cli/`.
 - **Done when:** Workflow YAML validates (actionlint clean), references `cli/Cargo.toml`; evidence explains local toolchain gap.
