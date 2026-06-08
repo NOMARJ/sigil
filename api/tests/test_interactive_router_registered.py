@@ -16,7 +16,6 @@ route, called without auth, must return 401 (auth required) — never 404
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 # F1.7 resolved 2026-05-04 by ADR-0003 Branch A (claude_service thin shim).

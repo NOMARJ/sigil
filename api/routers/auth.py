@@ -35,7 +35,6 @@ import httpx
 
 from api.config import settings
 from api.database import cache, db
-from api.rate_limit import RateLimiter
 from api.models import (
     AuthTokens,
     ErrorResponse,
@@ -115,8 +114,6 @@ except BaseException:
 
 def _pbkdf2_hash(password: str) -> str:
     """Hash a password with PBKDF2-SHA256 (stdlib fallback)."""
-    import secrets
-
     salt = secrets.token_hex(16)
     dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
     return f"pbkdf2:sha256:{salt}:{dk.hex()}"
