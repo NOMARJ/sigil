@@ -29,7 +29,8 @@ jobs:
       run:
         working-directory: cli
     env:
-      RUST_TOOLCHAIN: "1.82.0"
+      # >= 1.85.0 required: transitive deps (e.g. clap_builder 4.6) need edition2024
+      RUST_TOOLCHAIN: "1.90.0"
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
