@@ -444,15 +444,23 @@ class TestAlerts:
             mock_server = Mock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
-            # Mock settings
-            with patch("api.monitoring.alerting.settings") as mock_settings:
-                mock_settings.smtp_configured = True
-                mock_settings.smtp_host = "smtp.test.com"
-                mock_settings.smtp_port = 587
-                mock_settings.smtp_user = "test@test.com"
-                mock_settings.smtp_password = "password"
-                mock_settings.smtp_from_email = "alerts@test.com"
+            # Mock settings. EmailChannel(list) leaves self.smtp_settings=None,
+            # so send() resolves SMTP config via _get_alerting_settings(). Patch
+            # that function directly — patching the alerting.settings shim is
+            # unreliable (it's shadowed by an import-time SimpleNamespace, so the
+            # real, env-dependent settings leak through and the test fails in CI
+            # where SMTP is unconfigured).
+            mock_settings = Mock()
+            mock_settings.smtp_configured = True
+            mock_settings.smtp_host = "smtp.test.com"
+            mock_settings.smtp_port = 587
+            mock_settings.smtp_user = "test@test.com"
+            mock_settings.smtp_password = "mockpw"
+            mock_settings.smtp_from_email = "alerts@test.com"
 
+            with patch(
+                "api.monitoring._get_alerting_settings", return_value=mock_settings
+            ):
                 channel = EmailChannel(["ops@test.com"])
                 alert = Alert(
                     id="email-test",
