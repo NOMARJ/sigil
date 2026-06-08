@@ -456,7 +456,7 @@
 
 ### US-012: Re-run launch-readiness report and flip verdict
 - **Linear:** NOM-1078
-- **Status:** TODO
+- **Status:** BLOCKED (2026-06-08, autopilot) — cannot flip verdict to READY: hard deps US-004 (owner), US-005 (owner), US-007 (operator), US-009 (env), US-010 (operator), US-011 (operator) are all gated and unmet. Verdict stays NOT READY. Run summary: `evidence/launch-readiness/F-007-autopilot-run.md`. Re-run once gated blockers clear.
 - **Executor:** agent (buildable) · **Blocker:** ALL · **Scope:** moderate · **Deps:** US-001..US-011 (excl. cross-ref dupes)
 - **Goal:** Re-run report once blockers clear; verdict NOT READY -> READY with refreshed evidence.
 - **Done when:** Report verdict READY (or owner-acknowledged residual list); SOLUTION.md F-007 -> DONE; progress.md final.

@@ -66,6 +66,11 @@ confirms the structure and the `cli` working-directory binding to `cli/Cargo.tom
   place, result pending*.
 - Optional enhancement: add `actions/cache` for `~/.cargo` + `cli/target` (SHA-pinned per repo
   policy) to speed runs — omitted from the draft to avoid an unverified action SHA.
+- **MSRV risk (affects US-009, not US-008 ACs):** the `1.82.0` pin matches `edition = "2021"`,
+  but `cli/Cargo.lock` has 261 dependencies and no `rust-version` is declared in the crate or
+  lock. A transitive dep could require Rust > 1.82.0, in which case the first CI run fails on
+  resolution and the pin must be bumped (or commit a `cli/rust-toolchain.toml`). Could not be
+  verified locally (no toolchain). US-009's first green run validates the pin.
 
 ## AC verification
 
