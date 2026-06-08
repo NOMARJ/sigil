@@ -37,7 +37,7 @@ sigil install
 ```
 
 **Coming Soon:**
-- **Homebrew**: `brew install nomarj/sigil`
+- **Homebrew**: `brew install nomarj/tap/sigil`
 - **npm**: `npm install -g @nomark/sigil` 
 - **curl installer**: `curl -sSL https://sigilsec.ai/install.sh | sh`
 - **Docker**: `docker pull nomark/sigil:latest`

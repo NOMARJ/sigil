@@ -9,6 +9,13 @@ export const GET = handleAuth({
       scope: 'openid profile email',
     },
   }),
+  signup: handleLogin({
+    authorizationParams: {
+      audience: process.env.AUTH0_AUDIENCE,
+      scope: 'openid profile email',
+      screen_hint: 'signup',
+    },
+  }),
   logout: handleLogout({
     returnTo: process.env.AUTH0_BASE_URL,
   }),
