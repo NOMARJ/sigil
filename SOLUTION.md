@@ -154,7 +154,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans repos, p
 |----|------|--------|--------|----------|----------|
 | EP-001 | Scanner v2 — false positive reduction | DONE | Q1 2026 | F-001 | INS-001, PR #84 |
 | EP-002 | Forge stats + registry search optimization | DONE | Q1 2026 | F-002 | Background caching, SQL filtering |
-| EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
+| EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005, F-007 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
 | EP-004 | Brand & Identity System | ACTIVE | Q2 2026 | F-006 | `dashboard/public/brand/Sigil Brand Brief.html` v1.0 |
 
 ---
@@ -284,3 +284,26 @@ Rolls Brand v1.0 across every Sigil surface in this repo: dashboard, CLI, API em
 - [x] `SealVerdict.tsx` exists and renders 5 Seal variants — closed via colour-instantiation of the currentcolor template; owner-authorised
 - [x] `SealVerdict` mounted on scan-detail page header
 - [x] Brand asset directory tracked in git ✓ (closed in commit `4c9a46b`)
+
+---
+
+### F-007 · Launch Readiness Remediation
+
+**Epic:** EP-003
+**Status:** PLANNED
+**Started:** 2026-06-08
+**Shipped:** —
+
+**Source:** `docs/launch-readiness-report.md` (2026-06-08, verdict: NOT READY)
+
+**What it delivers:**
+Launch-gate umbrella that closes the six blockers in the 2026-06-08 launch-readiness report so the public-launch verdict can move from NOT READY to READY. F-007 is a *tracker over remediation*, not a clean-slate build: pricing-page and installer-URL blockers are cross-referenced to existing F-003/F-004 stories rather than duplicated. New stories cover only the uncovered cross-cutting work — API test-suite health, the Next.js dependency advisory, and Rust CLI / CI verification — plus the owner-gated signup-CTA repair. Each story is tagged agent-buildable vs owner/operator/environment-gated; under probation (trust 0) only agent-buildable stories execute without owner go-ahead. Owner/operator-action items use the F-003 evidence-file verification pattern.
+
+**Acceptance criteria (feature level):**
+- [ ] CRITICAL-001: `curl -I https://app.sigilsec.ai/signup` resolves to a working signup entry (200 or intentional 302 to Auth0 signup), owner-approved auth-flow change (owner-gated)
+- [ ] CRITICAL-002: pricing page matches billing API (Team $99, trial copy reconciled) — closed via F-003 STORY-107/111/112 (cross-ref)
+- [ ] CRITICAL-003: `curl https://www.sigilsec.ai/install.sh` serves the real installer, not the private-development copy — closed via F-004 + CDN fresh-deploy root cause (cross-ref)
+- [ ] CRITICAL-004: `python3 -m pytest api/tests -q` exits 0 (or all residual failures are owner-accepted, documented protected-scope items with evidence)
+- [ ] HIGH-001: `cd dashboard && npm audit --audit-level=high --omit=dev` exits 0 after a planned Next.js upgrade (operator-gated)
+- [ ] HIGH-002: Rust CLI is verifiable — `cargo test` passes in CI or a documented local toolchain (environment/operator-gated)
+- [ ] Launch-readiness report re-run shows verdict READY with refreshed evidence

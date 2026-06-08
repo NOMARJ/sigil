@@ -1,0 +1,233 @@
+{
+  "feature": "launch-readiness",
+  "featureId": "F-007",
+  "epic": "EP-003",
+  "branchName": "feature/launch-readiness-remediation",
+  "source": "docs/launch-readiness-report.md",
+  "description": "Launch-gate umbrella closing the six blockers in the 2026-06-08 launch-readiness report (verdict: NOT READY). Pricing-page and installer blockers are cross-referenced to existing F-003/F-004 stories rather than duplicated; new stories cover the uncovered cross-cutting work (API test-suite health, Next.js advisory, Rust/CI verification) plus the owner-gated signup-CTA repair. Each story is tagged agent-buildable vs owner/operator/environment-gated. Under probation (trust 0), only agent-buildable stories execute without explicit owner go-ahead.",
+  "governance": {
+    "trustScore": 0,
+    "autonomyLevel": "probation",
+    "note": "Build/deploy/auth/database/financial stories are gated. Planning is non-destructive and permitted. Owner-action items verify via the F-003 evidence-file pattern (evidence/launch-readiness/)."
+  },
+  "dependencies": ["F-003", "F-004"],
+  "executorLegend": {
+    "agent": "Agent can execute now under probation (non-destructive, test-only, or artifact-drafting).",
+    "owner": "Requires owner decision/approval — touches auth, pricing, or irreversible surface.",
+    "operator": "Requires operator with deploy/infra/CI credentials.",
+    "environment": "Blocked on local/CI toolchain that is not configured."
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Triage API test-suite failures into fix-categories",
+      "blocker": "CRITICAL-004",
+      "executor": "agent",
+      "gated": false,
+      "description": "As a maintainer, I want the 25 failures + 31 errors categorized into {test-only fixture, stale-expectation, real-bug-protected} so that the buildable subset is separated from owner-gated database/auth fixes before any code is touched.",
+      "acceptanceCriteria": [
+        "evidence/launch-readiness/US-001-pytest-triage.md exists with verbatim `python3 -m pytest api/tests -q` tail",
+        "Every failure/error is assigned to exactly one category with the file:test id and the chosen category",
+        "`grep -c 'category:' evidence/launch-readiness/US-001-pytest-triage.md` >= 56 (one per failure+error)",
+        "Real-bug-protected items name the production module they would touch (e.g. api/database.py)"
+      ],
+      "priority": 1,
+      "files": ["evidence/launch-readiness/US-001-pytest-triage.md"],
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Fix event-loop fixture errors in API test suite",
+      "blocker": "CRITICAL-004",
+      "executor": "agent",
+      "gated": false,
+      "description": "As a maintainer, I want the `got Future attached to a different loop` errors resolved at the test-fixture layer so that the suite errors drop without changing production database behavior.",
+      "acceptanceCriteria": [
+        "The fixture/conftest change does not modify api/database.py production code paths (test-infra only)",
+        "`python3 -m pytest api/tests -q` reports 0 errors attributable to event-loop/Future-loop binding",
+        "Error count strictly decreases vs the US-001 baseline; no previously-passing test regresses",
+        "evidence/launch-readiness/US-002-event-loop-fix.md captures before/after pytest tail"
+      ],
+      "priority": 2,
+      "files": ["api/tests/conftest.py", "evidence/launch-readiness/US-002-event-loop-fix.md"],
+      "dependencies": ["US-001"],
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Update legacy auth test expectations to 410 post-Auth0",
+      "blocker": "CRITICAL-004",
+      "executor": "agent",
+      "gated": false,
+      "description": "As a maintainer, I want legacy auth tests that expect 200 updated to assert 410 (Gone) so that the suite reflects the post-Auth0-migration contract without altering any endpoint behavior.",
+      "acceptanceCriteria": [
+        "Only test files change — no api/routers/auth.py or api/ production source edits",
+        "Each updated test references the ADR/migration that made the endpoint return 410",
+        "`python3 -m pytest api/tests -q -k auth` shows the previously-failing legacy-auth tests now pass",
+        "evidence/launch-readiness/US-003-legacy-auth-410.md lists each test flipped 200->410"
+      ],
+      "priority": 3,
+      "files": ["api/tests/", "evidence/launch-readiness/US-003-legacy-auth-410.md"],
+      "dependencies": ["US-001"],
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Diagnose /v1/report uniqueidentifier 500 (protected fix)",
+      "blocker": "CRITICAL-004",
+      "executor": "owner",
+      "gated": true,
+      "description": "As a maintainer, I want the `/v1/report` SQL uniqueidentifier-conversion 500 root-caused with a proposed minimal fix so the owner can approve a change that touches database behavior.",
+      "acceptanceCriteria": [
+        "evidence/launch-readiness/US-004-report-500-diagnosis.md identifies the exact conversion site and failing query",
+        "A minimal proposed patch is included as a diff in the evidence file (NOT applied) pending owner approval",
+        "TDD anchor named: the pytest test id that flips red->green once the fix lands",
+        "Owner approval recorded before any api/ production code is modified"
+      ],
+      "priority": 4,
+      "files": ["evidence/launch-readiness/US-004-report-500-diagnosis.md"],
+      "dependencies": ["US-001"],
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Repair public signup CTA (404 -> working signup)",
+      "blocker": "CRITICAL-001",
+      "executor": "owner",
+      "gated": true,
+      "description": "As a prospective customer, I want the public signup CTA to reach a working signup flow so I can create an account. Fix changes the auth entry flow and is owner-gated.",
+      "acceptanceCriteria": [
+        "Owner decision recorded: route /signup to Auth0 `?screen_hint=signup` (302) OR ship a signup page (200)",
+        "`curl -sS -I https://app.sigilsec.ai/signup` returns 200 or an intentional 302 to the Auth0 signup screen (not 404)",
+        "evidence/launch-readiness/US-005-signup-cta.md captures pre-fix 404 and post-fix curl",
+        "No auth-flow code merged without owner approval (probation gate)"
+      ],
+      "priority": 5,
+      "files": ["evidence/launch-readiness/US-005-signup-cta.md"],
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Next.js upgrade assessment for high-severity advisory",
+      "blocker": "HIGH-001",
+      "executor": "agent",
+      "gated": false,
+      "description": "As a maintainer, I want a written upgrade assessment for the breaking Next.js bump (current -> 16.2.7) so the operator can execute the forced upgrade with known blast radius.",
+      "acceptanceCriteria": [
+        "evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md captures `cd dashboard && npm audit --audit-level=high --omit=dev` output and the advisory IDs",
+        "Breaking-change surface enumerated (Next.js major migration notes mapped to dashboard usage)",
+        "Rollback plan and test/build verification commands listed for the operator",
+        "Assessment does NOT run `npm audit fix --force` (operator-gated execution)"
+      ],
+      "priority": 6,
+      "files": ["evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md"],
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Execute Next.js upgrade and clear audit",
+      "blocker": "HIGH-001",
+      "executor": "operator",
+      "gated": true,
+      "description": "As an operator, I want the planned Next.js upgrade applied so the production dependency audit is clean.",
+      "acceptanceCriteria": [
+        "`cd dashboard && npm audit --audit-level=high --omit=dev` exits 0",
+        "`cd dashboard && npm test -- --runInBand` passes and `npm run build` compiles successfully",
+        "evidence/launch-readiness/US-007-nextjs-upgrade-applied.md captures post-upgrade audit + test + build output",
+        "Upgrade follows the US-006 assessment; deviations documented"
+      ],
+      "priority": 7,
+      "files": ["dashboard/package.json", "dashboard/package-lock.json", "evidence/launch-readiness/US-007-nextjs-upgrade-applied.md"],
+      "dependencies": ["US-006"],
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Draft Rust CLI verification CI job",
+      "blocker": "HIGH-002",
+      "executor": "agent",
+      "gated": false,
+      "description": "As a maintainer, I want a CI workflow that installs a pinned Rust toolchain and runs `cargo test` so the Rust CLI becomes verifiable without relying on an unconfigured local toolchain.",
+      "acceptanceCriteria": [
+        "A GitHub Actions workflow drafted that runs `rustup default <pinned>` then `cargo test` against cli/",
+        "Workflow YAML validates (`yamllint` or actionlint clean) and references the existing cli/Cargo.toml",
+        "evidence/launch-readiness/US-008-rust-ci.md explains why local `cargo --version` failed and how CI closes it",
+        "Workflow is drafted/committed but enabling on protected branches noted as operator action"
+      ],
+      "priority": 8,
+      "files": [".github/workflows/rust-cli.yml", "evidence/launch-readiness/US-008-rust-ci.md"],
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "title": "Verify Rust CLI builds and tests pass",
+      "blocker": "HIGH-002",
+      "executor": "environment",
+      "gated": true,
+      "description": "As a maintainer, I want `cargo test` to pass for the Rust CLI so the CLI claims in the launch report are verified rather than unverifiable.",
+      "acceptanceCriteria": [
+        "`cargo test` (CI or configured local toolchain) exits 0 for cli/",
+        "evidence/launch-readiness/US-009-rust-verification.md captures the toolchain version and full test output",
+        "Any failing tests are filed and triaged, not hidden"
+      ],
+      "priority": 9,
+      "files": ["evidence/launch-readiness/US-009-rust-verification.md"],
+      "dependencies": ["US-008"],
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "title": "[cross-ref] Pricing page reconciliation",
+      "blocker": "CRITICAL-002",
+      "executor": "operator",
+      "gated": true,
+      "crossRef": ["F-003/STORY-107", "F-003/STORY-111", "F-003/STORY-112"],
+      "description": "As a launch gate, I want the stale pricing page ($199 Team, 30-day trial) reconciled with the billing API ($99 Team). This work is already tracked under F-003 — F-007 only gates launch on its completion; do not duplicate the stories here.",
+      "acceptanceCriteria": [
+        "Browser probe of https://www.sigilsec.ai/pricing shows Team $99 and trial copy matching the owner ADR-0001 decision",
+        "F-003 STORY-112 age header < 3600 on a fresh probe AND content reflects current main (operator fresh deploy)",
+        "evidence/launch-readiness/US-010-pricing-crossref.md links the closing F-003 evidence files",
+        "No new pricing stories created in F-007 (traceability stays in F-003)"
+      ],
+      "priority": 10,
+      "files": ["evidence/launch-readiness/US-010-pricing-crossref.md"],
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "title": "[cross-ref] Installer URL serves real installer",
+      "blocker": "CRITICAL-003",
+      "executor": "operator",
+      "gated": true,
+      "crossRef": ["F-004", "F-003/STORY-108", "F-003/STORY-112"],
+      "description": "As a launch gate, I want https://www.sigilsec.ai/install.sh to serve the real installer (GitHub main) instead of the private-development copy. Same CDN/fresh-deploy root cause as F-003 STORY-108/112; tracked under F-004 distribution ACs.",
+      "acceptanceCriteria": [
+        "`curl -sS https://www.sigilsec.ai/install.sh | head -5` matches the GitHub main installer (`#!/usr/bin/env sh` / `# Sigil installer`), not the 'private development' copy",
+        "Root cause confirmed identical to the F-003 STORY-108/112 stale-deploy finding (or new cause documented)",
+        "evidence/launch-readiness/US-011-installer-crossref.md captures pre/post curl and links F-004 status",
+        "No new installer stories created in F-007 (traceability stays in F-004)"
+      ],
+      "priority": 11,
+      "files": ["evidence/launch-readiness/US-011-installer-crossref.md"],
+      "passes": false
+    },
+    {
+      "id": "US-012",
+      "title": "Re-run launch-readiness report and flip verdict",
+      "blocker": "ALL",
+      "executor": "agent",
+      "gated": false,
+      "description": "As the owner, I want the launch-readiness report re-run once all blockers clear so the verdict moves from NOT READY to READY with refreshed evidence.",
+      "acceptanceCriteria": [
+        "docs/launch-readiness-report.md re-run with current evidence; every CRITICAL/HIGH blocker shows resolved or owner-accepted",
+        "Verdict line reads READY (or NOT READY with an explicit, owner-acknowledged residual list)",
+        "SOLUTION.md F-007 status flipped to DONE with all feature-level ACs ticked and evidence paths inline",
+        "progress.md US-001..US-012 reflect final status"
+      ],
+      "priority": 12,
+      "files": ["docs/launch-readiness-report.md", "SOLUTION.md", "progress.md"],
+      "dependencies": ["US-001", "US-002", "US-003", "US-004", "US-005", "US-007", "US-009", "US-010", "US-011"],
+      "passes": false
+    }
+  ]
+}

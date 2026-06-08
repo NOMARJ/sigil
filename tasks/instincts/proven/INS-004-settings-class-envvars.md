@@ -2,7 +2,7 @@
 id: INS-004
 title: Endpoints must use Settings class, not raw os.getenv()
 status: proven
-confidence: 0.8
+confidence: 0.7
 created: 2026-03-13
 proven_at: 2026-03-13
 source: lesson

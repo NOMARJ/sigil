@@ -358,6 +358,111 @@
 
 ---
 
+## Feature: F-007 Launch Readiness Remediation (EP-003)
+
+> **Linear:** NOM-1068 (Feature) · Epic EP-003 = NOM-1067
+> **PRD:** `tasks/prd-launch-readiness.json`
+> **Source:** `docs/launch-readiness-report.md` (2026-06-08, verdict: NOT READY)
+> **Created:** 2026-06-08
+> **Mode:** launch-gate tracker — cross-refs F-003/F-004 for pricing+installer, new stories for uncovered work
+> **Governance:** trust 0 / probation — only `executor: agent` stories run without owner go-ahead
+
+### US-001: Triage API test-suite failures into fix-categories
+- **Linear:** NOM-1069
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate
+- **Goal:** Categorize the 25 failures + 31 errors into {test-only fixture, stale-expectation, real-bug-protected}.
+- **Done when:** `evidence/launch-readiness/US-001-pytest-triage.md` with verbatim pytest tail; `grep -c 'category:'` >= 56.
+- **Files:** `evidence/launch-readiness/US-001-pytest-triage.md`
+
+### US-002: Fix event-loop fixture errors in API test suite
+- **Linear:** NOM-1070
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate · **Deps:** US-001
+- **Goal:** Resolve `got Future attached to a different loop` errors at the fixture layer (no production db edits).
+- **Done when:** `pytest api/tests -q` reports 0 event-loop errors; count strictly decreases vs US-001 baseline.
+- **Files:** `api/tests/conftest.py`, `evidence/launch-readiness/US-002-event-loop-fix.md`
+
+### US-003: Update legacy auth test expectations to 410 post-Auth0
+- **Linear:** NOM-1071
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** trivial · **Deps:** US-001
+- **Goal:** Flip stale 200-expecting legacy auth tests to assert 410 (test-only, no endpoint edits).
+- **Done when:** `pytest api/tests -q -k auth` shows previously-failing legacy-auth tests pass.
+- **Files:** `api/tests/`, `evidence/launch-readiness/US-003-legacy-auth-410.md`
+
+### US-004: Diagnose /v1/report uniqueidentifier 500 (protected fix)
+- **Linear:** NOM-1072
+- **Status:** TODO
+- **Executor:** owner-gated · **Blocker:** CRITICAL-004 · **Scope:** moderate · **Deps:** US-001
+- **Goal:** Root-cause the SQL uniqueidentifier-conversion 500 + propose minimal patch (NOT applied) for owner approval.
+- **Done when:** `evidence/launch-readiness/US-004-report-500-diagnosis.md` with conversion site, proposed diff, TDD anchor.
+- **Files:** `evidence/launch-readiness/US-004-report-500-diagnosis.md`
+
+### US-005: Repair public signup CTA (404 -> working signup)
+- **Linear:** NOM-1073
+- **Status:** TODO
+- **Executor:** owner-gated · **Blocker:** CRITICAL-001 · **Scope:** moderate
+- **Goal:** Owner-approved fix so `/signup` reaches a working flow (auth entry change).
+- **Done when:** `curl -I https://app.sigilsec.ai/signup` returns 200 or intentional 302 to Auth0 signup, not 404.
+- **Files:** `evidence/launch-readiness/US-005-signup-cta.md`
+
+### US-006: Next.js upgrade assessment for high-severity advisory
+- **Linear:** NOM-1074
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** HIGH-001 · **Scope:** moderate
+- **Goal:** Written upgrade assessment for the breaking Next.js bump (-> 16.2.7), no forced fix run.
+- **Done when:** `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md` with audit output, breaking surface, rollback plan.
+- **Files:** `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md`
+
+### US-007: Execute Next.js upgrade and clear audit
+- **Linear:** NOM-1075
+- **Status:** TODO
+- **Executor:** operator-gated · **Blocker:** HIGH-001 · **Scope:** moderate · **Deps:** US-006
+- **Goal:** Apply the planned upgrade; production audit clean.
+- **Done when:** `npm audit --audit-level=high --omit=dev` exits 0; `npm test` + `npm run build` pass.
+- **Files:** `dashboard/package.json`, `dashboard/package-lock.json`, `evidence/launch-readiness/US-007-nextjs-upgrade-applied.md`
+
+### US-008: Draft Rust CLI verification CI job
+- **Linear:** NOM-1076
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** HIGH-002 · **Scope:** moderate
+- **Goal:** CI workflow installing a pinned Rust toolchain and running `cargo test` against `cli/`.
+- **Done when:** Workflow YAML validates (actionlint clean), references `cli/Cargo.toml`; evidence explains local toolchain gap.
+- **Files:** `.github/workflows/rust-cli.yml`, `evidence/launch-readiness/US-008-rust-ci.md`
+
+### US-009: Verify Rust CLI builds and tests pass
+- **Linear:** NOM-1077
+- **Status:** TODO
+- **Executor:** environment-gated · **Blocker:** HIGH-002 · **Scope:** moderate · **Deps:** US-008
+- **Goal:** `cargo test` passes for the CLI (CI or configured toolchain).
+- **Done when:** `cargo test` exits 0 for `cli/`; evidence captures toolchain version + full test output.
+- **Files:** `evidence/launch-readiness/US-009-rust-verification.md`
+
+### US-010: [cross-ref] Pricing page reconciliation
+- **Status:** TODO (tracked in F-003 STORY-107/111/112 — do not duplicate)
+- **Executor:** operator-gated · **Blocker:** CRITICAL-002 · **Scope:** moderate
+- **Goal:** Pricing page ($199/30-day-trial) reconciled with billing API (Team $99) per owner ADR-0001.
+- **Done when:** Probe shows Team $99 + reconciled trial copy; F-003 STORY-112 fresh-deploy closed; evidence links F-003 files.
+- **Files:** `evidence/launch-readiness/US-010-pricing-crossref.md`
+
+### US-011: [cross-ref] Installer URL serves real installer
+- **Status:** TODO (tracked in F-004 + F-003 STORY-108/112 — do not duplicate)
+- **Executor:** operator-gated · **Blocker:** CRITICAL-003 · **Scope:** moderate
+- **Goal:** `www.sigilsec.ai/install.sh` serves the GitHub-main installer, not the private-dev copy.
+- **Done when:** `curl install.sh | head -5` matches real installer; root cause confirmed = STORY-108/112 stale deploy.
+- **Files:** `evidence/launch-readiness/US-011-installer-crossref.md`
+
+### US-012: Re-run launch-readiness report and flip verdict
+- **Linear:** NOM-1078
+- **Status:** TODO
+- **Executor:** agent (buildable) · **Blocker:** ALL · **Scope:** moderate · **Deps:** US-001..US-011 (excl. cross-ref dupes)
+- **Goal:** Re-run report once blockers clear; verdict NOT READY -> READY with refreshed evidence.
+- **Done when:** Report verdict READY (or owner-acknowledged residual list); SOLUTION.md F-007 -> DONE; progress.md final.
+- **Files:** `docs/launch-readiness-report.md`, `SOLUTION.md`, `progress.md`
+
+---
+
 ## Decisions Log
 
 | Date | Decision | Rationale |
@@ -726,11 +831,110 @@
 - 8: github-actions, tags, ci-cd [confidence: 0.3]
 - 9: npm, release, ci-cd [confidence: 0.3]
 
+
+### Session 2026-05-04
+
+**Start:** 2026-05-04T07:24:31.367Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+**End:** 2026-05-04T07:26:26.056Z
+**Outcome:** BLOCKED
+**Stories:** 17/28 (6 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
+
+### Session 2026-06-07
+
+**Start:** 2026-06-07T23:55:25.640Z
+**Available instincts:** 10 (proven: 5, pending: 5, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.9]
+- 1: scanner, false-positives, patterns [confidence: 0.9]
+- 2: python, imports, packaging [confidence: 0.8]
+- 3: python, fastapi, configuration [confidence: 0.8]
+- 4: react, hooks, frontend [confidence: 0.8]
+- 5: npm, sigil, scope [confidence: 0.3]
+- 6: agents, verification, brief-compliance [confidence: 0.3]
+- 7: secrets, release, ci-cd [confidence: 0.3]
+- 8: github-actions, tags, ci-cd [confidence: 0.3]
+- 9: npm, release, ci-cd [confidence: 0.3]
+
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T00:15:35.250Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 33 stories (8/11/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-08T00:23:13.702Z
+**Outcome:** BLOCKED
+**Stories:** 18/45 (6 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
 |----|---------|------------|---------|-------------|-----------|-------------|-------------|--------|
 
+## Feature: Pre-Production Launch Readiness
+
+> **Started:** 2026-06-08
+> **Mode:** implementation with probation restrictions
+> **Governance notes:** Trust score is 0/probation, so no autonomous subagent dispatch. CHARTER II.5 applies: auth, authorization, database schema, and CI/CD configuration changes require explicit owner approval before edits. First pass is evidence-driven discovery and non-protected fixes only.
+> **Context:** FRESH (exchange 0), drift score 0/healthy.
+
+### LAUNCH-001: Establish launch-readiness baseline
+- **Status:** DONE (2026-06-08)
+- **Goal:** Produce a fresh, reproducible baseline across package manager detection, build/test commands, live-route smoke checks, security dependency checks, and known owner-gated blockers.
+- **Done when:** `docs/launch-readiness-report.md` contains command evidence and a launch verdict; every failed check is classified Critical/High/Medium/Low with next story routing.
+- **Files:** `docs/launch-readiness-report.md`, `docs/pre-production-checklist.md`
+- **Evidence:** `docs/launch-readiness-report.md` verdict `NOT READY`; `rg -n "NOT READY|CRITICAL-001|25 failed|has30DayTrial|HTTP/2 404|Sigil 1.1.2" docs/...` found all evidence anchors; `jq empty .nomark/resources.json tasks/instincts/index.json package-lock.json dashboard/package-lock.json && echo json-ok` returned `json-ok`; `ls -l evidence/launch-readiness` shows desktop/mobile pricing screenshots; `node scripts/drift-scorer.cjs 0` returned score `0`, bracket `FRESH`.
+- **Notes:** Vercel Agent Browser is not available in this harness; Playwright Chromium was installed and used as substitute. Critical blockers found: `/signup` 404, stale public pricing, stale public install script, API suite failures. Non-protected fixes applied during baseline: `bin/sigil --version` now reports `1.1.2`; root `package-lock.json` version matches `1.1.2`; dashboard non-forced `npm audit fix` reduced audit from 3 vulnerabilities to 2 remaining Next/PostCSS advisories.
+
+### LAUNCH-002: Fix non-protected launch blockers from baseline
+- **Status:** TODO
+- **Goal:** Resolve launch-blocking issues that do not touch auth, authorization, database schema, or CI/CD configuration.
+- **Done when:** LAUNCH-001 Critical/High issues outside protected areas are fixed and their original failing checks now pass.
+- **Files:** TBD from LAUNCH-001.
+- **Notes:** Protected areas stay blocked pending owner approval.
+
+### LAUNCH-003: Security, auth, database, and CI/CD protected-change queue
+- **Status:** TODO
+- **Goal:** Convert protected launch blockers into owner-approval-ready change requests with exact files, risks, and verification commands.
+- **Done when:** `docs/known-risks.md` lists each protected blocker, its severity, required approval, and evidence.
+- **Files:** `docs/security-review.md`, `docs/known-risks.md`
+- **Notes:** No protected edits without current-session owner approval.
+
+### LAUNCH-004: Browser and journey validation
+- **Status:** TODO
+- **Goal:** Validate core user journeys with browser evidence against the available local or deployed surface.
+- **Done when:** `docs/browser-test-results.md` records personas, routes, console/network findings, screenshots where possible, and pass/fail status.
+- **Files:** `docs/browser-test-results.md`
+- **Notes:** Use Playwright if Vercel Agent Browser remains unavailable.
+
+### LAUNCH-005: Deployment and rollback readiness docs
+- **Status:** TODO
+- **Goal:** Ensure launch operators have current deployment and rollback instructions grounded in verified resource graph entries.
+- **Done when:** `docs/deployment-runbook.md` and `docs/rollback-runbook.md` exist and reference only `.nomark/resources.json`-verified resources or explicitly unresolved placeholders.
+- **Files:** `docs/deployment-runbook.md`, `docs/rollback-runbook.md`
+- **Notes:** Check `.nomark/resources.json` before writing any resource names, endpoints, or environment variables.
 
 
 

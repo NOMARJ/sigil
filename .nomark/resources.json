@@ -106,6 +106,44 @@
       "resource_group": "sigil-rg",
       "verified_at": "2026-03-30",
       "source": "memory"
+    },
+    {
+      "id": "web:www-sigilsec-ai",
+      "type": "public_web_host",
+      "provider": "vercel",
+      "name": "www.sigilsec.ai",
+      "url": "https://www.sigilsec.ai",
+      "verified_at": "2026-06-08",
+      "source": "curl -I https://www.sigilsec.ai/"
+    },
+    {
+      "id": "web:app-sigilsec-ai",
+      "type": "public_web_host",
+      "provider": "vercel",
+      "name": "app.sigilsec.ai",
+      "url": "https://app.sigilsec.ai",
+      "verified_at": "2026-06-08",
+      "source": "curl -I https://app.sigilsec.ai/login"
+    },
+    {
+      "id": "api:api-sigilsec-ai",
+      "type": "public_api_endpoint",
+      "provider": "azure_container_apps",
+      "name": "api.sigilsec.ai",
+      "url": "https://api.sigilsec.ai",
+      "health_endpoint": "https://api.sigilsec.ai/health",
+      "verified_at": "2026-06-08",
+      "source": "curl -i https://api.sigilsec.ai/health"
+    },
+    {
+      "id": "auth:auth-sigilsec-ai",
+      "type": "auth0_tenant_domain",
+      "provider": "auth0",
+      "name": "auth.sigilsec.ai",
+      "url": "https://auth.sigilsec.ai",
+      "openid_configuration": "https://auth.sigilsec.ai/.well-known/openid-configuration",
+      "verified_at": "2026-06-08",
+      "source": "curl -i https://auth.sigilsec.ai/.well-known/openid-configuration"
     }
   ]
 }

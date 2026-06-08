@@ -1767,7 +1767,7 @@ main() {
         login)      cmd_login "$@" ;;
         logout)     cmd_logout ;;
         version|--version|-v)
-            echo "Sigil 1.0.5"
+            echo "Sigil 1.1.2"
             echo "Automated Security Auditing for AI Agent Code"
             echo "https://sigilsec.ai"
             ;;

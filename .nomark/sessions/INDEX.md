@@ -1,5 +1,6 @@
 # Session Transcript Index
 
+- [code-2026-05-04-manual-1777875353257](2026-05-04-manual-1777875353257.jsonl) —  general: 
 - [code-2026-05-04-manual-1777869140797](2026-05-04-manual-1777869140797.jsonl) —  general: bash, stripe, 2>&1, head, echo
 - [code-2026-05-04-manual-1777868842961](2026-05-04-manual-1777868842961.jsonl) —  general: bash, grep, 7-blocked, echo
 - [code-2026-05-04-manual-1777858053797](2026-05-04-manual-1777858053797.jsonl) —  general: bash, 2>&1, python3, auth, print, models

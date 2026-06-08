@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-05-04T15:03:19.373241",
+  "last_rebuilt": "2026-06-08T10:01:44.228506",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -19,6 +19,12 @@
     "EP-003": {
       "type": "epic",
       "title": "Sigil Pro commercial launch",
+      "status": "ACTIVE",
+      "target": "Q2 2026"
+    },
+    "EP-004": {
+      "type": "epic",
+      "title": "Brand & Identity System",
       "status": "ACTIVE",
       "target": "Q2 2026"
     },
@@ -43,6 +49,14 @@
       "title": "Pro Billing + Tier Gating Verification",
       "status": "PLANNED",
       "started": "2026-03",
+      "shipped": "",
+      "prd": ""
+    },
+    "F-006": {
+      "type": "feature",
+      "title": "Brand v1.0 Rollout",
+      "status": "ACTIVE",
+      "started": "2026-05-04",
       "shipped": "",
       "prd": ""
     },
@@ -1332,6 +1346,60 @@
       "message": "docs(US-002): tighten test framing \u2014 pin parameter-threading honestly",
       "date": "2026-05-04T15:03:13+10:00",
       "files_changed": 2
+    },
+    "commit:0d38ec3": {
+      "type": "commit",
+      "hash": "0d38ec3",
+      "message": "docs(F-003): US-002 fully DONE \u2014 AC #6 verified against production",
+      "date": "2026-05-04T15:18:24+10:00",
+      "files_changed": 2
+    },
+    "commit:4c9a46b": {
+      "type": "commit",
+      "hash": "4c9a46b",
+      "message": "docs(F-006): brand v1.0 rollout \u2014 assets, EP-004, PRD",
+      "date": "2026-05-04T15:28:15+10:00",
+      "files_changed": 23
+    },
+    "commit:285ffa0": {
+      "type": "commit",
+      "hash": "285ffa0",
+      "message": "feat(F-006): apply Brand v1.0 directive across dashboard, CLI, email, docs",
+      "date": "2026-05-04T16:15:53+10:00",
+      "files_changed": 19
+    },
+    "commit:10e2323": {
+      "type": "commit",
+      "hash": "10e2323",
+      "message": "revert(F-006): keep user-query examples verbatim per owner clarification",
+      "date": "2026-05-04T17:00:54+10:00",
+      "files_changed": 5
+    },
+    "commit:0f4dbbe": {
+      "type": "commit",
+      "hash": "0f4dbbe",
+      "message": "docs(F-003): US-005 PARTIAL \u2014 4 sections captured + structural blocker",
+      "date": "2026-05-04T17:08:16+10:00",
+      "files_changed": 8
+    },
+    "commit:f109e92": {
+      "type": "commit",
+      "hash": "f109e92",
+      "message": "feat(F-006): SealVerdict component + scan-detail mount (US-006, US-007)",
+      "date": "2026-05-04T17:21:05+10:00",
+      "files_changed": 9
+    },
+    "commit:077a80d": {
+      "type": "commit",
+      "hash": "077a80d",
+      "message": "NOM-888: Delete dead create-checkout route (#113)",
+      "date": "2026-05-05T06:22:09+10:00"
+    },
+    "commit:e44164f": {
+      "type": "commit",
+      "hash": "e44164f",
+      "message": "NOM-891: Auth0 test-user cleanup evidence (US-010) (#112)",
+      "date": "2026-05-05T06:20:27+10:00"
     }
   },
   "edges": [
@@ -1358,6 +1426,11 @@
     {
       "from": "EP-003",
       "to": "F-005",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-004",
+      "to": "F-006",
       "rel": "contains"
     },
     {
@@ -1714,6 +1787,71 @@
       "from": "US-002",
       "to": "commit:c8f1b75",
       "rel": "shipped_by"
+    },
+    {
+      "from": "F-003/US-002",
+      "to": "commit:0d38ec3",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:0d38ec3",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:4c9a46b",
+      "to": "F-006",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:285ffa0",
+      "to": "F-006",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:10e2323",
+      "to": "F-006",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-003/US-005",
+      "to": "commit:0f4dbbe",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:0f4dbbe",
+      "to": "F-003",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-003/US-006",
+      "to": "commit:f109e92",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-003/US-007",
+      "to": "commit:f109e92",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:f109e92",
+      "to": "F-006",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:077a80d",
+      "to": "NOM-888",
+      "rel": "resolves"
+    },
+    {
+      "from": "F-003/US-010",
+      "to": "commit:e44164f",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:e44164f",
+      "to": "NOM-891",
+      "rel": "resolves"
     }
   ]
 }

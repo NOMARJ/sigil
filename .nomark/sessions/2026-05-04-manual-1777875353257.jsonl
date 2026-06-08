@@ -1,0 +1,3 @@
+{"type":"session-meta","id":"code-2026-05-04-manual-1777875353257","date":"2026-05-04","features":[],"topics":[],"scope":"general","story_count":0,"duration_minutes":1}
+{"ts":"2026-05-04T06:15:53.258Z","role":"tool","tool":"Bash","summary":"Bash: git commit -m \"$(cat <<'EOF'\nfeat(F-006): apply Brand v1.0 directive across dashboard, CLI, email, docs\n\nRolls the 2026-","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

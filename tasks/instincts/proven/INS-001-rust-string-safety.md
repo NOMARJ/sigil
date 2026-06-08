@@ -2,7 +2,7 @@
 id: INS-001
 title: Use char_indices() for Rust string truncation
 status: proven
-confidence: 0.9
+confidence: 0.8
 created: 2026-03-15
 proven_at: 2026-03-15
 source: lesson

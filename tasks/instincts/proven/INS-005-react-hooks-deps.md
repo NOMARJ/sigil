@@ -2,7 +2,7 @@
 id: INS-005
 title: React hooks must declare all dependencies
 status: proven
-confidence: 0.8
+confidence: 0.7
 created: 2026-03-13
 proven_at: 2026-03-13
 source: lesson
