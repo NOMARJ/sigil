@@ -290,11 +290,13 @@ Rolls Brand v1.0 across every Sigil surface in this repo: dashboard, CLI, API em
 ### F-007 · Launch Readiness Remediation
 
 **Epic:** EP-003
-**Status:** PLANNED
+**Status:** IN PROGRESS (agent-buildable subset complete 2026-06-08; gated stories pending)
 **Started:** 2026-06-08
 **Shipped:** —
 
 **Source:** `docs/launch-readiness-report.md` (2026-06-08, verdict: NOT READY)
+
+**Autopilot run 2026-06-08 (probation, branch `feature/launch-readiness-remediation`):** US-001/002/003/006/008 DONE (test-suite triage + event-loop fix [errors 31→0] + legacy-auth-410 + Next.js assessment + Rust CI draft). US-004/005/007/009/010/011 gated (owner/operator/environment); US-012 BLOCKED on them — verdict stays NOT READY. No production source touched. Run summary: `evidence/launch-readiness/F-007-autopilot-run.md`.
 
 **What it delivers:**
 Launch-gate umbrella that closes the six blockers in the 2026-06-08 launch-readiness report so the public-launch verdict can move from NOT READY to READY. F-007 is a *tracker over remediation*, not a clean-slate build: pricing-page and installer-URL blockers are cross-referenced to existing F-003/F-004 stories rather than duplicated. New stories cover only the uncovered cross-cutting work — API test-suite health, the Next.js dependency advisory, and Rust CLI / CI verification — plus the owner-gated signup-CTA repair. Each story is tagged agent-buildable vs owner/operator/environment-gated; under probation (trust 0) only agent-buildable stories execute without owner go-ahead. Owner/operator-action items use the F-003 evidence-file verification pattern.

@@ -369,7 +369,7 @@
 
 ### US-001: Triage API test-suite failures into fix-categories
 - **Linear:** NOM-1069
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — baseline `25 failed/167 passed/31 errors` = 56 (matches report). All 56 categorized: 34 event-loop, 6 legacy-auth-410, 15 real-bug-protected, 1 test-only-mock. `grep -c 'category:'` = 57 (≥56). Evidence: `evidence/launch-readiness/US-001-pytest-triage.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate
 - **Goal:** Categorize the 25 failures + 31 errors into {test-only fixture, stale-expectation, real-bug-protected}.
 - **Done when:** `evidence/launch-readiness/US-001-pytest-triage.md` with verbatim pytest tail; `grep -c 'category:'` >= 56.
@@ -377,15 +377,16 @@
 
 ### US-002: Fix event-loop fixture errors in API test suite
 - **Linear:** NOM-1070
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — root cause: local `SIGIL_DATABASE_URL` made lifespan build a real MSSQL pool vs the suite's intended in-memory store. Fix: session-autouse `_force_in_memory_db` in `conftest.py` (test-infra only, no `api/database.py` edit). Errors 31→0; passed 167→197; no regression. Evidence: `evidence/launch-readiness/US-002-event-loop-fix.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** moderate · **Deps:** US-001
 - **Goal:** Resolve `got Future attached to a different loop` errors at the fixture layer (no production db edits).
 - **Done when:** `pytest api/tests -q` reports 0 event-loop errors; count strictly decreases vs US-001 baseline.
 - **Files:** `api/tests/conftest.py`, `evidence/launch-readiness/US-002-event-loop-fix.md`
+- **Note:** Removing the loop error exposed 7 `test_scan` submission tests as `422` schema-drift failures (stale fixture, test-only, buildable but UNSCOPED by any F-007 story). Surfaced, not fixed (probation scope discipline).
 
 ### US-003: Update legacy auth test expectations to 410 post-Auth0
 - **Linear:** NOM-1071
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — 6 legacy register/login tests flipped 200/201/401/409 → 410 (test-only; production `api/routers/auth.py:605-640` already returns 410). `-k auth`: 38 passed/0 failed. Full suite 20 failed/203 passed/0 errors (203=197+6, no regression). Evidence: `evidence/launch-readiness/US-003-legacy-auth-410.md`.
 - **Executor:** agent (buildable) · **Blocker:** CRITICAL-004 · **Scope:** trivial · **Deps:** US-001
 - **Goal:** Flip stale 200-expecting legacy auth tests to assert 410 (test-only, no endpoint edits).
 - **Done when:** `pytest api/tests -q -k auth` shows previously-failing legacy-auth tests pass.
@@ -409,7 +410,7 @@
 
 ### US-006: Next.js upgrade assessment for high-severity advisory
 - **Linear:** NOM-1074
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — real `npm audit` (1 high next + 1 moderate postcss → next@16.2.7 breaking). Blast radius mapped to actual dashboard usage: React 18→19, 6 async-request-API files, caching defaults, eslint-config-next bump. Rollback + verify commands listed. `--force` NOT run. Evidence: `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md`.
 - **Executor:** agent (buildable) · **Blocker:** HIGH-001 · **Scope:** moderate
 - **Goal:** Written upgrade assessment for the breaking Next.js bump (-> 16.2.7), no forced fix run.
 - **Done when:** `evidence/launch-readiness/US-006-nextjs-upgrade-assessment.md` with audit output, breaking surface, rollback plan.
@@ -425,7 +426,7 @@
 
 ### US-008: Draft Rust CLI verification CI job
 - **Linear:** NOM-1076
-- **Status:** TODO
+- **Status:** DONE (2026-06-08, autopilot) — `.github/workflows/rust-cli.yml` drafted: ubuntu-latest, `rustup default 1.82.0` then `cargo build/test` with `working-directory: cli`. `actionlint 1.7.12` CLEAN (exit 0). checkout SHA-pinned to repo's existing v4 SHA. Enabling as required check = operator action. Evidence: `evidence/launch-readiness/US-008-rust-ci.md`.
 - **Executor:** agent (buildable) · **Blocker:** HIGH-002 · **Scope:** moderate
 - **Goal:** CI workflow installing a pinned Rust toolchain and running `cargo test` against `cli/`.
 - **Done when:** Workflow YAML validates (actionlint clean), references `cli/Cargo.toml`; evidence explains local toolchain gap.
@@ -455,7 +456,7 @@
 
 ### US-012: Re-run launch-readiness report and flip verdict
 - **Linear:** NOM-1078
-- **Status:** TODO
+- **Status:** BLOCKED (2026-06-08, autopilot) — cannot flip verdict to READY: hard deps US-004 (owner), US-005 (owner), US-007 (operator), US-009 (env), US-010 (operator), US-011 (operator) are all gated and unmet. Verdict stays NOT READY. Run summary: `evidence/launch-readiness/F-007-autopilot-run.md`. Re-run once gated blockers clear.
 - **Executor:** agent (buildable) · **Blocker:** ALL · **Scope:** moderate · **Deps:** US-001..US-011 (excl. cross-ref dupes)
 - **Goal:** Re-run report once blockers clear; verdict NOT READY -> READY with refreshed evidence.
 - **Done when:** Report verdict READY (or owner-acknowledged residual list); SOLUTION.md F-007 -> DONE; progress.md final.
@@ -886,6 +887,19 @@
 **Outcome:** BLOCKED
 **Stories:** 18/45 (6 blocked)
 
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T00:42:41.303Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (9/22/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health

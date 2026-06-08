@@ -17,30 +17,31 @@ class TestRegistration:
     def test_register_success(
         self, client: TestClient, test_user_data: dict[str, str]
     ) -> None:
-        """Successful registration returns 201 with a token."""
-        resp = client.post("/v1/auth/register", json=test_user_data)
-        assert resp.status_code == 201
+        """POST /v1/auth/register is deprecated (410 Gone) post-Auth0 migration.
 
-        data = resp.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        assert data["expires_in"] > 0
-        assert data["user"]["email"] == test_user_data["email"]
-        assert data["user"]["name"] == test_user_data["name"]
-        assert "id" in data["user"]
+        Registration moved to the Auth0 Database Connection; the legacy endpoint
+        now returns 410. See api/routers/auth.py:605-621 (register, deprecated=True,
+        HTTP_410_GONE) and the Auth0 migration (docs/internal/AUTH0_SETUP_GUIDE.md,
+        ADR-0002 password-reset-via-auth0).
+        """
+        resp = client.post("/v1/auth/register", json=test_user_data)
+        assert resp.status_code == 410
+        assert "deprecated" in resp.json()["detail"].lower()
 
     def test_register_duplicate_email(
         self, client: TestClient, test_user_data: dict[str, str]
     ) -> None:
-        """Registering with an existing email returns 409."""
-        # First registration
-        resp1 = client.post("/v1/auth/register", json=test_user_data)
-        assert resp1.status_code == 201
+        """Duplicate-email handling moved to Auth0; legacy register returns 410.
 
-        # Duplicate registration
+        Post-Auth0 the custom register endpoint no longer performs duplicate
+        detection — it is deprecated (410 Gone). See api/routers/auth.py:605-621
+        and the Auth0 migration (docs/internal/AUTH0_SETUP_GUIDE.md).
+        """
+        resp1 = client.post("/v1/auth/register", json=test_user_data)
+        assert resp1.status_code == 410
+
         resp2 = client.post("/v1/auth/register", json=test_user_data)
-        assert resp2.status_code == 409
-        assert "already exists" in resp2.json()["detail"]
+        assert resp2.status_code == 410
 
     def test_register_short_password(self, client: TestClient) -> None:
         """Password shorter than 8 characters should be rejected."""
@@ -66,7 +67,13 @@ class TestRegistration:
         assert resp.status_code == 422
 
     def test_register_empty_name(self, client: TestClient) -> None:
-        """Empty name should be allowed (defaults to empty string)."""
+        """A valid body reaches the deprecated endpoint and returns 410.
+
+        (Bodies failing validation return 422 before the 410 handler — see
+        test_register_short_password / test_register_missing_email.) A well-formed
+        body passes validation and hits the deprecation. See api/routers/auth.py:605-621
+        and the Auth0 migration (docs/internal/AUTH0_SETUP_GUIDE.md).
+        """
         resp = client.post(
             "/v1/auth/register",
             json={
@@ -74,8 +81,8 @@ class TestRegistration:
                 "password": "ValidPassword123",
             },
         )
-        assert resp.status_code == 201
-        assert resp.json()["user"]["name"] == ""
+        assert resp.status_code == 410
+        assert "deprecated" in resp.json()["detail"].lower()
 
 
 class TestLogin:
@@ -84,11 +91,12 @@ class TestLogin:
     def test_login_success(
         self, client: TestClient, test_user_data: dict[str, str]
     ) -> None:
-        """Successful login returns a valid token."""
-        # Register first
-        client.post("/v1/auth/register", json=test_user_data)
+        """POST /v1/auth/login is deprecated (410 Gone) post-Auth0 migration.
 
-        # Login
+        Login moved to the Auth0 Universal Login flow; the legacy endpoint now
+        returns 410. See api/routers/auth.py:624-640 (login, deprecated=True,
+        HTTP_410_GONE) and the Auth0 migration (docs/internal/AUTH0_SETUP_GUIDE.md).
+        """
         resp = client.post(
             "/v1/auth/login",
             json={
@@ -96,19 +104,18 @@ class TestLogin:
                 "password": test_user_data["password"],
             },
         )
-        assert resp.status_code == 200
-
-        data = resp.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        assert data["user"]["email"] == test_user_data["email"]
+        assert resp.status_code == 410
+        assert "deprecated" in resp.json()["detail"].lower()
 
     def test_login_wrong_password(
         self, client: TestClient, test_user_data: dict[str, str]
     ) -> None:
-        """Wrong password returns 401."""
-        client.post("/v1/auth/register", json=test_user_data)
+        """Credential checks moved to Auth0; legacy login returns 410.
 
+        Wrong-password handling is now Auth0's responsibility — the legacy
+        endpoint is deprecated (410 Gone) regardless of credentials. See
+        api/routers/auth.py:624-640 and the Auth0 migration.
+        """
         resp = client.post(
             "/v1/auth/login",
             json={
@@ -116,10 +123,14 @@ class TestLogin:
                 "password": "WrongPassword999",
             },
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 410
 
     def test_login_nonexistent_user(self, client: TestClient) -> None:
-        """Login for a non-existent user returns 401."""
+        """Legacy login returns 410 for any input post-Auth0 migration.
+
+        See api/routers/auth.py:624-640 (deprecated=True, HTTP_410_GONE) and the
+        Auth0 migration (docs/internal/AUTH0_SETUP_GUIDE.md).
+        """
         resp = client.post(
             "/v1/auth/login",
             json={
@@ -127,7 +138,7 @@ class TestLogin:
                 "password": "DoesNotMatter",
             },
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 410
 
 
 class TestTokenValidation:
