@@ -45,6 +45,12 @@ if _alerting_mod_name not in sys.modules:
 
 
 def _get_alerting_settings():
+    alerting_namespace = globals().get("alerting")
+    if alerting_namespace is not None:
+        patched_settings = getattr(alerting_namespace, "settings", None)
+        if patched_settings is not None:
+            return patched_settings
+
     mod = sys.modules.get(_alerting_mod_name)
     if mod is not None and getattr(mod, "settings", None) is not None:
         return mod.settings
@@ -432,20 +438,21 @@ class EmailChannel:
     def __init__(self, recipients_or_settings=None):
         if isinstance(recipients_or_settings, list):
             self.recipients = recipients_or_settings
-            self.smtp_settings = _get_alerting_settings()
+            self.smtp_settings = None
         else:
             self.recipients = [getattr(settings, "smtp_from_email", "alerts@localhost")]
             self.smtp_settings = recipients_or_settings or alerting.settings
 
     async def send(self, alert: Alert) -> bool:
         """Send alert via email."""
-        if not self.smtp_settings.smtp_configured:
+        smtp_settings = self.smtp_settings or _get_alerting_settings()
+        if not smtp_settings.smtp_configured:
             logger.warning("SMTP not configured, cannot send email alert")
             return False
 
         try:
             msg = MIMEMultipart()
-            msg["From"] = self.smtp_settings.smtp_from_email
+            msg["From"] = smtp_settings.smtp_from_email
             msg["To"] = ", ".join(self.recipients)
             msg["Subject"] = (
                 f"[{alert.severity.value.upper()}] Sigil Alert: {alert.name}"
@@ -453,14 +460,12 @@ class EmailChannel:
             msg.attach(MIMEText(alert.description, "plain"))
 
             with smtplib.SMTP(
-                self.smtp_settings.smtp_host, self.smtp_settings.smtp_port
+                smtp_settings.smtp_host, smtp_settings.smtp_port
             ) as server:
                 server.starttls()
-                server.login(
-                    self.smtp_settings.smtp_user, self.smtp_settings.smtp_password
-                )
+                server.login(smtp_settings.smtp_user, smtp_settings.smtp_password)
                 server.sendmail(
-                    self.smtp_settings.smtp_from_email,
+                    smtp_settings.smtp_from_email,
                     self.recipients,
                     msg.as_string(),
                 )
@@ -1287,6 +1292,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             return "threat_intel"
         if "registry" in route:
             return "registry"
+        if "dashboard" in route:
+            return "dashboard"
         if "forge" in route:
             return "forge"
         if "auth" in route:

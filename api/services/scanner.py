@@ -84,6 +84,10 @@ def _is_whitelisted_pattern(content: str, file_path: str) -> bool:
         WHITELIST_DATA.get("patterns", {}).get("umd_wrappers", {}).get("patterns", [])
     ):
         if pattern in content[:1000]:  # Check first 1KB
+            if pattern == "Function('return this')()" and re.search(
+                r"\b(macro|__macro__|eval)\b", content
+            ):
+                continue
             return True
 
     # Check for webpack patterns
@@ -559,7 +563,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-git-url-hijack",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"git\+(ssh|https?)://[^@]+@[^/]+/.*#(?!main|master|v\d+)",
+            "pattern": r"git\+(ssh|https?)://[^\"'\s]+#(?!main\b|master\b|v\d+)",
             "description": "Git dependency with non-standard branch reference",
             "weight": 1.1,
         },
@@ -583,7 +587,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-phantom-dependency",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"require\.resolve\([^)]+\).*catch.*require\([^)]+\)",
+            "pattern": r"require\.resolve\([^)]+\)[\s\S]*catch[\s\S]*require\([^)]+\)",
             "description": "Phantom dependency pattern with fallback",
             "weight": 1.1,
         },
@@ -608,7 +612,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-macro-expansion",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"define\s*\([^)]*exec|macro\s*\([^)]*Function|__macro__.*eval",
+            "pattern": r"define\s*\([^)]*\)[\s\S]*exec\s*\(|macro\s*\([\s\S]*Function\s*\(|__macro__\s*\([^)]*eval",
             "description": "Macro expansion with code execution",
             "weight": 1.1,
         },
@@ -624,7 +628,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-ast-manipulation",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"(esprima|acorn|babel)\.parse.*traverse.*enter.*Function\(|AST.*node\.type.*=|transform.*CallExpression.*eval",
+            "pattern": r"(esprima|acorn|babel)\.parse[\s\S]*(node\.type|node\.body|eval|Function\()|AST[\s\S]*node\.type[\s\S]*=|transform[\s\S]*CallExpression[\s\S]*eval",
             "description": "AST manipulation with code generation",
             "weight": 1.3,
         },
@@ -632,7 +636,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-webpack-plugin",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.CRITICAL,
-            "pattern": r"class\s+\w+Plugin.*apply\s*\(compiler\).*eval|compiler\.(plugin|hooks).*Function\(|webpack.*plugin.*exec\(",
+            "pattern": r"class\s+\w*Plugin[\s\S]*apply\s*\(compiler\)[\s\S]*(eval|Function\()|compiler\.(plugin|hooks)[\s\S]*(eval|Function\()|webpack[\s\S]*plugin[\s\S]*exec\(",
             "description": "Webpack plugin with dynamic code execution",
             "weight": 1.4,
         },
@@ -640,7 +644,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-babel-transform",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.HIGH,
-            "pattern": r"babel.*transform.*visitor.*Function\(|transformSync.*plugins.*eval|preset.*visitor.*exec",
+            "pattern": r"babel[\s\S]*visitor[\s\S]*(eval|Function\()|transformSync[\s\S]*plugins[\s\S]*eval|preset[\s\S]*visitor[\s\S]*exec",
             "description": "Babel transformer with code injection",
             "weight": 1.2,
         },
@@ -665,7 +669,7 @@ NOVEL_VECTOR_RULES = _compile(
             "id": "novel-ffi-boundary",
             "phase": ScanPhase.CODE_PATTERNS,
             "severity": Severity.CRITICAL,
-            "pattern": r"ffi\.(Library|Function).*\bsystem\b|Foreign.*invoke.*exec|ctypes.*CDLL.*os\.system",
+            "pattern": r"ffi\.(Library|Function)[\s\S]*\bsystem\b|ffi\s*=\s*require\(['\"]ffi['\"]\)[\s\S]*Library[\s\S]*\bsystem\b|Foreign[\s\S]*invoke[\s\S]*exec|ctypes[\s\S]*CDLL[\s\S]*os\.system",
             "description": "FFI boundary violation with command execution",
             "weight": 1.5,
         },
@@ -930,6 +934,57 @@ def _is_method_call(content: str, match_start: int) -> bool:
     return False
 
 
+def _is_exec_declaration_context(content: str, match_start: int) -> bool:
+    """Distinguish executable calls from method/function declarations."""
+    line_start = content.rfind("\n", 0, match_start) + 1
+    line_end = content.find("\n", match_start)
+    if line_end == -1:
+        line_end = len(content)
+
+    line = content[line_start:line_end]
+    if re.search(r"\b(function|const|let|var)\s+(exec|eval)\b", line):
+        return True
+    if re.search(r"\b(public|private|protected)\s+(exec|eval)\s*\(", line):
+        return True
+    if re.search(r"\b(exec|eval)\s*:\s*function\b", line):
+        return True
+    if re.search(r"\b(exec|eval)\s*\([^)]*\)\s*:\s*\w+", line):
+        return True
+    if "class " in line and re.search(r"\b(exec|eval)\s*\([^)]*\)\s*\{", line):
+        return True
+    return False
+
+
+def _should_run_rule(rule_id: str, content: str) -> bool:
+    """Fast token prefilter for expensive multi-line novel-vector regexes."""
+    if not rule_id.startswith("novel-"):
+        return True
+
+    prefilters = {
+        "novel-polymorphic-deps": ("package.json", "dependencies", "write"),
+        "novel-version-hijack": ("||",),
+        "novel-git-url-hijack": ("git+", "#"),
+        "novel-transitive-confusion": ("node_modules",),
+        "novel-registry-redirect": ("registry", "publishConfig"),
+        "novel-phantom-dependency": ("require.resolve", "catch"),
+        "novel-dependency-swapping": ("Module._load", "require.cache"),
+        "novel-template-injection": ("new Function", "${", "template"),
+        "novel-macro-expansion": ("macro", "__macro__", "define"),
+        "novel-source-map-poison": ("sourceMappingURL", "sourceMap"),
+        "novel-ast-manipulation": ("parse", "AST", "transform"),
+        "novel-webpack-plugin": ("webpack", "compiler", "Plugin"),
+        "novel-babel-transform": ("babel", "transformSync", "preset"),
+        "novel-wasm-payload": ("WebAssembly", "Uint8Array"),
+        "novel-native-binding": (".node", "bindings", "napi"),
+        "novel-ffi-boundary": ("ffi", "Foreign", "ctypes"),
+        "novel-python-js-bridge": ("PythonShell", "python-shell", "pyodide"),
+        "novel-rust-bridge": ("wasm_bindgen", "wasm-pack", "rustwasm"),
+        "novel-jni-exploit": ("Java.type", "jni", "JNI"),
+    }
+    tokens = prefilters.get(rule_id)
+    return tokens is None or any(token in content for token in tokens)
+
+
 def _determine_confidence(
     rule_id: str, file_path: str, severity: Severity
 ) -> Confidence:
@@ -1063,6 +1118,9 @@ class PhaseResult:
 def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[Finding]:
     """Run *rules* against *content* and yield ``Finding`` objects."""
     for rule in rules:
+        if not _should_run_rule(rule.id, content):
+            continue
+
         # Skip execution patterns in TypeScript definition files
         if file_path.endswith(".d.ts") and rule.id in [
             "code-eval",
@@ -1075,6 +1133,14 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
         for match in rule.pattern.finditer(content):
             # Context-aware filtering for specific rules
             if rule.id == "code-eval" and _is_eval_in_safe_context(
+                content, match.start()
+            ):
+                continue
+            if rule.id == "code-eval" and _is_exec_declaration_context(
+                content, match.start()
+            ):
+                continue
+            if rule.id == "code-exec-dangerous" and _is_exec_declaration_context(
                 content, match.start()
             ):
                 continue
@@ -1107,7 +1173,7 @@ def _scan_content(content: str, file_path: str, rules: list[Rule]) -> Iterator[F
             if rule.id in ["code-exec-dangerous", "code-eval"] and _is_method_call(
                 content, match.start()
             ):
-                confidence = Confidence.LOW
+                continue
 
             yield Finding(
                 phase=rule.phase,

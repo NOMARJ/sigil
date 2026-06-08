@@ -2,6 +2,8 @@
 
 Date: 2026-06-08
 
+Reassessed: 2026-06-08 03:33 UTC
+
 ## Critical
 
 1. Public signup route returns 404.
@@ -16,22 +18,22 @@ Date: 2026-06-08
    - Evidence: `curl https://www.sigilsec.ai/install.sh` prints "public CLI beta is coming soon".
    - Approval: operator/owner deployment required.
 
-4. API tests fail.
-   - Evidence: `25 failed, 167 passed, 339 skipped, 31 errors`.
-   - Approval: owner required for auth/database fixes.
-
 ## High
 
 1. Dashboard dependency audit remains high due to Next.js advisories.
    - Evidence: `npm audit --audit-level=high --omit=dev` exits 1.
    - Approval: planned framework upgrade required.
 
-2. Rust CLI cannot be verified locally.
-   - Evidence: `no installed toolchains`.
-   - Approval: environment setup or CI verification required.
-
 ## Medium
 
 1. Live CSP still references legacy Cakewalk domains.
-2. Dashboard build emits lint/performance warnings.
+2. Dashboard build emits image/font optimization warnings.
 3. `brew info sigil` resolves to an unrelated ebook-editor cask unless the tap-qualified `nomarj/tap/sigil` formula is used.
+
+## Cleared In Reassessment
+
+1. Full API suite now passes locally.
+   - Evidence: `223 passed, 339 skipped, 6 warnings`.
+
+2. Rust CLI can be verified locally.
+   - Evidence: `cargo test --manifest-path cli/Cargo.toml` -> `6 passed`.

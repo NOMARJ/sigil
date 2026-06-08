@@ -124,7 +124,7 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     setSelectedGroups(new Set());
   };
 
-  const estimateCredits = (): number => {
+  const estimateCredits = useCallback((): number => {
     const baseCosts = { quick: 3, thorough: 5, exhaustive: 10 };
     const baseCost = baseCosts[depth];
     let total = 0;
@@ -138,7 +138,7 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     });
     
     return total;
-  };
+  }, [depth, patternGroups, selectedGroups]);
 
   const classifyPattern = useCallback((finding: Finding): string => {
     // Simplified pattern classification for component
@@ -206,7 +206,7 @@ export default function BulkInvestigator({ findings, onAnalysisComplete }: BulkI
     } finally {
       setLoading(false);
     }
-  }, [selectedGroups, patternGroups, findings, depth, credits, onAnalysisComplete, classifyPattern]);
+  }, [selectedGroups, patternGroups, findings, depth, credits, onAnalysisComplete, classifyPattern, estimateCredits]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

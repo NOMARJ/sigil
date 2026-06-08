@@ -2,6 +2,8 @@
 
 Date: 2026-06-08
 
+Reassessed: 2026-06-08 02:47 UTC
+
 ## Tooling
 
 Vercel Agent Browser was requested but is not available in this harness. Playwright Chromium was installed and used as the substitute browser tool.
@@ -23,6 +25,18 @@ Route: `https://www.sigilsec.ai/pricing`
 Result: FAIL
 
 Evidence:
+
+```json
+{
+  "status": 200,
+  "has30DayTrial": true,
+  "hasStartFreeTrial": true,
+  "hasTeam199": true,
+  "hasTeam99": false
+}
+```
+
+Reassessment evidence matched the original failure:
 
 ```json
 {

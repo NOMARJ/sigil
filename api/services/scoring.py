@@ -101,7 +101,6 @@ def get_context_weight(file_path: str) -> float:
             "/tests/",
             "spec/",
             "/spec/",
-            "test.",
             ".test.",
             "spec.",
             ".spec.",

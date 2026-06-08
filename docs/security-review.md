@@ -2,6 +2,8 @@
 
 Date: 2026-06-08
 
+Reassessed: 2026-06-08 03:33 UTC
+
 ## Verdict
 
 NOT READY
@@ -25,27 +27,32 @@ $ npm audit --audit-level=high --omit=dev
 
 Remaining remediation requires a breaking Next.js upgrade to `16.2.7` according to npm. Do not force this as a drive-by launch fix.
 
-### HIGH: API test suite is failing across auth and database paths
-
-Representative failure classes:
-
-- Legacy auth tests still expect password login/register success after Auth0 migration.
-- Async database fixture failures produce event-loop errors.
-- Threat report submission fails SQL `uniqueidentifier` conversion.
-
-These are protected auth/database areas under `CHARTER II.5`.
-
 ### MEDIUM: CSP allows legacy foreign domains
 
 Live `www.sigilsec.ai` CSP still includes `https://*.cakewalk.ai`, `https://cw-ai-prod.s3.us-west-1.amazonaws.com`, and `https://api.cakewalk.ai`. Confirm whether those are still required before launch.
 
-### MEDIUM: Build emits React hook and image/font warnings
+### MEDIUM: Build emits image/font warnings
 
 Dashboard build succeeds but reports:
 
-- `components/BulkInvestigator.tsx`: missing `estimateCredits` dependency.
 - Several `<img>` warnings where Next `<Image />` may be preferred.
 - Custom font warning in `src/app/layout.tsx`.
+
+## Cleared In Reassessment
+
+### API suite passes
+
+```bash
+$ python3 -m pytest api/tests -q
+223 passed, 339 skipped, 6 warnings in 13.72s
+```
+
+### Rust CLI tests pass
+
+```bash
+$ cargo test --manifest-path cli/Cargo.toml
+test result: ok. 6 passed; 0 failed
+```
 
 ## Controls Verified
 

@@ -2,13 +2,15 @@
 
 Date: 2026-06-08
 
+Reassessed: 2026-06-08 03:33 UTC
+
 ## Launch Verdict
 
 NOT READY
 
 ## Summary
 
-Sigil is not production-launch-ready. The dashboard builds and its component tests pass, and the production API health check is online. However, live public acquisition paths are broken or stale, the API test suite is failing, dashboard dependencies still have high-severity Next.js advisories, and the Rust CLI cannot be verified locally because no Rust toolchain is configured.
+Sigil is not production-launch-ready. The dashboard builds and its component tests pass, the full API suite now passes locally, the Rust CLI test suite passes locally, and the production API health check is online. The remaining launch blockers are public acquisition paths that are broken or stale, plus a high-severity Next.js dependency audit finding that requires a planned framework upgrade.
 
 ## Critical Blockers
 
@@ -83,23 +85,6 @@ $ curl -sS https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sed 
 
 Status: owner/operator-gated deployment or web asset repair.
 
-### CRITICAL-004: Full API test suite fails
-
-Evidence:
-
-```bash
-$ python3 -m pytest api/tests -q
-25 failed, 167 passed, 339 skipped, 6 warnings, 31 errors in 15.10s
-```
-
-Representative failures:
-
-- `RuntimeError: ... got Future ... attached to a different loop` in `api/database.py`
-- Legacy auth tests expect 200 but endpoints now return 410 after Auth0 migration
-- `/v1/report` tests return 500 from SQL `uniqueidentifier` conversion
-
-Status: protected. Fixes touch auth and database behavior.
-
 ## High Blockers
 
 ### HIGH-001: Dashboard production dependency audit is not clean
@@ -116,21 +101,6 @@ Will install next@16.2.7, which is a breaking change
 ```
 
 Status: requires planned Next.js upgrade, not forced under probation.
-
-### HIGH-002: Rust CLI cannot be verified locally
-
-Evidence:
-
-```bash
-$ cargo --version
-error: rustup could not choose a version of cargo to run, because one wasn't specified explicitly, and no default is configured.
-
-$ rustup toolchain list && rustup default
-no installed toolchains
-error: no default toolchain is configured
-```
-
-Status: environment/toolchain blocker.
 
 ## Fixed This Session
 
@@ -176,6 +146,49 @@ Tests:       41 passed, 41 total
 $ npm run build
 ✓ Compiled successfully
 ✓ Generating static pages (32/32)
+```
+
+Reassessment evidence:
+
+```bash
+$ npm test -- --runInBand
+Test Suites: 3 passed, 3 total
+Tests:       41 passed, 41 total
+
+$ npm run build
+✓ Compiled successfully
+✓ Generating static pages (32/32)
+
+$ npm audit --audit-level=high --omit=dev
+2 vulnerabilities (1 moderate, 1 high)
+
+$ ./bin/sigil --version
+Sigil 1.1.2
+Automated Security Auditing for AI Agent Code
+https://sigilsec.ai
+```
+
+### FIXED-003: Full API suite restored
+
+The scanner, monitoring, metrics content-type, and scoring regressions from reassessment were fixed.
+
+```bash
+$ python3 -m pytest api/tests -q
+223 passed, 339 skipped, 6 warnings in 13.72s
+```
+
+Targeted failure-slice verification:
+
+```bash
+$ python3 -m pytest api/tests/test_method_detection.py api/tests/test_novel_vectors.py api/tests/test_scoring.py api/tests/test_monitoring.py::TestMetrics::test_prometheus_metrics_endpoint api/tests/test_monitoring.py::TestMetrics::test_endpoint_categorization api/tests/test_monitoring.py::TestAlerts::test_email_channel -q
+61 passed, 3 warnings in 1.24s
+```
+
+### FIXED-004: Rust CLI local verification restored
+
+```bash
+$ cargo test --manifest-path cli/Cargo.toml
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
 ## Passing Checks

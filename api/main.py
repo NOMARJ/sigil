@@ -624,7 +624,8 @@ async def metrics() -> Response:
     """Return Prometheus metrics in text format."""
     metrics_data = monitoring.get_prometheus_metrics()
     return Response(
-        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
+        content=metrics_data,
+        headers={"content-type": "text/plain; version=0.0.4; charset=utf-8"},
     )
 
 
