@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const session = await getSession(request, NextResponse.next());
-    
+    const session = await auth0.getSession();
+
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

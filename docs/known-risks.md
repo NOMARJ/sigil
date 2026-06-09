@@ -2,61 +2,26 @@
 
 Date: 2026-06-08
 
-Reassessed: 2026-06-08 03:33 UTC
+Reassessed: 2026-06-09 01:05 UTC
 
-Reconciled: 2026-06-08 — each item below cross-checked against repo source.
-Several "risks" describe **live production state that diverges from this
-repo** (an externally-deployed marketing site and Vercel platform config),
-so they are not fixable by a code change here. Status annotated per item.
+Reconciled: 2026-06-09 — each item below cross-checked against fresh live probes and repo source. Prior live/source divergences for signup, pricing, and installer are now cleared.
 
 ## Critical
 
-1. Public signup route returns 404.
-   - Evidence: `curl -I https://app.sigilsec.ai/signup` -> `HTTP/2 404`.
-   - Approval: owner required because this touches auth flow.
-   - **Status (2026-06-08): FIXED IN SOURCE — pending deploy.** Root cause:
-     the App Router had no `/signup` route; auth was reachable only via
-     `/login`. Added `dashboard/src/app/signup/page.tsx` redirecting to
-     `/api/auth/signup`, and a `signup` handler in the `[auth0]` route that
-     issues Auth0 Universal Login with `screen_hint=signup`. Regression test:
-     `dashboard/src/__tests__/app/signup.route.test.ts` (2 passing). Resolves
-     once the dashboard redeploys.
-
-2. Public pricing page is stale and contradicts billing API.
-   - Evidence: browser probe shows 30-day trial and `$199` Team, while `/v1/billing/plans` returns Team `$99`.
-   - Approval: operator/owner deployment required.
-   - **Status (2026-06-08): NOT FIXABLE IN THIS REPO — external + tracked
-     under F-003.** This repo's source is already correct: `api/routers/billing.py`
-     returns Team `$99/mo` with a 14-day trial (`_TRIAL_PERIOD_DAYS = 14`),
-     and `dashboard/src/app/pricing/page.tsx` renders prices dynamically from
-     the API (no hardcoded `$199`/`30-day`). The stale `$199`/`30-day` copy
-     lives on the externally-deployed marketing site (`www.sigilsec.ai`),
-     which is **not in this repository** (`sigilsec/` contains only an admin
-     page). Reconciliation is already tracked under F-003;
-     `tasks/prd-launch-readiness.json` explicitly says do not duplicate.
-
-3. Public installer URL serves private-development script.
-   - Evidence: `curl https://www.sigilsec.ai/install.sh` prints "public CLI beta is coming soon".
-   - Approval: operator/owner deployment required.
-   - **Status (2026-06-08): NOT FIXABLE IN THIS REPO — external.** The
-     repo's `install.sh` is the correct, functional installer (no "coming
-     soon" text), and the dashboard (`app.sigilsec.ai`) already redirects
-     `/install.sh` to the GitHub raw script (`dashboard/next.config.js`). The
-     "coming soon" response is served by the external `www.sigilsec.ai`
-     marketing site, which is not in this repository. Fix requires updating
-     that site's deployment to serve the repo `install.sh`.
+No active critical public-route risk remains from the June 9 reassessment.
 
 ## High
 
-1. Dashboard dependency audit remains high due to Next.js advisories.
-   - Evidence: `npm audit --audit-level=high --omit=dev` exits 1.
-   - Approval: planned framework upgrade required.
-   - **Status (2026-06-08): UNCHANGED — out of scope for a bugfix.** Requires
-     a Next.js major-version upgrade, not a minimal patch. Tracked separately.
+1. Paid billing journeys remain unverified.
+   - Evidence: no fresh credentialed Stripe test/live round-trip evidence was produced in this reassessment.
+   - Approval: owner/operator required for checkout, webhook, portal cancel, live payment, and refund evidence.
 
 ## Medium
 
-1. Live CSP still references legacy Cakewalk domains.
+1. Dashboard dependency audit still has moderate PostCSS findings nested under Next.js.
+   - Evidence: `npm audit --audit-level=high --omit=dev` exits 0, but plain audit still reports 2 moderate PostCSS findings under `next@16.2.7`.
+   - **Status (2026-06-09): HIGH CLEARED, MODERATE OPEN.** Do not run the suggested `npm audit fix --force`; it proposes an invalid downgrade to `next@9.3.3`.
+2. Live CSP still references legacy Cakewalk domains.
    - **Status (2026-06-08): NEEDS OWNER SIGN-OFF — Vercel platform config.**
      The CSP (`*.cakewalk.ai`, `cw-ai-prod.s3...`, `api.cakewalk.ai`) is set
      at the Vercel project level, not in git — there is no `vercel.json`,
@@ -65,9 +30,9 @@ so they are not fixable by a code change here. Status annotated per item.
      guess risks breaking the live site, since the full intended allowlist is
      unknown. Owner must supply the intended policy; change then needs a
      deploy. See `evidence/F-003/US-108-cdn-investigation.md`.
-2. Dashboard build emits image/font optimization warnings.
+3. Dashboard build emits image/font optimization warnings.
    - **Status (2026-06-08): UNCHANGED — not yet triaged.**
-3. `brew info sigil` resolves to an unrelated ebook-editor cask unless the tap-qualified `nomarj/tap/sigil` formula is used.
+4. `brew info sigil` resolves to an unrelated ebook-editor cask unless the tap-qualified `nomarj/tap/sigil` formula is used.
    - **Status (2026-06-08): FIXED IN SOURCE (docs).** Root cause of the
      wrong-cask resolution was `README.md` advertising the un-qualified
      `brew install nomarj/sigil` (missing `/tap`); corrected to
@@ -78,8 +43,20 @@ so they are not fixable by a code change here. Status annotated per item.
 
 ## Cleared In Reassessment
 
-1. Full API suite now passes locally.
+1. Public signup route no longer returns 404.
+   - Evidence: `curl -I https://app.sigilsec.ai/signup` -> `HTTP/2 200`; Playwright lands on `https://app.sigilsec.ai/login`.
+
+2. Public pricing now matches the billing API for visible Pro/Team price and trial copy.
+   - Evidence: pricing browser probe has `has14DayTrial=true`, `hasTeam99=true`, `hasTeam199=false`, `has30DayTrial=false`.
+
+3. Public installer now serves the real installer via redirect.
+   - Evidence: `curl -I https://www.sigilsec.ai/install.sh` -> `HTTP/2 307` to `https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh`; `curl -sSL` returns `#!/usr/bin/env sh`.
+
+4. Full API suite now passes locally.
    - Evidence: `223 passed, 339 skipped, 6 warnings`.
 
-2. Rust CLI can be verified locally.
+5. Rust CLI can be verified locally.
    - Evidence: `cargo test --manifest-path cli/Cargo.toml` -> `6 passed`.
+
+6. Dashboard high-severity dependency audit blocker is cleared.
+   - Evidence: `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm test -- --runInBand`, `npm run build`, and `npm audit --audit-level=high --omit=dev` all exit 0 after the Auth0 v4/Next 16 migration.

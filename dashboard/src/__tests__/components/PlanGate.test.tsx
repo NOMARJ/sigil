@@ -82,14 +82,14 @@ describe('PlanGate Component', () => {
 
   describe('Upgrade Prompt', () => {
     it('shows upgrade prompt for blocked features', () => {
-      render(
+      const { container } = render(
         <PlanGate requiredPlan="pro" currentPlan="free">
           <div data-testid="protected-content">Protected Content</div>
         </PlanGate>
       )
 
       expect(screen.getByText('Pro Plan Required')).toBeInTheDocument()
-      expect(screen.getByText(/This feature requires a Pro plan or higher/)).toBeInTheDocument()
+      expect(container).toHaveTextContent(/This feature requires a Pro\s*plan or higher/)
       expect(screen.getByText(/You're currently on the Free plan/)).toBeInTheDocument()
     })
 
@@ -154,14 +154,14 @@ describe('PlanGate Component', () => {
     })
 
     it('provides clear messaging for screen readers', () => {
-      render(
+      const { container } = render(
         <PlanGate requiredPlan="team" currentPlan="pro">
           <div data-testid="protected-content">Protected Content</div>
         </PlanGate>
       )
 
       // Should clearly communicate the requirement
-      expect(screen.getByText(/This feature requires a Team plan or higher/)).toBeInTheDocument()
+      expect(container).toHaveTextContent(/This feature requires a Team\s*plan or higher/)
       expect(screen.getByText(/You're currently on the Pro plan/)).toBeInTheDocument()
     })
   })

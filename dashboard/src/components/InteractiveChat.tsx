@@ -142,7 +142,7 @@ export default function InteractiveChat({
     }
   };
 
-  const formatMessage = (content: string): JSX.Element => {
+  const formatMessage = (content: string) => {
     // Simple markdown rendering for code blocks
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)\n```/g;
     const inlineCodeRegex = /`([^`]+)`/g;

@@ -13,7 +13,7 @@ interface Integration {
   popular: boolean;
 }
 
-export default function IntegrationsStep({ step, onComplete, onSkip }: OnboardingStepProps): JSX.Element {
+export default function IntegrationsStep({ step, onComplete, onSkip }: OnboardingStepProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
       id: "slack",
@@ -92,7 +92,7 @@ export default function IntegrationsStep({ step, onComplete, onSkip }: Onboardin
     });
   };
 
-  const renderSetupModal = (integration: Integration): JSX.Element => {
+  const renderSetupModal = (integration: Integration) => {
     switch (integration.id) {
       case "slack":
         return (
@@ -243,7 +243,7 @@ export default function IntegrationsStep({ step, onComplete, onSkip }: Onboardin
 }
 
 // Setup Components
-function SlackSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }): JSX.Element {
+function SlackSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [channel, setChannel] = useState("#security");
 
@@ -295,7 +295,7 @@ function SlackSetup({ onComplete, onCancel }: { onComplete: (data: any) => void;
   );
 }
 
-function GitHubSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }): JSX.Element {
+function GitHubSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
   const [repoUrl, setRepoUrl] = useState("");
 
   return (
@@ -337,7 +337,7 @@ function GitHubSetup({ onComplete, onCancel }: { onComplete: (data: any) => void
   );
 }
 
-function VSCodeSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }): JSX.Element {
+function VSCodeSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
   return (
     <div className="p-6">
       <h4 className="text-lg font-semibold text-white mb-4">Install VS Code Extension</h4>
@@ -372,7 +372,7 @@ function VSCodeSetup({ onComplete, onCancel }: { onComplete: (data: any) => void
   );
 }
 
-function EmailSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }): JSX.Element {
+function EmailSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
   const [frequency, setFrequency] = useState("weekly");
   const [criticalAlerts, setCriticalAlerts] = useState(true);
 

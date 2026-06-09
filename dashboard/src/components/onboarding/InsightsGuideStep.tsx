@@ -15,7 +15,7 @@ interface InsightExample {
   falsePositiveLikelihood: number;
 }
 
-export default function InsightsGuideStep({ step, onComplete }: OnboardingStepProps): JSX.Element {
+export default function InsightsGuideStep({ step, onComplete }: OnboardingStepProps) {
   const [selectedInsight, setSelectedInsight] = useState<string>("supply-chain");
   const [currentSection, setCurrentSection] = useState<"confidence" | "reasoning" | "remediation">("confidence");
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});

@@ -44,13 +44,13 @@ async function getToken(): Promise<string | null> {
 
   // Only Auth0 tokens now
   try {
-    const res = await fetch("/api/auth/token", {
+    const res = await fetch("/auth/access-token", {
       credentials: 'include',
       cache: 'no-store',
     });
     if (res.ok) {
-      const { accessToken } = await res.json();
-      return accessToken || null;
+      const { accessToken, token } = await res.json();
+      return accessToken || token || null;
     }
   } catch {
     // Not authenticated

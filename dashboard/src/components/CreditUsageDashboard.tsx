@@ -25,7 +25,7 @@ interface CreditUsageDashboardProps {
   };
 }
 
-export function CreditUsageDashboard({ subscription }: CreditUsageDashboardProps): JSX.Element {
+export function CreditUsageDashboard({ subscription }: CreditUsageDashboardProps) {
   const [usage, setUsage] = useState<CreditUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

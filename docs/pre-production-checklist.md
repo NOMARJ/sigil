@@ -2,7 +2,7 @@
 
 Date: 2026-06-08
 
-Reassessed: 2026-06-08 03:33 UTC
+Reassessed: 2026-06-09 01:05 UTC
 
 ## Verdict
 
@@ -16,17 +16,17 @@ NOT READY
 - [x] Production protected interactive route returns 401 instead of 404 when unauthenticated.
 - [x] API tests pass: `223 passed, 339 skipped, 6 warnings`.
 - [x] Rust CLI tests pass locally: `6 passed`.
-- [ ] Public signup path works. Current: `https://app.sigilsec.ai/signup` returns 404.
-- [ ] Public pricing page matches billing API. Current: page shows 30-day trial and `$199` Team; API says Team `$99`.
-- [ ] Public installer works. Current: `https://www.sigilsec.ai/install.sh` says private development/public beta coming soon.
-- [ ] Dashboard dependency audit has no high vulnerabilities. Current: Next.js high advisory remains.
-- [ ] Browser validation passes for signup, login, pricing, dashboard, mobile, and invalid input journeys.
+- [x] Public signup path works. Current: `https://app.sigilsec.ai/signup` returns 200 and browser lands on `/login`.
+- [x] Public pricing page matches billing API. Current: page shows 14-day trial, Pro `$29`, Team `$99`.
+- [x] Public installer works. Current: `https://www.sigilsec.ai/install.sh` redirects to the GitHub raw installer.
+- [x] Dashboard dependency audit has no high vulnerabilities. Current: `npm audit --audit-level=high --omit=dev` exits 0 after Next.js 16.2.7, React 19.2.1, and Auth0 SDK 4.22.0 migration.
+- [ ] Browser validation passes for credentialed login, dashboard, mobile, and paid billing journeys.
 - [ ] Owner-gated Stripe test/live round trips are complete.
+- [ ] Residual moderate PostCSS advisory is accepted or remediated when a patched Next.js release is available.
 
 ## Next Actions
 
-1. Owner approval: fix `/signup` to route to existing Auth0 signup/login flow.
-2. Operator action: deploy current public web source or repair the marketing surface serving `www.sigilsec.ai`.
-3. Plan and execute the Next.js upgrade path instead of `npm audit fix --force`.
-4. Run full browser journey validation after public acquisition paths are repaired.
-5. Complete owner-gated Stripe test/live round trips.
+1. Run full credentialed browser journey validation against the Auth0 v4 routes.
+2. Complete owner-gated Stripe test/live round trips.
+3. Decide whether to accept the residual moderate PostCSS advisory until a patched Next.js release is available.
+4. Resolve governance telemetry drift: `.nomark/metrics/trust/ledger.jsonl` is missing and `node scripts/mee-event.cjs cold-start` fails because `.nomark/schemas/mee-event.schema.json` is missing.

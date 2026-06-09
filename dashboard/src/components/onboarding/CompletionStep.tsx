@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { OnboardingStepProps } from "../OnboardingStep";
 
-export default function CompletionStep({ step, onComplete, data }: OnboardingStepProps): JSX.Element {
+export default function CompletionStep({ step, onComplete, data }: OnboardingStepProps) {
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {

@@ -418,11 +418,12 @@
 
 ### US-007: Execute Next.js upgrade and clear audit
 - **Linear:** NOM-1075
-- **Status:** TODO
+- **Status:** DONE (2026-06-09, owner-approved Auth0 v4 migration + agent team)
 - **Executor:** operator-gated · **Blocker:** HIGH-001 · **Scope:** moderate · **Deps:** US-006
 - **Goal:** Apply the planned upgrade; production audit clean.
 - **Done when:** `npm audit --audit-level=high --omit=dev` exits 0; `npm test` + `npm run build` pass.
 - **Files:** `dashboard/package.json`, `dashboard/package-lock.json`, `evidence/launch-readiness/US-007-nextjs-upgrade-applied.md`
+- **Evidence:** `evidence/launch-readiness/US-007-nextjs-upgrade-applied.md` — `npm ci` exits 0; dependency graph resolves Next 16.2.7 / React 19.2.1 / Auth0 SDK 4.22.0; `npm run lint` exits 0 with 5 warnings; `npx tsc --noEmit` exits 0; Jest 4 suites / 43 tests pass; `npm run build` succeeds; `npm audit --audit-level=high --omit=dev` exits 0. Plain audit still reports 2 moderate PostCSS findings nested under Next.js.
 
 ### US-008: Draft Rust CLI verification CI job
 - **Linear:** NOM-1076
@@ -456,7 +457,7 @@
 
 ### US-012: Re-run launch-readiness report and flip verdict
 - **Linear:** NOM-1078
-- **Status:** BLOCKED (2026-06-08, autopilot) — cannot flip verdict to READY: hard deps US-004 (owner), US-005 (owner), US-007 (operator), US-009 (env), US-010 (operator), US-011 (operator) are all gated and unmet. Verdict stays NOT READY. Run summary: `evidence/launch-readiness/F-007-autopilot-run.md`. Re-run once gated blockers clear.
+- **Status:** BLOCKED (updated 2026-06-09) — cannot flip verdict to READY: hard deps US-004 (owner), US-005 (owner), US-009 (env), US-010 (operator), and US-011 (operator) remain gated and unmet. US-007 is now DONE. Verdict stays NOT READY. Run summary: `evidence/launch-readiness/F-007-autopilot-run.md`. Re-run once gated blockers clear.
 - **Executor:** agent (buildable) · **Blocker:** ALL · **Scope:** moderate · **Deps:** US-001..US-011 (excl. cross-ref dupes)
 - **Goal:** Re-run report once blockers clear; verdict NOT READY -> READY with refreshed evidence.
 - **Done when:** Report verdict READY (or owner-acknowledged residual list); SOLUTION.md F-007 -> DONE; progress.md final.
@@ -936,6 +937,23 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-08
+
+**Start:** 2026-06-08T03:49:30.960Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (9/22/5)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-08T04:00:39.990Z
+**Outcome:** BLOCKED
+**Stories:** 25/46 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -956,28 +974,32 @@
 - **Evidence:** `docs/launch-readiness-report.md` verdict `NOT READY`; `rg -n "NOT READY|CRITICAL-001|25 failed|has30DayTrial|HTTP/2 404|Sigil 1.1.2" docs/...` found all evidence anchors; `jq empty .nomark/resources.json tasks/instincts/index.json package-lock.json dashboard/package-lock.json && echo json-ok` returned `json-ok`; `ls -l evidence/launch-readiness` shows desktop/mobile pricing screenshots; `node scripts/drift-scorer.cjs 0` returned score `0`, bracket `FRESH`.
 - **Notes:** Vercel Agent Browser is not available in this harness; Playwright Chromium was installed and used as substitute. Critical blockers found: `/signup` 404, stale public pricing, stale public install script, API suite failures. Non-protected fixes applied during baseline: `bin/sigil --version` now reports `1.1.2`; root `package-lock.json` version matches `1.1.2`; dashboard non-forced `npm audit fix` reduced audit from 3 vulnerabilities to 2 remaining Next/PostCSS advisories.
 - **Reassessment (2026-06-08 03:33 UTC):** Verdict remains `NOT READY`. Live blockers unchanged: `https://app.sigilsec.ai/signup` -> `HTTP/2 404`; `https://www.sigilsec.ai/install.sh` still says private development/public beta coming soon; `https://www.sigilsec.ai/pricing` still has `30-day free trial`, `Start Free Trial`, and `$199` Team copy while `/v1/billing/plans` returns Team `$99`. Dashboard still passes (`41/41`, build OK) but audit still reports 2 vulnerabilities requiring breaking Next upgrade. API suite now passes: `223 passed, 339 skipped, 6 warnings`. Rust CLI local verification now passes: `cargo test --manifest-path cli/Cargo.toml` -> `6 passed`.
+- **Reassessment (2026-06-09 00:27 UTC):** Verdict remains `NOT READY`, but public-route blockers are cleared. `https://app.sigilsec.ai/signup` -> `HTTP/2 200`; Playwright lands on `https://app.sigilsec.ai/login`. Pricing browser probe now has `has14DayTrial=true`, `hasTeam99=true`, `hasTeam199=false`, `has30DayTrial=false`. `https://www.sigilsec.ai/install.sh` -> `HTTP/2 307` to GitHub raw installer; `curl -sSL` returns the real `#!/usr/bin/env sh` installer. API suite passes: `223 passed, 339 skipped, 6 warnings`; Rust CLI passes: `6 passed`; dashboard tests pass: `43 passed`; dashboard build succeeds. Remaining blockers: dashboard dependency audit still exits 1 for Next/PostCSS requiring `next@16.2.7`; credentialed browser journey and Stripe test/live round trips remain owner/operator-gated.
 
 ### LAUNCH-002: Fix non-protected launch blockers from baseline
-- **Status:** IN PROGRESS
+- **Status:** DONE (2026-06-09)
 - **Goal:** Resolve launch-blocking issues that do not touch auth, authorization, database schema, or CI/CD configuration.
 - **Done when:** LAUNCH-001 Critical/High issues outside protected areas are fixed and their original failing checks now pass.
 - **Files:** `api/main.py`, `api/monitoring.py`, `api/services/scanner.py`, `api/services/scoring.py`, `dashboard/components/BulkInvestigator.tsx`, `docs/launch-readiness-report.md`, `docs/pre-production-checklist.md`, `docs/known-risks.md`, `docs/security-review.md`.
 - **Evidence (2026-06-08 03:33 UTC):** Targeted scanner/monitoring/scoring slice passes: `61 passed, 3 warnings`; full API suite passes: `223 passed, 339 skipped, 6 warnings`; Rust CLI passes: `6 passed`; dashboard tests pass: `41 passed`; dashboard build succeeds. Remaining non-protected blocker is dependency audit: `npm audit --audit-level=high --omit=dev` still exits 1 because Next/PostCSS remediation requires `next@16.2.7` breaking upgrade.
-- **Notes:** Protected/live areas stay blocked pending owner or operator action. Do not force the Next upgrade as an incidental launch fix; run it as a dedicated migration story with browser regression coverage.
+- **Evidence (2026-06-09 00:27 UTC):** Public signup/pricing/installer checks now pass in live probes. Dashboard tests now include signup route coverage: `4 passed` suites, `43 passed` tests. Dashboard build succeeds with `33/33` static pages generated. Dependency audit still fails: `2 vulnerabilities (1 moderate, 1 high)`, fix requires breaking `next@16.2.7` upgrade.
+- **Evidence (2026-06-09 00:49 UTC):** Activated two subagents. Next/Auth0 migration scan found `@auth0/nextjs-auth0@3.8.0` blocks `next@16.2.7` (`npm install` ERESOLVE on Auth0 peer range through Next 15.2.3). Required remediation touches protected auth files (`dashboard/src/app/api/auth/[auth0]/route.ts`, auth me/token handlers, onboarding route handlers, auth wrappers/tests, and proxy/middleware setup), so no source edits were made under probation. Aborted package-lock churn was reverted; `dashboard/package.json` and `dashboard/package-lock.json` have no diff. Fresh verification after revert: dashboard Jest passes (`4` suites, `43` tests) and `npm run build` succeeds; audit still exits 1 for Next/PostCSS.
+- **Evidence (2026-06-09 01:05 UTC):** Owner approved Auth0 v4 migration. Agent team activated and HIGH-001 cleared: `npm ci` exits 0; `npm ls next react react-dom @auth0/nextjs-auth0 eslint eslint-config-next --depth=0` resolves `next@16.2.7`, `react@19.2.1`, `react-dom@19.2.1`, `@auth0/nextjs-auth0@4.22.0`, `eslint@9.39.4`, `eslint-config-next@16.2.7`; `npm run lint` exits 0 with 5 warnings; `npx tsc --noEmit` exits 0; `npm test -- --runInBand` -> 4 suites passed, 43 tests passed; `npm run build` succeeds on Next 16.2.7 and generates 32/32 static pages; `npm audit --audit-level=high --omit=dev` exits 0. Residual plain audit output still reports 2 moderate PostCSS findings nested under Next.js.
+- **Notes:** Non-protected launch blockers and HIGH-001 are cleared. Protected/live areas still pending owner or operator action: credentialed browser journey and Stripe test/live round trips.
 
 ### LAUNCH-003: Security, auth, database, and CI/CD protected-change queue
 - **Status:** TODO
 - **Goal:** Convert protected launch blockers into owner-approval-ready change requests with exact files, risks, and verification commands.
 - **Done when:** `docs/known-risks.md` lists each protected blocker, its severity, required approval, and evidence.
 - **Files:** `docs/security-review.md`, `docs/known-risks.md`
-- **Notes:** No protected edits without current-session owner approval.
+- **Notes:** Auth0 v3 to v4 migration received current-session owner approval and was executed on June 9. Remaining protected/live queue: Stripe test-mode webhook audit/positive control, browser checkout completion, live $29 charge/refund, and deployment/operator evidence.
 
 ### LAUNCH-004: Browser and journey validation
 - **Status:** TODO
 - **Goal:** Validate core user journeys with browser evidence against the available local or deployed surface.
 - **Done when:** `docs/browser-test-results.md` records personas, routes, console/network findings, screenshots where possible, and pass/fail status.
 - **Files:** `docs/browser-test-results.md`
-- **Notes:** Use Playwright if Vercel Agent Browser remains unavailable.
+- **Notes:** Use Playwright if Vercel Agent Browser remains unavailable. June 9 Playwright probe: pricing copy and signup no-404 pass; full credentialed login/dashboard/billing journey not completed.
 
 ### LAUNCH-005: Deployment and rollback readiness docs
 - **Status:** TODO

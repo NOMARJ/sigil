@@ -22,7 +22,7 @@ interface SubscriptionManagerProps {
 
 export function SubscriptionManager({
   subscription,
-}: SubscriptionManagerProps): JSX.Element {
+}: SubscriptionManagerProps) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

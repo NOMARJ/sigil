@@ -20,7 +20,7 @@ interface CreditBalance {
   monthly_allocation: number;
 }
 
-export function ProOnboardingFlow(): JSX.Element {
+export function ProOnboardingFlow() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null);

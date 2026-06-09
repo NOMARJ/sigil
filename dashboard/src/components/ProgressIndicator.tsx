@@ -12,7 +12,7 @@ export default function ProgressIndicator({
   steps, 
   currentStep, 
   completedSteps 
-}: ProgressIndicatorProps): JSX.Element {
+}: ProgressIndicatorProps) {
   
   const getStepStatus = (stepIndex: number, stepId: string): 'completed' | 'current' | 'upcoming' => {
     if (completedSteps.includes(stepId)) return 'completed';
@@ -20,7 +20,7 @@ export default function ProgressIndicator({
     return 'upcoming';
   };
 
-  const getStepIcon = (status: 'completed' | 'current' | 'upcoming', stepIndex: number): JSX.Element => {
+  const getStepIcon = (status: 'completed' | 'current' | 'upcoming', stepIndex: number) => {
     switch (status) {
       case 'completed':
         return (

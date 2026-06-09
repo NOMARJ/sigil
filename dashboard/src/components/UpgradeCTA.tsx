@@ -19,7 +19,7 @@ export default function UpgradeCTA({
   creditsNeeded,
   currentBalance = 0,
   onClose 
-}: UpgradeCTAProps): JSX.Element {
+}: UpgradeCTAProps) {
   const [isDismissed, setIsDismissed] = useState(false);
   const constrainedFeatures = launchConfig.getConstrainedLaunchFeatures();
 
@@ -184,7 +184,7 @@ interface FeatureLockedCTAProps {
 export function FeatureLockedCTA({ 
   featureName, 
   description 
-}: FeatureLockedCTAProps): JSX.Element {
+}: FeatureLockedCTAProps) {
   return (
     <div className="text-center py-12 px-6">
       {/* Lock icon */}

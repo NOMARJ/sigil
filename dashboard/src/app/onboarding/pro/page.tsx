@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ProOnboardingFlow } from "@/components/ProOnboardingFlow";
 import * as api from "@/lib/api";
 
-export default function ProOnboardingPage(): JSX.Element {
+export default function ProOnboardingPage() {
   const { user, isLoading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();

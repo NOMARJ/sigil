@@ -49,7 +49,7 @@ export function CreditPurchase({
   isOpen, 
   onClose, 
   onPurchaseComplete 
-}: CreditPurchaseProps): JSX.Element {
+}: CreditPurchaseProps) {
   const [selectedPackage, setSelectedPackage] = useState<CreditPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);

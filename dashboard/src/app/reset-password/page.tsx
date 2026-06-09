@@ -14,7 +14,7 @@ import { useEffect } from "react";
  */
 export default function ResetPasswordPage() {
   useEffect(() => {
-    window.location.replace("/api/auth/login");
+    window.location.replace("/auth/login");
   }, []);
 
   return (

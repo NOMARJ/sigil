@@ -15,7 +15,7 @@ type FilterConfidence = LLMConfidenceLevel | "all";
 export default function LLMInsights({ 
   insights, 
   contextAnalysis 
-}: LLMInsightsProps): JSX.Element {
+}: LLMInsightsProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [categoryFilter, setCategoryFilter] = useState<FilterCategory>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<FilterConfidence>("all");

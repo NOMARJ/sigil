@@ -2,7 +2,7 @@
 
 Date: 2026-06-08
 
-Reassessed: 2026-06-08 03:33 UTC
+Reassessed: 2026-06-09 01:05 UTC
 
 ## Launch Verdict
 
@@ -10,33 +10,82 @@ NOT READY
 
 ## Summary
 
-Sigil is not production-launch-ready. The dashboard builds and its component tests pass, the full API suite now passes locally, the Rust CLI test suite passes locally, and the production API health check is online. The remaining launch blockers are public acquisition paths that are broken or stale, plus a high-severity Next.js dependency audit finding that requires a planned framework upgrade.
+Sigil is not production-launch-ready, but the prior public acquisition blockers are now cleared in live probes and the high-severity dashboard dependency audit blocker is now closed. The dashboard now builds on Next.js 16.2.7, React 19.2.1, and Auth0 SDK 4.22.0; component tests pass; the full API suite passes locally; the Rust CLI test suite passes locally; production API health is online; `/signup` no longer 404s; public pricing matches the billing API; and the public installer now redirects to the real GitHub installer. The remaining launch blockers are incomplete credentialed browser journey validation and owner-gated Stripe test/live round trips.
 
 ## Critical Blockers
 
-### CRITICAL-001: Public signup CTA target returns 404
+No active critical blocker remains from the public-route probes in this reassessment.
+
+## High Blockers
+
+### CLEARED HIGH-001: Dashboard production dependency audit has no high findings
 
 Evidence:
 
 ```bash
-$ curl -sS -I https://app.sigilsec.ai/signup | sed -n '1,80p'
-HTTP/2 404
-cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+$ npm ls next react react-dom @auth0/nextjs-auth0 eslint eslint-config-next --depth=0
+@auth0/nextjs-auth0@4.22.0
+eslint-config-next@16.2.7
+eslint@9.39.4
+next@16.2.7
+react-dom@19.2.1
+react@19.2.1
 ```
-
-Existing Auth0 login path is alive:
 
 ```bash
-$ curl -sS -I 'https://app.sigilsec.ai/api/auth/login?screen_hint=signup' | sed -n '1,100p'
-HTTP/2 302
-location: https://auth.sigilsec.ai/authorize?client_id=...
+$ npm audit --audit-level=high --omit=dev
+exit 0
 ```
 
-Status: owner-gated. Fix changes the auth entry flow.
+Verification:
 
-### CRITICAL-002: Public pricing page is stale and contradicts billing API
+```bash
+$ npm ci
+added 797 packages, and audited 798 packages
 
-Evidence:
+$ npm run lint
+0 errors, 5 warnings
+
+$ npx tsc --noEmit
+exit 0
+
+$ npm test -- --runInBand
+4 passed, 43 tests passed
+
+$ npm run build
+Next.js 16.2.7 ... Compiled successfully ... 32/32 static pages
+```
+
+Status: closed after owner-approved Auth0 v3 to v4 migration. Residual dependency risk remains at moderate severity because Next.js 16.2.7 still bundles vulnerable PostCSS according to npm audit.
+
+### HIGH-002: Browser and billing journeys are not fully verified
+
+Evidence gathered this reassessment proves public unauthenticated paths, but does not complete credentialed login, checkout, webhook, portal cancel, or live payment/refund loops.
+
+Status: owner/operator-gated.
+
+## Cleared In Reassessment
+
+### CLEARED-001: Public signup no longer 404s
+
+```bash
+$ curl -sS -I https://app.sigilsec.ai/signup
+HTTP/2 200
+```
+
+Playwright browser probe:
+
+```json
+{
+  "requested": "https://app.sigilsec.ai/signup",
+  "status": 200,
+  "finalUrl": "https://app.sigilsec.ai/login",
+  "title": "Sigil — Security Audit Dashboard",
+  "textSample": "Sign in to Sigil..."
+}
+```
+
+### CLEARED-002: Public pricing now matches billing API
 
 ```bash
 $ curl -sS -i https://api.sigilsec.ai/v1/billing/plans | sed -n '1,120p'
@@ -45,62 +94,35 @@ HTTP/2 200
 {"tier":"team","name":"Team","price_monthly":99.0,...}
 ```
 
-Browser probe:
-
 ```json
 {
-  "url": "https://www.sigilsec.ai/pricing",
+  "requested": "https://www.sigilsec.ai/pricing",
   "status": 200,
-  "has30DayTrial": true,
+  "has30DayTrial": false,
+  "has14DayTrial": true,
   "hasStartFreeTrial": true,
-  "hasTeam199": true,
-  "hasTeam99": false
+  "hasTeam199": false,
+  "hasTeam99": true
 }
 ```
 
-Screenshots:
+### CLEARED-003: Public installer no longer serves private-development copy
 
-- `evidence/launch-readiness/www-pricing-2026-06-08.png`
-- `evidence/launch-readiness/www-pricing-mobile-2026-06-08.png`
-
-Status: owner/operator-gated deployment or marketing surface repair.
-
-### CRITICAL-003: Public installer URL serves private-development copy
-
-Evidence:
+Without following redirects, Vercel returns a redirect:
 
 ```bash
-$ curl -sS https://www.sigilsec.ai/install.sh | sed -n '1,80p'
-echo "  Sigil is currently in private development."
-echo "  The public CLI beta is coming soon."
+$ curl -sS -I https://www.sigilsec.ai/install.sh
+HTTP/2 307
+location: https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
 ```
 
-GitHub `main` has the real installer:
+With `-L`, the real installer is served:
 
 ```bash
-$ curl -sS https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sed -n '1,20p'
+$ curl -sSL https://www.sigilsec.ai/install.sh | sed -n '1,4p'
 #!/usr/bin/env sh
 # Sigil installer
 ```
-
-Status: owner/operator-gated deployment or web asset repair.
-
-## High Blockers
-
-### HIGH-001: Dashboard production dependency audit is not clean
-
-Evidence after non-forced `npm audit fix`:
-
-```bash
-$ npm audit --audit-level=high --omit=dev
-2 vulnerabilities (1 moderate, 1 high)
-next ... Severity: high
-postcss <8.5.10 Severity: moderate
-fix available via `npm audit fix --force`
-Will install next@16.2.7, which is a breaking change
-```
-
-Status: requires planned Next.js upgrade, not forced under probation.
 
 ## Fixed This Session
 
@@ -152,12 +174,12 @@ Reassessment evidence:
 
 ```bash
 $ npm test -- --runInBand
-Test Suites: 3 passed, 3 total
-Tests:       41 passed, 41 total
+Test Suites: 4 passed, 4 total
+Tests:       43 passed, 43 total
 
 $ npm run build
 ✓ Compiled successfully
-✓ Generating static pages (32/32)
+✓ Generating static pages (33/33)
 
 $ npm audit --audit-level=high --omit=dev
 2 vulnerabilities (1 moderate, 1 high)
@@ -174,7 +196,7 @@ The scanner, monitoring, metrics content-type, and scoring regressions from reas
 
 ```bash
 $ python3 -m pytest api/tests -q
-223 passed, 339 skipped, 6 warnings in 13.72s
+223 passed, 339 skipped, 6 warnings in 2.43s
 ```
 
 Targeted failure-slice verification:
@@ -216,3 +238,4 @@ HTTP/2 401
 - No autonomous subagent dispatch was used.
 - Auth, authorization, database, and CI/CD configuration edits were not made.
 - `.nomark/resources.json` was updated with verified public host entries before this report wrote those URLs.
+- `.nomark/metrics/trust/ledger.jsonl` is missing; the mandated cold-start command failed because `.nomark/schemas/mee-event.schema.json` is missing.

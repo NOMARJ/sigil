@@ -38,7 +38,7 @@ interface PricingCardProps {
   isLoading?: boolean;
 }
 
-export default function PricingCard({ tier, isYearly, onSelectPlan, isLoading }: PricingCardProps): JSX.Element {
+export default function PricingCard({ tier, isYearly, onSelectPlan, isLoading }: PricingCardProps) {
   const handleSelectPlan = (): void => {
     onSelectPlan(tier.id, isYearly ? 'yearly' : 'monthly');
   };
@@ -50,7 +50,7 @@ export default function PricingCard({ tier, isYearly, onSelectPlan, isLoading }:
     return "w-full btn-secondary";
   };
 
-  const renderPrice = (): JSX.Element => {
+  const renderPrice = () => {
     if (tier.price.monthly === null) {
       return (
         <div className="flex items-baseline">
@@ -91,7 +91,7 @@ export default function PricingCard({ tier, isYearly, onSelectPlan, isLoading }:
     );
   };
 
-  const renderFeature = (feature: string, index: number): JSX.Element => {
+  const renderFeature = (feature: string, index: number) => {
     const isHighlight = feature.includes('🤖') || feature.includes('🔍') || feature.includes('🎭') || feature.includes('💡') || feature.includes('🔗');
     
     return (
@@ -111,7 +111,7 @@ export default function PricingCard({ tier, isYearly, onSelectPlan, isLoading }:
     );
   };
 
-  const renderLimitation = (limitation: string, index: number): JSX.Element => (
+  const renderLimitation = (limitation: string, index: number) => (
     <li key={index} className="flex items-start gap-3 opacity-60">
       <svg 
         className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" 

@@ -30,7 +30,7 @@ const STEP_COMPONENTS: Record<string, React.ComponentType<OnboardingStepProps>> 
   Completion: CompletionStep,
 };
 
-export default function OnboardingStep(props: OnboardingStepProps): JSX.Element {
+export default function OnboardingStep(props: OnboardingStepProps) {
   const { step } = props;
   
   // Get the appropriate component for this step

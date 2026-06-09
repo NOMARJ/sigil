@@ -18,8 +18,8 @@ interface FeatureComparisonProps {
   categories: FeatureCategory[];
 }
 
-export default function FeatureComparison({ categories }: FeatureComparisonProps): JSX.Element {
-  const renderFeatureValue = (value: boolean | string, tierName: string): JSX.Element => {
+export default function FeatureComparison({ categories }: FeatureComparisonProps) {
+  const renderFeatureValue = (value: boolean | string, tierName: string) => {
     if (typeof value === 'boolean') {
       return value ? (
         <div className="flex justify-center">

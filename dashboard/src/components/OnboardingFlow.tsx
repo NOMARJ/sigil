@@ -59,7 +59,7 @@ const ONBOARDING_STEPS: OnboardingStepData[] = [
 // Local storage key for persisting progress
 const ONBOARDING_STORAGE_KEY = "sigil_pro_onboarding_progress";
 
-export default function OnboardingFlow(): JSX.Element {
+export default function OnboardingFlow() {
   const { user } = useUser();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);

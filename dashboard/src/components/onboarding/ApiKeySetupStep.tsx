@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { OnboardingStepProps } from "../OnboardingStep";
 
-export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProps): JSX.Element {
+export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProps) {
   const [apiKey, setApiKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isTesting, setIsTesting] = useState(false);

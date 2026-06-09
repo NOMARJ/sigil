@@ -1,11 +1,11 @@
-import { getAccessToken } from '@auth0/nextjs-auth0';
-import { NextResponse } from 'next/server';
+import { auth0 } from "@/lib/auth0";
+import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
-    const { accessToken } = await getAccessToken();
-    return NextResponse.json({ accessToken });
+    const { token } = await auth0.getAccessToken();
+    return NextResponse.json({ accessToken: token });
   } catch {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 }

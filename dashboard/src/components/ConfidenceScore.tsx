@@ -14,7 +14,7 @@ export default function ConfidenceScore({
   size = "md",
   showLabel = true,
   showPercentage = true
-}: ConfidenceScoreProps): JSX.Element {
+}: ConfidenceScoreProps) {
   const percentage = Math.round(confidence * 100);
 
   // Color mapping based on confidence level
@@ -101,7 +101,7 @@ interface ConfidenceDistributionProps {
 export function ConfidenceDistribution({ 
   summary, 
   total 
-}: ConfidenceDistributionProps): JSX.Element {
+}: ConfidenceDistributionProps) {
   const levels: LLMConfidenceLevel[] = ["very_high", "high", "medium", "low"];
   const colors = {
     very_high: "bg-red-500",

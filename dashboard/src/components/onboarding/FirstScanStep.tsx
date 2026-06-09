@@ -11,7 +11,7 @@ interface ScanResult {
   confidence_score: number;
 }
 
-export default function FirstScanStep({ step, onComplete }: OnboardingStepProps): JSX.Element {
+export default function FirstScanStep({ step, onComplete }: OnboardingStepProps) {
   const [selectedExample, setSelectedExample] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [isScanning, setIsScanning] = useState(false);

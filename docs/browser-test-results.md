@@ -2,7 +2,7 @@
 
 Date: 2026-06-08
 
-Reassessed: 2026-06-08 02:47 UTC
+Reassessed: 2026-06-09 00:27 UTC
 
 ## Tooling
 
@@ -22,71 +22,54 @@ Chrome Headless Shell 145.0.7632.6 ... downloaded
 
 Route: `https://www.sigilsec.ai/pricing`
 
-Result: FAIL
+Result: PASS for public pricing copy and CTA presence. Full paid checkout was not executed.
 
 Evidence:
 
 ```json
 {
   "status": 200,
-  "has30DayTrial": true,
+  "has30DayTrial": false,
+  "has14DayTrial": true,
   "hasStartFreeTrial": true,
-  "hasTeam199": true,
-  "hasTeam99": false
+  "hasTeam199": false,
+  "hasTeam99": true
 }
 ```
 
-Reassessment evidence matched the original failure:
-
-```json
-{
-  "status": 200,
-  "has30DayTrial": true,
-  "hasStartFreeTrial": true,
-  "hasTeam199": true,
-  "hasTeam99": false
-}
-```
-
-Screenshot: `evidence/launch-readiness/www-pricing-2026-06-08.png`
+Prior screenshot: `evidence/launch-readiness/www-pricing-2026-06-08.png`
 
 ### Mobile user
 
 Route: `https://www.sigilsec.ai/pricing`
 
-Result: FAIL
+Result: NOT RERUN on mobile in this reassessment. Desktop browser and raw HTML probes now pass the prior stale-copy assertions.
 
-Evidence:
-
-```json
-{
-  "status": 200,
-  "has30DayTrial": true,
-  "hasStartFreeTrial": true
-}
-```
-
-Screenshot: `evidence/launch-readiness/www-pricing-mobile-2026-06-08.png`
+Prior screenshot: `evidence/launch-readiness/www-pricing-mobile-2026-06-08.png`
 
 ### New account signup
 
 Route: `https://app.sigilsec.ai/signup`
 
-Result: FAIL
+Result: PASS for no-404 public route; PARTIAL for account creation because no credentialed signup was completed.
 
 Evidence:
 
 ```bash
 $ curl -sS -I https://app.sigilsec.ai/signup
-HTTP/2 404
+HTTP/2 200
 ```
 
-Existing Auth0 login route:
+Playwright evidence:
 
-```bash
-$ curl -sS -I 'https://app.sigilsec.ai/api/auth/login?screen_hint=signup'
-HTTP/2 302
-location: https://auth.sigilsec.ai/authorize?client_id=...
+```json
+{
+  "requested": "https://app.sigilsec.ai/signup",
+  "status": 200,
+  "finalUrl": "https://app.sigilsec.ai/login",
+  "title": "Sigil — Security Audit Dashboard",
+  "textSample": "Sign in to Sigil..."
+}
 ```
 
 ### Returning user

@@ -56,7 +56,7 @@ export default function FalsePositiveVerifier({
     }
   };
 
-  const getAssessmentIcon = (isSafe: boolean): JSX.Element => {
+  const getAssessmentIcon = (isSafe: boolean) => {
     if (isSafe) {
       return (
         <svg className="w-5 h-5 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { OnboardingStepProps } from "../OnboardingStep";
 
-export default function WelcomeStep({ step, onComplete }: OnboardingStepProps): JSX.Element {
+export default function WelcomeStep({ step, onComplete }: OnboardingStepProps) {
   const { user } = useUser();
   const [isReady, setIsReady] = useState(false);
 

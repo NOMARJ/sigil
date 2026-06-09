@@ -1,29 +1,28 @@
-import { handleAuth, handleLogin, handleLogout } from '@auth0/nextjs-auth0';
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export const GET = handleAuth({
-  login: handleLogin({
-    authorizationParams: {
-      audience: process.env.AUTH0_AUDIENCE,
-      scope: 'openid profile email',
-    },
-  }),
-  signup: handleLogin({
-    authorizationParams: {
-      audience: process.env.AUTH0_AUDIENCE,
-      scope: 'openid profile email',
-      screen_hint: 'signup',
-    },
-  }),
-  logout: handleLogout({
-    returnTo: process.env.AUTH0_BASE_URL,
-  }),
-  onError(_req: Request, error: Error & { status?: number }) {
-    // Return proper status code instead of always 500
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: error.status ?? 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  },
-});
+type AuthRouteContext = {
+  params: { auth0: string } | Promise<{ auth0: string }>;
+};
+
+export async function GET(
+  request: NextRequest,
+  context: AuthRouteContext,
+): Promise<NextResponse> {
+  const { auth0: action } = await context.params;
+  const url = new URL(request.url);
+
+  if (action === "signup") {
+    url.pathname = "/auth/login";
+    url.searchParams.set("screen_hint", "signup");
+    return NextResponse.redirect(url);
+  }
+
+  if (action === "login" || action === "logout" || action === "callback") {
+    url.pathname = `/auth/${action}`;
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.json({ error: "Unknown auth route" }, { status: 404 });
+}

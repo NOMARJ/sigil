@@ -1,16 +1,15 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import * as api from "./api";
 import type { User } from "./types";
 
-interface AuthContextType {
+type AuthContextType = {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
   loginWithOAuth: (connection?: string) => void;
   logout: () => Promise<void>;
-}
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -31,18 +30,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function restoreSession() {
-      // Get user from Auth0 session via Next.js API route
       try {
-        const res = await fetch("/api/auth/me", {
+        const res = await fetch("/auth/profile", {
           credentials: 'include',
           cache: 'no-store',
         });
         if (res.ok) {
           const userData = await res.json();
-          if (!cancelled && userData.id) {
+          if (!cancelled && userData.sub) {
             // Map Auth0 user data to our User type
             const user = {
-              id: userData.id,
+              id: userData.sub,
               email: userData.email,
               name: userData.name || userData.email,
               avatar_url: userData.picture || null,
@@ -76,15 +74,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithOAuth = useCallback((connection?: string) => {
     // Auth0 handles OAuth via redirect-based flow
     const url = connection
-      ? `/api/auth/login?connection=${connection}`
-      : "/api/auth/login";
+      ? `/auth/login?connection=${encodeURIComponent(connection)}`
+      : "/auth/login";
     window.location.href = url;
   }, []);
 
   const logout = useCallback(async () => {
     setUser(null);
     // Redirect to Auth0 logout to clear the Auth0 session
-    window.location.href = "/api/auth/logout";
+    window.location.href = "/auth/logout";
   }, []);
 
   const isAuthenticated = user !== null;

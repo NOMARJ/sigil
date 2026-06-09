@@ -5,7 +5,7 @@ import { PlanBadge } from "@/components/ui/PlanBadge";
 import * as api from "@/lib/api";
 import type { Subscription } from "@/lib/types";
 
-export default function PricingPage(): JSX.Element {
+export default function PricingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);

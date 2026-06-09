@@ -6,7 +6,7 @@ import { CreditUsageDashboard } from "@/components/CreditUsageDashboard";
 import * as api from "@/lib/api";
 import type { Subscription } from "@/lib/types";
 
-export default function ProDashboard(): JSX.Element {
+export default function ProDashboard() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
 

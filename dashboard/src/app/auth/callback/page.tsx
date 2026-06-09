@@ -7,7 +7,7 @@ export default function AuthCallbackPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Auth0 handles the OAuth callback via /api/auth/callback
+    // Auth0 handles the OAuth callback via /auth/callback
     // This page is only shown briefly during redirect
     router.replace('/')
   }, [router])

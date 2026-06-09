@@ -10,7 +10,7 @@ interface ThreatExplanationProps {
 export default function ThreatExplanation({ 
   insight, 
   isZeroDay = false 
-}: ThreatExplanationProps): JSX.Element {
+}: ThreatExplanationProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
   const [showRemediation, setShowRemediation] = useState(false);

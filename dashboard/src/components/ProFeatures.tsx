@@ -5,7 +5,7 @@ interface ProFeaturesProps {
   analysisResponse: LLMAnalysisResponse;
 }
 
-export default function ProFeatures({ analysisResponse }: ProFeaturesProps): JSX.Element {
+export default function ProFeatures({ analysisResponse }: ProFeaturesProps) {
   const [showMetrics, setShowMetrics] = useState(false);
   
   const { insights, context_analysis, tokens_used, model_used, processing_time_ms, confidence_summary, threat_summary } = analysisResponse;

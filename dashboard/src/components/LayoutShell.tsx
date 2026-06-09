@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { UserProvider } from "@auth0/nextjs-auth0/client";
+import { Auth0Provider } from "@auth0/nextjs-auth0/client";
 import { AuthProvider } from "@/lib/auth";
 import AuthGuard from "@/components/AuthGuard";
 import Sidebar from "@/components/Sidebar";
@@ -25,7 +25,7 @@ export default function LayoutShell({ children }: LayoutShellProps) {
   );
 
   return (
-    <UserProvider>
+    <Auth0Provider>
     <AuthProvider>
       <AuthGuard>
         {hideSidebar ? (
@@ -63,6 +63,6 @@ export default function LayoutShell({ children }: LayoutShellProps) {
         )}
       </AuthGuard>
     </AuthProvider>
-    </UserProvider>
+    </Auth0Provider>
   );
 }
