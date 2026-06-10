@@ -1179,28 +1179,28 @@
 ### Phase C — Corpus externalization (D2)
 
 ### US-C1 [F-008]: Signature-pack schema and loader
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, agent+integration) — corpus/{schema,loader,mod}.rs; packs include_str!-embedded; counts derived. corpus_loader tests pass.
 - **Scope:** complex
 - **Goal:** Versioned pack format (id, phase, severity, weight, patterns, language scope, suppression predicates, provenance, dates); Rust loads packs at startup; counts derived.
 - **Done when:** `cargo test corpus_loader` passes; `./cli/target/release/sigil scan test-repo` produces identical findings from pack-loaded rules as from a golden snapshot of today's hardcoded rules (parity test committed).
 - **Files:** `cli/src/corpus/` (new), `packs/core/v1/`
 
 ### US-C2 [F-008]: Port Rust hardcoded patterns into the core pack
-- **Status:** TODO
+- **Status:** DONE (2026-06-11) — phases.rs is now thin pack dispatch (scan_file_with_packs); zero inline Regex::new in production code; 13 parity_rust tests. Integration fix: PROMPT-007 ported as bare `"""` (matched every docstring, 2467 FPs) → restored `"""\s*\n`; char-boundary panic in engine header slice fixed + regression test.
 - **Scope:** complex
 - **Goal:** All patterns in `phases.rs` (Phases 1–8, 10) move to `packs/core/`; `phases.rs` becomes engine logic only.
 - **Done when:** Fixture-corpus parity: `cargo test parity_rust` shows identical (file, rule, severity) findings before/after on `tests/fixtures/`; `grep -c "Regex::new" cli/src/scanner/phases.rs` drops to ~0.
 - **Files:** `cli/src/scanner/phases.rs`, `packs/core/v1/`
 
 ### US-C3 [F-008]: Port Python-only rules and FP filters into the pack
-- **Status:** TODO
+- **Status:** DONE (2026-06-11) — packs/core/v1/{obfuscation_chain.json (19 rules), supply_chain.json (19 rules)} ported from Python ENHANCED_OBFUSCATION_RULES + NOVEL_VECTOR_RULES; SUPPLY-003/005 lookaround rewritten for Rust regex via suppress predicates; 12 parity_python tests.
 - **Scope:** complex
 - **Goal:** Python's 13 supply-chain rules, 14 obfuscation-chain rules, 4 context filters, and 22-domain safe list become pack entries/predicates. Closes the cross-implementation drift found in the audit.
 - **Done when:** `cargo test parity_python` — fixtures derived from each Python rule's intent produce the expected finding in Rust; suppression fixtures (UMD wrapper, polyfill, safe-domain HTTP) produce 0 findings.
 - **Files:** `packs/core/v1/`, `tests/fixtures/`
 
 ### US-C4 [F-008]: Pack signing and verified updates
-- **Status:** TODO
+- **Status:** DONE (2026-06-11) — corpus/signing.rs: ed25519-dalek PackVerifier; verify() canonicalises + checks Ed25519; 5 pack_signature tests (valid/missing/tampered/wrong-key/bad-base64). Core packs are include_str!-embedded (not signature-gated); signing is for fetched packs.
 - **Scope:** moderate
 - **Goal:** Packs signed at publish; `sigil fetch` verifies signature before installing to `~/.sigil/`; tampered pack is rejected loudly.
 - **Done when:** `cargo test pack_signature` passes including a tampered-pack rejection case; `sigil fetch --offline` uses cache without error.
