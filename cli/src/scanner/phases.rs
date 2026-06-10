@@ -1,11 +1,31 @@
-use regex::Regex;
-use std::path::Path;
+//! Phase dispatch — thin wrappers that route each scan phase through the
+//! corpus engine.  No inline `Regex::new` calls live here; all patterns are
+//! declared in `packs/core/v1/*.json` and loaded via `corpus::loader`.
+
+use std::path::{Path, PathBuf};
 
 use super::{Finding, Phase, Severity};
+use crate::corpus::{
+    engine::scan_file_with_packs,
+    loader::load_all_packs,
+    schema::{ProvenanceKind, SignaturePack},
+};
 
 // ---------------------------------------------------------------------------
-// Helper: build a finding
+// Helpers
 // ---------------------------------------------------------------------------
+
+fn all_packs() -> Vec<SignaturePack> {
+    load_all_packs()
+}
+
+fn phase_packs(packs: &[SignaturePack], phase: &str) -> Vec<SignaturePack> {
+    packs
+        .iter()
+        .filter(|p| p.rules.iter().any(|r| r.phase == phase))
+        .cloned()
+        .collect()
+}
 
 fn make_finding(
     phase: Phase,
@@ -27,576 +47,127 @@ fn make_finding(
     }
 }
 
-/// Helper: scan each line of a file against a set of (regex, rule, severity, description) patterns.
-fn scan_lines(
-    file: &str,
-    contents: &str,
-    phase: Phase,
-    weight: u32,
-    patterns: &[(Regex, &str, Severity, &str)],
-) -> Vec<Finding> {
-    let mut findings = Vec::new();
-
-    for (line_num, line) in contents.lines().enumerate() {
-        for (re, rule, severity, description) in patterns {
-            if re.is_match(line) {
-                let snippet = if line.len() > 200 {
-                    // Safe truncation at char boundary to avoid Unicode boundary panic
-                    let truncated = line
-                        .char_indices()
-                        .take_while(|(i, _)| *i < 200)
-                        .last()
-                        .map(|(i, ch)| i + ch.len_utf8())
-                        .unwrap_or(0);
-                    format!("{} ...", &line[..truncated])
-                } else {
-                    line.to_string()
-                };
-                findings.push(make_finding(
-                    phase,
-                    rule,
-                    *severity,
-                    file,
-                    Some(line_num + 1),
-                    &format!("{}: {}", description, snippet.trim()),
-                    weight,
-                ));
-            }
-        }
-    }
-
-    findings
+fn filename(file: &str) -> String {
+    Path::new(file)
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------
 // Phase 1: Install Hooks (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect install-time hooks that execute code: setup.py cmdclass overrides,
-/// npm postinstall/preinstall scripts, and Makefile install targets.
 pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
-    let filename = Path::new(file)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    let mut patterns: Vec<(Regex, &str, Severity, &str)> = Vec::new();
-
-    // setup.py / setup.cfg install hooks
-    if filename == "setup.py" || filename == "setup.cfg" {
-        patterns.push((
-            Regex::new(r"cmdclass").unwrap(),
-            "INSTALL-001",
-            Severity::Critical,
-            "setup.py cmdclass override (code runs at install time)",
-        ));
-        patterns.push((
-            Regex::new(r"(?i)(pre_install|post_install|install_scripts)").unwrap(),
-            "INSTALL-002",
-            Severity::Critical,
-            "setup.py custom install hook",
-        ));
-    }
-
-    // package.json lifecycle scripts
-    if filename == "package.json" {
-        patterns.push((
-            Regex::new(r#""(preinstall|postinstall|preuninstall|postuninstall)""#).unwrap(),
-            "INSTALL-003",
-            Severity::Critical,
-            "npm lifecycle script (runs automatically on install)",
-        ));
-        patterns.push((
-            Regex::new(r#""(prepare|prepublish|prepublishOnly)""#).unwrap(),
-            "INSTALL-004",
-            Severity::High,
-            "npm publish lifecycle script",
-        ));
-    }
-
-    // Makefile install targets
-    if filename == "Makefile" || filename == "makefile" || filename.ends_with(".mk") {
-        patterns.push((
-            Regex::new(r"^install\s*:").unwrap(),
-            "INSTALL-005",
-            Severity::Medium,
-            "Makefile install target",
-        ));
-        patterns.push((
-            Regex::new(r"^\.(PHONY|ONESHELL).*install").unwrap(),
-            "INSTALL-006",
-            Severity::Low,
-            "Makefile install phony target",
-        ));
-    }
-
-    // pyproject.toml build hooks
-    if filename == "pyproject.toml" {
-        patterns.push((
-            Regex::new(r"\[tool\.setuptools\.cmdclass\]").unwrap(),
-            "INSTALL-007",
-            Severity::Critical,
-            "pyproject.toml cmdclass override",
-        ));
-        patterns.push((
-            Regex::new(r"build-backend\s*=").unwrap(),
-            "INSTALL-008",
-            Severity::Low,
-            "Custom build backend declared",
-        ));
-    }
-
-    // MCP configuration files
-    patterns.push((
-        Regex::new(r"claude_desktop_config|mcp_config\.json|\.mcp\.json").unwrap(),
-        "INSTALL-MCP-001",
-        Severity::Medium,
-        "MCP configuration file detected",
-    ));
-    patterns.push((
-        Regex::new(r"mcpServers|mcp_servers").unwrap(),
-        "INSTALL-MCP-002",
-        Severity::Low,
-        "MCP server registry entry",
-    ));
-
-    scan_lines(file, contents, Phase::InstallHooks, 10, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "install_hooks");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 2: Code Patterns (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect dangerous code patterns: eval/exec, pickle deserialization,
-/// child_process spawning, dynamic imports, and code generation.
 pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
-    // Declaration files describe APIs; nothing in them executes (ADR-0008).
     if super::context::is_declaration_file(file) {
         return Vec::new();
     }
-    let patterns = vec![
-        // Python dangerous builtins
-        (
-            Regex::new(r"\beval\s*\(").unwrap(),
-            "CODE-001",
-            Severity::High,
-            "eval() call — arbitrary code execution",
-        ),
-        (
-            Regex::new(r"\bexec\s*\(").unwrap(),
-            "CODE-002",
-            Severity::High,
-            "exec() call — arbitrary code execution",
-        ),
-        (
-            Regex::new(r"\bcompile\s*\(").unwrap(),
-            "CODE-003",
-            Severity::Medium,
-            "compile() call — dynamic code compilation",
-        ),
-        // Python pickle / marshal
-        (
-            Regex::new(r"pickle\.(loads?|Unpickler)").unwrap(),
-            "CODE-004",
-            Severity::Critical,
-            "pickle deserialization — arbitrary code execution",
-        ),
-        (
-            Regex::new(r"marshal\.(loads?)").unwrap(),
-            "CODE-005",
-            Severity::High,
-            "marshal deserialization — code execution risk",
-        ),
-        (
-            Regex::new(r"yaml\.(unsafe_)?load\s*\(").unwrap(),
-            "CODE-006",
-            Severity::High,
-            "YAML unsafe load — potential code execution",
-        ),
-        // JavaScript / Node dangerous patterns
-        (
-            Regex::new(r"\bchild_process\b").unwrap(),
-            "CODE-007",
-            Severity::High,
-            "child_process usage — command execution",
-        ),
-        (
-            Regex::new(r"\bFunction\s*\(").unwrap(),
-            "CODE-008",
-            Severity::High,
-            "Function constructor — dynamic code execution",
-        ),
-        (
-            Regex::new(r"new\s+Function\s*\(").unwrap(),
-            "CODE-009",
-            Severity::High,
-            "new Function() — dynamic code execution",
-        ),
-        // Dynamic imports / requires
-        (
-            Regex::new(r"__import__\s*\(").unwrap(),
-            "CODE-010",
-            Severity::High,
-            "__import__() — dynamic import",
-        ),
-        (
-            Regex::new(r"importlib\.import_module\s*\(").unwrap(),
-            "CODE-011",
-            Severity::Medium,
-            "importlib.import_module — dynamic import",
-        ),
-        (
-            Regex::new(r#"require\s*\(\s*[^'"]"#).unwrap(),
-            "CODE-012",
-            Severity::Medium,
-            "dynamic require() — variable module loading",
-        ),
-        // Subprocess / OS commands
-        (
-            Regex::new(r"subprocess\.(call|run|Popen|check_output)\s*\(").unwrap(),
-            "CODE-013",
-            Severity::Medium,
-            "subprocess invocation — command execution",
-        ),
-        (
-            Regex::new(r"os\.(system|popen|exec[lv]?[pe]?)\s*\(").unwrap(),
-            "CODE-014",
-            Severity::High,
-            "os command execution",
-        ),
-        // Shell injection patterns
-        (
-            Regex::new(r"shell\s*=\s*True").unwrap(),
-            "CODE-015",
-            Severity::High,
-            "shell=True — shell injection risk",
-        ),
-        // MCP server patterns
-        (
-            Regex::new(r"mcp[_-]?server|MCPServer|create_mcp_server").unwrap(),
-            "CODE-MCP-001",
-            Severity::Medium,
-            "MCP server creation detected",
-        ),
-        (
-            Regex::new(r"tool_call|execute_tool|run_tool").unwrap(),
-            "CODE-MCP-002",
-            Severity::Medium,
-            "MCP tool execution pattern",
-        ),
-        (
-            Regex::new(r"allow_dangerous|skip_confirmation|auto_approve.*true").unwrap(),
-            "CODE-MCP-003",
-            Severity::High,
-            "MCP dangerous permission bypass",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::CodePatterns, 5, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "code_patterns");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 3: Network / Exfiltration (High, 3x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect outbound network activity: HTTP requests, webhook calls,
-/// raw socket connections, DNS exfiltration, and data upload patterns.
 pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
-    let patterns = vec![
-        // HTTP client usage
-        (
-            Regex::new(r"requests\.(get|post|put|delete|patch|head)\s*\(").unwrap(),
-            "NET-001",
-            Severity::Medium,
-            "HTTP request via requests library",
-        ),
-        (
-            Regex::new(r"urllib\.(request\.)?urlopen\s*\(").unwrap(),
-            "NET-002",
-            Severity::Medium,
-            "HTTP request via urllib",
-        ),
-        (
-            Regex::new(r"http\.client\.HTTP").unwrap(),
-            "NET-003",
-            Severity::Medium,
-            "HTTP client connection",
-        ),
-        (
-            Regex::new(r#"fetch\s*\(\s*['"]https?://"#).unwrap(),
-            "NET-004",
-            Severity::Medium,
-            "fetch() to external URL",
-        ),
-        (
-            Regex::new(r"axios\.(get|post|put|delete|patch)\s*\(").unwrap(),
-            "NET-005",
-            Severity::Medium,
-            "HTTP request via axios",
-        ),
-        // Webhook / callback URLs
-        (
-            Regex::new(r"(?i)(webhook|callback|notify).*https?://").unwrap(),
-            "NET-006",
-            Severity::High,
-            "Webhook / callback URL detected",
-        ),
-        (
-            Regex::new(r"https?://[^\s]*\.(ngrok|pipedream|requestbin|hookbin)").unwrap(),
-            "NET-007",
-            Severity::Critical,
-            "Known exfiltration / tunneling service URL",
-        ),
-        // Raw socket usage
-        (
-            Regex::new(r"socket\.socket\s*\(").unwrap(),
-            "NET-008",
-            Severity::High,
-            "Raw socket creation",
-        ),
-        (
-            Regex::new(r#"\.connect\s*\(\s*\(?\s*['"]"#).unwrap(),
-            "NET-009",
-            Severity::Medium,
-            "Socket connect to address",
-        ),
-        // DNS exfiltration
-        (
-            Regex::new(r"dns\.(resolver|query)|getaddrinfo").unwrap(),
-            "NET-010",
-            Severity::Medium,
-            "DNS resolution — possible DNS exfiltration",
-        ),
-        // Data encoding before send (exfil pattern)
-        (
-            Regex::new(r"(base64|b64)(encode|\.b64encode)\s*\(.*\.(read|getenv|environ)").unwrap(),
-            "NET-011",
-            Severity::High,
-            "Data encoding before potential exfiltration",
-        ),
-        // Curl / wget in code
-        (
-            Regex::new(r"(curl|wget)\s+.*(https?://)").unwrap(),
-            "NET-012",
-            Severity::Medium,
-            "curl/wget command in code",
-        ),
-        // MCP transport patterns
-        (
-            Regex::new(r"stdio_transport|sse_transport|StreamableHTTPTransport").unwrap(),
-            "NET-MCP-001",
-            Severity::Low,
-            "MCP transport configuration",
-        ),
-        (
-            Regex::new(r"mcp.*proxy|proxy.*mcp").unwrap(),
-            "NET-MCP-002",
-            Severity::High,
-            "MCP proxy configuration - potential MITM",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::NetworkExfil, 3, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "network_exfil");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 4: Credentials (Medium, 2x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect credential access patterns: ENV variable reads, AWS/GCP/Azure
-/// credentials, SSH keys, API key patterns, and hardcoded secrets.
 pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
-    let patterns = vec![
-        // Environment variable access for secrets
-        (
-            Regex::new(r#"os\.(environ|getenv)\s*[\[\(]\s*['"](AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)"#).unwrap(),
-            "CRED-001",
-            Severity::High,
-            "Environment variable access for sensitive key",
-        ),
-        (
-            Regex::new(r"process\.env\.(AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)").unwrap(),
-            "CRED-002",
-            Severity::High,
-            "Node process.env access for sensitive key",
-        ),
-        // AWS credential files
-        (
-            Regex::new(r"\.aws/(credentials|config)").unwrap(),
-            "CRED-003",
-            Severity::Critical,
-            "AWS credentials file access",
-        ),
-        (
-            Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
-            "CRED-004",
-            Severity::Critical,
-            "Hardcoded AWS access key ID",
-        ),
-        // SSH keys
-        (
-            Regex::new(r"\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys)").unwrap(),
-            "CRED-005",
-            Severity::Critical,
-            "SSH key file access",
-        ),
-        (
-            Regex::new(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----").unwrap(),
-            "CRED-006",
-            Severity::Critical,
-            "Embedded private key",
-        ),
-        // API key patterns
-        (
-            Regex::new(r#"(?i)(api[_-]?key|api[_-]?secret|access[_-]?token)\s*[:=]\s*['"][a-zA-Z0-9]{16,}"#).unwrap(),
-            "CRED-007",
-            Severity::High,
-            "Hardcoded API key or secret",
-        ),
-        // Generic secret patterns
-        (
-            Regex::new(r#"(?i)(password|passwd|pwd)\s*[:=]\s*['"][^'"]{8,}"#).unwrap(),
-            "CRED-008",
-            Severity::High,
-            "Hardcoded password",
-        ),
-        // GCP service account
-        (
-            Regex::new(r#""type"\s*:\s*"service_account""#).unwrap(),
-            "CRED-009",
-            Severity::Critical,
-            "GCP service account JSON key",
-        ),
-        // GitHub tokens
-        (
-            Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}").unwrap(),
-            "CRED-010",
-            Severity::Critical,
-            "GitHub personal access token",
-        ),
-        // Generic token patterns
-        (
-            Regex::new(r#"(?i)(bearer|authorization)\s*[:=]\s*['"][a-zA-Z0-9._\-]{20,}"#).unwrap(),
-            "CRED-011",
-            Severity::High,
-            "Authorization / bearer token",
-        ),
-        // MCP credential patterns
-        (
-            Regex::new(r"MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth").unwrap(),
-            "CRED-MCP-001",
-            Severity::Medium,
-            "MCP credential reference",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::Credentials, 2, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "credentials");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 5: Obfuscation (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect obfuscation techniques: base64 encoded payloads, String.fromCharCode,
-/// hex-encoded strings, and other encoding patterns.
 pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
-    let patterns = vec![
-        // Base64 decode + execute
-        (
-            Regex::new(r"base64\.(b64)?decode\s*\(").unwrap(),
-            "OBFUSC-001",
-            Severity::High,
-            "Base64 decoding (potential obfuscated payload)",
-        ),
-        (
-            Regex::new(r"atob\s*\(").unwrap(),
-            "OBFUSC-002",
-            Severity::High,
-            "JavaScript atob() — base64 decoding",
-        ),
-        (
-            Regex::new(r#"Buffer\.from\s*\([^)]*,\s*['"]base64['"]"#).unwrap(),
-            "OBFUSC-003",
-            Severity::High,
-            "Node Buffer.from base64 decoding",
-        ),
-        // String.fromCharCode obfuscation
-        (
-            Regex::new(r"String\.fromCharCode\s*\(").unwrap(),
-            "OBFUSC-004",
-            Severity::High,
-            "String.fromCharCode — character code obfuscation",
-        ),
-        (
-            Regex::new(r"chr\s*\(\s*\d+\s*\)").unwrap(),
-            "OBFUSC-005",
-            Severity::Medium,
-            "chr() — character code construction",
-        ),
-        // Hex-encoded strings (long hex sequences)
-        (
-            Regex::new(r"\\x[0-9a-fA-F]{2}(\\x[0-9a-fA-F]{2}){7,}").unwrap(),
-            "OBFUSC-006",
-            Severity::High,
-            "Long hex-encoded string (likely obfuscated)",
-        ),
-        (
-            Regex::new(r"0x[0-9a-fA-F]{2}\s*,\s*(0x[0-9a-fA-F]{2}\s*,?\s*){7,}").unwrap(),
-            "OBFUSC-007",
-            Severity::High,
-            "Hex byte array (likely obfuscated payload)",
-        ),
-        // Unicode escape obfuscation
-        (
-            Regex::new(r"\\u[0-9a-fA-F]{4}(\\u[0-9a-fA-F]{4}){5,}").unwrap(),
-            "OBFUSC-008",
-            Severity::Medium,
-            "Long unicode escape sequence",
-        ),
-        // Python codecs decode
-        (
-            Regex::new(r"codecs\.(decode|encode)\s*\(").unwrap(),
-            "OBFUSC-009",
-            Severity::Medium,
-            "codecs decode/encode — potential obfuscation",
-        ),
-        // ROT13 / Caesar cipher
-        (
-            Regex::new(r#"(?i)(rot13|rot_13|caesar|cipher)\s*[\(\.]"#).unwrap(),
-            "OBFUSC-010",
-            Severity::Medium,
-            "ROT13 / cipher usage — text obfuscation",
-        ),
-        // Zlib / gzip decompress of inline data
-        (
-            Regex::new(r"(zlib|gzip)\.(decompress|inflate)\s*\(").unwrap(),
-            "OBFUSC-011",
-            Severity::Medium,
-            "Inline decompression — potential obfuscated payload",
-        ),
-        // MCP tool definition obfuscation
-        (
-            Regex::new(r"tool_description.*base64|encoded_tool|obfuscated_prompt").unwrap(),
-            "OBFUSC-MCP-001",
-            Severity::High,
-            "Obfuscated MCP tool definition",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::Obfuscation, 5, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "obfuscation");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 6: Provenance (Low, 1-3x weight)
+//
+// Provenance rules operate on filesystem metadata (filename, size, path),
+// not file content.  The engine's `scan_provenance_with_packs` accepts
+// `&[DirEntry]`; `run_scan` passes `Vec<PathBuf>`, so we implement the
+// pack-based provenance scan directly here against `PathBuf` slices.
+//
+// PROV-005 (shallow clone) and PROV-006 (missing .git) check for paths
+// that exist outside the file walker's scope — they remain as Rust logic
+// below the pack dispatch.
 // ---------------------------------------------------------------------------
 
-/// Detect provenance issues: hidden files, binary files in unexpected locations,
-/// git history anomalies, and suspicious file names.
-pub fn scan_provenance(
-    base_path: &std::path::Path,
-    entries: &[std::path::PathBuf],
-) -> Vec<Finding> {
+fn parse_severity_prov(s: &str) -> Severity {
+    match s.to_lowercase().as_str() {
+        "critical" => Severity::Critical,
+        "high" => Severity::High,
+        "medium" => Severity::Medium,
+        _ => Severity::Low,
+    }
+}
+
+pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
+    let packs = all_packs();
     let mut findings = Vec::new();
+
+    // Precompile provenance rules from all packs
+    use regex::Regex;
+    struct CompiledProv<'a> {
+        id: &'a str,
+        severity: Severity,
+        description: &'a str,
+        kind: &'a ProvenanceKind,
+        pattern_re: Option<Regex>,
+        size_threshold: u64,
+        allowed_prefixes: &'a [String],
+        excluded_filenames: &'a [String],
+    }
+
+    let compiled: Vec<CompiledProv<'_>> = packs
+        .iter()
+        .flat_map(|p| p.provenance_rules.iter())
+        .filter_map(|rule| {
+            let pattern_re = if rule.kind == ProvenanceKind::FilenameRegex {
+                let re = rule.pattern.as_deref().and_then(|p| Regex::new(p).ok())?;
+                Some(re)
+            } else {
+                None
+            };
+            Some(CompiledProv {
+                id: &rule.id,
+                severity: parse_severity_prov(&rule.severity),
+                description: &rule.description,
+                kind: &rule.kind,
+                pattern_re,
+                size_threshold: rule.size_threshold.unwrap_or(5_000_000),
+                allowed_prefixes: &rule.allowed_path_prefixes,
+                excluded_filenames: &rule.excluded_filenames,
+            })
+        })
+        .collect();
 
     for file_path in entries {
         let rel_path = file_path
@@ -605,91 +176,101 @@ pub fn scan_provenance(
             .to_string_lossy()
             .to_string();
 
-        // Skip .git directory internals (they are expected)
         if rel_path.starts_with(".git/") || rel_path == ".git" {
             continue;
         }
 
-        let filename = file_path
+        let fname = file_path
             .file_name()
             .map(|f| f.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // Hidden files (dotfiles outside .git)
-        if filename.starts_with('.')
-            && filename != ".gitignore"
-            && filename != ".gitkeep"
-            && filename != ".gitattributes"
-            && filename != ".editorconfig"
-        {
-            findings.push(make_finding(
-                Phase::Provenance,
-                "PROV-001",
-                Severity::Low,
-                &rel_path,
-                None,
-                &format!("Hidden file: {}", filename),
-                1,
-            ));
-        }
+        for rule in &compiled {
+            match rule.kind {
+                ProvenanceKind::HiddenFile => {
+                    if fname.starts_with('.')
+                        && !rule.excluded_filenames.iter().any(|e| e == &fname)
+                    {
+                        findings.push(make_finding(
+                            Phase::Provenance,
+                            rule.id,
+                            rule.severity,
+                            &rel_path,
+                            None,
+                            &format!("{}: {}", rule.description, fname),
+                            1,
+                        ));
+                    }
+                }
 
-        // Binary files in unexpected locations (not in known binary dirs)
-        if is_binary_extension(&filename) {
-            let is_expected = rel_path.starts_with("bin/")
-                || rel_path.starts_with("dist/")
-                || rel_path.starts_with("build/")
-                || rel_path.starts_with("node_modules/")
-                || rel_path.starts_with("target/")
-                || rel_path.starts_with("__pycache__/");
+                ProvenanceKind::BinaryExtension => {
+                    let lower = fname.to_lowercase();
+                    let is_binary = [
+                        ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".o", ".a", ".pyc",
+                        ".pyo", ".class", ".jar", ".war", ".ear", ".wasm", ".node",
+                    ]
+                    .iter()
+                    .any(|ext| lower.ends_with(ext));
 
-            if !is_expected {
-                findings.push(make_finding(
-                    Phase::Provenance,
-                    "PROV-002",
-                    Severity::Medium,
-                    &rel_path,
-                    None,
-                    &format!("Binary file in unexpected location: {}", filename),
-                    2,
-                ));
-            }
-        }
+                    if is_binary {
+                        let is_expected = rule
+                            .allowed_prefixes
+                            .iter()
+                            .any(|prefix| rel_path.starts_with(prefix.as_str()));
+                        if !is_expected {
+                            findings.push(make_finding(
+                                Phase::Provenance,
+                                rule.id,
+                                rule.severity,
+                                &rel_path,
+                                None,
+                                &format!("{}: {}", rule.description, fname),
+                                2,
+                            ));
+                        }
+                    }
+                }
 
-        // Suspicious file names
-        if is_suspicious_filename(&filename) {
-            findings.push(make_finding(
-                Phase::Provenance,
-                "PROV-003",
-                Severity::High,
-                &rel_path,
-                None,
-                &format!("Suspicious filename: {}", filename),
-                3,
-            ));
-        }
+                ProvenanceKind::FilenameRegex => {
+                    if let Some(ref re) = rule.pattern_re {
+                        if re.is_match(&fname) {
+                            findings.push(make_finding(
+                                Phase::Provenance,
+                                rule.id,
+                                rule.severity,
+                                &rel_path,
+                                None,
+                                &format!("{}: {}", rule.description, fname),
+                                3,
+                            ));
+                        }
+                    }
+                }
 
-        // Very large files (> 5MB)
-        if let Ok(metadata) = std::fs::metadata(file_path) {
-            if metadata.len() > 5_000_000 {
-                findings.push(make_finding(
-                    Phase::Provenance,
-                    "PROV-004",
-                    Severity::Low,
-                    &rel_path,
-                    None,
-                    &format!("Large file: {} bytes", metadata.len()),
-                    1,
-                ));
+                ProvenanceKind::FileSizeBytes => {
+                    if let Ok(meta) = std::fs::metadata(file_path) {
+                        if meta.len() > rule.size_threshold {
+                            findings.push(make_finding(
+                                Phase::Provenance,
+                                rule.id,
+                                rule.severity,
+                                &rel_path,
+                                None,
+                                &format!("{}: {} bytes", rule.description, meta.len()),
+                                1,
+                            ));
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Check for .git directory presence (squashed / shallow clone detection)
+    // PROV-005: shallow clone (not expressible as a pack rule — requires
+    // checking a path outside the scanned file set).
     let git_dir = base_path.join(".git");
     if git_dir.exists() {
-        // Check for shallow clone
-        let shallow_file = git_dir.join("shallow");
-        if shallow_file.exists() {
+        if git_dir.join("shallow").exists() {
             findings.push(make_finding(
                 Phase::Provenance,
                 "PROV-005",
@@ -701,6 +282,7 @@ pub fn scan_provenance(
             ));
         }
     } else if base_path.join("package.json").exists() || base_path.join("setup.py").exists() {
+        // PROV-006: no .git directory but project manifest present.
         findings.push(make_finding(
             Phase::Provenance,
             "PROV-006",
@@ -719,290 +301,28 @@ pub fn scan_provenance(
 // Phase 7: Prompt Injection (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect prompt injection patterns: instruction overrides, role reassignment,
-/// system prompt extraction, jailbreak markers, and delimiter injection.
 pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
-    let ext = Path::new(file)
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-
-    let applicable_extensions = [
-        "md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt",
-    ];
-    if !applicable_extensions.contains(&ext.as_str()) {
-        return Vec::new();
-    }
-
-    let patterns = vec![
-        // 1. Ignore previous instructions
-        (
-            Regex::new(r"(?i)(ignore\s+(all\s+)?previous\s+instructions|disregard\s+(the\s+)?above)").unwrap(),
-            "PROMPT-001",
-            Severity::Critical,
-            "Prompt injection — ignore previous instructions",
-        ),
-        // 2. Role reassignment
-        (
-            Regex::new(r"(?i)you\s+are\s+now\s+(a|an|the|my)\s+").unwrap(),
-            "PROMPT-002",
-            Severity::High,
-            "Prompt injection — role reassignment",
-        ),
-        // 3. System/instruction tags in non-XML files
-        (
-            Regex::new(r"<\s*/?\s*(system|instructions)\s*>").unwrap(),
-            "PROMPT-003",
-            Severity::High,
-            "Prompt injection — system/instruction XML tags",
-        ),
-        // 4. Instruction override via IMPORTANT/CRITICAL prefix
-        (
-            Regex::new(r"(?i)(IMPORTANT|CRITICAL)\s*:\s*.*(override|ignore|disregard|forget|bypass)").unwrap(),
-            "PROMPT-004",
-            Severity::High,
-            "Prompt injection — instruction override via emphasis marker",
-        ),
-        // 5. System prompt extraction
-        (
-            Regex::new(r"(?i)(repeat\s+your\s+system\s+prompt|output\s+your\s+instructions|show\s+me\s+your\s+prompt|print\s+your\s+(system\s+)?instructions)").unwrap(),
-            "PROMPT-005",
-            Severity::Critical,
-            "Prompt injection — system prompt extraction attempt",
-        ),
-        // 6. Jailbreak markers
-        (
-            Regex::new(r"(?i)\b(DAN\s+mode|developer\s+mode\s+(enabled|activated)|jailbreak)\b").unwrap(),
-            "PROMPT-006",
-            Severity::Critical,
-            "Prompt injection — jailbreak marker",
-        ),
-        // 7. Delimiter injection
-        (
-            Regex::new(r#"("""\s*\n|\\n---\\n|\[INST\]|<<SYS>>|<\|im_start\|>|<\|im_end\|>)"#).unwrap(),
-            "PROMPT-007",
-            Severity::High,
-            "Prompt injection — delimiter injection",
-        ),
-        // 8. Tool/function abuse in suspicious context
-        (
-            Regex::new(r"(?i)(call\s+the\s+function|execute\s+tool|use\s+the\s+tool)\s").unwrap(),
-            "PROMPT-008",
-            Severity::High,
-            "Prompt injection — tool/function abuse instruction",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::PromptInjection, 10, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "prompt_injection");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 8: Skill Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect skill/plugin manifest security issues: undeclared capabilities,
-/// excessive permissions, eval/exec in manifests, and credential embedding.
 pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
-    let filename = Path::new(file)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    let applicable_files = [
-        "manifest.json",
-        "plugin.json",
-        "package.json",
-        "SKILL.md",
-        "mcp.json",
-        "tool.json",
-    ];
-    let is_mcp_yaml = filename.ends_with(".mcp.yaml") || filename.ends_with(".mcp.yml");
-    if !applicable_files.contains(&filename.as_str()) && !is_mcp_yaml {
-        return Vec::new();
-    }
-
-    let patterns = vec![
-        // 1. Undeclared tool_calls or execute capabilities in MCP manifests
-        (
-            Regex::new(r#"(?i)(tool_calls|"execute"|execute_command|run_command)"#).unwrap(),
-            "SKILL-001",
-            Severity::High,
-            "Skill manifest — undeclared execution capability",
-        ),
-        // 2. Excessive permissions
-        (
-            Regex::new(
-                r#"(?i)"permissions"\s*:\s*\[.*("filesystem"|"network"|"env"|"shell"|"\*")"#,
-            )
-            .unwrap(),
-            "SKILL-002",
-            Severity::Critical,
-            "Skill manifest — excessive permission request",
-        ),
-        // 3. Eval/exec/shell in manifests
-        (
-            Regex::new(r#"(?i)(eval|exec|shell|subprocess|child_process|os\.system)"#).unwrap(),
-            "SKILL-003",
-            Severity::Critical,
-            "Skill manifest — code execution reference",
-        ),
-        // 4. Hidden capabilities: mismatch indicators
-        (
-            Regex::new(r#"(?i)(hidden|internal|private|undocumented)\s*"?\s*:\s*true"#).unwrap(),
-            "SKILL-004",
-            Severity::High,
-            "Skill manifest — hidden/undocumented capability flag",
-        ),
-        // 5. Credential embedding in config
-        (
-            Regex::new(
-                r#"(?i)(api[_-]?key|secret|token|password|credential)\s*"?\s*:\s*"[a-zA-Z0-9]{8,}"#,
-            )
-            .unwrap(),
-            "SKILL-005",
-            Severity::Critical,
-            "Skill manifest — embedded credential",
-        ),
-        // 6. Postinstall/activate hooks in plugin manifests
-        (
-            Regex::new(r#"(?i)(postinstall|preinstall|activate|on_install|on_load)\s*"?\s*:"#)
-                .unwrap(),
-            "SKILL-006",
-            Severity::High,
-            "Skill manifest — lifecycle hook (code runs on install/activate)",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::SkillSecurity, 5, &patterns)
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "skill_security");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 10: Inference Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-/// Detect inference security issues: hardcoded API base URLs, env vars in prompts,
-/// hardcoded API keys, model endpoint redirection, and prompt exfiltration.
 pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
-    let ext = Path::new(file)
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-
-    let applicable_extensions = ["py", "js", "ts", "jsx", "tsx"];
-    if !applicable_extensions.contains(&ext.as_str()) {
-        return Vec::new();
-    }
-
-    let patterns = vec![
-        // 1. Hardcoded base_url in OpenAI/Anthropic clients pointing to non-standard hosts
-        (
-            Regex::new(r#"(?i)(OpenAI|Anthropic)\s*\(.*base_url\s*="#).unwrap(),
-            "INFER-001",
-            Severity::High,
-            "Inference security — custom base_url in LLM client (potential endpoint hijack)",
-        ),
-        (
-            Regex::new(r#"(?i)baseURL\s*:\s*['"][^'"]*['"]"#).unwrap(),
-            "INFER-002",
-            Severity::High,
-            "Inference security — custom baseURL in JS LLM client config",
-        ),
-        // 2. Environment variables interpolated into prompt strings
-        (
-            Regex::new(r#"f["'].*\{os\.(environ|getenv)"#).unwrap(),
-            "INFER-003",
-            Severity::High,
-            "Inference security — env var interpolated into prompt string",
-        ),
-        (
-            Regex::new(r"process\.env\.\w+.*(`|\$\{)").unwrap(),
-            "INFER-004",
-            Severity::High,
-            "Inference security — process.env in template literal prompt",
-        ),
-        (
-            Regex::new(r"(`|\$\{).*process\.env\.\w+").unwrap(),
-            "INFER-005",
-            Severity::High,
-            "Inference security — template literal with process.env",
-        ),
-        // 3. API key override with hardcoded string
-        (
-            Regex::new(r#"api_key\s*=\s*["'][a-zA-Z0-9_\-]{20,}["']"#).unwrap(),
-            "INFER-006",
-            Severity::Critical,
-            "Inference security — hardcoded API key in client config",
-        ),
-        (
-            Regex::new(r#"apiKey\s*:\s*["'][a-zA-Z0-9_\-]{20,}["']"#).unwrap(),
-            "INFER-007",
-            Severity::Critical,
-            "Inference security — hardcoded apiKey in JS client config",
-        ),
-        // 4. Model endpoint redirection via custom HTTP clients
-        (
-            Regex::new(r#"httpx\.Client\s*\(.*base_url"#).unwrap(),
-            "INFER-008",
-            Severity::High,
-            "Inference security — custom httpx client wrapping API calls",
-        ),
-        (
-            Regex::new(r#"requests\.Session\s*\(.*proxy|proxies\s*=\s*\{"#).unwrap(),
-            "INFER-009",
-            Severity::High,
-            "Inference security — proxy config for API requests",
-        ),
-        // 5. Prompt exfiltration patterns
-        (
-            Regex::new(r#"(?i)(requests\.(post|put|get)|fetch\s*\().*prompt"#).unwrap(),
-            "INFER-010",
-            Severity::High,
-            "Inference security — prompt content sent via HTTP",
-        ),
-        (
-            Regex::new(
-                r#"(?i)(prompt|completion|response).*\.write\s*\(|open\s*\(.*["']w["'].*prompt"#,
-            )
-            .unwrap(),
-            "INFER-011",
-            Severity::High,
-            "Inference security — prompt/completion content written to file",
-        ),
-    ];
-
-    scan_lines(file, contents, Phase::InferenceSecurity, 5, &patterns)
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Check if a filename has a known binary extension.
-fn is_binary_extension(filename: &str) -> bool {
-    let binary_extensions = [
-        ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".o", ".a", ".pyc", ".pyo", ".class",
-        ".jar", ".war", ".ear", ".wasm", ".node",
-    ];
-    let lower = filename.to_lowercase();
-    binary_extensions.iter().any(|ext| lower.ends_with(ext))
-}
-
-/// Check if a filename looks suspicious.
-fn is_suspicious_filename(filename: &str) -> bool {
-    let suspicious_patterns = [
-        "backdoor",
-        "exploit",
-        "payload",
-        "reverse_shell",
-        "keylogger",
-        "stealer",
-        "trojan",
-        "rootkit",
-        "c2_",
-        "c2-",
-        "rat_",
-        "rat-",
-    ];
-    let lower = filename.to_lowercase();
-    suspicious_patterns.iter().any(|p| lower.contains(p))
+    let packs = all_packs();
+    let phase = phase_packs(&packs, "inference_security");
+    scan_file_with_packs(&phase, file, &filename(file), contents)
 }
