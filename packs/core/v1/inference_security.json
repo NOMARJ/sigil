@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "id": "sigil-core-inference-security",
+    "name": "Sigil Core — Inference Security",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects inference security issues: hardcoded API base URLs, env vars in prompts, hardcoded API keys, model endpoint redirection, and prompt exfiltration"
+  },
+  "rules": [
+    {
+      "id": "INFER-001",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "(?i)(OpenAI|Anthropic)\\s*\\(.*base_url\\s*=",
+      "description": "Inference security — custom base_url in LLM client (potential endpoint hijack)",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-002",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "(?i)baseURL\\s*:\\s*['\"][^'\"]*['\"]",
+      "description": "Inference security — custom baseURL in JS LLM client config",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-003",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "f[\"'].*\\{os\\.(environ|getenv)",
+      "description": "Inference security — env var interpolated into prompt string",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-004",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "process\\.env\\.\\w+.*(` |\\$\\{)",
+      "description": "Inference security — process.env in template literal prompt",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-005",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "(`|\\$\\{).*process\\.env\\.\\w+",
+      "description": "Inference security — template literal with process.env",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-006",
+      "phase": "inference_security",
+      "severity": "critical",
+      "pattern": "api_key\\s*=\\s*[\"'][a-zA-Z0-9_\\-]{20,}[\"']",
+      "description": "Inference security — hardcoded API key in client config",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-007",
+      "phase": "inference_security",
+      "severity": "critical",
+      "pattern": "apiKey\\s*:\\s*[\"'][a-zA-Z0-9_\\-]{20,}[\"']",
+      "description": "Inference security — hardcoded apiKey in JS client config",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-008",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "httpx\\.Client\\s*\\(.*base_url",
+      "description": "Inference security — custom httpx client wrapping API calls",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-009",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "requests\\.Session\\s*\\(.*proxy|proxies\\s*=\\s*\\{",
+      "description": "Inference security — proxy config for API requests",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-010",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "(?i)(requests\\.(post|put|get)|fetch\\s*\\().*prompt",
+      "description": "Inference security — prompt content sent via HTTP",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    },
+    {
+      "id": "INFER-011",
+      "phase": "inference_security",
+      "severity": "high",
+      "pattern": "(?i)(prompt|completion|response).*\\.write\\s*\\(|open\\s*\\(.*[\"']w[\"'].*prompt",
+      "description": "Inference security — prompt/completion content written to file",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      }
+    }
+  ],
+  "provenance_rules": []
+}

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "id": "sigil-core-skill-security",
+    "name": "Sigil Core — Skill Security",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive permissions, eval/exec in manifests, and credential embedding"
+  },
+  "rules": [
+    {
+      "id": "SKILL-001",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(tool_calls|\"execute\"|execute_command|run_command)",
+      "description": "Skill manifest — undeclared execution capability",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    },
+    {
+      "id": "SKILL-002",
+      "phase": "skill_security",
+      "severity": "critical",
+      "pattern": "(?i)\"permissions\"\\s*:\\s*\\[.*(\"filesystem\"|\"network\"|\"env\"|\"shell\"|\"\\*\")",
+      "description": "Skill manifest — excessive permission request",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    },
+    {
+      "id": "SKILL-003",
+      "phase": "skill_security",
+      "severity": "critical",
+      "pattern": "(?i)(eval|exec|shell|subprocess|child_process|os\\.system)",
+      "description": "Skill manifest — code execution reference",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    },
+    {
+      "id": "SKILL-004",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(hidden|internal|private|undocumented)\\s*\"?\\s*:\\s*true",
+      "description": "Skill manifest — hidden/undocumented capability flag",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    },
+    {
+      "id": "SKILL-005",
+      "phase": "skill_security",
+      "severity": "critical",
+      "pattern": "(?i)(api[_-]?key|secret|token|password|credential)\\s*\"?\\s*:\\s*\"[a-zA-Z0-9]{8,}",
+      "description": "Skill manifest — embedded credential",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    },
+    {
+      "id": "SKILL-006",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(postinstall|preinstall|activate|on_install|on_load)\\s*\"?\\s*:",
+      "description": "Skill manifest — lifecycle hook (code runs on install/activate)",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      }
+    }
+  ],
+  "provenance_rules": []
+}

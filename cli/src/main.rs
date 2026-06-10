@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+mod corpus;
 mod diff;
 mod output;
 mod policy;

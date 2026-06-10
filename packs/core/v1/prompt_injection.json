@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "sigil-core-prompt-injection",
+    "name": "Sigil Core — Prompt Injection",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects prompt injection patterns: instruction overrides, role reassignment, system prompt extraction, jailbreak markers, and delimiter injection"
+  },
+  "rules": [
+    {
+      "id": "PROMPT-001",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)(ignore\\s+(all\\s+)?previous\\s+instructions|disregard\\s+(the\\s+)?above)",
+      "description": "Prompt injection — ignore previous instructions",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-002",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)you\\s+are\\s+now\\s+(a|an|the|my)\\s+",
+      "description": "Prompt injection — role reassignment",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-003",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "<\\s*/?\\ *(system|instructions)\\s*>",
+      "description": "Prompt injection — system/instruction XML tags",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-004",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(IMPORTANT|CRITICAL)\\s*:\\s*.*(override|ignore|disregard|forget|bypass)",
+      "description": "Prompt injection — instruction override via emphasis marker",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-005",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)(repeat\\s+your\\s+system\\s+prompt|output\\s+your\\s+instructions|show\\s+me\\s+your\\s+prompt|print\\s+your\\s+(system\\s+)?instructions)",
+      "description": "Prompt injection — system prompt extraction attempt",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-006",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)\\b(DAN\\s+mode|developer\\s+mode\\s+(enabled|activated)|jailbreak)\\b",
+      "description": "Prompt injection — jailbreak marker",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-007",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(\"\"\"|\\\\n---\\\\n|\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
+      "description": "Prompt injection — delimiter injection",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    },
+    {
+      "id": "PROMPT-008",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(call\\s+the\\s+function|execute\\s+tool|use\\s+the\\s+tool)\\s",
+      "description": "Prompt injection — tool/function abuse instruction",
+      "file_filter": {
+        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+      }
+    }
+  ],
+  "provenance_rules": []
+}
