@@ -13,3 +13,4 @@
 pub mod engine;
 pub mod loader;
 pub mod schema;
+pub mod signing;
