@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-06-08T12:42:16.768198",
+  "last_rebuilt": "2026-06-09T10:26:45.725213",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -1520,6 +1520,55 @@
       "hash": "5612646",
       "message": "memory: 2026-06-08 12:27 \u2014 graph rebuild + validation-error sanitisation + rate-limit 422 bugfix",
       "date": "2026-06-08T12:37:50+10:00"
+    },
+    "commit:7234364": {
+      "type": "commit",
+      "hash": "7234364",
+      "message": "fix(dashboard): resolve /signup 404 via Auth0 screen_hint=signup",
+      "date": "2026-06-08T14:09:39+10:00",
+      "files_changed": 5
+    },
+    "commit:173eebf": {
+      "type": "commit",
+      "hash": "173eebf",
+      "message": "docs: tap-qualify brew install + reconcile known-risks against source",
+      "date": "2026-06-08T14:10:12+10:00",
+      "files_changed": 2
+    },
+    "commit:d8c3ed9": {
+      "type": "commit",
+      "hash": "d8c3ed9",
+      "message": "style(api): apply ruff format to satisfy format --check gate",
+      "date": "2026-06-09T07:42:33+10:00",
+      "files_changed": 4
+    },
+    "commit:b29d419": {
+      "type": "commit",
+      "hash": "b29d419",
+      "message": "fix(test): patch correct module path in trending_service tests",
+      "date": "2026-06-09T07:53:38+10:00",
+      "files_changed": 1
+    },
+    "commit:7a90360": {
+      "type": "commit",
+      "hash": "7a90360",
+      "message": "fix(test): make test_email_channel deterministic (patch _get_alerting_settings)",
+      "date": "2026-06-09T08:03:48+10:00",
+      "files_changed": 1
+    },
+    "commit:2bac9ec": {
+      "type": "commit",
+      "hash": "2bac9ec",
+      "message": "fix(ci): correct run-block indentation in publish-jetbrains workflow",
+      "date": "2026-06-09T08:24:26+10:00",
+      "files_changed": 1
+    },
+    "commit:eb0ef0e": {
+      "type": "commit",
+      "hash": "eb0ef0e",
+      "message": "fix(ci): correct run-block indentation in publish-jetbrains workflow (#122)",
+      "date": "2026-06-09T08:24:52+10:00",
+      "files_changed": 1
     }
   },
   "edges": [
@@ -2122,6 +2171,41 @@
       "from": "commit:b166903",
       "to": "F-007",
       "rel": "contributes_to"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:7234364",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:173eebf",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:d8c3ed9",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:b29d419",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:7a90360",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:2bac9ec",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "STORY-001",
+      "to": "commit:eb0ef0e",
+      "rel": "shipped_by"
     }
   ]
 }

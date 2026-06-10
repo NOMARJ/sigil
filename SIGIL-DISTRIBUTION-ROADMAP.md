@@ -2,7 +2,7 @@
 
 **Product:** Sigil by NOMARK (sigilsec.ai)
 **Type:** Automated security audit CLI for AI agent code, MCP servers, packages, and repos
-**Status:** Bash prototype (`qaudit`) built, PRD complete, Rust CLI planned
+**Status:** Rust CLI built (`cli/` — scanner, policy engine, sandbox, SBOM, quarantine); bash prototype (`bin/sigil`) retained as legacy
 **Validated baseline:** 97.96% detection rate (Azure production dataset)
 **Date:** 2026-03-29
 **Author:** Reece (CTO/Founder, NOMARK)
@@ -571,7 +571,7 @@ Explicit list of activities that are out of scope. If it's not on the roadmap, i
 
 | Risk | Mitigation |
 |------|------------|
-| Rust CLI delays | Ship bash prototype (`qaudit`) as v0.x while Rust builds |
+| Rust CLI regressions | Legacy bash CLI (`bin/sigil`) remains available as fallback |
 | AI agent security category doesn't grow | Broaden to general supply chain security (npm, pip) |
 | GitHub Action marketplace visibility | Programmatic SEO drives discovery, not marketplace ranking |
 | No one scans MCP servers | Target broader AI agent code (LangChain, CrewAI, AutoGen) |
