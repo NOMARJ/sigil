@@ -1202,7 +1202,7 @@
 - **Files:** `cli/src/output.rs`
 
 ### US-D3 [F-008]: Self-scan as a required CI gate
-- **Status:** TODO — BLOCKED on self-scan triage: 1074 high+crit self-findings, dominated by Sigil's own signature docs / skill-corpus fixtures / bash-scanner source (legitimate self-reference). Needs rationale-backed .sigilignore + review of residual non-doc source findings before the gate passes clean. See evidence/F-008/phase-D-output-contract.md
+- **Status:** DONE (2026-06-11) — Triaged 1073 high+crit self-findings: all category (a) self-reference-by-design (signature docs, vendored skill corpus, scanner test inputs, detection-engine source, bash scanner, synthetic fixtures) or documented scanner-FP. One category (b) genuine code smell fixed (`api/services/notifications.py` `__import__("time")` → `import time`). Rationale-backed `.sigilignore` written (scoped to specific files, NOT whole api/cli trees). After: `scan . --fail-on high` → exit 0 (0 crit, 0 high, 130 med, 36 low). Gate proven meaningful: canary `eval(__import__('os').environ)` at repo root → CODE-001+CODE-010 HIGH → exit 1; removed → exit 0. `.github/workflows/sigil-selfscan.yml` SHA-pinned, actionlint 1.7.12 clean (exit 0). Evidence: evidence/F-008/US-D3-selfscan-gate.md
 - **Scope:** moderate
 - **Goal:** CI job runs `sigil scan .` on the Sigil repo and fails on ≥high findings; suppressions live in `.sigilignore`/inline with written rationale (constraint: self-auditable, not a demo).
 - **Done when:** `.github/workflows/sigil-selfscan.yml` exists, `actionlint` clean, and the job passes on a clean tree — meaning Phases B+C resolved or explicitly suppressed every current self-finding (bash audit verdict today: CRITICAL/250).

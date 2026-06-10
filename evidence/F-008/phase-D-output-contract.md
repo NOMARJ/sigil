@@ -25,18 +25,21 @@ ok -- validation done   (exit 0)
 ```
 (schema: raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json)
 
-## US-D3 — self-scan CI gate — NOT DONE (triage required)
-Self-scan of the repo currently reports 1921 findings, 1074 high+critical. Inventory shows
-these are dominated by Sigil's OWN pattern-bearing files — legitimate self-reference, not bugs:
-- docs/malicious-signatures.md, docs/detection-patterns.md, docs/prompt-injection-patterns.md (the signature research)
-- packs/data/skills/**/SKILL.md (vendored skill corpus used as scan targets)
-- api/tests/test_scanner_service.py, api/tests/performance/test_d1_d4_evaluation.py (scanner test inputs)
-- bin/sigil (the bash scanner whose source contains the patterns as grep strings)
-- sigil-skill/sigil-scan/references/PHASES.md (phase documentation)
+## US-D3 — self-scan CI gate — DONE (2026-06-11)
+Triaged 1073 high+critical self-findings. All are category (a) self-reference-by-design
+(signature docs, vendored `packs/` skill corpus, `api/tests/` scanner inputs, detection-
+engine source in `api/services/*` + `cli/src/scanner/*`, `bin/sigil`, synthetic
+`tests/fixtures/**`) or documented scanner-FP (base64-decode-without-exec, `.env.example`
+template placeholders, dev-default compose password, first-party lifecycle scripts).
+One category (b) genuine code smell FIXED: `api/services/notifications.py`
+`__import__("time").time()` → top-level `import time` (removes CODE-010 by improving code,
+not suppressing). `.sigilignore` is precisely scoped (individual engine files, NOT whole
+api/ or cli/ trees) with per-block written rationale.
 
-US-D3 needs an honest `.sigilignore` covering these self-reference categories WITH written
-rationale, AND a real review of the residual non-doc/non-test source findings (e.g.
-api/utils/code_flow_analyzer.py) to confirm none are genuine before the gate can pass clean.
-This triage is the remaining work; deferred to avoid a blanket-ignore that would hide real findings.
+After: `sigil scan . --no-cache --fail-on high` → exit 0 (0 critical / 0 high / 130 medium
+/ 36 low). Gate proven meaningful — canary `eval(__import__('os').environ)` at repo root →
+CODE-001 + CODE-010 HIGH → exit 1; removed → exit 0. `.github/workflows/sigil-selfscan.yml`
+SHA-pinned (checkout 34e1148…, rust-toolchain 29eef33…), actionlint 1.7.12 clean.
+Full evidence: evidence/F-008/US-D3-selfscan-gate.md.
 
 cargo test: 23 passed / 0 failed.
