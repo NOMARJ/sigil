@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "$schema": "nomark-graph-v1",
+  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
+  "last_rebuilt": "2026-06-11T08:12:03.829028",
+  "nodes": {
+    "commit:c683c5e": {
+      "type": "commit",
+      "hash": "c683c5e",
+      "message": "memory: 2026-06-09 10:26 \u2014 graph rebuild + Rust CLI status reconciliation",
+      "date": "2026-06-10T19:27:38+10:00"
+    },
+    "commit:0c1e0fb": {
+      "type": "commit",
+      "hash": "0c1e0fb",
+      "message": "Initial plan (#123)",
+      "date": "2026-06-10T09:10:28+10:00"
+    },
+    "commit:d4b74d3": {
+      "type": "commit",
+      "hash": "d4b74d3",
+      "message": "fix(dashboard): migrate auth0 for next 16",
+      "date": "2026-06-09T12:32:35+10:00"
+    },
+    "commit:eb0ef0e": {
+      "type": "commit",
+      "hash": "eb0ef0e",
+      "message": "fix(ci): correct run-block indentation in publish-jetbrains workflow (#122)",
+      "date": "2026-06-09T08:24:52+10:00"
+    },
+    "commit:b04a262": {
+      "type": "commit",
+      "hash": "b04a262",
+      "message": "fix(test): make test_email_channel deterministic (patch _get_alerting_settings) (#121)",
+      "date": "2026-06-09T08:09:58+10:00"
+    },
+    "commit:04a64cb": {
+      "type": "commit",
+      "hash": "04a64cb",
+      "message": "fix(test): patch correct module path in trending_service tests (#120)",
+      "date": "2026-06-09T07:56:37+10:00"
+    },
+    "commit:07fe8db": {
+      "type": "commit",
+      "hash": "07fe8db",
+      "message": "fix(api): make Lint Python (ruff) job green \u2014 unused imports + format (#119)",
+      "date": "2026-06-09T07:49:07+10:00"
+    },
+    "commit:0801ff1": {
+      "type": "commit",
+      "hash": "0801ff1",
+      "message": "fix: resolve /signup 404 + tap-qualify brew install + reconcile known-risks (#118)",
+      "date": "2026-06-08T14:30:35+10:00"
+    },
+    "commit:3c5ada3": {
+      "type": "commit",
+      "hash": "3c5ada3",
+      "message": "fix: scanner false-positive suppression + monitoring test-harness compatibility + metrics content-type header",
+      "date": "2026-06-08T13:48:16+10:00"
+    },
+    "commit:ae315de": {
+      "type": "commit",
+      "hash": "ae315de",
+      "message": "memory: 2026-06-08 12:42 \u2014 graph rebuild + test-fixture cleanup",
+      "date": "2026-06-08T12:43:13+10:00"
+    },
+    "commit:5612646": {
+      "type": "commit",
+      "hash": "5612646",
+      "message": "memory: 2026-06-08 12:27 \u2014 graph rebuild + validation-error sanitisation + rate-limit 422 bugfix",
+      "date": "2026-06-08T12:37:50+10:00"
+    },
+    "commit:ded5ed2": {
+      "type": "commit",
+      "hash": "ded5ed2",
+      "message": "docs: [US-009] Rust CLI verified on CI (6 passed) \u2014 HIGH-002 closed (#117)",
+      "date": "2026-06-08T11:29:56+10:00"
+    },
+    "commit:39ed7c1": {
+      "type": "commit",
+      "hash": "39ed7c1",
+      "message": "ci: [US-009] bump Rust CI pin 1.82.0 -> 1.90.0 (deps require edition2024) (#116)",
+      "date": "2026-06-08T11:28:06+10:00"
+    },
+    "commit:b166903": {
+      "type": "commit",
+      "hash": "b166903",
+      "message": "F-007: Launch-readiness remediation \u2014 agent-buildable subset (US-001/002/003/006/008) (#115)",
+      "date": "2026-06-08T11:23:58+10:00"
+    },
+    "commit:cf4391d": {
+      "type": "commit",
+      "hash": "cf4391d",
+      "message": "memory: 2026-06-08 10:01 \u2014 graph rebuild + instinct decay + resource catalog",
+      "date": "2026-06-08T10:42:06+10:00"
+    },
+    "commit:5cdb2a2": {
+      "type": "commit",
+      "hash": "5cdb2a2",
+      "message": "memory: 2026-06-08 10:01 \u2014 sigil",
+      "date": "2026-06-08T10:01:45+10:00"
+    }
+  },
+  "edges": [
+    {
+      "from": "US-009",
+      "to": "commit:ded5ed2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "US-009",
+      "to": "commit:39ed7c1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "US-001",
+      "to": "commit:b166903",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:b166903",
+      "to": "F-007",
+      "rel": "contributes_to"
+    }
+  ]
+}
