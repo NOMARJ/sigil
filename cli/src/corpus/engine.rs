@@ -68,8 +68,13 @@ pub fn scan_file_with_packs(
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
 
-    // Precompute file header (first 1 KB) for suppression checks.
-    let header_len = contents.len().min(1024);
+    // Precompute file header (first ~1 KB) for suppression checks. Walk down
+    // to the nearest char boundary so a multi-byte char straddling byte 1024
+    // does not panic the slice (str::floor_char_boundary is still unstable).
+    let mut header_len = contents.len().min(1024);
+    while header_len > 0 && !contents.is_char_boundary(header_len) {
+        header_len -= 1;
+    }
     let file_header = &contents[..header_len];
 
     for pack in packs {
@@ -294,6 +299,19 @@ mod parity_rust {
 
     fn has_rule(findings: &[Finding], rule: &str) -> bool {
         findings.iter().any(|f| f.rule == rule)
+    }
+
+    // Regression: a multi-byte char straddling byte 1024 must not panic the
+    // file-header slice (was: "end byte index 1024 is not a char boundary").
+    #[test]
+    fn header_slice_handles_multibyte_at_boundary() {
+        let mut contents = "x".repeat(1023);
+        contents.push('─'); // 3-byte box-drawing char spanning bytes 1023..1026
+        contents.push_str("\neval(danger)\n");
+        let packs = packs_for_phase("code_patterns");
+        // Must not panic; should still find the eval on the later line.
+        let findings = scan_file_with_packs(&packs, "doc.md", "doc.md", &contents);
+        assert!(has_rule(&findings, "CODE-001"), "expected CODE-001; got {:?}", findings);
     }
 
     // Phase 1 — install hooks

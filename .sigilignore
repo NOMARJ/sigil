@@ -150,6 +150,14 @@ cli/src/scanner/normalize.rs
 cli/src/scanner/mod.rs
 # cli/src/scanner/context.rs: doc-comment example "eval(" in .d.ts files.
 cli/src/scanner/context.rs
+# cli/src/corpus/ (F-008 Phase C): the declarative pack engine + signing module.
+# Its parity tests embed malicious sample strings as Rust literals (let contents =
+# "eval(compile(…))", requests.get("https://evil…")) to prove the engine detects
+# them, and signing.rs carries Ed25519 test-vector hex byte arrays (tripping the
+# hex-payload rule). Detection-engine test fixtures + crypto test vectors, not payloads.
+cli/src/corpus/engine.rs
+cli/src/corpus/loader.rs
+cli/src/corpus/signing.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.

@@ -1,7 +1,7 @@
 {
   "meta": {
     "id": "sigil-core-prompt-injection",
-    "name": "Sigil Core — Prompt Injection",
+    "name": "Sigil Core \u2014 Prompt Injection",
     "version": "1.0.0",
     "updated_at": "2026-06-11",
     "author": "NOMARJ <hello@sigilsec.ai>",
@@ -13,9 +13,20 @@
       "phase": "prompt_injection",
       "severity": "critical",
       "pattern": "(?i)(ignore\\s+(all\\s+)?previous\\s+instructions|disregard\\s+(the\\s+)?above)",
-      "description": "Prompt injection — ignore previous instructions",
+      "description": "Prompt injection \u2014 ignore previous instructions",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -23,9 +34,20 @@
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(?i)you\\s+are\\s+now\\s+(a|an|the|my)\\s+",
-      "description": "Prompt injection — role reassignment",
+      "description": "Prompt injection \u2014 role reassignment",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -33,9 +55,20 @@
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "<\\s*/?\\ *(system|instructions)\\s*>",
-      "description": "Prompt injection — system/instruction XML tags",
+      "description": "Prompt injection \u2014 system/instruction XML tags",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -43,9 +76,20 @@
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(?i)(IMPORTANT|CRITICAL)\\s*:\\s*.*(override|ignore|disregard|forget|bypass)",
-      "description": "Prompt injection — instruction override via emphasis marker",
+      "description": "Prompt injection \u2014 instruction override via emphasis marker",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -53,9 +97,20 @@
       "phase": "prompt_injection",
       "severity": "critical",
       "pattern": "(?i)(repeat\\s+your\\s+system\\s+prompt|output\\s+your\\s+instructions|show\\s+me\\s+your\\s+prompt|print\\s+your\\s+(system\\s+)?instructions)",
-      "description": "Prompt injection — system prompt extraction attempt",
+      "description": "Prompt injection \u2014 system prompt extraction attempt",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -63,19 +118,41 @@
       "phase": "prompt_injection",
       "severity": "critical",
       "pattern": "(?i)\\b(DAN\\s+mode|developer\\s+mode\\s+(enabled|activated)|jailbreak)\\b",
-      "description": "Prompt injection — jailbreak marker",
+      "description": "Prompt injection \u2014 jailbreak marker",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
       "id": "PROMPT-007",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(\"\"\"|\\\\n---\\\\n|\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
-      "description": "Prompt injection — delimiter injection",
+      "pattern": "(\"\"\"\\s*\\n|\\\\n---\\\\n|\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
+      "description": "Prompt injection \u2014 delimiter injection",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     },
     {
@@ -83,9 +160,20 @@
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(?i)(call\\s+the\\s+function|execute\\s+tool|use\\s+the\\s+tool)\\s",
-      "description": "Prompt injection — tool/function abuse instruction",
+      "description": "Prompt injection \u2014 tool/function abuse instruction",
       "file_filter": {
-        "extensions": ["md", "txt", "py", "js", "ts", "json", "yaml", "yml", "toml", "prompt"]
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ]
       }
     }
   ],
