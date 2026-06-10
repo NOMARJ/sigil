@@ -17,10 +17,12 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../../packs/core/v1/network_exfil.json"),
     include_str!("../../../packs/core/v1/creds.json"),
     include_str!("../../../packs/core/v1/obfuscation.json"),
+    include_str!("../../../packs/core/v1/obfuscation_chain.json"),
     include_str!("../../../packs/core/v1/provenance.json"),
     include_str!("../../../packs/core/v1/prompt_injection.json"),
     include_str!("../../../packs/core/v1/skill_security.json"),
     include_str!("../../../packs/core/v1/inference_security.json"),
+    include_str!("../../../packs/core/v1/supply_chain.json"),
 ];
 
 /// Load all packs: embedded core packs plus any user-installed packs.

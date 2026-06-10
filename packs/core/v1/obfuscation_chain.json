@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "id": "sigil-core-obfuscation-chain",
+    "name": "Sigil Core — Obfuscation Chain Patterns",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARK <hello@sigilsec.ai>",
+    "description": "Advanced multi-stage obfuscation: nested Base64 chains, Unicode steganography, dynamic function construction, and import-time side effects. Ported from Python ENHANCED_OBFUSCATION_RULES."
+  },
+  "rules": [
+    {
+      "id": "OBFUSC-CHAIN-001",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\([^)]*?(base64\\.(b64decode|decodebytes)|atob)\\s*\\(",
+      "description": "Nested Base64 chain decoding — advanced obfuscation technique",
+      "suppress": {
+        "path_contains": ["node_modules/"],
+        "file_header_contains": ["typeof define===\"function\"&&define.amd", "typeof module===\"object\"&&module.exports"]
+      }
+    },
+    {
+      "id": "OBFUSC-CHAIN-002",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\(\\s*[\\w\\+\\.\\[\\]]+\\s*\\+\\s*[\\w\\+\\.\\[\\]]+",
+      "description": "Base64 decoding with dynamic key construction",
+      "suppress": {
+        "path_contains": ["node_modules/"]
+      }
+    },
+    {
+      "id": "OBFUSC-CHAIN-003",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "urllib\\.parse\\.unquote\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)\\s*\\(|base64\\.(b64decode|decodebytes)\\s*\\(\\s*urllib\\.parse\\.unquote",
+      "description": "Mixed Base64 and URL encoding chain"
+    },
+    {
+      "id": "OBFUSC-CHAIN-004",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "pattern": "pickle\\.(loads?|Unpickler)\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)\\s*\\(",
+      "description": "Pickle deserialization with Base64 decoding — dangerous combination"
+    },
+    {
+      "id": "OBFUSC-CHAIN-005",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\(\\s*bytes\\.fromhex\\s*\\(",
+      "description": "Hex to Base64 decoding chain"
+    },
+    {
+      "id": "OBFUSC-CHAIN-006",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "[\\u200B-\\u200D\\uFEFF]",
+      "description": "Zero-width Unicode characters detected — potential steganography"
+    },
+    {
+      "id": "OBFUSC-CHAIN-007",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "[\\u202E\\u202D\\u2066-\\u2069]",
+      "description": "Unicode directional override characters — text direction attack"
+    },
+    {
+      "id": "OBFUSC-CHAIN-008",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "[\\u0300-\\u036F\\u1AB0-\\u1AFF\\u1DC0-\\u1DFF\\u20D0-\\u20FF\\uFE20-\\uFE2F]",
+      "description": "Invisible combining characters detected — potential payload hiding"
+    },
+    {
+      "id": "OBFUSC-CHAIN-009",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "[\\u0430-\\u044F\\u0451].*\\.(com|org|net|gov|edu)",
+      "description": "Potential Unicode homograph attack in domain — Cyrillic characters"
+    },
+    {
+      "id": "OBFUSC-CHAIN-010",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(window|global|this|document)\\s*\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|(window|global|this|document)\\s*\\[\\s*\\w+\\s*\\]\\s*\\(",
+      "description": "Dynamic property access with string concatenation or variable reference",
+      "suppress": {
+        "path_contains": ["node_modules/"],
+        "file_header_contains": ["typeof define===\"function\"&&define.amd"]
+      }
+    },
+    {
+      "id": "OBFUSC-CHAIN-011",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "pattern": "Function\\s*\\.\\s*constructor\\s*\\(.*\\.join\\s*\\(|new\\s+Function\\s*\\([^)]*\\.join\\s*\\(|new\\s+Function\\s*\\(\\s*[\\w\\[\\]\\.]+\\s*\\+",
+      "description": "Dynamic Function constructor with string building",
+      "suppress": {
+        "path_contains": ["node_modules/"],
+        "file_header_contains": ["Function('return this')()"]
+      }
+    },
+    {
+      "id": "OBFUSC-CHAIN-012",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}",
+      "description": "Multiple Unicode escape sequences — potential payload encoding"
+    },
+    {
+      "id": "OBFUSC-CHAIN-013",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "[\\u0100-\\u017F\\u0180-\\u024F\\u1E00-\\u1EFF].*[a-zA-Z].*[\\u0400-\\u04FF]",
+      "description": "Mixed script characters in identifiers — potential homograph attack"
+    },
+    {
+      "id": "OBFUSC-CHAIN-014",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "String\\.fromCharCode\\s*\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+",
+      "description": "JavaScript String.fromCharCode chain — character-based obfuscation"
+    },
+    {
+      "id": "OBFUSC-CHAIN-015",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "decodeURIComponent\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)",
+      "description": "Base64 with URL decoding — double encoding obfuscation"
+    },
+    {
+      "id": "OBFUSC-CHAIN-016",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "pattern": "exec\\s*\\(\\s*compile\\s*\\(\\s*[\\w\\.]+\\s*\\+\\s*[\\w\\.]+",
+      "description": "Python compile+exec with string concatenation — advanced code execution"
+    },
+    {
+      "id": "OBFUSC-CHAIN-017",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "__import__\\s*\\(\\s*[\"'][\\w\\.]+[\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
+      "description": "Dynamic import with immediate method execution — import-time side effect"
+    },
+    {
+      "id": "OBFUSC-CHAIN-018",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "__import__\\s*\\(\\s*(chr\\s*\\(|String\\.fromCharCode|base64\\.|atob)",
+      "description": "Dynamic import with encoded module names — import obfuscation"
+    },
+    {
+      "id": "OBFUSC-CHAIN-019",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "getattr\\s*\\(\\s*\\w+\\s*,\\s*[\"'][\\w]+[\"']?\\s*\\+\\s*[\"'][\\w]+[\"']?\\s*\\)",
+      "description": "Python getattr with concatenated attribute names — reflection-based obfuscation"
+    }
+  ],
+  "provenance_rules": []
+}

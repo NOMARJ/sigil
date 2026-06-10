@@ -435,3 +435,137 @@ mod parity_rust {
         assert!(has_rule(&findings, "INFER-006"), "expected INFER-006; got {:?}", findings);
     }
 }
+
+#[cfg(test)]
+mod parity_python {
+    use super::scan_file_with_packs;
+    use crate::corpus::loader::load_all_packs;
+    use crate::corpus::schema::SignaturePack;
+    use crate::scanner::Finding;
+
+    fn packs_for_phase(phase: &str) -> Vec<SignaturePack> {
+        load_all_packs()
+            .into_iter()
+            .filter(|p| p.rules.iter().any(|r| r.phase == phase))
+            .collect()
+    }
+
+    fn has_rule(findings: &[Finding], rule: &str) -> bool {
+        findings.iter().any(|f| f.rule == rule)
+    }
+
+    // ---- OBFUSC-CHAIN rules ----
+
+    #[test]
+    fn parity_python_obfusc_chain_nested_base64() {
+        let contents = "result = base64.b64decode(base64.b64decode(data))";
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "decode.py", "decode.py", contents);
+        assert!(has_rule(&findings, "OBFUSC-CHAIN-001"), "expected OBFUSC-CHAIN-001; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_obfusc_chain_pickle_base64() {
+        let contents = "pickle.loads(base64.b64decode(data))";
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "deser.py", "deser.py", contents);
+        assert!(has_rule(&findings, "OBFUSC-CHAIN-004"), "expected OBFUSC-CHAIN-004; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_obfusc_chain_dynamic_function_constructor() {
+        let contents = r#"new Function(parts.join(""))"#;
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "eval.js", "eval.js", contents);
+        assert!(has_rule(&findings, "OBFUSC-CHAIN-011"), "expected OBFUSC-CHAIN-011; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_obfusc_chain_compile_exec() {
+        let contents = "exec(compile(part1 + part2, '<string>', 'exec'))";
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "run.py", "run.py", contents);
+        assert!(has_rule(&findings, "OBFUSC-CHAIN-016"), "expected OBFUSC-CHAIN-016; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_obfusc_chain_import_side_effect() {
+        let contents = r#"__import__('os').system('whoami')"#;
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "run.py", "run.py", contents);
+        assert!(has_rule(&findings, "OBFUSC-CHAIN-017"), "expected OBFUSC-CHAIN-017; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_obfusc_chain_suppress_node_modules() {
+        // OBFUSC-CHAIN-001 must be suppressed inside node_modules/
+        let contents = "result = base64.b64decode(base64.b64decode(data))";
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(
+            &packs,
+            "node_modules/some-pkg/index.js",
+            "index.js",
+            contents,
+        );
+        assert!(
+            !has_rule(&findings, "OBFUSC-CHAIN-001"),
+            "OBFUSC-CHAIN-001 must be suppressed in node_modules; got {:?}",
+            findings
+        );
+    }
+
+    // ---- SUPPLY-* rules ----
+
+    #[test]
+    fn parity_python_supply_self_modifying_package_json() {
+        let contents = r#"fs.writeFile('package.json', JSON.stringify(deps))"#;
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "installer.js", "installer.js", contents);
+        assert!(has_rule(&findings, "SUPPLY-001"), "expected SUPPLY-001; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_supply_git_url_hijack() {
+        let contents = r#""my-lib": "git+https://github.com/user/repo#evilbranch""#;
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "package.json", "package.json", contents);
+        assert!(has_rule(&findings, "SUPPLY-003"), "expected SUPPLY-003; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_supply_git_url_no_match_main() {
+        // A standard #main ref must NOT trigger SUPPLY-003.
+        let contents = r#""my-lib": "git+https://github.com/user/repo#main""#;
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "package.json", "package.json", contents);
+        assert!(
+            !has_rule(&findings, "SUPPLY-003"),
+            "SUPPLY-003 must not fire on #main ref; got {:?}",
+            findings
+        );
+    }
+
+    #[test]
+    fn parity_python_supply_ffi_command_exec() {
+        let contents = "ffi.Library('libc.so', {'system': [None, [c_char_p]]})";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "exploit.py", "exploit.py", contents);
+        assert!(has_rule(&findings, "SUPPLY-016"), "expected SUPPLY-016; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_supply_registry_redirect() {
+        let contents = r#"registry=https://my-internal-registry.example.com"#;
+        let packs = packs_for_phase("network_exfil");
+        let findings = scan_file_with_packs(&packs, ".npmrc", ".npmrc", contents);
+        assert!(has_rule(&findings, "SUPPLY-005"), "expected SUPPLY-005; got {:?}", findings);
+    }
+
+    #[test]
+    fn parity_python_supply_wasm_payload() {
+        let contents = r#"WebAssembly.instantiate(buf, imports)"#;
+        let packs = packs_for_phase("obfuscation");
+        let findings = scan_file_with_packs(&packs, "loader.js", "loader.js", contents);
+        assert!(has_rule(&findings, "SUPPLY-014"), "expected SUPPLY-014; got {:?}", findings);
+    }
+}
