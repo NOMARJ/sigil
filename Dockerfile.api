@@ -4,7 +4,7 @@
 # ============================================================================
 
 # python:3.11-slim-bookworm
-FROM python:3.11-slim-bookworm@sha256:8f3aba466a471c3e35f52f8a4e4091e23d19a6a2 AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil API — FastAPI backend service"

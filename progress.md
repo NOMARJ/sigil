@@ -1029,6 +1029,27 @@
 - 1: scanner, false-positives, patterns [confidence: 0.8]
 - 2: python, imports, packaging [confidence: 0.7]
 - 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-10T23:10:04.071Z
+**Outcome:** BLOCKED
+**Stories:** 35/67 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-10
+
+**Start:** 2026-06-10T23:19:43.109Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-10T23:21:48.557Z
+**Outcome:** BLOCKED
+**Stories:** 35/67 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
@@ -1118,7 +1139,7 @@
 - **Files:** `api/data/threat_signatures.json`, `scripts/validate_corpus_counts.py`
 
 ### US-A2 [F-008]: Fix BadHost exposure in Sigil's own API (CVE-2026-48710)
-- **Status:** DONE (2026-06-10, queue-jumped on owner approval) — `starlette==0.49.3 → 1.2.1`, `fastapi==0.128.8 → 0.136.3` (0.128.8 capped starlette <1.0.0). Verified in fresh python3.11 venv (production interpreter): lock installs exit 0; `pytest api/tests -q` → `223 passed, 340 skipped, 0 failed` (340th skip = asyncpg env artifact, diff in evidence). Middleware audit: no path-based auth existed; exposure was content-type-check skip (`security.py:290`) + rate-tier evasion (`rate_limit_enhanced.py:227`), both closed. **Prod deploy = owner-gated**, commands in evidence file. Evidence: `evidence/F-008/US-A2-badhost-fix.md`.
+- **Status:** DONE (2026-06-10, queue-jumped on owner approval) — `starlette==0.49.3 → 1.2.1`, `fastapi==0.128.8 → 0.136.3` (0.128.8 capped starlette <1.0.0). Verified in fresh python3.11 venv (production interpreter): lock installs exit 0; `pytest api/tests -q` → `223 passed, 340 skipped, 0 failed` (340th skip = asyncpg env artifact, diff in evidence). Middleware audit: no path-based auth existed; exposure was content-type-check skip (`security.py:290`) + rate-tier evasion (`rate_limit_enhanced.py:227`), both closed. **Prod deploy DONE 2026-06-10** (owner-approved): built `sigil-api:d4b74d3-badhost` from deployed SHA d4b74d3 + minimal patch; revision sigil-api--0000096 Running @100% traffic, old vulnerable revision deprovisioned; /health 200, investigate 401. Required a 3rd file (Dockerfile.api: dropped a fabricated 40-char base-image digest → floating tag, matching Dockerfile.bot). Evidence: `evidence/F-008/US-A2-badhost-fix.md`, `evidence/F-008/US-A2-deploy.md`.
 - **Scope:** moderate
 - **Goal:** `api/requirements.lock` moves starlette 0.49.3 → ≥1.0.1 (with whatever FastAPI bump that requires); middleware path checks audited for `request.url.path` auth decisions.
 - **Done when:** `grep starlette== api/requirements.lock` shows ≥1.0.1; `python3 -m pytest api/tests -q` ≥ current baseline (223 passed/0 failed); `grep -rn "url.path" api/middleware/` output reviewed in evidence file.
