@@ -106,6 +106,11 @@ enum Commands {
         /// Use enhanced LLM-powered analysis (Pro feature, requires authentication)
         #[arg(long)]
         enhanced: bool,
+
+        /// Exit 1 when a finding at or above this severity is present
+        /// (low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
     },
 
     /// Clear all cached scan results
@@ -417,6 +422,7 @@ async fn main() {
             no_cache,
             enrich,
             enhanced,
+            fail_on,
         } => {
             cmd_scan(
                 &path,
@@ -426,6 +432,7 @@ async fn main() {
                 no_cache,
                 enrich,
                 enhanced,
+                &fail_on,
                 &cli.format,
                 cli.verbose,
             )
@@ -804,6 +811,16 @@ async fn cmd_npm(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Exit-code contract (ADR-0010): 1 if any finding is at or above the fail
+/// threshold, else 0. Scan errors (handled by the caller) are 2.
+fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severity) -> i32 {
+    if findings.iter().any(|f| f.severity >= fail_threshold) {
+        1
+    } else {
+        0
+    }
+}
+
 async fn cmd_scan(
     path: &Path,
     phases: &str,
@@ -812,17 +829,36 @@ async fn cmd_scan(
     no_cache: bool,
     enrich: bool,
     enhanced: bool,
+    fail_on: &str,
     format: &str,
     verbose: bool,
 ) -> i32 {
+    // Exit-code contract (ADR-0010): 2 = scan error.
     if !path.exists() {
         eprintln!(
             "{} path does not exist: {}",
             "error:".bold().red(),
             path.display()
         );
-        return 1;
+        return 2;
     }
+
+    // Threshold at/above which a finding makes the scan fail (exit 1).
+    let fail_threshold = match fail_on.to_lowercase().as_str() {
+        "low" => scanner::Severity::Low,
+        "medium" => scanner::Severity::Medium,
+        "high" => scanner::Severity::High,
+        "critical" => scanner::Severity::Critical,
+        other => {
+            eprintln!(
+                "{} invalid --fail-on '{}' (use low, medium, high, critical)",
+                "error:".bold().red(),
+                other
+            );
+            return 2;
+        }
+    };
+    let exit_for = |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
 
     println!(
         "{} scanning {}...",
@@ -840,10 +876,7 @@ async fn cmd_scan(
             output::print_scan_summary(&cached, format);
             output::print_findings(&cached.findings, format);
             output::print_verdict(&cached.verdict, format);
-            return match cached.verdict {
-                scanner::Verdict::LowRisk => 0,
-                _ => 2,
-            };
+            return exit_for(&cached.findings);
         } else if verbose {
             eprintln!("no cache entry found, scanning fresh");
         }
@@ -996,10 +1029,7 @@ async fn cmd_scan(
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        _ => 2,
-    }
+    exit_for(&result.findings)
 }
 
 // ---------------------------------------------------------------------------
@@ -1987,5 +2017,52 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
                 1
             }
         },
+    }
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::exit_code_for;
+    use super::scanner::{Finding, Phase, Severity};
+
+    fn finding(sev: Severity) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: "TEST".into(),
+            severity: sev,
+            file: "x".into(),
+            line: None,
+            snippet: String::new(),
+            weight: 1,
+        }
+    }
+
+    #[test]
+    fn empty_findings_exit_zero() {
+        assert_eq!(exit_code_for(&[], Severity::High), 0);
+    }
+
+    #[test]
+    fn below_threshold_exit_zero() {
+        let f = vec![finding(Severity::Medium), finding(Severity::Low)];
+        assert_eq!(exit_code_for(&f, Severity::High), 0);
+    }
+
+    #[test]
+    fn at_threshold_exit_one() {
+        let f = vec![finding(Severity::Low), finding(Severity::High)];
+        assert_eq!(exit_code_for(&f, Severity::High), 1);
+    }
+
+    #[test]
+    fn above_threshold_exit_one() {
+        let f = vec![finding(Severity::Critical)];
+        assert_eq!(exit_code_for(&f, Severity::High), 1);
+    }
+
+    #[test]
+    fn critical_threshold_ignores_high() {
+        let f = vec![finding(Severity::High)];
+        assert_eq!(exit_code_for(&f, Severity::Critical), 0);
     }
 }

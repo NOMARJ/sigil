@@ -1188,21 +1188,21 @@
 ### Phase D — Output contract & self-audit CI (D7)
 
 ### US-D1 [F-008]: Exit-code contract
-- **Status:** TODO
+- **Status:** DONE (2026-06-10) — `--fail-on` (default high); exit 0/1/2 contract via pure exit_code_for(); 5 CLI cases + 5 unit tests pass. Evidence: evidence/F-008/phase-D-output-contract.md
 - **Scope:** trivial
 - **Goal:** 0 = below threshold, 1 = findings ≥ `--fail-on` (default high), 2 = scan error. Today bash exits 0 on CRITICAL; Rust must not repeat that.
 - **Done when:** `./cli/target/release/sigil scan test-repo; echo $?` prints 1; scan of an empty dir prints 0; scan of a nonexistent path prints 2.
 - **Files:** `cli/src/main.rs`, `cli/src/output.rs`
 
 ### US-D2 [F-008]: SARIF 2.1.0 output
-- **Status:** TODO
+- **Status:** DONE (2026-06-10) — SARIF 2.1.0 validates clean against official OASIS schema via check-jsonschema (exit 0). Evidence: evidence/F-008/phase-D-output-contract.md
 - **Scope:** moderate
 - **Goal:** `--format sarif` emits valid SARIF consumable by GitHub Code Scanning.
 - **Done when:** `./cli/target/release/sigil scan test-repo --format sarif` output validates against the SARIF 2.1.0 schema (validator command recorded in evidence).
 - **Files:** `cli/src/output.rs`
 
 ### US-D3 [F-008]: Self-scan as a required CI gate
-- **Status:** TODO
+- **Status:** TODO — BLOCKED on self-scan triage: 1074 high+crit self-findings, dominated by Sigil's own signature docs / skill-corpus fixtures / bash-scanner source (legitimate self-reference). Needs rationale-backed .sigilignore + review of residual non-doc source findings before the gate passes clean. See evidence/F-008/phase-D-output-contract.md
 - **Scope:** moderate
 - **Goal:** CI job runs `sigil scan .` on the Sigil repo and fails on ≥high findings; suppressions live in `.sigilignore`/inline with written rationale (constraint: self-auditable, not a demo).
 - **Done when:** `.github/workflows/sigil-selfscan.yml` exists, `actionlint` clean, and the job passes on a clean tree — meaning Phases B+C resolved or explicitly suppressed every current self-finding (bash audit verdict today: CRITICAL/250).
