@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "last_updated": "2026-02-20T00:00:00Z",
-  "signature_count": 247,
+  "signature_count": 55,
   "categories": [
     "install_hooks",
     "code_execution",
@@ -21,9 +21,13 @@
       "weight": 10.0,
       "pattern": "cmdclass\\s*=\\s*\\{[^}]*(?:install|build|develop|egg_info)",
       "description": "Python setup.py cmdclass override with custom install/build commands",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["setup-backdoor"],
+      "malware_families": [
+        "setup-backdoor"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -35,9 +39,15 @@
       "weight": 10.0,
       "pattern": "\"(pre|post)(install|uninstall|pack|publish)\"\\s*:",
       "description": "npm lifecycle script hooks (install-time execution)",
-      "language": ["javascript", "typescript"],
+      "language": [
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["preinstall-stealer", "postinstall-backdoor"],
+      "malware_families": [
+        "preinstall-stealer",
+        "postinstall-backdoor"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -49,9 +59,14 @@
       "weight": 12.0,
       "pattern": "setup\\s*\\([^)]*(?:subprocess|os\\.system|os\\.popen|eval|exec)\\s*\\(",
       "description": "setup.py executes shell commands or code during installation",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["cryptominer-installer", "rat-loader"],
+      "malware_families": [
+        "cryptominer-installer",
+        "rat-loader"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -63,9 +78,14 @@
       "weight": 8.0,
       "pattern": "(?:curl|wget)\\s+[^\\n]+\\|\\s*(?:sh|bash|python|ruby|perl)",
       "description": "Piping remote content to shell interpreter",
-      "language": ["shell", "makefile"],
+      "language": [
+        "shell",
+        "makefile"
+      ],
       "cve": [],
-      "malware_families": ["remote-payload-loader"],
+      "malware_families": [
+        "remote-payload-loader"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -77,9 +97,13 @@
       "weight": 10.0,
       "pattern": "fn\\s+main\\s*\\(\\s*\\)\\s*\\{[^}]*(?:std::process::Command|exec)",
       "description": "Cargo build.rs with process execution (Rust)",
-      "language": ["rust"],
+      "language": [
+        "rust"
+      ],
       "cve": [],
-      "malware_families": ["cargo-backdoor"],
+      "malware_families": [
+        "cargo-backdoor"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-08-10"
     },
@@ -91,9 +115,13 @@
       "weight": 9.0,
       "pattern": "Gem::Specification\\.new[^}]*(?:extensions|post_install_message).*`[^`]+`",
       "description": "Ruby gem with extension compilation or post-install hook execution",
-      "language": ["ruby"],
+      "language": [
+        "ruby"
+      ],
       "cve": [],
-      "malware_families": ["rubygem-typosquat"],
+      "malware_families": [
+        "rubygem-typosquat"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-09-20"
     },
@@ -105,9 +133,17 @@
       "weight": 5.0,
       "pattern": "\\beval\\s*\\(",
       "description": "Dynamic code execution via eval()",
-      "language": ["python", "javascript", "typescript", "ruby", "php"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript",
+        "ruby",
+        "php"
+      ],
       "cve": [],
-      "malware_families": ["generic-backdoor"],
+      "malware_families": [
+        "generic-backdoor"
+      ],
       "false_positive_likelihood": "high",
       "created": "2024-01-15"
     },
@@ -119,9 +155,14 @@
       "weight": 5.0,
       "pattern": "\\bexec\\s*\\(",
       "description": "Dynamic code execution via exec()",
-      "language": ["python", "php"],
+      "language": [
+        "python",
+        "php"
+      ],
       "cve": [],
-      "malware_families": ["generic-backdoor"],
+      "malware_families": [
+        "generic-backdoor"
+      ],
       "false_positive_likelihood": "high",
       "created": "2024-01-15"
     },
@@ -133,9 +174,16 @@
       "weight": 8.0,
       "pattern": "pickle\\.(?:loads?|Unpickler)\\s*\\(",
       "description": "Unsafe pickle deserialization - arbitrary code execution",
-      "language": ["python"],
-      "cve": ["CVE-2024-3660"],
-      "malware_families": ["pickle-exploit", "huggingface-poisoned"],
+      "language": [
+        "python"
+      ],
+      "cve": [
+        "CVE-2024-3660"
+      ],
+      "malware_families": [
+        "pickle-exploit",
+        "huggingface-poisoned"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -147,9 +195,15 @@
       "weight": 6.0,
       "pattern": "(?:subprocess|child_process)\\.(?:exec|spawn|call|run|Popen|execSync)\\s*\\(",
       "description": "Subprocess execution (potential shell injection)",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["command-injection"],
+      "malware_families": [
+        "command-injection"
+      ],
       "false_positive_likelihood": "high",
       "created": "2024-01-15"
     },
@@ -161,9 +215,15 @@
       "weight": 7.0,
       "pattern": "yaml\\.(?:load|unsafe_load)\\s*\\([^,)]*\\)",
       "description": "Unsafe YAML deserialization without SafeLoader",
-      "language": ["python"],
-      "cve": ["CVE-2020-14343"],
-      "malware_families": ["yaml-exploit"],
+      "language": [
+        "python"
+      ],
+      "cve": [
+        "CVE-2020-14343"
+      ],
+      "malware_families": [
+        "yaml-exploit"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-02-10"
     },
@@ -175,7 +235,9 @@
       "weight": 4.0,
       "pattern": "\\bcompile\\s*\\([^)]*['\"]exec['\"]",
       "description": "compile() with exec mode for dynamic code generation",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "medium",
@@ -189,9 +251,13 @@
       "weight": 4.0,
       "pattern": "__import__\\s*\\(|importlib\\.import_module\\s*\\(",
       "description": "Dynamic module import",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["dynamic-loader"],
+      "malware_families": [
+        "dynamic-loader"
+      ],
       "false_positive_likelihood": "high",
       "created": "2024-01-15"
     },
@@ -203,9 +269,14 @@
       "weight": 6.0,
       "pattern": "(?:new\\s+)?Function\\s*\\(|vm\\.(?:runInNewContext|runInThisContext)\\s*\\(",
       "description": "JavaScript dynamic code evaluation (Function constructor, vm module)",
-      "language": ["javascript", "typescript"],
+      "language": [
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["js-backdoor"],
+      "malware_families": [
+        "js-backdoor"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -217,9 +288,13 @@
       "weight": 8.0,
       "pattern": "ctypes\\.(?:cdll|windll|CDLL|WinDLL)\\s*\\.",
       "description": "Foreign function interface (FFI) - loads external libraries",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["dll-injection"],
+      "malware_families": [
+        "dll-injection"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-03-05"
     },
@@ -231,9 +306,13 @@
       "weight": 6.0,
       "pattern": "System\\.Reflection\\.Assembly\\.Load|Activator\\.CreateInstance",
       "description": ".NET reflection for dynamic assembly loading",
-      "language": ["csharp"],
+      "language": [
+        "csharp"
+      ],
       "cve": [],
-      "malware_families": ["dotnet-loader"],
+      "malware_families": [
+        "dotnet-loader"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-04-12"
     },
@@ -245,9 +324,17 @@
       "weight": 9.0,
       "pattern": "{{.*\\|.*safe.*}}|{{.*\\(.*\\).*}}|<%.*=.*%>",
       "description": "Server-Side Template Injection (SSTI) patterns",
-      "language": ["python", "ruby", "java"],
-      "cve": ["CVE-2016-4977"],
-      "malware_families": ["ssti-exploit"],
+      "language": [
+        "python",
+        "ruby",
+        "java"
+      ],
+      "cve": [
+        "CVE-2016-4977"
+      ],
+      "malware_families": [
+        "ssti-exploit"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-05-20"
     },
@@ -259,9 +346,13 @@
       "weight": 10.0,
       "pattern": "unsafe\\s*\\{[^}]*(?:std::ptr::write|transmute|from_raw)",
       "description": "Rust unsafe block with raw pointer manipulation",
-      "language": ["rust"],
+      "language": [
+        "rust"
+      ],
       "cve": [],
-      "malware_families": ["memory-corruption"],
+      "malware_families": [
+        "memory-corruption"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-06-15"
     },
@@ -273,7 +364,9 @@
       "weight": 3.0,
       "pattern": "(?:requests|urllib|httpx|http)\\.(?:get|post|put|patch|delete|request)\\s*\\(",
       "description": "Outbound HTTP request (Python)",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "very_high",
@@ -287,7 +380,10 @@
       "weight": 3.0,
       "pattern": "(?:fetch|axios|XMLHttpRequest)\\s*\\(",
       "description": "Outbound HTTP request (JavaScript)",
-      "language": ["javascript", "typescript"],
+      "language": [
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "very_high",
@@ -301,9 +397,14 @@
       "weight": 7.0,
       "pattern": "discord\\.com/api/webhooks/[0-9]{18,19}/[A-Za-z0-9_-]+",
       "description": "Discord webhook URL - common data exfiltration endpoint",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["discord-stealer", "npm-malware"],
+      "malware_families": [
+        "discord-stealer",
+        "npm-malware"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -315,9 +416,13 @@
       "weight": 7.0,
       "pattern": "api\\.telegram\\.org/bot[0-9]+:[A-Za-z0-9_-]+",
       "description": "Telegram bot API endpoint - data exfiltration",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["telegram-bot-stealer"],
+      "malware_families": [
+        "telegram-bot-stealer"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -329,9 +434,13 @@
       "weight": 6.0,
       "pattern": "hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+",
       "description": "Slack webhook - potential exfiltration endpoint",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["slack-webhook-stealer"],
+      "malware_families": [
+        "slack-webhook-stealer"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -343,9 +452,16 @@
       "weight": 8.0,
       "pattern": "(?:socket\\.socket|net\\.createConnection|Socket\\s*\\()\\s*\\(",
       "description": "Raw TCP/UDP socket creation - bypasses HTTP monitoring",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["raw-socket-exfil", "c2-channel"],
+      "malware_families": [
+        "raw-socket-exfil",
+        "c2-channel"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -357,9 +473,15 @@
       "weight": 7.0,
       "pattern": "(?:dns\\.resolve|getaddrinfo|dns\\.lookup)\\s*\\(",
       "description": "DNS query - potential DNS tunneling/exfiltration",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["dns-exfil"],
+      "malware_families": [
+        "dns-exfil"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -371,9 +493,13 @@
       "weight": 9.0,
       "pattern": "(?:ngrok|localtunnel|serveo|localhost\\.run)\\.[a-z]+",
       "description": "Reverse proxy tunnel service - exposes local network",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["tunnel-backdoor"],
+      "malware_families": [
+        "tunnel-backdoor"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-02-20"
     },
@@ -385,9 +511,14 @@
       "weight": 8.0,
       "pattern": "(?:new\\s+)?WebSocket\\s*\\(|ws://|wss://",
       "description": "WebSocket connection - persistent bidirectional channel",
-      "language": ["javascript", "typescript"],
+      "language": [
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["websocket-c2"],
+      "malware_families": [
+        "websocket-c2"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-03-10"
     },
@@ -399,9 +530,13 @@
       "weight": 10.0,
       "pattern": "/bin/(?:bash|sh)\\s+-i\\s+>&\\s*/dev/tcp/",
       "description": "Reverse shell via TCP redirection",
-      "language": ["shell"],
+      "language": [
+        "shell"
+      ],
       "cve": [],
-      "malware_families": ["reverse-shell"],
+      "malware_families": [
+        "reverse-shell"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-04-05"
     },
@@ -413,9 +548,13 @@
       "weight": 7.0,
       "pattern": "169\\.254\\.169\\.254|metadata\\.google\\.internal|100\\.100\\.100\\.200",
       "description": "Cloud instance metadata service (IMDS) access - credential theft",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["cloud-metadata-stealer"],
+      "malware_families": [
+        "cloud-metadata-stealer"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-07-18"
     },
@@ -427,7 +566,11 @@
       "weight": 2.0,
       "pattern": "(?:os\\.environ|process\\.env)\\[?['\"]?(?:AWS_|GITHUB_|API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY)",
       "description": "Reads sensitive environment variable",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "very_high",
@@ -441,9 +584,13 @@
       "weight": 10.0,
       "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PRIVATE )?PRIVATE KEY-----",
       "description": "Embedded SSH/TLS/GPG private key",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["key-leakage"],
+      "malware_families": [
+        "key-leakage"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-01-15"
     },
@@ -455,9 +602,13 @@
       "weight": 10.0,
       "pattern": "AKIA[0-9A-Z]{16}",
       "description": "AWS Access Key ID",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["aws-key-stealer"],
+      "malware_families": [
+        "aws-key-stealer"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-01-15"
     },
@@ -469,9 +620,13 @@
       "weight": 8.0,
       "pattern": "(?:api[_-]?key|secret[_-]?key|access[_-]?token)\\s*[:=]\\s*['\"][A-Za-z0-9+/=_-]{20,}['\"]",
       "description": "Hardcoded API key or token",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["hardcoded-creds"],
+      "malware_families": [
+        "hardcoded-creds"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -483,9 +638,13 @@
       "weight": 9.0,
       "pattern": "sk-[a-zA-Z0-9]{48}|sk-proj-[a-zA-Z0-9_-]{48,}",
       "description": "OpenAI API key",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["openai-key-stealer"],
+      "malware_families": [
+        "openai-key-stealer"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-05-12"
     },
@@ -497,9 +656,13 @@
       "weight": 9.0,
       "pattern": "sk-ant-api03-[a-zA-Z0-9_-]{95}",
       "description": "Anthropic (Claude) API key",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["claude-key-stealer"],
+      "malware_families": [
+        "claude-key-stealer"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-06-08"
     },
@@ -511,9 +674,13 @@
       "weight": 9.0,
       "pattern": "ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|ghu_[a-zA-Z0-9]{36}",
       "description": "GitHub personal access token",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["github-pat-stealer"],
+      "malware_families": [
+        "github-pat-stealer"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-01-15"
     },
@@ -525,9 +692,13 @@
       "weight": 7.0,
       "pattern": "eyJ[a-zA-Z0-9_-]*\\.eyJ[a-zA-Z0-9_-]*\\.[a-zA-Z0-9_-]+",
       "description": "JWT token (JSON Web Token)",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["jwt-stealer"],
+      "malware_families": [
+        "jwt-stealer"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -539,9 +710,13 @@
       "weight": 10.0,
       "pattern": "xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}",
       "description": "Slack token",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["slack-token-stealer"],
+      "malware_families": [
+        "slack-token-stealer"
+      ],
       "false_positive_likelihood": "very_low",
       "created": "2024-02-14"
     },
@@ -553,9 +728,13 @@
       "weight": 8.0,
       "pattern": "\\.aws/credentials|\\.kube/config|\\.docker/config\\.json|\\.ssh/(?:id_rsa|id_ed25519)",
       "description": "Cloud/SSH credential file access",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["credential-harvester"],
+      "malware_families": [
+        "credential-harvester"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-01-15"
     },
@@ -567,9 +746,15 @@
       "weight": 5.0,
       "pattern": "base64\\.(?:b64decode|decodebytes)|atob\\s*\\(",
       "description": "Base64 decoding - may hide malicious payloads",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["base64-obfuscated"],
+      "malware_families": [
+        "base64-obfuscated"
+      ],
       "false_positive_likelihood": "high",
       "created": "2024-01-15"
     },
@@ -581,9 +766,15 @@
       "weight": 5.0,
       "pattern": "(?:\\\\x[0-9a-fA-F]{2}){8,}|bytes\\.fromhex\\s*\\(",
       "description": "Hex-encoded strings - payload obfuscation",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["hex-obfuscated"],
+      "malware_families": [
+        "hex-obfuscated"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -595,9 +786,15 @@
       "weight": 6.0,
       "pattern": "String\\.fromCharCode\\s*\\(|chr\\s*\\(",
       "description": "Character code construction - obfuscates strings",
-      "language": ["javascript", "typescript", "python"],
+      "language": [
+        "javascript",
+        "typescript",
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["charcode-obfuscated"],
+      "malware_families": [
+        "charcode-obfuscated"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -609,7 +806,11 @@
       "weight": 3.0,
       "pattern": "\\[::-1\\]|\\.reverse\\(\\)\\.join\\(",
       "description": "String reversal technique - obfuscation",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "high",
@@ -623,9 +824,15 @@
       "weight": 7.0,
       "pattern": "unicode-escape|\\\\u[0-9a-fA-F]{4}|\\\\U[0-9a-fA-F]{8}",
       "description": "Unicode escape sequences - homoglyph or obfuscation",
-      "language": ["python", "javascript", "typescript"],
+      "language": [
+        "python",
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["unicode-obfuscated"],
+      "malware_families": [
+        "unicode-obfuscated"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-08-25"
     },
@@ -637,9 +844,14 @@
       "weight": 9.0,
       "pattern": "(?:_0x[a-f0-9]{4,}|var\\s+_0x|const\\s+_0x)",
       "description": "JavaScript obfuscator pattern (javascript-obfuscator.io)",
-      "language": ["javascript", "typescript"],
+      "language": [
+        "javascript",
+        "typescript"
+      ],
       "cve": [],
-      "malware_families": ["js-obfuscator-malware"],
+      "malware_families": [
+        "js-obfuscator-malware"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-09-12"
     },
@@ -651,9 +863,13 @@
       "weight": 8.0,
       "pattern": "pyarmor|PyArmor|__pyarmor__|from\\s+pytransform\\s+import",
       "description": "PyArmor code obfuscation tool",
-      "language": ["python"],
+      "language": [
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["pyarmor-protected"],
+      "malware_families": [
+        "pyarmor-protected"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-10-05"
     },
@@ -665,7 +881,9 @@
       "weight": 1.0,
       "pattern": "^\\.",
       "description": "Hidden file (starts with dot)",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "very_high",
@@ -679,9 +897,13 @@
       "weight": 3.0,
       "pattern": "\\.(exe|dll|so|dylib|bin|dat)$",
       "description": "Binary/executable file",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["binary-payload"],
+      "malware_families": [
+        "binary-payload"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2024-01-15"
     },
@@ -693,7 +915,10 @@
       "weight": 1.0,
       "pattern": "\\.min\\.(js|css)$",
       "description": "Minified file - harder to audit",
-      "language": ["javascript", "css"],
+      "language": [
+        "javascript",
+        "css"
+      ],
       "cve": [],
       "malware_families": [],
       "false_positive_likelihood": "very_high",
@@ -707,9 +932,14 @@
       "weight": 12.0,
       "pattern": "package\\.json.*dependencies.*\\[\\s*\\]|setup\\.py.*install_requires.*\\[\\s*\\]",
       "description": "Empty dependency list (possible dependency confusion)",
-      "language": ["javascript", "python"],
+      "language": [
+        "javascript",
+        "python"
+      ],
       "cve": [],
-      "malware_families": ["dependency-confusion"],
+      "malware_families": [
+        "dependency-confusion"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-07-22"
     },
@@ -721,9 +951,13 @@
       "weight": 7.0,
       "pattern": "(?:autor|auther|authr|name).*(?:maintainer|owner).*(?:test|temp|example|demo)",
       "description": "Suspicious author/maintainer name (test/temp accounts)",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["typosquat"],
+      "malware_families": [
+        "typosquat"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-08-30"
     },
@@ -735,9 +969,13 @@
       "weight": 10.0,
       "pattern": "(?:ignore previous|forget everything|disregard|new instructions|you are now)",
       "description": "Prompt injection / AI evasion attempt",
-      "language": ["*"],
+      "language": [
+        "*"
+      ],
       "cve": [],
-      "malware_families": ["prompt-injection"],
+      "malware_families": [
+        "prompt-injection"
+      ],
       "false_positive_likelihood": "low",
       "created": "2025-01-10"
     },
@@ -749,9 +987,15 @@
       "weight": 8.0,
       "pattern": "(?:sandbox|vm_detect|is_debugger|anti.?debug|virtualization)",
       "description": "Sandbox/VM detection - evasion technique",
-      "language": ["python", "javascript", "csharp"],
+      "language": [
+        "python",
+        "javascript",
+        "csharp"
+      ],
       "cve": [],
-      "malware_families": ["sandbox-evasion"],
+      "malware_families": [
+        "sandbox-evasion"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-11-18"
     },
@@ -763,9 +1007,14 @@
       "weight": 10.0,
       "pattern": "time\\.sleep\\s*\\([3-9][0-9]+|setTimeout\\s*\\([^,]*[1-9][0-9]{4,}",
       "description": "Long sleep/delay (>30s) - sandbox evasion",
-      "language": ["python", "javascript"],
+      "language": [
+        "python",
+        "javascript"
+      ],
       "cve": [],
-      "malware_families": ["time-delayed-malware"],
+      "malware_families": [
+        "time-delayed-malware"
+      ],
       "false_positive_likelihood": "low",
       "created": "2024-12-05"
     },
@@ -777,9 +1026,14 @@
       "weight": 8.0,
       "pattern": "(?:datetime\\.now|Date\\.now).*(?:2025|2026|2027)",
       "description": "Future date check - time-bomb malware",
-      "language": ["python", "javascript"],
+      "language": [
+        "python",
+        "javascript"
+      ],
       "cve": [],
-      "malware_families": ["time-bomb"],
+      "malware_families": [
+        "time-bomb"
+      ],
       "false_positive_likelihood": "medium",
       "created": "2025-02-01"
     }
@@ -796,7 +1050,11 @@
         "xmrig cryptominer",
         "18 malicious packages"
       ],
-      "signature_ids": ["sig-install-002", "sig-net-003", "sig-evasion-003"]
+      "signature_ids": [
+        "sig-install-002",
+        "sig-net-003",
+        "sig-evasion-003"
+      ]
     },
     "mut-8694": {
       "name": "MUT-8694 Cross-Ecosystem Attack",
@@ -809,7 +1067,11 @@
         "Windows PE executable",
         "clipboard monitoring"
       ],
-      "signature_ids": ["sig-install-002", "sig-install-003", "sig-prov-002"]
+      "signature_ids": [
+        "sig-install-002",
+        "sig-install-003",
+        "sig-prov-002"
+      ]
     },
     "huggingface-poisoned": {
       "name": "Hugging Face Model Poisoning",
@@ -822,7 +1084,10 @@
         "reverse shell",
         "model.pkl"
       ],
-      "signature_ids": ["sig-code-003", "sig-net-010"]
+      "signature_ids": [
+        "sig-code-003",
+        "sig-net-010"
+      ]
     }
   },
   "metadata": {
@@ -835,8 +1100,25 @@
       "Stacklok npm weaponization research"
     ],
     "coverage": {
-      "languages": ["python", "javascript", "typescript", "ruby", "rust", "go", "csharp", "java", "shell"],
-      "ecosystems": ["npm", "pypi", "rubygems", "crates.io", "huggingface", "github"],
+      "languages": [
+        "python",
+        "javascript",
+        "typescript",
+        "ruby",
+        "rust",
+        "go",
+        "csharp",
+        "java",
+        "shell"
+      ],
+      "ecosystems": [
+        "npm",
+        "pypi",
+        "rubygems",
+        "crates.io",
+        "huggingface",
+        "github"
+      ],
       "attack_phases": 8,
       "total_patterns": 247
     }

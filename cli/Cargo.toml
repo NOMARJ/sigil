@@ -23,6 +23,8 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["json"] }
 regex = "1"
 walkdir = "2"
+ignore = "0.4"
+rayon = "1"
 sha2 = "0.10"
 hex = "0.4"
 colored = "2"
@@ -33,3 +35,6 @@ zip = "0.6"
 flate2 = "1"
 tar = "0.4"
 serde_yaml = "0.9"
+
+[dev-dependencies]
+tempfile = "3"

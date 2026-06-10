@@ -1,0 +1,46 @@
+{
+  "data_source": "Synthetic \u2014 hand-authored, modeled on published advisories",
+  "sample_size": 6,
+  "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence.",
+  "cases": [
+    {
+      "path": "install_hooks/setup.py",
+      "expect_phase": "InstallHooks",
+      "expect_min_severity": "Critical",
+      "source": "Shai-Hulud preinstall shape (Datadog/CISA AA25-266A)",
+      "synthetic": true
+    },
+    {
+      "path": "code_patterns/payload.js",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "generic eval/child_process malware",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/tool.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "Critical",
+      "source": "Invariant Labs tool-poisoning (2025-04)",
+      "synthetic": true
+    },
+    {
+      "path": "inference_security/proxy.py",
+      "expect_phase": "InferenceSecurity",
+      "expect_min_severity": "High",
+      "source": "hermes-px base_url hijack (JFrog 2026-04)",
+      "synthetic": true
+    },
+    {
+      "path": "clean/app.py",
+      "expect_clean": true,
+      "synthetic": true
+    },
+    {
+      "path": "clean/types.d.ts",
+      "expect_clean": true,
+      "source": "decl-file FP control (ADR-0008)",
+      "synthetic": true
+    }
+  ]
+}

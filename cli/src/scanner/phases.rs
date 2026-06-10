@@ -1,6 +1,5 @@
 use regex::Regex;
 use std::path::Path;
-use walkdir::DirEntry;
 
 use super::{Finding, Phase, Severity};
 
@@ -171,6 +170,10 @@ pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
 /// Detect dangerous code patterns: eval/exec, pickle deserialization,
 /// child_process spawning, dynamic imports, and code generation.
 pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
+    // Declaration files describe APIs; nothing in them executes (ADR-0008).
+    if super::context::is_declaration_file(file) {
+        return Vec::new();
+    }
     let patterns = vec![
         // Python dangerous builtins
         (
@@ -589,11 +592,13 @@ pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
 
 /// Detect provenance issues: hidden files, binary files in unexpected locations,
 /// git history anomalies, and suspicious file names.
-pub fn scan_provenance(base_path: &std::path::Path, entries: &[DirEntry]) -> Vec<Finding> {
+pub fn scan_provenance(
+    base_path: &std::path::Path,
+    entries: &[std::path::PathBuf],
+) -> Vec<Finding> {
     let mut findings = Vec::new();
 
-    for entry in entries {
-        let file_path = entry.path();
+    for file_path in entries {
         let rel_path = file_path
             .strip_prefix(base_path)
             .unwrap_or(file_path)
@@ -664,7 +669,7 @@ pub fn scan_provenance(base_path: &std::path::Path, entries: &[DirEntry]) -> Vec
         }
 
         // Very large files (> 5MB)
-        if let Ok(metadata) = entry.metadata() {
+        if let Ok(metadata) = std::fs::metadata(file_path) {
             if metadata.len() > 5_000_000 {
                 findings.push(make_finding(
                     Phase::Provenance,
