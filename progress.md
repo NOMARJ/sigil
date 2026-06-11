@@ -1052,6 +1052,19 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T04:05:06.213Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -1232,25 +1245,46 @@
 ### Phase E — Feeds & provenance (D4)
 
 ### US-E1 [F-008]: OSV integration (CVEs + MAL- records)
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** Lockfile/manifest dependency extraction → OSV batch query (offline-cached) → findings with OSV ids; covers npm, PyPI, crates, Go.
 - **Done when:** `sigil scan tests/fixtures/osv-known-vuln/ --format json` flags a pinned known-CVE dependency and a known `MAL-` package (fixtures reference real OSV ids); network-off run uses cache and says so.
-- **Files:** `cli/src/feeds/osv.rs` (new), `tests/fixtures/osv-known-vuln/`
+- **Files:** `cli/src/feeds/osv.rs`, `tests/fixtures/osv-known-vuln/`
+- **Notes:** Two engine defects found + fixed (evidence/F-008/phase-E-feed-performance-and-suppression-reversal.md):
+  (1) severity always graded High — `/v1/querybatch` returns IDs only and detail was never
+  fetched; plus GitHub `MODERATE` was unmapped. Fixed with per-id `/v1/vulns/{id}` enrich +
+  CVSS 3.x base-score calc + MODERATE→Medium. postcss GHSA-qx2v-qp2m-jg93 now Medium (was High).
+  (2) detail fetches were sequential blocking (~0.75s each, fresh client each call) → dedup by
+  id + shared keep-alive client + bounded rayon(8). osv feed now ~40-125ms warm. 104 tests pass.
 
 ### US-E2 [F-008]: KEV/EPSS prioritization overlay
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** moderate
 - **Goal:** Findings with CVE ids get `kev: true/false` and EPSS score; severity ordering uses KEV > EPSS > CVSS.
 - **Done when:** `cargo test kev_epss` passes with recorded-fixture API responses; output JSON contains the fields for a KEV-listed fixture CVE.
 - **Files:** `cli/src/feeds/`
+- **Notes:** `Finding` carries `kev`/`epss` (serde default, skip-if-empty → backward-compatible JSON). Feed runs in <2µs on the self-scan (no matched KEV CVEs in our deps).
 
 ### US-E3 [F-008]: Provenance drift detection
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** npm/PyPI attestation verification when present; findings ONLY for drift: provenance downgrade, publisher-identity change, repo mismatch. Absence is SBOM metadata, never a scored finding (<1% npm adoption = noise).
 - **Done when:** `cargo test provenance_drift` passes on three fixture scenarios (downgrade, identity-change, mismatch) and asserts zero findings for an unattested-but-consistent package.
-- **Files:** `cli/src/provenance/` (new)
+- **Files:** `cli/src/provenance/`
+- **Notes:** THE infinite-hang culprit — one sequential blocking registry GET per pinned package.
+  A 798-dep lockfile ran 3h40m without finishing (orphaned process found + killed). Fixed: bounded
+  rayon(8) over independent per-component checks; ledger writes stay post-loop (no race). Full
+  self-scan now 33s (was unbounded). `--verbose` now reports per-feed wall-clock.
+
+### Phase E follow-ups (discovered, NOT yet done)
+- **Suppression reversed:** `.sigilignore` lockfile entries (added by the Phase E build agent to
+  force a green gate) are REMOVED and stay removed. They hid genuine high-severity advisories.
+- **REMEDIATION-DEPS (TODO):** self-scan gate is correctly RED — `plugins/mcp-server` (25 High) and
+  `plugins/vscode` (25 High) bundle deps with real advisories (minimatch/hono/undici/fast-uri/
+  flatted/tmp/path-to-regexp/picomatch/express-rate-limit). Needs dependency bumps + plugin build
+  verification. dashboard lockfile is clean (0 high, 1 Medium postcss). Sigil's own src is clean.
+- **POLISH (TODO):** OSV finding-level dedup — same GHSA emits N findings when a package resolves
+  at N lockfile paths. Detail-fetch is already deduped; the Finding list is not.
 
 ### Phase F — Stateful trust ledger (D3)
 

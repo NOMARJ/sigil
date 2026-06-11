@@ -905,23 +905,38 @@ async fn cmd_scan(
     // Runs whenever a full-phase scan is requested (phases == "all").
     // Network failures are handled inside scan_for_osv_findings — never fatal.
     if phases == "all" {
+        // The three feeds make network round-trips (OSV detail fetches, npm/PyPI
+        // registry lookups). --verbose reports each feed's wall-clock so a slow
+        // scan can be attributed to a specific feed rather than guessed at.
+        let t = std::time::Instant::now();
         let osv_findings = feeds::osv::scan_for_osv_findings(path);
+        if verbose {
+            eprintln!("feed osv: {:?} ({} findings)", t.elapsed(), osv_findings.len());
+        }
         if !osv_findings.is_empty() {
             result.findings.extend(osv_findings);
         }
 
         // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
         // Best-effort — network/parse failures leave findings unchanged.
+        let t = std::time::Instant::now();
         feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+        if verbose {
+            eprintln!("feed kev_epss: {:?}", t.elapsed());
+        }
 
         // Provenance drift detection (US-E3): detect downgrade, identity-change,
         // and repo-mismatch for npm and PyPI packages against the ledger baseline.
         // ADR-0007: absence of provenance is never a finding. Network failures are
         // handled gracefully — never fatal.
+        let t = std::time::Instant::now();
         let prov_findings = provenance::scan_for_provenance_drift(
             path,
             &provenance::ScanOptions::default(),
         );
+        if verbose {
+            eprintln!("feed provenance: {:?} ({} findings)", t.elapsed(), prov_findings.len());
+        }
         if !prov_findings.is_empty() {
             result.findings.extend(prov_findings);
         }

@@ -436,6 +436,7 @@ fn check_component(
 pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<Finding> {
     use crate::sbom::parsers;
     use ignore::WalkBuilder;
+    use rayon::prelude::*;
 
     const LOCKFILE_NAMES: &[&str] = &["package-lock.json", "requirements.txt"];
     const EXCLUDED_DIRS: &[&str] = &[
@@ -502,27 +503,43 @@ pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<
             .to_string_lossy()
             .to_string();
 
-        for comp in &components {
-            let (findings, maybe_record) = check_component(comp, &lockfile_rel, options);
+        // Each component is one independent registry round-trip. Run them on a
+        // bounded pool: sequential fetches made large lockfiles (hundreds of deps)
+        // take many minutes — a 798-dep lockfile effectively never finished. The
+        // ledger is read inside check_component (concurrent file reads are safe)
+        // and written only after this loop, so parallel checks never race a write.
+        // Cap in-flight requests so we stay a polite npm/PyPI client.
+        let check_all = || -> Vec<(Vec<Finding>, Option<(PathBuf, String, ProvRecord)>)> {
+            components
+                .par_iter()
+                .map(|comp| {
+                    let (findings, maybe_record) = check_component(comp, &lockfile_rel, options);
+                    let update = maybe_record.and_then(|record| {
+                        let version = comp.version.as_deref().unwrap_or("");
+                        let ecosystem = match comp.package_type.as_str() {
+                            "npm" => "npm",
+                            "pip" => "pypi",
+                            _ => return None,
+                        };
+                        let ledger_dir = if let Some(d) = options.ledger_fixture_dir {
+                            d.to_path_buf()
+                        } else {
+                            ledger_dir_default()?
+                        };
+                        Some((ledger_dir, ledger_key(ecosystem, &comp.name, version), record))
+                    });
+                    (findings, update)
+                })
+                .collect()
+        };
+        let results = match rayon::ThreadPoolBuilder::new().num_threads(8).build() {
+            Ok(pool) => pool.install(check_all),
+            Err(_) => check_all(),
+        };
+        for (findings, update) in results {
             all_findings.extend(findings);
-
-            if let Some(record) = maybe_record {
-                let version = comp.version.as_deref().unwrap_or("");
-                let ecosystem = match comp.package_type.as_str() {
-                    "npm" => "npm",
-                    "pip" => "pypi",
-                    _ => continue,
-                };
-                let ledger_dir = if let Some(d) = options.ledger_fixture_dir {
-                    d.to_path_buf()
-                } else {
-                    match ledger_dir_default() {
-                        Some(d) => d,
-                        None => continue,
-                    }
-                };
-                let key = ledger_key(ecosystem, &comp.name, version);
-                ledger_updates.push((ledger_dir, key, record));
+            if let Some(u) = update {
+                ledger_updates.push(u);
             }
         }
     }

@@ -111,28 +111,122 @@ pub fn osv_severity(vuln: &OsvVuln) -> Severity {
     if vuln.id.starts_with("MAL-") {
         return Severity::Critical;
     }
-    // Try database_specific.severity first (e.g. "CRITICAL", "HIGH", "MEDIUM", "LOW")
+    // Try database_specific.severity first. GitHub advisories (the bulk of the
+    // npm/PyPI corpus) use LOW / MODERATE / HIGH / CRITICAL — note MODERATE, not
+    // MEDIUM. Mapping MODERATE here was the missing case that over-rated every
+    // moderate advisory as High.
     if let Some(ref db) = vuln.database_specific {
         if let Some(sev) = db.get("severity").and_then(|s| s.as_str()) {
-            return match sev.to_uppercase().as_str() {
-                "CRITICAL" => Severity::Critical,
-                "HIGH" => Severity::High,
-                "MEDIUM" => Severity::Medium,
-                "LOW" => Severity::Low,
-                _ => Severity::High,
-            };
+            if let Some(mapped) = severity_from_label(sev) {
+                return mapped;
+            }
         }
     }
-    // Try CVSS score from severity array
+    // Otherwise derive from the CVSS vector's computed base score (records like
+    // raw CVE/PYSEC often carry only a CVSS vector, no qualitative label).
     for s in &vuln.severity {
-        if s.severity_type == "CVSS_V3" || s.severity_type == "CVSS_V2" {
-            // Extract base score from vector string like "CVSS:3.1/AV:N/...S:C/C:H/I:H/A:H"
-            // The numeric score is not in the vector; we look for database_specific or default
-            let _ = &s.score; // available if needed for future enrichment
+        if s.severity_type.starts_with("CVSS") {
+            if let Some(score) = cvss3_base_score(&s.score) {
+                return severity_from_cvss_score(score);
+            }
         }
     }
-    // Default for CVE/GHSA without explicit severity
+    // No qualitative label and no parseable CVSS: default conservatively to High
+    // (a known advisory with unknown severity is treated as actionable).
     Severity::High
+}
+
+/// Map a qualitative severity label (case-insensitive) to `Severity`.
+/// Accepts both "MEDIUM" and GitHub's "MODERATE".
+fn severity_from_label(label: &str) -> Option<Severity> {
+    match label.to_uppercase().as_str() {
+        "CRITICAL" => Some(Severity::Critical),
+        "HIGH" => Some(Severity::High),
+        "MEDIUM" | "MODERATE" => Some(Severity::Medium),
+        "LOW" => Some(Severity::Low),
+        _ => None,
+    }
+}
+
+/// CVSS 3.x qualitative rating from a base score.
+fn severity_from_cvss_score(score: f64) -> Severity {
+    if score >= 9.0 {
+        Severity::Critical
+    } else if score >= 7.0 {
+        Severity::High
+    } else if score >= 4.0 {
+        Severity::Medium
+    } else {
+        Severity::Low
+    }
+}
+
+/// Compute a CVSS 3.0/3.1 base score from a vector string such as
+/// `CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N`. Returns None if the string
+/// is not a parseable CVSS v3 base vector. Implements the spec formula so a
+/// vector without an embedded numeric score still yields a correct rating.
+fn cvss3_base_score(vector: &str) -> Option<f64> {
+    if !vector.starts_with("CVSS:3") {
+        return None;
+    }
+    let mut m = std::collections::HashMap::new();
+    for part in vector.split('/').skip(1) {
+        let (k, v) = part.split_once(':')?;
+        m.insert(k, v);
+    }
+    let scope_changed = *m.get("S")? == "C";
+    let av = match *m.get("AV")? {
+        "N" => 0.85,
+        "A" => 0.62,
+        "L" => 0.55,
+        "P" => 0.2,
+        _ => return None,
+    };
+    let ac = match *m.get("AC")? {
+        "L" => 0.77,
+        "H" => 0.44,
+        _ => return None,
+    };
+    let pr = match (*m.get("PR")?, scope_changed) {
+        ("N", _) => 0.85,
+        ("L", false) => 0.62,
+        ("L", true) => 0.68,
+        ("H", false) => 0.27,
+        ("H", true) => 0.5,
+        _ => return None,
+    };
+    let ui = match *m.get("UI")? {
+        "N" => 0.85,
+        "R" => 0.62,
+        _ => return None,
+    };
+    let imp = |s: &str| match s {
+        "H" => 0.56,
+        "L" => 0.22,
+        "N" => 0.0,
+        _ => f64::NAN,
+    };
+    let (c, i, a) = (imp(m.get("C")?), imp(m.get("I")?), imp(m.get("A")?));
+    if c.is_nan() || i.is_nan() || a.is_nan() {
+        return None;
+    }
+    let isc_base = 1.0 - ((1.0 - c) * (1.0 - i) * (1.0 - a));
+    let impact = if scope_changed {
+        7.52 * (isc_base - 0.029) - 3.25 * (isc_base - 0.02).powi(15)
+    } else {
+        6.42 * isc_base
+    };
+    if impact <= 0.0 {
+        return Some(0.0);
+    }
+    let exploitability = 8.22 * av * ac * pr * ui;
+    let raw = if scope_changed {
+        (1.08 * (impact + exploitability)).min(10.0)
+    } else {
+        (impact + exploitability).min(10.0)
+    };
+    // CVSS roundup: ceil to one decimal place.
+    Some((raw * 10.0).ceil() / 10.0)
 }
 
 // ── Core query function ─────────────────────────────────────────────────────
@@ -299,10 +393,113 @@ pub fn osv_findings_offline(components: &[Component], lockfile_path: &str) -> Ve
     pairs_to_findings(pairs, lockfile_path)
 }
 
+/// The `/v1/querybatch` endpoint returns advisory IDs only — no severity or
+/// summary. Fetch the full record from `/v1/vulns/{id}` (cached per id) so
+/// `osv_severity` has the `database_specific.severity` / CVSS vector to grade
+/// against. Without this every finding falls through to the High default.
+/// Network/parse failure returns the vuln unchanged (degrades to that default).
+/// One keep-alive blocking client reused across every detail fetch. Building a
+/// fresh `reqwest::blocking::Client` per request (the original code) spun up a
+/// new tokio runtime + TLS handshake each time and was the dominant cost when a
+/// lockfile produced hundreds of advisories.
+fn detail_client() -> Option<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .pool_max_idle_per_host(8)
+        .build()
+        .ok()
+}
+
+fn enrich_vuln_detail(client: &reqwest::blocking::Client, vuln: OsvVuln) -> OsvVuln {
+    // Already has gradeable severity info — nothing to fetch.
+    if vuln.database_specific.is_some() || !vuln.severity.is_empty() {
+        return vuln;
+    }
+    let dir = cache_dir();
+    let key = format!("vuln-{}", vuln.id.replace(['/', '\\', ':'], "_"));
+    if let Some(ref d) = dir {
+        if let Some(v) = read_cache(d, &key) {
+            if let Ok(detail) = serde_json::from_value::<OsvVuln>(v) {
+                return detail;
+            }
+        }
+    }
+    match fetch_vuln_detail(client, &vuln.id) {
+        Ok(detail) => {
+            if let Some(ref d) = dir {
+                if let Ok(v) = serde_json::to_value(&detail) {
+                    write_cache(d, &key, &v);
+                }
+            }
+            detail
+        }
+        Err(_) => vuln,
+    }
+}
+
+fn fetch_vuln_detail(
+    client: &reqwest::blocking::Client,
+    id: &str,
+) -> Result<OsvVuln, Box<dyn std::error::Error>> {
+    let resp = client
+        .get(format!("https://api.osv.dev/v1/vulns/{}", id))
+        .send()?;
+    if !resp.status().is_success() {
+        return Err(format!("OSV vuln detail returned {}", resp.status()).into());
+    }
+    Ok(resp.json::<OsvVuln>()?)
+}
+
 fn pairs_to_findings(pairs: Vec<(usize, OsvVuln)>, lockfile_path: &str) -> Vec<Finding> {
+    use rayon::prelude::*;
+    use std::collections::{HashMap, HashSet};
+
+    // Detail enrichment (one `/v1/vulns/{id}` round-trip per advisory) dominates
+    // wall-clock on a cold cache. Sequential fetches made real-world lockfiles
+    // (hundreds of advisories across hundreds of deps) effectively un-scannable —
+    // a 798-dep lockfile did not finish in hours. Fix: dedup advisories by id so
+    // an advisory affecting N components is fetched once (this also makes the
+    // per-id cache writes collision-free), then fetch the unique set concurrently
+    // through a shared keep-alive client on a bounded pool. MAL- ids are Critical
+    // by prefix and need no detail fetch.
+    let needs: Vec<OsvVuln> = {
+        let mut seen = HashSet::new();
+        pairs
+            .iter()
+            .filter(|(_, v)| {
+                !v.id.starts_with("MAL-")
+                    && v.database_specific.is_none()
+                    && v.severity.is_empty()
+            })
+            .filter(|(_, v)| seen.insert(v.id.clone()))
+            .map(|(_, v)| v.clone())
+            .collect()
+    };
+
+    let detail_by_id: HashMap<String, OsvVuln> = if needs.is_empty() {
+        HashMap::new()
+    } else if let Some(client) = detail_client() {
+        let enrich = || -> Vec<OsvVuln> {
+            needs
+                .into_par_iter()
+                .map(|v| enrich_vuln_detail(&client, v))
+                .collect()
+        };
+        // Bounded concurrency: independent fetches, but cap at 8 in-flight so we
+        // stay a polite OSV client rather than opening one socket per advisory.
+        let enriched = match rayon::ThreadPoolBuilder::new().num_threads(8).build() {
+            Ok(pool) => pool.install(enrich),
+            Err(_) => enrich(),
+        };
+        enriched.into_iter().map(|v| (v.id.clone(), v)).collect()
+    } else {
+        HashMap::new()
+    };
+
     pairs
         .into_iter()
         .map(|(_idx, vuln)| {
+            let vuln = detail_by_id.get(&vuln.id).cloned().unwrap_or(vuln);
             let sev = osv_severity(&vuln);
             let weight = match sev {
                 Severity::Critical => 10,
@@ -616,6 +813,53 @@ mod tests {
     fn osv_severity_ghsa_medium() {
         let vuln = make_vuln("GHSA-xxxx-yyyy-zzzz", Some("MEDIUM"));
         assert_eq!(osv_severity(&vuln), Severity::Medium);
+    }
+
+    #[test]
+    fn osv_severity_github_moderate_is_medium_not_high() {
+        // Regression: GitHub advisories say MODERATE, not MEDIUM. This was
+        // mapped to High, which over-rated moderate dep CVEs and tripped the
+        // self-scan high gate (e.g. postcss GHSA-qx2v-qp2m-jg93).
+        let vuln = make_vuln("GHSA-qx2v-qp2m-jg93", Some("MODERATE"));
+        assert_eq!(osv_severity(&vuln), Severity::Medium);
+    }
+
+    #[test]
+    fn cvss3_score_postcss_moderate_vector() {
+        // The real postcss advisory vector → 6.1 → Medium.
+        let s = cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N");
+        let v = s.expect("parseable");
+        assert!((v - 6.1).abs() < 0.05, "expected ~6.1, got {v}");
+        assert_eq!(severity_from_cvss_score(v), Severity::Medium);
+    }
+
+    #[test]
+    fn cvss3_score_critical_vector() {
+        // AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H → 9.8 → Critical (e.g. log4shell-class).
+        let v = cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H").unwrap();
+        assert!((v - 9.8).abs() < 0.05, "expected ~9.8, got {v}");
+        assert_eq!(severity_from_cvss_score(v), Severity::Critical);
+    }
+
+    #[test]
+    fn cvss3_score_via_severity_array_when_no_label() {
+        // A CVE record with only a CVSS vector (no database_specific.severity)
+        // must derive Medium, not fall through to the High default.
+        let vuln = OsvVuln {
+            id: "CVE-2026-41305".to_string(),
+            severity: vec![OsvSeverity {
+                severity_type: "CVSS_V3".to_string(),
+                score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N".to_string(),
+            }],
+            database_specific: None,
+            summary: None,
+        };
+        assert_eq!(osv_severity(&vuln), Severity::Medium);
+    }
+
+    #[test]
+    fn cvss3_score_rejects_non_cvss() {
+        assert_eq!(cvss3_base_score("not-a-vector"), None);
     }
 
     // ── Negative tests: clean/no-finding scenarios ───────────────────────
