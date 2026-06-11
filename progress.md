@@ -1450,7 +1450,7 @@
 - **Dependencies:** none
 
 ### US-102 [F-009]: Model router registry refresh — retire claude-3 tiers
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — registry = exactly 3 current IDs, multipliers 1/5/10; scorer now llm_config-driven (scope expansion to complexity_scorer.py owner-approved); legacy test_model_routing.py assertions updated (pre-authorized mechanical swap). 17/17 routing tests, full suite 251 passed/0 failed. Evidence: `.nomark/evidence/US-102.md`
 - **Scope:** moderate
 - **Goal:** `model_router.py` MODELS = exactly {claude-haiku-4-5 $1/$5, claude-opus-4-8 $5/$25, claude-fable-5 $10/$50}; downgrade path → haiku.
 - **Done when:** `python3 -m pytest api/tests/test_model_router.py -q` exits 0; no `claude-3-` in file

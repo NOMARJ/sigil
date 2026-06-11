@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.complexity_scorer import complexity_scorer, TaskComplexity
+from llm_config import llm_config
 
 
 def test_simple_question():
@@ -26,7 +27,7 @@ def test_simple_question():
     print(f"Keywords found: {factors['keywords_found']}")
     print()
 
-    assert model == "claude-3-haiku", f"Expected Haiku, got {model}"
+    assert model == llm_config.fast_model, f"Expected fast model, got {model}"
     assert complexity == TaskComplexity.SIMPLE, f"Expected SIMPLE, got {complexity}"
     print("✅ PASSED: 'Is this safe?' correctly routes to Haiku\n")
 
@@ -47,8 +48,8 @@ def test_trace_attack():
     print(f"Patterns matched: {factors['patterns_matched']}")
     print()
 
-    assert model in ["claude-3-sonnet", "claude-3-opus"], (
-        f"Expected Sonnet/Opus, got {model}"
+    assert model in [llm_config.model, llm_config.deep_model], (
+        f"Expected standard/deep model, got {model}"
     )
     assert complexity in [TaskComplexity.MODERATE, TaskComplexity.COMPLEX], (
         f"Expected MODERATE/COMPLEX, got {complexity}"
@@ -69,7 +70,7 @@ def test_attack_chain_task():
     print(f"Selected Model: {model}")
     print()
 
-    assert model == "claude-3-opus", f"Expected Opus for attack_chain, got {model}"
+    assert model == llm_config.deep_model, f"Expected deep model for attack_chain, got {model}"
     assert complexity == TaskComplexity.COMPLEX, f"Expected COMPLEX, got {complexity}"
     print("✅ PASSED: attack_chain task correctly routes to Opus\n")
 
@@ -77,7 +78,7 @@ def test_attack_chain_task():
 def test_investigation_depths():
     """Test investigation depth routing"""
     depths = ["quick", "thorough", "exhaustive"]
-    expected_models = ["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]
+    expected_models = [llm_config.fast_model, llm_config.model, llm_config.deep_model]
 
     for depth, expected_model in zip(depths, expected_models):
         complexity, confidence, factors = complexity_scorer.score_task(
@@ -102,15 +103,15 @@ def test_model_override():
     complexity, confidence, factors = complexity_scorer.score_task(
         task_type="chat",
         query="What is this?",
-        context={"model_override": "claude-3-opus"},
+        context={"model_override": llm_config.deep_model},
     )
 
     # But with override...
-    # model = "claude-3-opus"  # Router would respect the override
+    # model = llm_config.deep_model  # Router would respect the override
 
     print("Query: 'What is this?' with Opus override")
     print(f"Complexity: {complexity.value}")
-    print("Override Model: claude-3-opus")
+    print(f"Override Model: {llm_config.deep_model}")
     print(f"Confidence: {confidence:.2f} (1.0 due to override)")
     print()
 

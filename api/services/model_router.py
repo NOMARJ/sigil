@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Optional, Any, Tuple
 from datetime import datetime
 
+from ..llm_config import llm_config
 from ..utils.complexity_scorer import complexity_scorer
 from ..services.credit_service import credit_service
 from ..database import db
@@ -20,31 +21,31 @@ logger = logging.getLogger(__name__)
 class ModelRouter:
     """Routes LLM requests to optimal models based on complexity and cost"""
 
-    # Model configurations
+    # Model configurations — keys are exact current Anthropic aliases (no date suffixes)
     MODELS = {
-        "claude-3-haiku": {
-            "name": "Claude 3 Haiku",
+        "claude-haiku-4-5": {
+            "name": "Claude Haiku 4.5",
             "description": "Fast and efficient for simple tasks",
             "max_tokens": 4096,
             "credit_multiplier": 1,
             "strengths": ["speed", "cost", "simple_analysis"],
-            "api_name": "claude-3-haiku-20240307",
+            "api_name": "claude-haiku-4-5",
         },
-        "claude-3-sonnet": {
-            "name": "Claude 3 Sonnet",
-            "description": "Balanced performance for most tasks",
-            "max_tokens": 4096,
-            "credit_multiplier": 2,
-            "strengths": ["balance", "accuracy", "complex_reasoning"],
-            "api_name": "claude-3-sonnet-20240229",
-        },
-        "claude-3-opus": {
-            "name": "Claude 3 Opus",
-            "description": "Maximum capability for critical analysis",
-            "max_tokens": 4096,
+        "claude-opus-4-8": {
+            "name": "Claude Opus 4.8",
+            "description": "Balanced capability for most analysis tasks",
+            "max_tokens": 8192,
             "credit_multiplier": 5,
+            "strengths": ["balance", "accuracy", "complex_reasoning"],
+            "api_name": "claude-opus-4-8",
+        },
+        "claude-fable-5": {
+            "name": "Claude Fable 5",
+            "description": "Maximum capability for critical deep analysis",
+            "max_tokens": 8192,
+            "credit_multiplier": 10,
             "strengths": ["deep_analysis", "nuance", "critical_thinking"],
-            "api_name": "claude-3-opus-20240229",
+            "api_name": "claude-fable-5",
         },
     }
 
@@ -146,10 +147,10 @@ class ModelRouter:
 
         except Exception as e:
             logger.error(f"Model routing failed: {e}")
-            # Fallback to Haiku on error
+            # Fallback to the fast tier on error
             return {
-                "selected_model": "claude-3-haiku",
-                "model_info": self.MODELS["claude-3-haiku"],
+                "selected_model": llm_config.fast_model,
+                "model_info": self.MODELS.get(llm_config.fast_model, {}),
                 "complexity": "unknown",
                 "confidence": 0.0,
                 "reason": "error_fallback",
@@ -378,7 +379,7 @@ class ModelRouter:
             Downgrade option if available, None otherwise
         """
         # Check alternatives in order of preference
-        model_preference = ["claude-3-sonnet", "claude-3-haiku"]
+        model_preference = [llm_config.model, llm_config.fast_model]
 
         for model in model_preference:
             if model in cost_comparison["alternatives"]:

@@ -254,12 +254,14 @@ class ComplexityScorer:
             allow_downgrade: Whether to allow using cheaper model if available
 
         Returns:
-            Model name (claude-3-haiku, claude-3-sonnet, claude-3-opus)
+            Model alias from llm_config (fast_model, model, or deep_model)
         """
+        from api.llm_config import llm_config
+
         model_map = {
-            TaskComplexity.SIMPLE: "claude-3-haiku",
-            TaskComplexity.MODERATE: "claude-3-sonnet",
-            TaskComplexity.COMPLEX: "claude-3-opus",
+            TaskComplexity.SIMPLE: llm_config.fast_model,
+            TaskComplexity.MODERATE: llm_config.model,
+            TaskComplexity.COMPLEX: llm_config.deep_model,
         }
 
         recommended = model_map[complexity]
@@ -282,24 +284,26 @@ class ComplexityScorer:
         Returns:
             Dict of model -> estimated credits
         """
-        # Base costs by task type
+        from api.llm_config import llm_config
+
+        # Base costs by task type, per routing tier
         base_costs = {
-            "investigate": {"haiku": 4, "sonnet": 8, "opus": 24},
-            "false_positive": {"haiku": 4, "sonnet": 6, "opus": 12},
-            "remediation": {"haiku": 4, "sonnet": 6, "opus": 12},
-            "chat": {"haiku": 2, "sonnet": 4, "opus": 10},
-            "compliance": {"haiku": 3, "sonnet": 5, "opus": 10},
-            "attack_chain": {"haiku": 6, "sonnet": 8, "opus": 16},
-            "version_comparison": {"haiku": 4, "sonnet": 6, "opus": 12},
-            "context_expansion": {"haiku": 2, "sonnet": 4, "opus": 8},
+            "investigate": {"fast": 4, "standard": 8, "deep": 24},
+            "false_positive": {"fast": 4, "standard": 6, "deep": 12},
+            "remediation": {"fast": 4, "standard": 6, "deep": 12},
+            "chat": {"fast": 2, "standard": 4, "deep": 10},
+            "compliance": {"fast": 3, "standard": 5, "deep": 10},
+            "attack_chain": {"fast": 6, "standard": 8, "deep": 16},
+            "version_comparison": {"fast": 4, "standard": 6, "deep": 12},
+            "context_expansion": {"fast": 2, "standard": 4, "deep": 8},
         }
 
-        costs = base_costs.get(task_type, {"haiku": 2, "sonnet": 4, "opus": 10})
+        costs = base_costs.get(task_type, {"fast": 2, "standard": 4, "deep": 10})
 
         return {
-            "claude-3-haiku": costs["haiku"],
-            "claude-3-sonnet": costs["sonnet"],
-            "claude-3-opus": costs["opus"],
+            llm_config.fast_model: costs["fast"],
+            llm_config.model: costs["standard"],
+            llm_config.deep_model: costs["deep"],
         }
 
     def get_cost_comparison(
@@ -340,11 +344,13 @@ class ComplexityScorer:
                     ),
                 }
 
-        # Calculate potential savings vs always using Opus
-        opus_cost = credits["claude-3-opus"]
-        comparison["potential_savings"] = max(0, opus_cost - recommended_cost)
+        # Calculate potential savings vs always using the deep model
+        from api.llm_config import llm_config
+
+        deep_cost = credits[llm_config.deep_model]
+        comparison["potential_savings"] = max(0, deep_cost - recommended_cost)
         comparison["savings_percent"] = round(
-            (comparison["potential_savings"] / opus_cost * 100) if opus_cost > 0 else 0,
+            (comparison["potential_savings"] / deep_cost * 100) if deep_cost > 0 else 0,
             1,
         )
 
