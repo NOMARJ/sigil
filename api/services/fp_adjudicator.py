@@ -92,7 +92,14 @@ class FPAdjudicator:
             },
         )
 
-        return self._validate(raw)
+        verdict = self._validate(raw)
+        # Rough ~4 chars/token estimates for metering; the raw HTTP path does
+        # not surface the API usage object. Marked as estimates downstream.
+        verdict["_usage"] = {
+            "input_tokens_est": len(prompt) // 4,
+            "output_tokens_est": len(raw) // 4,
+        }
+        return verdict
 
     def _validate(self, raw: str) -> Dict[str, Any]:
         try:

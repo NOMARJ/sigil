@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.database import db
 from api.rate_limit import RateLimiter
-from api.gates import check_scan_quota, get_user_plan, require_plan
+from api.gates import check_scan_quota, get_user_plan, require_llm_access, require_plan
 from api.middleware.tier_check import get_scan_capabilities
 from api.models import (
     DashboardStats,
@@ -885,6 +885,89 @@ async def get_scan_findings(
         except (json.JSONDecodeError, TypeError):
             findings = []
     return findings
+
+
+@router.post(
+    "/scans/{scan_id}/findings/{finding_index}/adjudicate",
+    response_model=dict[str, Any],
+    summary="LLM-adjudicate a single finding (F-009)",
+    responses={
+        401: {"model": ErrorResponse},
+        402: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+    },
+)
+async def adjudicate_finding(
+    scan_id: str,
+    finding_index: int,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    _: Annotated[None, Depends(require_llm_access(4))],
+) -> dict[str, Any]:
+    """Run LLM FP adjudication on one finding and persist the verdict.
+
+    Idempotent: re-adjudication overwrites the finding's previous verdict.
+    """
+    from api.llm_config import llm_config
+    from api.services.credit_service import credit_service
+    from api.services.fp_adjudicator import fp_adjudicator
+    from api.services.llm_service import LLMRefusalError
+
+    row = await _get_scan_or_404(scan_id)
+    findings = row.get("findings_json", [])
+    if isinstance(findings, str):
+        try:
+            findings = json.loads(findings)
+        except (json.JSONDecodeError, TypeError):
+            findings = []
+    if not 0 <= finding_index < len(findings):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Finding index {finding_index} out of range for scan '{scan_id}'",
+        )
+
+    finding = findings[finding_index]
+    code_context = finding.get("code_context") or finding.get("snippet", "")
+
+    try:
+        verdict = await fp_adjudicator.adjudicate(finding, code_context)
+    except LLMRefusalError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "detail": "Adjudication declined by model safety classifiers",
+                "reason": "llm_refusal",
+                "category": e.category,
+            },
+        )
+
+    usage = verdict.pop("_usage", {})
+    finding["adjudication"] = {
+        **verdict,
+        "model": llm_config.deep_model,
+        "adjudicated_at": datetime.utcnow().isoformat(),
+    }
+    await db.update(SCAN_TABLE, {"id": scan_id}, {"findings_json": findings})
+
+    try:
+        await credit_service.record_llm_usage(
+            user_id=current_user.id,
+            model=llm_config.deep_model,
+            input_tokens=usage.get("input_tokens_est", 0),
+            output_tokens=usage.get("output_tokens_est", 0),
+            feature="fp_adjudication",
+            scan_id=scan_id,
+        )
+    except Exception as e:
+        # Metering is best-effort here: the allowance gate already ran, and a
+        # failed deduction must not discard a verdict the user paid tokens for.
+        logger.warning(f"LLM usage metering failed for {current_user.id}: {e}")
+
+    return {
+        "scan_id": scan_id,
+        "finding_index": finding_index,
+        "adjudication": finding["adjudication"],
+    }
 
 
 @dashboard_router.post(

@@ -270,7 +270,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 async def http_exception_handler(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
-    detail = str(exc.detail)
+    # Structured details (dicts — e.g. the 402 allowance denial) pass through
+    # as JSON; stringifying them would flatten the contract to a Python repr.
+    detail = exc.detail if isinstance(exc.detail, dict) else str(exc.detail)
     if exc.status_code == status.HTTP_404_NOT_FOUND and detail == "Not Found":
         detail = "Bad request: not found"
     return JSONResponse(status_code=exc.status_code, content={"detail": detail})

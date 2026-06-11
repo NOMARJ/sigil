@@ -1099,6 +1099,19 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T09:53:23.072Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 57 stories (11/41/20)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -1490,12 +1503,13 @@
 - **Dependencies:** US-103
 
 ### US-107 [F-009]: FP adjudication endpoint wired into scan results
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-107.md`
 - **Scope:** moderate
 - **Goal:** `POST /v1/scans/{id}/findings/{finding_id}/adjudicate` behind `require_llm_access`; verdict persisted in `findings_json` (no schema change); idempotent.
-- **Done when:** `python3 -m pytest api/tests/test_adjudicate_endpoint.py -q` exits 0
-- **Files:** `api/routers/scan.py`, `api/tests/test_adjudicate_endpoint.py`
+- **Done when:** `python3 -m pytest api/tests/test_adjudicate_endpoint.py -q` exits 0 — VERIFIED: 7 passed; full suite 283 passed/0 failed
+- **Files:** `api/routers/scan.py`, `api/tests/test_adjudicate_endpoint.py`, `api/services/fp_adjudicator.py` (`_usage` estimates), `api/main.py` (coupled: http_exception_handler stringified dict details, breaking the approved US-105 402 contract at the app boundary — dicts now pass through as JSON)
 - **Dependencies:** US-105, US-106
+- **Notes:** Refusal→422 `{reason: llm_refusal, category}`, unmetered. Metering best-effort (warn, never discard paid verdict). `_usage` token counts are estimates (~4 chars/token) — raw HTTP path has no usage object.
 
 ### US-108 [F-009]: Modernize finding investigator + explanations
 - **Status:** TODO
