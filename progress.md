@@ -1458,7 +1458,7 @@
 - **Dependencies:** US-101
 
 ### US-103 [F-009]: Refusal handling + Opus 4.8 fallback in llm_service
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — LLMRefusalError typed+terminal (excluded from tenacity retries); deep-model refusal retries once on llm_config.model; partials discarded; anthropic payloads drop temperature/thinking. 5/5 mocked cases; full suite 256 passed/0 failed. Evidence: `.nomark/evidence/US-103.md`
 - **Scope:** complex
 - **Goal:** Fable 5 refusal (pre-output or mid-stream) retries once on `claude-opus-4-8`; fallback refusal → typed error. Fable calls omit `thinking` and sampling params.
 - **Done when:** `python3 -m pytest api/tests/test_llm_refusal_fallback.py -q` exits 0 (4 mocked cases: pre-output refusal, mid-stream refusal, fallback success, fallback refusal)

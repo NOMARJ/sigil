@@ -10,7 +10,12 @@ import logging
 import time
 
 import aiohttp
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from api.llm_config import llm_config
 from api.database import db
@@ -27,6 +32,21 @@ from api.llm_models import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class LLMRefusalError(Exception):
+    """The model's safety classifiers declined the request (stop_reason: refusal).
+
+    Terminal for the request — retrying identical content on the same model
+    will not succeed, so this must never be retried by tenacity.
+    """
+
+    def __init__(self, model: str, category: str | None = None):
+        self.model = model
+        self.category = category
+        super().__init__(
+            f"LLM refusal on {model}" + (f" (category: {category})" if category else "")
+        )
 
 
 class LLMService:
@@ -136,6 +156,7 @@ class LLMService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_not_exception_type(LLMRefusalError),
         reraise=True,
     )
     async def call_llm_api(
@@ -172,11 +193,13 @@ class LLMService:
                 "response_format": {"type": "json_object"},
             }
         elif llm_config.provider == "anthropic":
+            # No sampling params and no thinking config: current-generation
+            # models (Fable 5 / Opus 4.8+) reject temperature/top_p/top_k,
+            # and Fable 5 rejects any explicit thinking configuration.
             payload = {
                 "model": effective_model,
                 "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": llm_config.temperature,
             }
         else:
             raise ValueError(f"Unsupported provider: {llm_config.provider}")
@@ -192,6 +215,23 @@ class LLMService:
             if llm_config.provider in ("openai", "azure"):
                 return result["choices"][0]["message"]["content"]
             elif llm_config.provider == "anthropic":
+                # Check stop_reason BEFORE reading content: a refusal can
+                # arrive pre-output (empty content, unbilled) or mid-stream
+                # (partial content that must be discarded, never returned).
+                if result.get("stop_reason") == "refusal":
+                    category = (result.get("stop_details") or {}).get("category")
+                    if (
+                        effective_model == llm_config.deep_model
+                        and llm_config.model != effective_model
+                    ):
+                        logger.warning(
+                            f"Refusal on {effective_model} (category: {category}); "
+                            f"retrying once on {llm_config.model}"
+                        )
+                        return await self.call_llm_api(
+                            prompt, max_tokens, model=llm_config.model
+                        )
+                    raise LLMRefusalError(effective_model, category)
                 return result["content"][0]["text"]
             else:
                 raise ValueError(f"Unsupported provider: {llm_config.provider}")
