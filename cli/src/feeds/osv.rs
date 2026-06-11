@@ -323,6 +323,8 @@ fn pairs_to_findings(pairs: Vec<(usize, OsvVuln)>, lockfile_path: &str) -> Vec<F
                 line: None,
                 snippet: summary,
                 weight,
+                kev: false,
+                epss: 0.0,
             }
         })
         .collect()

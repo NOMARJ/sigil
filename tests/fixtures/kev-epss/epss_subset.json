@@ -1,0 +1,29 @@
+{
+  "status": "OK",
+  "status-code": 200,
+  "version": "1.0",
+  "access": "public",
+  "total": 3,
+  "offset": 0,
+  "limit": 100,
+  "data": [
+    {
+      "cve": "CVE-2023-32681",
+      "epss": "0.00521",
+      "percentile": "0.73490",
+      "date": "2026-06-10"
+    },
+    {
+      "cve": "CVE-2021-44228",
+      "epss": "0.97565",
+      "percentile": "0.99997",
+      "date": "2026-06-10"
+    },
+    {
+      "cve": "CVE-2023-44487",
+      "epss": "0.51200",
+      "percentile": "0.97103",
+      "date": "2026-06-10"
+    }
+  ]
+}

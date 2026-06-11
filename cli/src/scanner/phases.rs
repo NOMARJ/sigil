@@ -44,6 +44,8 @@ fn make_finding(
         line,
         snippet: snippet.to_string(),
         weight,
+        kev: false,
+        epss: 0.0,
     }
 }
 

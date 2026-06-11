@@ -907,7 +907,14 @@ async fn cmd_scan(
         let osv_findings = feeds::osv::scan_for_osv_findings(path);
         if !osv_findings.is_empty() {
             result.findings.extend(osv_findings);
-            // Recompute score and verdict with the enriched finding set.
+        }
+
+        // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
+        // Best-effort — network/parse failures leave findings unchanged.
+        feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+
+        // Recompute score and verdict with the enriched finding set.
+        if !result.findings.is_empty() {
             result.score = scanner::scoring::calculate_score(&result.findings);
             result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
         }
@@ -2049,6 +2056,8 @@ mod exit_code_tests {
             line: None,
             snippet: String::new(),
             weight: 1,
+            kev: false,
+            epss: 0.0,
         }
     }
 

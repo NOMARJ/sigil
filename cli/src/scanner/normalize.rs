@@ -94,6 +94,8 @@ pub fn inspect_invisible(rel_path: &str, contents: &str) -> Vec<Finding> {
             line,
             snippet: desc.to_string(),
             weight,
+            kev: false,
+            epss: 0.0,
         });
     };
 

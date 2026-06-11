@@ -1,0 +1,47 @@
+{
+  "title": "CISA Known Exploited Vulnerabilities Catalog",
+  "catalogVersion": "2026.06.10",
+  "dateReleased": "2026-06-10T12:00:00.0000000Z",
+  "count": 3,
+  "vulnerabilities": [
+    {
+      "cveID": "CVE-2023-32681",
+      "vendorProject": "Python",
+      "product": "requests",
+      "vulnerabilityName": "Python Requests Library Redirect Exposure",
+      "dateAdded": "2023-06-14",
+      "shortDescription": "Python requests library follows redirects and leaks auth headers to third parties.",
+      "requiredAction": "Apply mitigations per vendor instructions.",
+      "dueDate": "2023-07-05",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "https://github.com/psf/requests/security/advisories/GHSA-j8r2-6x86-q33q",
+      "cwes": ["CWE-200"]
+    },
+    {
+      "cveID": "CVE-2021-44228",
+      "vendorProject": "Apache",
+      "product": "Log4j",
+      "vulnerabilityName": "Apache Log4j2 Remote Code Execution Vulnerability",
+      "dateAdded": "2021-12-10",
+      "shortDescription": "Apache Log4j2 JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP and other JNDI related endpoints.",
+      "requiredAction": "Apply mitigations per vendor instructions.",
+      "dueDate": "2021-12-24",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "https://logging.apache.org/log4j/2.x/security.html",
+      "cwes": ["CWE-917"]
+    },
+    {
+      "cveID": "CVE-2023-44487",
+      "vendorProject": "Various",
+      "product": "HTTP/2",
+      "vulnerabilityName": "HTTP/2 Rapid Reset Attack",
+      "dateAdded": "2023-10-10",
+      "shortDescription": "HTTP/2 protocol contains a flaw that allows for a rapid reset attack.",
+      "requiredAction": "Apply mitigations per vendor instructions.",
+      "dueDate": "2023-10-31",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "",
+      "cwes": ["CWE-400"]
+    }
+  ]
+}

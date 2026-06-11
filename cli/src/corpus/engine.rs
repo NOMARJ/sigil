@@ -129,6 +129,8 @@ pub fn scan_file_with_packs(
                     line: Some(line_num + 1),
                     snippet: format!("{}: {}", rule.description, snippet.trim()),
                     weight,
+                    kev: false,
+                    epss: 0.0,
                 });
             }
         }
@@ -199,6 +201,8 @@ pub fn scan_provenance_with_packs(
                                     line: None,
                                     snippet: format!("{}: {}", rule.description, filename),
                                     weight: default_weight(Phase::Provenance),
+                                    kev: false,
+                                    epss: 0.0,
                                 });
                             }
                         }
@@ -216,6 +220,8 @@ pub fn scan_provenance_with_packs(
                                 line: None,
                                 snippet: format!("{}: {}", rule.description, filename),
                                 weight: 1,
+                                kev: false,
+                                epss: 0.0,
                             });
                         }
                     }
@@ -246,6 +252,8 @@ pub fn scan_provenance_with_packs(
                                         rule.description, filename
                                     ),
                                     weight: 2,
+                                    kev: false,
+                                    epss: 0.0,
                                 });
                             }
                         }
@@ -267,6 +275,8 @@ pub fn scan_provenance_with_packs(
                                         meta.len()
                                     ),
                                     weight: 1,
+                                    kev: false,
+                                    epss: 0.0,
                                 });
                             }
                         }

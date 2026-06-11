@@ -79,6 +79,18 @@ pub struct Finding {
     pub line: Option<usize>,
     pub snippet: String,
     pub weight: u32,
+    /// Whether this advisory appears in the CISA Known Exploited Vulnerabilities catalogue.
+    /// Only set for OSV-derived findings; defaults to false for all other findings.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub kev: bool,
+    /// FIRST EPSS exploit-probability score (0.0–1.0).
+    /// Only set for OSV-derived CVE findings; defaults to 0.0 for all other findings.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub epss: f32,
+}
+
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.0
 }
 
 /// Overall risk classification.
