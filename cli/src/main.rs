@@ -959,6 +959,14 @@ async fn cmd_scan(
             result.findings.extend(prov_findings);
         }
 
+        // Rug-pull check (US-E3→F2): if this path is a previously-approved
+        // quarantine artifact, diff its current content against the pinned
+        // baseline. Drift => Critical RUGPULL-001 and the entry is re-quarantined.
+        let rugpull = check_rugpull_for_path(path, verbose);
+        if !rugpull.is_empty() {
+            result.findings.extend(rugpull);
+        }
+
         // Recompute score and verdict with the enriched finding set.
         if !result.findings.is_empty() {
             result.score = scanner::scoring::calculate_score(&result.findings);
@@ -1418,6 +1426,42 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
             1
         }
     }
+}
+
+/// If `path` is a previously-approved quarantine artifact, diff its current
+/// content against the pinned baseline and re-quarantine on drift. Returns the
+/// rug-pull findings (empty for non-quarantine paths or unchanged content).
+fn check_rugpull_for_path(path: &Path, verbose: bool) -> Vec<scanner::Finding> {
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let entries = match quarantine::list(None) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    for entry in entries {
+        if entry.status != quarantine::QuarantineStatus::Approved {
+            continue;
+        }
+        let entry_path = std::fs::canonicalize(&entry.path).unwrap_or_else(|_| entry.path.clone());
+        if entry_path != target {
+            continue;
+        }
+        let record = match ledger::get(&entry.id) {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
+        let findings = ledger::detect_rugpull(path, &record);
+        if !findings.is_empty() {
+            if let Err(e) = quarantine::requarantine(&entry.id, Some("content drift (RUGPULL-001)")) {
+                if verbose {
+                    eprintln!("rug-pull: re-quarantine of {} failed: {}", entry.id, e);
+                }
+            } else if verbose {
+                eprintln!("rug-pull: {} drifted — re-quarantined", entry.id);
+            }
+        }
+        return findings;
+    }
+    Vec::new()
 }
 
 async fn cmd_ledger(action: LedgerAction) -> i32 {

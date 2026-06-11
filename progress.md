@@ -1307,11 +1307,23 @@
   110 cargo tests pass (6 ledger).
 
 ### US-F2 [F-008]: Rug-pull detection on drift
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** Re-scan of an approved artifact whose content/tool-definitions changed produces a Critical `RUGPULL-001` finding with a diff, and re-quarantines.
 - **Done when:** `cargo test rugpull` passes a postmark-mcp-shaped fixture (benign at approve, BCC-exfil line added in "new version" — SYNTHETIC, modeled on the published Koi Security analysis); unchanged artifact re-scan produces 0 rug-pull findings.
-- **Files:** `cli/src/ledger.rs`, `tests/fixtures/rugpull/`
+- **Files:** `cli/src/ledger.rs`, `cli/src/quarantine.rs`, `cli/src/main.rs`, `tests/fixtures/rugpull/`
+- **Notes:** `ledger::detect_rugpull(dir, baseline)` re-pins current content, compares the
+  `artifact_digest`, and on drift emits one Critical RUGPULL-001 (weight 10) whose snippet lists
+  modified/added/removed counts, a sample of changed files (always surfaces the real code change,
+  e.g. index.js, not just the manifest), and flags watched tool-definition/instruction-file drift.
+  Wired into the scan "all" block via `check_rugpull_for_path`: if the scanned path canonical-matches
+  an Approved quarantine entry with a ledger pin, it diffs and — on drift — calls
+  `quarantine::requarantine` (Approved→Pending, reason "content drift (RUGPULL-001)"). Fixtures are
+  SYNTHETIC and labeled (tests/fixtures/rugpull/README.md). 3 rugpull tests + e2e (isolated HOME):
+  unchanged re-scan 0 findings; v1.0.16 BCC swap → Critical RUGPULL-001 + re-quarantine. 113 tests pass.
+
+### Phase F — COMPLETE (US-F1 + US-F2 DONE 2026-06-11). The quarantine approve/reject UX is now a
+### stateful content-pinning trust ledger with rug-pull detection — ADR-0006's structural moat.
 
 ### Phase G — Unification & honest evaluation (D1)
 

@@ -178,6 +178,25 @@ pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String>
     Ok(result)
 }
 
+/// Re-quarantine an item by flipping an Approved entry back to Pending. Used by
+/// rug-pull detection (US-F2): an approved artifact whose content drifted loses
+/// its trust and must be re-reviewed. No-op (Ok) if already Pending.
+pub fn requarantine(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
+    let mut index = load_index();
+    let entry = index
+        .iter_mut()
+        .find(|e| e.id == id)
+        .ok_or_else(|| format!("quarantine entry '{}' not found", id))?;
+
+    entry.status = QuarantineStatus::Pending;
+    entry.updated_at = Utc::now();
+    entry.reason = reason.map(|r| r.to_string());
+
+    let result = entry.clone();
+    save_index(&index)?;
+    Ok(result)
+}
+
 /// List quarantined items, optionally filtered by status.
 pub fn list(status_filter: Option<&str>) -> Result<Vec<QuarantineEntry>, String> {
     let index = load_index();

@@ -240,6 +240,108 @@ pub fn get(id: &str) -> Option<LedgerRecord> {
     get_in(&ledger_dir(), id)
 }
 
+// ── Rug-pull detection (US-F2) ──────────────────────────────────────────────
+
+use crate::scanner::{Finding, Phase, Severity};
+
+/// Diff the current content of an approved artifact against its pinned baseline.
+/// Any drift in the pinned bytes is a rug-pull signal (ADR-0006): an artifact that
+/// was reviewed-and-approved cannot silently change. Returns a single Critical
+/// `RUGPULL-001` finding describing the diff, or an empty Vec when nothing changed.
+///
+/// Changes to the watched surfaces — MCP tool-definition manifests and instruction
+/// files — are called out explicitly in the diff, because those are the
+/// silent-RCE / prompt-injection vectors the pin exists to guard.
+pub fn detect_rugpull(current_dir: &Path, baseline: &LedgerRecord) -> Vec<Finding> {
+    let current = pin_directory(current_dir, baseline.pin.version.clone());
+    if current.artifact_digest == baseline.pin.artifact_digest {
+        return Vec::new();
+    }
+
+    let mut modified = Vec::new();
+    let mut added = Vec::new();
+    for (path, hash) in &current.files {
+        match baseline.pin.files.get(path) {
+            Some(old) if old != hash => modified.push(path.clone()),
+            None => added.push(path.clone()),
+            _ => {}
+        }
+    }
+    let mut removed: Vec<String> = baseline
+        .pin
+        .files
+        .keys()
+        .filter(|p| !current.files.contains_key(*p))
+        .cloned()
+        .collect();
+    modified.sort();
+    added.sort();
+    removed.sort();
+
+    // Watched surfaces: tool-definition manifests + instruction files, on either
+    // side of the diff (a file can gain or lose that classification).
+    let watched: std::collections::HashSet<&String> = baseline
+        .pin
+        .tool_definitions
+        .iter()
+        .chain(baseline.pin.instruction_files.iter())
+        .chain(current.tool_definitions.iter())
+        .chain(current.instruction_files.iter())
+        .collect();
+    let changed_watched: Vec<String> = modified
+        .iter()
+        .chain(added.iter())
+        .chain(removed.iter())
+        .filter(|f| watched.contains(*f))
+        .cloned()
+        .collect();
+
+    let mut summary = format!(
+        "approved artifact '{}' drifted since {}: {} modified, {} added, {} removed",
+        baseline.source,
+        baseline.approved_at.to_rfc3339(),
+        modified.len(),
+        added.len(),
+        removed.len(),
+    );
+    // Always surface the actual changed files (a code change like an added
+    // exfil line is the real payload, even when a manifest also moved).
+    let changed_sample: Vec<&String> = modified.iter().chain(added.iter()).take(6).collect();
+    if !changed_sample.is_empty() {
+        summary.push_str(&format!(
+            "; changed: {}",
+            changed_sample.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    if !changed_watched.is_empty() {
+        summary.push_str(&format!(
+            "; tool-definition/instruction files changed: {}",
+            changed_watched.join(", ")
+        ));
+    }
+
+    // Point the finding at the highest-signal changed file (a watched surface if
+    // one drifted, else the first modified/added file).
+    let file = changed_watched
+        .first()
+        .or_else(|| modified.first())
+        .or_else(|| added.first())
+        .cloned()
+        .unwrap_or_else(|| ".".to_string());
+
+    vec![Finding {
+        phase: Phase::Provenance,
+        rule: "RUGPULL-001".to_string(),
+        severity: Severity::Critical,
+        file,
+        line: None,
+        snippet: summary,
+        weight: 10,
+        kev: false,
+        epss: 0.0,
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -344,6 +446,74 @@ mod tests {
         assert_eq!(version_from_source("lodash", "npm"), None);
         assert_eq!(version_from_source("requests==2.31.0", "pip"), Some("2.31.0".to_string()));
         assert_eq!(version_from_source("https://github.com/x/y", "git"), None);
+    }
+
+    const RUGPULL_FIXTURES: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/rugpull");
+
+    fn baseline_from(dir: &Path, source: &str) -> LedgerRecord {
+        let entry = fake_entry(dir, source, "npm");
+        let store = temp();
+        record_approval_in(&store, &entry, None).unwrap()
+    }
+
+    #[test]
+    fn rugpull_unchanged_artifact_produces_no_finding() {
+        let v1 = PathBuf::from(RUGPULL_FIXTURES).join("v1-benign");
+        let baseline = baseline_from(&v1, "postmark-mcp@1.0.15");
+        // Re-scan the SAME content that was approved.
+        let findings = detect_rugpull(&v1, &baseline);
+        assert!(
+            findings.is_empty(),
+            "unchanged re-scan must produce zero rug-pull findings, got {:?}",
+            findings.iter().map(|f| &f.snippet).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn rugpull_content_drift_produces_critical_rugpull_001() {
+        let v1 = PathBuf::from(RUGPULL_FIXTURES).join("v1-benign");
+        let v2 = PathBuf::from(RUGPULL_FIXTURES).join("v2-malicious");
+        let baseline = baseline_from(&v1, "postmark-mcp@1.0.15");
+        // The "new version" added a BCC-exfil line to index.js.
+        let findings = detect_rugpull(&v2, &baseline);
+        assert_eq!(findings.len(), 1, "drift must yield exactly one RUGPULL-001");
+        let f = &findings[0];
+        assert_eq!(f.rule, "RUGPULL-001");
+        assert_eq!(f.severity, Severity::Critical);
+        assert_eq!(f.weight, 10);
+        assert!(
+            f.snippet.contains("drifted"),
+            "diff summary must describe the drift: {}",
+            f.snippet
+        );
+        assert!(
+            f.file == "index.js" || f.snippet.contains("index.js"),
+            "the changed file must be identified: file={} snippet={}",
+            f.file,
+            f.snippet
+        );
+    }
+
+    #[test]
+    fn rugpull_flags_changed_tool_definition_surface() {
+        // Approve a server, then change its package.json (tool-definition manifest).
+        let art = temp();
+        write(&art, "package.json", r#"{"name":"x","version":"1.0.0","mcp":{"server":"./s.js"}}"#);
+        write(&art, "s.js", "// safe\n");
+        let baseline = baseline_from(&art, "x@1.0.0");
+
+        let next = temp();
+        write(&next, "package.json", r#"{"name":"x","version":"1.0.0","mcp":{"server":"./evil.js"}}"#);
+        write(&next, "s.js", "// safe\n");
+        let findings = detect_rugpull(&next, &baseline);
+        assert_eq!(findings.len(), 1);
+        assert!(
+            findings[0].snippet.contains("tool-definition/instruction files changed")
+                && findings[0].snippet.contains("package.json"),
+            "tool-definition drift must be called out: {}",
+            findings[0].snippet
+        );
     }
 
     #[test]
