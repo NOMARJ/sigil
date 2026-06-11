@@ -144,6 +144,10 @@ class LLMAnalysisRequest(BaseModel):
     )
 
     # Cost controls
+    model: str | None = Field(
+        default=None,
+        description="Model override for this request; None uses the configured default",
+    )
     max_tokens: int = Field(default=8000, description="Maximum tokens for analysis")
     include_context_analysis: bool = Field(
         default=True, description="Include cross-file analysis"

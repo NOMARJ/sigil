@@ -114,7 +114,9 @@ class LLMService:
         prompt = await self._build_analysis_prompt(request)
 
         # Make API request
-        llm_response = await self.call_llm_api(prompt, request.max_tokens)
+        llm_response = await self.call_llm_api(
+            prompt, request.max_tokens, model=request.model
+        )
 
         # Parse response
         insights = self._parse_llm_insights(llm_response, request)
@@ -171,7 +173,7 @@ class LLMService:
         Args:
             prompt: user-content string for the model.
             max_tokens: completion token cap.
-            model: optional per-call model override (e.g. "claude-3-haiku-20240307").
+            model: optional per-call model override (e.g. "claude-haiku-4-5").
                 When None, falls back to llm_config.model. Threaded through as a
                 parameter — must NOT be implemented by mutating llm_config.model
                 across an await (that pattern races under concurrent coroutines

@@ -1110,6 +1110,10 @@
 - 1: scanner, false-positives, patterns [confidence: 0.8]
 - 2: python, imports, packaging [confidence: 0.7]
 - 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-11T10:03:16.904Z
+**Outcome:** BLOCKED
+**Stories:** 58/82 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
@@ -1512,12 +1516,13 @@
 - **Notes:** Refusal→422 `{reason: llm_refusal, category}`, unmetered. Metering best-effort (warn, never discard paid verdict). `_usage` token counts are estimates (~4 chars/token) — raw HTTP path has no usage object.
 
 ### US-108 [F-009]: Modernize finding investigator + explanations
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-108.md`
 - **Scope:** moderate
 - **Goal:** Both services call through `llm_service` with config-driven models; no hardcoded/retired IDs; routes gated.
-- **Done when:** `python3 -m pytest api/tests -q -k "investigator or explanations"` exits 0; `grep -rn "claude-3-" api/services/finding_investigator.py api/services/explanations.py` empty
-- **Files:** `api/services/finding_investigator.py`, `api/services/explanations.py`
+- **Done when:** `python3 -m pytest api/tests -q -k "investigator or explanations"` exits 0; `grep -rn "claude-3-" api/services/finding_investigator.py api/services/explanations.py` empty — VERIFIED: 9 passed; grep empty; full suite 292 passed/0 failed
+- **Files:** `api/services/finding_investigator.py`, `api/llm_models.py` (+`model` field), `api/services/llm_service.py` (threads request.model), `api/routers/interactive.py` (mechanical: retired default + docstrings), `api/tests/test_finding_investigator.py`
 - **Dependencies:** US-105
+- **Notes:** explanations.py needed nothing (static registry, no LLM). Investigator was non-functional before: `SCAN_COSTS["investigate_finding"]` KeyError, `LLMAnalysisType.VULNERABILITY_ANALYSIS` AttributeError, and the hasattr-guarded config mutation never applied the depth model. Model override now travels with `LLMAnalysisRequest`. Route gating unchanged (require_plan PRO, pre-existing).
 
 ### US-109 [F-009]: Modernize remediation generator + attack-chain tracer
 - **Status:** TODO
