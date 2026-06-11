@@ -129,7 +129,7 @@ class LLMService:
         # Build response
         response = LLMAnalysisResponse(
             analysis_id=analysis_id,
-            model_used=llm_config.model,
+            model_used=request.model or llm_config.model,
             insights=insights,
             context_analysis=context_analysis,
             tokens_used=self._estimate_tokens_used(prompt, llm_response),
@@ -143,6 +143,9 @@ class LLMService:
 
     async def _build_analysis_prompt(self, request: LLMAnalysisRequest) -> str:
         """Build the analysis prompt for the LLM using professional templates."""
+        if request.custom_prompt:
+            return request.custom_prompt
+
         from prompts.security_analysis_prompts import SecurityAnalysisPrompts
 
         # Use the professional prompt builder

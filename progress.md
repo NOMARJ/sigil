@@ -1525,12 +1525,13 @@
 - **Notes:** explanations.py needed nothing (static registry, no LLM). Investigator was non-functional before: `SCAN_COSTS["investigate_finding"]` KeyError, `LLMAnalysisType.VULNERABILITY_ANALYSIS` AttributeError, and the hasattr-guarded config mutation never applied the depth model. Model override now travels with `LLMAnalysisRequest`. Route gating unchanged (require_plan PRO, pre-existing).
 
 ### US-109 [F-009]: Modernize remediation generator + attack-chain tracer
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-109.md`
 - **Scope:** moderate
 - **Goal:** Both call through `llm_service` (attack-chain = deep_model); no retired IDs.
-- **Done when:** `python3 -m pytest api/tests -q -k "remediation or attack_chain"` exits 0
-- **Files:** `api/services/remediation_generator.py`, `api/services/attack_chain_tracer.py`
+- **Done when:** `python3 -m pytest api/tests -q -k "remediation or attack_chain"` exits 0 — VERIFIED: 7 passed/1 skipped; full suite 298 passed/0 failed
+- **Files:** `api/services/remediation_generator.py`, `api/services/attack_chain_tracer.py`, `api/llm_models.py` (+`custom_prompt`), `api/services/llm_service.py` (honours custom_prompt; reports request model), `api/tests/test_remediation_attack_chain.py`
 - **Dependencies:** US-105
+- **Notes:** Both paths were latently broken: remediation used nonexistent `LLMAnalysisType.VULNERABILITY_ANALYSIS`; tracer assigned `custom_prompt` post-construction (Pydantic v2 ValueError → every trace returned the fallback chain). Attack chain now deep_model end-to-end (deduction record + LLM request).
 
 ### US-110 [F-009]: Honest FP-adjudication eval on the F-008 corpus
 - **Status:** TODO
