@@ -55,16 +55,20 @@ SAMPLE_UNLOCK = "infected"
 
 
 def resolve_binary() -> str:
-    """Locate the Rust sigil binary: $SIGIL_BIN, then PATH, then repo default."""
+    """Locate the Rust sigil binary: $SIGIL_BIN, then the repo build, then PATH.
+
+    The repo build outranks PATH on purpose: a stale system install (e.g. an old
+    Homebrew sigil) silently measures the wrong code — discovered when a PATH
+    1.0.4 binary, predating the trust ledger, zeroed out a ledger-warm run."""
     env = os.environ.get("SIGIL_BIN")
     if env and Path(env).is_file():
         return env
-    on_path = shutil.which("sigil")
-    if on_path:
-        return on_path
     repo_default = Path(__file__).resolve().parent.parent / "cli" / "target" / "release" / "sigil"
     if repo_default.is_file():
         return str(repo_default)
+    on_path = shutil.which("sigil")
+    if on_path:
+        return on_path
     sys.exit(
         "error: sigil binary not found. Build it (`cd cli && cargo build --release`) "
         "or set SIGIL_BIN."
@@ -154,12 +158,16 @@ def extract_zip(zip_path: Path, dest: Path) -> bool:
         return False
 
 
-def scan_dir(binary: str, target: Path) -> SampleResult:
-    """Run the static scanner on an extracted sample and reduce to max severity."""
+def scan_dir(binary: str, target: Path, env: dict | None = None) -> SampleResult:
+    """Run the static scanner on an extracted sample and reduce to max severity.
+
+    `env` overrides the subprocess environment (the ledger-warm pass points HOME
+    at a hermetic directory so the scanner reads the eval's ledger, never the
+    operator's real ~/.sigil)."""
     try:
         proc = subprocess.run(
             [binary, "scan", str(target), "--no-cache", "--phases", DETECTION_PHASES, "--format", "json"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, env=env,
         )
     except subprocess.TimeoutExpired:
         return SampleResult(str(target), None, 0, error="scan timeout")
@@ -181,7 +189,7 @@ def scan_dir(binary: str, target: Path) -> SampleResult:
     return SampleResult(str(target), max_sev.get("severity"), len(findings))
 
 
-def evaluate_set(binary: str, zips: list[Path]) -> list[SampleResult]:
+def evaluate_set(binary: str, zips: list[Path], env: dict | None = None) -> list[SampleResult]:
     results: list[SampleResult] = []
     total = len(zips)
     for i, z in enumerate(zips, 1):
@@ -191,16 +199,81 @@ def evaluate_set(binary: str, zips: list[Path]) -> list[SampleResult]:
             if not extract_zip(z, dest):
                 results.append(SampleResult(str(z), None, 0, error="extract failed"))
             else:
-                results.append(scan_dir(binary, dest))
+                results.append(scan_dir(binary, dest, env=env))
         if i % 50 == 0 or i == total:
             print(f"  scanned {i}/{total}", file=sys.stderr)
     return results
 
 
-def evaluate_control(binary: str, control_path: Path) -> list[SampleResult]:
+def evaluate_control(binary: str, control_path: Path, env: dict | None = None) -> list[SampleResult]:
     """Scan each immediate subdirectory of control_path as one clean package."""
     pkgs = sorted(p for p in control_path.iterdir() if p.is_dir())
-    return [scan_dir(binary, p) for p in pkgs]
+    return [scan_dir(binary, p, env=env) for p in pkgs]
+
+
+# ── Ledger-warm pass (F-010 US-H3) ──────────────────────────────────────────
+
+def setup_warm_ledger(binary: str, control_path: Path) -> tuple[Path, dict, int]:
+    """Approve every control package into a hermetic trust ledger.
+
+    Creates a temp HOME, registers each control package as a quarantine entry,
+    and runs the REAL ``sigil approve`` so the ledger pins are produced by the
+    production code path (no synthetic pins). Returns (warm_home, env for
+    subprocesses, approved_count). The operator's real ~/.sigil is never read
+    or written: `dirs::home_dir()` in the scanner respects $HOME on unix.
+    """
+    warm_home = Path(tempfile.mkdtemp(prefix="sigil-ledger-warm-"))
+    qdir = warm_home / ".sigil" / "quarantine"
+    qdir.mkdir(parents=True)
+
+    pkgs = sorted(p for p in control_path.iterdir() if p.is_dir())
+    now = datetime.now(timezone.utc).isoformat()
+    entries = []
+    for i, pkg in enumerate(pkgs):
+        source_type = "npm" if pkg.name.startswith("npm-") else "pip"
+        entries.append({
+            "id": f"ctl{i:04d}",
+            "source": pkg.name,
+            "source_type": source_type,
+            "path": str(pkg.resolve()),
+            "status": "Pending",
+            "created_at": now,
+            "updated_at": now,
+            "reason": None,
+            "scan_score": None,
+        })
+    (qdir / "index.json").write_text(json.dumps(entries, indent=2))
+
+    env = {**os.environ, "HOME": str(warm_home)}
+    approved = 0
+    for e in entries:
+        proc = subprocess.run(
+            [binary, "approve", e["id"], "--reason", "eval control set (known good)"],
+            capture_output=True, text=True, timeout=120, env=env,
+        )
+        if proc.returncode == 0 and "pinned" in proc.stdout:
+            approved += 1
+        else:
+            print(f"warning: approve failed for {e['source']}: {proc.stderr.strip()}",
+                  file=sys.stderr)
+    return warm_home, env, approved
+
+
+def per_sample_drift(cold: list[SampleResult], warm: list[SampleResult],
+                     labels: list[str]) -> list[dict]:
+    """Samples whose detection outcome changed between cold and warm passes
+    (paired by position — both passes use the same deterministic order). Any
+    entry here means ledger suppression leaked to non-approved content — a
+    release blocker, reported verbatim."""
+    drift = []
+    for label, c, w in zip(labels, cold, warm):
+        if (c.max_severity, c.finding_count) != (w.max_severity, w.finding_count):
+            drift.append({
+                "sample": label,
+                "cold": {"max_severity": c.max_severity, "findings": c.finding_count},
+                "warm": {"max_severity": w.max_severity, "findings": w.finding_count},
+            })
+    return drift
 
 
 @dataclass
@@ -218,6 +291,8 @@ class Report:
     control_flagged: dict = field(default_factory=dict)
     precision: dict = field(default_factory=dict)
     notes: list = field(default_factory=list)
+    # Ledger-warm pass (F-010 US-H3). Empty unless --ledger-warm was given.
+    ledger_warm: dict = field(default_factory=dict)
 
 
 def build_report(binary: str, dataset_path: Path, fingerprint: str,
@@ -288,6 +363,61 @@ def build_report(binary: str, dataset_path: Path, fingerprint: str,
     return report
 
 
+def add_ledger_warm(report: Report, approved: int,
+                    control_cold: list[SampleResult], control_warm: list[SampleResult],
+                    control_labels: list[str],
+                    mal_cold: list[SampleResult], mal_warm: list[SampleResult],
+                    mal_labels: list[str]) -> None:
+    """Attach the ledger-warm measurement (F-010 US-H3) to the report.
+
+    The warm control FP collapse is TRUE BY CONSTRUCTION (exact-digest
+    suppression of operator-approved content) — it measures the workflow, not
+    detector precision. The real assertions are the two drift lists: recall
+    must be per-sample identical (suppression must not leak to non-approved
+    content) and approved control packages must actually suppress."""
+    warm_flagged = {}
+    for t in THRESHOLDS:
+        flagged = sum(1 for r in control_warm if r.detected_at(t))
+        warm_flagged[t] = {
+            "flagged": flagged,
+            "total": len(control_warm),
+            "fp_rate": round(flagged / len(control_warm), 4) if control_warm else None,
+        }
+
+    recall_drift = per_sample_drift(mal_cold, mal_warm, mal_labels)
+    control_drift = per_sample_drift(control_cold, control_warm, control_labels)
+
+    report.ledger_warm = {
+        "control_approved_into_ledger": approved,
+        "control_flagged_cold": report.control_flagged,
+        "control_flagged_warm": warm_flagged,
+        "recall_delta": len(recall_drift),
+        "recall_drift_samples": recall_drift,
+        "control_outcome_changes": len(control_drift),
+    }
+
+    report.notes.append(
+        "LEDGER-WARM FP IS TRUE BY CONSTRUCTION: the warm pass approves the clean "
+        f"control set into a hermetic trust ledger ({approved} packages pinned via the "
+        "real `sigil approve`) and re-scans. Exact-digest suppression of "
+        "operator-approved content then suppresses their findings by definition. The "
+        "warm FP rate measures the F-010 allowlisting WORKFLOW, not detector "
+        "precision — the cold FP rate remains the headline detector metric."
+    )
+    if recall_drift:
+        report.notes.append(
+            f"RELEASE BLOCKER: {len(recall_drift)} malicious sample(s) changed detection "
+            "outcome between cold and warm passes — ledger suppression leaked to "
+            "non-approved content. See ledger_warm.recall_drift_samples."
+        )
+    else:
+        report.notes.append(
+            "Recall integrity: all malicious samples produced per-sample identical "
+            "(max_severity, finding_count) results in cold and warm passes — ledger "
+            "suppression did not leak to non-approved content (recall_delta: 0)."
+        )
+
+
 def write_outputs(report: Report, out_dir: Path, sample_limit: int | None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "honest_detection_eval.json"
@@ -342,6 +472,29 @@ def write_outputs(report: Report, out_dir: Path, sample_limit: int | None) -> No
             prec_s = "n/a" if prec is None else f"{prec*100:.2f}%"
             lines.append(f"| >= {t} | {c['flagged']} | {c['total']} | {fp} | {prec_s} |")
 
+    if report.ledger_warm:
+        lw = report.ledger_warm
+        lines += [
+            "",
+            "## Ledger-warm pass (F-010 trust-ledger allowlisting)",
+            "",
+            f"Control set approved into a hermetic ledger: {lw['control_approved_into_ledger']} packages.",
+            "",
+            "| Threshold | FP rate (cold) | FP rate (warm, ledger-approved) |",
+            "|-----------|----------------|--------------------------------|",
+        ]
+        for t in THRESHOLDS:
+            cold_r = lw["control_flagged_cold"][t]["fp_rate"]
+            warm_r = lw["control_flagged_warm"][t]["fp_rate"]
+            cold_s = "n/a" if cold_r is None else f"{cold_r*100:.2f}%"
+            warm_s = "n/a" if warm_r is None else f"{warm_r*100:.2f}%"
+            lines.append(f"| >= {t} | {cold_s} | {warm_s} |")
+        lines += [
+            "",
+            f"Recall integrity check: recall_delta = {lw['recall_delta']} "
+            "(malicious samples whose per-sample outcome changed cold→warm; must be 0).",
+        ]
+
     if report.notes:
         lines += ["", "## Notes", ""] + [f"- {n}" for n in report.notes]
 
@@ -390,7 +543,14 @@ def main() -> int:
                          "Omit to use every available sample.")
     ap.add_argument("--control-path", type=Path, default=None,
                     help="dir whose immediate subdirs are extracted clean packages")
+    ap.add_argument("--ledger-warm", action="store_true",
+                    help="F-010: after the cold passes, approve the control set into a "
+                         "hermetic trust ledger and re-scan both sets to measure "
+                         "allowlist suppression (warm FP) and recall integrity")
     args = ap.parse_args()
+
+    if args.ledger_warm and not args.control_path:
+        sys.exit("error: --ledger-warm requires --control-path")
 
     binary = resolve_binary()
     dataset_path = args.dataset_path.resolve()
@@ -416,6 +576,23 @@ def main() -> int:
                   file=sys.stderr)
 
     report = build_report(binary, dataset_path, fingerprint, mal_results, control_results)
+
+    if args.ledger_warm and control_results is not None:
+        cp = args.control_path.resolve()
+        print("ledger-warm: approving control set into hermetic ledger", file=sys.stderr)
+        warm_home, warm_env, approved = setup_warm_ledger(binary, cp)
+        print(f"ledger-warm: {approved}/{len(control_results)} control packages pinned "
+              f"(HOME={warm_home})", file=sys.stderr)
+        print("ledger-warm: re-scanning control set", file=sys.stderr)
+        control_warm = evaluate_control(binary, cp, env=warm_env)
+        print("ledger-warm: re-scanning malicious set (recall integrity)", file=sys.stderr)
+        mal_warm = evaluate_set(binary, selected, env=warm_env)
+        control_labels = [r.path for r in control_results]
+        mal_labels = [str(z.relative_to(dataset_path)) for z in selected]
+        add_ledger_warm(report, approved, control_results, control_warm, control_labels,
+                        mal_results, mal_warm, mal_labels)
+        shutil.rmtree(warm_home, ignore_errors=True)
+
     archive_old_scorecard(args.out)
     write_outputs(report, args.out, args.limit)
     return 0

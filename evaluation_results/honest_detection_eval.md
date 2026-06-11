@@ -1,6 +1,6 @@
 # Sigil Detection Evaluation — Honest Measurement
 
-_Generated: 2026-06-11T07:00:16.155537+00:00_
+_Generated: 2026-06-11T08:20:18.951390+00:00_
 
 ## Disclosure (mandatory, per CLAUDE.md)
 
@@ -33,10 +33,25 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 | >= High | 14 | 20 | 70.00% | 95.77% |
 | >= Critical | 4 | 20 | 20.00% | 98.12% |
 
+## Ledger-warm pass (F-010 trust-ledger allowlisting)
+
+Control set approved into a hermetic ledger: 20 packages.
+
+| Threshold | FP rate (cold) | FP rate (warm, ledger-approved) |
+|-----------|----------------|--------------------------------|
+| >= any | 85.00% | 0.00% |
+| >= Medium | 80.00% | 0.00% |
+| >= High | 70.00% | 0.00% |
+| >= Critical | 20.00% | 0.00% |
+
+Recall integrity check: recall_delta = 0 (malicious samples whose per-sample outcome changed cold→warm; must be 0).
+
 ## Notes
 
 - PRECISION IS IMBALANCE-DISTORTED: it was computed on 351 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.
 - HIGH FALSE-POSITIVE RATE: 80% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.
+- LEDGER-WARM FP IS TRUE BY CONSTRUCTION: the warm pass approves the clean control set into a hermetic trust ledger (20 packages pinned via the real `sigil approve`) and re-scans. Exact-digest suppression of operator-approved content then suppresses their findings by definition. The warm FP rate measures the F-010 allowlisting WORKFLOW, not detector precision — the cold FP rate remains the headline detector metric.
+- Recall integrity: all malicious samples produced per-sample identical (max_severity, finding_count) results in cold and warm passes — ledger suppression did not leak to non-approved content (recall_delta: 0).
 
 ## Supersedes
 
