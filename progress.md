@@ -1474,7 +1474,7 @@
 - **Dependencies:** US-101
 
 ### US-105 [F-009]: AI-analysis gate dependency — 402 on exhausted free tier
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot, **with documented AC deviation**) — require_llm_access added (owner-approved CHARTER II.5): Pro+ unmetered-pass, free 402 on exhaustion with structured payload. New cases 5/5 green (`SIGIL_RUN_EXTENDED_TESTS=1 ... -k RequireLlmAccess`); default suite 267/0. DEVIATION: whole-file exit-0 unachievable — 8 pre-existing failures at HEAD (stash-verified) wedge the session-scoped event loop for subsequent async tests. Follow-up logged: repair extended tier-gating suite + conftest event_loop migration. Evidence: `.nomark/evidence/US-105.md`
 - **Scope:** moderate
 - **Goal:** `require_llm_access` in `api/gates.py`: Pro/Team pass; free passes while allowance remains; 402 + upgrade payload when exhausted; 401 unauthenticated.
 - **Done when:** `python3 -m pytest api/tests/test_tier_gating.py -q` exits 0 incl. new free-teaser cases

@@ -573,3 +573,96 @@ class TestTierGatingEdgeCases:
                 assert has_access == expected_access, (
                     f"Status {sub_status} should have access={expected_access}"
                 )
+
+
+class TestRequireLlmAccess:
+    """US-105: require_llm_access — free teaser passes, exhausted free 402s, Pro+ never blocked."""
+
+    def _make_user(self, user_id: str):
+        user = MagicMock()
+        user.id = user_id
+        return user
+
+    def _gate(self, credits_required: int = 1):
+        from api.gates import require_llm_access
+
+        factory = require_llm_access(credits_required)
+        return factory
+
+    @pytest.mark.asyncio
+    async def test_free_user_with_allowance_passes(self):
+        from api import gates
+        from api.services.credit_service import credit_service
+
+        gate = self._gate(4)
+        with patch.object(gates, "get_user_plan", return_value=PlanTier.FREE), patch.object(
+            credit_service,
+            "check_llm_allowance",
+            return_value={"allowed": True, "balance": 42},
+        ) as mock_check:
+            result = await gate(current_user=self._make_user("free_1"))
+            assert result is None
+            mock_check.assert_called_once_with("free_1", 4)
+
+    @pytest.mark.asyncio
+    async def test_free_user_exhausted_gets_402(self):
+        from api import gates
+        from api.services.credit_service import credit_service
+
+        denial = {
+            "allowed": False,
+            "reason": "allowance_exhausted",
+            "balance": 0,
+            "credits_required": 4,
+            "reset_date": "2026-07-01T00:00:00",
+            "upgrade_url": "https://www.sigilsec.ai/pricing",
+        }
+        gate = self._gate(4)
+        with patch.object(gates, "get_user_plan", return_value=PlanTier.FREE), patch.object(
+            credit_service, "check_llm_allowance", return_value=denial
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await gate(current_user=self._make_user("free_2"))
+
+        assert exc_info.value.status_code == status.HTTP_402_PAYMENT_REQUIRED
+        detail = exc_info.value.detail
+        assert detail["reason"] == "allowance_exhausted"
+        assert detail["balance"] == 0
+        assert detail["credits_required"] == 4
+        assert detail["reset_date"] == "2026-07-01T00:00:00"
+        assert detail["upgrade_url"].startswith("https://")
+
+    @pytest.mark.asyncio
+    async def test_pro_user_passes_without_allowance_check(self):
+        from api import gates
+        from api.services.credit_service import credit_service
+
+        gate = self._gate()
+        with patch.object(gates, "get_user_plan", return_value=PlanTier.PRO), patch.object(
+            credit_service, "check_llm_allowance"
+        ) as mock_check:
+            result = await gate(current_user=self._make_user("pro_1"))
+            assert result is None
+            mock_check.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_team_user_passes_without_allowance_check(self):
+        from api import gates
+        from api.services.credit_service import credit_service
+
+        gate = self._gate()
+        with patch.object(gates, "get_user_plan", return_value=PlanTier.TEAM), patch.object(
+            credit_service, "check_llm_allowance"
+        ) as mock_check:
+            result = await gate(current_user=self._make_user("team_1"))
+            assert result is None
+            mock_check.assert_not_called()
+
+    def test_gate_requires_authentication_dependency(self):
+        """401-unauthenticated comes from get_current_user_unified — assert the wiring."""
+        import inspect
+
+        gate = self._gate()
+        sig = inspect.signature(gate)
+        default = sig.parameters["current_user"].default
+        assert "get_current_user_unified" in repr(default.dependency)
