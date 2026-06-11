@@ -118,9 +118,11 @@ class FalsePositiveAnalyzerService:
         start_time = datetime.utcnow()
 
         try:
-            # Use efficient Haiku model for false positive analysis
-            model = "claude-3-haiku-20240307"
-            credits_cost = SCAN_COSTS["investigate_finding"]
+            # Use the fast model for false positive analysis
+            from api.llm_config import llm_config
+
+            model = llm_config.fast_model
+            credits_cost = SCAN_COSTS["false_positive_check"]
 
             # Check credit availability
             if not await credit_service.has_credits(request.user_id, credits_cost):
@@ -393,15 +395,15 @@ class FalsePositiveAnalyzerService:
         """Call LLM service for analysis."""
         from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 
-        # Create analysis request
+        # Create analysis request — the model override travels with the request
         analysis_request = LLMAnalysisRequest(
             file_contents={"analysis_context": prompt},
-            analysis_types=[LLMAnalysisType.VULNERABILITY_ANALYSIS],
+            analysis_types=[LLMAnalysisType.BEHAVIORAL_PATTERN],
+            model=model,
             max_tokens=2000,
             include_context_analysis=False,
         )
 
-        # Call LLM service (model will be used based on configuration)
         response = await llm_service.analyze_threat(analysis_request)
 
         # Extract response content

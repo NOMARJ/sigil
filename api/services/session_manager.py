@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from ..llm_config import llm_config
 from ..models import Finding
 from ..database import db
 from ..exceptions import UnauthorizedError
@@ -26,7 +27,7 @@ class SessionManager:
         user_id: str,
         scan_id: str,
         findings: List[Finding],
-        model_preference: str = "claude-3-haiku",
+        model_preference: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new interactive session.
@@ -41,6 +42,9 @@ class SessionManager:
             Session information including session_id and share_url
         """
         try:
+            if model_preference is None:
+                model_preference = llm_config.fast_model
+
             # Generate unique session ID and share token
             session_id = str(uuid4())[:16]
             share_token = str(uuid4())

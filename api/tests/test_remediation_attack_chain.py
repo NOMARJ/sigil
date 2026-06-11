@@ -56,6 +56,20 @@ class TestNoRetiredModelIds:
         assert "claude-3" not in source
         assert "gpt-4" not in source and "gpt-3" not in source
 
+    def test_no_retired_ids_anywhere_in_api(self):
+        """Feature-level guard (F-009): no retired model IDs in non-test code."""
+        offenders: list[str] = []
+        for sub in ("services", "routers", "."):
+            base = API_DIR / sub if sub != "." else API_DIR
+            for path in sorted(base.glob("*.py")):
+                source = path.read_text()
+                if any(
+                    retired in source
+                    for retired in ("claude-3", "claude-2", "gpt-4", "gpt-3")
+                ):
+                    offenders.append(str(path.relative_to(API_DIR)))
+        assert offenders == [], f"retired model IDs found in: {offenders}"
+
 
 class TestRemediationModel:
     @pytest.mark.asyncio

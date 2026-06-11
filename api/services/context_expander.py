@@ -340,6 +340,11 @@ class ContextExpander:
             for f in original_findings
         ]
 
+        # Fast model for context expansion (cheaper); the override travels
+        # with the request — `model_override` was never a request field, so
+        # the old attribute assignment raised and the override never applied.
+        from api.llm_config import llm_config
+
         analysis_request = LLMAnalysisRequest(
             file_contents=expanded_context,
             static_findings=static_findings,
@@ -348,14 +353,11 @@ class ContextExpander:
                 LLMAnalysisType.CONTEXTUAL_CORRELATION,
                 LLMAnalysisType.BEHAVIORAL_PATTERN,
             ],
+            model=llm_config.fast_model,
             max_insights=10,
             include_context_analysis=True,
         )
 
-        # Use Haiku for context expansion (cheaper)
-        analysis_request.model_override = "claude-3-haiku-20240307"
-
-        # Perform re-analysis
         response = await llm_service.analyze_threat(analysis_request)
 
         # Update original findings based on new insights
