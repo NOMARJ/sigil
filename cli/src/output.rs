@@ -210,9 +210,12 @@ fn format_severity(severity: Severity) -> String {
 /// Print a summary with scan statistics.
 pub fn print_scan_summary(result: &ScanResult, format: &str) {
     if format == "json" {
+        // Scalars only: scripts/run_eval.py locates the findings array by the
+        // first `[` in stdout, so this object must never contain an array.
         let summary = serde_json::json!({
             "files_scanned": result.files_scanned,
             "findings_count": result.findings.len(),
+            "suppressed_count": result.suppressed_findings.len(),
             "score": result.score,
             "verdict": format!("{}", result.verdict),
             "duration_ms": result.duration_ms,

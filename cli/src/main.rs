@@ -115,6 +115,11 @@ enum Commands {
         /// (low, medium, high, critical). Default: high.
         #[arg(long, default_value = "high")]
         fail_on: String,
+
+        /// Disable trust-ledger allowlisting (report findings even when the
+        /// content digest-matches an approved ledger pin)
+        #[arg(long)]
+        ignore_ledger: bool,
     },
 
     /// Clear all cached scan results
@@ -442,6 +447,7 @@ async fn main() {
             enrich,
             enhanced,
             fail_on,
+            ignore_ledger,
         } => {
             cmd_scan(
                 &path,
@@ -452,6 +458,7 @@ async fn main() {
                 enrich,
                 enhanced,
                 &fail_on,
+                ignore_ledger,
                 &cli.format,
                 cli.verbose,
             )
@@ -842,6 +849,37 @@ fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severit
     }
 }
 
+/// Shared scan output: summary, findings, verdict, plus the ledger-suppression
+/// attribution when active. In JSON mode the suppression object is emitted
+/// AFTER the findings array, so consumers that parse the first array in the
+/// stream (e.g. scripts/run_eval.py) see only active findings.
+fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
+    if format == "sarif" {
+        output::print_scan_sarif(result, &path.to_string_lossy());
+        return;
+    }
+    output::print_scan_summary(result, format);
+    output::print_findings(&result.findings, format);
+    if let Some(by) = &result.suppressed_by {
+        if format == "json" {
+            let obj = serde_json::json!({
+                "suppressed_by": by,
+                "suppressed_findings": result.suppressed_findings,
+            });
+            println!("{}", serde_json::to_string_pretty(&obj).unwrap_or_default());
+        } else {
+            println!(
+                "  {} {} finding{} suppressed by ledger approval ({})",
+                "[*]".green(),
+                result.suppressed_findings.len(),
+                if result.suppressed_findings.len() == 1 { "" } else { "s" },
+                by
+            );
+        }
+    }
+    output::print_verdict(&result.verdict, format);
+}
+
 async fn cmd_scan(
     path: &Path,
     phases: &str,
@@ -851,6 +889,7 @@ async fn cmd_scan(
     enrich: bool,
     enhanced: bool,
     fail_on: &str,
+    ignore_ledger: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
@@ -892,11 +931,12 @@ async fn cmd_scan(
 
     // Try loading from cache
     if use_cache {
-        if let Some(cached) = cache::load_cached(path) {
+        if let Some(mut cached) = cache::load_cached(path) {
             println!("{} using cached result", "sigil:".bold().green(),);
-            output::print_scan_summary(&cached, format);
-            output::print_findings(&cached.findings, format);
-            output::print_verdict(&cached.verdict, format);
+            // Re-evaluate ledger suppression against the CURRENT ledger: a pin
+            // approved or revoked since the cache was written must take effect.
+            ledger::apply_suppression(&mut cached, path, ignore_ledger);
+            print_scan_output(&cached, path, format);
             return exit_for(&cached.findings);
         } else if verbose {
             eprintln!("no cache entry found, scanning fresh");
@@ -974,13 +1014,20 @@ async fn cmd_scan(
         }
     }
 
-    if format == "sarif" {
-        output::print_scan_sarif(&result, &path.to_string_lossy());
-    } else {
-        output::print_scan_summary(&result, format);
-        output::print_findings(&result.findings, format);
-        output::print_verdict(&result.verdict, format);
+    // Trust-ledger allowlisting (F-010 US-H2): content that digest-matches an
+    // approved pin has its findings suppressed — moved out of score, verdict,
+    // and exit code, but kept visible in the output. Runs after every phase
+    // and feed so a RUGPULL-001 drift signal can veto suppression.
+    let suppressed = ledger::apply_suppression(&mut result, path, ignore_ledger);
+    if verbose && suppressed {
+        eprintln!(
+            "ledger: {} finding(s) suppressed ({})",
+            result.suppressed_findings.len(),
+            result.suppressed_by.as_deref().unwrap_or("")
+        );
     }
+
+    print_scan_output(&result, path, format);
 
     // Save to cache
     if use_cache {
@@ -1522,6 +1569,17 @@ async fn cmd_reject(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
                 entry.id,
                 entry.source
             );
+            // Revoke any ledger pin (F-010): a rejected artifact must stop
+            // suppressing findings via the allowlist immediately.
+            match ledger::remove(&entry.id) {
+                Ok(true) => println!("  ledger pin revoked"),
+                Ok(false) => {}
+                Err(e) => eprintln!(
+                    "{} rejected but ledger revocation failed: {}",
+                    "warning:".bold().yellow(),
+                    e
+                ),
+            }
             0
         }
         Err(err) => {

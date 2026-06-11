@@ -276,8 +276,60 @@ pub fn remove(id: &str) -> Result<bool, String> {
     remove_in(&ledger_dir(), id)
 }
 
-pub fn match_approved(root: &Path) -> Option<LedgerRecord> {
-    match_approved_in(&ledger_dir(), root)
+// ── Scan-time suppression (F-010 US-H2) ─────────────────────────────────────
+
+use crate::scanner::ScanResult;
+
+/// Apply trust-ledger allowlisting to a scan result (F-010 US-H2).
+///
+/// When the content of `root` digest-matches an approved pin, every finding is
+/// moved to `suppressed_findings` (visible, never dropped) and score/verdict
+/// are recomputed over the now-empty active set. Returns whether suppression is
+/// in effect.
+///
+/// Always begins by restoring any previously-suppressed findings, so cached
+/// results are re-evaluated against the CURRENT ledger — a pin revoked since
+/// the cache was written must restore its findings.
+///
+/// Suppression aborts when:
+/// - `ignore` is set (`--ignore-ledger`),
+/// - content does not exactly match an approved pin (drift ⇒ rug-pull path),
+/// - any RUGPULL-001 finding is present (a drift signal against a path-bound
+///   pin outranks a content match against another record).
+pub fn apply_suppression_in(dir: &Path, result: &mut ScanResult, root: &Path, ignore: bool) -> bool {
+    let restored = !result.suppressed_findings.is_empty();
+    if restored {
+        let mut prior = std::mem::take(&mut result.suppressed_findings);
+        result.findings.append(&mut prior);
+    }
+    result.suppressed_by = None;
+
+    let matched = if ignore || result.findings.iter().any(|f| f.rule == "RUGPULL-001") {
+        None
+    } else {
+        match_approved_in(dir, root)
+    };
+    if let Some(rec) = matched {
+        result.suppressed_findings = std::mem::take(&mut result.findings);
+        result.suppressed_by = Some(format!(
+            "ledger:{}#{} approved {}",
+            rec.source,
+            rec.id,
+            rec.approved_at.format("%Y-%m-%d")
+        ));
+    }
+
+    if restored || result.suppressed_by.is_some() {
+        result.score = crate::scanner::scoring::calculate_score(&result.findings);
+        result.verdict =
+            crate::scanner::scoring::determine_verdict(&result.findings, result.score);
+    }
+    result.suppressed_by.is_some()
+}
+
+/// Default-location wrapper for the CLI.
+pub fn apply_suppression(result: &mut ScanResult, root: &Path, ignore: bool) -> bool {
+    apply_suppression_in(&ledger_dir(), result, root, ignore)
 }
 
 // ── Rug-pull detection (US-F2) ──────────────────────────────────────────────
@@ -622,6 +674,135 @@ mod tests {
         assert!(match_approved_in(&store, &art).is_none(), "revoked pin must not match");
         assert!(get_in(&store, "ledtest1").is_none());
         assert!(!remove_in(&store, "ledtest1").unwrap(), "second remove is a no-op");
+    }
+
+    // ── US-H2: scan-time suppression (F-010) ────────────────────────────────
+
+    fn fake_finding(rule: &str, severity: Severity) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: rule.to_string(),
+            severity,
+            file: "index.js".to_string(),
+            line: Some(1),
+            snippet: "eval(x)".to_string(),
+            weight: 5,
+            kev: false,
+            epss: 0.0,
+        }
+    }
+
+    fn fake_result(findings: Vec<Finding>) -> crate::scanner::ScanResult {
+        let score = crate::scanner::scoring::calculate_score(&findings);
+        let verdict = crate::scanner::scoring::determine_verdict(&findings, score);
+        crate::scanner::ScanResult {
+            findings,
+            score,
+            verdict,
+            files_scanned: 1,
+            duration_ms: 1,
+            suppressed_findings: Vec::new(),
+            suppressed_by: None,
+        }
+    }
+
+    #[test]
+    fn suppression_moves_findings_and_rewrites_verdict() {
+        let art = temp();
+        write(&art, "index.js", "eval(x)\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+
+        let mut result = fake_result(vec![
+            fake_finding("CODE-001", Severity::High),
+            fake_finding("CODE-002", Severity::High),
+        ]);
+        assert!(result.score > 0);
+
+        let applied = apply_suppression_in(&store, &mut result, &art, false);
+        assert!(applied, "exact-match content must suppress");
+        assert!(result.findings.is_empty(), "active findings must be emptied");
+        assert_eq!(result.suppressed_findings.len(), 2, "no silent drops");
+        assert_eq!(result.score, 0);
+        assert_eq!(result.verdict, crate::scanner::Verdict::LowRisk);
+        let by = result.suppressed_by.as_deref().expect("attribution required");
+        assert!(by.contains("good-pkg@1.0.0"), "attribution names the source: {}", by);
+    }
+
+    #[test]
+    fn suppression_skipped_when_ignored() {
+        let art = temp();
+        write(&art, "index.js", "eval(x)\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+
+        let mut result = fake_result(vec![fake_finding("CODE-001", Severity::High)]);
+        let before_score = result.score;
+        let applied = apply_suppression_in(&store, &mut result, &art, true);
+        assert!(!applied);
+        assert_eq!(result.findings.len(), 1);
+        assert_eq!(result.score, before_score);
+        assert!(result.suppressed_by.is_none());
+    }
+
+    #[test]
+    fn suppression_skipped_for_drifted_content() {
+        let art = temp();
+        write(&art, "index.js", "eval(x)\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+        write(&art, "index.js", "eval(x); fetch('http://evil')\n");
+
+        let mut result = fake_result(vec![fake_finding("CODE-001", Severity::High)]);
+        assert!(!apply_suppression_in(&store, &mut result, &art, false));
+        assert_eq!(result.findings.len(), 1, "drifted content keeps its findings");
+    }
+
+    #[test]
+    fn suppression_never_swallows_rugpull_findings() {
+        // Defense in depth: if a RUGPULL-001 is present (e.g. drift against a
+        // different path-bound pin), suppression must abort entirely.
+        let art = temp();
+        write(&art, "index.js", "eval(x)\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+
+        let mut result = fake_result(vec![
+            fake_finding("CODE-001", Severity::High),
+            fake_finding("RUGPULL-001", Severity::Critical),
+        ]);
+        assert!(!apply_suppression_in(&store, &mut result, &art, false));
+        assert_eq!(result.findings.len(), 2, "rug-pull scans are never suppressed");
+        assert!(result.suppressed_by.is_none());
+    }
+
+    #[test]
+    fn cached_suppressed_result_is_reevaluated_against_current_ledger() {
+        // A cached result carries yesterday's suppression; the ledger record has
+        // since been revoked. Re-evaluation must restore the findings.
+        let art = temp();
+        write(&art, "index.js", "eval(x)\n");
+        let store = temp(); // empty ledger == revoked
+
+        let mut result = fake_result(Vec::new());
+        result.suppressed_findings = vec![fake_finding("CODE-001", Severity::High)];
+        result.suppressed_by = Some("ledger:good-pkg@1.0.0#ledtest1".to_string());
+
+        assert!(!apply_suppression_in(&store, &mut result, &art, false));
+        assert_eq!(result.findings.len(), 1, "revoked pin must restore findings");
+        assert!(result.suppressed_findings.is_empty());
+        assert!(result.suppressed_by.is_none());
+        assert!(result.score > 0, "score must be recomputed after restore");
+    }
+
+    #[test]
+    fn scanresult_without_suppression_fields_deserializes() {
+        // Cache backward-compat: pre-F-010 cached JSON has no suppression fields.
+        let old = r#"{"findings":[],"score":0,"verdict":"LowRisk","files_scanned":3,"duration_ms":9}"#;
+        let parsed: crate::scanner::ScanResult =
+            serde_json::from_str(old).expect("old cache entries must still parse");
+        assert!(parsed.suppressed_findings.is_empty());
+        assert!(parsed.suppressed_by.is_none());
     }
 
     #[test]

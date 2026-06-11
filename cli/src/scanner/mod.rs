@@ -122,6 +122,16 @@ pub struct ScanResult {
     pub verdict: Verdict,
     pub files_scanned: usize,
     pub duration_ms: u64,
+    /// Findings suppressed by a trust-ledger approval (F-010). Kept in the
+    /// result — never silently dropped — but excluded from score, verdict, and
+    /// exit code. Suppression is all-or-nothing per artifact (exact-digest
+    /// approval), so attribution lives at result level, not per finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suppressed_findings: Vec<Finding>,
+    /// Attribution for the suppression, e.g. `ledger:lodash@4.17.20#ab12cd34
+    /// approved 2026-06-11`. `None` when nothing is suppressed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suppressed_by: Option<String>,
 }
 
 fn phase_from_name(name: &str) -> Option<Phase> {
@@ -338,6 +348,8 @@ pub fn run_scan(
         verdict,
         files_scanned,
         duration_ms,
+        suppressed_findings: Vec::new(),
+        suppressed_by: None,
     }
 }
 
