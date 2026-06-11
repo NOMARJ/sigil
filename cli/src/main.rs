@@ -6,6 +6,7 @@ mod feeds;
 mod output;
 mod policy;
 mod provider;
+mod provenance;
 mod quarantine;
 mod sandbox;
 mod sbom;
@@ -912,6 +913,18 @@ async fn cmd_scan(
         // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
         // Best-effort — network/parse failures leave findings unchanged.
         feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+
+        // Provenance drift detection (US-E3): detect downgrade, identity-change,
+        // and repo-mismatch for npm and PyPI packages against the ledger baseline.
+        // ADR-0007: absence of provenance is never a finding. Network failures are
+        // handled gracefully — never fatal.
+        let prov_findings = provenance::scan_for_provenance_drift(
+            path,
+            &provenance::ScanOptions::default(),
+        );
+        if !prov_findings.is_empty() {
+            result.findings.extend(prov_findings);
+        }
 
         // Recompute score and verdict with the enriched finding set.
         if !result.findings.is_empty() {
