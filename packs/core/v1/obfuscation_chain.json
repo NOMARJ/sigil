@@ -15,8 +15,13 @@
       "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\([^)]*?(base64\\.(b64decode|decodebytes)|atob)\\s*\\(",
       "description": "Nested Base64 chain decoding — advanced obfuscation technique",
       "suppress": {
-        "path_contains": ["node_modules/"],
-        "file_header_contains": ["typeof define===\"function\"&&define.amd", "typeof module===\"object\"&&module.exports"]
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd",
+          "typeof module===\"object\"&&module.exports"
+        ]
       }
     },
     {
@@ -26,7 +31,9 @@
       "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\(\\s*[\\w\\+\\.\\[\\]]+\\s*\\+\\s*[\\w\\+\\.\\[\\]]+",
       "description": "Base64 decoding with dynamic key construction",
       "suppress": {
-        "path_contains": ["node_modules/"]
+        "path_contains": [
+          "node_modules/"
+        ]
       }
     },
     {
@@ -85,8 +92,12 @@
       "pattern": "(window|global|this|document)\\s*\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|(window|global|this|document)\\s*\\[\\s*\\w+\\s*\\]\\s*\\(",
       "description": "Dynamic property access with string concatenation or variable reference",
       "suppress": {
-        "path_contains": ["node_modules/"],
-        "file_header_contains": ["typeof define===\"function\"&&define.amd"]
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd"
+        ]
       }
     },
     {
@@ -96,14 +107,18 @@
       "pattern": "Function\\s*\\.\\s*constructor\\s*\\(.*\\.join\\s*\\(|new\\s+Function\\s*\\([^)]*\\.join\\s*\\(|new\\s+Function\\s*\\(\\s*[\\w\\[\\]\\.]+\\s*\\+",
       "description": "Dynamic Function constructor with string building",
       "suppress": {
-        "path_contains": ["node_modules/"],
-        "file_header_contains": ["Function('return this')()"]
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "Function('return this')()"
+        ]
       }
     },
     {
       "id": "OBFUSC-CHAIN-012",
       "phase": "obfuscation",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}",
       "description": "Multiple Unicode escape sequences — potential payload encoding"
     },

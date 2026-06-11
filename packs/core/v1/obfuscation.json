@@ -32,7 +32,7 @@
     {
       "id": "OBFUSC-004",
       "phase": "obfuscation",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "String\\.fromCharCode\\s*\\(",
       "description": "String.fromCharCode — character code obfuscation"
     },
@@ -48,14 +48,34 @@
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "\\\\x[0-9a-fA-F]{2}(\\\\x[0-9a-fA-F]{2}){7,}",
-      "description": "Long hex-encoded string (likely obfuscated)"
+      "description": "Long hex-encoded string (likely obfuscated)",
+      "suppress": {
+        "path_contains": [
+          "/docs/",
+          "/tests/",
+          "bench",
+          "example",
+          "fixture",
+          "test"
+        ]
+      }
     },
     {
       "id": "OBFUSC-007",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "0x[0-9a-fA-F]{2}\\s*,\\s*(0x[0-9a-fA-F]{2}\\s*,?\\s*){7,}",
-      "description": "Hex byte array (likely obfuscated payload)"
+      "description": "Hex byte array (likely obfuscated payload)",
+      "suppress": {
+        "path_contains": [
+          "/docs/",
+          "/tests/",
+          "bench",
+          "example",
+          "fixture",
+          "test"
+        ]
+      }
     },
     {
       "id": "OBFUSC-008",

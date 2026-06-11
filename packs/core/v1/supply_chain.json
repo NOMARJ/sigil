@@ -22,7 +22,9 @@
       "pattern": "[\"'][\\^~]?\\d+\\.\\d+\\.\\d+\\s*\\|\\|\\s*[\\^~]?\\d{2,}\\.|>=\\d+\\.\\d+\\.\\d+\\s*<\\d+\\.\\d+\\.\\d+\\s*\\|\\|\\s*>=\\d{2,}",
       "description": "Suspicious version range that could allow hijacking",
       "file_filter": {
-        "filename_exact": ["package.json"]
+        "filename_exact": [
+          "package.json"
+        ]
       }
     },
     {
@@ -32,10 +34,18 @@
       "pattern": "git\\+(ssh|https?)://[^\"'\\s]+#[a-zA-Z][a-zA-Z0-9_/.-]+",
       "description": "Git dependency with non-standard branch reference",
       "file_filter": {
-        "filename_exact": ["package.json", "requirements.txt", "pyproject.toml"]
+        "filename_exact": [
+          "package.json",
+          "requirements.txt",
+          "pyproject.toml"
+        ]
       },
       "suppress": {
-        "line_contains": ["#main", "#master", "#v"]
+        "line_contains": [
+          "#main",
+          "#master",
+          "#v"
+        ]
       }
     },
     {
@@ -52,7 +62,11 @@
       "pattern": "registry.*https?://[^\"'\\s]+|publishConfig.*registry",
       "description": "Non-standard package registry configured",
       "file_filter": {
-        "filename_exact": ["package.json", ".npmrc", "pyproject.toml"]
+        "filename_exact": [
+          "package.json",
+          ".npmrc",
+          "pyproject.toml"
+        ]
       },
       "suppress": {
         "safe_domains": [
@@ -73,11 +87,15 @@
       "id": "SUPPLY-007",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "Module\\._load\\s*=|require\\.cache\\[[^\\]]+\\]\\s*=|module\\.exports\\s*=.*require\\(",
+      "pattern": "Module\\._load\\s*=|require\\.cache\\[[^\\]]+\\]\\s*=|module\\.exports\\s*=.*require\\(\\s*[^\"'\\s)]",
       "description": "Runtime dependency replacement detected",
       "suppress": {
-        "path_contains": ["node_modules/"],
-        "file_header_contains": ["typeof define===\"function\"&&define.amd"]
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd"
+        ]
       }
     },
     {
@@ -87,8 +105,12 @@
       "pattern": "new Function\\([^)]*`|\\$\\{[^}]*eval|template\\s*\\([^)]*\\).*exec",
       "description": "Template literal code injection pattern",
       "suppress": {
-        "path_contains": ["node_modules/"],
-        "file_header_contains": ["typeof define===\"function\"&&define.amd"]
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd"
+        ]
       }
     },
     {

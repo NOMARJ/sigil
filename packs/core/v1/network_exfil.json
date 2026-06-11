@@ -81,7 +81,16 @@
       "phase": "network_exfil",
       "severity": "high",
       "pattern": "socket\\.socket\\s*\\(",
-      "description": "Raw socket creation"
+      "description": "Raw socket creation",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "conftest",
+          "fixture",
+          "test"
+        ]
+      }
     },
     {
       "id": "NET-009",

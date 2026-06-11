@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11T06:18:07.113819+00:00",
+  "generated_at": "2026-06-11T07:00:16.155537+00:00",
   "binary": "/Users/reecefrazier/CascadeProjects/sigil/cli/target/release/sigil",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
   "dataset_commit": "605a7318822117b3b29466747e65db1d582f290c",
@@ -19,47 +19,47 @@
       "rate": 0.9658
     },
     "High": {
-      "detected": 329,
+      "detected": 317,
       "scanned": 351,
-      "rate": 0.9373
+      "rate": 0.9031
     },
     "Critical": {
-      "detected": 216,
+      "detected": 209,
       "scanned": 351,
-      "rate": 0.6154
+      "rate": 0.5954
     }
   },
   "control_total": 20,
   "control_flagged": {
     "any": {
-      "flagged": 20,
+      "flagged": 17,
       "total": 20,
-      "fp_rate": 1.0
+      "fp_rate": 0.85
     },
     "Medium": {
-      "flagged": 19,
+      "flagged": 16,
       "total": 20,
-      "fp_rate": 0.95
+      "fp_rate": 0.8
     },
     "High": {
-      "flagged": 19,
+      "flagged": 14,
       "total": 20,
-      "fp_rate": 0.95
+      "fp_rate": 0.7
     },
     "Critical": {
-      "flagged": 6,
+      "flagged": 4,
       "total": 20,
-      "fp_rate": 0.3
+      "fp_rate": 0.2
     }
   },
   "precision": {
-    "any": 0.9444,
-    "Medium": 0.9469,
-    "High": 0.9454,
-    "Critical": 0.973
+    "any": 0.9524,
+    "Medium": 0.9549,
+    "High": 0.9577,
+    "Critical": 0.9812
   },
   "notes": [
     "PRECISION IS IMBALANCE-DISTORTED: it was computed on 351 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.",
-    "HIGH FALSE-POSITIVE RATE: 95% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise."
+    "HIGH FALSE-POSITIVE RATE: 80% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise."
   ]
 }

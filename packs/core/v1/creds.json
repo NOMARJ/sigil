@@ -62,7 +62,25 @@
       "phase": "credentials",
       "severity": "high",
       "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\"][^'\"]{8,}",
-      "description": "Hardcoded password"
+      "description": "Hardcoded password",
+      "suppress": {
+        "filename_suffix": [
+          ".md",
+          ".rst",
+          ".txt"
+        ],
+        "path_contains": [
+          "/docs/",
+          "README",
+          "__tests__",
+          "example",
+          "examples",
+          "fixture",
+          "readme",
+          "spec",
+          "test"
+        ]
+      }
     },
     {
       "id": "CRED-009",

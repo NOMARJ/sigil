@@ -1372,9 +1372,20 @@
   class-imbalance-distorted (351:20). Surfaced follow-up: FP-NARROWING needed before High can gate
   real installs. Engine resolution gotcha: harness picked homebrew sigil v1.0.4 off PATH first — must
   pin SIGIL_BIN. Samples NOT committed (live in /tmp; raw-CDN fetch, git promisor was unusable).
-- **Follow-up (FP-NARROWING, TODO):** the eval's headline real finding — static phases over-trigger on
-  benign idioms (network calls, base64, env reads, minified code). High recall is real; precision on
-  real-world clean packages is poor. Rule-set FP-narrowing is the highest-value next detection work.
+- **Follow-up (FP-NARROWING, DONE 2026-06-11):** eval-driven rule tuning, measured at every step.
+  Clear rule BUGS fixed (near-zero recall cost): CODE-002 `\bexec\(` matched JS `regex.exec(` →
+  now `(?m)(^|[^.\w])exec\(` (child_process.exec stays covered by CODE-007); SUPPLY-007's
+  `module.exports=…require(` matched every re-export → now requires a DYNAMIC (non-literal) require
+  arg. Redundant generics downgraded to their precise chain-rule equivalents (CODE-010→med [vs
+  OBFUSC-CHAIN-017], OBFUSC-004→med [vs -CHAIN-014], OBFUSC-CHAIN-012→med [vs OBFUSC-008], pickle
+  CODE-004 critical→high [obfuscated form stays critical via -CHAIN-004]). Benign-context suppressions
+  (CRED-008 docs/examples, OBFUSC-006/007 test hex, NET-008 test sockets). **Result: FP@High 95%→70%,
+  FP@Critical 30%→20%, for recall@High 93.7%→90.3% (recall@Medium held 96.6%).** 5 FP-regression
+  tests lock the bug-fixes (118 cargo tests). **Honest limit reached:** the residual 70% FP is
+  GENUINE dual-use patterns (eval/exec/pickle/child_process/private-keys) that popular legit packages
+  (requests/flask/numpy/jinja2) really contain — pattern scanning alone cannot distinguish these from
+  malice. The real discriminators are the precise chain rules + the Phase-F trust ledger (allowlist
+  known-good). Logged as the next structural lever, not a rule-tuning problem.
 
 ### Phase G — COMPLETE (US-G1 + US-G2 + US-G3 DONE 2026-06-11). One Rust detection engine; API and
 ### bash both delegate to it; the fabricated scorecard is retired for a real, reproducible eval.

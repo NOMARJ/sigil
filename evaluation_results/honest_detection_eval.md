@@ -1,6 +1,6 @@
 # Sigil Detection Evaluation — Honest Measurement
 
-_Generated: 2026-06-11T06:18:07.113819+00:00_
+_Generated: 2026-06-11T07:00:16.155537+00:00_
 
 ## Disclosure (mandatory, per CLAUDE.md)
 
@@ -21,22 +21,22 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 |-----------|----------|---------|--------|
 | >= any | 340 | 351 | 96.87% |
 | >= Medium | 339 | 351 | 96.58% |
-| >= High | 329 | 351 | 93.73% |
-| >= Critical | 216 | 351 | 61.54% |
+| >= High | 317 | 351 | 90.31% |
+| >= Critical | 209 | 351 | 59.54% |
 
 ## False-positive rate (clean control flagged) & precision
 
 | Threshold | Flagged | Control | FP rate | Precision |
 |-----------|---------|---------|---------|-----------|
-| >= any | 20 | 20 | 100.00% | 94.44% |
-| >= Medium | 19 | 20 | 95.00% | 94.69% |
-| >= High | 19 | 20 | 95.00% | 94.54% |
-| >= Critical | 6 | 20 | 30.00% | 97.30% |
+| >= any | 17 | 20 | 85.00% | 95.24% |
+| >= Medium | 16 | 20 | 80.00% | 95.49% |
+| >= High | 14 | 20 | 70.00% | 95.77% |
+| >= Critical | 4 | 20 | 20.00% | 98.12% |
 
 ## Notes
 
 - PRECISION IS IMBALANCE-DISTORTED: it was computed on 351 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.
-- HIGH FALSE-POSITIVE RATE: 95% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.
+- HIGH FALSE-POSITIVE RATE: 80% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.
 
 ## Supersedes
 

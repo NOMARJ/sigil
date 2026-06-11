@@ -19,7 +19,7 @@
       "id": "CODE-002",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "\\bexec\\s*\\(",
+      "pattern": "(?m)(^|[^.\\w])exec\\s*\\(",
       "description": "exec() call — arbitrary code execution"
     },
     {
@@ -32,7 +32,7 @@
     {
       "id": "CODE-004",
       "phase": "code_patterns",
-      "severity": "critical",
+      "severity": "high",
       "pattern": "pickle\\.(loads?|Unpickler)",
       "description": "pickle deserialization — arbitrary code execution"
     },
@@ -74,7 +74,7 @@
     {
       "id": "CODE-010",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "__import__\\s*\\(",
       "description": "__import__() — dynamic import"
     },

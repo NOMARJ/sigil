@@ -374,6 +374,52 @@ mod parity_rust {
         assert!(has_rule(&findings, "CODE-004"), "expected CODE-004; got {:?}", findings);
     }
 
+    // FP-narrowing regression guards (eval-driven, 2026-06-11). Each pairs a
+    // benign idiom that must NOT flag with the malicious form that still must.
+
+    #[test]
+    fn fp_code002_regex_exec_method_not_flagged() {
+        // JS RegExp.prototype.exec is a method call, not child_process.exec.
+        let contents = "const match = DATA_URL_PATTERN.exec(str);";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "src/parse.js", "parse.js", contents);
+        assert!(!has_rule(&findings, "CODE-002"), "regex.exec must not flag CODE-002; got {:?}", findings);
+    }
+
+    #[test]
+    fn fp_code002_bare_exec_still_flagged() {
+        let contents = "exec(attacker_controlled_payload)";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "evil.py", "evil.py", contents);
+        assert!(has_rule(&findings, "CODE-002"), "bare exec() must still flag; got {:?}", findings);
+    }
+
+    #[test]
+    fn fp_child_process_exec_still_covered() {
+        // Narrowing CODE-002 is only safe because CODE-007 covers child_process.
+        let contents = "const cp = require('child_process'); cp.exec(cmd);";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "run.js", "run.js", contents);
+        assert!(has_rule(&findings, "CODE-007"), "child_process must still flag CODE-007; got {:?}", findings);
+    }
+
+    #[test]
+    fn fp_supply007_static_reexport_not_flagged() {
+        // Standard barrel/re-export idiom — not a runtime dependency replacement.
+        let contents = "module.exports = require('./common');";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "index.js", "index.js", contents);
+        assert!(!has_rule(&findings, "SUPPLY-007"), "static re-export must not flag SUPPLY-007; got {:?}", findings);
+    }
+
+    #[test]
+    fn fp_supply007_dynamic_require_still_flagged() {
+        let contents = "module.exports = require(decoded_module_path);";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "loader.js", "loader.js", contents);
+        assert!(has_rule(&findings, "SUPPLY-007"), "dynamic require reassignment must still flag; got {:?}", findings);
+    }
+
     // Phase 3 — network exfil
 
     #[test]
