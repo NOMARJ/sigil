@@ -3,8 +3,8 @@
 **PRD:** `tasks/prd-sigil-pro-fable.json`
 **Date:** 2026-06-11
 **Branch:** `feature/sigil-pro-fable`
-**Stories:** 10/12 DONE (1 BLOCKED: US-110; 1 owner-gated: US-112)
-**Result:** PARTIAL — all buildable stories done and verified; the two remaining need owner action
+**Stories:** 11/12 DONE (1 owner-gated: US-112)
+**Result:** PARTIAL — US-110 completed 2026-06-12 after owner restored Anthropic billing; only US-112 (ops verification) remains
 
 ## Acceptance Criteria
 
@@ -19,7 +19,7 @@
 | 7 | US-107 | Adjudicate endpoint: gated, persists to findings_json (no schema change), idempotent, refusal→422 unmetered | `test_adjudicate_endpoint.py` 7 passed | PASS |
 | 8 | US-108 | investigator/explanations config-driven, no retired IDs, routes gated | `-k "investigator or explanations"` 9 passed; grep empty | PASS |
 | 9 | US-109 | remediation=standard model, attack-chain=deep model, no retired IDs | `-k "remediation or attack_chain"` 8 passed/1 skipped | PASS |
-| 10 | US-110 | Honest FP-adjudication eval, real data, both directions, ship/no-ship | — | **BLOCKED** (Anthropic billing) |
+| 10 | US-110 | Honest FP-adjudication eval, real data, both directions, ship/no-ship | 168 real Fable 5 verdicts: FP@High 70%→30%, recall retention 24/25 by verdict; SHIP — `evidence/F-009/fp-adjudication-eval.md` | PASS |
 | 11 | US-111 | sigil explain: API-only (D6), 402→upgrade message, transcript | `cargo test explain` 3+4 passed; `evidence/F-009/US-111-cli-explain.md` | PASS |
 | 12 | US-112 | Ops verification (env snapshot, retention, live smoke) | — | **PENDING** (owner/operator-gated) |
 | 13 | Feature | No retired model IDs anywhere in api non-test code | guard test `test_no_retired_ids_anywhere_in_api` passed; repo grep clean | PASS |
@@ -49,13 +49,12 @@ surfaced and fixed six crashes that had never been exercised by tests:
 5. `analysis_request.model_override =` — same class of crash (context_expander)
 6. `http_exception_handler` stringified dict details — flattened the owner-approved structured 402 contract at the app boundary (main.py)
 
-## Blocked Stories
+## Remaining Stories
 
-- **US-110** (FP-adjudication eval): all prerequisites verified on disk (control set
-  `/tmp/control2`, 568 malicious samples `/tmp/evalset/samples`, sigil 1.2.0, valid
-  `sk-ant…` key). The one real smoke call returned **400 — "Your credit balance is too
-  low to access the Anthropic API"**. Needs Anthropic billing top-up (~US$15–30 estimated
-  for ~200 Fable 5 adjudications) — no measurements fabricated.
+- **US-110**: RESOLVED 2026-06-12 — owner restored billing; eval ran with 168 real
+  Fable 5 verdicts (commit `3f768ce`). First live call also exposed and fixed the
+  thinking-block extraction bug (`e5b340c`): Fable 5 responses lead with a thinking
+  block, so `content[0]["text"]` raised KeyError on every real deep-model response.
 - **US-112** (ops verification): requires live Azure + Anthropic org access (owner/operator).
 
 ## Security

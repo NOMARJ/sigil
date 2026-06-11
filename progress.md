@@ -1449,12 +1449,12 @@
 
 ---
 
-## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — BUILD COMPLETE (PARTIAL) 2026-06-11
+## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — BUILD COMPLETE (PARTIAL) 2026-06-12
 
-> **Status:** 10/12 stories DONE + verified · US-110 BLOCKED (Anthropic billing — see story) · US-112 PENDING (owner/operator-gated)
+> **Status:** 11/12 stories DONE + verified · US-112 PENDING (owner/operator-gated ops verification — the only remaining item)
 > **Feature evidence:** `.nomark/evidence/sigil-pro-fable-complete.md` (AC table, final test runs, latent-bug list)
-> **Final integration run:** api 299 passed/0 failed (baseline 276) · cli 132+4 passed/0 failed (baseline 123)
-> **Resume after billing top-up:** `/autopilot tasks/prd-sigil-pro-fable.json --skip-plan` (US-110 picks up; prerequisites verified on disk)
+> **US-110 headline (2026-06-12):** FP@High 70%→30% (89/89 control verdicts benign), malicious retention 24/25 by verdict, 0 refusals in 168 live Fable 5 calls — SHIP recommendation in `evidence/F-009/fp-adjudication-eval.md`
+> **Final integration run:** api 301 passed/0 failed (baseline 276) · cli 132+4 passed/0 failed (baseline 123)
 > **Created:** 2026-06-11 (planned via /plan_feature; owner approved SOLUTION.md entry + scope same session)
 > **PRD:** `tasks/prd-sigil-pro-fable.json` (status: approved)
 > **Scope decisions (owner, 2026-06-11):** full capability scope (FP adjudication + triage/explanation + CLI + attack-chain) · Fable 5 with Opus 4.8 refusal-fallback, Haiku 4.5 for cheap paths · free-teaser + Pro-unlimited gating
