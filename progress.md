@@ -1332,18 +1332,30 @@
 ### Phase G — Unification & honest evaluation (D1)
 
 ### US-G1 [F-008]: API delegates scanning to the Rust engine
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** `api/services/scanner.py` paths call the Rust binary (subprocess, `--format json`) behind a feature flag; Python rules frozen.
 - **Done when:** `python3 -m pytest api/tests -q` ≥ baseline with flag on; a golden-file test shows API scan response schema unchanged.
-- **Files:** `api/services/scanner.py`, `Dockerfile.api`
+- **Files:** `api/services/scanner.py`, `Dockerfile.api`, `api/tests/test_rust_engine_golden.py`
+- **Notes:** Relayed to worktree agent, INDEPENDENTLY RE-VERIFIED by me (anti-collusion). Flag
+  `SIGIL_RUST_ENGINE` (default OFF). Flag OFF = Python rules unchanged (224 passed ≥ baseline 223);
+  flag ON routes scan_directory→Rust subprocess, maps findings into existing Finding objects (226
+  passed); golden test asserts identical response schema in both modes (3 passed). Python Rule set
+  frozen (untouched). Binary missing + flag ON = raise (no silent fallback). Dockerfile.api: documented
+  TODO block only (binary not yet bundled; flag stays OFF in image). Merged as 20088ae.
 
 ### US-G2 [F-008]: bash CLI delegates to Rust
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** moderate
 - **Goal:** `bin/sigil scan|clone|pip|npm` exec the Rust binary when present (bootstrap-installs it when not); bash pattern phases removed from the scan path.
 - **Done when:** `./bin/sigil scan test-repo; echo $?` returns the Rust exit contract (1) in <10s; `./bin/sigil clone <small-repo>` round-trips quarantine via Rust.
 - **Files:** `bin/sigil`
+- **Notes:** Relayed to worktree agent, INDEPENDENTLY RE-VERIFIED by me: `./bin/sigil scan test-repo`
+  → exit 1 (<10s) emitting real Rust JSON (3 findings), not bash phases. `resolve_rust_bin`: SIGIL_BIN
+  → PATH → cli/target/release → bootstrap-exit (no bash fallback, preserves single-engine ADR-0004).
+  clone/pip/npm + approve/reject/list delegate to Rust → one quarantine store. The agents' exit-2
+  observations were stale-base/homebrew-v1.0.4 binaries; my HEAD binary honors ADR-0010 exit-1 on
+  both cache and fresh paths (verified). Merged as 114794c.
 
 ### US-G3 [F-008]: Honest evaluation harness (replaces the 97.96% lineage)
 - **Status:** DONE (2026-06-11)
@@ -1363,6 +1375,19 @@
 - **Follow-up (FP-NARROWING, TODO):** the eval's headline real finding — static phases over-trigger on
   benign idioms (network calls, base64, env reads, minified code). High recall is real; precision on
   real-world clean packages is poor. Rule-set FP-narrowing is the highest-value next detection work.
+
+### Phase G — COMPLETE (US-G1 + US-G2 + US-G3 DONE 2026-06-11). One Rust detection engine; API and
+### bash both delegate to it; the fabricated scorecard is retired for a real, reproducible eval.
+### F-008 Goal 1 (open-source core hardening) is COMPLETE across Phases A–G.
+
+### F-008 carried-forward follow-ups (not blocking; logged honestly):
+- FP-NARROWING (above) — highest-value next detection work; the honest eval quantified it (95% @High).
+- OSV finding-level dedup (Phase E polish) — same GHSA emits N findings across N lockfile paths.
+- Dockerfile.cli fabricated base digest — documented earlier; same defect class as the BadHost
+  Dockerfile.api fix; not yet remediated.
+- Dockerfile.api: bundle the Rust binary + flip SIGIL_RUST_ENGINE on in-image (US-G1 left a TODO).
+- bin/sigil dead bash phase functions remain defined (only `fetch`/run_full_audit still references
+  them); remove when `fetch` is migrated.
 
 ---
 
