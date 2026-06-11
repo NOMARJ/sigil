@@ -1069,6 +1069,36 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T07:31:31.389Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T07:31:55.171Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-11T07:33:41.733Z
+**Outcome:** BLOCKED
+**Stories:** 48/67 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -1399,6 +1429,39 @@
 - Dockerfile.api: bundle the Rust binary + flip SIGIL_RUST_ENGINE on in-image (US-G1 left a TODO).
 - bin/sigil dead bash phase functions remain defined (only `fetch`/run_full_audit still references
   them); remove when `fetch` is migrated.
+
+---
+
+## Feature: Trust-Ledger Allowlisting (F-010) — GATE 1 APPROVED 2026-06-11
+
+> **PRD:** `tasks/prd-trust-ledger-allowlisting.md` (status: **approved**, operator 2026-06-11)
+> **Plan:** `.nomark/artifacts/plans/trust-ledger-allowlisting-plan.md`
+> **Note:** pre-existing uncommitted changes (`sigil-skill/*`, `.nomark/*` telemetry) are from
+> prior sessions and excluded from F-010 commits via selective staging.
+
+### US-H1: Digest-keyed ledger match API
+- **Status:** TODO (blocked on Gate 1)
+- **Scope:** moderate
+- **Goal:** `ledger::match_approved(path)` computes the ContentPin of a scan target and returns the approved LedgerRecord on exact `artifact_digest` match, distinguishing match vs drift vs none.
+- **Done when:** `cd cli && cargo test ledger::tests` green incl. new tests (digest match; drift signal; rejected/pending never match).
+- **Files:** `cli/src/ledger.rs`
+- **Dependencies:** none
+
+### US-H2: Scan-time suppression + `--ignore-ledger` flag
+- **Status:** TODO (blocked on Gate 1)
+- **Scope:** complex
+- **Goal:** `cmd_scan` suppresses findings (marked `suppressed_by`, excluded from score/verdict) when content digest-matches an approved ledger record; drift never suppresses; flag bypasses.
+- **Done when:** `cd cli && cargo test` green incl. suppression, drift-no-suppress, flag-bypass, and serde tests.
+- **Files:** `cli/src/scanner/mod.rs`, `cli/src/main.rs`, `cli/src/ledger.rs`, `cli/src/scanner/scoring.rs`
+- **Dependencies:** US-H1
+
+### US-H3: Eval ledger-warm mode + honest FP re-measure
+- **Status:** TODO (blocked on Gate 1)
+- **Scope:** moderate
+- **Goal:** `run_eval.py --ledger-warm` measures cold AND warm control FP (warm = control set approved into a hermetic `HOME` ledger); asserts recall delta is zero; report discloses warm FP is true-by-construction workflow suppression, not detector precision.
+- **Done when:** Eval run vs `/tmp/evalset/samples` + `/tmp/control2` completes; JSON has `control_flagged_cold`/`control_flagged_warm`/`recall_delta: 0`; disclosure present.
+- **Files:** `scripts/run_eval.py`, `evaluation_results/`
+- **Dependencies:** US-H2
 
 ---
 

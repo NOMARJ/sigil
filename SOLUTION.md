@@ -154,7 +154,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans repos, p
 |----|------|--------|--------|----------|----------|
 | EP-001 | Scanner v2 — false positive reduction | DONE | Q1 2026 | F-001 | INS-001, PR #84 |
 | EP-002 | Forge stats + registry search optimization | DONE | Q1 2026 | F-002 | Background caching, SQL filtering |
-| EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005, F-007 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
+| EP-003 | Sigil Pro commercial launch | ACTIVE | Q2 2026 | F-003, F-004, F-005, F-007, F-009, F-010 | `docs/plans/2026-05-03-sigil-pro-launch-readiness-first-principles.md` |
 | EP-004 | Brand & Identity System | ACTIVE | Q2 2026 | F-006 | `dashboard/public/brand/Sigil Brand Brief.html` v1.0 |
 
 ---
@@ -309,3 +309,47 @@ Launch-gate umbrella that closes the six blockers in the 2026-06-08 launch-readi
 - [ ] HIGH-001: `cd dashboard && npm audit --audit-level=high --omit=dev` exits 0 after a planned Next.js upgrade (operator-gated)
 - [x] HIGH-002: Rust CLI is verifiable — `cargo test` passes in CI. `rust-cli.yml` on `main` (pinned Rust 1.90.0) → `test result: ok. 6 passed; 0 failed` (run 27110957847, PR #115/#116). Evidence: `evidence/launch-readiness/US-009-rust-verification.md`
 - [ ] Launch-readiness report re-run shows verdict READY with refreshed evidence
+
+---
+
+### F-009 · Sigil Pro Tier + Fable Integration
+
+**Epic:** EP-003
+**Status:** PLANNED (owner-approved 2026-06-11; PRD `tasks/prd-sigil-pro-fable.json`)
+**Started:** —
+**Shipped:** —
+
+**Source:** F-008 Goal 2, unlocked by owner acceptance of `docs/internal/ARCHITECTURE-DECISIONS-2026-06.md` (2026-06-10). Scope decisions recorded 2026-06-11 (this session): full capability scope (FP adjudication, finding triage/explanation, CLI surface, attack-chain narrative), Fable 5 + Opus 4.8 fallback model strategy, free-teaser + Pro-unlimited gating.
+
+**What it delivers:**
+Modernized Anthropic-only LLM layer powering Pro-gated AI analysis. Replaces the broken model plumbing (`llm_config.py` defaults to `gpt-4-turbo`; `model_router.py` pins retired claude-3 models) with current-generation models: `claude-fable-5` for deep analysis with server-side fallback to `claude-opus-4-8` on safety-classifier refusal (Fable 5's cyber classifiers can false-positive on benign security tooling — Sigil's exact domain), `claude-haiku-4-5` for cheap classification. On that foundation: LLM FP adjudication (the structural lever F-008's eval identified — residual 70% FP@High is dual-use patterns scanning alone cannot discriminate), modernized finding triage/explanation/remediation, attack-chain narratives, and a `sigil explain` CLI surface. Gating: free tier gets a small monthly credit allowance; Pro gets full access with fair-use metering on the existing `credit_service`/`tier_check` infrastructure.
+
+**Acceptance criteria (feature level):**
+- [ ] No retired or non-Anthropic model ID remains in active LLM code paths (`grep -rn "gpt-4\|claude-3-" api/services/ api/llm_config.py` clean, excluding comments/tests-as-fixtures)
+- [ ] A refusal (`stop_reason: "refusal"`) on Fable 5 is handled and retried on `claude-opus-4-8` — proven by unit test with mocked refusal response
+- [ ] FP adjudication measurably reduces FP@High on the F-008 eval corpus with recall held — real measurement, disclosed sample size and limitations, no fabricated metrics
+- [ ] Free tier exhausts its credit allowance → 402/upgrade path; Pro tier passes — proven by tier-gating tests
+- [ ] `sigil explain` (Rust CLI) returns an LLM explanation for a finding via the API, with a clear auth/upgrade error for free-tier exhaustion
+- [ ] LLM usage is metered per user and visible via the existing usage-stats path
+- [ ] Capability-minimal constraint (D6) holds: LLM calls are opt-in, outbound only to the Anthropic API, and finding content sent is disclosed in docs
+
+---
+
+### F-010 · Trust-Ledger Allowlisting
+
+**Epic:** EP-003
+**Status:** ACTIVE (owner-approved 2026-06-11; PRD `tasks/prd-trust-ledger-allowlisting.md`)
+**Started:** 2026-06-11
+**Shipped:** —
+
+**Source:** F-008 follow-up. The honest eval (US-G3) showed residual 70% FP@High on clean control packages is dominated by genuine dual-use patterns; progress.md logged the trust ledger allowlist as "the next structural lever, not a rule-tuning problem."
+
+**What it delivers:**
+Scan-time suppression of findings for ledger-approved known-good packages. When scanned content exactly matches an approved `ContentPin.artifact_digest` (recorded by `sigil approve`), findings are marked `suppressed_by` and excluded from score/verdict — visible, auditable, bypassable via `--ignore-ledger`. Drifted content is never suppressed (rug-pull path unchanged). The eval gains a `--ledger-warm` mode measuring cold vs warm FP with a recall-delta-zero assertion.
+
+**Acceptance criteria (feature level):**
+- [ ] Digest-matched approved content → findings suppressed from score/verdict, marked `suppressed_by`, visible in JSON output (no silent drops)
+- [ ] Drifted content never suppressed; RUGPULL-001 unaffected
+- [ ] `--ignore-ledger` restores unsuppressed behavior
+- [ ] Eval `--ledger-warm`: recall byte-identical cold vs warm; warm control FP@High = 0% for digest-matched packages; report discloses warm FP is workflow suppression by construction, not detector precision (cold FP stays headline)
+- [ ] `cd cli && cargo test` green
