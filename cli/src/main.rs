@@ -2,6 +2,7 @@ mod api;
 mod cache;
 mod corpus;
 mod diff;
+mod feeds;
 mod output;
 mod policy;
 mod provider;
@@ -897,7 +898,20 @@ async fn cmd_scan(
         Some(severity)
     };
 
-    let result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+    let mut result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+
+    // OSV advisory feed (US-E1): append CVE/MAL- findings from lockfiles.
+    // Runs whenever a full-phase scan is requested (phases == "all").
+    // Network failures are handled inside scan_for_osv_findings — never fatal.
+    if phases == "all" {
+        let osv_findings = feeds::osv::scan_for_osv_findings(path);
+        if !osv_findings.is_empty() {
+            result.findings.extend(osv_findings);
+            // Recompute score and verdict with the enriched finding set.
+            result.score = scanner::scoring::calculate_score(&result.findings);
+            result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+        }
+    }
 
     if format == "sarif" {
         output::print_scan_sarif(&result, &path.to_string_lossy());
