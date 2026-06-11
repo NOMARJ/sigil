@@ -2,6 +2,7 @@ mod api;
 mod cache;
 mod corpus;
 mod diff;
+mod explain;
 mod feeds;
 mod ledger;
 mod output;
@@ -175,6 +176,20 @@ enum Commands {
         /// API token (if not provided, interactive login is used)
         #[arg(short, long)]
         token: Option<String>,
+
+        /// API endpoint URL
+        #[arg(long, default_value = "https://api.sigilsec.ai")]
+        endpoint: String,
+    },
+
+    /// Explain a scan finding with AI adjudication (Pro feature, server-side)
+    Explain {
+        /// Path to a scan JSON file (from `sigil scan -f json`)
+        scan_json: PathBuf,
+
+        /// Index of the finding to explain
+        #[arg(long, default_value_t = 0)]
+        finding: usize,
 
         /// API endpoint URL
         #[arg(long, default_value = "https://api.sigilsec.ai")]
@@ -482,6 +497,12 @@ async fn main() {
         Commands::Login { token, endpoint } => {
             cmd_login(token.as_deref(), &endpoint, cli.verbose).await
         }
+
+        Commands::Explain {
+            scan_json,
+            finding,
+            endpoint,
+        } => explain::cmd_explain(&scan_json, finding, &endpoint, cli.verbose).await,
 
         Commands::Report {
             hash,

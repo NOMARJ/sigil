@@ -1534,21 +1534,23 @@
 - **Notes:** Both paths were latently broken: remediation used nonexistent `LLMAnalysisType.VULNERABILITY_ANALYSIS`; tracer assigned `custom_prompt` post-construction (Pydantic v2 ValueError → every trace returned the fallback chain). Attack chain now deep_model end-to-end (deduction record + LLM request).
 
 ### US-110 [F-009]: Honest FP-adjudication eval on the F-008 corpus
-- **Status:** TODO
+- **Status:** BLOCKED (2026-06-11, autopilot) — Anthropic account has no API credit
 - **Scope:** complex
 - **Goal:** Real before/after FP@High + recall@High with adjudication applied, on the F-008 eval set (real malicious samples + 20 popular-legit packages). Disclosure block mandatory. Report both directions even if unfavorable.
 - **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production
 - **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.md`
 - **Dependencies:** US-106
 - **Notes:** F-008 eval gotcha carried forward: pin SIGIL_BIN (harness once picked homebrew sigil v1.0.4 off PATH); samples lived in /tmp via raw-CDN fetch. Coordinate with F-010 US-H3 (ledger-warm eval) — separate the two FP levers in reporting.
+- **BLOCKED detail:** All prerequisites verified present: control set `/tmp/control2` (20 pkgs, 117MB), malicious set `/tmp/evalset/samples` (568 extracted dirs), sigil 1.2.0 release binary, FPAdjudicator service, valid `sk-ant…` key (`CLAUDE_SECRET_KEY` in api/.env). One real smoke adjudication attempted 2026-06-11: API returned 400 `invalid_request_error` — "Your credit balance is too low to access the Anthropic API" (req_011CbwJCKmqgu82fsS8oEMFx). Resolution: owner tops up Anthropic billing (estimate ~US$15-30 for ~200 Fable 5 adjudications incl. thinking tokens) or supplies a funded key, then resume with `/autopilot tasks/prd-sigil-pro-fable.json --skip-plan`. No measurements fabricated per CHARTER II.
 
 ### US-111 [F-009]: sigil explain — Rust CLI surface for LLM analysis
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `evidence/F-009/US-111-cli-explain.md`
 - **Scope:** complex
 - **Goal:** `sigil explain <scan-json> [--finding N]` posts the finding to the API with the user's token, renders verdict + rationale; 402 → clear upgrade message; no client-side LLM call (D6).
-- **Done when:** `cargo test --manifest-path cli/Cargo.toml explain` passes; transcript in `evidence/F-009/US-111-cli-explain.md`
-- **Files:** `cli/src/main.rs`, `cli/src/explain.rs`, `cli/tests/explain.rs`
+- **Done when:** `cargo test --manifest-path cli/Cargo.toml explain` passes; transcript in `evidence/F-009/US-111-cli-explain.md` — VERIFIED: 3 unit + 4 integration passed; full CLI suite 132+4 passed/0 failed; transcript captured (real binary, real axios scan, mock API — live e2e blocked with US-110)
+- **Files:** `cli/src/main.rs`, `cli/src/explain.rs`, `cli/tests/explain.rs`, `cli/src/api.rs` (load_token → pub(crate))
 - **Dependencies:** US-107
+- **Notes:** Normalizes CLI→API field mismatches (phase CamelCase→snake_case, severity→UPPER). No new deps (stdlib TcpListener mock). `--finding` long-only (`-f` collides with global `--format`). Follow-up logged: legacy `--submit` ScanResponse expects `id` but API returns `scan_id`.
 
 ### US-112 [F-009]: Ops verification — env, retention, live smoke
 - **Status:** TODO (owner/operator-gated: live Azure + Anthropic org access)
