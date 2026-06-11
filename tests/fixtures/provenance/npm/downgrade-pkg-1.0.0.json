@@ -1,0 +1,8 @@
+{
+  "name": "downgrade-pkg",
+  "version": "1.0.0",
+  "dist": {
+    "tarball": "https://registry.npmjs.org/downgrade-pkg/-/downgrade-pkg-1.0.0.tgz",
+    "shasum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

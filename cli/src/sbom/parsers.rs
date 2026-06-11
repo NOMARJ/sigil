@@ -84,32 +84,23 @@ pub fn parse_requirements_txt(path: &Path) -> Result<Vec<Component>, Box<dyn std
             continue;
         }
 
-        // Handle: package==version, package>=version, package~=version, package!=version, package<=version, package
+        // Only extract a version for pinned constraints (==). Range constraints
+        // (>=, <=, ~=, !=) do not identify a single installed version, so querying
+        // OSV with the bound value would produce false positives. Leave version as
+        // None for ranges so query_osv skips them (no version → no OSV lookup).
         let (name, version) = if let Some(pos) = line.find("==") {
             (
                 line[..pos].trim().to_string(),
                 Some(line[pos + 2..].trim().to_string()),
             )
         } else if let Some(pos) = line.find(">=") {
-            (
-                line[..pos].trim().to_string(),
-                Some(line[pos + 2..].trim().to_string()),
-            )
+            (line[..pos].trim().to_string(), None)
         } else if let Some(pos) = line.find("<=") {
-            (
-                line[..pos].trim().to_string(),
-                Some(line[pos + 2..].trim().to_string()),
-            )
+            (line[..pos].trim().to_string(), None)
         } else if let Some(pos) = line.find("~=") {
-            (
-                line[..pos].trim().to_string(),
-                Some(line[pos + 2..].trim().to_string()),
-            )
+            (line[..pos].trim().to_string(), None)
         } else if let Some(pos) = line.find("!=") {
-            (
-                line[..pos].trim().to_string(),
-                Some(line[pos + 2..].trim().to_string()),
-            )
+            (line[..pos].trim().to_string(), None)
         } else {
             (line.to_string(), None)
         };

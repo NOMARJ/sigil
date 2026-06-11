@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "id": "sigil-core-code-patterns",
+    "name": "Sigil Core — Code Patterns",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects dangerous code execution patterns: eval/exec, pickle, child_process, dynamic imports"
+  },
+  "rules": [
+    {
+      "id": "CODE-001",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "\\beval\\s*\\(",
+      "description": "eval() call — arbitrary code execution"
+    },
+    {
+      "id": "CODE-002",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?m)(^|[^.\\w])exec\\s*\\(",
+      "description": "exec() call — arbitrary code execution"
+    },
+    {
+      "id": "CODE-003",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "\\bcompile\\s*\\(",
+      "description": "compile() call — dynamic code compilation"
+    },
+    {
+      "id": "CODE-004",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "pickle\\.(loads?|Unpickler)",
+      "description": "pickle deserialization — arbitrary code execution"
+    },
+    {
+      "id": "CODE-005",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "marshal\\.(loads?)",
+      "description": "marshal deserialization — code execution risk"
+    },
+    {
+      "id": "CODE-006",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "yaml\\.(unsafe_)?load\\s*\\(",
+      "description": "YAML unsafe load — potential code execution"
+    },
+    {
+      "id": "CODE-007",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "\\bchild_process\\b",
+      "description": "child_process usage — command execution"
+    },
+    {
+      "id": "CODE-008",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "\\bFunction\\s*\\(",
+      "description": "Function constructor — dynamic code execution"
+    },
+    {
+      "id": "CODE-009",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "new\\s+Function\\s*\\(",
+      "description": "new Function() — dynamic code execution"
+    },
+    {
+      "id": "CODE-010",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "__import__\\s*\\(",
+      "description": "__import__() — dynamic import"
+    },
+    {
+      "id": "CODE-011",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "importlib\\.import_module\\s*\\(",
+      "description": "importlib.import_module — dynamic import"
+    },
+    {
+      "id": "CODE-012",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "require\\s*\\(\\s*[^'\"\\s]",
+      "description": "dynamic require() — variable module loading"
+    },
+    {
+      "id": "CODE-013",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "subprocess\\.(call|run|Popen|check_output)\\s*\\(",
+      "description": "subprocess invocation — command execution"
+    },
+    {
+      "id": "CODE-014",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(",
+      "description": "os command execution"
+    },
+    {
+      "id": "CODE-015",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "shell\\s*=\\s*True",
+      "description": "shell=True — shell injection risk"
+    },
+    {
+      "id": "CODE-MCP-001",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "mcp[_-]?server|MCPServer|create_mcp_server",
+      "description": "MCP server creation detected"
+    },
+    {
+      "id": "CODE-MCP-002",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "tool_call|execute_tool|run_tool",
+      "description": "MCP tool execution pattern"
+    },
+    {
+      "id": "CODE-MCP-003",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "allow_dangerous|skip_confirmation|auto_approve.*true",
+      "description": "MCP dangerous permission bypass"
+    }
+  ],
+  "provenance_rules": []
+}

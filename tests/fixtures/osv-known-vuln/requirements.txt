@@ -1,0 +1,4 @@
+# Fixture for US-E1 OSV integration testing.
+# requests 2.19.0 has real CVEs: GHSA-j8r2-6x86-q33q (CVE-2023-32681, redirect leak)
+# This version is intentionally old and vulnerable for test purposes.
+requests==2.19.0

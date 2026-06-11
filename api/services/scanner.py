@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import re
 import json
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -1332,6 +1334,176 @@ def _scan_filename(file_path: str, rules: list[Rule]) -> Iterator[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# Rust engine delegation (ADR-0004 — single detection engine)
+#
+# When SIGIL_RUST_ENGINE is enabled the Python rule set above is FROZEN and
+# bypassed: scanning is delegated to the Rust binary via subprocess and its
+# JSON findings are mapped into the existing ``Finding`` model so the API
+# response schema is unchanged. When the flag is OFF the legacy Python rules
+# run exactly as before.
+# ---------------------------------------------------------------------------
+
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _rust_engine_enabled() -> bool:
+    """Return True when the Rust detection engine should be used."""
+    return os.environ.get("SIGIL_RUST_ENGINE", "").strip().lower() in _TRUTHY
+
+
+def _resolve_rust_binary() -> str | None:
+    """Resolve the path to the Rust ``sigil`` binary.
+
+    Resolution order:
+        1. ``SIGIL_BIN`` environment variable (explicit override).
+        2. ``sigil`` on ``PATH``.
+        3. The release build co-located with this repository
+           (``cli/target/release/sigil``).
+    Returns the resolved path, or ``None`` if no binary can be found.
+    """
+    env_bin = os.environ.get("SIGIL_BIN", "").strip()
+    if env_bin:
+        return env_bin if Path(env_bin).is_file() else None
+
+    on_path = shutil.which("sigil")
+    if on_path:
+        return on_path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    default_bin = repo_root / "cli" / "target" / "release" / "sigil"
+    if default_bin.is_file():
+        return str(default_bin)
+
+    return None
+
+
+# Rust ``Phase`` (serde PascalCase) -> Python ``ScanPhase``.
+_RUST_PHASE_MAP: dict[str, ScanPhase] = {
+    "InstallHooks": ScanPhase.INSTALL_HOOKS,
+    "CodePatterns": ScanPhase.CODE_PATTERNS,
+    "NetworkExfil": ScanPhase.NETWORK_EXFIL,
+    "Credentials": ScanPhase.CREDENTIALS,
+    "Obfuscation": ScanPhase.OBFUSCATION,
+    "Provenance": ScanPhase.PROVENANCE,
+    "PromptInjection": ScanPhase.PROMPT_INJECTION,
+    "SkillSecurity": ScanPhase.SKILL_SECURITY,
+    "InferenceSecurity": ScanPhase.LLM_ANALYSIS,
+}
+
+# Rust ``Severity`` (serde PascalCase) -> Python ``Severity``.
+_RUST_SEVERITY_MAP: dict[str, Severity] = {
+    "Low": Severity.LOW,
+    "Medium": Severity.MEDIUM,
+    "High": Severity.HIGH,
+    "Critical": Severity.CRITICAL,
+}
+
+
+def _extract_findings_array(stdout: str) -> list[dict]:
+    """Extract the findings JSON array from the binary's mixed stdout.
+
+    The Rust binary prints human log lines (``sigil: ...``) plus a summary
+    object, the findings array, and a verdict object — all to stdout. We scan
+    for the first top-level ``[ ... ]`` block and parse it as the findings
+    array. Returns an empty list when no array is present (a clean scan still
+    emits ``[]``).
+    """
+    depth = 0
+    start = -1
+    in_string = False
+    escape = False
+    for i, ch in enumerate(stdout):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "[":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "]":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start != -1:
+                    candidate = stdout[start : i + 1]
+                    try:
+                        parsed = json.loads(candidate)
+                    except json.JSONDecodeError:
+                        start = -1
+                        continue
+                    if isinstance(parsed, list):
+                        return parsed
+                    start = -1
+    return []
+
+
+def _map_rust_finding(raw: dict) -> Finding:
+    """Map one Rust finding JSON object into a Python ``Finding``."""
+    phase = _RUST_PHASE_MAP.get(raw.get("phase", ""), ScanPhase.CODE_PATTERNS)
+    severity = _RUST_SEVERITY_MAP.get(raw.get("severity", ""), Severity.MEDIUM)
+    file_path = raw.get("file", "")
+    line = raw.get("line")
+    confidence = _determine_confidence(raw.get("rule", ""), file_path, severity)
+    return Finding(
+        phase=phase,
+        rule=raw.get("rule", ""),
+        severity=severity,
+        confidence=confidence,
+        file=file_path,
+        line=int(line) if isinstance(line, int) else 0,
+        snippet=str(raw.get("snippet", ""))[:500],
+        weight=float(raw.get("weight", 1.0)),
+        description=str(raw.get("snippet", "")),
+        explanation=get_explanation(raw.get("rule", "")),
+    )
+
+
+def _scan_directory_rust(path: str | Path) -> list[Finding]:
+    """Delegate a directory scan to the Rust binary and map its findings.
+
+    Raises ``RuntimeError`` when the binary is missing (no silent fallback —
+    the caller asked for the Rust engine) or when the scan errors (exit 2 /
+    timeout). Exit codes 0 (clean) and 1 (finding at/above --fail-on) are both
+    valid completions per ADR-0010.
+    """
+    binary = _resolve_rust_binary()
+    if binary is None:
+        raise RuntimeError(
+            "SIGIL_RUST_ENGINE is enabled but the Rust 'sigil' binary could not "
+            "be found. Set SIGIL_BIN to its path, put 'sigil' on PATH, or build "
+            "it with `cd cli && cargo build --release`."
+        )
+
+    try:
+        proc = subprocess.run(
+            [binary, "scan", str(path), "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Rust scan timed out after {exc.timeout}s for path: {path}"
+        ) from exc
+
+    # Exit 2 = scan error; 0 (clean) and 1 (finding present) are valid results.
+    if proc.returncode not in (0, 1):
+        raise RuntimeError(
+            f"Rust scan failed (exit {proc.returncode}) for path: {path}\n"
+            f"stderr: {proc.stderr.strip()}\nstdout: {proc.stdout.strip()[:500]}"
+        )
+
+    raw_findings = _extract_findings_array(proc.stdout)
+    return [_map_rust_finding(raw) for raw in raw_findings]
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -1341,6 +1513,9 @@ def scan_directory(path: str | Path) -> list[Finding]:
 
     Returns a flat list of ``Finding`` objects from all phases.
     """
+    if _rust_engine_enabled():
+        return _scan_directory_rust(path)
+
     root = Path(path)
     if not root.exists():
         return []

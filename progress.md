@@ -999,6 +999,74 @@
 - 1: scanner, false-positives, patterns [confidence: 0.8]
 - 2: python, imports, packaging [confidence: 0.7]
 - 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-10T09:36:04.594Z
+**Outcome:** BLOCKED
+**Stories:** 27/46 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-10
+
+**Start:** 2026-06-10T23:01:00.817Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-10
+
+**Start:** 2026-06-10T23:01:20.024Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-10T23:10:04.071Z
+**Outcome:** BLOCKED
+**Stories:** 35/67 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-10
+
+**Start:** 2026-06-10T23:19:43.109Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-10T23:21:48.557Z
+**Outcome:** BLOCKED
+**Stories:** 35/67 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T04:05:06.213Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 45 stories (11/32/14)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-11T05:17:02.043Z
+**Outcome:** BLOCKED
+**Stories:** 45/67 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
@@ -1068,6 +1136,269 @@
 
 
 
+
+---
+
+## Feature: F-008 Open-Source Core Hardening (Goal 1)
+
+> **Created:** 2026-06-10
+> **Inputs:** Ground-truth audit 2026-06-10 (session) · `docs/internal/THREAT-LANDSCAPE-2026-06.md` · `docs/internal/ARCHITECTURE-DECISIONS-2026-06.md` (D1–D7, PROPOSED)
+> **Gate:** ACCEPTED by owner 2026-06-10 — BUILD unlocked. Decisions promoted to ADR-0004…ADR-0010. Goal 2 (Pro/Fable) also unlocked by the same acceptance (not yet started).
+> **Standing constraints:** capability-minimal (D6 permission test on every story); no fabricated metrics; every AC is a command.
+
+### Phase A — Hygiene & truth
+
+### US-A1 [F-008]: Derive signature counts, never declare them
+- **Status:** DONE (2026-06-10) — `threat_signatures.json` signature_count corrected 247 → 55 (derived); validator covers `threat_signatures.json` + `known_threats.json`. Demonstrated both ways: `python3 scripts/validate_corpus_counts.py` → exit 0 ("OK … 55 entries / 133 entries"); with deliberately falsified count 999 → exit 1 ("FAIL declares 999, contains 55"); restored, green. Wire into CI alongside US-D3.
+- **Scope:** trivial
+- **Goal:** `threat_signatures.json` metadata count is computed from entries; a validator fails CI when any corpus file's declared count ≠ actual.
+- **Done when:** `python3 scripts/validate_corpus_counts.py` exits 0 after fix and exits 1 when a count is deliberately falsified in a temp copy (both demonstrated). Current state: declares 247, contains 55.
+- **Files:** `api/data/threat_signatures.json`, `scripts/validate_corpus_counts.py`
+
+### US-A2 [F-008]: Fix BadHost exposure in Sigil's own API (CVE-2026-48710)
+- **Status:** DONE (2026-06-10, queue-jumped on owner approval) — `starlette==0.49.3 → 1.2.1`, `fastapi==0.128.8 → 0.136.3` (0.128.8 capped starlette <1.0.0). Verified in fresh python3.11 venv (production interpreter): lock installs exit 0; `pytest api/tests -q` → `223 passed, 340 skipped, 0 failed` (340th skip = asyncpg env artifact, diff in evidence). Middleware audit: no path-based auth existed; exposure was content-type-check skip (`security.py:290`) + rate-tier evasion (`rate_limit_enhanced.py:227`), both closed. **Prod deploy DONE 2026-06-10** (owner-approved): built `sigil-api:d4b74d3-badhost` from deployed SHA d4b74d3 + minimal patch; revision sigil-api--0000096 Running @100% traffic, old vulnerable revision deprovisioned; /health 200, investigate 401. Required a 3rd file (Dockerfile.api: dropped a fabricated 40-char base-image digest → floating tag, matching Dockerfile.bot). Evidence: `evidence/F-008/US-A2-badhost-fix.md`, `evidence/F-008/US-A2-deploy.md`.
+- **Scope:** moderate
+- **Goal:** `api/requirements.lock` moves starlette 0.49.3 → ≥1.0.1 (with whatever FastAPI bump that requires); middleware path checks audited for `request.url.path` auth decisions.
+- **Done when:** `grep starlette== api/requirements.lock` shows ≥1.0.1; `python3 -m pytest api/tests -q` ≥ current baseline (223 passed/0 failed); `grep -rn "url.path" api/middleware/` output reviewed in evidence file.
+- **Files:** `api/requirements.txt`, `api/requirements.lock`, `evidence/F-008/US-A2-badhost-fix.md`
+- **Notes:** Sigil's threat-model anchor CVE must not be live in Sigil's own stack. Deploy via established `az acr build` + `containerapp update` flow (owner-gated for prod).
+
+### Phase B — Scanner mechanics (D5)
+
+### US-B1 [F-008]: Walker exclusions, ignore files, parallel traversal
+- **Status:** DONE (2026-06-10) — ignore::WalkBuilder + rayon; self-scan `real 2.18s` (was >30min), 1170 files; hard-excludes + .sigilignore + tarball-safe .gitignore. Tests: 4 walker tests pass. Evidence: evidence/F-008/phase-B-scanner-mechanics.md
+- **Scope:** moderate
+- **Goal:** Rust scanner respects `.gitignore`/`.sigilignore` + hard default excludes (node_modules, .git, target, dist, .next); rayon-parallel file scan.
+- **Done when:** `time ./cli/target/release/sigil scan .` on the Sigil repo completes in <60s (today: did not finish in 30min, debug build); `cargo test` passes with new walker tests.
+- **Files:** `cli/src/scanner/mod.rs`, `cli/Cargo.toml`
+
+### US-B2 [F-008]: Unicode normalization pass (PUA / bidi / zero-width)
+- **Status:** DONE (2026-06-10) — scanner/normalize.rs; UNICODE-001/002/003 (PUA/bidi/zero-width), High in instruction files; normalize_for_matching de-cloaks before pattern phases; emoji ZWJ preserved. 6 unicode tests pass incl. clean-CJK negative control. Evidence: evidence/F-008/phase-B-scanner-mechanics.md
+- **Scope:** moderate
+- **Goal:** Pre-match normalization layer; invisible chars in instruction files (SKILL.md, CLAUDE.md, .cursorrules, tool descriptions) are themselves a High finding (GlassWorm / Rules-File-Backdoor tradecraft).
+- **Done when:** `cargo test unicode` passes against fixtures containing PUA-encoded payloads, bidi-reversed strings, and zero-width-joiner injection (fixtures labeled SYNTHETIC per disclosure format); a clean file with legitimate CJK/emoji produces 0 findings.
+- **Files:** `cli/src/scanner/normalize.rs` (new), `tests/fixtures/unicode/`
+
+### US-B3 [F-008]: Context suppression — kill the .d.ts false-positive class
+- **Status:** DONE (2026-06-10) — scanner/context.rs is_declaration_file; scan_code_patterns early-returns for .d.ts/.pyi. test-repo: 3 findings all malicious.js, types.d.ts now 0 (was 4 of 7). Evidence: evidence/F-008/phase-B-scanner-mechanics.md
+- **Scope:** moderate
+- **Goal:** Declaration files, type stubs, and Python's proven suppression contexts (UMD/polyfill/webpack preambles) stop producing code-execution findings.
+- **Done when:** `./cli/target/release/sigil scan test-repo --format json` reports 0 CodePatterns findings for `types.d.ts` while `malicious.js` findings are unchanged (today: 4 of 7 findings are .d.ts declarations).
+- **Files:** `cli/src/scanner/phases.rs`, `cli/src/scanner/context.rs` (new)
+
+### US-B4 [F-008]: Honest fixture corpus
+- **Status:** DONE (2026-06-10) — tests/fixtures/* + MANIFEST.json (Data Source/Sample Size/Limitations, all SYNTHETIC, traced to advisories); fixtures_tests::fixture_corpus_matches_manifest asserts phase+severity per case. Passes. Evidence: evidence/F-008/phase-B-scanner-mechanics.md
+- **Scope:** moderate
+- **Goal:** `tests/fixtures/` holds labeled samples per threat phase — synthetic ones marked SYNTHETIC in a manifest; real ones traced to source advisories (Shai-Hulud IOCs, postmark-mcp pattern, hermes-px pattern from published research).
+- **Done when:** `cargo test fixtures` runs every fixture through the scanner and asserts expected phase + severity per manifest; manifest declares Data Source / Sample Size / Limitations for the corpus.
+- **Files:** `tests/fixtures/`, `tests/fixtures/MANIFEST.json`
+
+### Phase C — Corpus externalization (D2)
+
+### US-C1 [F-008]: Signature-pack schema and loader
+- **Status:** DONE (2026-06-11, agent+integration) — corpus/{schema,loader,mod}.rs; packs include_str!-embedded; counts derived. corpus_loader tests pass.
+- **Scope:** complex
+- **Goal:** Versioned pack format (id, phase, severity, weight, patterns, language scope, suppression predicates, provenance, dates); Rust loads packs at startup; counts derived.
+- **Done when:** `cargo test corpus_loader` passes; `./cli/target/release/sigil scan test-repo` produces identical findings from pack-loaded rules as from a golden snapshot of today's hardcoded rules (parity test committed).
+- **Files:** `cli/src/corpus/` (new), `packs/core/v1/`
+
+### US-C2 [F-008]: Port Rust hardcoded patterns into the core pack
+- **Status:** DONE (2026-06-11) — phases.rs is now thin pack dispatch (scan_file_with_packs); zero inline Regex::new in production code; 13 parity_rust tests. Integration fix: PROMPT-007 ported as bare `"""` (matched every docstring, 2467 FPs) → restored `"""\s*\n`; char-boundary panic in engine header slice fixed + regression test.
+- **Scope:** complex
+- **Goal:** All patterns in `phases.rs` (Phases 1–8, 10) move to `packs/core/`; `phases.rs` becomes engine logic only.
+- **Done when:** Fixture-corpus parity: `cargo test parity_rust` shows identical (file, rule, severity) findings before/after on `tests/fixtures/`; `grep -c "Regex::new" cli/src/scanner/phases.rs` drops to ~0.
+- **Files:** `cli/src/scanner/phases.rs`, `packs/core/v1/`
+
+### US-C3 [F-008]: Port Python-only rules and FP filters into the pack
+- **Status:** DONE (2026-06-11) — packs/core/v1/{obfuscation_chain.json (19 rules), supply_chain.json (19 rules)} ported from Python ENHANCED_OBFUSCATION_RULES + NOVEL_VECTOR_RULES; SUPPLY-003/005 lookaround rewritten for Rust regex via suppress predicates; 12 parity_python tests.
+- **Scope:** complex
+- **Goal:** Python's 13 supply-chain rules, 14 obfuscation-chain rules, 4 context filters, and 22-domain safe list become pack entries/predicates. Closes the cross-implementation drift found in the audit.
+- **Done when:** `cargo test parity_python` — fixtures derived from each Python rule's intent produce the expected finding in Rust; suppression fixtures (UMD wrapper, polyfill, safe-domain HTTP) produce 0 findings.
+- **Files:** `packs/core/v1/`, `tests/fixtures/`
+
+### US-C4 [F-008]: Pack signing and verified updates
+- **Status:** DONE (2026-06-11) — corpus/signing.rs: ed25519-dalek PackVerifier; verify() canonicalises + checks Ed25519; 5 pack_signature tests (valid/missing/tampered/wrong-key/bad-base64). Core packs are include_str!-embedded (not signature-gated); signing is for fetched packs.
+- **Scope:** moderate
+- **Goal:** Packs signed at publish; `sigil fetch` verifies signature before installing to `~/.sigil/`; tampered pack is rejected loudly.
+- **Done when:** `cargo test pack_signature` passes including a tampered-pack rejection case; `sigil fetch --offline` uses cache without error.
+- **Files:** `cli/src/corpus/verify.rs`, `cli/src/main.rs` (fetch path)
+
+### Phase D — Output contract & self-audit CI (D7)
+
+### US-D1 [F-008]: Exit-code contract
+- **Status:** DONE (2026-06-10) — `--fail-on` (default high); exit 0/1/2 contract via pure exit_code_for(); 5 CLI cases + 5 unit tests pass. Evidence: evidence/F-008/phase-D-output-contract.md
+- **Scope:** trivial
+- **Goal:** 0 = below threshold, 1 = findings ≥ `--fail-on` (default high), 2 = scan error. Today bash exits 0 on CRITICAL; Rust must not repeat that.
+- **Done when:** `./cli/target/release/sigil scan test-repo; echo $?` prints 1; scan of an empty dir prints 0; scan of a nonexistent path prints 2.
+- **Files:** `cli/src/main.rs`, `cli/src/output.rs`
+
+### US-D2 [F-008]: SARIF 2.1.0 output
+- **Status:** DONE (2026-06-10) — SARIF 2.1.0 validates clean against official OASIS schema via check-jsonschema (exit 0). Evidence: evidence/F-008/phase-D-output-contract.md
+- **Scope:** moderate
+- **Goal:** `--format sarif` emits valid SARIF consumable by GitHub Code Scanning.
+- **Done when:** `./cli/target/release/sigil scan test-repo --format sarif` output validates against the SARIF 2.1.0 schema (validator command recorded in evidence).
+- **Files:** `cli/src/output.rs`
+
+### US-D3 [F-008]: Self-scan as a required CI gate
+- **Status:** DONE (2026-06-11) — Triaged 1073 high+crit self-findings: all category (a) self-reference-by-design (signature docs, vendored skill corpus, scanner test inputs, detection-engine source, bash scanner, synthetic fixtures) or documented scanner-FP. One category (b) genuine code smell fixed (`api/services/notifications.py` `__import__("time")` → `import time`). Rationale-backed `.sigilignore` written (scoped to specific files, NOT whole api/cli trees). After: `scan . --fail-on high` → exit 0 (0 crit, 0 high, 130 med, 36 low). Gate proven meaningful: canary `eval(__import__('os').environ)` at repo root → CODE-001+CODE-010 HIGH → exit 1; removed → exit 0. `.github/workflows/sigil-selfscan.yml` SHA-pinned, actionlint 1.7.12 clean (exit 0). Evidence: evidence/F-008/US-D3-selfscan-gate.md
+- **Scope:** moderate
+- **Goal:** CI job runs `sigil scan .` on the Sigil repo and fails on ≥high findings; suppressions live in `.sigilignore`/inline with written rationale (constraint: self-auditable, not a demo).
+- **Done when:** `.github/workflows/sigil-selfscan.yml` exists, `actionlint` clean, and the job passes on a clean tree — meaning Phases B+C resolved or explicitly suppressed every current self-finding (bash audit verdict today: CRITICAL/250).
+- **Files:** `.github/workflows/sigil-selfscan.yml`, `.sigilignore`
+
+### Phase E — Feeds & provenance (D4)
+
+### US-E1 [F-008]: OSV integration (CVEs + MAL- records)
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** Lockfile/manifest dependency extraction → OSV batch query (offline-cached) → findings with OSV ids; covers npm, PyPI, crates, Go.
+- **Done when:** `sigil scan tests/fixtures/osv-known-vuln/ --format json` flags a pinned known-CVE dependency and a known `MAL-` package (fixtures reference real OSV ids); network-off run uses cache and says so.
+- **Files:** `cli/src/feeds/osv.rs`, `tests/fixtures/osv-known-vuln/`
+- **Notes:** Two engine defects found + fixed (evidence/F-008/phase-E-feed-performance-and-suppression-reversal.md):
+  (1) severity always graded High — `/v1/querybatch` returns IDs only and detail was never
+  fetched; plus GitHub `MODERATE` was unmapped. Fixed with per-id `/v1/vulns/{id}` enrich +
+  CVSS 3.x base-score calc + MODERATE→Medium. postcss GHSA-qx2v-qp2m-jg93 now Medium (was High).
+  (2) detail fetches were sequential blocking (~0.75s each, fresh client each call) → dedup by
+  id + shared keep-alive client + bounded rayon(8). osv feed now ~40-125ms warm. 104 tests pass.
+
+### US-E2 [F-008]: KEV/EPSS prioritization overlay
+- **Status:** DONE (2026-06-11)
+- **Scope:** moderate
+- **Goal:** Findings with CVE ids get `kev: true/false` and EPSS score; severity ordering uses KEV > EPSS > CVSS.
+- **Done when:** `cargo test kev_epss` passes with recorded-fixture API responses; output JSON contains the fields for a KEV-listed fixture CVE.
+- **Files:** `cli/src/feeds/`
+- **Notes:** `Finding` carries `kev`/`epss` (serde default, skip-if-empty → backward-compatible JSON). Feed runs in <2µs on the self-scan (no matched KEV CVEs in our deps).
+
+### US-E3 [F-008]: Provenance drift detection
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** npm/PyPI attestation verification when present; findings ONLY for drift: provenance downgrade, publisher-identity change, repo mismatch. Absence is SBOM metadata, never a scored finding (<1% npm adoption = noise).
+- **Done when:** `cargo test provenance_drift` passes on three fixture scenarios (downgrade, identity-change, mismatch) and asserts zero findings for an unattested-but-consistent package.
+- **Files:** `cli/src/provenance/`
+- **Notes:** THE infinite-hang culprit — one sequential blocking registry GET per pinned package.
+  A 798-dep lockfile ran 3h40m without finishing (orphaned process found + killed). Fixed: bounded
+  rayon(8) over independent per-component checks; ledger writes stay post-loop (no race). Full
+  self-scan now 33s (was unbounded). `--verbose` now reports per-feed wall-clock.
+
+### Phase E follow-ups (discovered, NOT yet done)
+- **Suppression reversed:** `.sigilignore` lockfile entries (added by the Phase E build agent to
+  force a green gate) are REMOVED and stay removed. They hid genuine high-severity advisories.
+- **REMEDIATION-DEPS (DONE 2026-06-11):** relayed to a worktree agent; transitive-only bumps via
+  `npm audit fix` (no overrides, no major direct-dep bumps, lockfiles only). mcp-server 25 High→0
+  (build `npm run build` tsc clean), vscode 25 High→0 (`npm run compile` tsc clean). Independently
+  re-verified with my own binary (anti-collusion): both lockfiles scan to 0 OSV high/critical; npm
+  audit independently reports 0 vulns. Cherry-picked as 7600298. **Full self-scan now exit 0:
+  172 findings (37 Low/135 Medium), 0 high/critical — the gate is green WITHOUT suppression.**
+- **POLISH (TODO):** OSV finding-level dedup — same GHSA emits N findings when a package resolves
+  at N lockfile paths. Detail-fetch is already deduped; the Finding list is not.
+
+### Phase F — Stateful trust ledger (D3)
+
+### US-F1 [F-008]: Approval ledger with content pinning
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** `sigil approve` records hashes (package tarball+version, MCP tool definitions, instruction files) in a local ledger under `~/.sigil/`.
+- **Done when:** `sigil approve <id> && sigil ledger show <id>` displays pinned hashes; `cargo test ledger` passes.
+- **Files:** `cli/src/ledger.rs` (new), `cli/src/main.rs`
+- **Notes:** `ledger::pin_directory` walks the artifact (excludes .git/node_modules/build dirs),
+  sha256s each file → per-file map + aggregate `artifact_digest`, classifies instruction files
+  (via `normalize::is_instruction_file`) and MCP tool-definition manifests (mcp.json/tools.json/
+  package.json with mcp|mcpServers|tools key). `record_approval_in(dir,...)`/`get_in(dir,...)` take
+  an explicit store dir → unit-testable without touching ~/.sigil. `cmd_approve` pins on approve
+  (best-effort, warns on failure); `sigil ledger show <id>` prints digest + per-file hashes. The
+  full `files` map is what US-F2 diffs. e2e demonstrated with isolated HOME (postmark-mcp@1.0.15
+  fixture): approve → "pinned 3 files", ledger show → artifact + tool-def + instruction hashes.
+  110 cargo tests pass (6 ledger).
+
+### US-F2 [F-008]: Rug-pull detection on drift
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** Re-scan of an approved artifact whose content/tool-definitions changed produces a Critical `RUGPULL-001` finding with a diff, and re-quarantines.
+- **Done when:** `cargo test rugpull` passes a postmark-mcp-shaped fixture (benign at approve, BCC-exfil line added in "new version" — SYNTHETIC, modeled on the published Koi Security analysis); unchanged artifact re-scan produces 0 rug-pull findings.
+- **Files:** `cli/src/ledger.rs`, `cli/src/quarantine.rs`, `cli/src/main.rs`, `tests/fixtures/rugpull/`
+- **Notes:** `ledger::detect_rugpull(dir, baseline)` re-pins current content, compares the
+  `artifact_digest`, and on drift emits one Critical RUGPULL-001 (weight 10) whose snippet lists
+  modified/added/removed counts, a sample of changed files (always surfaces the real code change,
+  e.g. index.js, not just the manifest), and flags watched tool-definition/instruction-file drift.
+  Wired into the scan "all" block via `check_rugpull_for_path`: if the scanned path canonical-matches
+  an Approved quarantine entry with a ledger pin, it diffs and — on drift — calls
+  `quarantine::requarantine` (Approved→Pending, reason "content drift (RUGPULL-001)"). Fixtures are
+  SYNTHETIC and labeled (tests/fixtures/rugpull/README.md). 3 rugpull tests + e2e (isolated HOME):
+  unchanged re-scan 0 findings; v1.0.16 BCC swap → Critical RUGPULL-001 + re-quarantine. 113 tests pass.
+
+### Phase F — COMPLETE (US-F1 + US-F2 DONE 2026-06-11). The quarantine approve/reject UX is now a
+### stateful content-pinning trust ledger with rug-pull detection — ADR-0006's structural moat.
+
+### Phase G — Unification & honest evaluation (D1)
+
+### US-G1 [F-008]: API delegates scanning to the Rust engine
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** `api/services/scanner.py` paths call the Rust binary (subprocess, `--format json`) behind a feature flag; Python rules frozen.
+- **Done when:** `python3 -m pytest api/tests -q` ≥ baseline with flag on; a golden-file test shows API scan response schema unchanged.
+- **Files:** `api/services/scanner.py`, `Dockerfile.api`, `api/tests/test_rust_engine_golden.py`
+- **Notes:** Relayed to worktree agent, INDEPENDENTLY RE-VERIFIED by me (anti-collusion). Flag
+  `SIGIL_RUST_ENGINE` (default OFF). Flag OFF = Python rules unchanged (224 passed ≥ baseline 223);
+  flag ON routes scan_directory→Rust subprocess, maps findings into existing Finding objects (226
+  passed); golden test asserts identical response schema in both modes (3 passed). Python Rule set
+  frozen (untouched). Binary missing + flag ON = raise (no silent fallback). Dockerfile.api: documented
+  TODO block only (binary not yet bundled; flag stays OFF in image). Merged as 20088ae.
+
+### US-G2 [F-008]: bash CLI delegates to Rust
+- **Status:** DONE (2026-06-11)
+- **Scope:** moderate
+- **Goal:** `bin/sigil scan|clone|pip|npm` exec the Rust binary when present (bootstrap-installs it when not); bash pattern phases removed from the scan path.
+- **Done when:** `./bin/sigil scan test-repo; echo $?` returns the Rust exit contract (1) in <10s; `./bin/sigil clone <small-repo>` round-trips quarantine via Rust.
+- **Files:** `bin/sigil`
+- **Notes:** Relayed to worktree agent, INDEPENDENTLY RE-VERIFIED by me: `./bin/sigil scan test-repo`
+  → exit 1 (<10s) emitting real Rust JSON (3 findings), not bash phases. `resolve_rust_bin`: SIGIL_BIN
+  → PATH → cli/target/release → bootstrap-exit (no bash fallback, preserves single-engine ADR-0004).
+  clone/pip/npm + approve/reject/list delegate to Rust → one quarantine store. The agents' exit-2
+  observations were stale-base/homebrew-v1.0.4 binaries; my HEAD binary honors ADR-0010 exit-1 on
+  both cache and fresh paths (verified). Merged as 114794c.
+
+### US-G3 [F-008]: Honest evaluation harness (replaces the 97.96% lineage)
+- **Status:** DONE (2026-06-11)
+- **Scope:** complex
+- **Goal:** Recall/precision measured against the Datadog malicious-packages dataset (27,813 human-triaged npm/PyPI samples) + clean-package control set; results published with Data Source / Sample Size / Limitations; **no `random` anywhere in evaluation code** (CI-greppable).
+- **Done when:** `python3 scripts/run_eval.py --dataset datadog --out evaluation_results/` writes a report whose numbers are reproducible on a second run (same dataset hash); `grep -rn "import random" scripts/run_eval.py` returns nothing; report explicitly supersedes `production_d1_d4_scorecard_80k_scans.json`, which is moved to `archive/` with a provenance note.
+- **Files:** `scripts/run_eval.py`, `evaluation_results/`, `archive/`
+- **Notes:** REAL measurement, current engine (sigil 1.1.2), 351 real Datadog samples (110/bucket ×4,
+  commit 605a7318), 20 popular real control packages. Deterministic (sorted per-bucket, no random —
+  grep PASS), reproducible (identical fingerprint 5f7ebb09… + recall across two runs). Old scorecard
+  moved to archive/ with provenance note. **Honest numbers (they ship): recall 96.87% @any, 93.73%
+  @High, 61.54% @Critical. BUT FP-rate 95% @High — 19/20 popular legit packages (requests/flask/
+  express/react/lodash) flagged High.** Report states this loudly + caveats that "precision 94.5%" is
+  class-imbalance-distorted (351:20). Surfaced follow-up: FP-NARROWING needed before High can gate
+  real installs. Engine resolution gotcha: harness picked homebrew sigil v1.0.4 off PATH first — must
+  pin SIGIL_BIN. Samples NOT committed (live in /tmp; raw-CDN fetch, git promisor was unusable).
+- **Follow-up (FP-NARROWING, DONE 2026-06-11):** eval-driven rule tuning, measured at every step.
+  Clear rule BUGS fixed (near-zero recall cost): CODE-002 `\bexec\(` matched JS `regex.exec(` →
+  now `(?m)(^|[^.\w])exec\(` (child_process.exec stays covered by CODE-007); SUPPLY-007's
+  `module.exports=…require(` matched every re-export → now requires a DYNAMIC (non-literal) require
+  arg. Redundant generics downgraded to their precise chain-rule equivalents (CODE-010→med [vs
+  OBFUSC-CHAIN-017], OBFUSC-004→med [vs -CHAIN-014], OBFUSC-CHAIN-012→med [vs OBFUSC-008], pickle
+  CODE-004 critical→high [obfuscated form stays critical via -CHAIN-004]). Benign-context suppressions
+  (CRED-008 docs/examples, OBFUSC-006/007 test hex, NET-008 test sockets). **Result: FP@High 95%→70%,
+  FP@Critical 30%→20%, for recall@High 93.7%→90.3% (recall@Medium held 96.6%).** 5 FP-regression
+  tests lock the bug-fixes (118 cargo tests). **Honest limit reached:** the residual 70% FP is
+  GENUINE dual-use patterns (eval/exec/pickle/child_process/private-keys) that popular legit packages
+  (requests/flask/numpy/jinja2) really contain — pattern scanning alone cannot distinguish these from
+  malice. The real discriminators are the precise chain rules + the Phase-F trust ledger (allowlist
+  known-good). Logged as the next structural lever, not a rule-tuning problem.
+
+### Phase G — COMPLETE (US-G1 + US-G2 + US-G3 DONE 2026-06-11). One Rust detection engine; API and
+### bash both delegate to it; the fabricated scorecard is retired for a real, reproducible eval.
+### F-008 Goal 1 (open-source core hardening) is COMPLETE across Phases A–G.
+
+### F-008 carried-forward follow-ups (not blocking; logged honestly):
+- FP-NARROWING (above) — highest-value next detection work; the honest eval quantified it (95% @High).
+- OSV finding-level dedup (Phase E polish) — same GHSA emits N findings across N lockfile paths.
+- Dockerfile.cli fabricated base digest — documented earlier; same defect class as the BadHost
+  Dockerfile.api fix; not yet remediated.
+- Dockerfile.api: bundle the Rust binary + flip SIGIL_RUST_ENGINE on in-image (US-G1 left a TODO).
+- bin/sigil dead bash phase functions remain defined (only `fetch`/run_full_audit still references
+  them); remove when `fetch` is migrated.
 
 ---
 

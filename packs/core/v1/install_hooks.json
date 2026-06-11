@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "id": "sigil-core-install-hooks",
+    "name": "Sigil Core — Install Hooks",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects install-time code execution hooks in setup.py, package.json, Makefile, and pyproject.toml"
+  },
+  "rules": [
+    {
+      "id": "INSTALL-001",
+      "phase": "install_hooks",
+      "severity": "critical",
+      "pattern": "cmdclass",
+      "description": "setup.py cmdclass override (code runs at install time)",
+      "file_filter": {
+        "filename_exact": ["setup.py", "setup.cfg"]
+      }
+    },
+    {
+      "id": "INSTALL-002",
+      "phase": "install_hooks",
+      "severity": "critical",
+      "pattern": "(?i)(pre_install|post_install|install_scripts)",
+      "description": "setup.py custom install hook",
+      "file_filter": {
+        "filename_exact": ["setup.py", "setup.cfg"]
+      }
+    },
+    {
+      "id": "INSTALL-003",
+      "phase": "install_hooks",
+      "severity": "critical",
+      "pattern": "\"(preinstall|postinstall|preuninstall|postuninstall)\"",
+      "description": "npm lifecycle script (runs automatically on install)",
+      "file_filter": {
+        "filename_exact": ["package.json"]
+      }
+    },
+    {
+      "id": "INSTALL-004",
+      "phase": "install_hooks",
+      "severity": "high",
+      "pattern": "\"(prepare|prepublish|prepublishOnly)\"",
+      "description": "npm publish lifecycle script",
+      "file_filter": {
+        "filename_exact": ["package.json"]
+      }
+    },
+    {
+      "id": "INSTALL-005",
+      "phase": "install_hooks",
+      "severity": "medium",
+      "pattern": "^install\\s*:",
+      "description": "Makefile install target",
+      "file_filter": {
+        "filename_exact": ["Makefile", "makefile"],
+        "filename_suffix": [".mk"]
+      }
+    },
+    {
+      "id": "INSTALL-006",
+      "phase": "install_hooks",
+      "severity": "low",
+      "pattern": "^\\.(PHONY|ONESHELL).*install",
+      "description": "Makefile install phony target",
+      "file_filter": {
+        "filename_exact": ["Makefile", "makefile"],
+        "filename_suffix": [".mk"]
+      }
+    },
+    {
+      "id": "INSTALL-007",
+      "phase": "install_hooks",
+      "severity": "critical",
+      "pattern": "\\[tool\\.setuptools\\.cmdclass\\]",
+      "description": "pyproject.toml cmdclass override",
+      "file_filter": {
+        "filename_exact": ["pyproject.toml"]
+      }
+    },
+    {
+      "id": "INSTALL-008",
+      "phase": "install_hooks",
+      "severity": "low",
+      "pattern": "build-backend\\s*=",
+      "description": "Custom build backend declared",
+      "file_filter": {
+        "filename_exact": ["pyproject.toml"]
+      }
+    },
+    {
+      "id": "INSTALL-MCP-001",
+      "phase": "install_hooks",
+      "severity": "medium",
+      "pattern": "claude_desktop_config|mcp_config\\.json|\\.mcp\\.json",
+      "description": "MCP configuration file detected"
+    },
+    {
+      "id": "INSTALL-MCP-002",
+      "phase": "install_hooks",
+      "severity": "low",
+      "pattern": "mcpServers|mcp_servers",
+      "description": "MCP server registry entry"
+    }
+  ],
+  "provenance_rules": []
+}

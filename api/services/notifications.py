@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import smtplib
 import ssl
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
@@ -53,7 +54,7 @@ async def send_slack_notification(
                 "title": title,
                 "text": message,
                 "footer": "Sigil Security Platform",
-                "ts": __import__("time").time(),
+                "ts": time.time(),
             }
         ]
     }

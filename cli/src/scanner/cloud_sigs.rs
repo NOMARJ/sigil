@@ -157,6 +157,8 @@ pub fn scan_with_cloud_signatures(
                     line: Some(line_num + 1),
                     snippet: format!("[cloud] {}: {}", sig.description.as_str(), snippet.trim()),
                     weight,
+                    kev: false,
+                    epss: 0.0,
                 });
             }
         }

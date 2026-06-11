@@ -90,6 +90,8 @@ mod tests {
             line: Some(1),
             snippet: "test".to_string(),
             weight,
+            kev: false,
+            epss: 0.0,
         }
     }
 

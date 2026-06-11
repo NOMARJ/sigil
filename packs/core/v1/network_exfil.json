@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "id": "sigil-core-network-exfil",
+    "name": "Sigil Core — Network / Exfiltration",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects outbound network activity, webhook calls, raw sockets, DNS exfiltration, and data upload patterns"
+  },
+  "rules": [
+    {
+      "id": "NET-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "requests\\.(get|post|put|delete|patch|head)\\s*\\(",
+      "description": "HTTP request via requests library",
+      "suppress": {
+        "safe_domains": [
+          "api.anthropic.com",
+          "api.openai.com",
+          "api.groq.com",
+          "api.cohere.ai",
+          "huggingface.co",
+          "api.huggingface.co",
+          "localhost",
+          "127.0.0.1",
+          "github.com",
+          "api.github.com",
+          "raw.githubusercontent.com",
+          "registry.npmjs.org",
+          "pypi.org",
+          "pypi.python.org",
+          "files.pythonhosted.org"
+        ]
+      }
+    },
+    {
+      "id": "NET-002",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(",
+      "description": "HTTP request via urllib"
+    },
+    {
+      "id": "NET-003",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "http\\.client\\.HTTP",
+      "description": "HTTP client connection"
+    },
+    {
+      "id": "NET-004",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "fetch\\s*\\(\\s*['\"]https?://",
+      "description": "fetch() to external URL"
+    },
+    {
+      "id": "NET-005",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "axios\\.(get|post|put|delete|patch)\\s*\\(",
+      "description": "HTTP request via axios"
+    },
+    {
+      "id": "NET-006",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)(webhook|callback|notify).*https?://",
+      "description": "Webhook / callback URL detected"
+    },
+    {
+      "id": "NET-007",
+      "phase": "network_exfil",
+      "severity": "critical",
+      "pattern": "https?://[^\\s]*\\.(ngrok|pipedream|requestbin|hookbin)",
+      "description": "Known exfiltration / tunneling service URL"
+    },
+    {
+      "id": "NET-008",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "socket\\.socket\\s*\\(",
+      "description": "Raw socket creation",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "conftest",
+          "fixture",
+          "test"
+        ]
+      }
+    },
+    {
+      "id": "NET-009",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "\\.connect\\s*\\(\\(?\\s*['\"]",
+      "description": "Socket connect to address"
+    },
+    {
+      "id": "NET-010",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "dns\\.(resolver|query)|getaddrinfo",
+      "description": "DNS resolution — possible DNS exfiltration"
+    },
+    {
+      "id": "NET-011",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(base64|b64)(encode|\\.b64encode)\\s*\\(.*\\.(read|getenv|environ)",
+      "description": "Data encoding before potential exfiltration"
+    },
+    {
+      "id": "NET-012",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "(curl|wget)\\s+.*(https?://)",
+      "description": "curl/wget command in code"
+    },
+    {
+      "id": "NET-MCP-001",
+      "phase": "network_exfil",
+      "severity": "low",
+      "pattern": "stdio_transport|sse_transport|StreamableHTTPTransport",
+      "description": "MCP transport configuration"
+    },
+    {
+      "id": "NET-MCP-002",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "mcp.*proxy|proxy.*mcp",
+      "description": "MCP proxy configuration - potential MITM"
+    }
+  ],
+  "provenance_rules": []
+}

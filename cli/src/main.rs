@@ -1,9 +1,13 @@
 mod api;
 mod cache;
+mod corpus;
 mod diff;
+mod feeds;
+mod ledger;
 mod output;
 mod policy;
 mod provider;
+mod provenance;
 mod quarantine;
 mod sandbox;
 mod sbom;
@@ -106,6 +110,11 @@ enum Commands {
         /// Use enhanced LLM-powered analysis (Pro feature, requires authentication)
         #[arg(long)]
         enhanced: bool,
+
+        /// Exit 1 when a finding at or above this severity is present
+        /// (low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
     },
 
     /// Clear all cached scan results
@@ -216,6 +225,12 @@ enum Commands {
         action: PolicyAction,
     },
 
+    /// Inspect the content-pinning trust ledger (rug-pull detection baseline)
+    Ledger {
+        #[command(subcommand)]
+        action: LedgerAction,
+    },
+
     /// Run a command in a sandboxed environment with policy enforcement
     Run {
         /// Policy file or preset name (strict, standard, permissive)
@@ -301,6 +316,15 @@ enum ProviderAction {
     },
     /// Auto-discover credentials in current environment
     Discover,
+}
+
+#[derive(Subcommand)]
+enum LedgerAction {
+    /// Show the pinned content hashes for an approved quarantine id
+    Show {
+        /// Quarantine id whose approval pin to display
+        id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -417,6 +441,7 @@ async fn main() {
             no_cache,
             enrich,
             enhanced,
+            fail_on,
         } => {
             cmd_scan(
                 &path,
@@ -426,6 +451,7 @@ async fn main() {
                 no_cache,
                 enrich,
                 enhanced,
+                &fail_on,
                 &cli.format,
                 cli.verbose,
             )
@@ -474,6 +500,8 @@ async fn main() {
         Commands::Provider { action } => cmd_provider(action).await,
 
         Commands::Policy { action } => cmd_policy(action).await,
+
+        Commands::Ledger { action } => cmd_ledger(action).await,
 
         Commands::Sbom {
             path,
@@ -804,6 +832,16 @@ async fn cmd_npm(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Exit-code contract (ADR-0010): 1 if any finding is at or above the fail
+/// threshold, else 0. Scan errors (handled by the caller) are 2.
+fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severity) -> i32 {
+    if findings.iter().any(|f| f.severity >= fail_threshold) {
+        1
+    } else {
+        0
+    }
+}
+
 async fn cmd_scan(
     path: &Path,
     phases: &str,
@@ -812,17 +850,36 @@ async fn cmd_scan(
     no_cache: bool,
     enrich: bool,
     enhanced: bool,
+    fail_on: &str,
     format: &str,
     verbose: bool,
 ) -> i32 {
+    // Exit-code contract (ADR-0010): 2 = scan error.
     if !path.exists() {
         eprintln!(
             "{} path does not exist: {}",
             "error:".bold().red(),
             path.display()
         );
-        return 1;
+        return 2;
     }
+
+    // Threshold at/above which a finding makes the scan fail (exit 1).
+    let fail_threshold = match fail_on.to_lowercase().as_str() {
+        "low" => scanner::Severity::Low,
+        "medium" => scanner::Severity::Medium,
+        "high" => scanner::Severity::High,
+        "critical" => scanner::Severity::Critical,
+        other => {
+            eprintln!(
+                "{} invalid --fail-on '{}' (use low, medium, high, critical)",
+                "error:".bold().red(),
+                other
+            );
+            return 2;
+        }
+    };
+    let exit_for = |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
 
     println!(
         "{} scanning {}...",
@@ -840,10 +897,7 @@ async fn cmd_scan(
             output::print_scan_summary(&cached, format);
             output::print_findings(&cached.findings, format);
             output::print_verdict(&cached.verdict, format);
-            return match cached.verdict {
-                scanner::Verdict::LowRisk => 0,
-                _ => 2,
-            };
+            return exit_for(&cached.findings);
         } else if verbose {
             eprintln!("no cache entry found, scanning fresh");
         }
@@ -863,7 +917,62 @@ async fn cmd_scan(
         Some(severity)
     };
 
-    let result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+    let mut result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+
+    // OSV advisory feed (US-E1): append CVE/MAL- findings from lockfiles.
+    // Runs whenever a full-phase scan is requested (phases == "all").
+    // Network failures are handled inside scan_for_osv_findings — never fatal.
+    if phases == "all" {
+        // The three feeds make network round-trips (OSV detail fetches, npm/PyPI
+        // registry lookups). --verbose reports each feed's wall-clock so a slow
+        // scan can be attributed to a specific feed rather than guessed at.
+        let t = std::time::Instant::now();
+        let osv_findings = feeds::osv::scan_for_osv_findings(path);
+        if verbose {
+            eprintln!("feed osv: {:?} ({} findings)", t.elapsed(), osv_findings.len());
+        }
+        if !osv_findings.is_empty() {
+            result.findings.extend(osv_findings);
+        }
+
+        // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
+        // Best-effort — network/parse failures leave findings unchanged.
+        let t = std::time::Instant::now();
+        feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+        if verbose {
+            eprintln!("feed kev_epss: {:?}", t.elapsed());
+        }
+
+        // Provenance drift detection (US-E3): detect downgrade, identity-change,
+        // and repo-mismatch for npm and PyPI packages against the ledger baseline.
+        // ADR-0007: absence of provenance is never a finding. Network failures are
+        // handled gracefully — never fatal.
+        let t = std::time::Instant::now();
+        let prov_findings = provenance::scan_for_provenance_drift(
+            path,
+            &provenance::ScanOptions::default(),
+        );
+        if verbose {
+            eprintln!("feed provenance: {:?} ({} findings)", t.elapsed(), prov_findings.len());
+        }
+        if !prov_findings.is_empty() {
+            result.findings.extend(prov_findings);
+        }
+
+        // Rug-pull check (US-E3→F2): if this path is a previously-approved
+        // quarantine artifact, diff its current content against the pinned
+        // baseline. Drift => Critical RUGPULL-001 and the entry is re-quarantined.
+        let rugpull = check_rugpull_for_path(path, verbose);
+        if !rugpull.is_empty() {
+            result.findings.extend(rugpull);
+        }
+
+        // Recompute score and verdict with the enriched finding set.
+        if !result.findings.is_empty() {
+            result.score = scanner::scoring::calculate_score(&result.findings);
+            result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+        }
+    }
 
     if format == "sarif" {
         output::print_scan_sarif(&result, &path.to_string_lossy());
@@ -996,10 +1105,7 @@ async fn cmd_scan(
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        _ => 2,
-    }
+    exit_for(&result.findings)
 }
 
 // ---------------------------------------------------------------------------
@@ -1290,12 +1396,116 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
                 entry.id,
                 entry.source
             );
+            // Pin the approved content so a later rug-pull (changed bytes, tool
+            // definitions, or instruction files) is detectable (ADR-0006, US-F1).
+            match ledger::record_approval(&entry, reason) {
+                Ok(rec) => {
+                    println!(
+                        "  pinned {} files (digest {})",
+                        rec.pin.file_count,
+                        &rec.pin.artifact_digest[..rec.pin.artifact_digest.len().min(12)]
+                    );
+                    if !rec.pin.tool_definitions.is_empty() || !rec.pin.instruction_files.is_empty() {
+                        println!(
+                            "  watching {} tool-definition + {} instruction file(s) for drift",
+                            rec.pin.tool_definitions.len(),
+                            rec.pin.instruction_files.len()
+                        );
+                    }
+                }
+                Err(e) => {
+                    // Pinning is best-effort: approval already succeeded. Warn so
+                    // the operator knows rug-pull protection is not armed.
+                    eprintln!("{} approved but ledger pin failed: {}", "warning:".bold().yellow(), e);
+                }
+            }
             0
         }
         Err(err) => {
             eprintln!("{} {}", "error:".bold().red(), err);
             1
         }
+    }
+}
+
+/// If `path` is a previously-approved quarantine artifact, diff its current
+/// content against the pinned baseline and re-quarantine on drift. Returns the
+/// rug-pull findings (empty for non-quarantine paths or unchanged content).
+fn check_rugpull_for_path(path: &Path, verbose: bool) -> Vec<scanner::Finding> {
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let entries = match quarantine::list(None) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    for entry in entries {
+        if entry.status != quarantine::QuarantineStatus::Approved {
+            continue;
+        }
+        let entry_path = std::fs::canonicalize(&entry.path).unwrap_or_else(|_| entry.path.clone());
+        if entry_path != target {
+            continue;
+        }
+        let record = match ledger::get(&entry.id) {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
+        let findings = ledger::detect_rugpull(path, &record);
+        if !findings.is_empty() {
+            if let Err(e) = quarantine::requarantine(&entry.id, Some("content drift (RUGPULL-001)")) {
+                if verbose {
+                    eprintln!("rug-pull: re-quarantine of {} failed: {}", entry.id, e);
+                }
+            } else if verbose {
+                eprintln!("rug-pull: {} drifted — re-quarantined", entry.id);
+            }
+        }
+        return findings;
+    }
+    Vec::new()
+}
+
+async fn cmd_ledger(action: LedgerAction) -> i32 {
+    match action {
+        LedgerAction::Show { id } => match ledger::get(&id) {
+            Some(rec) => {
+                println!("{} ledger pin for {}", "sigil:".bold().green(), rec.id);
+                println!("  source:      {} ({})", rec.source, rec.source_type);
+                if let Some(v) = &rec.pin.version {
+                    println!("  version:     {}", v);
+                }
+                println!("  approved_at: {}", rec.approved_at.to_rfc3339());
+                if let Some(r) = &rec.reason {
+                    println!("  reason:      {}", r);
+                }
+                println!("  artifact:    sha256:{}", rec.pin.artifact_digest);
+                println!("  files:       {}", rec.pin.file_count);
+                if !rec.pin.tool_definitions.is_empty() {
+                    println!("  tool definitions:");
+                    for f in &rec.pin.tool_definitions {
+                        if let Some(h) = rec.pin.files.get(f) {
+                            println!("    {} sha256:{}", f, h);
+                        }
+                    }
+                }
+                if !rec.pin.instruction_files.is_empty() {
+                    println!("  instruction files:");
+                    for f in &rec.pin.instruction_files {
+                        if let Some(h) = rec.pin.files.get(f) {
+                            println!("    {} sha256:{}", f, h);
+                        }
+                    }
+                }
+                0
+            }
+            None => {
+                eprintln!(
+                    "{} no ledger pin for '{}' (approve it first)",
+                    "error:".bold().red(),
+                    id
+                );
+                1
+            }
+        },
     }
 }
 
@@ -1987,5 +2197,54 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
                 1
             }
         },
+    }
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::exit_code_for;
+    use super::scanner::{Finding, Phase, Severity};
+
+    fn finding(sev: Severity) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: "TEST".into(),
+            severity: sev,
+            file: "x".into(),
+            line: None,
+            snippet: String::new(),
+            weight: 1,
+            kev: false,
+            epss: 0.0,
+        }
+    }
+
+    #[test]
+    fn empty_findings_exit_zero() {
+        assert_eq!(exit_code_for(&[], Severity::High), 0);
+    }
+
+    #[test]
+    fn below_threshold_exit_zero() {
+        let f = vec![finding(Severity::Medium), finding(Severity::Low)];
+        assert_eq!(exit_code_for(&f, Severity::High), 0);
+    }
+
+    #[test]
+    fn at_threshold_exit_one() {
+        let f = vec![finding(Severity::Low), finding(Severity::High)];
+        assert_eq!(exit_code_for(&f, Severity::High), 1);
+    }
+
+    #[test]
+    fn above_threshold_exit_one() {
+        let f = vec![finding(Severity::Critical)];
+        assert_eq!(exit_code_for(&f, Severity::High), 1);
+    }
+
+    #[test]
+    fn critical_threshold_ignores_high() {
+        let f = vec![finding(Severity::High)];
+        assert_eq!(exit_code_for(&f, Severity::Critical), 0);
     }
 }

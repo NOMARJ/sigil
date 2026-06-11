@@ -1,0 +1,45 @@
+name: Sigil Self-Scan
+
+# F-008 US-D3 — Sigil scans its OWN repository as a required CI gate (ADR-0010,
+# ADR-0009). The scanner builds, then runs `sigil scan . --fail-on high`. The job
+# fails (exit 1) if any finding is >= high severity. Self-reference-by-design
+# patterns (signature docs, detection-engine source, test fixtures, the bash
+# scanner) are suppressed in `.sigilignore`, each with written rationale.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  self-scan:
+    name: Self-scan (fail on >= high)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            cli/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('cli/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build sigil CLI
+        working-directory: cli
+        run: cargo build --release
+
+      - name: Self-scan (gate)
+        run: ./cli/target/release/sigil scan . --no-cache --fail-on high

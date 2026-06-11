@@ -77,6 +77,76 @@ check_tool() {
     command -v "$1" &>/dev/null
 }
 
+# ── Rust Engine Resolution (ADR-0004: single detection engine) ─────────────────
+# The Rust binary is the one and only detection engine. This bash CLI is a thin
+# front-end that delegates scanning + quarantine to it. Resolution order:
+#   1. $SIGIL_BIN env var (explicit override)
+#   2. `sigil` on $PATH (but never this script itself — avoids infinite recursion)
+#   3. ./cli/target/release/sigil relative to this script's repo
+# Prints the resolved path on stdout and returns 0, or returns 1 if none found.
+resolve_rust_bin() {
+    # 1. Explicit override
+    if [ -n "${SIGIL_BIN:-}" ]; then
+        if [ -x "$SIGIL_BIN" ]; then
+            echo "$SIGIL_BIN"
+            return 0
+        fi
+        return 1
+    fi
+
+    # Absolute path to this script (so PATH lookups can't resolve to ourselves)
+    local self_path
+    self_path=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "")
+
+    # 2. `sigil` on PATH — only if it's a different file (the Rust binary, not
+    #    this bash front-end installed under the same name).
+    local path_bin
+    if path_bin=$(command -v sigil 2>/dev/null) && [ -n "$path_bin" ]; then
+        local path_bin_real
+        path_bin_real=$(realpath "$path_bin" 2>/dev/null || echo "$path_bin")
+        if [ -x "$path_bin_real" ] && [ "$path_bin_real" != "$self_path" ]; then
+            # Confirm it's the Rust engine (Clap binary) and not another wrapper:
+            # the Rust binary exposes a `safe-run` subcommand the bash CLI lacks.
+            if "$path_bin_real" --help 2>/dev/null | grep -q 'safe-run'; then
+                echo "$path_bin_real"
+                return 0
+            fi
+        fi
+    fi
+
+    # 3. Repo-relative build output
+    local repo_root candidate
+    if [ -n "$self_path" ]; then
+        repo_root=$(dirname "$(dirname "$self_path")")
+        candidate="$repo_root/cli/target/release/sigil"
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# Print an actionable bootstrap message and exit non-zero. Called when the Rust
+# engine cannot be located. Never falls back to bash phases (ADR-0004).
+bootstrap_required() {
+    fail "Sigil detection engine (Rust binary) not found."
+    echo ""
+    echo "Sigil's scanning is powered by the Rust engine (cli/). This front-end"
+    echo "delegates to it — there is no bash fallback (single-engine, ADR-0004)."
+    echo ""
+    echo -e "${BOLD}Build it:${NC}"
+    echo "  cd cli && cargo build --release"
+    echo "  # produces cli/target/release/sigil"
+    echo ""
+    echo -e "${BOLD}Or point at an existing binary:${NC}"
+    echo "  export SIGIL_BIN=/path/to/sigil"
+    echo ""
+    echo "Then re-run your command."
+    exit 2
+}
+
 # ── Tier Checking & Caching ──────────────────────────────────────────────────
 check_user_tier() {
     local cache_file="$CACHE_FILE"
@@ -929,107 +999,77 @@ EOF
 
 # ── Command Handlers ──────────────────────────────────────────────────────────
 cmd_clone() {
-    local url="$1"
-    # Validate URL format
-    if [[ ! "$url" =~ ^https?://[^[:space:]]+ ]] && [[ ! "$url" =~ ^git@[^[:space:]]+ ]] && [[ ! "$url" =~ ^ssh://[^[:space:]]+ ]]; then
-        fail "Invalid repository URL format: $url"
-        exit 1
-    fi
-    local q_id; q_id=$(qid "$url")
-    local target="$QUARANTINE_DIR/$q_id"
-    log "Cloning $url into quarantine..."
-    git clone --depth 1 -- "$url" "$target" 2>/dev/null
-    log "Cloned to: $target"
-    run_full_audit "$target" "$q_id"
+    # Delegate clone+quarantine+scan to the Rust engine so the quarantine store
+    # is unified (ADR-0004). Forwards args; propagates the Rust exit code.
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" clone "$@"
 }
 
 cmd_pip() {
-    local package="$1"
-    # Validate package name (alphanumeric, hyphens, underscores, dots, @scope)
-    if [[ ! "$package" =~ ^(@[a-zA-Z0-9_-]+/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
-        fail "Invalid package name: $package"
-        exit 1
-    fi
-    local q_id; q_id=$(qid "pip_$package")
-    local target="$QUARANTINE_DIR/$q_id"
-    mkdir -p "$target"
-    log "Downloading pip package '$package' into quarantine..."
-    pip download "$package" -d "$target" --no-deps 2>/dev/null
-    local wheel; wheel=$(find "$target" -name "*.whl" -o -name "*.tar.gz" | head -1)
-    if [ -n "$wheel" ]; then
-        local extract_dir="$target/extracted"
-        mkdir -p "$extract_dir"
-        if [[ "$wheel" == *.whl ]]; then
-            unzip -q "$wheel" -d "$extract_dir" 2>/dev/null || true
-        else
-            tar xzf "$wheel" -C "$extract_dir" 2>/dev/null || true
-        fi
-        run_full_audit "$extract_dir" "$q_id"
-    else
-        warn "Could not download package"
-    fi
+    # Delegate download+quarantine+scan to the Rust engine (ADR-0004).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" pip "$@"
 }
 
 cmd_npm() {
-    local package="$1"
-    # Validate package name (alphanumeric, hyphens, underscores, dots, @scope)
-    if [[ ! "$package" =~ ^(@[a-zA-Z0-9_-]+/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
-        fail "Invalid package name: $package"
-        exit 1
-    fi
-    local q_id; q_id=$(qid "npm_$package")
-    local target="$QUARANTINE_DIR/$q_id"
-    mkdir -p "$target"
-    log "Downloading npm package '$package' into quarantine..."
-    (cd "$target" && npm pack "$package" 2>/dev/null)
-    local tarball; tarball=$(find "$target" -name "*.tgz" | head -1)
-    if [ -n "$tarball" ]; then
-        local extract_dir="$target/extracted"
-        mkdir -p "$extract_dir"
-        tar xzf "$tarball" -C "$extract_dir" 2>/dev/null || true
-        run_full_audit "$extract_dir" "$q_id"
-    else
-        warn "Could not download package"
-    fi
+    # Delegate download+quarantine+scan to the Rust engine (ADR-0004).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" npm "$@"
 }
 
 cmd_scan() {
-    local target="" force_pro=false
-    
-    # Parse arguments for --pro flag
+    # Delegate scanning to the Rust detection engine (ADR-0004). This front-end
+    # only parses the legacy CLI surface and forwards to `<bin> scan`, then
+    # propagates the Rust exit code verbatim (ADR-0010 exit contract).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+
+    local target="" format="text"
+    local -a passthrough=()
+
     while [ $# -gt 0 ]; do
         case "$1" in
             --pro)
-                force_pro=true
+                # Legacy flag → Rust's enhanced LLM analysis (Pro feature)
+                passthrough+=("--enhanced")
+                shift
+                ;;
+            --format|-f)
+                format="${2:?--format requires a value}"
+                shift 2
+                ;;
+            --format=*)
+                format="${1#*=}"
                 shift
                 ;;
             -*)
-                fail "Unknown option: $1"
-                exit 1
+                # Forward any other flag the Rust scan understands (e.g.
+                # --no-cache, --enrich, --severity, --fail-on, --submit).
+                passthrough+=("$1")
+                shift
                 ;;
             *)
                 if [ -z "$target" ]; then
                     target="$1"
                 else
-                    fail "Too many arguments. Usage: sigil scan [--pro] <path>"
+                    fail "Too many arguments. Usage: sigil scan [--pro] [--format <fmt>] <path>"
                     exit 1
                 fi
                 shift
                 ;;
         esac
     done
-    
-    [ -z "$target" ] && { fail "Usage: sigil scan [--pro] <path>"; exit 1; }
+
+    [ -z "$target" ] && { fail "Usage: sigil scan [--pro] [--format <fmt>] <path>"; exit 1; }
     [ ! -e "$target" ] && { fail "Path does not exist: $target"; exit 1; }
-    
-    local q_id; q_id=$(qid "$(basename "$target")")
-    if [[ "$target" != "$QUARANTINE_DIR"* ]]; then
-        local quarantine_copy="$QUARANTINE_DIR/$q_id"
-        cp -R -P "$target" "$quarantine_copy"
-        target="$quarantine_copy"
-        log "Copied to quarantine: $quarantine_copy"
-    fi
-    run_full_audit "$target" "$q_id" "$force_pro"
+
+    # exec replaces this process so the Rust exit code propagates directly.
+    # Empty-array-safe expansion (set -u / older bash).
+    exec "$rust_bin" scan "$target" --format "$format" \
+        "${passthrough[@]+"${passthrough[@]}"}"
 }
 
 cmd_fetch() {
@@ -1059,72 +1099,25 @@ cmd_fetch() {
 }
 
 cmd_approve() {
-    local q_id="$1"
-    # Validate quarantine ID format (alphanumeric + underscore only)
-    if [[ ! "$q_id" =~ ^[a-zA-Z0-9_]+$ ]]; then
-        fail "Invalid quarantine ID format: $q_id"
-        exit 1
-    fi
-    local source="$QUARANTINE_DIR/$q_id"
-    # Verify path is actually inside quarantine directory
-    local real_source
-    real_source=$(realpath "$source" 2>/dev/null) || { fail "Quarantine ID not found: $q_id"; exit 1; }
-    local real_quarantine
-    real_quarantine=$(realpath "$QUARANTINE_DIR")
-    if [[ "$real_source" != "$real_quarantine"/* ]]; then
-        fail "Path traversal detected: $q_id"
-        exit 1
-    fi
-    [ ! -d "$source" ] && { fail "Quarantine ID not found: $q_id"; echo "Use 'sigil list' to see available items"; exit 1; }
-    mv "$source" "$APPROVED_DIR/$q_id"
-    pass "Approved and moved to: $APPROVED_DIR/$q_id"
-    echo "You can now copy/link from $APPROVED_DIR/$q_id to your project."
+    # Delegate to the Rust engine — clone/pip/npm/scan write to the Rust
+    # quarantine store, so approve must read/write the same store (ADR-0004).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" approve "$@"
 }
 
 cmd_reject() {
-    local q_id="$1"
-    # Validate quarantine ID format (alphanumeric + underscore only)
-    if [[ ! "$q_id" =~ ^[a-zA-Z0-9_]+$ ]]; then
-        fail "Invalid quarantine ID format: $q_id"
-        exit 1
-    fi
-    local source="$QUARANTINE_DIR/$q_id"
-    # Verify path is actually inside quarantine directory
-    local real_source
-    real_source=$(realpath "$source" 2>/dev/null) || { fail "Quarantine ID not found: $q_id"; exit 1; }
-    local real_quarantine
-    real_quarantine=$(realpath "$QUARANTINE_DIR")
-    if [[ "$real_source" != "$real_quarantine"/* ]]; then
-        fail "Path traversal detected: $q_id"
-        exit 1
-    fi
-    [ ! -d "$source" ] && { fail "Quarantine ID not found: $q_id"; exit 1; }
-    rm -rf "$source"
-    pass "Rejected and deleted: $q_id"
+    # Delegate to the Rust engine (single quarantine store, ADR-0004).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" reject "$@"
 }
 
 cmd_list() {
-    echo -e "${BOLD}Quarantined items:${NC}"
-    if [ -d "$QUARANTINE_DIR" ] && [ "$(ls -A "$QUARANTINE_DIR" 2>/dev/null)" ]; then
-        for item in "$QUARANTINE_DIR"/*/; do
-            local name; name=$(basename "$item")
-            local size; size=$(du -sh "$item" 2>/dev/null | cut -f1)
-            local report="$REPORT_DIR/${name}_report.txt"
-            local verdict="no scan"
-            [ -f "$report" ] && verdict=$(grep "VERDICT:" "$report" | tail -1 | sed 's/.*VERDICT: //' | sed 's/|.*//' | tr -d '[:space:]' || echo "scanned")
-            echo -e "  ${CYAN}$name${NC}  ($size)  [$verdict]"
-        done
-    else
-        echo "  (empty)"
-    fi
-    echo -e "\n${BOLD}Approved items:${NC}"
-    if [ -d "$APPROVED_DIR" ] && [ "$(ls -A "$APPROVED_DIR" 2>/dev/null)" ]; then
-        for item in "$APPROVED_DIR"/*/; do
-            echo -e "  ${GREEN}$(basename "$item")${NC}  ($(du -sh "$item" 2>/dev/null | cut -f1))"
-        done
-    else
-        echo "  (empty)"
-    fi
+    # Delegate to the Rust engine (single quarantine store, ADR-0004).
+    local rust_bin
+    rust_bin=$(resolve_rust_bin) || bootstrap_required
+    exec "$rust_bin" list "$@"
 }
 
 cmd_config() {
@@ -1750,14 +1743,14 @@ main() {
 
     case "$command" in
         install)    cmd_install ;;
-        clone)      cmd_clone "${1:?Usage: sigil clone <git-url>}" ;;
-        pip)        cmd_pip "${1:?Usage: sigil pip <package-name>}" ;;
-        npm)        cmd_npm "${1:?Usage: sigil npm <package-name>}" ;;
+        clone)      [ $# -ge 1 ] || { fail "Usage: sigil clone <git-url>"; exit 1; }; cmd_clone "$@" ;;
+        pip)        [ $# -ge 1 ] || { fail "Usage: sigil pip <package-name>"; exit 1; }; cmd_pip "$@" ;;
+        npm)        [ $# -ge 1 ] || { fail "Usage: sigil npm <package-name>"; exit 1; }; cmd_npm "$@" ;;
         scan)       cmd_scan "$@" ;;
         fetch)      cmd_fetch "${1:?Usage: sigil fetch <url>}" ;;
-        approve)    cmd_approve "${1:?Usage: sigil approve <quarantine-id>}" ;;
-        reject)     cmd_reject "${1:?Usage: sigil reject <quarantine-id>}" ;;
-        list)       cmd_list ;;
+        approve)    [ $# -ge 1 ] || { fail "Usage: sigil approve <quarantine-id>"; exit 1; }; cmd_approve "$@" ;;
+        reject)     [ $# -ge 1 ] || { fail "Usage: sigil reject <quarantine-id>"; exit 1; }; cmd_reject "$@" ;;
+        list)       cmd_list "$@" ;;
         config)     cmd_config "$@" ;;
         hooks)      cmd_install_hooks "${1:-.}" ;;
         aliases)    cmd_aliases "$@" ;;

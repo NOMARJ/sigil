@@ -1,0 +1,195 @@
+{
+  "meta": {
+    "id": "sigil-core-supply-chain",
+    "name": "Sigil Core — Supply Chain Attack Patterns",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARK <hello@sigilsec.ai>",
+    "description": "Novel supply chain attack vectors: dependency polymorphism, build-time code generation, cross-language bridge exploits, and registry hijacking. Ported from Python NOVEL_VECTOR_RULES."
+  },
+  "rules": [
+    {
+      "id": "SUPPLY-001",
+      "phase": "code_patterns",
+      "severity": "critical",
+      "pattern": "fs\\.(write|writeFile).*package\\.json|dependencies.*fs\\.(write|writeFile)",
+      "description": "Self-modifying package.json dependencies detected"
+    },
+    {
+      "id": "SUPPLY-002",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "[\"'][\\^~]?\\d+\\.\\d+\\.\\d+\\s*\\|\\|\\s*[\\^~]?\\d{2,}\\.|>=\\d+\\.\\d+\\.\\d+\\s*<\\d+\\.\\d+\\.\\d+\\s*\\|\\|\\s*>=\\d{2,}",
+      "description": "Suspicious version range that could allow hijacking",
+      "file_filter": {
+        "filename_exact": [
+          "package.json"
+        ]
+      }
+    },
+    {
+      "id": "SUPPLY-003",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "git\\+(ssh|https?)://[^\"'\\s]+#[a-zA-Z][a-zA-Z0-9_/.-]+",
+      "description": "Git dependency with non-standard branch reference",
+      "file_filter": {
+        "filename_exact": [
+          "package.json",
+          "requirements.txt",
+          "pyproject.toml"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "#main",
+          "#master",
+          "#v"
+        ]
+      }
+    },
+    {
+      "id": "SUPPLY-004",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "require\\(['\"][\\./]*node_modules/[^/]+/node_modules/",
+      "description": "Direct access to transitive dependencies"
+    },
+    {
+      "id": "SUPPLY-005",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "registry.*https?://[^\"'\\s]+|publishConfig.*registry",
+      "description": "Non-standard package registry configured",
+      "file_filter": {
+        "filename_exact": [
+          "package.json",
+          ".npmrc",
+          "pyproject.toml"
+        ]
+      },
+      "suppress": {
+        "safe_domains": [
+          "registry.npmjs.org",
+          "pypi.org",
+          "files.pythonhosted.org"
+        ]
+      }
+    },
+    {
+      "id": "SUPPLY-006",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "require\\.resolve\\([^)]+\\)[\\s\\S]*catch[\\s\\S]*require\\([^)]+\\)",
+      "description": "Phantom dependency pattern with fallback"
+    },
+    {
+      "id": "SUPPLY-007",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "Module\\._load\\s*=|require\\.cache\\[[^\\]]+\\]\\s*=|module\\.exports\\s*=.*require\\(\\s*[^\"'\\s)]",
+      "description": "Runtime dependency replacement detected",
+      "suppress": {
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd"
+        ]
+      }
+    },
+    {
+      "id": "SUPPLY-008",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*eval|template\\s*\\([^)]*\\).*exec",
+      "description": "Template literal code injection pattern",
+      "suppress": {
+        "path_contains": [
+          "node_modules/"
+        ],
+        "file_header_contains": [
+          "typeof define===\"function\"&&define.amd"
+        ]
+      }
+    },
+    {
+      "id": "SUPPLY-009",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "define\\s*\\([^)]*\\)[\\s\\S]*exec\\s*\\(|macro\\s*\\([\\s\\S]*Function\\s*\\(|__macro__\\s*\\([^)]*eval",
+      "description": "Macro expansion with code execution"
+    },
+    {
+      "id": "SUPPLY-010",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "sourceMappingURL\\s*=.*data:.*base64|sourceMap\\s*:.*atob\\(",
+      "description": "Inline source map with base64 payload"
+    },
+    {
+      "id": "SUPPLY-011",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(esprima|acorn|babel)\\.parse[\\s\\S]*(node\\.type|node\\.body|eval|Function\\()|AST[\\s\\S]*node\\.type[\\s\\S]*=|transform[\\s\\S]*CallExpression[\\s\\S]*eval",
+      "description": "AST manipulation with code generation"
+    },
+    {
+      "id": "SUPPLY-012",
+      "phase": "code_patterns",
+      "severity": "critical",
+      "pattern": "class\\s+\\w*Plugin[\\s\\S]*apply\\s*\\(compiler\\)[\\s\\S]*(eval|Function\\()|compiler\\.(plugin|hooks)[\\s\\S]*(eval|Function\\()|webpack[\\s\\S]*plugin[\\s\\S]*exec\\(",
+      "description": "Webpack plugin with dynamic code execution"
+    },
+    {
+      "id": "SUPPLY-013",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "babel[\\s\\S]*visitor[\\s\\S]*(eval|Function\\()|transformSync[\\s\\S]*plugins[\\s\\S]*eval|preset[\\s\\S]*visitor[\\s\\S]*exec",
+      "description": "Babel transformer with code injection"
+    },
+    {
+      "id": "SUPPLY-014",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "WebAssembly\\.(instantiate|compile)|Uint8Array\\s*\\(\\s*\\[[\\d\\s,]{50,}",
+      "description": "Large WASM binary payload detected"
+    },
+    {
+      "id": "SUPPLY-015",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "require\\(['\"]\\.\\.?/build/.*\\.node|bindings\\([^)]+\\).*exec|napi.*dlopen.*system",
+      "description": "Native binding with suspicious behavior"
+    },
+    {
+      "id": "SUPPLY-016",
+      "phase": "code_patterns",
+      "severity": "critical",
+      "pattern": "ffi\\.(Library|Function)[\\s\\S]*\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]*Library[\\s\\S]*\\bsystem\\b|Foreign[\\s\\S]*invoke[\\s\\S]*exec|ctypes[\\s\\S]*CDLL[\\s\\S]*os\\.system",
+      "description": "FFI boundary violation with command execution"
+    },
+    {
+      "id": "SUPPLY-017",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "PythonShell|python-shell|pyodide|Pyodide",
+      "description": "Python-JavaScript bridge with code execution"
+    },
+    {
+      "id": "SUPPLY-018",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "wasm_bindgen.*#\\[wasm_bindgen\\].*unsafe|wasm-pack.*--target.*eval|rustwasm.*Memory.*grow",
+      "description": "Rust-WASM bridge with unsafe operations"
+    },
+    {
+      "id": "SUPPLY-019",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "Java\\.type.*Runtime.*exec|jni.*CallStaticMethod.*system|JNI.*GetMethodID.*ProcessBuilder",
+      "description": "JNI exploitation pattern detected"
+    }
+  ],
+  "provenance_rules": []
+}

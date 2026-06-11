@@ -4,7 +4,7 @@
 # ============================================================================
 
 # python:3.11-slim-bookworm
-FROM python:3.11-slim-bookworm@sha256:8f3aba466a471c3e35f52f8a4e4091e23d19a6a2 AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 LABEL maintainer="NOMARK <team@sigilsec.ai>"
 LABEL description="Sigil API — FastAPI backend service"
@@ -28,6 +28,30 @@ RUN pip install --no-cache-dir -r /app/requirements.lock
 
 # Copy API source
 COPY api/ /app/api/
+
+# ---------------------------------------------------------------------------
+# F-008 US-G1 — Rust detection engine (SIGIL_RUST_ENGINE, default OFF)
+#
+# The API can delegate scanning to the Rust `sigil` binary when the env var
+# SIGIL_RUST_ENGINE=1 is set (see api/services/scanner.py). This image does
+# NOT yet bundle that binary, so the flag must stay OFF here until the binary
+# is built into the image. To enable it, add a Rust build stage and copy the
+# artifact in, e.g.:
+#
+#   FROM rust:1-bookworm AS rust-build
+#   WORKDIR /build
+#   COPY cli/ /build/cli/
+#   RUN cd cli && cargo build --release
+#
+#   # ...then in this runtime stage:
+#   COPY --from=rust-build /build/cli/target/release/sigil /usr/local/bin/sigil
+#   ENV SIGIL_BIN=/usr/local/bin/sigil
+#   ENV SIGIL_RUST_ENGINE=1
+#
+# Left as a documented TODO rather than guessed because it changes the build
+# context (cli/ must be in scope), target arch, and CI cache behaviour — out
+# of scope for US-G1, which only wires the API-side delegation behind the flag.
+# ---------------------------------------------------------------------------
 
 # Set ownership
 RUN chown -R sigil:sigil /app

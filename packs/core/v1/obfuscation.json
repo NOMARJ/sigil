@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "id": "sigil-core-obfuscation",
+    "name": "Sigil Core — Obfuscation",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects obfuscation techniques: base64 encoded payloads, String.fromCharCode, hex-encoded strings, unicode escape sequences, and codec usage"
+  },
+  "rules": [
+    {
+      "id": "OBFUSC-001",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "base64\\.(b64)?decode\\s*\\(",
+      "description": "Base64 decoding (potential obfuscated payload)"
+    },
+    {
+      "id": "OBFUSC-002",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "atob\\s*\\(",
+      "description": "JavaScript atob() — base64 decoding"
+    },
+    {
+      "id": "OBFUSC-003",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "Buffer\\.from\\s*\\([^)]*,\\s*['\"]base64['\"]",
+      "description": "Node Buffer.from base64 decoding"
+    },
+    {
+      "id": "OBFUSC-004",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "String\\.fromCharCode\\s*\\(",
+      "description": "String.fromCharCode — character code obfuscation"
+    },
+    {
+      "id": "OBFUSC-005",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "chr\\s*\\(\\s*\\d+\\s*\\)",
+      "description": "chr() — character code construction"
+    },
+    {
+      "id": "OBFUSC-006",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "\\\\x[0-9a-fA-F]{2}(\\\\x[0-9a-fA-F]{2}){7,}",
+      "description": "Long hex-encoded string (likely obfuscated)",
+      "suppress": {
+        "path_contains": [
+          "/docs/",
+          "/tests/",
+          "bench",
+          "example",
+          "fixture",
+          "test"
+        ]
+      }
+    },
+    {
+      "id": "OBFUSC-007",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "0x[0-9a-fA-F]{2}\\s*,\\s*(0x[0-9a-fA-F]{2}\\s*,?\\s*){7,}",
+      "description": "Hex byte array (likely obfuscated payload)",
+      "suppress": {
+        "path_contains": [
+          "/docs/",
+          "/tests/",
+          "bench",
+          "example",
+          "fixture",
+          "test"
+        ]
+      }
+    },
+    {
+      "id": "OBFUSC-008",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "\\\\u[0-9a-fA-F]{4}(\\\\u[0-9a-fA-F]{4}){5,}",
+      "description": "Long unicode escape sequence"
+    },
+    {
+      "id": "OBFUSC-009",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "codecs\\.(decode|encode)\\s*\\(",
+      "description": "codecs decode/encode — potential obfuscation"
+    },
+    {
+      "id": "OBFUSC-010",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "(?i)(rot13|rot_13|caesar|cipher)\\s*[\\(\\.]",
+      "description": "ROT13 / cipher usage — text obfuscation"
+    },
+    {
+      "id": "OBFUSC-011",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "pattern": "(zlib|gzip)\\.(decompress|inflate)\\s*\\(",
+      "description": "Inline decompression — potential obfuscated payload"
+    },
+    {
+      "id": "OBFUSC-MCP-001",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "tool_description.*base64|encoded_tool|obfuscated_prompt",
+      "description": "Obfuscated MCP tool definition"
+    }
+  ],
+  "provenance_rules": []
+}

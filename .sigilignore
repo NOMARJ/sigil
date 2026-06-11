@@ -1,0 +1,223 @@
+# .sigilignore — self-scan suppressions for the Sigil repository (F-008 US-D3)
+#
+# Sigil is a security scanner. Its own repository necessarily CONTAINS the very
+# malicious patterns it hunts for — as signature research, detection-rule source,
+# test inputs, deliberately-malicious fixtures, and the bash scanner's grep strings.
+# Those are self-reference BY DESIGN, not vulnerabilities.
+#
+# Every entry below is scoped precisely and carries a written rationale. This file
+# is NOT a blanket ignore: production source trees (api/, cli/, dashboard/, bot/,
+# plugins/) are NOT excluded wholesale — only the specific detection-engine files
+# whose job is to embed the patterns are listed, each with justification. A genuine
+# malicious file added anywhere outside these scoped paths still trips the gate.
+#
+# Syntax is gitignore-compatible (the scanner loads this via
+# WalkBuilder::add_custom_ignore_filename(".sigilignore"); see cli/src/scanner/mod.rs).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a1) Signature & detection RESEARCH docs — contain attack patterns by design.
+# These document, for human readers, exactly which malicious strings Sigil detects.
+# Excluding the docs/ tree: it is public documentation and security research, not
+# executable product code.
+# ─────────────────────────────────────────────────────────────────────────────
+docs/
+
+# Root-level research / project docs that quote detection patterns or verdicts.
+README.md
+ROADMAP.md
+CHANGELOG.md
+CLAUDE.md
+VERIFICATION_REPORT.md
+llms.txt
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a2) Security blog articles — long-form research that walks through real attack
+# samples and the detection phases. Marketing/education content, not product code.
+# ─────────────────────────────────────────────────────────────────────────────
+blog/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a3) Vendored skill/command/agent CORPUS (packs/). These are third-party skill
+# and command markdown bundles shipped as SCAN TARGETS / reference content, not
+# Sigil's own source. SKILL.md files legitimately describe code patterns (eval,
+# exec, child_process) as part of their domain instructions. plugin.json manifests
+# trip skill-manifest heuristics by design.
+# ─────────────────────────────────────────────────────────────────────────────
+packs/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a4) The Sigil skill (sigil-skill/) — phase documentation, the scan SKILL.md,
+# audit scripts, and its own deliberately-malicious test fixtures. PHASES.md is the
+# single largest source of self-reference (it lists every pattern the scanner flags).
+# ─────────────────────────────────────────────────────────────────────────────
+sigil-skill/
+
+# Top-level skill stubs that mirror the plugin skill docs.
+skills/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a5) Claude Code / IDE plugin SKILL & doc markdown — describe what Sigil detects
+# (fix-finding, scan-* skills, README). Scoped to docs only, NOT plugin source:
+# plugins/mcp-server/src and plugins/vscode/src are handled individually below.
+# ─────────────────────────────────────────────────────────────────────────────
+plugins/claude-code/
+plugins/*/README.md
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a6) Test inputs and fixtures. Scanner unit/integration tests embed malicious
+# samples as INPUT data; the fixtures trees are SYNTHETIC attack samples authored
+# on purpose (Phase B) to prove detection.
+# ─────────────────────────────────────────────────────────────────────────────
+api/tests/
+tests/fixtures/
+tests/regression/
+test-repo/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a7) The legacy bash scanner and its wrapper. bin/sigil's source IS the pattern
+# list as literal grep strings; bin/sigil-wrapper.js imports child_process to shell
+# out to the binary (its entire purpose).
+# ─────────────────────────────────────────────────────────────────────────────
+bin/sigil
+bin/sigil-wrapper.js
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a8) Archived/dead code (archive/) — superseded Forge service and scripts, kept
+# for history. Not shipped, not on any production path.
+# ─────────────────────────────────────────────────────────────────────────────
+archive/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (a9) Governance / project-state artifacts that quote findings, verdicts, and
+# pattern names as evidence. Not product code.
+# ─────────────────────────────────────────────────────────────────────────────
+evidence/
+tasks/
+.nomark/
+progress.md
+progress.txt
+scan_output.txt
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (b-as-self-reference) DETECTION-ENGINE SOURCE FILES.
+# These are real production source, but their FUNCTION is to define/describe the
+# malicious patterns. Each is listed individually (the api/ and cli/ trees are NOT
+# excluded wholesale) so any OTHER file in those trees is still scanned.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# NOTE: gitignore syntax has NO inline trailing comments — a "#" after a pattern
+# is treated as a literal character. Every rationale below is therefore on its own
+# comment line ABOVE the bare pattern it justifies.
+
+# Python detection engine — pattern dictionaries, signatures, explanations.
+# api/services/scanner.py: core phase definitions; pattern regexes embedded as data.
+api/services/scanner.py
+# api/services/scanner_v1.py: legacy v1 detector; comments reference the .exec() rule.
+api/services/scanner_v1.py
+# api/services/prompt_scanner.py: prompt-injection signatures (DAN/jailbreak markers).
+api/services/prompt_scanner.py
+# api/services/openclaw_rules.py: jailbreak-persona rule definitions.
+api/services/openclaw_rules.py
+# api/services/pattern_grouper.py: groups findings by indicator strings (eval(, exec().
+api/services/pattern_grouper.py
+# api/services/explanations.py: human-readable explanations OF eval/exec/pickle risks.
+api/services/explanations.py
+# api/services/threat_intel.py: threat-signature descriptions (patterns as text).
+api/services/threat_intel.py
+# api/utils/code_flow_analyzer.py: AST/dataflow analyzer; embeds the dangerous-sink list.
+api/utils/code_flow_analyzer.py
+# api/scanner/phase9_llm_detector.py: delimiter-join formats evidence text (PROMPT-007 FP).
+api/scanner/phase9_llm_detector.py
+# api/data/threat_signatures.json: the signature pack itself (patterns as data).
+api/data/threat_signatures.json
+# api/data/whitelist_patterns.json: known-safe allowlist; necessarily lists the patterns.
+api/data/whitelist_patterns.json
+# api/prompts/threat_detection_prompts.py: LLM prompt listing injection examples to detect.
+api/prompts/threat_detection_prompts.py
+# api/prompts/fix_generation_prompts.py: remediation guidance quoting Runtime.exec().
+api/prompts/fix_generation_prompts.py
+# api/prompts/false_positive_prompts.py: FP-triage prompt quoting "eval() in a config parser".
+api/prompts/false_positive_prompts.py
+# api/seed_data.py: seed/sample scan data containing example findings.
+api/seed_data.py
+
+# Rust detection engine — phase rule strings and the unicode normalizer.
+# cli/src/scanner/phases.rs: rule message strings ("eval() call — …") as string literals.
+cli/src/scanner/phases.rs
+# cli/src/scanner/normalize.rs: unicode de-cloaking; a test asserts the normalized "eval(".
+cli/src/scanner/normalize.rs
+# cli/src/scanner/mod.rs: walker comment references the token "eval(" (ADR-0008).
+cli/src/scanner/mod.rs
+# cli/src/scanner/context.rs: doc-comment example "eval(" in .d.ts files.
+cli/src/scanner/context.rs
+# cli/src/corpus/ (F-008 Phase C): the declarative pack engine + signing module.
+# Its parity tests embed malicious sample strings as Rust literals (let contents =
+# "eval(compile(…))", requests.get("https://evil…")) to prove the engine detects
+# them, and signing.rs carries Ed25519 test-vector hex byte arrays (tripping the
+# hex-payload rule). Detection-engine test fixtures + crypto test vectors, not payloads.
+cli/src/corpus/engine.rs
+cli/src/corpus/loader.rs
+cli/src/corpus/signing.rs
+
+# IDE / MCP integration source whose strings describe detected patterns.
+# plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.
+plugins/mcp-server/src/index.ts
+# plugins/vscode/src/runner.ts: execFile("child_process") to invoke the sigil binary.
+plugins/vscode/src/runner.ts
+
+# Dashboard onboarding/demo UI that SHOWS example malicious snippets to users.
+# FirstScanStep.tsx: demo payloads (eval/exec samples shown in onboarding).
+dashboard/src/components/onboarding/FirstScanStep.tsx
+# InsightsGuideStep.tsx: demo finding cards (eval/atob examples).
+dashboard/src/components/onboarding/InsightsGuideStep.tsx
+# FindingsList.tsx: UI label text "eval, exec, pickle, child_process…".
+dashboard/src/components/FindingsList.tsx
+# threats/page.tsx: search placeholder "eval() with network fetch".
+dashboard/src/app/threats/page.tsx
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (b-scanner-FP) KNOWN SCANNER FALSE POSITIVES in real production code.
+# These are benign idioms the current rule set over-flags. They are documented here
+# (not silently hidden) and reported as FP-narrowing work for Phase C. Each is
+# scoped to the exact file, with the specific reason it is safe.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Legit base64 decode of attestation/crawler payloads — NOT obfuscated execution.
+# CODE/OBFUSC base64 rules fire on any b64decode; these decode signing keys and
+# fetched MCP manifest content. Scanner-FP gap (decode-without-exec). Phase C.
+api/routers/attestation.py
+bot/attestation.py
+api/services/mcp_crawler.py
+
+# Placeholder/template files — values are literal placeholders, not real secrets.
+# .env.example: "sk_live_your_stripe_secret_key" and PRIVATE KEY "-----BEGIN…-----..."
+# are template strings, not credentials. CRED-006 cannot tell a template from a key.
+.env.example
+# api/monitoring/README.md: doc example values.
+api/monitoring/README.md
+
+# docker-compose.yml: ${SIGIL_PG_PASSWORD:-sigil_dev_password} is an env-overridable
+# local-dev fallback; production uses Azure SQL (no compose). Not a shipped credential.
+# Scanner-FP: CRED-008 cannot see the env-override default syntax.
+docker-compose.yml
+
+# First-party lifecycle scripts (Sigil installing its OWN prebuilt binary), not a
+# supply-chain hook in a scanned dependency. Scanner-FP for first-party manifests.
+# package.json: "postinstall"/"preuninstall" run Sigil's own install/cleanup.
+package.json
+# dashboard/package.json: dashboard build manifest.
+dashboard/package.json
+
+# dashboard/playwright.config.ts: INFER-002 on a test baseURL 'http://localhost:3000'.
+dashboard/playwright.config.ts
+# test_auth0_flow.sh: NET-006 on an echoed OAuth callback URL in a dev helper script.
+test_auth0_flow.sh
+
+# Harness scripts that reference dynamic-import / pattern strings as data.
+scripts/ensure-telemetry-ignored.cjs
+scripts/lifecycle-engine.cjs
+scripts/transcript-backfill.cjs
+
+# This ignore file itself enumerates pattern/file names and therefore trips the
+# scanner. It is configuration, not product code.
+.sigilignore

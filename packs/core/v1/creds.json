@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "id": "sigil-core-credentials",
+    "name": "Sigil Core — Credentials",
+    "version": "1.0.0",
+    "updated_at": "2026-06-11",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects credential access patterns: ENV variable reads, AWS/GCP/Azure credentials, SSH keys, API key patterns, and hardcoded secrets"
+  },
+  "rules": [
+    {
+      "id": "CRED-001",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "os\\.(environ|getenv)\\s*[\\[\\(]\\s*['\"]?(AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)",
+      "description": "Environment variable access for sensitive key"
+    },
+    {
+      "id": "CRED-002",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "process\\.env\\.(AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)",
+      "description": "Node process.env access for sensitive key"
+    },
+    {
+      "id": "CRED-003",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\.aws/(credentials|config)",
+      "description": "AWS credentials file access"
+    },
+    {
+      "id": "CRED-004",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "AKIA[0-9A-Z]{16}",
+      "description": "Hardcoded AWS access key ID"
+    },
+    {
+      "id": "CRED-005",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys)",
+      "description": "SSH key file access"
+    },
+    {
+      "id": "CRED-006",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
+      "description": "Embedded private key"
+    },
+    {
+      "id": "CRED-007",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(api[_-]?key|api[_-]?secret|access[_-]?token)\\s*[:=]\\s*['\"][a-zA-Z0-9]{16,}",
+      "description": "Hardcoded API key or secret"
+    },
+    {
+      "id": "CRED-008",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\"][^'\"]{8,}",
+      "description": "Hardcoded password",
+      "suppress": {
+        "filename_suffix": [
+          ".md",
+          ".rst",
+          ".txt"
+        ],
+        "path_contains": [
+          "/docs/",
+          "README",
+          "__tests__",
+          "example",
+          "examples",
+          "fixture",
+          "readme",
+          "spec",
+          "test"
+        ]
+      }
+    },
+    {
+      "id": "CRED-009",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\"type\"\\s*:\\s*\"service_account\"",
+      "description": "GCP service account JSON key"
+    },
+    {
+      "id": "CRED-010",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "gh[pousr]_[A-Za-z0-9_]{36,}",
+      "description": "GitHub personal access token"
+    },
+    {
+      "id": "CRED-011",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(bearer|authorization)\\s*[:=]\\s*['\"][a-zA-Z0-9._\\-]{20,}",
+      "description": "Authorization / bearer token"
+    },
+    {
+      "id": "CRED-MCP-001",
+      "phase": "credentials",
+      "severity": "medium",
+      "pattern": "MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth",
+      "description": "MCP credential reference"
+    }
+  ],
+  "provenance_rules": []
+}

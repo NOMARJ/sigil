@@ -17,6 +17,11 @@ const CACHE_VERSION: u32 = 1;
 #[derive(Serialize, Deserialize)]
 struct CacheEntry {
     version: u32,
+    // A cached verdict is only valid for the scanner build that produced it:
+    // new detection logic / signatures must re-scan, or upgrades silently
+    // serve stale security verdicts. Entries without this field are invalid.
+    #[serde(default)]
+    scanner_version: String,
     directory_hash: String,
     result: ScanResult,
 }
@@ -71,7 +76,10 @@ pub fn load_cached(path: &Path) -> Option<ScanResult> {
     let data = fs::read_to_string(&cache_file).ok()?;
     let entry: CacheEntry = serde_json::from_str(&data).ok()?;
 
-    if entry.version == CACHE_VERSION && entry.directory_hash == dir_hash {
+    if entry.version == CACHE_VERSION
+        && entry.scanner_version == env!("CARGO_PKG_VERSION")
+        && entry.directory_hash == dir_hash
+    {
         Some(entry.result)
     } else {
         None
@@ -86,6 +94,7 @@ pub fn save_to_cache(path: &Path, result: &ScanResult) -> Result<(), Box<dyn std
 
     let entry = CacheEntry {
         version: CACHE_VERSION,
+        scanner_version: env!("CARGO_PKG_VERSION").to_string(),
         directory_hash: dir_hash.clone(),
         result: result.clone(),
     };

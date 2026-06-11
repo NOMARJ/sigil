@@ -1,4 +1,5 @@
-fastapi>=0.109.0
+fastapi>=0.136.3
+starlette>=1.0.1  # CVE-2026-48710 (BadHost) — never regress below the patched release
 uvicorn>=0.27.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
