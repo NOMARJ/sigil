@@ -38,4 +38,4 @@ No secrets in this file — secretRef/Key-Vault names only.
 
 ## Finding (out of F-009 scope, logged honestly)
 
-The device-flow auth endpoints (`/v1/auth/device/code`) return 500 in production, and the CLI's `login` command still targets the removed custom-JWT endpoint (410). Programmatic/CLI authentication is currently broken against the Auth0-migrated API — dashboard PAT appears to be the only working token path. Worth a separate ticket.
+The device-flow auth endpoints (`/v1/auth/device/code`) return 500/503 in production, and the CLI's `login` command still targets the removed custom-JWT endpoint (410). Programmatic/CLI authentication is currently broken against the Auth0-migrated API — dashboard PAT appears to be the only working token path. Filed as **NOMARJ/sigil#124**.
