@@ -1063,6 +1063,10 @@
 - 1: scanner, false-positives, patterns [confidence: 0.8]
 - 2: python, imports, packaging [confidence: 0.7]
 - 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-11T05:17:02.043Z
+**Outcome:** BLOCKED
+**Stories:** 45/67 (7 blocked)
+
 - 4: react, hooks, frontend [confidence: 0.7]
 
 ## instinct-health
@@ -1342,12 +1346,23 @@
 - **Files:** `bin/sigil`
 
 ### US-G3 [F-008]: Honest evaluation harness (replaces the 97.96% lineage)
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** Recall/precision measured against the Datadog malicious-packages dataset (27,813 human-triaged npm/PyPI samples) + clean-package control set; results published with Data Source / Sample Size / Limitations; **no `random` anywhere in evaluation code** (CI-greppable).
 - **Done when:** `python3 scripts/run_eval.py --dataset datadog --out evaluation_results/` writes a report whose numbers are reproducible on a second run (same dataset hash); `grep -rn "import random" scripts/run_eval.py` returns nothing; report explicitly supersedes `production_d1_d4_scorecard_80k_scans.json`, which is moved to `archive/` with a provenance note.
 - **Files:** `scripts/run_eval.py`, `evaluation_results/`, `archive/`
-- **Notes:** Whatever the real number is, it ships. CLAUDE.md disclosure format mandatory.
+- **Notes:** REAL measurement, current engine (sigil 1.1.2), 351 real Datadog samples (110/bucket ×4,
+  commit 605a7318), 20 popular real control packages. Deterministic (sorted per-bucket, no random —
+  grep PASS), reproducible (identical fingerprint 5f7ebb09… + recall across two runs). Old scorecard
+  moved to archive/ with provenance note. **Honest numbers (they ship): recall 96.87% @any, 93.73%
+  @High, 61.54% @Critical. BUT FP-rate 95% @High — 19/20 popular legit packages (requests/flask/
+  express/react/lodash) flagged High.** Report states this loudly + caveats that "precision 94.5%" is
+  class-imbalance-distorted (351:20). Surfaced follow-up: FP-NARROWING needed before High can gate
+  real installs. Engine resolution gotcha: harness picked homebrew sigil v1.0.4 off PATH first — must
+  pin SIGIL_BIN. Samples NOT committed (live in /tmp; raw-CDN fetch, git promisor was unusable).
+- **Follow-up (FP-NARROWING, TODO):** the eval's headline real finding — static phases over-trigger on
+  benign idioms (network calls, base64, env reads, minified code). High recall is real; precision on
+  real-world clean packages is poor. Rule-set FP-narrowing is the highest-value next detection work.
 
 ---
 
