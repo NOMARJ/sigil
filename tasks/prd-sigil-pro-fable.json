@@ -1,0 +1,200 @@
+{
+  "feature": "sigil-pro-fable",
+  "solutionFeature": "F-009",
+  "epic": "EP-003",
+  "branchName": "feature/sigil-pro-fable",
+  "status": "approved",
+  "approvedBy": "owner",
+  "approvedAt": "2026-06-11",
+  "description": "Sigil Pro tier + Fable integration (F-008 Goal 2). Modernize the LLM layer onto current-generation Anthropic models (claude-fable-5 deep analysis with claude-opus-4-8 refusal fallback, claude-haiku-4-5 for cheap classification), replacing the broken plumbing (llm_config.py defaults to gpt-4-turbo; model_router.py pins retired claude-3 models). On that foundation, ship Pro-gated AI analysis: LLM FP adjudication (the structural lever F-008's eval identified for the residual 70% FP@High dual-use class), modernized finding triage/explanation/remediation, attack-chain narratives, and a `sigil explain` Rust CLI surface. Gating: free tier gets a small monthly LLM credit allowance; Pro gets full access with fair-use metering on existing credit_service/tier_check/gates infrastructure.",
+  "constraints": [
+    "CHARTER II: no fabricated metrics — the FP-adjudication eval must run against the real F-008 eval corpus with disclosed Data Source / Sample Size / Limitations",
+    "D6 capability-minimal: LLM calls are opt-in, outbound only to api.anthropic.com; what finding content is transmitted must be documented",
+    "Fable 5 specifics (verified 2026-06-11 via claude-api reference): thinking always on (omit the thinking param), no assistant prefill, new tokenizer (~30% more tokens — do not reuse Opus-measured max_tokens), safety classifiers may return stop_reason 'refusal' on security content — handle before reading content, retry on claude-opus-4-8",
+    "Model IDs are exact: claude-fable-5, claude-opus-4-8, claude-haiku-4-5 — no date suffixes",
+    "Fable 5 requires 30-day data retention at the org level; a ZDR org gets 400 on every request — verify org config before declaring integration broken",
+    "Check .nomark/resources.json before writing any env var, endpoint, or resource name; ANTHROPIC_API_KEY availability on sigil-api Container App must be verified, not assumed",
+    "No schema changes without owner approval (CHARTER II.5); metering should reuse existing tables/procedures where possible"
+  ],
+  "dependencies": ["F-003 (tier gating infrastructure: api/gates.py require_plan, subscription_service, credit_service)", "F-008 (Rust engine + eval corpus for US-110)"],
+  "userStories": [
+    {
+      "id": "US-101",
+      "title": "Anthropic-first LLM config with current model registry",
+      "description": "As a Sigil API operator, I want llm_config.py to default to Anthropic with current-generation model IDs so that LLM features stop pointing at gpt-4-turbo and retired claude-3 models.",
+      "acceptanceCriteria": [
+        "llm_config defaults: provider=anthropic, model=claude-opus-4-8 for general analysis, deep_model=claude-fable-5, fast_model=claude-haiku-4-5 (env-overridable, same LLM_MODEL pattern)",
+        "No 'gpt-4-turbo' default remains; grep -n 'gpt-4' api/llm_config.py returns nothing in defaults",
+        "python3 -m pytest api/tests/test_llm_config.py -q exits 0"
+      ],
+      "priority": 1,
+      "scope": "moderate",
+      "dependsOn": [],
+      "files": ["api/llm_config.py", "api/tests/test_llm_config.py"],
+      "passes": false
+    },
+    {
+      "id": "US-102",
+      "title": "Model router registry refresh — retire claude-3 tiers",
+      "description": "As a developer, I want model_router.py to route across claude-haiku-4-5 / claude-opus-4-8 / claude-fable-5 with verified pricing so that complexity-based routing works against models that exist.",
+      "acceptanceCriteria": [
+        "MODELS registry contains exactly the three current IDs with input/output pricing $1/$5, $5/$25, $10/$50 per MTok; no claude-3-* entry remains",
+        "Credit-cost downgrade path routes to claude-haiku-4-5",
+        "python3 -m pytest api/tests/test_model_router.py -q exits 0"
+      ],
+      "priority": 2,
+      "scope": "moderate",
+      "dependsOn": ["US-101"],
+      "files": ["api/services/model_router.py", "api/tests/test_model_router.py"],
+      "passes": false
+    },
+    {
+      "id": "US-103",
+      "title": "Refusal handling + Opus 4.8 fallback in llm_service",
+      "description": "As a Sigil user analyzing security findings, I want Fable 5 safety-classifier refusals to transparently retry on claude-opus-4-8 so that benign security-tooling analysis (Sigil's whole domain) doesn't fail with empty responses.",
+      "acceptanceCriteria": [
+        "call_llm_api checks stop_reason before reading content; stop_reason=='refusal' on a claude-fable-5 call triggers one retry with model=claude-opus-4-8 and the unchanged conversation; refusal on the fallback surfaces a typed error, not empty string",
+        "Fable 5 calls omit the thinking parameter and send no temperature/top_p/top_k (400 on Fable 5)",
+        "Unit tests with mocked Anthropic responses cover: pre-output refusal (empty content), mid-stream refusal (partial discarded), fallback success, fallback refusal; python3 -m pytest api/tests/test_llm_refusal_fallback.py -q exits 0"
+      ],
+      "priority": 3,
+      "scope": "complex",
+      "dependsOn": ["US-101"],
+      "files": ["api/services/llm_service.py", "api/tests/test_llm_refusal_fallback.py"],
+      "passes": false
+    },
+    {
+      "id": "US-104",
+      "title": "LLM usage metering — free teaser allowance + Pro fair-use",
+      "description": "As the business, I want every LLM call metered per user with a free-tier monthly allowance so that free users can taste AI analysis while Pro carries unlimited (fair-use) access.",
+      "acceptanceCriteria": [
+        "credit_service exposes check_llm_allowance(user_id) and record_llm_usage(user_id, model, input_tokens, output_tokens, feature); free tier allowance is config-driven (default 10 calls/month), Pro is fair-use metered-only",
+        "Allowance exhaustion returns a structured denial (reason, reset date, upgrade URL) — no silent failure",
+        "Reuses existing usage tables/procedures (no new schema without owner approval); python3 -m pytest api/tests/test_llm_metering.py -q exits 0"
+      ],
+      "priority": 4,
+      "scope": "complex",
+      "dependsOn": ["US-101"],
+      "files": ["api/services/credit_service.py", "api/tests/test_llm_metering.py"],
+      "passes": false
+    },
+    {
+      "id": "US-105",
+      "title": "AI-analysis gate dependency — 402 on exhausted free tier, pass on Pro",
+      "description": "As an API consumer, I want a single FastAPI dependency that enforces the free-teaser/Pro boundary on AI endpoints so that gating is uniform and testable.",
+      "acceptanceCriteria": [
+        "require_llm_access dependency in api/gates.py: Pro/Team pass (metered), free tier passes while allowance remains, returns 402 with upgrade payload when exhausted, 401 unauthenticated",
+        "python3 -m pytest api/tests/test_tier_gating.py -q exits 0 including new free-teaser cases"
+      ],
+      "priority": 5,
+      "scope": "moderate",
+      "dependsOn": ["US-104"],
+      "files": ["api/gates.py", "api/tests/test_tier_gating.py"],
+      "passes": false
+    },
+    {
+      "id": "US-106",
+      "title": "FP adjudication service (Fable 5, structured verdict)",
+      "description": "As a Sigil user, I want an LLM to adjudicate dual-use findings (eval/exec/pickle/child_process in popular legit packages) so that the residual 70% FP@High class F-008 identified gets the discriminator pattern-scanning cannot provide.",
+      "acceptanceCriteria": [
+        "fp_adjudicator service: input = finding (rule, severity, file, line) + bounded code context; output = structured verdict {classification: benign_dual_use|suspicious|malicious, confidence, rationale} via output_config json_schema — no free-text parsing",
+        "Uses deep_model (claude-fable-5) through the US-103 fallback path; prompt includes the finding's pack provenance",
+        "Unit tests with recorded/mocked LLM responses; python3 -m pytest api/tests/test_fp_adjudicator.py -q exits 0"
+      ],
+      "priority": 6,
+      "scope": "complex",
+      "dependsOn": ["US-103"],
+      "files": ["api/services/fp_adjudicator.py", "api/tests/test_fp_adjudicator.py"],
+      "passes": false
+    },
+    {
+      "id": "US-107",
+      "title": "FP adjudication endpoint wired into scan results",
+      "description": "As a dashboard/CLI consumer, I want POST /v1/scans/{id}/findings/{finding_id}/adjudicate behind the LLM gate so that adjudication is reachable and its verdict is persisted alongside the finding.",
+      "acceptanceCriteria": [
+        "Endpoint guarded by require_llm_access; persists verdict to the finding's metadata (findings_json) without schema change; idempotent re-adjudication overwrites",
+        "python3 -m pytest api/tests/test_adjudicate_endpoint.py -q exits 0 (auth, gate, happy path, refusal-fallback path mocked)"
+      ],
+      "priority": 7,
+      "scope": "moderate",
+      "dependsOn": ["US-105", "US-106"],
+      "files": ["api/routers/scan.py", "api/tests/test_adjudicate_endpoint.py"],
+      "passes": false
+    },
+    {
+      "id": "US-108",
+      "title": "Modernize finding investigator + explanations onto the new layer",
+      "description": "As a Pro user, I want 'why is this malicious and how do I fix it' answers from current models so that the existing investigator/explanation features work again.",
+      "acceptanceCriteria": [
+        "finding_investigator and explanations call through llm_service with model selection from llm_config (no hardcoded model IDs, no claude-3-* references); routes carrying them are guarded by require_llm_access",
+        "python3 -m pytest api/tests -q -k 'investigator or explanations' exits 0",
+        "grep -rn 'claude-3-' api/services/finding_investigator.py api/services/explanations.py returns nothing"
+      ],
+      "priority": 8,
+      "scope": "moderate",
+      "dependsOn": ["US-105"],
+      "files": ["api/services/finding_investigator.py", "api/services/explanations.py"],
+      "passes": false
+    },
+    {
+      "id": "US-109",
+      "title": "Modernize remediation generator + attack-chain tracer",
+      "description": "As a Pro user, I want remediation suggestions and cross-finding attack-chain narratives generated by current models so that the remaining LLM consumers are off dead model IDs.",
+      "acceptanceCriteria": [
+        "remediation_generator and attack_chain_tracer call through llm_service (attack-chain uses deep_model; remediation uses default model); no hardcoded/retired model IDs remain in either file",
+        "python3 -m pytest api/tests -q -k 'remediation or attack_chain' exits 0"
+      ],
+      "priority": 9,
+      "scope": "moderate",
+      "dependsOn": ["US-105"],
+      "files": ["api/services/remediation_generator.py", "api/services/attack_chain_tracer.py"],
+      "passes": false
+    },
+    {
+      "id": "US-110",
+      "title": "Honest FP-adjudication eval on the F-008 corpus",
+      "description": "As the owner, I want a real measurement of FP@High with LLM adjudication applied so that the Pro pitch ('AI cuts your false positives') is evidence, not marketing.",
+      "acceptanceCriteria": [
+        "Eval script runs the F-008 eval flow (real malicious samples + the 20 popular-legit-package set), applies adjudication to High/Critical findings, and reports FP@High and recall@High before/after with Data Source / Sample Size / Limitations disclosure block",
+        "Results written to evidence/F-009/fp-adjudication-eval.md; no random, no synthetic data presented as production",
+        "Both directions reported even if unfavorable; ship/no-ship recommendation included"
+      ],
+      "priority": 10,
+      "scope": "complex",
+      "dependsOn": ["US-106"],
+      "files": ["scripts/eval_fp_adjudication.py", "evidence/F-009/fp-adjudication-eval.md"],
+      "passes": false
+    },
+    {
+      "id": "US-111",
+      "title": "sigil explain — Rust CLI surface for LLM analysis",
+      "description": "As a CLI user, I want `sigil explain <scan-json> [--finding N]` to send a finding to the Sigil API and print the LLM explanation so that Fable analysis reaches the terminal workflow.",
+      "acceptanceCriteria": [
+        "New Explain subcommand: reads a scan --format json output, posts the selected finding to the API explain/adjudicate endpoint with the user's API token, renders verdict + rationale; 402 renders a clear upgrade message with the reset date",
+        "Offline/no-token behavior is a clear error, not a hang; no LLM call happens client-side (API only — D6)",
+        "cargo test --manifest-path cli/Cargo.toml explain passes; manual transcript captured in evidence/F-009/US-111-cli-explain.md"
+      ],
+      "priority": 11,
+      "scope": "complex",
+      "dependsOn": ["US-107"],
+      "files": ["cli/src/main.rs", "cli/src/explain.rs", "cli/tests/explain.rs"],
+      "passes": false
+    },
+    {
+      "id": "US-112",
+      "title": "Ops verification — env, retention, and live smoke (owner/operator-gated)",
+      "description": "As the operator, I want evidence that ANTHROPIC_API_KEY is configured on sigil-api, the org meets Fable 5's 30-day retention requirement, and one real metered call round-trips in each tier state.",
+      "acceptanceCriteria": [
+        "evidence/F-009/US-112-ops-verification.md records: az containerapp show env snapshot (secretRef names only), one live claude-fable-5 call succeeding (or its refusal falling back to claude-opus-4-8), free-tier 402 after allowance exhaustion, Pro 200, usage row visible",
+        "Resource references checked against .nomark/resources.json before use; any new ones added to the graph",
+        "No secrets in evidence files"
+      ],
+      "priority": 12,
+      "scope": "moderate",
+      "gated": "owner/operator (live Azure + Anthropic org access)",
+      "dependsOn": ["US-107", "US-108"],
+      "files": ["evidence/F-009/US-112-ops-verification.md"],
+      "passes": false
+    }
+  ]
+}
