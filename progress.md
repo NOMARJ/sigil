@@ -1449,8 +1449,12 @@
 
 ---
 
-## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2)
+## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — BUILD COMPLETE (PARTIAL) 2026-06-11
 
+> **Status:** 10/12 stories DONE + verified · US-110 BLOCKED (Anthropic billing — see story) · US-112 PENDING (owner/operator-gated)
+> **Feature evidence:** `.nomark/evidence/sigil-pro-fable-complete.md` (AC table, final test runs, latent-bug list)
+> **Final integration run:** api 299 passed/0 failed (baseline 276) · cli 132+4 passed/0 failed (baseline 123)
+> **Resume after billing top-up:** `/autopilot tasks/prd-sigil-pro-fable.json --skip-plan` (US-110 picks up; prerequisites verified on disk)
 > **Created:** 2026-06-11 (planned via /plan_feature; owner approved SOLUTION.md entry + scope same session)
 > **PRD:** `tasks/prd-sigil-pro-fable.json` (status: approved)
 > **Scope decisions (owner, 2026-06-11):** full capability scope (FP adjudication + triage/explanation + CLI + attack-chain) · Fable 5 with Opus 4.8 refusal-fallback, Haiku 4.5 for cheap paths · free-teaser + Pro-unlimited gating
