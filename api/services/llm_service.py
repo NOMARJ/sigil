@@ -246,7 +246,16 @@ class LLMService:
                             output_config=output_config,
                         )
                     raise LLMRefusalError(effective_model, category)
-                return result["content"][0]["text"]
+                # Content can carry thinking blocks before the text block
+                # (Fable 5 always thinks) — select the text block, never
+                # assume position 0.
+                for block in result.get("content", []):
+                    if block.get("type") == "text":
+                        return block["text"]
+                raise Exception(
+                    f"No text block in response from {effective_model} "
+                    f"(stop_reason: {result.get('stop_reason')})"
+                )
             else:
                 raise ValueError(f"Unsupported provider: {llm_config.provider}")
 

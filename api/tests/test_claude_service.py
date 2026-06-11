@@ -80,8 +80,8 @@ def _provider_response_for_text(provider: str, text: str) -> dict[str, Any]:
     """Build the minimal JSON the call_llm_api parser expects, per provider."""
     if provider in ("openai", "azure"):
         return {"choices": [{"message": {"content": text}}]}
-    # anthropic
-    return {"content": [{"text": text}]}
+    # anthropic — real responses always carry a typed text block
+    return {"content": [{"type": "text", "text": text}]}
 
 
 # ---------------------------------------------------------------------------
