@@ -1466,7 +1466,7 @@
 - **Dependencies:** US-101
 
 ### US-104 [F-009]: LLM usage metering — free teaser allowance + Pro fair-use
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — check_llm_allowance (structured 402-able denial) + record_llm_usage (via existing sp_DeductCredits, NO schema change) + CREDIT_RATES refresh (1/5/10 per pricing) + LLM_FREE_MONTHLY_CREDITS env override. 11/11 tests; full suite 267 passed/0 failed. Evidence: `.nomark/evidence/US-104.md`
 - **Scope:** complex
 - **Goal:** `credit_service.check_llm_allowance` / `record_llm_usage`; free = 10 calls/month (config), Pro = metered fair-use; structured denial with reset date + upgrade URL. Reuse existing tables (CHARTER II.5 — no new schema without approval).
 - **Done when:** `python3 -m pytest api/tests/test_llm_metering.py -q` exits 0
