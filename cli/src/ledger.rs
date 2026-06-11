@@ -230,6 +230,38 @@ pub fn get_in(dir: &Path, id: &str) -> Option<LedgerRecord> {
     load_in(dir).into_iter().find(|r| r.id == id)
 }
 
+/// Remove a ledger record by id (approval revocation — `sigil reject` of a
+/// previously-approved artifact must also revoke its allowlist pin, or the
+/// rejected content would keep suppressing findings). Returns whether a record
+/// was removed.
+pub fn remove_in(dir: &Path, id: &str) -> Result<bool, String> {
+    let mut records = load_in(dir);
+    let before = records.len();
+    records.retain(|r| r.id != id);
+    if records.len() == before {
+        return Ok(false);
+    }
+    save_in(dir, &records)?;
+    Ok(true)
+}
+
+/// Match scanned content against the approval ledger (F-010 US-H1).
+///
+/// Returns the approved record whose pinned `artifact_digest` is byte-identical
+/// to the current content of `root`. Drifted content returns `None` — drift
+/// attribution and re-quarantine belong to the rug-pull path
+/// (`detect_rugpull`), never the allowlist. An empty pin never matches: the
+/// digest-of-nothing would otherwise act as a universal allowlist key.
+pub fn match_approved_in(dir: &Path, root: &Path) -> Option<LedgerRecord> {
+    let current = pin_directory(root, None);
+    if current.files.is_empty() {
+        return None;
+    }
+    load_in(dir)
+        .into_iter()
+        .find(|r| r.pin.artifact_digest == current.artifact_digest)
+}
+
 // Default-location wrappers used by the CLI.
 
 pub fn record_approval(entry: &QuarantineEntry, reason: Option<&str>) -> Result<LedgerRecord, String> {
@@ -238,6 +270,14 @@ pub fn record_approval(entry: &QuarantineEntry, reason: Option<&str>) -> Result<
 
 pub fn get(id: &str) -> Option<LedgerRecord> {
     get_in(&ledger_dir(), id)
+}
+
+pub fn remove(id: &str) -> Result<bool, String> {
+    remove_in(&ledger_dir(), id)
+}
+
+pub fn match_approved(root: &Path) -> Option<LedgerRecord> {
+    match_approved_in(&ledger_dir(), root)
 }
 
 // ── Rug-pull detection (US-F2) ──────────────────────────────────────────────
@@ -514,6 +554,74 @@ mod tests {
             "tool-definition drift must be called out: {}",
             findings[0].snippet
         );
+    }
+
+    // ── US-H1: digest-keyed match (F-010 trust-ledger allowlisting) ─────────
+
+    #[test]
+    fn match_approved_exact_content_returns_record() {
+        let art = temp();
+        write(&art, "index.js", "console.log('hi')\n");
+        write(&art, "lib/util.js", "module.exports = 1\n");
+        let store = temp();
+        let entry = fake_entry(&art, "good-pkg@1.0.0", "npm");
+        let rec = record_approval_in(&store, &entry, Some("reviewed")).unwrap();
+
+        // A different directory with byte-identical content must match: the pin
+        // binds to content, not to the quarantine path.
+        let copy = temp();
+        write(&copy, "index.js", "console.log('hi')\n");
+        write(&copy, "lib/util.js", "module.exports = 1\n");
+
+        let m = match_approved_in(&store, &copy).expect("identical content must match");
+        assert_eq!(m.id, rec.id);
+        assert_eq!(m.pin.artifact_digest, rec.pin.artifact_digest);
+    }
+
+    #[test]
+    fn match_approved_drifted_content_returns_none() {
+        let art = temp();
+        write(&art, "index.js", "console.log('hi')\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+
+        // Any byte of drift disqualifies suppression — drift handling belongs to
+        // the rug-pull path, never the allowlist.
+        write(&art, "index.js", "console.log('hi'); fetch('http://evil/x')\n");
+        assert!(match_approved_in(&store, &art).is_none());
+    }
+
+    #[test]
+    fn match_approved_unknown_content_returns_none() {
+        let store = temp();
+        let other = temp();
+        write(&other, "main.py", "print('never approved')\n");
+        assert!(match_approved_in(&store, &other).is_none());
+    }
+
+    #[test]
+    fn match_approved_empty_directory_never_matches() {
+        // Two empty directories share the same digest-of-nothing; an empty pin
+        // must not become a universal allowlist key.
+        let empty_art = temp();
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&empty_art, "empty@1.0.0", "npm"), None).unwrap();
+        let empty_scan = temp();
+        assert!(match_approved_in(&store, &empty_scan).is_none());
+    }
+
+    #[test]
+    fn ledger_remove_revokes_approval() {
+        let art = temp();
+        write(&art, "index.js", "console.log('hi')\n");
+        let store = temp();
+        record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
+        assert!(match_approved_in(&store, &art).is_some());
+
+        assert!(remove_in(&store, "ledtest1").unwrap(), "existing record removed");
+        assert!(match_approved_in(&store, &art).is_none(), "revoked pin must not match");
+        assert!(get_in(&store, "ledtest1").is_none());
+        assert!(!remove_in(&store, "ledtest1").unwrap(), "second remove is a no-op");
     }
 
     #[test]
