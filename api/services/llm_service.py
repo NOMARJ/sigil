@@ -10,7 +10,12 @@ import logging
 import time
 
 import aiohttp
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from api.llm_config import llm_config
 from api.database import db
@@ -27,6 +32,21 @@ from api.llm_models import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class LLMRefusalError(Exception):
+    """The model's safety classifiers declined the request (stop_reason: refusal).
+
+    Terminal for the request — retrying identical content on the same model
+    will not succeed, so this must never be retried by tenacity.
+    """
+
+    def __init__(self, model: str, category: str | None = None):
+        self.model = model
+        self.category = category
+        super().__init__(
+            f"LLM refusal on {model}" + (f" (category: {category})" if category else "")
+        )
 
 
 class LLMService:
@@ -94,7 +114,9 @@ class LLMService:
         prompt = await self._build_analysis_prompt(request)
 
         # Make API request
-        llm_response = await self.call_llm_api(prompt, request.max_tokens)
+        llm_response = await self.call_llm_api(
+            prompt, request.max_tokens, model=request.model
+        )
 
         # Parse response
         insights = self._parse_llm_insights(llm_response, request)
@@ -107,7 +129,7 @@ class LLMService:
         # Build response
         response = LLMAnalysisResponse(
             analysis_id=analysis_id,
-            model_used=llm_config.model,
+            model_used=request.model or llm_config.model,
             insights=insights,
             context_analysis=context_analysis,
             tokens_used=self._estimate_tokens_used(prompt, llm_response),
@@ -121,6 +143,9 @@ class LLMService:
 
     async def _build_analysis_prompt(self, request: LLMAnalysisRequest) -> str:
         """Build the analysis prompt for the LLM using professional templates."""
+        if request.custom_prompt:
+            return request.custom_prompt
+
         from prompts.security_analysis_prompts import SecurityAnalysisPrompts
 
         # Use the professional prompt builder
@@ -136,17 +161,22 @@ class LLMService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_not_exception_type(LLMRefusalError),
         reraise=True,
     )
     async def call_llm_api(
-        self, prompt: str, max_tokens: int, model: str | None = None
+        self,
+        prompt: str,
+        max_tokens: int,
+        model: str | None = None,
+        output_config: dict | None = None,
     ) -> str:
         """Make HTTP request to the configured LLM provider with retry logic.
 
         Args:
             prompt: user-content string for the model.
             max_tokens: completion token cap.
-            model: optional per-call model override (e.g. "claude-3-haiku-20240307").
+            model: optional per-call model override (e.g. "claude-haiku-4-5").
                 When None, falls back to llm_config.model. Threaded through as a
                 parameter — must NOT be implemented by mutating llm_config.model
                 across an await (that pattern races under concurrent coroutines
@@ -172,12 +202,16 @@ class LLMService:
                 "response_format": {"type": "json_object"},
             }
         elif llm_config.provider == "anthropic":
+            # No sampling params and no thinking config: current-generation
+            # models (Fable 5 / Opus 4.8+) reject temperature/top_p/top_k,
+            # and Fable 5 rejects any explicit thinking configuration.
             payload = {
                 "model": effective_model,
                 "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": llm_config.temperature,
             }
+            if output_config is not None:
+                payload["output_config"] = output_config
         else:
             raise ValueError(f"Unsupported provider: {llm_config.provider}")
 
@@ -192,7 +226,36 @@ class LLMService:
             if llm_config.provider in ("openai", "azure"):
                 return result["choices"][0]["message"]["content"]
             elif llm_config.provider == "anthropic":
-                return result["content"][0]["text"]
+                # Check stop_reason BEFORE reading content: a refusal can
+                # arrive pre-output (empty content, unbilled) or mid-stream
+                # (partial content that must be discarded, never returned).
+                if result.get("stop_reason") == "refusal":
+                    category = (result.get("stop_details") or {}).get("category")
+                    if (
+                        effective_model == llm_config.deep_model
+                        and llm_config.model != effective_model
+                    ):
+                        logger.warning(
+                            f"Refusal on {effective_model} (category: {category}); "
+                            f"retrying once on {llm_config.model}"
+                        )
+                        return await self.call_llm_api(
+                            prompt,
+                            max_tokens,
+                            model=llm_config.model,
+                            output_config=output_config,
+                        )
+                    raise LLMRefusalError(effective_model, category)
+                # Content can carry thinking blocks before the text block
+                # (Fable 5 always thinks) — select the text block, never
+                # assume position 0.
+                for block in result.get("content", []):
+                    if block.get("type") == "text":
+                        return block["text"]
+                raise Exception(
+                    f"No text block in response from {effective_model} "
+                    f"(stop_reason: {result.get('stop_reason')})"
+                )
             else:
                 raise ValueError(f"Unsupported provider: {llm_config.provider}")
 

@@ -12,6 +12,7 @@ from enum import Enum
 
 from api.database import db
 from api.services.credit_service import credit_service
+from api.llm_config import llm_config
 from api.services.llm_service import llm_service
 from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 from api.models import Finding, Severity
@@ -103,7 +104,7 @@ class AttackChainTracer:
             transaction_type="attack_chain",
             scan_id=scan_id,
             session_id=session_id,
-            model_used="claude-3-sonnet-20240229",
+            model_used=llm_config.deep_model,
             metadata={"finding_id": finding.id if hasattr(finding, "id") else None},
         )
 
@@ -111,18 +112,17 @@ class AttackChainTracer:
             # Build attack chain prompt
             prompt = self._build_attack_chain_prompt(finding, context_files)
 
-            # Get LLM analysis using Sonnet for complex reasoning
+            # Deep model for multi-step attack-chain reasoning
             analysis_request = LLMAnalysisRequest(
                 file_contents=context_files or {},
                 static_findings=[self._finding_to_dict(finding)],
                 repository_context={"scan_id": scan_id},
                 analysis_types=[LLMAnalysisType.BEHAVIORAL_PATTERN],
+                model=llm_config.deep_model,
+                custom_prompt=prompt,
                 max_insights=10,
                 include_context_analysis=True,
             )
-
-            # Custom prompt for attack chain analysis
-            analysis_request.custom_prompt = prompt
 
             response = await llm_service.analyze_threat(analysis_request)
 

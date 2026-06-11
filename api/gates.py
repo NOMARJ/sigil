@@ -142,6 +142,57 @@ def require_plan(minimum_tier: PlanTier):
 
 
 # ---------------------------------------------------------------------------
+# require_llm_access — gate for LLM analysis features (F-009)
+# ---------------------------------------------------------------------------
+
+
+def require_llm_access(credits_required: int = 1):
+    """Return a FastAPI dependency enforcing the LLM-feature access boundary.
+
+    PRO and above always pass — usage is metered (credit_service.record_llm_usage)
+    but never blocked, per the fair-use model. FREE passes while its monthly
+    credit allowance lasts, then receives HTTP 402 with the structured denial
+    (reason, balance, credits_required, reset_date, upgrade_url).
+
+    Authentication is enforced by the get_current_user_unified dependency —
+    unauthenticated requests get 401 before any tier or allowance check.
+    """
+    from api.routers.auth import get_current_user_unified, UserResponse
+
+    async def _gate(
+        current_user: UserResponse = Depends(get_current_user_unified),
+    ) -> None:
+        current_tier = await get_user_plan(current_user.id)
+        if _tier_rank(current_tier) >= _tier_rank(PlanTier.PRO):
+            return
+
+        from api.services.credit_service import credit_service
+
+        decision = await credit_service.check_llm_allowance(
+            current_user.id, credits_required
+        )
+        if not decision["allowed"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "detail": (
+                        "LLM analysis allowance exhausted for your plan. "
+                        "Upgrade to Pro for unmetered AI analysis."
+                    ),
+                    "reason": decision.get("reason", "allowance_exhausted"),
+                    "balance": decision.get("balance", 0),
+                    "credits_required": decision.get(
+                        "credits_required", credits_required
+                    ),
+                    "reset_date": decision.get("reset_date"),
+                    "upgrade_url": decision.get("upgrade_url"),
+                },
+            )
+
+    return _gate
+
+
+# ---------------------------------------------------------------------------
 # check_scan_quota — quota enforcement helper (not a dependency itself)
 # ---------------------------------------------------------------------------
 

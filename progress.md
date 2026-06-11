@@ -1099,6 +1099,23 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-11
+
+**Start:** 2026-06-11T09:53:23.072Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 57 stories (11/41/20)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-11T10:03:16.904Z
+**Outcome:** BLOCKED
+**Stories:** 58/82 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -1432,8 +1449,12 @@
 
 ---
 
-## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2)
+## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — BUILD COMPLETE (PARTIAL) 2026-06-12
 
+> **Status:** 11/12 stories DONE + verified · US-112 PENDING (owner/operator-gated ops verification — the only remaining item)
+> **Feature evidence:** `.nomark/evidence/sigil-pro-fable-complete.md` (AC table, final test runs, latent-bug list)
+> **US-110 headline (2026-06-12):** FP@High 70%→30% (89/89 control verdicts benign), malicious retention 24/25 by verdict, 0 refusals in 168 live Fable 5 calls — SHIP recommendation in `evidence/F-009/fp-adjudication-eval.md`
+> **Final integration run:** api 301 passed/0 failed (baseline 276) · cli 132+4 passed/0 failed (baseline 123)
 > **Created:** 2026-06-11 (planned via /plan_feature; owner approved SOLUTION.md entry + scope same session)
 > **PRD:** `tasks/prd-sigil-pro-fable.json` (status: approved)
 > **Scope decisions (owner, 2026-06-11):** full capability scope (FP adjudication + triage/explanation + CLI + attack-chain) · Fable 5 with Opus 4.8 refusal-fallback, Haiku 4.5 for cheap paths · free-teaser + Pro-unlimited gating
@@ -1442,7 +1463,7 @@
 > **Cross-feature note:** F-010 (trust-ledger allowlisting) attacks the same FP@High residual from the workflow side; US-110's eval should report adjudication's contribution separately from ledger suppression.
 
 ### US-101 [F-009]: Anthropic-first LLM config with current model registry
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — 15/15 new tests pass; full suite 239 passed/0 failed (baseline 223, delta = new tests). ANTHROPIC_API_KEY fallback added (anthropic provider only). Evidence: `.nomark/evidence/US-101.md`
 - **Scope:** moderate
 - **Goal:** `llm_config.py` defaults to Anthropic with `claude-opus-4-8` default / `claude-fable-5` deep / `claude-haiku-4-5` fast (env-overridable); `gpt-4-turbo` default gone.
 - **Done when:** `python3 -m pytest api/tests/test_llm_config.py -q` exits 0
@@ -1450,7 +1471,7 @@
 - **Dependencies:** none
 
 ### US-102 [F-009]: Model router registry refresh — retire claude-3 tiers
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — registry = exactly 3 current IDs, multipliers 1/5/10; scorer now llm_config-driven (scope expansion to complexity_scorer.py owner-approved); legacy test_model_routing.py assertions updated (pre-authorized mechanical swap). 17/17 routing tests, full suite 251 passed/0 failed. Evidence: `.nomark/evidence/US-102.md`
 - **Scope:** moderate
 - **Goal:** `model_router.py` MODELS = exactly {claude-haiku-4-5 $1/$5, claude-opus-4-8 $5/$25, claude-fable-5 $10/$50}; downgrade path → haiku.
 - **Done when:** `python3 -m pytest api/tests/test_model_router.py -q` exits 0; no `claude-3-` in file
@@ -1458,7 +1479,7 @@
 - **Dependencies:** US-101
 
 ### US-103 [F-009]: Refusal handling + Opus 4.8 fallback in llm_service
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — LLMRefusalError typed+terminal (excluded from tenacity retries); deep-model refusal retries once on llm_config.model; partials discarded; anthropic payloads drop temperature/thinking. 5/5 mocked cases; full suite 256 passed/0 failed. Evidence: `.nomark/evidence/US-103.md`
 - **Scope:** complex
 - **Goal:** Fable 5 refusal (pre-output or mid-stream) retries once on `claude-opus-4-8`; fallback refusal → typed error. Fable calls omit `thinking` and sampling params.
 - **Done when:** `python3 -m pytest api/tests/test_llm_refusal_fallback.py -q` exits 0 (4 mocked cases: pre-output refusal, mid-stream refusal, fallback success, fallback refusal)
@@ -1466,7 +1487,7 @@
 - **Dependencies:** US-101
 
 ### US-104 [F-009]: LLM usage metering — free teaser allowance + Pro fair-use
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — check_llm_allowance (structured 402-able denial) + record_llm_usage (via existing sp_DeductCredits, NO schema change) + CREDIT_RATES refresh (1/5/10 per pricing) + LLM_FREE_MONTHLY_CREDITS env override. 11/11 tests; full suite 267 passed/0 failed. Evidence: `.nomark/evidence/US-104.md`
 - **Scope:** complex
 - **Goal:** `credit_service.check_llm_allowance` / `record_llm_usage`; free = 10 calls/month (config), Pro = metered fair-use; structured denial with reset date + upgrade URL. Reuse existing tables (CHARTER II.5 — no new schema without approval).
 - **Done when:** `python3 -m pytest api/tests/test_llm_metering.py -q` exits 0
@@ -1474,7 +1495,7 @@
 - **Dependencies:** US-101
 
 ### US-105 [F-009]: AI-analysis gate dependency — 402 on exhausted free tier
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot, **with documented AC deviation**) — require_llm_access added (owner-approved CHARTER II.5): Pro+ unmetered-pass, free 402 on exhaustion with structured payload. New cases 5/5 green (`SIGIL_RUN_EXTENDED_TESTS=1 ... -k RequireLlmAccess`); default suite 267/0. DEVIATION: whole-file exit-0 unachievable — 8 pre-existing failures at HEAD (stash-verified) wedge the session-scoped event loop for subsequent async tests. Follow-up logged: repair extended tier-gating suite + conftest event_loop migration. Evidence: `.nomark/evidence/US-105.md`
 - **Scope:** moderate
 - **Goal:** `require_llm_access` in `api/gates.py`: Pro/Team pass; free passes while allowance remains; 402 + upgrade payload when exhausted; 401 unauthenticated.
 - **Done when:** `python3 -m pytest api/tests/test_tier_gating.py -q` exits 0 incl. new free-teaser cases
@@ -1482,7 +1503,7 @@
 - **Dependencies:** US-104
 
 ### US-106 [F-009]: FP adjudication service (Fable 5, structured verdict)
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — fp_adjudicator service with enum-locked json_schema verdicts via deep model + US-103 fallback path; 8K context bound; AdjudicationError contract. Additive output_config passthrough on call_llm_api (preserved across fallback retry). 9/9 tests; full suite 276 passed/0 failed. Evidence: `.nomark/evidence/US-106.md`
 - **Scope:** complex
 - **Goal:** `fp_adjudicator` service: finding + bounded code context → structured `{classification: benign_dual_use|suspicious|malicious, confidence, rationale}` via json_schema output; deep_model through US-103 fallback path.
 - **Done when:** `python3 -m pytest api/tests/test_fp_adjudicator.py -q` exits 0
@@ -1490,45 +1511,50 @@
 - **Dependencies:** US-103
 
 ### US-107 [F-009]: FP adjudication endpoint wired into scan results
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-107.md`
 - **Scope:** moderate
 - **Goal:** `POST /v1/scans/{id}/findings/{finding_id}/adjudicate` behind `require_llm_access`; verdict persisted in `findings_json` (no schema change); idempotent.
-- **Done when:** `python3 -m pytest api/tests/test_adjudicate_endpoint.py -q` exits 0
-- **Files:** `api/routers/scan.py`, `api/tests/test_adjudicate_endpoint.py`
+- **Done when:** `python3 -m pytest api/tests/test_adjudicate_endpoint.py -q` exits 0 — VERIFIED: 7 passed; full suite 283 passed/0 failed
+- **Files:** `api/routers/scan.py`, `api/tests/test_adjudicate_endpoint.py`, `api/services/fp_adjudicator.py` (`_usage` estimates), `api/main.py` (coupled: http_exception_handler stringified dict details, breaking the approved US-105 402 contract at the app boundary — dicts now pass through as JSON)
 - **Dependencies:** US-105, US-106
+- **Notes:** Refusal→422 `{reason: llm_refusal, category}`, unmetered. Metering best-effort (warn, never discard paid verdict). `_usage` token counts are estimates (~4 chars/token) — raw HTTP path has no usage object.
 
 ### US-108 [F-009]: Modernize finding investigator + explanations
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-108.md`
 - **Scope:** moderate
 - **Goal:** Both services call through `llm_service` with config-driven models; no hardcoded/retired IDs; routes gated.
-- **Done when:** `python3 -m pytest api/tests -q -k "investigator or explanations"` exits 0; `grep -rn "claude-3-" api/services/finding_investigator.py api/services/explanations.py` empty
-- **Files:** `api/services/finding_investigator.py`, `api/services/explanations.py`
+- **Done when:** `python3 -m pytest api/tests -q -k "investigator or explanations"` exits 0; `grep -rn "claude-3-" api/services/finding_investigator.py api/services/explanations.py` empty — VERIFIED: 9 passed; grep empty; full suite 292 passed/0 failed
+- **Files:** `api/services/finding_investigator.py`, `api/llm_models.py` (+`model` field), `api/services/llm_service.py` (threads request.model), `api/routers/interactive.py` (mechanical: retired default + docstrings), `api/tests/test_finding_investigator.py`
 - **Dependencies:** US-105
+- **Notes:** explanations.py needed nothing (static registry, no LLM). Investigator was non-functional before: `SCAN_COSTS["investigate_finding"]` KeyError, `LLMAnalysisType.VULNERABILITY_ANALYSIS` AttributeError, and the hasattr-guarded config mutation never applied the depth model. Model override now travels with `LLMAnalysisRequest`. Route gating unchanged (require_plan PRO, pre-existing).
 
 ### US-109 [F-009]: Modernize remediation generator + attack-chain tracer
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `.nomark/evidence/US-109.md`
 - **Scope:** moderate
 - **Goal:** Both call through `llm_service` (attack-chain = deep_model); no retired IDs.
-- **Done when:** `python3 -m pytest api/tests -q -k "remediation or attack_chain"` exits 0
-- **Files:** `api/services/remediation_generator.py`, `api/services/attack_chain_tracer.py`
+- **Done when:** `python3 -m pytest api/tests -q -k "remediation or attack_chain"` exits 0 — VERIFIED: 7 passed/1 skipped; full suite 298 passed/0 failed
+- **Files:** `api/services/remediation_generator.py`, `api/services/attack_chain_tracer.py`, `api/llm_models.py` (+`custom_prompt`), `api/services/llm_service.py` (honours custom_prompt; reports request model), `api/tests/test_remediation_attack_chain.py`
 - **Dependencies:** US-105
+- **Notes:** Both paths were latently broken: remediation used nonexistent `LLMAnalysisType.VULNERABILITY_ANALYSIS`; tracer assigned `custom_prompt` post-construction (Pydantic v2 ValueError → every trace returned the fallback chain). Attack chain now deep_model end-to-end (deduction record + LLM request).
 
 ### US-110 [F-009]: Honest FP-adjudication eval on the F-008 corpus
-- **Status:** TODO
+- **Status:** DONE (2026-06-12, autopilot; owner unblocked Anthropic billing) — evidence: `evidence/F-009/fp-adjudication-eval.md` + `.json`
 - **Scope:** complex
 - **Goal:** Real before/after FP@High + recall@High with adjudication applied, on the F-008 eval set (real malicious samples + 20 popular-legit packages). Disclosure block mandatory. Report both directions even if unfavorable.
-- **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production
-- **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.md`
+- **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production — VERIFIED: 168 real claude-fable-5 verdicts, deterministic sampling, disclosure block, both directions, SHIP recommendation
+- **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.{md,json}`
 - **Dependencies:** US-106
-- **Notes:** F-008 eval gotcha carried forward: pin SIGIL_BIN (harness once picked homebrew sigil v1.0.4 off PATH); samples lived in /tmp via raw-CDN fetch. Coordinate with F-010 US-H3 (ledger-warm eval) — separate the two FP levers in reporting.
+- **Headline:** FP@High 70%→30% package-level (89/89 control findings benign, residual is purely the 10-findings/pkg cap); malicious sample retention 24/25 (96%), all 24 retained by verdict not cap; the 1 cleared sample's High findings were registry-metadata noise, not payload. 0 refusals/0 errors in 168 live calls. SHIP with conditions (explicit-benign-only clearing; per-finding triage not bulk suppression; US-112 before prod).
+- **Notes:** Was BLOCKED 2026-06-11 on Anthropic credit (400 billing error); owner topped up 2026-06-12. First live Fable 5 call exposed the thinking-block bug (fixed in `e5b340c`). Malicious samples are encrypted zips (not extracted dirs) — script extracts with the dataset's documented unlock phrase, same as run_eval.py. Round 2 ran with `--reuse-control` to avoid re-paying the 89 control verdicts.
 
 ### US-111 [F-009]: sigil explain — Rust CLI surface for LLM analysis
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — evidence: `evidence/F-009/US-111-cli-explain.md`
 - **Scope:** complex
 - **Goal:** `sigil explain <scan-json> [--finding N]` posts the finding to the API with the user's token, renders verdict + rationale; 402 → clear upgrade message; no client-side LLM call (D6).
-- **Done when:** `cargo test --manifest-path cli/Cargo.toml explain` passes; transcript in `evidence/F-009/US-111-cli-explain.md`
-- **Files:** `cli/src/main.rs`, `cli/src/explain.rs`, `cli/tests/explain.rs`
+- **Done when:** `cargo test --manifest-path cli/Cargo.toml explain` passes; transcript in `evidence/F-009/US-111-cli-explain.md` — VERIFIED: 3 unit + 4 integration passed; full CLI suite 132+4 passed/0 failed; transcript captured (real binary, real axios scan, mock API — live e2e blocked with US-110)
+- **Files:** `cli/src/main.rs`, `cli/src/explain.rs`, `cli/tests/explain.rs`, `cli/src/api.rs` (load_token → pub(crate))
 - **Dependencies:** US-107
+- **Notes:** Normalizes CLI→API field mismatches (phase CamelCase→snake_case, severity→UPPER). No new deps (stdlib TcpListener mock). `--finding` long-only (`-f` collides with global `--format`). Follow-up logged: legacy `--submit` ScanResponse expects `id` but API returns `scan_id`.
 
 ### US-112 [F-009]: Ops verification — env, retention, live smoke
 - **Status:** TODO (owner/operator-gated: live Azure + Anthropic org access)

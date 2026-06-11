@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Literal
 
@@ -29,25 +30,32 @@ class CreditTransactionError(Exception):
 
 logger = logging.getLogger(__name__)
 
-# Credit conversion rates (credits per 1K tokens)
+# Credit conversion rates (credits per 1K tokens), proportional to verified
+# Anthropic pricing: haiku $1/$5 · opus 4.8 $5/$25 · fable 5 $10/$50 per MTok
 CREDIT_RATES = {
-    "claude-3-haiku-20240307": 1,  # Most efficient
-    "claude-3-sonnet-20240229": 10,  # Balanced
-    "claude-3-opus-20240229": 40,  # Premium
-    "gpt-3.5-turbo": 2,  # Budget option
-    "gpt-4-turbo": 20,  # High quality
-    "gpt-4": 30,  # Legacy
+    "claude-haiku-4-5": 1,
+    "claude-opus-4-8": 5,
+    "claude-fable-5": 10,
 }
 
 # Monthly credit allocations by tier
 MONTHLY_CREDITS = {
     SubscriptionTier.ANONYMOUS: 0,  # No LLM access
-    SubscriptionTier.FREE: 50,  # Minimal for logged-in users
+    SubscriptionTier.FREE: 50,  # Free teaser (~10 typical analysis calls)
     SubscriptionTier.PRO: 5000,  # Standard professional
     SubscriptionTier.ELITE: 15000,  # Advanced power users
     SubscriptionTier.TEAM: 50000,  # Team collaboration
     SubscriptionTier.ENTERPRISE: 999999,  # Effectively unlimited
 }
+
+UPGRADE_URL = os.getenv("SIGIL_UPGRADE_URL", "https://www.sigilsec.ai/pricing")
+
+
+def monthly_allowance(tier: SubscriptionTier) -> int:
+    """Monthly credit allocation for a tier; FREE is env-overridable."""
+    if tier == SubscriptionTier.FREE:
+        return int(os.getenv("LLM_FREE_MONTHLY_CREDITS", "50"))
+    return MONTHLY_CREDITS.get(tier, 100)
 
 # Feature credit costs (optimized for constrained launch)
 SCAN_COSTS = {
@@ -225,7 +233,7 @@ class CreditService:
                 raise ValueError(f"User {user_id} not found")
 
             tier = SubscriptionTier(user["subscription_tier"])
-            initial_credits = MONTHLY_CREDITS.get(tier, 100)
+            initial_credits = monthly_allowance(tier)
 
             # Create credit record
             await db.execute(
@@ -268,6 +276,67 @@ class CreditService:
         except Exception as e:
             logger.exception(f"Failed to reset monthly credits: {e}")
             raise
+
+    async def check_llm_allowance(
+        self, user_id: str, credits_required: int = 1
+    ) -> Dict:
+        """Check whether a user may make an LLM call right now.
+
+        Returns a structured decision — never raises on exhaustion, so callers
+        can turn the denial into a 402 with an upgrade path.
+        """
+        balance = await self.get_balance(user_id)
+        if balance >= credits_required:
+            return {"allowed": True, "balance": balance}
+
+        analytics = await self.get_usage_analytics(user_id)
+        return {
+            "allowed": False,
+            "reason": "allowance_exhausted",
+            "balance": balance,
+            "credits_required": credits_required,
+            "reset_date": analytics.get("reset_date"),
+            "upgrade_url": UPGRADE_URL,
+        }
+
+    async def record_llm_usage(
+        self,
+        user_id: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        feature: str,
+        scan_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> int:
+        """Meter one LLM call against the user's credits.
+
+        Returns the new balance. Features outside the known TransactionType
+        values are recorded as "scan".
+        """
+        total_tokens = input_tokens + output_tokens
+        credits = await self.calculate_token_cost(model, total_tokens)
+        feature_to_transaction: Dict[str, TransactionType] = {
+            "investigate": "investigate",
+            "remediation": "remediation",
+            "interactive": "interactive",
+            "chat": "interactive",
+        }
+        transaction_type: TransactionType = feature_to_transaction.get(feature, "scan")
+        return await self.deduct_credits(
+            user_id=user_id,
+            amount=credits,
+            transaction_type=transaction_type,
+            scan_id=scan_id,
+            session_id=session_id,
+            model_used=model,
+            tokens_used=total_tokens,
+            metadata={
+                "feature": feature,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+            },
+        )
 
     async def calculate_token_cost(self, model: str, tokens: int) -> int:
         """Calculate credit cost for token usage."""

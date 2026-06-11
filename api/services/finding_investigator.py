@@ -202,12 +202,14 @@ class FindingInvestigatorService:
 
     def _get_model_and_cost(self, depth: DepthLevel) -> tuple[str, int]:
         """Get appropriate model and cost for investigation depth."""
+        from api.llm_config import llm_config
+
         if depth == "quick":
-            return "claude-3-haiku-20240307", SCAN_COSTS["investigate_finding"]
+            return llm_config.fast_model, SCAN_COSTS["quick_investigation"]
         elif depth == "thorough":
-            return "claude-3-sonnet-20240229", SCAN_COSTS["investigate_finding"] * 2
+            return llm_config.model, SCAN_COSTS["thorough_investigation"]
         else:  # exhaustive
-            return "claude-3-opus-20240229", SCAN_COSTS["investigate_finding"] * 6
+            return llm_config.deep_model, SCAN_COSTS["exhaustive_investigation"]
 
     async def _get_finding_details(
         self, scan_id: str, finding_id: str
@@ -367,37 +369,24 @@ Focus on:
 
     async def _call_llm_for_investigation(self, prompt: str, model: str) -> str:
         """Call LLM service for investigation analysis."""
-        # Use existing LLM service with appropriate model
+        from api.llm_config import llm_config
         from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 
-        # Create analysis request
+        # The model override travels with the request — never via global
+        # config mutation, which races concurrent investigations.
         analysis_request = LLMAnalysisRequest(
             file_contents={"investigation_context": prompt},
-            analysis_types=[LLMAnalysisType.VULNERABILITY_ANALYSIS],
-            max_tokens=4000 if "opus" in model else 2000,
+            analysis_types=[LLMAnalysisType.BEHAVIORAL_PATTERN],
+            model=model,
+            max_tokens=4000 if model == llm_config.deep_model else 2000,
             include_context_analysis=True,
         )
 
-        # Override model in config temporarily
-        original_model = (
-            llm_service.llm_config.model if hasattr(llm_service, "llm_config") else None
-        )
-        try:
-            if hasattr(llm_service, "llm_config"):
-                llm_service.llm_config.model = model
+        response = await llm_service.analyze_threat(analysis_request)
 
-            response = await llm_service.analyze_threat(analysis_request)
-
-            # Extract the actual LLM response content
-            if response.insights:
-                return response.insights[0].description
-            else:
-                raise Exception("No insights returned from LLM analysis")
-
-        finally:
-            # Restore original model
-            if original_model and hasattr(llm_service, "llm_config"):
-                llm_service.llm_config.model = original_model
+        if response.insights:
+            return response.insights[0].description
+        raise Exception("No insights returned from LLM analysis")
 
     def _parse_investigation_response(
         self, llm_response: str, finding_data: Dict, depth: DepthLevel, model: str

@@ -39,7 +39,7 @@ class LLMUsageRecord(BaseModel):
     user_id: str = Field(..., description="User who initiated the analysis")
     scan_id: str = Field(..., description="Unique identifier for the scan")
     model_used: str = Field(
-        ..., description="LLM model used (gpt-4, claude-3-sonnet, etc.)"
+        ..., description="LLM model used (claude-fable-5, claude-opus-4-8, etc.)"
     )
     tokens_used: int = Field(0, description="Total tokens consumed")
     processing_time_ms: int = Field(

@@ -72,7 +72,7 @@ fn token_path() -> PathBuf {
 }
 
 /// Load a stored API token from disk.
-fn load_token() -> Option<String> {
+pub(crate) fn load_token() -> Option<String> {
     fs::read_to_string(token_path())
         .ok()
         .map(|t| t.trim().to_string())

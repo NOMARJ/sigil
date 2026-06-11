@@ -31,16 +31,12 @@ class AnalyticsService:
     def __init__(self):
         self.config = AnalyticsConfig()
 
-        # LLM cost estimates per 1K tokens (in cents)
+        # LLM cost estimates per 1K input tokens (in cents), from published
+        # Anthropic pricing: fable $10/MTok, opus-4-8 $5/MTok, haiku-4-5 $1/MTok
         self._llm_costs = {
-            "gpt-4": Decimal("3.0"),
-            "gpt-4-turbo": Decimal("1.0"),
-            "gpt-4o": Decimal("0.5"),
-            "claude-3-opus": Decimal("1.5"),
-            "claude-3-sonnet": Decimal("0.3"),
-            "claude-3-haiku": Decimal("0.025"),
-            "gemini-pro": Decimal("0.5"),
-            "llama-2-70b": Decimal("0.065"),
+            "claude-fable-5": Decimal("1.0"),
+            "claude-opus-4-8": Decimal("0.5"),
+            "claude-haiku-4-5": Decimal("0.1"),
         }
 
     # -------------------------------------------------------------------------

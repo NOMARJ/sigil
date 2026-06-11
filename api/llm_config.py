@@ -15,13 +15,15 @@ class LLMConfig:
     """Configuration for LLM service integration."""
 
     # Provider settings
-    provider: LLMProvider = "openai"
+    provider: LLMProvider = "anthropic"
     api_key: str | None = None
     api_base: str | None = None
     api_version: str = "2024-02-15-preview"
 
-    # Model settings
-    model: str = "gpt-4-turbo"
+    # Model settings — exact current-generation Anthropic IDs (no date suffixes)
+    model: str = "claude-opus-4-8"
+    deep_model: str = "claude-fable-5"
+    fast_model: str = "claude-haiku-4-5"
     max_tokens_per_scan: int = 8000
     temperature: float = 0.2
     timeout_seconds: int = 30
@@ -39,13 +41,17 @@ class LLMConfig:
     def __init__(self):
         """Initialize LLM config from environment variables."""
         # Provider configuration
-        self.provider = os.getenv("LLM_PROVIDER", "openai").lower()
+        self.provider = os.getenv("LLM_PROVIDER", "anthropic").lower()
         self.api_key = os.getenv("LLM_API_KEY")
+        if not self.api_key and self.provider == "anthropic":
+            self.api_key = os.getenv("ANTHROPIC_API_KEY")
         self.api_base = os.getenv("LLM_API_BASE")
         self.api_version = os.getenv("LLM_API_VERSION", "2024-02-15-preview")
 
         # Model configuration
-        self.model = os.getenv("LLM_MODEL", "gpt-4-turbo")
+        self.model = os.getenv("LLM_MODEL", "claude-opus-4-8")
+        self.deep_model = os.getenv("LLM_DEEP_MODEL", "claude-fable-5")
+        self.fast_model = os.getenv("LLM_FAST_MODEL", "claude-haiku-4-5")
         self.max_tokens_per_scan = int(os.getenv("LLM_MAX_TOKENS", "8000"))
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 

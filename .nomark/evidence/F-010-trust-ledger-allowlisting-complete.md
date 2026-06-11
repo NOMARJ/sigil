@@ -43,6 +43,6 @@ Limitations: warm FP 0% is true by construction (workflow metric, not detector p
 - `dfc968e` feat(cli): [US-H2] scan suppression + --ignore-ledger + reject revocation
 - `a3595b7` feat(eval): [US-H3] ledger-warm FP re-measure
 
-## Carried-forward observations (not blocking)
-- Stale Homebrew `sigil` 1.0.4 at `/opt/homebrew/bin/sigil` shadows the repo build on PATH — eval now prefers the repo build, but the operator may want to `brew upgrade`/unlink it.
-- `/tmp/sigil-ush2-e2e` scratch dir left in place (rm denied by permission mode); harmless, /tmp.
+## Carried-forward observations — RESOLVED 2026-06-11
+- Stale Homebrew `sigil` 1.0.4: upgraded via `brew upgrade nomarj/tap/sigil` → released 1.1.2. Note: the released 1.1.2 artifact still predates F-008/F-010 (no `ledger` subcommand) even though the repo build reports the same version — bump the CLI version when cutting the next release so released vs HEAD is distinguishable. Eval is protected regardless (`resolve_binary` prefers repo build).
+- `/tmp/sigil-ush2-e2e` scratch dir removed.

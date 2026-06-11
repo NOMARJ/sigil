@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from api.gates import require_plan
+from api.llm_config import llm_config
 from api.models import ErrorResponse, GateError, PlanTier
 from api.routers.auth import get_current_user_unified, UserResponse
 from api.services.finding_investigator import (
@@ -123,7 +124,8 @@ class CreateSessionRequest(BaseModel):
 
     scan_id: str = Field(..., description="Scan ID to create session for")
     model_preference: str = Field(
-        default="claude-3-haiku", description="Preferred LLM model"
+        default_factory=lambda: llm_config.fast_model,
+        description="Preferred LLM model",
     )
 
 
@@ -196,9 +198,9 @@ async def investigate_finding(
     - Remediation priority
 
     Credit costs vary by depth:
-    - Quick: 4 credits (Haiku model)
-    - Thorough: 8 credits (Sonnet model)
-    - Exhaustive: 24 credits (Opus model)
+    - Quick: 4 credits (fast model)
+    - Thorough: 8 credits (standard model)
+    - Exhaustive: 16 credits (deep model)
     """
     try:
         # Validate depth level

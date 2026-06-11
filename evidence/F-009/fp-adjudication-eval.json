@@ -1,0 +1,1889 @@
+{
+  "generated_at": "2026-06-11T20:50:27.783581+00:00",
+  "binary": "/Users/reecefrazier/CascadeProjects/sigil/cli/target/release/sigil",
+  "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
+  "models": {
+    "deep": "claude-fable-5",
+    "fallback": "claude-opus-4-8"
+  },
+  "caps": {
+    "max_findings_per_control": 10,
+    "malicious_samples": 25,
+    "max_findings_per_malicious": 5
+  },
+  "control": {
+    "packages": 20,
+    "high_findings_total": 2544,
+    "finding_level": {
+      "benign_dual_use": 89,
+      "suspicious": 0,
+      "malicious": 0,
+      "refused": 0,
+      "error": 0,
+      "adjudicated": 89
+    },
+    "package_level": {
+      "flagged_before": 14,
+      "flagged_after": 6,
+      "fully_cleared": [
+        "npm-axios",
+        "npm-chalk",
+        "npm-commander",
+        "npm-cross-spawn",
+        "pypi-click",
+        "pypi-flask",
+        "pypi-jinja2",
+        "pypi-rich"
+      ]
+    },
+    "detail": [
+      {
+        "name": "npm-axios",
+        "high_total": 7,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "package/CHANGELOG.md",
+            "line": 718,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in axios's CHANGELOG.md, not executable code. The flagged text 'allow passing a callback as paramsSerializer to buildURL (#6680)' is a standard changelog entry describing a bug fix in axios v1.7.8, with links to the official axios GitHub issue and commit (eac4619). The word 'callback' here refers to a function parameter for URL serialization, not a webhook/callback exfiltration URL. All surrounding content is release notes and contributor attribution linking to github.com/axios/axios. This is a clear false positive on documentation text."
+          },
+          {
+            "file": "package/CHANGELOG.md",
+            "line": 934,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The NET-006 'webhook/callback URL' rule matched plain documentation text in axios's CHANGELOG.md (line 934). The matched snippet is a changelog entry for release 1.6.5 ('ci: refactor notify action as a job of publish action') containing only github.com links to issues (#6176) and commit hashes (0736f95...). All surrounding URLs are github.com issue/commit/compare links and avatars.githubusercontent.com contributor images \u2014 standard auto-generated release notes. This is a Markdown file with no executable code, no network calls, and no attacker-controlled endpoints; the word 'notify' in a CI workflow description likely triggered the callback heuristic. Clear false positive on benign documentation."
+          },
+          {
+            "file": "package/CHANGELOG.md",
+            "line": 1617,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The matched line is a changelog entry ('Added listen callback function [#4096]') in axios's CHANGELOG.md, referencing a GitHub pull request URL (github.com/axios/axios/pull/4096). This is documentation text, not executable code. The 'callback URL' the rule flagged is merely a hyperlink to the project's own PR tracker, surrounded by dozens of similar release-note entries (e.g., PRs #4624, #4654, #4668) and a contributor list. There is no network call, webhook registration, or data exfiltration capability in a markdown changelog. This is a clear false positive from a pattern match on the words 'callback' and a URL in documentation."
+          },
+          {
+            "file": "package/CHANGELOG.md",
+            "line": 1634,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding is a false positive on documentation: the matched line is a CHANGELOG.md entry in the axios package ('Adding types for progress event callbacks [#4675]') with a link to the official axios GitHub pull request. The rule NET-006 flagged the word 'callback' plus a URL, but the URL is a github.com/axios/axios PR reference, not a webhook or exfiltration endpoint. Surrounding context is a standard 1.0.0 release changelog listing PRs (#4624, #4654, etc.) \u2014 no executable code, no network activity. This is benign documentation in a widely used open-source HTTP library."
+          },
+          {
+            "file": "package/README.md",
+            "line": 1136,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The finding is in the axios package's README.md documentation, not executable code. The matched 'webhook/callback URL' is simply a link to MDN documentation (developer.mozilla.org) explaining Promise rejection callbacks, and the surrounding context contains standard axios usage examples (response schema, config defaults, 'https://api.example.com' placeholder URLs). There is no actual network exfiltration code here \u2014 just documentation text in one of the most widely used HTTP client libraries. This is a clear false positive from URL-pattern matching in markdown."
+          },
+          {
+            "file": "package/lib/utils.js",
+            "line": 625,
+            "rule": "PROMPT-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched text 'For each entry in the object, call the function with the key and value' is a JSDoc comment documenting the forEachEntry utility function directly below it, which iterates an object's Symbol.iterator entries and invokes a JavaScript callback (fn.call(obj, pair[0], pair[1])). This is standard utility code (it appears to be from axios's lib/utils.js, alongside toArray, isTypedArray, and matchAll helpers), not an instruction directed at an LLM or agent. The scanner flagged the phrase 'call the function' as a tool/function-abuse injection, but in context it describes ordinary callback semantics in API documentation. There is no prompt content, no agent-directed imperative, and no tool-invocation payload here."
+          },
+          {
+            "file": "package/package.json",
+            "line": 137,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged lifecycle script is \"prepare\": \"husky\", the standard idiom (husky v9+) for installing git hooks in a development checkout. This is the axios package.json, and the surrounding scripts (build via gulp/rollup, vitest test suites, eslint lint/fix) plus devDependencies like @commitlint/cli and @commitlint/config-conventional are consistent with husky being used to enforce commit conventions. The 'prepare' hook only runs husky's hook installer, executes no network or obfuscated code, and is a no-op for consumers installing the published tarball (husky is a devDependency and prepare effects are irrelevant outside the repo). This is a textbook benign install-hook usage."
+          }
+        ]
+      },
+      {
+        "name": "npm-chalk",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "package/package.json",
+            "line": 21,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged version range \"node\": \"^12.17.0 || ^14.13 || >=16.0.0\" appears in the \"engines\" field of chalk's package.json, not in a dependency declaration. The engines field merely declares which Node.js runtime versions the package supports; it cannot be exploited for dependency hijacking because it does not resolve to any installable package. This is the legitimate, well-known chalk package (repository \"chalk/chalk\", standard fields like funding, types, sideEffects, and normal test scripts using xo/ava/tsd), and these exact engine constraints match the published chalk v5 manifest. The finding is a false positive triggered by pattern-matching a semver range without considering its context."
+          },
+          {
+            "file": "package/package.json",
+            "line": 21,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched range \"node\": \"^12.17.0 || ^14.13 || >=16.0.0\" appears inside the \"engines\" field of chalk's package.json, where it declares the Node.js runtime versions the package supports \u2014 it is not a dependency specifier and cannot be 'hijacked' by a malicious package version. The rest of the manifest is consistent with the well-known chalk package (repository chalk/chalk, MIT license, standard exports and test scripts). This is a false positive: the rule misinterpreted an engines constraint as a dependency version range."
+          },
+          {
+            "file": "package/package.json",
+            "line": 21,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The matched version range \"node\": \"^12.17.0 || ^14.13 || >=16.0.0\" appears inside the \"engines\" field of chalk's package.json, not in a dependency declaration. The engines field merely declares supported Node.js runtime versions and cannot be used to hijack or resolve a malicious package \u2014 there is no package name being resolved from a registry. The file is the well-known 'chalk' package (repository chalk/chalk, MIT license) with normal metadata, vendored internal imports, and standard test scripts. This is a clear false positive of the SUPPLY-002 rule misapplying dependency-range heuristics to an engines constraint."
+          }
+        ]
+      },
+      {
+        "name": "npm-commander",
+        "high_total": 1,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "package/lib/command.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the Commander.js CLI library (lib/command.js) \u2014 evident from imports of './argument.js', './error.js' (CommanderError), './help.js', './option.js', and 'suggestSimilar.js', plus the 'export class Command extends EventEmitter' definition. Commander legitimately imports node:child_process to spawn executable subcommands (the well-documented standalone-executable subcommand feature, e.g. 'git-style' commands). The import sits alongside standard CLI-related modules (path, fs, process, stripVTControlCharacters) with no obfuscation, dynamic command construction, or exfiltration indicators in the visible context."
+          }
+        ]
+      },
+      {
+        "name": "npm-cross-spawn",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "package/README.md",
+            "line": 40,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in the README.md of the well-known cross-spawn package, a widely-used cross-platform wrapper for Node's spawn/spawnSync. The flagged text is pure documentation prose ('Exactly the same way as node's spawn or spawnSync, so it's a drop in replacement') with links to official Node.js API docs, not executable code. The package's entire purpose is process spawning, so child_process references are expected and legitimate. No obfuscation, suspicious commands, or malicious indicators are present in the context."
+          },
+          {
+            "file": "package/index.js",
+            "line": 3,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the well-known 'cross-spawn' npm package (referenced explicitly via the IndigoUnited/node-cross-spawn GitHub issue link in comments). Its entire purpose is to wrap child_process.spawn/spawnSync with cross-platform argument parsing and ENOENT error handling. The code simply forwards caller-provided command/args/options through a parse step to cp.spawn and cp.spawnSync, with no hardcoded commands, no network exfiltration, no obfuscation, and no hidden execution. child_process usage is the core, documented functionality of this library, making this a textbook benign dual-use occurrence."
+          },
+          {
+            "file": "package/package.json",
+            "line": 4,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is on the package.json 'description' field of the well-known cross-spawn package (v7.0.6), whose entire purpose is to provide a cross-platform wrapper around child_process#spawn/spawnSync. The matched text is documentation metadata, not executable code. The manifest is consistent with the legitimate upstream project (moxystudio/node-cross-spawn, author Andr\u00e9 Cruz, MIT license), and its scripts section contains only standard lint/test/release commands with no install-time hooks (no preinstall/postinstall) that could execute arbitrary commands. This is a textbook false positive on a dual-use library's self-description."
+          }
+        ]
+      },
+      {
+        "name": "npm-debug",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "npm-express",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "npm-lodash",
+        "high_total": 14,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "package/_root.js",
+            "line": 7,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is the canonical lodash `_root.js` global-object detection idiom. The code checks `freeGlobal` (Node's `global`) and `freeSelf` (browser/worker `self`) first, and only falls back to `Function('return this')()` as a last resort to obtain the global object in sloppy-mode-agnostic environments (e.g., where `this` is undefined in strict-mode modules). The result is simply exported as `root` via `module.exports = root;` \u2014 no remote code, obfuscation, or attacker-controlled input is involved. The Function constructor here executes a fixed literal string `'return this'`, not dynamic data, making this a well-known benign dual-use pattern."
+          },
+          {
+            "file": "package/core.js",
+            "line": 71,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is the canonical lodash global-object detection idiom: `var root = freeGlobal || freeSelf || Function('return this')();`. The Function constructor here executes only the static string 'return this' to obtain a reference to the global object as a last-resort fallback when neither Node's `global` (checked via `freeGlobal`) nor a browser/worker `self` (`freeSelf`) is available. No attacker-controlled or dynamic input flows into the constructed code, and the surrounding context (freeExports/freeModule detection, arrayPush, baseFindIndex helpers, HTML-escape maps) matches verbatim lodash internals. This is a well-known, widely deployed dual-use pattern with no indication of malicious intent in this occurrence."
+          },
+          {
+            "file": "package/core.js",
+            "line": 3841,
+            "rule": "OBFUSC-CHAIN-010",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is recognizable lodash library source code (note `lodash.VERSION = VERSION`, the AMD/CommonJS export boilerplate, and the `_.noConflict` comment). The flagged line `return this[chainName](...)` uses a locally-derived variable: `chainName = /^(?:push|sort|unshift)$/.test(methodName) ? 'tap' : 'thru'`, so it can only resolve to the well-known lodash chaining methods `tap` or `thru`. The dynamic property access here is metaprogramming to attach native Array/String methods ('pop', 'join', 'replace', etc.) to the lodash wrapper prototype \u2014 a standard library pattern, not obfuscation. There is no attacker-controlled or externally-sourced string feeding the property lookup, no encoding/decoding, and no data exfiltration or eval-like behavior in context."
+          },
+          {
+            "file": "package/core.min.js",
+            "line": 25,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged snippet is lodash's well-known global-object detection idiom: it checks `typeof global=='object'&&global.Object===Object` (Node) and `typeof self=='object'&&self.Object===Object` (browser/worker), then falls back to `Function('return this')()` to obtain the global object in strict-mode environments. The file is clearly an official lodash custom build (license header references 'Lodash (Custom Build) lodash.com/license', build command `lodash core --repo lodash/lodash#4.18.1`), and the surrounding code matches lodash core internals (e.g., `__wrapped__`, `__chain__`, baseIteratee, equality helpers). The Function constructor here executes only the static string 'return this' \u2014 no dynamic or attacker-controlled input \u2014 making this a canonical benign dual-use occurrence."
+          },
+          {
+            "file": "package/core.min.js",
+            "line": 30,
+            "rule": "OBFUSC-CHAIN-010",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged dynamic property access `this[r](function(r){return t.apply(Zt(r)?r:[],n)})` is part of the lodash core library's wrapper/chaining mechanism, where `r` is an internal method name ('thru' or similar) used to defer function application on wrapped values. The file carries the official lodash license header ('Lodash (Custom Build) lodash.com/license | Underscore.js 1.8.3') with the build command `lodash core --repo lodash/lodash#4.18.1`, and the surrounding code matches well-known lodash internals (e.g., `__wrapped__`, `__actions__`, `__chain__` properties, `baseIsEqualDeep`-style comparison in function O, `c.prototype.toJSON=c.prototype.valueOf=c.prototype.value=pn`). The single-letter identifiers result from standard minification, not deliberate obfuscation. There is no eval, network access, environment exfiltration, or attacker-controlled property key here \u2014 the dynamic access operates on the library's own prototype methods. This is a textbook false positive for an obfuscation-chain rule triggered by minified vendored library code."
+          },
+          {
+            "file": "package/lodash.js",
+            "line": 437,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched line `var root = freeGlobal || freeSelf || Function('return this')();` is the canonical, well-known idiom used by lodash (and many UMD libraries) to obtain a reference to the global object across environments (Node.js `global`, browser/worker `self`, or as a fallback via `Function('return this')()` which works under strict mode where `this` is undefined). The surrounding context confirms this is standard lodash environment detection code: `freeGlobal`/`freeSelf` checks, `freeExports`/`freeModule`/`moduleExports` CommonJS detection, and the `nodeUtil` IIFE using `util.types` or legacy `process.binding('util')`. The Function constructor here executes a fixed, hardcoded string ('return this') with no attacker-controllable input, so there is no dynamic code injection risk. This is a textbook benign dual-use occurrence of a dangerous-looking API."
+          },
+          {
+            "file": "package/lodash.js",
+            "line": 14992,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the well-known `_.template` compilation routine in lodash. The Function constructor call `Function(importsKeys, sourceURL + 'return ' + source)` compiles a user-supplied template string into a function \u2014 the documented, intended purpose of the API. The surrounding context confirms legitimate library code: it explicitly guards against injection via `reForbiddenIdentifierChars.test(variable)` (throwing `INVALID_TEMPL_VAR_ERROR_TEXT` to prevent 'potential command injection attacks'), frames the source as a function body with template helpers (`__t`, `__p`, `_.escape`, `print`), wraps compilation in `attempt` for error handling, and exposes `result.source` for inlining compiled templates \u2014 all matching lodash's published implementation. There is no obfuscation, no remote/untrusted input fetched at this site, and the dynamic code is constructed locally from the caller's template string. This is a classic benign dual-use of dynamic code execution."
+          },
+          {
+            "file": "package/lodash.js",
+            "line": 17061,
+            "rule": "OBFUSC-CHAIN-010",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged dynamic property access `this[takeName](1).value()[0]` is part of lodash's well-known metaprogramming pattern for defining LazyWrapper prototype methods. The variable `takeName` is constructed locally from a fixed literal ('take' + (index ? 'Right' : '')), yielding only 'take' or 'takeRight' depending on whether 'head' or 'last' is being defined. There is no external/attacker-controlled input, no string decoding, and no obfuscation \u2014 the surrounding code shows identical idiomatic patterns for 'initial'/'tail' ('drop'/'dropRight') and filter/map/takeWhile. This is standard library code reducing duplication, matching lodash's published source."
+          },
+          {
+            "file": "package/lodash.js",
+            "line": 17070,
+            "rule": "OBFUSC-CHAIN-010",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged dynamic property access `this[dropName](1)` is part of lodash's well-known LazyWrapper metaprogramming pattern. The variable `dropName` is constructed locally from static literals ('drop' + (index ? '' : 'Right')) inside an arrayEach over the hardcoded method names ['initial', 'tail'], so it can only resolve to 'drop' or 'dropRight'. The surrounding context shows identical idioms for ['head', 'last'] -> 'take'/'takeRight' and ['filter', 'map', 'takeWhile'], which is lodash's standard technique to generate aliased lazy-evaluation methods while minimizing code duplication. No external/user-controlled input flows into the property name, and there is no obfuscation, encoding, or data exfiltration in sight \u2014 this is canonical library code from lodash.js."
+          },
+          {
+            "file": "package/lodash.js",
+            "line": 17183,
+            "rule": "OBFUSC-CHAIN-010",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged dynamic property access `this[chainName](...)` is part of lodash's well-known internal machinery for adding Array prototype methods (pop, push, shift, sort, splice, unshift) to the lodash wrapper. The variable `chainName` is constrained to exactly two literal values ('tap' or 'thru') determined by a regex test on a hardcoded method list: `chainName = /^(?:push|sort|unshift)$/.test(methodName) ? 'tap' : 'thru'`. There is no attacker-controlled input, no string decoding/concatenation of property names, and the surrounding code (LazyWrapper setup, realNames mapping for minified method names, wrapperAt/wrapperChain assignments) matches canonical lodash source verbatim. This is standard metaprogramming in a popular library, not obfuscation."
+          }
+        ]
+      },
+      {
+        "name": "npm-react",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "npm-react-dom",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "npm-semver",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "pypi-certifi",
+        "high_total": 0,
+        "capped": false,
+        "verdicts": []
+      },
+      {
+        "name": "pypi-click",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "click-8.4.1/CHANGES.rst",
+            "line": 64,
+            "rule": "CODE-015",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in CHANGES.rst, a changelog file for the Click library, not executable code. The matched text documents a fix that *removes* a shell=True requirement: 'Use os.startfile on Windows to open URLs in open_url, replacing the start built-in which cannot be invoked without shell=True' (:issue:`3164` :pr:`3186`). The string 'shell=True' appears only as literal documentation prose describing why the old approach was replaced. There is no subprocess call or any executable code here, and the documented change actually improves security posture by eliminating shell invocation."
+          },
+          {
+            "file": "click-8.4.1/CHANGES.rst",
+            "line": 120,
+            "rule": "CODE-015",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in click's CHANGES.rst changelog file, not executable code. The matched text documents a security improvement: 'Use shlex.split to split pager and editor commands into argv lists for subprocess.Popen, removing shell=True' (issue 1026, PRs 1477/2775). The string 'shell=True' appears only as documentation of the dangerous pattern being *removed* from the codebase. There is no code execution path here at all \u2014 it is prose in a release notes file describing the elimination of a shell injection risk."
+          }
+        ]
+      },
+      {
+        "name": "pypi-flask",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "flask-3.1.3/src/flask/cli.py",
+            "line": 1031,
+            "rule": "CODE-001",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is Flask's well-known `flask shell` CLI command. The eval(compile(f.read(), startup, \"exec\"), ctx) call replicates the standard CPython interpreter behavior of executing the user's PYTHONSTARTUP script before dropping into an interactive shell via code.interact(). The file path comes from the user's own environment variable (os.environ.get(\"PYTHONSTARTUP\")), is checked with os.path.isfile, and the command itself exists to run arbitrary code interactively in the app context \u2014 executing code is its documented purpose. There is no untrusted remote input, obfuscation, or data exfiltration; this mirrors what python itself does at REPL startup."
+          },
+          {
+            "file": "flask-3.1.3/src/flask/config.py",
+            "line": 209,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is Flask's well-known Config.from_pyfile method, which intentionally executes a developer-supplied Python config file. The exec(compile(config_file.read(), filename, 'exec'), d.__dict__) call loads the file into a fresh types.ModuleType('config') namespace, mirroring how Python imports a module, and then passes it to from_object to extract uppercase config keys. The filename is provided by the application developer (joined with self.root_path), not attacker-controlled input, and this is documented, long-standing Flask API behavior (since 0.7). This is a textbook benign dual-use of exec for config loading."
+          }
+        ]
+      },
+      {
+        "name": "pypi-jinja2",
+        "high_total": 10,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "jinja2-3.1.6/src/jinja2/bccache.py",
+            "line": 73,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is Jinja2's well-known bytecode cache implementation (bccache.py). The pickle.load(f) call reads a checksum string that the library itself wrote via the symmetric pickle.dump(self.checksum, f, 2) in write_bytecode(), guarded by a magic header check (bc_magic) before deserialization. The cache files are produced and consumed locally by the application's template compiler, not from untrusted network input. This is documented dual-use behavior in upstream Jinja2: the maintainers note the cache directory must be trusted, since both pickle.load and marshal.load here can execute code if an attacker can write to the cache location. There is no obfuscation, exfiltration, or malicious intent in this occurrence \u2014 it is standard, long-standing upstream code in jinja2 3.1.6."
+          },
+          {
+            "file": "jinja2-3.1.6/src/jinja2/bccache.py",
+            "line": 79,
+            "rule": "CODE-005",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is Jinja2's well-known bytecode cache implementation (bccache.py). The marshal.load(f) call in load_bytecode() deserializes previously compiled template bytecode that the library itself wrote via the symmetric write_bytecode() method (marshal.dump(self.code, f)). The code validates a magic header (bc_magic) and a checksum before loading, and handles marshal failures by resetting the bucket. This is the documented, legitimate caching mechanism of an extremely widely used templating library, not malicious code. The pattern is dual-use because marshal.load on attacker-controlled cache files could execute arbitrary bytecode, but that is a known design tradeoff of Jinja2's bytecode cache (cache directories must be trusted), not evidence of malicious intent in this occurrence."
+          },
+          {
+            "file": "jinja2-3.1.6/src/jinja2/debug.py",
+            "line": 145,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is Jinja2's well-known traceback rewriting machinery in debug.py. The exec() call executes a recompiled code object whose co_name has been replaced with a template-friendly location string (e.g. 'top-level template code' or 'block ...'), solely so that the resulting exception traceback points at the template rather than Jinja internals. The code object originates from the already-raised frame's code (manipulated via code.replace/CodeType with the same co_code, only the name changed), not from external or attacker-supplied strings. The surrounding comment explicitly states the code 'is guaranteed to raise', and the except BaseException handler immediately returns sys.exc_info()[2].tb_next to strip the synthetic frame. This is a documented, legitimate use of exec in a widely audited library, not arbitrary code execution of untrusted input."
+          },
+          {
+            "file": "jinja2-3.1.6/src/jinja2/environment.py",
+            "line": 1228,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This exec(code, namespace) call is in Jinja2's Template.from_code classmethod in environment.py, which is the core, documented mechanism by which the template engine executes compiled template bytecode (CodeType) to produce a template module namespace. The code object comes from Jinja2's own compiler pipeline (used by loaders, as the docstring states: 'This is used by the loaders and environment to create a template object'), the namespace is seeded only with the environment and __file__, and the result is passed to _from_namespace to construct the Template. This is the well-known, expected implementation of jinja2 3.1.6, a widely used open-source library, not injected or obfuscated logic. While templating engines are inherently dual-use (template injection in downstream apps can lead to RCE), this specific occurrence is legitimate library functionality."
+          },
+          {
+            "file": "jinja2-3.1.6/src/jinja2/nodes.py",
+            "line": 581,
+            "rule": "CODE-001",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched 'eval(' occurrence is not executable code at all \u2014 it appears inside the docstring of the Const class in Jinja2's AST node definitions: \"Only constants with a safe representation (objects where ``eval(repr(x)) == x`` is true).\" This is documentation explaining the round-trip safety property required for constant values. The actual code path enforces safety via has_safe_repr() in from_untrusted(), raising Impossible() for non-representable values, and never calls eval(). This is a well-known upstream file from jinja2 3.1.6 and the finding is a docstring false positive."
+          },
+          {
+            "file": "jinja2-3.1.6/tests/test_debug.py",
+            "line": 79,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a unit test in Jinja2's test suite (tests/test_debug.py) verifying that TemplateSyntaxError is picklable. The code `pickle.loads(pickle.dumps(original))` round-trips a locally constructed TemplateSyntaxError object created on the line above \u2014 the data being unpickled comes directly from pickle.dumps of a known, in-process object, never from external/untrusted input. The subsequent assertions (str equality and .name comparison) confirm this is a serialization correctness test (test_pickleable_syntax_error). There is no attacker-controlled data path, making this a textbook benign use of pickle in tests."
+          },
+          {
+            "file": "jinja2-3.1.6/tests/test_pickle.py",
+            "line": 5,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a test in jinja2's own test suite (tests/test_pickle.py) verifying that an Environment object survives a pickle round-trip. The code pickles and immediately unpickles the same in-process object (`pickle.loads(pickle.dumps(env))`), so no untrusted or external data is ever deserialized. The subsequent assertion (`env.from_string(\"x={{ x }}\").render(x=42) == \"x=42\"`) confirms the intent is purely to test serialization correctness of the templating environment. This is a textbook legitimate use of pickle in unit tests."
+          },
+          {
+            "file": "jinja2-3.1.6/tests/test_runtime.py",
+            "line": 117,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a round-trip pickle test in Jinja2's official test suite (tests/test_runtime.py). The code `pickle.loads(pickle.dumps(undef))` serializes and immediately deserializes a locally constructed Undefined object (`undefined_type(\"a hint\", [\"foo\"], \"a name\", TemplateRuntimeError)`) to verify that Undefined types support pickling correctly. The data being deserialized comes solely from `pickle.dumps` on a trusted in-process object, never from external/untrusted input, so there is no arbitrary code execution risk. The surrounding parallel tests (test_undefined_copy, test_undefined_deepcopy) confirm this is a standard copy/serialization behavior test pattern."
+          },
+          {
+            "file": "jinja2-3.1.6/tests/test_utils.py",
+            "line": 46,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a unit test (test_pickleable) in Jinja2's test suite verifying that LRUCache objects survive a pickle round-trip. The data being deserialized is `pickle.dumps(cache, protocol)` \u2014 locally constructed in the same expression from a freshly created LRUCache with known contents ('foo'=42, 'bar'=23). No external or attacker-controlled input ever reaches pickle.loads; the assertions afterward (copy.capacity, _mapping, _queue equality) confirm this is a serialization correctness test. This is a textbook benign round-trip pickle test pattern."
+          },
+          {
+            "file": "jinja2-3.1.6/tests/test_utils.py",
+            "line": 200,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a unit test in Jinja2's test suite (test_pickle_missing) verifying that the 'missing' sentinel singleton survives a pickle round-trip: pickle.loads(pickle.dumps(missing, protocol)) is missing. The data being deserialized is produced in the same expression by pickle.dumps on a trusted in-process object, parametrized over pickle protocols \u2014 there is no untrusted input, no network or file source, and no attacker-controlled payload. This is a standard, legitimate test pattern for singleton serialization behavior."
+          }
+        ]
+      },
+      {
+        "name": "pypi-numpy",
+        "high_total": 1654,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "numpy-2.4.6/.circleci/config.yml",
+            "line": 147,
+            "rule": "CRED-005",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the standard CircleCI deploy-key pattern in NumPy's official CI config. The `add_ssh_keys` step with fingerprint \"df:8b:fb:34:2d:38:7d:49:fc:1b:e8:44:4f:bd:2c:0e\" injects a CircleCI-managed deploy key, and the IdentityFile path /home/circleci/.ssh/id_rsa_df8bfb342d387d49fc1be8444fbd2c0e simply references that key by its fingerprint-derived filename (CircleCI's documented naming convention). The ~/.ssh/config snippet with `IdentitiesOnly yes` selects the correct key for pushing built documentation to git@github.com:numpy/devdocs.git and numpy/neps.git via the project's own tools/ci/push_docs_to_repo.py script, gated to the main branch. No private key material is exposed, exfiltrated, or read for any purpose other than git authentication to the project's own repos. This is legitimate CI/CD deployment configuration."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The finding matched only the workflow's name string ('Test Emscripten/Pyodide build') in NumPy's official CI configuration. This is a standard GitHub Actions workflow that tests NumPy's WebAssembly/Pyodide build on pull requests \u2014 a legitimate and well-known part of NumPy's CI. The context shows defensive, conventional practices: 'permissions: contents: read' restricts the token to read-only checkout, the job is gated with 'if: github.repository == \"numpy/numpy\"' to avoid running on forks, and triggers are limited to pull_request on main/maintenance branches with docs paths ignored. There is no actual Python-JavaScript bridge code execution here, no secrets exposure, no curl-pipe-to-shell, and no obfuscation. This is a false-positive match on a workflow title describing Pyodide testing."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official GitHub Actions CI workflow for testing its Emscripten/Pyodide (WebAssembly) build. The rule fired on the workflow name string 'Test Emscripten/Pyodide build' \u2014 a description of a legitimate test pipeline, not an actual Python-JavaScript code-execution bridge. The workflow shows standard hardening practices: minimal permissions ('contents: read' only), a repository guard ('if: github.repository == numpy/numpy') preventing execution on forks, concurrency cancellation, and triggering only on pull_request to main/maintenance branches. There is no code execution of untrusted input, no secret exposure, and no exfiltration vector visible in this context. Testing Pyodide builds is an expected, documented part of NumPy's CI since it ships WASM wheels."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The rule matched only on the workflow name string 'Test Emscripten/Pyodide build' in numpy's official CI configuration, not on any actual Python-JavaScript bridging code. The file is a standard GitHub Actions workflow that tests NumPy's WebAssembly/Pyodide build on pull requests. It follows security best practices: minimal 'permissions: contents: read', a repository guard ('if: github.repository == numpy/numpy') preventing execution on forks, and triggering only on PRs to main/maintenance branches. There is no code execution bridge, no exfiltration, and no obfuscation in the shown context \u2014 this is a clear false positive on a workflow title."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 26,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official CI workflow for testing its Emscripten/Pyodide (WebAssembly) build. The scanner matched on the job name 'Pyodide test', which is merely a label for a standard cibuildwheel job (CIBW_PLATFORM: pyodide) \u2014 there is no actual Python-JavaScript bridge code executing arbitrary content here. The workflow follows strong security hygiene: 'permissions: contents: read' (least privilege), actions pinned to full commit SHAs (actions/checkout@1af3b93..., pypa/cibuildwheel@63fd63b...), 'persist-credentials: false' on checkout, and an 'if: github.repository == numpy/numpy' guard. Building/testing NumPy for the Pyodide WASM target is a legitimate, well-documented part of the project's CI; nothing in this occurrence indicates exfiltration, credential abuse, or injected code execution."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 26,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official CI workflow for testing the Emscripten/Pyodide (WebAssembly) build target. The matched snippet is merely the job name 'Pyodide test' \u2014 the rule flagged the word 'Pyodide' as a Python-JavaScript bridge, but no actual code execution bridge is present in this context. The workflow exhibits strong security hygiene: 'permissions: contents: read' restricts the token to read-only, actions are pinned to full commit SHAs (actions/checkout@1af3b93..., pypa/cibuildwheel@63fd63b...), 'persist-credentials: false' is set on checkout, and the 'if: github.repository == ''numpy/numpy''' guard prevents execution on forks. Building NumPy wheels for the pyodide platform via cibuildwheel (CIBW_PLATFORM: pyodide) is a standard, expected activity for this project. This is a false-positive keyword match on a legitimate CI configuration."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 26,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official CI workflow for testing Emscripten/Pyodide (WebAssembly) builds. The matched snippet is merely the job name 'Pyodide test', not actual Python-JavaScript bridge code execution. The workflow follows security best practices: minimal permissions (contents: read only), pinned actions by full commit SHA (actions/checkout@1af3b93... and pypa/cibuildwheel@63fd63b...), persist-credentials: false, and a repository guard (if: github.repository == 'numpy/numpy') preventing execution on forks. Building cp312 wheels for the pyodide platform via cibuildwheel is the legitimate, expected purpose of this workflow in the upstream numpy repository. The rule fired on a keyword match ('Pyodide') rather than any dangerous behavior."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 40,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official GitHub Actions workflow for building and testing WebAssembly/Pyodide wheels. The matched line 'CIBW_PLATFORM: pyodide' is a standard configuration option for the pinned, widely-used pypa/cibuildwheel action (pinned by commit SHA 63fd63b3..., v3.3.0), instructing it to build cp312 wheels for the Pyodide platform. The workflow follows security best practices: minimal 'permissions: contents: read', 'persist-credentials: false' on checkout, an 'if: github.repository == numpy/numpy' guard, and SHA-pinned actions. There is no code execution bridge being abused here \u2014 'pyodide' simply names the build target. This is a legitimate, expected CI configuration for a project that ships WASM builds."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 40,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official CI workflow for building and testing Pyodide (WebAssembly) wheels. The flagged 'CIBW_PLATFORM: pyodide' is a standard cibuildwheel configuration option that targets the Pyodide platform \u2014 it is not a Python-JavaScript code-execution bridge embedded in shipped code. The workflow follows security best practices: 'permissions: contents: read' restricts the token, actions are pinned to full commit SHAs (actions/checkout@1af3b93..., pypa/cibuildwheel@63fd63b...), 'persist-credentials: false' is set, and the job is gated to run only on the upstream repo ('if: github.repository == numpy/numpy'). Building WASM wheels via cibuildwheel is an expected, documented part of NumPy's release/test infrastructure."
+          },
+          {
+            "file": "numpy-2.4.6/.github/workflows/emscripten.yml",
+            "line": 40,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is NumPy's official CI workflow for building WebAssembly/Pyodide wheels. The flagged 'CIBW_PLATFORM: pyodide' is a standard cibuildwheel configuration directing it to build for the Pyodide (Python-in-browser) target, paired with 'CIBW_BUILD: cp312-*'. The workflow exhibits strong security hygiene: minimal 'permissions: contents: read', pinned action SHAs (actions/checkout@1af3b93... and pypa/cibuildwheel@63fd63b...), 'persist-credentials: false', and a guard restricting execution to the upstream repo ('if: github.repository == numpy/numpy'). There is no code execution bridge being abused here \u2014 just routine cross-platform wheel building for the emscripten target in a major open-source project."
+          }
+        ]
+      },
+      {
+        "name": "pypi-packaging",
+        "high_total": 33,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "packaging-26.2/docs/conf.py",
+            "line": 12,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the Sphinx docs conf.py for the well-known pypa/packaging project. The exec(f.read(), ABOUT) reads the project's own src/packaging/__init__.py to extract metadata like __version__ and __copyright__, which are then used as Sphinx config values (version = ABOUT['__version__'], copyright = ABOUT['__copyright__']). This is a long-standing, common idiom for loading package metadata at docs-build time without importing the package. The input file path is constructed from the repo's own directory tree, not from external or user-controlled input, and execution occurs only in the docs build environment. No obfuscation, network activity, or untrusted data flow is present."
+          },
+          {
+            "file": "packaging-26.2/src/packaging/_structures.py",
+            "line": 10,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The CODE-004 match fired on a docstring mentioning ``pickle.loads()``, not on any actual deserialization call. The file performs no pickling at all: it defines two trivial stand-in classes (InfinityType, NegativeInfinityType) whose only method is __repr__, plus module-level singletons. This is a well-documented backward-compatibility shim so that old pickles of packaging Version objects can resolve class references; the docstring even notes that Version.__setstate__ discards the stale _key and recomputes it, mitigating data-trust concerns. There is no __reduce__, no custom __setstate__ executing logic, and no code path that deserializes attacker-controlled data here. This is a legitimate pattern in a widely-used library (packaging), correctly classified as benign dual-use."
+          },
+          {
+            "file": "packaging-26.2/tests/test_markers.py",
+            "line": 582,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a unit test in packaging's test suite (test_markers.py) verifying pickle round-trip support for Marker objects. The code `pickle.loads(pickle.dumps(m))` immediately serializes and deserializes a locally-constructed Marker instance within the same test (test_pickle_marker_roundtrip), then asserts equality and str() stability. No untrusted data is ever deserialized \u2014 the input to pickle.loads is generated in-process one line earlier. Surrounding tests further confirm legitimate intent: testing __setstate__ rejection of invalid state and backwards-compatibility with pickle bytes from prior packaging versions. This is a textbook benign use of pickle for serialization testing."
+          },
+          {
+            "file": "packaging-26.2/tests/test_markers.py",
+            "line": 635,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a unit test in the 'packaging' library (tests/test_markers.py) verifying backward-compatible unpickling of Marker objects across package versions. The pickle.loads call operates on hardcoded byte constants defined directly in the file (e.g., _PACKAGING_26_1_PICKLE_MARKER_PYTHON_VERSION_GE_3_8), with comments documenting how each was generated ('Pickle bytes generated with packaging==26.0, Python 3.13.1, pickle protocol 2'). The decoded payloads reference only packaging.markers.Marker and packaging._parser classes (Variable, Op, Value) representing the marker 'python_version >= \"3.8\"' \u2014 no os.system, subprocess, or __reduce__ gadgets. The tests assert isinstance(m, Marker) and str(m) == 'python_version >= \"3.8\"', confirming intent is compatibility testing of __getstate__/__setstate__, not deserialization of untrusted input."
+          },
+          {
+            "file": "packaging-26.2/tests/test_markers.py",
+            "line": 644,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a test file (tests/test_markers.py) in the packaging library verifying backward-compatibility of Marker pickling across versions. The pickle.loads call operates on hardcoded byte literals defined in the same file (e.g., _PACKAGING_26_0_PICKLE_MARKER_PYTHON_VERSION_GE_3_8), not on attacker-controlled or external input. The pickle payloads reconstruct only packaging's own classes (packaging.markers.Marker, packaging._parser.Variable/Op/Value) and each test asserts the result equals Marker('python_version >= \"3.8\"'). Adjacent tests cover Node.__getstate__/__setstate__ roundtrips and error handling, confirming this is legitimate test coverage for pickle compatibility rather than a deserialization vector."
+          },
+          {
+            "file": "packaging-26.2/tests/test_markers.py",
+            "line": 653,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a unit test in packaging's test suite (tests/test_markers.py) verifying backward-compatible pickle deserialization of Marker objects across packaging versions. The pickle payload is a hardcoded byte literal defined in the same file (_PACKAGING_25_0_PICKLE_MARKER_PYTHON_VERSION_GE_3_8), whose bytes visibly reconstruct only packaging.markers.Marker and packaging._parser Variable/Op/Value objects representing 'python_version >= \"3.8\"' \u2014 no reduce/exec gadgets or external/untrusted input. The surrounding tests (test_pickle_marker_old_format_loads, test_pickle_node_roundtrip, test_pickle_node_setstate_rejects_invalid_state) confirm the purpose is exercising __getstate__/__setstate__ compatibility and error handling, a legitimate use of pickle.loads on trusted, static test data."
+          },
+          {
+            "file": "packaging-26.2/tests/test_markers.py",
+            "line": 662,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged line `loaded = pickle.loads(pickle.dumps(node))` appears in `test_pickle_node_roundtrip` within packaging's test suite (tests/test_markers.py). It performs an immediate round-trip of locally constructed, trusted objects (Variable('python_version'), Value('3.8'), Op('>=')) specifically to exercise the library's __getstate__/__setstate__ implementations. There is no untrusted external input: the data passed to pickle.loads is generated in the same line by pickle.dumps. Surrounding tests further validate backward-compatible pickle formats from older packaging versions and explicitly verify that __setstate__ rejects invalid states (TypeError checks), demonstrating a security-conscious testing approach rather than exploitation. This is a textbook legitimate use of a dangerous-looking API in unit tests."
+          },
+          {
+            "file": "packaging-26.2/tests/test_requirements.py",
+            "line": 727,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged line `loaded = pickle.loads(pickle.dumps(r))` appears in test_pickle_requirement_roundtrip within the packaging library's test suite (tests/test_requirements.py). It immediately serializes and deserializes a Requirement object that the test itself just constructed from a parametrized requirement string (e.g. 'requests>=2.0'), then asserts equality and str() stability. The pickled bytes are produced in-process from trusted, locally created data \u2014 there is no untrusted input crossing the pickle boundary. Surrounding tests (test_pickle_requirement_setstate_rejects_invalid_state, the embedded packaging==26.1 pickle bytes for backward-compatibility coverage) confirm this is deliberate verification of __getstate__/__setstate__ behavior and pickle compatibility, a standard and legitimate testing pattern for pickleable library objects."
+          },
+          {
+            "file": "packaging-26.2/tests/test_requirements.py",
+            "line": 807,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a unit test in the well-known `packaging` library (tests/test_requirements.py) verifying backward-compatible unpickling of Requirement objects serialized by older packaging versions (25.0, 26.0, 26.1). The pickle.loads call operates on hardcoded, in-repo byte literals (e.g., _PACKAGING_25_0_PICKLE_REQUESTS_GE_2_0) whose contents are visibly inspectable and reference only legitimate classes (packaging.requirements.Requirement, packaging.specifiers.SpecifierSet, packaging.version.Version) \u2014 no REDUCE opcodes invoking os/subprocess or other dangerous callables. The test asserts expected attribute values (r.name == 'requests', specifier '>=2.0', marker checks), confirming its purpose is format-compatibility regression testing. No untrusted or external input reaches pickle.loads, so this is a legitimate use of a dangerous-looking API."
+          },
+          {
+            "file": "packaging-26.2/tests/test_requirements.py",
+            "line": 821,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a unit test in packaging's test suite (tests/test_requirements.py) verifying backward-compatibility of Requirement pickles across packaging versions (25.0, 26.0, 26.1). The pickle.loads call operates on hardcoded, in-repo byte literals (e.g. _PACKAGING_26_0_PICKLE_REQUESTS_GE_2_0) rather than any external or attacker-controlled input. Inspecting the embedded pickle bytes shows it only references packaging.requirements.Requirement, packaging.specifiers.SpecifierSet/Specifier, and builtin set/frozenset \u2014 no reduce/exec gadgets or os/subprocess imports. The assertions (r.name == 'requests', str(r.specifier) == '>=2.0', equality with Requirement('requests>=2.0')) confirm legitimate test intent. This is a textbook benign use of a dangerous-looking API."
+          }
+        ]
+      },
+      {
+        "name": "pypi-pyyaml",
+        "high_total": 27,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "pyyaml-6.0.3/setup.py",
+            "line": 324,
+            "rule": "INSTALL-001",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The cmdclass override in pyyaml's setup.py registers only 'build_ext', 'test', and conditionally 'bdist_wheel'. The custom build_ext is needed because PyYAML compiles optional Cython/libyaml C extensions (Extension('yaml._yaml', ['yaml/_yaml.pyx'], libraries=['yaml'])), and the test command runs the project's test suite from an ephemeral copytree of build_lib (with a referenced upstream issue, yaml/pyyaml#527, explaining why). There is no network access, no obfuscation, no environment exfiltration, and no code executing outside normal build/test logic; this is the canonical legitimate use of cmdclass in a well-known upstream package."
+          },
+          {
+            "file": "pyyaml-6.0.3/setup.py",
+            "line": 329,
+            "rule": "INSTALL-001",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the official PyYAML setup.py, which legitimately needs custom cmdclass entries to build its C extension ('build_ext' for the libyaml Cython bindings via Extension('yaml._yaml', ...)) and to run its test suite ('test' command that copies build output to a tempdir and runs test_all). The flagged line, cmdclass['bdist_wheel'] = bdist_wheel, is guarded by 'if bdist_wheel:' \u2014 a standard pattern to conditionally register the wheel command only when the wheel package is importable. None of the custom commands perform network access, obfuscated execution, or data exfiltration; they handle compilation feature detection (LIBYAML_CHECK) and test execution. This is a textbook legitimate use of install-time hooks for a package with optional native extensions."
+          },
+          {
+            "file": "pyyaml-6.0.3/setup.py",
+            "line": 357,
+            "rule": "INSTALL-001",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is PyYAML's official setup.py using cmdclass to customize build commands for its optional C extension. The context shows a standard Extension('yaml._yaml', ['yaml/_yaml.pyx'], ...) Cython extension linking against libyaml, a custom distclass=Distribution, and a conditional bdist_wheel override (cmdclass['bdist_wheel'] = bdist_wheel) \u2014 all typical for packages that compile native bindings and need to handle optional-extension build logic. There is no obfuscation, network activity, or payload execution in the surrounding code; the cmdclass override exists solely to manage compilation of the LibYAML bindings, a well-known legitimate pattern in this widely-used package."
+          },
+          {
+            "file": "pyyaml-6.0.3/CHANGES",
+            "line": 28,
+            "rule": "CODE-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding is a textual match inside PyYAML's CHANGES file (a changelog document, not executable code). The matched line is the changelog entry '* https://github.com/yaml/pyyaml/pull/561 -- always require `Loader` arg to `yaml.load()`', which describes a security *hardening* change in PyYAML 6.0 that made yaml.load() safer by requiring an explicit Loader. There is no call to yaml.load() here at all \u2014 only a documentation reference to it. The surrounding context confirms this is the official PyYAML release history (versions 5.3 through 6.0.3), including other security fixes like CVE-2020-14343. This is a scanner false positive on changelog prose."
+          },
+          {
+            "file": "pyyaml-6.0.3/CHANGES",
+            "line": 205,
+            "rule": "CODE-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in PyYAML's CHANGES changelog file, not executable code. The matched text \"'yaml.load()' raises an exception if the input stream contains more than one YAML document\" is a release note for version 3.06 (2008-10-03) documenting historical behavior changes. This is documentation in the upstream PyYAML package itself; there is no actual call to yaml.load() and no code execution risk at this location."
+          },
+          {
+            "file": "pyyaml-6.0.3/README.md",
+            "line": 20,
+            "rule": "CODE-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in PyYAML's own README.md documentation, not executable code. The snippet `yaml.load(stream, Loader=yaml.CLoader)` is an illustrative example showing how to use the LibYAML-based parser, and the very next lines explicitly warn users: 'If you don't trust the input YAML stream, you should use: yaml.safe_load(stream)'. This is the upstream library documenting its own API with appropriate security guidance \u2014 a textbook benign occurrence of a dual-use pattern."
+          },
+          {
+            "file": "pyyaml-6.0.3/tests/legacy_tests/canonical.py",
+            "line": 353,
+            "rule": "CODE-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is PyYAML's own legacy test harness (tests/legacy_tests/canonical.py). The flagged call `yaml.load(stream, Loader=CanonicalLoader)` uses a custom CanonicalLoader built from CanonicalScanner/CanonicalParser plus the standard Composer/Constructor/Resolver, defined in the same file for testing canonical YAML form. The surrounding code merely registers helper wrappers (canonical_scan, canonical_parse, canonical_compose, canonical_load, etc.) onto the yaml module for the test suite. There is no untrusted input source, no obfuscation, and no payload \u2014 this is the library testing its own loading machinery, a textbook legitimate use of a dangerous-looking API."
+          },
+          {
+            "file": "pyyaml-6.0.3/tests/legacy_tests/test_constructor.py",
+            "line": 13,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The exec(code) call is inside the `execute()` helper in PyYAML's legacy test suite (tests/legacy_tests/test_constructor.py). This is a well-known part of PyYAML's test harness: the comment 'Import any packages here that need to be referenced in .code files' shows it executes local .code test fixture files to build expected Python objects (setting the module-global `value`) for comparison against YAML constructor output. The surrounding code defines test classes (MyTestClass1, MyLoader, MyDumper) and constructors/representers consistent with constructor round-trip testing. The exec input comes from repository-controlled test fixtures, not external/network/user input, and there is no obfuscation, exfiltration, or payload delivery. This is a legitimate, dual-use pattern in test code."
+          },
+          {
+            "file": "pyyaml-6.0.3/tests/legacy_tests/test_constructor.py",
+            "line": 235,
+            "rule": "CODE-001",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "This is PyYAML's legacy test suite (tests/legacy_tests/test_constructor.py). The eval() in _load_code(expression) is used by test_constructor_types() to evaluate '.code' fixture files (native2 = _load_code(file.read())) that contain Python expressions representing expected objects, which are then compared against YAML-loaded values (native1) to verify constructor correctness. The input comes from static test fixtures in the repository, not from untrusted external data, and this is a well-known, long-standing pattern in PyYAML's own test harness. There is no exfiltration, obfuscation, or attacker-controlled input path here."
+          },
+          {
+            "file": "pyyaml-6.0.3/tests/legacy_tests/test_constructor.py",
+            "line": 290,
+            "rule": "CODE-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is PyYAML's own legacy test suite (tests/legacy_tests/test_constructor.py). The flagged call `yaml.load(file.read(), MyFullLoader)` appears inside `test_subclass_blacklist_types`, which deliberately loads test fixture data with a FullLoader subclass and asserts that a yaml.YAMLError IS raised ('expected an exception' via raise AssertionError otherwise). In other words, the test verifies the loader's blacklist protections work \u2014 the dangerous API is being exercised intentionally to confirm it rejects unsafe constructs. Inputs come from controlled test fixture files ('.subclass_blacklist' data files), not untrusted user input. This is a textbook benign use of a dangerous-looking API within the library's security regression tests."
+          }
+        ]
+      },
+      {
+        "name": "pypi-requests",
+        "high_total": 13,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "requests-2.34.2/tests/certs/expired/ca/ca-private.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/expired/ca/ca-private.key \u2014 a test fixture directory in the well-known 'requests' Python library. The path explicitly indicates it is the CA key for an intentionally 'expired' certificate chain used to test TLS certificate validation/expiry handling. Test suites for HTTP/TLS libraries routinely ship throwaway private keys to generate or sign test certificates; this key has no value as a real credential since it is publicly distributed with the package and only signs deliberately invalid test certs. There is no indication of exfiltration, real-service credentials, or hidden use. This is a textbook benign dual-use occurrence of the embedded-private-key pattern."
+          },
+          {
+            "file": "requests-2.34.2/tests/certs/expired/server/server.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/expired/server/server.key \u2014 a test fixture directory of the well-known 'requests' HTTP library. The path explicitly indicates it is an *expired* server certificate key used to test TLS certificate-validation failure handling. Embedding throwaway private keys in test suites is standard practice for exercising SSL/TLS code paths; the key has no value as a real credential. The matched snippet is just the PEM body of this fixture, with no code exfiltrating or misusing it. This is a textbook benign dual-use finding."
+          },
+          {
+            "file": "requests-2.34.2/tests/certs/mtls/client/ca/ca-private.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/mtls/client/ca/ca-private.key, a test fixture directory within the well-known 'requests' Python library. The path explicitly indicates it is a CA key used to generate client certificates for mutual-TLS (mtls) test scenarios. Embedding throwaway PKI material in a tests/certs directory is standard practice for HTTP library test suites that must exercise TLS client-auth code paths. The key matches no production deployment context, is not exfiltrated or used to authenticate to any external service in the surrounding context, and the file contains nothing but the PEM block itself. This is a textbook benign test credential, not a leaked secret."
+          },
+          {
+            "file": "requests-2.34.2/tests/certs/mtls/client/client.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/mtls/client/client.key, a test fixture directory for the well-known 'requests' HTTP library. The path explicitly indicates an mTLS client certificate test setup (tests/certs/mtls/client/), which requires a client private key to exercise mutual-TLS code paths in unit tests. Such throwaway keys are intentionally committed to test suites, are not used to protect production assets, and grant no access to any real system. The key is a standard PKCS#8 RSA key with no obfuscation or exfiltration logic around it. This is a textbook benign test credential, though it correctly triggers CRED-006 since embedded private keys are dual-use findings."
+          },
+          {
+            "file": "requests-2.34.2/tests/certs/valid/ca/ca-private.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/valid/ca/ca-private.key \u2014 a test fixture directory in the well-known 'requests' HTTP library. The path explicitly indicates it is a CA key used to generate/validate test certificates for TLS-related unit tests (e.g., verifying certificate validation logic). Such throwaway keys are intentionally committed to test suites and are never used for production trust; the 'tests/certs/valid/ca/' naming makes the test-fixture purpose clear. There is no indication of exfiltration, hardcoded production credentials, or use of this key outside test scaffolding."
+          },
+          {
+            "file": "requests-2.34.2/tests/certs/valid/server/server.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The private key is located at requests-2.34.2/tests/certs/valid/server/server.key \u2014 a test fixture directory ('tests/certs/valid/server') within the well-known 'requests' Python HTTP library. Test suites for TLS-capable libraries routinely ship throwaway server keys/certificates to spin up local HTTPS servers during testing. The path naming (tests/certs/valid/server/server.key) explicitly indicates a deliberately committed test artifact, not a leaked production credential. The key itself is a standard PKCS#8 RSA key with no indication it grants access to any real system. This is a classic benign dual-use finding; scanners flag any '-----BEGIN PRIVATE KEY-----' block, but in this context it poses no credential-exposure risk."
+          },
+          {
+            "file": "requests-2.34.2/tests/test_requests.py",
+            "line": 1524,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a unit test in the requests library's test suite (test_request_and_response_are_pickleable) that verifies Request/Response objects survive a pickle round-trip. The data being deserialized is pickle.dumps(r.request) \u2014 produced in the same statement from a locally constructed object, never from external/untrusted input. The surrounding tests (test_prepared_request_is_pickleable, test_prepared_request_with_file_is_pickleable) follow the same self-contained round-trip pattern with assertions on url/headers/body. There is no untrusted data flow into pickle.loads, so this is a textbook benign use of a dangerous-looking API."
+          },
+          {
+            "file": "requests-2.34.2/tests/test_requests.py",
+            "line": 1528,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged line `pr = pickle.loads(pickle.dumps(r))` is in `test_request_and_response_are_pickleable` in the requests library's test suite. It performs an immediate round-trip serialization of an object the test itself just created (`r = requests.get(httpbin('get'))`) to verify that Response/Request objects are pickleable \u2014 a documented feature of requests. No external or attacker-controlled data is ever passed to pickle.loads; the input comes directly from pickle.dumps on the same in-process object, and the result is only used for equality assertions (url, headers). This is a textbook benign use of pickle in unit tests."
+          },
+          {
+            "file": "requests-2.34.2/tests/test_requests.py",
+            "line": 1536,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched line `r = pickle.loads(pickle.dumps(p))` is in test_prepared_request_is_pickleable within the requests library's test suite (tests/test_requests.py). It pickles and immediately unpickles a locally constructed PreparedRequest object to verify round-trip serialization fidelity (asserting r.url == p.url, r.headers == p.headers, r.body == p.body). The data passed to pickle.loads comes directly from pickle.dumps in the same statement \u2014 no untrusted or external input is deserialized. This is a standard, legitimate test pattern for verifying object pickleability, mirrored in adjacent tests like test_request_and_response_are_pickleable."
+          },
+          {
+            "file": "requests-2.34.2/tests/test_requests.py",
+            "line": 1552,
+            "rule": "CODE-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a round-trip pickle test in the requests library test suite (test_prepared_request_is_pickleable). The code calls pickle.loads(pickle.dumps(p)) on an object it just created locally (a PreparedRequest from requests.Request('GET', httpbin('get')).prepare()), so there is no untrusted input \u2014 the data being deserialized is produced in the same expression. The surrounding asserts (r.url == p.url, r.headers == p.headers, r.body == p.body) confirm the intent is verifying serialization fidelity of Request/Response/PreparedRequest objects, a standard and legitimate testing pattern."
+          }
+        ]
+      },
+      {
+        "name": "pypi-rich",
+        "high_total": 1,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "rich-15.0.0/rich/pager.py",
+            "line": 21,
+            "rule": "OBFUSC-CHAIN-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The matched line `return __import__(\"pydoc\").pager(content)` is a lazy import of the standard-library pydoc module to delegate paging to the system pager. It is inside `SystemPager._pager`, a method only invoked when `show()` is called \u2014 not an import-time side effect as the rule claims. The string argument is a hardcoded literal (\"pydoc\"), not dynamically constructed or obfuscated, and the surrounding code is the well-known Rich library's documented pager abstraction (Pager ABC with a SystemPager implementation). Using __import__ here merely avoids a module-level import of pydoc; there is no encoding, indirection, or untrusted input involved."
+          }
+        ]
+      },
+      {
+        "name": "pypi-urllib3",
+        "high_total": 774,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "urllib3-2.7.0/dummyserver/certs/cacert.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The RSA private key is located at urllib3-2.7.0/dummyserver/certs/cacert.key, which is part of urllib3's test infrastructure ('dummyserver' is the well-known test harness shipped with the urllib3 package for exercising TLS code paths). The key is a test CA key (cacert.key) used to sign throwaway certificates for local HTTPS testing, not a production credential. Such keys are intentionally committed to the repository so test suites can run deterministically; they protect nothing and grant no access to any real system. The scanner correctly flagged an embedded PEM-encoded RSA private key (-----BEGIN RSA PRIVATE KEY-----), but in this context it is a standard, publicly known test fixture rather than a leaked or planted secret."
+          },
+          {
+            "file": "urllib3-2.7.0/dummyserver/certs/server.key",
+            "line": 1,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The RSA private key is located at urllib3-2.7.0/dummyserver/certs/server.key, which is part of urllib3's test infrastructure ('dummyserver' is the well-known test HTTPS server harness bundled with the urllib3 project). Test suites for TLS clients legitimately ship throwaway self-signed key/cert pairs so they can spin up a local HTTPS server during testing. The key is openly committed in the upstream package, used only to serve TLS on a local test endpoint, and has no value for an attacker since it protects nothing in production. There is no indication of exfiltration, obfuscation, or use of this key outside the test fixture context."
+          },
+          {
+            "file": "urllib3-2.7.0/CHANGES.rst",
+            "line": 287,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The match is in urllib3's CHANGES.rst changelog file, not executable code. The flagged text is a release note for version 2.2.0 describing the well-documented, legitimate addition of Emscripten/Pyodide support (issue #2951), which lets urllib3 run in browser-based Python environments. The 'Python-JavaScript bridge' rule fired on documentation prose linking to official urllib3 docs (urllib3.readthedocs.io) and GitHub issues. There is no code execution, obfuscation, or injection here \u2014 just a changelog entry in one of the most widely used Python packages. This is a clear false positive on documentation text."
+          },
+          {
+            "file": "urllib3-2.7.0/CHANGES.rst",
+            "line": 287,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding matched a line in urllib3's CHANGES.rst changelog file \u2014 documentation text, not executable code. The matched snippet is the 2.2.0 release note announcing official Emscripten/Pyodide support ('Added support for Emscripten and Pyodide... including streaming support in cross-origin isolated browser environments'), linking to the project's own readthedocs documentation and GitHub issue #2951. This is a well-known, legitimate feature of urllib3 enabling it to run in browser-based Python environments; the Python-JavaScript bridge pattern is inherent to Pyodide support, not an injected backdoor. The surrounding context (release notes for 2.2.1, 2.2.2, 2.1.0 with standard issue links) confirms this is the official changelog. No code execution occurs from a .rst file, and there is no obfuscation or anomalous content."
+          },
+          {
+            "file": "urllib3-2.7.0/CHANGES.rst",
+            "line": 287,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The flagged line is a changelog entry in urllib3's CHANGES.rst (version 2.2.0, 2024-01-30) documenting the well-known addition of Emscripten/Pyodide support, with a link to official urllib3 docs and GitHub issue #2951. It is documentation text, not executable code \u2014 the surrounding context is purely release notes with issue references (e.g., #3186 read1() support, #3284 HTTP/2). The 'Python-JavaScript bridge' match refers to urllib3's legitimate, publicly-documented browser support via Pyodide, not an injected execution bridge. No malicious behavior is possible from a .rst changelog entry."
+          },
+          {
+            "file": "urllib3-2.7.0/docs/reference/contrib/emscripten.rst",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding matched a documentation file (docs/reference/contrib/emscripten.rst) in the official urllib3 package, specifically the page title 'Pyodide, Emscripten, and PyScript'. This is reStructuredText documentation describing urllib3's official Emscripten/Pyodide support added in version 2.2.0, which uses the JavaScript fetch API for HTTP requests in browser environments. The content consists of explanatory prose, links to Pyodide/Emscripten/PyScript documentation, and usage guidance (e.g., recommending running Pyodide in a Web Worker). There is no executable code here at all, let alone a covert Python-JavaScript bridge; the scanner keyword-matched the docs heading. This is a clear false positive on legitimate library documentation."
+          },
+          {
+            "file": "urllib3-2.7.0/docs/reference/contrib/emscripten.rst",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding is in a reStructuredText documentation file (docs/reference/contrib/emscripten.rst) within the official urllib3 package, describing the library's documented Pyodide/Emscripten support added in version 2.2.0. The matched snippet is merely the documentation page title 'Pyodide, Emscripten, and PyScript', and the surrounding text consists of explanatory prose with links to official project sites (pyodide.org, emscripten.org, pyscript.net) and the urllib3 issue tracker. There is no executable code at all here, let alone a covert Python-JavaScript bridge \u2014 the rule fired on descriptive documentation of a well-known, legitimate feature (using the JavaScript fetch API/XMLHttpRequest as a transport in browser environments)."
+          },
+          {
+            "file": "urllib3-2.7.0/docs/reference/contrib/emscripten.rst",
+            "line": 1,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding triggered on a documentation file (docs/reference/contrib/emscripten.rst) in urllib3 2.7.0 that merely describes urllib3's official Pyodide/Emscripten support added in 2.2.0. The matched text is the page title and prose explaining that urllib3 can run in browser-based Python runtimes via the JavaScript fetch API or XMLHttpRequest. There is no executable code here at all \u2014 only links to pyodide.org, emscripten.org, MDN, and the urllib3 issue tracker, plus a standard warning that the support is experimental. Documentation of a well-known library's WebAssembly compatibility is not a supply-chain threat; this is a false positive on a keyword match ('Python-JavaScript bridge with code execution')."
+          },
+          {
+            "file": "urllib3-2.7.0/docs/reference/contrib/emscripten.rst",
+            "line": 4,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding matched plain documentation text in urllib3's docs (docs/reference/contrib/emscripten.rst) describing official Pyodide/Emscripten support for running urllib3 in the browser. The 'Python-JavaScript bridge with code execution' match is merely the descriptive sentence quoting Pyodide's own documentation and mentions of pyodide.runPython/runPythonAsync as usage guidance \u2014 no executable code exists here at all. This is a well-known, legitimate feature of urllib3 (since 2.2.0) with links to official project sites and the issue tracker; nothing indicates obfuscation or malicious intent."
+          },
+          {
+            "file": "urllib3-2.7.0/docs/reference/contrib/emscripten.rst",
+            "line": 4,
+            "rule": "SUPPLY-017",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.99,
+            "rationale": "The finding matched prose in a reStructuredText documentation file (docs/reference/contrib/emscripten.rst) of urllib3 2.7.0, not executable code. The 'Python-JavaScript bridge' match is simply the docs explaining that urllib3 supports Pyodide/Emscripten runtimes using the JavaScript fetch API or XMLHttpRequest. References to pyodide.runPython/runPythonAsync are usage guidance for users running Pyodide, a legitimate, well-known WebAssembly Python distribution. There is no code execution, obfuscation, or injection here \u2014 only official documentation for a documented urllib3 feature introduced in version 2.2.0."
+          }
+        ]
+      }
+    ]
+  },
+  "malicious": {
+    "dirs_scanned": 25,
+    "samples_selected": 25,
+    "finding_level": {
+      "benign_dual_use": 48,
+      "suspicious": 26,
+      "malicious": 5,
+      "refused": 0,
+      "error": 0,
+      "adjudicated": 79
+    },
+    "sample_level": {
+      "flagged_before": 25,
+      "flagged_after": 24,
+      "fully_cleared": [
+        "npm/compromised_lib/@aifabrix@miso-client/4.7.2/2026-03-07-@aifabrix_miso-client-v4.7.2.zip"
+      ]
+    },
+    "detail": [
+      {
+        "name": "npm/compromised_lib/02-echo/0.0.7/2025-11-24-02-echo-v0.0.7.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmp3q_od1s5/02-echo/package/package.json",
+            "line": 12,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The package.json declares a preinstall lifecycle hook (\"preinstall\": \"node setup_bun.js\") that runs automatically on install. Preinstall scripts are a common vector for supply-chain attacks, and the referenced setup_bun.js is not shown, so its behavior cannot be verified. While a 'setup_bun.js' could legitimately bootstrap the Bun runtime, the name doesn't clearly match a simple echo utility (package '02-echo' with only an 'argv' dependency), and an auto-executing install hook in a trivial package raises concern. Without seeing setup_bun.js contents, malice cannot be ruled out, warranting human review."
+          },
+          {
+            "file": "tmp/tmp3q_od1s5/02-echo/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The child_process import is used by a 'setup_bun.js' installer helper. The visible functions are consistent with legitimate tooling: isBunOnPath() runs 'which bun'/'where bun' with stdio ignored to detect whether the Bun runtime is installed, and reloadPath() refreshes PATH (via PowerShell environment-variable reads on Windows or sourcing shell profile files on Unix) so a freshly installed binary becomes discoverable. There is no obfuscation, no exfiltration, no remote payload fetching or untrusted input flowing into execSync in the shown context. The PowerShell registry read is read-only and a common technique in install scripts. This matches the well-known pattern of npm packages bootstrapping the Bun toolchain in a postinstall/setup step. Confidence is slightly tempered because the full file (e.g., what happens after the profile-file sourcing, or any download/install logic) is not shown, but nothing in this occurrence indicates malicious intent."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@accordproject@concerto-linter-default-ruleset/3.24.1/2025-11-24-@accordproject_concerto-linter-default-ruleset-v3.24.1.zip",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmppyut9345/@accordproject-concerto-linter-default-ruleset/package/package.json",
+            "line": 21,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The package.json for @accordproject/concerto-linter-default-ruleset declares a 'preinstall' lifecycle hook running 'node setup_bun.js', which executes automatically on install. This is anomalous: the project uses standard npm/tsc/jest tooling (engines specify node>=18, npm>=10) and there is no legitimate reason for a linter ruleset package to invoke a Bun setup script during preinstall. A 'setup_bun.js' file is not part of the published build artifacts (main is dist/ruleset-main.js) and its contents are not visible here, so it could perform arbitrary code execution. This pattern matches known supply-chain attack techniques where install hooks fetch/run unexpected scripts. However, without the actual contents of setup_bun.js it cannot be confirmed malicious \u2014 it could conceivably be a legitimate environment bootstrap. It warrants human review of setup_bun.js."
+          },
+          {
+            "file": "tmp/tmppyut9345/@accordproject-concerto-linter-default-ruleset/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "This is a setup_bun.js script in a linter ruleset package (@accordproject-concerto-linter-default-ruleset). The child_process usage is for detecting whether 'bun' is installed via 'which bun'/'where bun' through execSync with stdio:'ignore', and reloading the PATH environment variable to find a newly-installed runtime. These are legitimate developer-tooling operations for installing/locating the Bun JavaScript runtime. No exfiltration, obfuscation, or hidden network activity is evident in the shown context; the PATH-reload logic and bun-detection are consistent with a benign install/bootstrap helper. However, setup scripts that auto-install runtimes warrant a glance at the full install flow, so confidence is not maximal."
+          },
+          {
+            "file": "tmp/tmppyut9345/@accordproject-concerto-linter-default-ruleset/package_info-@accordproject-concerto-linter-default-ruleset-3.24.1.json",
+            "line": 1,
+            "rule": "PROMPT-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged content is standard npm registry package metadata (packument JSON) for @accordproject/concerto-linter-default-ruleset, an Apache-2.0 licensed Accord Project package. The matched text consists entirely of legitimate registry fields: '_id', '_rev', 'dist-tags', 'versions', maintainer emails, dist tarball URLs/shasums/integrity hashes, signatures, and devDependencies. The PROMPT-007 'delimiter injection' rule appears to have triggered on the dense JSON structure (braces, quotes, key-value delimiters) rather than any actual instruction-like text aimed at an LLM. There are no imperative phrases, role-play directives, system-prompt overrides, or hidden instructions anywhere in the snippet \u2014 only mechanically generated registry data. This is a false positive on benign machine-generated metadata."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@accordproject@concerto-metamodel/3.12.5/2025-11-24-@accordproject_concerto-metamodel-v3.12.5.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpw33cu2xi/@accordproject-concerto-metamodel/package/package.json",
+            "line": 27,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "The legitimate @accordproject/concerto-metamodel package (Apache-2.0, official accordproject scripts for build/test/lint) does not normally include a 'preinstall': 'node setup_bun.js' lifecycle hook. The genuine package has no setup_bun.js bootstrapping script, and a preinstall hook running an unfamiliar script ('setup_bun.js') is a classic injected install-time payload vector. The script name is unrelated to the package's stated purpose (Concerto metamodel utilities), and it runs automatically on install, executing arbitrary code before any review. This combination\u2014an out-of-place preinstall hook in a tmp-extracted copy of an otherwise reputable package\u2014strongly suggests tampering, but without the contents of setup_bun.js the malicious intent cannot be confirmed, so human review is warranted."
+          },
+          {
+            "file": "tmp/tmpw33cu2xi/@accordproject-concerto-metamodel/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "This is a setup_bun.js script in the @accordproject/concerto-metamodel package that legitimately uses child_process to detect and install the Bun runtime. isBunOnPath() uses execSync with 'which bun'/'where bun' to check for an existing installation, and reloadPath() refreshes PATH after installation. The platform-aware logic, PATH reloading from registry/profile files, and clear naming all reflect a standard runtime bootstrap pattern rather than obfuscated or data-exfiltrating behavior. No suspicious network calls, encoded payloads, or hidden command construction are present in this context."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@accordproject@concerto-types/3.24.1/2025-11-24-@accordproject_concerto-types-v3.24.1.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpg37r71z4/@accordproject-concerto-types/package/package.json",
+            "line": 21,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "The @accordproject/concerto-types package is a TypeScript types library whose legitimate scripts (clean, codegen, prebuild via tsc, lint, jest) reflect a pure type/build workflow. A 'preinstall' hook running 'node setup_bun.js' is anomalous: a types package has no legitimate reason to install or configure Bun at install time, and the referenced setup_bun.js is not part of the standard concerto package layout. The known-good published versions of this package do not include a preinstall script, suggesting this script was injected. Running automatically on every install gives it execution before any review, a classic supply-chain attack vector. However, the contents of setup_bun.js are not shown, so malicious intent cannot be confirmed from this context alone \u2014 it requires inspection of the script body. Hence suspicious rather than malicious."
+          },
+          {
+            "file": "tmp/tmpg37r71z4/@accordproject-concerto-types/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "This is a setup_bun.js script in the @accordproject-concerto-types package that uses child_process to detect Bun on PATH (isBunOnPath via which/where) and reload the PATH environment variable. On the surface this looks like a legitimate package-bootstrap helper for installing/using Bun. However, several factors warrant human review: the file is named setup_bun.js and likely runs during install (the shebang suggests it's executable), it manipulates process.env.PATH by sourcing shell profile files and querying the Windows registry, and it spawns processes \u2014 behaviors commonly associated with install-time supply-chain abuse. The visible code is not overtly malicious (no exfiltration, no obfuscation, no remote download shown), but the full intent depends on what spawn is used for further down (not shown here). Given the install-hook context and PATH manipulation, this cannot be cleanly ruled benign and merits manual inspection of the rest of the file."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@accordproject@markdown-it-cicero/0.16.26/2025-11-24-@accordproject_markdown-it-cicero-v0.16.26.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpt8k_5u3i/@accordproject-markdown-it-cicero/package/package.json",
+            "line": 26,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.75,
+            "rationale": "The package.json declares a preinstall lifecycle hook 'node setup_bun.js' that runs automatically on install. The legitimate @accordproject/markdown-it-cicero is a markdown-it plugin and has no reason to run a 'setup_bun.js' script at install time; the published 'files' array only includes bin/lib/umd, and there is no mention of Bun in the project's dependencies, keywords, or purpose. A preinstall script invoking an unfamiliar setup_bun.js is a classic vector for install-time code execution and is consistent with a typosquat/compromised-package pattern. Without the contents of setup_bun.js this cannot be confirmed malicious, but the install hook is unexpected for this package and warrants human review."
+          },
+          {
+            "file": "tmp/tmpt8k_5u3i/@accordproject-markdown-it-cicero/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The snippet is part of a setup_bun.js script in a markdown-it-cicero package that detects whether the Bun runtime is installed (isBunOnPath using 'which bun'/'where bun') and reloads the PATH environment variable to pick up a freshly installed Bun. The child_process usage (spawn, execSync) is consistent with a legitimate tooling/installer helper: checking command availability via 'which'/'where' and querying the Windows registry for the updated PATH. There is no evidence of data exfiltration, obfuscation, hardcoded remote URLs, or execution of attacker-controlled payloads in the visible context. The behavior is typical dual-use installer logic, though as a package setup script that runs commands it warrants the standard caution applied to install-time scripts."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@accordproject@template-engine/2.7.2/2025-11-24-@accordproject_template-engine-v2.7.2.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpbapohwgv/@accordproject-template-engine/package/package.json",
+            "line": 28,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The package.json declares a preinstall lifecycle script 'node setup_bun.js' that runs automatically on install. This is suspicious for several reasons: (1) the referenced file 'setup_bun.js' is not visible and not part of the published 'files' allowlist (only 'dist' is included), so its contents cannot be verified; (2) a preinstall hook executing arbitrary node code is a common supply-chain attack vector; (3) for the @accordproject/template-engine package, a preinstall script invoking a 'setup_bun.js' (referencing the Bun runtime) is unusual and not obviously related to the package's stated purpose of generating AgreementMark from TemplateMark. While this could be a legitimate maintainer convenience for setting up a dev runtime, the auto-executing nature, unverifiable script body, and mismatch with package purpose warrant human review. No clearly malicious payload is visible in the provided context, so this is not confirmed malicious."
+          },
+          {
+            "file": "tmp/tmpbapohwgv/@accordproject-template-engine/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.9,
+            "rationale": "This is a setup_bun.js script from @accordproject/template-engine that uses child_process to detect and install the Bun runtime. The execSync calls do legitimate, transparent things: checking if bun is on PATH via 'which bun'/'where bun', and reloading the PATH environment variable from the Windows registry or shell profiles. There is no obfuscation, no exfiltration, no remote payload fetch \u2014 just standard cross-platform tooling setup behavior consistent with a build/install helper. Command execution here is expected and benign, though the broader script warrants a glance for any subsequent download/exec steps."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@css-to-react-native-transform/1.0.3/2025-11-24-@actbase_css-to-react-native-transform-v1.0.3.zip",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmp8x91s9if/@actbase-css-to-react-native-transform/package/package.json",
+            "line": 15,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.82,
+            "rationale": "This is a CSS-to-React-Native transform library whose legitimate scripts (build via babel, test via jest, prettier, lint-staged) have nothing to do with Bun. The injected 'preinstall': 'node setup_bun.js' runs automatically on install and references a setup_bun.js file that is not part of the package's stated purpose and not visible/auditable here. A preinstall hook executing an unexplained script named after an unrelated runtime is a classic supply-chain compromise vector (auto-execution before any review). However, without the contents of setup_bun.js I cannot confirm malicious payload behavior, so this warrants human review rather than a definitive malicious verdict."
+          },
+          {
+            "file": "tmp/tmp8x91s9if/@actbase-css-to-react-native-transform/package/package.json",
+            "line": 13,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The matched line itself \u2014 \"prepublish\": \"npm run build\" invoking \"babel src --ignore *.spec.js --out-dir dist\" \u2014 is a completely standard pattern for compiling a library before publishing, and on its own would be benign dual-use. However, judging this occurrence in its surrounding context raises serious concerns: the same scripts block contains \"preinstall\": \"node setup_bun.js\", which is the hallmark installer stub of the Shai-Hulud npm supply-chain worm (it fetches/installs Bun and executes a hidden payload at install time). Additionally, the package name \"@actbase/css-to-react-native-transform\" appears to be a scoped republication of the well-known css-to-react-native-transform package (original author Krister Kari), a pattern consistent with a compromised or trojanized fork. Because the flagged prepublish script is benign in isolation but sits inside a package exhibiting strong compromise indicators, this occurrence cannot be cleared and warrants human review of the package \u2014 particularly setup_bun.js and the published dist artifacts."
+          },
+          {
+            "file": "tmp/tmp8x91s9if/@actbase-css-to-react-native-transform/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "This is a setup_bun.js script in a CSS-to-React-Native transform package that uses child_process to detect (which/where bun) and presumably install the Bun runtime. Installing a toolchain via a package install script is plausible but unusual \u2014 legitimate transform libraries rarely need to bootstrap Bun at install time, and PATH manipulation by reading registry/sourcing shell profiles is the kind of behavior that warrants review. The visible code (isBunOnPath, reloadPath) is consistent with environment setup rather than overt malice, but the full download/execution logic isn't shown, so spawn could be used to fetch and run an installer. Without seeing the rest of the script (especially what spawn invokes and any remote fetches), malicious intent cannot be ruled out, hence human review is warranted."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@native/0.1.32/2025-11-24-@actbase_native-v0.1.32.zip",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpdgu2w7ad/@actbase-native/package/package.json",
+            "line": 17,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.75,
+            "rationale": "The package @actbase/native is a React-Native UI component library whose legitimate scripts (build:src, build, prepublish) all relate to TypeScript/Babel compilation. There is no legitimate reason for a UI component library to run a 'preinstall': 'node setup_bun.js' hook \u2014 a preinstall script that executes a script named setup_bun.js is unrelated to the package's stated purpose and runs automatically on install before dependencies are even built. The referenced setup_bun.js is not shown and not part of the published source/build pipeline, which is a hallmark of injected install-time payloads in compromised npm packages. The presence of a hardcoded local path in 'localinstall' (/Users/suhanmoon/...) also suggests this may be an unofficial or tampered publish. Without seeing setup_bun.js contents, malice cannot be confirmed, but the unexplained preinstall hook in a UI library warrants human review."
+          },
+          {
+            "file": "tmp/tmpdgu2w7ad/@actbase-native/package/package.json",
+            "line": 15,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The flagged occurrence is \"prepublish\": \"npm run build\", which simply chains to \"build:src\": \"rm -rf ./lib && tsc -p src/tsconfig.json && babel lib --out-dir lib\" \u2014 a standard compile-before-publish workflow for a TypeScript React Native component library. The prepublish hook runs on the maintainer's machine at publish time, not on consumers, and performs no network access, no obfuscation, and no data access; it only cleans and rebuilds ./lib, consistent with the declared main/typings entry points (lib/index.js, lib/index.d.ts). The 'localinstall' script with a hardcoded developer path (/Users/suhanmoon/...) further suggests an ordinary, somewhat sloppy dev setup rather than tooling for an attack. Note: while this specific finding is benign, the neighboring \"preinstall\": \"node setup_bun.js\" hook in the same scripts block executes arbitrary code on every consumer install and is unusual for a UI component package; that line warrants its own separate review, but it does not change the verdict on the prepublish build script itself."
+          },
+          {
+            "file": "tmp/tmpdgu2w7ad/@actbase-native/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.75,
+            "rationale": "The child_process import in setup_bun.js is used for clearly legitimate installer functionality visible in the surrounding code: isBunOnPath() runs 'which bun'/'where bun' with stdio ignored to detect whether the Bun runtime is installed, and reloadPath() refreshes the PATH environment variable (via a PowerShell registry query on Windows or by sourcing shell profiles on Unix) so a freshly installed binary becomes discoverable. These are standard patterns for a toolchain bootstrap/setup script in a native development package (@actbase-native). The commands executed are static and platform-detection oriented, with no dynamic/user-controlled command construction, no obfuscation, and no exfiltration indicators in the shown context. While auto-installing runtimes during package setup warrants general caution, this specific occurrence of spawn/execSync usage matches a benign dual-use installer pattern."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@node-server/1.1.19/2025-11-24-@actbase_node-server-v1.1.19.zip",
+        "high_total": 6,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpfuvdxyzn/@actbase-node-server/package/package.json",
+            "line": 17,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.65,
+            "rationale": "The package declares \"preinstall\": \"node setup_bun.js\", which executes arbitrary local JavaScript automatically on every install. While preinstall hooks are a legitimate npm feature (e.g., for native builds like the bcrypt dependency here), this specific use is questionable: the package is an Express-based 'Node Server Framework' with no apparent relation to the Bun runtime, so a 'setup_bun.js' bootstrap is incongruous with the package's purpose. The contents of setup_bun.js are not visible in the finding, so it cannot be verified whether it merely installs/configures Bun or performs network fetches/exfiltration. Other metadata cuts both ways: there is a plausible author (Actbase LLC) and GitHub repo, but the 'localinstall' script contains a hardcoded developer path (/Users/suhanmoon/...), suggesting sloppy publishing hygiene, and install-time setup of an alternative runtime is an unusual side effect to impose on consumers. Without the script body, malice cannot be ruled out and human review of setup_bun.js is needed."
+          },
+          {
+            "file": "tmp/tmpfuvdxyzn/@actbase-node-server/package/lib/contants/Example.d.ts",
+            "line": 3,
+            "rule": "CRED-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged constant PASSWORD = \"a123456A!\" lives in a file named Example.d.ts alongside obvious placeholder fixtures: EMAIL = \"test@example.com\" (the reserved example.com domain), SIGNNAME = \"testuser\", PHONE = \"01000000000\", and dummy dates like \"2021-01-01\". KO_NAME is the Korean equivalent of 'John Doe' (Hong Gil-dong). These are sample/test data constants exported as an 'Example' object for documentation or testing of a form/validation library, not a real credential. There is no network call, authentication logic, or exfiltration in this declaration file; it is pure type/constant declarations. The password value itself is a generic pattern-satisfying placeholder (lower, digits, upper, symbol), consistent with demonstrating password validation rules rather than a leaked secret."
+          },
+          {
+            "file": "tmp/tmpfuvdxyzn/@actbase-node-server/package/lib/contants/Example.js",
+            "line": 11,
+            "rule": "CRED-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The file is literally named Example.js and exports an 'Example' object of placeholder constants: EMAIL is 'test@example.com', SIGNNAME is 'testuser', PHONE is '01000000000', KO_NAME is the Korean placeholder name '\ud64d\uae38\ub3d9' (the Korean equivalent of 'John Doe'), and dates like '2021-01-01'. The matched PASSWORD = 'a123456A!' is an obvious dummy value following a typical password-policy pattern (upper/lower/digit/special) used for documentation, form validation examples, or test fixtures. There is no network activity, no authentication logic, and no real secret here \u2014 just static example constants for the @actbase-node-server library."
+          },
+          {
+            "file": "tmp/tmpfuvdxyzn/@actbase-node-server/package/lib/lib/route.js",
+            "line": 413,
+            "rule": "CODE-008",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.78,
+            "rationale": "The Function constructor here evaluates 'cmd', which is extracted from 'request.roles' \u2014 the route's developer-supplied configuration metadata (note that the HTTP request object is 'req', distinct from 'request', the route definition). The pattern parses role entries of the form 'name:expression' (sec.substring(sec.indexOf(':') + 1)) and builds a predicate validate(params, user) used to grant access if it returns truthy, falling back to a simple role-name match otherwise. This is a deliberate framework feature for inline authorization expressions in route declarations (e.g. 'owner:user.id == params.id'), not evaluation of attacker-controlled input: the expression text comes from code/config at route registration, while only the arguments (path/query params and req.user) are runtime data and they cannot alter the compiled code. There is no obfuscation, exfiltration, or hidden payload. It is a risky design (an injection vector if route configs are ever sourced from untrusted data, and it bypasses CSP/strict environments), so it deserves a hardening note, but in this occurrence the intent and behavior are legitimate dual-use dynamic code generation."
+          },
+          {
+            "file": "tmp/tmpfuvdxyzn/@actbase-node-server/package/package.json",
+            "line": 15,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.9,
+            "rationale": "The flagged snippet is \"prepublish\": \"npm run build\", which simply chains to \"build\": \"npm run build:src\" \u2014 a transparent TypeScript/Babel compilation step (\"rm -rf ./lib && tsc -p src/tsconfig.json && babel lib --out-dir lib\"). Running a build before publishing is the canonical, legitimate use of the prepublish hook and runs on the maintainer's machine, not the consumer's. There is no network access, obfuscation, or payload fetching in this script chain. Note: the unrelated \"preinstall\": \"node setup_bun.js\" hook in the same scripts block does execute on consumers' machines and would merit its own review, but it is not the occurrence flagged here. Also, the \"localinstall\" script with a hardcoded developer path (/Users/suhanmoon/...) suggests this is a hand-maintained package rather than a crafted attack artifact. Judged on this occurrence alone, the prepublish build script is benign."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-absolute/0.8.3/2025-11-24-@actbase_react-absolute-v0.8.3.zip",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpvf51hz9p/@actbase-react-absolute/package/package.json",
+            "line": 17,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.75,
+            "rationale": "The package @actbase/react-absolute is a React/React-Native UI library, yet its package.json declares a preinstall lifecycle script 'node setup_bun.js' that runs automatically on install. A pure UI provider library has no legitimate reason to execute a script named setup_bun.js at install time, and preinstall hooks are a common vector for supply-chain attacks. The referenced setup_bun.js is not present in the visible context, so its behavior cannot be verified, and the original published package does not normally ship such a hook \u2014 suggesting possible tampering or trojanized version. This cannot be ruled out as malicious but the script contents are unavailable, warranting human review of setup_bun.js."
+          },
+          {
+            "file": "tmp/tmpvf51hz9p/@actbase-react-absolute/package/package.json",
+            "line": 15,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The flagged occurrence is \"prepublish\": \"npm run build\", which simply chains to \"build\": \"npm run build:src\" \u2014 a standard TypeScript/Babel compilation step (rm -rf ./lib && tsc -p src/tsconfig.json && babel lib --out-dir lib). Building a library before publishing is the canonical, legitimate use of the prepublish lifecycle hook, and it runs on the maintainer's machine at publish time, not on consumers' machines. The script invokes only well-known toolchain commands declared in devDependencies (@babel/cli, typescript), with no network access, obfuscation, or data exfiltration. Note: this verdict covers only the flagged prepublish line; the adjacent \"preinstall\": \"node setup_bun.js\" in the same scripts block is a consumer-side install hook executing an arbitrary local script, which is atypical for a React UI library and should be adjudicated separately."
+          },
+          {
+            "file": "tmp/tmpvf51hz9p/@actbase-react-absolute/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.75,
+            "rationale": "The flagged child_process import in setup_bun.js is used for clearly tooling-oriented purposes visible in the context: isBunOnPath() runs 'which bun' / 'where bun' with stdio ignored merely to detect whether the Bun runtime is installed, and reloadPath() refreshes the PATH variable (via a PowerShell [Environment]::GetEnvironmentVariable call on Windows or sourcing shell profiles on Unix) so a freshly installed bun binary can be found. No commands incorporate attacker-controlled input, no data is exfiltrated, and no obfuscation is present \u2014 these are standard idioms in installer/bootstrap scripts that set up a runtime dependency. The pattern class (execSync/spawn) is dangerous-looking but this specific occurrence is consistent with a legitimate Bun setup helper. Residual caution applies only because such setup scripts can later spawn downloads not shown in this excerpt, which keeps confidence below high."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-daum-postcode/1.0.5/2025-11-24-@actbase_react-daum-postcode-v1.0.5.zip",
+        "high_total": 5,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpbk_kpvw1/@actbase-react-daum-postcode/package/package.json",
+            "line": 14,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "The package @actbase/react-daum-postcode is a React/React-Native postcode lookup UI component that has no legitimate reason to run a preinstall lifecycle hook executing 'node setup_bun.js'. The library's documented build scripts use tsc/babel; a postcode component does not need to set up Bun at install time. The presence of a 'setup_bun.js' file invoked automatically on every install is a known supply-chain attack vector (lifecycle hooks running arbitrary scripts), and this preinstall entry appears inconsistent with the package's stated purpose. Without the contents of setup_bun.js to confirm intent, this cannot be cleared as benign but strongly warrants human review."
+          },
+          {
+            "file": "tmp/tmpbk_kpvw1/@actbase-react-daum-postcode/package/lib/app.native.js",
+            "line": 24,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is the well-known @actbase/react-daum-postcode package, a React Native wrapper for the Daum (Kakao) postal-code lookup widget widely used in Korean apps. The flagged 'webhook/callback URL' is simply the official Daum CDN script 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js' loaded inside an embedded WebView HTML template, with baseUrl 'https://postcode.map.daum.net' \u2014 both first-party Daum/Kakao domains required for the postcode widget to function. The only data flow is 'window.ReactNativeWebView.postMessage(JSON.stringify(data))' in the oncomplete handler, which sends the user-selected address back to the host app's onMessage handler, where it is parsed and passed to the consumer-provided onSelected callback. No data leaves the device to a third-party endpoint, no credentials or sensitive context are accessed, and the callback pattern is the standard WebView<->native bridge, not exfiltration. The NET-006 match is a false positive triggered by the embedded HTML/script URL string."
+          },
+          {
+            "file": "tmp/tmpbk_kpvw1/@actbase-react-daum-postcode/package/package.json",
+            "line": 11,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The flagged line, \"prepublish\": \"npm run build\", is a standard and very common lifecycle pattern: it ensures compiled output exists before publishing by chaining to \"build\", which itself runs \"build:src\" (rm -rf ./lib && tsc -p src/tsconfig.json && babel lib --out-dir lib). This compiles TypeScript to the declared entry point lib/index.js \u2014 exactly what a TypeScript library needs before publish. The script invokes only local toolchain commands (tsc, babel) with no network access, obfuscation, or data exfiltration. Note: judged on its own this occurrence is benign, but the adjacent \"preinstall\": \"node setup_bun.js\" hook in the same scripts block is unusual for a UI widget package (the upstream @actbase/react-daum-postcode does not normally ship such a hook) and executes on every consumer install; that line \u2014 not the prepublish build \u2014 warrants separate scrutiny of setup_bun.js. The prepublish occurrence itself is a legitimate build-before-publish convention."
+          },
+          {
+            "file": "tmp/tmpbk_kpvw1/@actbase-react-daum-postcode/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "The file setup_bun.js uses child_process (spawn, execSync) to detect whether bun is on the PATH via 'which bun'/'where bun' and to reload the PATH environment variable from the Windows registry or Unix shell profiles. On its face this is a plausible legitimate setup/install helper for installing or invoking the Bun runtime. However, several aspects warrant human review: a postcode/address UI component (@actbase-react-daum-postcode) has no legitimate need to bootstrap the Bun runtime or manipulate PATH at install time; running execSync against shell profiles and registry during a package install script is a classic vector for install-time code execution and environment tampering. The provided snippet doesn't show the actual command being spawned with bun or any download step, so malice cannot be confirmed, but the unusual presence of a runtime-installer in a UI package and PATH manipulation make benign classification unsafe without seeing the full script's spawn targets."
+          },
+          {
+            "file": "tmp/tmpbk_kpvw1/@actbase-react-daum-postcode/package_info-@actbase-react-daum-postcode-1.0.5.json",
+            "line": 1,
+            "rule": "PROMPT-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged content is standard npm registry metadata (package_info JSON) for @actbase/react-daum-postcode, a Korean postcode lookup component for React/React-Native. The PROMPT-007 'delimiter injection' rule fired on structural artifacts of the document \u2014 JSON braces/quotes and the embedded '-----BEGIN PGP SIGNATURE-----' blocks (e.g., the npm-signature fields), which superficially resemble prompt delimiters but are legitimate registry signing data. All fields are consistent with a genuine package: real maintainers (alexkang, lunyx), GitHub repo (actbase/react-daum-postcode), MIT license, ordinary build scripts ('tsc -p src/tsconfig.json && babel lib --out-dir lib'), and registry-issued integrity hashes/signatures. There is no natural-language instruction text, no attempt to address an LLM, no role-play or override phrasing anywhere in the snippet. This is a false-positive match on benign metadata, not an injection payload."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-kakaosdk/0.9.27/2025-11-24-@actbase_react-kakaosdk-v0.9.27.zip",
+        "high_total": 19,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpa2royxil/@actbase-react-kakaosdk/package/package.json",
+            "line": 17,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The package @actbase/react-kakaosdk is a legitimate KakaoSDK wrapper, but the package.json declares a 'preinstall' hook running 'node setup_bun.js'. A KakaoSDK for React/ReactNative has no legitimate reason to install or invoke Bun during preinstall. The referenced setup_bun.js is not visible in this context, so its behavior cannot be verified. Legitimate builds use 'prepublish'/'build' scripts (tsc, babel), not a preinstall that pulls in an unrelated runtime. This pattern matches known supply-chain compromises where a benign package's preinstall is hijacked to execute a dropper. Cannot confirm malice without inspecting setup_bun.js, so this needs human review."
+          },
+          {
+            "file": "tmp/tmpa2royxil/@actbase-react-kakaosdk/package/bin/install",
+            "line": 4,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The flagged `const { exec } = require('child_process')` appears in a CLI install/setup script (`bin/install`) for the @actbase/react-kakaosdk React Native package. The surrounding context shows standard tooling imports \u2014 `fs`, `readline`, and notably `plist` \u2014 with promise-wrapped readFile/writeFile/readdir helpers, consistent with an interactive installer that edits iOS Info.plist files to configure Kakao SDK keys and URL schemes. No obfuscation, network exfiltration, or hidden payload is visible at the require site; exec in a package's install helper for running setup commands (e.g., pod install) is a common legitimate pattern. The actual exec invocations aren't shown, so confidence is not absolute, but everything in context points to routine SDK setup tooling rather than malice."
+          },
+          {
+            "file": "tmp/tmpa2royxil/@actbase-react-kakaosdk/package/bin/install",
+            "line": 46,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.72,
+            "rationale": "The exec() call is wrapped in a straightforward promisified helper `execute = cmd => new Promise(...)` that simply strips newlines and returns stdout/stderr, alongside similar boilerplate promisified wrappers for fs.writeFile, fs.readdir, and readline questions. This is a bin/install setup script for @actbase-react-kakaosdk, a React Native Kakao SDK whose install flow typically needs to run native tooling (e.g., pod install, gradle tasks) and locate the project's package.json (visible in the `start` function walking up to find package.json). There is no hardcoded suspicious command, no obfuscation, no network exfiltration, and no environment-variable harvesting in the shown context \u2014 the pattern is a common dual-use utility for SDK post-install automation. Caveat: exec in an npm install-time script is inherently dual-use, and the actual commands passed to execute() are not visible in this snippet, but nothing in this occurrence indicates malice."
+          },
+          {
+            "file": "tmp/tmpa2royxil/@actbase-react-kakaosdk/package/bin/install",
+            "line": 83,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.92,
+            "rationale": "The exec() call runs a hardcoded, static command `npm i @actbase/react-kakaosdk` \u2014 installing the package's own SDK if it is missing from the project's dependencies (it explicitly checks `pkg.dependencies['@actbase/react-kakaosdk']` first). There is no user-controlled or remote input interpolated into the command, so no injection vector exists. The surrounding code is consistent with a legitimate setup/installer CLI: it locates package.json by walking up directories, prompts the user for a Kakao native app key, adjusts the Podfile iOS platform version, and runs `pod install`. The Korean prompts and Info.plist configuration match the stated purpose of a Kakao SDK setup tool for React Native. This is a typical dual-use pattern (shelling out from an install script) used legitimately."
+          },
+          {
+            "file": "tmp/tmpa2royxil/@actbase-react-kakaosdk/package/lib/app.js",
+            "line": 185,
+            "rule": "CODE-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "This is a false positive on the name 'exec'. The matched code defines a local variable named 'exec' that simply wraps Kakao.Auth.login in a Promise: 'exec = function exec() { return new Promise(function (success, fail) { return Kakao.Auth.login({...}) }) }'. It is not child_process.exec or eval-style code execution \u2014 no shell commands, no dynamic code strings, no untrusted input. It is transpiled async/await boilerplate (__awaiter/__generator) in the Kakao SDK login flow, returning OAuth token fields (access_token, refresh_token, scopes) to the caller. The pattern is a standard promisification of a callback API; the identifier 'exec' is merely a naming choice."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-actionsheet/1.0.3/2025-11-24-@actbase_react-native-actionsheet-v1.0.3.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpz954julb/@actbase-react-native-actionsheet/package/package.json",
+            "line": 8,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "malicious",
+            "confidence": 0.85,
+            "rationale": "A UI component package like @actbase/react-native-actionsheet has no legitimate reason to run a preinstall lifecycle hook executing 'node setup_bun.js'. Preinstall scripts run automatically without user consent and are a common vector for supply-chain attacks. The package is minimal (empty description, author, license, no real test), consistent with a typosquat or compromised/trojanized package. The script name 'setup_bun.js' is unrelated to the package's stated functionality and references an external script not shown, strongly indicating malicious install-time code execution."
+          },
+          {
+            "file": "tmp/tmpz954julb/@actbase-react-native-actionsheet/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "This is a setup_bun.js script in an @actbase react-native-actionsheet package that checks whether bun is on PATH (isBunOnPath via which/where), and reloads the PATH from registry/shell profiles. A UI component package (an action sheet) has no legitimate reason to install or invoke the bun runtime as part of its package setup, and the visible behavior of detecting/installing a toolchain and manipulating environment PATH at install/setup time is unusual for a library. However, the snippet shown only performs detection and PATH reloading without yet showing download/execution of remote payloads, so malicious intent cannot be confirmed from this context alone \u2014 the full script (especially any bun-install steps and what it runs afterward) needs human review."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-devtools/0.1.3/2025-11-24-@actbase_react-native-devtools-v0.1.3.zip",
+        "high_total": 3,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpc7kyvv2q/@actbase-react-native-devtools/package/package.json",
+            "line": 13,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.7,
+            "rationale": "The package.json contains a preinstall lifecycle hook ('node setup_bun.js') that executes automatically on install. A dev-tools library has no legitimate need to run an arbitrary setup script named 'setup_bun.js' during install \u2014 this is not a standard build step (the package uses 'prepublish'/'build:src' for compilation). The referenced setup_bun.js is not shown here, so its actual behavior cannot be verified; the name suggests it manipulates the Bun runtime, which is unusual and unrelated to the package's stated purpose. Auto-executing install hooks invoking external scripts are a common malware delivery vector, but without the contents of setup_bun.js intent cannot be confirmed. This warrants human review of the script."
+          },
+          {
+            "file": "tmp/tmpc7kyvv2q/@actbase-react-native-devtools/package/package.json",
+            "line": 11,
+            "rule": "INSTALL-004",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The flagged occurrence is \"prepublish\": \"npm run build\", which simply chains to \"build\": \"npm run build:src\" \u2014 a conventional TypeScript/Babel compile step (rm -rf ./lib && tsc -p src/tsconfig.json && babel lib --out-dir lib). Running a build before publishing is the canonical, documented use of the prepublish lifecycle hook for a library that ships compiled output (main/module point to lib/index.js, typings to lib/index.d.ts). The command references only local project tooling declared in devDependencies (typescript via tsc, @babel/cli) with no network access, obfuscation, or environment exfiltration. This specific line is therefore a legitimate dual-use lifecycle script. Note: an adjacent script in the same block, \"preinstall\": \"node setup_bun.js\", executes arbitrary code on consumer install and is a far stronger candidate for review, but it is outside the scope of this flagged occurrence."
+          },
+          {
+            "file": "tmp/tmpc7kyvv2q/@actbase-react-native-devtools/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.75,
+            "rationale": "The flagged child_process import is used in a setup script for a dev-tools package (@actbase-react-native-devtools/setup_bun.js) whose visible logic is consistent with its stated purpose: isBunOnPath() runs 'which bun'/'where bun' with stdio ignored to detect whether the Bun runtime is installed, and reloadPath() refreshes process.env.PATH (via a PowerShell [Environment]::GetEnvironmentVariable call on Windows, or by reading shell profile files on Unix) so a freshly installed binary can be found. These are standard installer/bootstrap idioms; no obfuscation, no remote payload execution, no exfiltration, and no writes to sensitive locations appear in the shown context. The execSync calls run fixed, hardcoded commands rather than attacker-controlled input. This is a classic dual-use pattern (tooling that shells out to detect/configure a runtime). Caveat: the snippet is truncated before any potential Bun installation step \u2014 if the full script downloads and executes a remote installer at install time, that portion would warrant separate review, but this specific occurrence is benign."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-fast-image/8.5.13/2025-11-24-@actbase_react-native-fast-image-v8.5.13.zip",
+        "high_total": 6,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpcfokkyk_/@actbase-react-native-fast-image/package/package.json",
+            "line": 38,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "malicious",
+            "confidence": 0.92,
+            "rationale": "This package is published under the scope '@actbase-react-native-fast-image' but its metadata (homepage, repository, author 'Dylan Vann') is copied verbatim from the legitimate 'react-native-fast-image' package \u2014 a classic repackaging/typosquat pattern. The injected 'preinstall': 'node setup_bun.js' hook does not exist in the upstream project and is incongruous with the rest of the scripts, which all use 'dv-scripts'. Notably, 'setup_bun.js' is not listed in the 'files' whitelist (only android, ios, dist, podspec), meaning it serves no purpose for the library's runtime and exists solely to execute code at install time. The 'setup_bun.js' preinstall loader is a known npm malware tradecraft pattern (used to fetch the Bun runtime and execute an obfuscated payload that evades Node-focused scanners). A name-squatted clone of a popular package with a foreign auto-executing install hook indicates clear malicious intent rather than dual use."
+          },
+          {
+            "file": "tmp/tmpcfokkyk_/@actbase-react-native-fast-image/package/package.json",
+            "line": 80,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged version range \"react\": \"^16.8.6 || ^17.0.0 || ^18.0.0\" appears in the peerDependencies block of a React Native library's package.json. Declaring broad peer dependency ranges for react and react-native (\">=0.60.0\") is the standard, recommended practice for component libraries so they remain compatible with the host application's React version rather than forcing a duplicate copy. The range is bounded to specific major versions (16/17/18), not a wildcard, and peerDependencies cannot be 'hijacked' the way an unpinned direct dependency on an unclaimed package could be \u2014 react is a well-established package owned by Meta. The wildcard \"react\": \"*\" entries in devDependencies are also a common pattern in libraries paired with strict peerDependencies. Nothing here indicates dependency confusion or supply-chain tampering."
+          },
+          {
+            "file": "tmp/tmpcfokkyk_/@actbase-react-native-fast-image/package/package.json",
+            "line": 80,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged version range \"react\": \"^16.8.6 || ^17.0.0 || ^18.0.0\" appears in the peerDependencies block of a React Native library (react-native-fast-image fork). Using a wide OR'd semver range for React peer dependencies is the standard, recommended practice for libraries so they can be installed alongside any compatible React major version (16.8+, 17, or 18). Peer dependencies are resolved by the consuming application, not auto-installed by this package, so this range does not enable dependency hijacking. The accompanying devDependencies use \"react\": \"*\" for local development, which is also common in RN libraries. Nothing in the context (jest config, resolutions, typical dev tooling) suggests typosquatting, registry confusion, or a malicious dependency source (e.g., git URLs or HTTP tarballs)."
+          },
+          {
+            "file": "tmp/tmpcfokkyk_/@actbase-react-native-fast-image/package/package.json",
+            "line": 80,
+            "rule": "SUPPLY-002",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged range \"react\": \"^16.8.6 || ^17.0.0 || ^18.0.0\" appears under peerDependencies, where broad multi-major version ranges are the standard, recommended practice for React Native libraries to maximize host-app compatibility. Peer dependencies are resolved by the consuming application, not auto-installed, so this range does not enable dependency hijacking. The accompanying \"react-native\": \">=0.60.0\" peer range and the conventional devDependencies (jest types, babel, prettier, react-test-renderer pinned to 17.0.2) are all consistent with a normal open-source RN component library (a fork of react-native-fast-image). Even the wildcard \"react\": \"*\" entries are in devDependencies, a common pattern to defer to the peer-resolved version during local development. Nothing here indicates malicious version manipulation."
+          },
+          {
+            "file": "tmp/tmpcfokkyk_/@actbase-react-native-fast-image/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "This setup_bun.js script in an npm package uses child_process to detect and presumably install/run Bun, checking PATH via 'which bun'/'where bun' and reloading PATH from registry/shell profiles. A package named '@actbase/react-native-fast-image' is an image component and has no legitimate reason to ship a Bun-installer setup script that manipulates PATH and executes shell commands. The functionality itself (detecting Bun) is plausible as a build helper, but the combination \u2014 an unexpected setup script in an image library, PATH manipulation via powershell registry reads, and sourcing shell profiles \u2014 cannot be ruled out as a precursor to fetching/running additional payloads. The visible snippet doesn't yet show network fetch or install execution, so it warrants human review of the full file rather than a definitive malicious verdict."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-kakao-channel/1.0.2/2025-11-24-@actbase_react-native-kakao-channel-v1.0.2.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpctljbuvf/@actbase-react-native-kakao-channel/package/package.json",
+            "line": 8,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "A React Native KakaoTalk channel library would have no legitimate reason to run a preinstall script named 'setup_bun.js'. The package metadata (description empty, no test, minimal scripts) is consistent with a typosquat/hijacked package, and the preinstall hook 'node setup_bun.js' executes arbitrary code automatically on install. The referenced setup_bun.js is not shown here, so malicious intent cannot be confirmed, but an install-time hook executing an unrelated 'bun' setup script in a Kakao channel package is a strong red flag warranting human review of setup_bun.js contents."
+          },
+          {
+            "file": "tmp/tmpctljbuvf/@actbase-react-native-kakao-channel/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.8,
+            "rationale": "This is a setup_bun.js script that detects whether bun is installed (isBunOnPath uses 'which bun'/'where bun') and reloads PATH from registry/shell profiles. The child_process usage is for legitimate tooling: checking for and presumably installing the Bun runtime as part of package setup. The commands are platform-aware and benign (which/where lookups, PATH environment retrieval). No data exfiltration, no obfuscation, no fetching of remote payloads visible in this context. However, install-time scripts running shell commands warrant baseline caution, so it's a justified dual-use pattern rather than fully clean."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-kakao-navi/2.0.4/2025-11-24-@actbase_react-native-kakao-navi-v2.0.4.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmposmuf2a1/@actbase-react-native-kakao-navi/package/package.json",
+            "line": 8,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "A React Native library for Kakao Navi has no legitimate reason to run a preinstall hook executing 'node setup_bun.js'. The package has empty dependencies, an empty description, and no test setup, yet ships a preinstall lifecycle script invoking an external script file that sets up Bun \u2014 unrelated to the library's stated purpose. Preinstall hooks running arbitrary local scripts are a common supply-chain attack vector, and 'setup_bun.js' is not present in the provided context for verification. This warrants human review of setup_bun.js contents to rule out malicious payload, but I cannot definitively confirm malice without seeing that file."
+          },
+          {
+            "file": "tmp/tmposmuf2a1/@actbase-react-native-kakao-navi/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.8,
+            "rationale": "This is a setup_bun.js script that checks whether Bun is installed on PATH (isBunOnPath uses 'which bun'/'where bun') and reloads PATH environment variables across platforms. The child_process usage is standard for a package setup/installer that needs to detect and possibly install a runtime tool. No exfiltration, obfuscation, or download-and-execute of remote payloads is visible in this context \u2014 the commands are limited to environment detection (which/where, querying registry/profile for PATH). However, setup scripts that manipulate PATH and may proceed to install/run tooling warrant a glance at the full file, so confidence is not maximal."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-less-transformer/1.0.6/2025-11-24-@actbase_react-native-less-transformer-v1.0.6.zip",
+        "high_total": 6,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpshrfait7/@actbase-react-native-less-transformer/package/package.json",
+            "line": 11,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "malicious",
+            "confidence": 0.85,
+            "rationale": "This is a scoped package (@actbase/react-native-less-transformer) that is a likely typosquat/clone of the legitimate 'react-native-less-transformer' by Krister Kari (repository field still points to kristerkari/react-native-less-transformer, and author is 'Krister Kari' \u2014 indicating the original was copied). The original package has no preinstall hook; this version adds a 'preinstall': 'node setup_bun.js' that runs automatically on install. The script name 'setup_bun.js' is disguised as a benign tooling setup, but a preinstall script executing an external local JS file in a repackaged scoped clone is a classic supply-chain attack vector. The presence of an unusual 'actbase': '*' devDependency further suggests a manipulated/republished package. This matches known malicious npm campaigns that abuse install hooks to run loader scripts."
+          },
+          {
+            "file": "tmp/tmpshrfait7/@actbase-react-native-less-transformer/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "This is a setup_bun.js script for a react-native-less-transformer package that checks whether the Bun runtime is installed (isBunOnPath uses 'which bun'/'where bun') and reloads the PATH environment variable. The child_process usage (spawn, execSync) is consistent with a legitimate installation/setup helper that detects and possibly installs the Bun toolchain. The execSync calls operate on fixed, non-user-controlled commands (which/where bun, a PowerShell PATH query) with no exfiltration, obfuscation, or remote download visible in this context. While running setup scripts that source shell profiles and modify PATH warrants general caution, nothing in this occurrence indicates malicious intent."
+          },
+          {
+            "file": "tmp/tmpshrfait7/@actbase-react-native-less-transformer/package_info-@actbase-react-native-less-transformer-1.0.6.json",
+            "line": 1,
+            "rule": "SUPPLY-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.9,
+            "rationale": "The matched content is not executable code at all \u2014 it is cached npm registry metadata (package_info JSON) for @actbase/react-native-less-transformer, containing standard fields like _id, _rev, dist-tags, dist.tarball, integrity hashes, PGP npm-signatures, maintainers, and scripts. The SUPPLY-007 'runtime dependency replacement' rule appears to have fired on the registry document structure itself rather than on any code that swaps dependencies at runtime. The declared scripts are innocuous dev tooling ('test': 'eslint .', 'release': 'npmpub', 'precommit': 'lint-staged'), there are no install/postinstall hooks, and dependencies (semver, app-root-path, @actbase/css-to-react-native-transform) are consistent with a LESS-to-react-native style transformer. The package is a scoped fork of kristerkari/react-native-less-transformer with intact repository/homepage links and valid registry signatures. Nothing in this occurrence shows dynamic dependency substitution, obfuscation, or hostile payloads; this is a scanner false positive on metadata. If desired, a reviewer could verify the scoped fork's tarball matches the upstream repo, but the finding itself is benign."
+          },
+          {
+            "file": "tmp/tmpshrfait7/@actbase-react-native-less-transformer/package_info-@actbase-react-native-less-transformer-1.0.6.json",
+            "line": 1,
+            "rule": "SUPPLY-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.9,
+            "rationale": "The matched content is npm registry metadata (package_info JSON) for @actbase/react-native-less-transformer, not executable code. The file contains standard registry fields such as \"_id\", \"_rev\", \"dist-tags\", \"versions\", \"dist.tarball\", \"integrity\", PGP \"npm-signature\" blocks, and normal dependencies (semver, app-root-path, @actbase/css-to-react-native-transform) with mundane dev tooling (eslint, prettier, husky, lint-staged). The SUPPLY-007 'runtime dependency replacement' rule appears to have pattern-matched on registry/version structures rather than any actual mechanism that swaps dependencies at runtime. The scripts entries are benign ('test': 'eslint .', 'release': 'npmpub', 'precommit': 'lint-staged') with no install hooks, no obfuscation, no remote code fetching, and signed tarballs hosted on registry.npmjs.org. The package is a fork/scoped republish of the known kristerkari/react-native-less-transformer project; while scoped republishing can be a supply-chain vector in general, this specific occurrence is static metadata describing the package and exhibits no malicious behavior."
+          },
+          {
+            "file": "tmp/tmpshrfait7/@actbase-react-native-less-transformer/package_info-@actbase-react-native-less-transformer-1.0.6.json",
+            "line": 1,
+            "rule": "SUPPLY-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched content is not executable code at all \u2014 it is npm registry metadata (a packument) for @actbase/react-native-less-transformer, containing standard fields like _id, _rev, dist-tags, version entries, dist tarball URLs, integrity hashes, and PGP signatures. The SUPPLY-007 rule ('Runtime dependency replacement detected') fired on this JSON document, but nothing in it performs runtime dependency substitution: the dependencies listed (semver ^5.6.0, app-root-path ^2.1.0, @actbase/css-to-react-native-transform ^1.0.0) are ordinary declarations, and the scripts block contains only benign lifecycle entries (test: eslint, release: npmpub, precommit: lint-staged) with no install-time hooks (no preinstall/postinstall). The package is a scoped fork of kristerkari/react-native-less-transformer, a known legitimate Less transformer for React Native; the repository, homepage, and gitHead fields all point to that upstream project. Scoped forks of upstream packages are a pattern worth awareness in supply-chain review, but this specific occurrence is registry metadata being scanned in a tmp analysis directory, and the rule match is a false positive on the document structure rather than on any dependency-replacement behavior."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-naver-login/1.0.1/2025-11-24-@actbase_react-native-naver-login-v1.0.1.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmpva9633mm/@actbase-react-native-naver-login/package/package.json",
+            "line": 8,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "malicious",
+            "confidence": 0.85,
+            "rationale": "This package mimics a legitimate scoped package (@actbase/react-native-naver-login) but has empty description, author, and license fields and a stub test script, all hallmarks of a typosquatting/dependency-confusion package. The version is suspiciously low (1.0.1) and the only meaningful script is a preinstall hook 'node setup_bun.js' that executes automatically on install. A 'setup_bun.js' file is unrelated to a React Native Naver login wrapper and the preinstall-triggered arbitrary code execution combined with the impersonation profile strongly indicates malicious supply-chain intent rather than a legitimate build step."
+          },
+          {
+            "file": "tmp/tmpva9633mm/@actbase-react-native-naver-login/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The script setup_bun.js uses child_process (spawn, execSync) for legitimate tooling: isBunOnPath() checks whether bun is installed via 'which bun'/'where bun', and reloadPath() refreshes the PATH environment after installation. These are standard, transparent setup operations for a Bun-based build helper. There is no obfuscation, no exfiltration of data to remote hosts, no downloading and executing remote payloads, and the commands are predictable and bounded. The dual-use child_process API here serves a clear development/tooling purpose, though setup scripts that auto-run Bun installation warrant a quick confirmation the remaining file doesn't fetch/execute remote install scripts."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-simple-video/1.0.13/2025-11-24-@actbase_react-native-simple-video-v1.0.13.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmppzu3qsxn/@actbase-react-native-simple-video/package/package.json",
+            "line": 9,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "This is a React Native video component library that has no legitimate reason to run a 'preinstall' lifecycle script invoking 'node setup_bun.js'. A simple UI component with empty dependencies should not need to set up Bun or run arbitrary node scripts before install. The script name 'setup_bun.js' is generic and obscures its actual behavior, and the preinstall hook executes automatically and silently on install \u2014 a known vector for supply-chain attacks. Without the contents of setup_bun.js, malice cannot be confirmed, but the mismatch between the package's stated purpose and the install-time code execution warrants human review."
+          },
+          {
+            "file": "tmp/tmppzu3qsxn/@actbase-react-native-simple-video/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "suspicious",
+            "confidence": 0.55,
+            "rationale": "This is a setup_bun.js script in a react-native-simple-video package that uses child_process (spawn, execSync) to detect and presumably install/configure the Bun runtime. Checking for bun on PATH via which/where and reloading PATH is consistent with a legitimate bootstrap/installer. However, a postinstall-style setup script that executes shell commands, manipulates PATH from registry/shell profiles, and is named setup_bun.js in a video component package is an unusual combination \u2014 package setup scripts are a common vector for supply-chain abuse. The visible code is not overtly malicious (no network exfiltration or obfuscation shown), but the truncated context, PATH manipulation, and the oddity of a UI component package shipping a runtime installer warrant human review to confirm what spawn is ultimately invoking."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@actbase@react-native-tiktok/1.1.3/2025-11-24-@actbase_react-native-tiktok-v1.1.3.zip",
+        "high_total": 8,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpmkdxsk2u/@actbase-react-native-tiktok/package/package.json",
+            "line": 24,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "malicious",
+            "confidence": 0.85,
+            "rationale": "The package.json defines a 'preinstall' lifecycle hook ('node setup_bun.js') that executes automatically on install \u2014 a common malware delivery vector. The legitimate @actbase/react-native-tiktok package is a standard RN library that has no need for a preinstall script running an external 'setup_bun.js'; this script is not among the listed devDependencies workflow (test/typescript/lint) and is unrelated to the package's stated purpose. The repository field points to 'github.com/Lg0gs/react-native-tiktok' rather than the genuine @actbase org repo, strongly indicating a typosquatted/hijacked clone. The combination of a suspicious fork, an unusual filename, and auto-executing install code is characteristic of a supply-chain attack."
+          },
+          {
+            "file": "tmp/tmpmkdxsk2u/@actbase-react-native-tiktok/package/ios/Pods/TikTokOpenSDK/TikTokOpenSDK.framework/TikTokOpenSDK.bundle/TikTokLocalizable/kn/Passport.strings",
+            "line": 2,
+            "rule": "OBFUSC-CHAIN-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The flagged file is a Kannada (kn) localization strings file (TikTokLocalizable/kn/Passport.strings) containing UI strings like \"Network connection unavailable\" = \"\u0ca8\u0cc6\u0c9f\u0ccd\u200c\u0cb5\u0cb0\u0ccd\u0c95\u0ccd \u0cb8\u0c82\u0caa\u0cb0\u0ccd\u0c95 \u0cb2\u0cad\u0ccd\u0caf\u0cb5\u0cbf\u0cb2\u0ccd\u0cb2\". The detected zero-width character is a Zero-Width Non-Joiner (U+200C), visible in \u0ca8\u0cc6\u0c9f\u0ccd\u200c\u0cb5\u0cb0\u0ccd\u0c95\u0ccd ('network'), which is a standard and linguistically required formatting character in Indic scripts like Kannada to control consonant conjunct rendering. Surrounding entries (\"Cancel\", \"Authorization failed\", \"OK\") are all ordinary localized SDK error messages with no executable content or encoded payload structure. Zero-width characters in transliterated Kannada loanwords are expected, not steganography; this is a false positive on legitimate i18n data."
+          },
+          {
+            "file": "tmp/tmpmkdxsk2u/@actbase-react-native-tiktok/package/ios/Pods/TikTokOpenSDK/TikTokOpenSDK.framework/TikTokOpenSDK.bundle/TikTokLocalizable/ml/Passport.strings",
+            "line": 2,
+            "rule": "OBFUSC-CHAIN-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged zero-width characters appear in a Malayalam localization file (TikTokLocalizable/ml/Passport.strings). Malayalam script legitimately requires zero-width joiners (ZWJ, U+200D) and non-joiners (ZWNJ, U+200C) to render chillu characters and control consonant conjuncts \u2014 visible here in strings like '\u0d28\u0d46\u0d31\u0d4d\u0d31\u0d4d\u200d\u0d35\u0d30\u0d4d\u200d\u0d15\u0d4d\u0d15\u0d4d' (network) where ZWJ forms the chillu forms of '\u0d31' and '\u0d28'. The surrounding context is plainly standard UI strings ('Cancel', 'OK', 'Authorization failed') in a .strings resource bundle of the TikTokOpenSDK CocoaPod, not executable code. There is no encoding of hidden payload data; the zero-width characters are linguistically required for correct Malayalam rendering. This is a well-known false-positive class for steganography heuristics applied to Indic-script localization files."
+          },
+          {
+            "file": "tmp/tmpmkdxsk2u/@actbase-react-native-tiktok/package/ios/Pods/TikTokOpenSDK/TikTokOpenSDK.framework/TikTokOpenSDK.bundle/TikTokLocalizable/or/Passport.strings",
+            "line": 2,
+            "rule": "OBFUSC-CHAIN-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "This is a localization file (Passport.strings under TikTokLocalizable/or/) containing Odia (Oriya) translations of UI strings like 'Network connection unavailable' = '\u0b28\u0b47\u0b1f\u0b4d\u200c\u0b71\u0b30\u0b4d\u0b15 \u0b15\u0b28\u0b47\u0b15\u0b4d\u0b38\u0b28\u0b4d \u0b09\u0b2a\u0b32\u0b2c\u0b4d\u0b27 \u0b28\u0b3e\u0b39\u0b3f\u0b01'. The zero-width characters flagged are ZWNJ/ZWJ (U+200C/U+200D), which are linguistically required in Indic scripts such as Odia to control conjunct formation and correct glyph rendering \u2014 visible in '\u0b28\u0b47\u0b1f\u0b4d\u200c\u0b71\u0b30\u0b4d\u0b15' where a ZWNJ separates the halant from the following consonant. The surrounding strings ('Cancel', 'Authorization failed', 'OK') are standard SDK error/UI messages with matching translations, consistent with the TikTokOpenSDK framework bundle path. There is no executable code, no encoding/decoding logic, and the zero-width characters appear exactly where Odia orthography needs them, not as a hidden payload. This is a false positive of the steganography heuristic on legitimate Indic-script localization."
+          },
+          {
+            "file": "tmp/tmpmkdxsk2u/@actbase-react-native-tiktok/package/ios/Pods/TikTokOpenSDK/TikTokOpenSDK.framework/TikTokOpenSDK.bundle/TikTokLocalizable/or/Passport.strings",
+            "line": 4,
+            "rule": "OBFUSC-CHAIN-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.98,
+            "rationale": "The flagged line is an Odia (or/) localization string in TikTokOpenSDK's Passport.strings file: \"User canceled authorization\" = \"\u0b09\u0b2a\u0b2d\u0b4b\u0b15\u0b4d\u0b24\u0b3e \u0b38\u0b4d\u0b35\u0b40\u0b15\u0b43\u0b24\u0b15\u0b30\u0b23 \u0b2c\u0b3e\u0b24\u0b3f\u0b32\u0b4d\u200c \u0b15\u0b30\u0b3f\u0b1b\u0b3f\". The zero-width character detected is almost certainly U+200C (zero-width non-joiner) or U+200D (zero-width joiner), which are linguistically required in Indic scripts like Odia to control conjunct/halant rendering (visible here after \u0b2c\u0b3e\u0b24\u0b3f\u0b32\u0b4d with the halant \u0b4d followed by a ZWNJ to prevent ligature formation). The surrounding context confirms this is a standard .strings localization table (\"Cancel\", \"Network connection unavailable\", \"Authorization failed\", \"OK\") with parallel Odia translations, all consistent SDK auth-flow UI text. There is no executable code, no payload-like density of zero-width characters, and the file path (TikTokLocalizable/or/) matches a vendored CocoaPods framework's localization bundle. This is a classic false positive of steganography heuristics on Indic-script text."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@ahmedhfarag@ngx-perfect-scrollbar/20.0.20/2025-09-15-@ahmedhfarag_ngx-perfect-scrollbar-v20.0.20.zip",
+        "high_total": 21,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmpodpgumq0/@ahmedhfarag-ngx-perfect-scrollbar/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is the standard Webpack bundle header using `import{createRequire as __WEBPACK_EXTERNAL_createRequire}from\"node:module\"` and the `__webpack_modules__` map, which is normal output for any bundled JS package. The included modules are recognizable legitimate AWS SDK code (STSClient, SecretsManager command serializers/deserializers de_/se_*, web identity credential resolution) and gRPC IpResolver code from @grpc, plus smithy CBOR helpers. The SUPPLY-012 'dynamic code execution' match is triggered by the createRequire pattern inherent to webpack externals, not by any obfuscated payload, network exfiltration, or eval of attacker-controlled data. Note the package name ngx-perfect-scrollbar bundling AWS SDK/gRPC is somewhat unusual, but the code itself is clearly standard library bundling. Provenance is unknown, so a quick human glance is harmless, but the content is benign dual-use bundler boilerplate."
+          },
+          {
+            "file": "tmp/tmpodpgumq0/@ahmedhfarag-ngx-perfect-scrollbar/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is a standard Webpack-bundled output (note the '/*! For license information please see bundle.js.LICENSE.txt */' header and minified __webpack_modules__ structure). The 'dynamic code execution' the rule flagged is just 'import{createRequire as __WEBPACK_EXTERNAL_createRequire}from\"node:module\"', a routine webpack pattern for ESM-to-CJS interop, not eval/Function. The bundled modules are recognizable legitimate AWS SDK (STSClient, Secrets Manager command serializers, web identity credentials) and gRPC IpResolver code \u2014 ordinary third-party library code pulled into a scrollbar package's bundle. There is no exfiltration, obfuscated payload fetching, or runtime code generation here. The package name (ngx-perfect-scrollbar) bundling AWS SDK is mildly odd but consistent with transitive dependency inclusion rather than malice. Confidence not higher because bundling AWS STS/Secrets clients in a UI scrollbar lib is unusual and could warrant a quick sanity check, but the code itself shows no malicious intent."
+          },
+          {
+            "file": "tmp/tmpodpgumq0/@ahmedhfarag-ngx-perfect-scrollbar/package/bundle.js",
+            "line": 2,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The CRED-006 'embedded private key' match fired on a webpack-bundled JavaScript file that is clearly legitimate AWS SDK code (STSClient, resolveWebIdentityCredentials, Secrets Manager serde commands like de_GetSecretValueCommand, gRPC IpResolver). The matched snippet shows only standard minified webpack module code beginning with `import{createRequire...}` \u2014 there is no actual PEM key, base64 key blob, or `-----BEGIN PRIVATE KEY-----` marker visible. The 'Embedded private key' label appears to be a false positive triggered by credential-related terminology (web_identity_token_file, role_arn, sigv4 auth) in a bundled AWS credentials provider chain. This is a vendored bundle of @smithy/@aws-sdk modules in an ngx-perfect-scrollbar package, which is odd packaging but the code itself is recognizable upstream SDK functionality, not a planted secret. Slight residual uncertainty because the truncated context could hide an actual key string elsewhere, warranting the dual-use rather than fully benign rating."
+          },
+          {
+            "file": "tmp/tmpodpgumq0/@ahmedhfarag-ngx-perfect-scrollbar/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is the standard Webpack bundle preamble using `createRequire from node:module` and the `__webpack_modules__` registry \u2014 a normal pattern for bundling Node-compatible code (here including AWS SDK STS/Secrets Manager clients and gRPC IP resolvers). The 'dynamic code execution' flag is triggered by webpack's module loading machinery (n.bind, n.r, n.d), not by eval/exec of untrusted input. The code visible is recognizable, legitimate library code (AWS SDK provenance, smithy CBOR, grpc ip_resolver) with no exfiltration, obfuscated payloads, or network calls to suspicious endpoints. However, the package name (@ahmedhfarag-ngx-perfect-scrollbar) is an Angular scrollbar component that would not normally bundle AWS STS/Secrets Manager clients, which is mildly odd but consistent with a fat bundle; nothing in the visible code indicates malice."
+          },
+          {
+            "file": "tmp/tmpodpgumq0/@ahmedhfarag-ngx-perfect-scrollbar/package/package.json",
+            "line": 33,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.8,
+            "rationale": "This is a scoped re-publish (@ahmedhfarag) of the well-known zefoy/ngx-perfect-scrollbar Angular library. The original published package is a compiled Angular library (note the fesm2022 module, index.d.ts typings, and ng-packagr-style exports) and would not normally require a postinstall step running 'node bundle.js' on the consumer's machine \u2014 build/bundling happens at publish time, not install time. A postinstall hook executing a local script in an otherwise pre-built library package is a classic supply-chain attack pattern (typosquatting/re-publishing a popular package with an added install hook). The script contents (bundle.js) are not shown, so malice cannot be confirmed, but the combination of a renamed scope, an Angular library that shouldn't need install-time code execution, and an automatically-running postinstall warrants human review of bundle.js."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@ahmedhfarag@ngx-virtual-scroller/4.0.4/2025-09-15-@ahmedhfarag_ngx-virtual-scroller-v4.0.4.zip",
+        "high_total": 22,
+        "capped": true,
+        "verdicts": [
+          {
+            "file": "tmp/tmp49m2psr0/@ahmedhfarag-ngx-virtual-scroller/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is the standard Webpack bundling preamble (`import{createRequire as __WEBPACK_EXTERNAL_createRequire}from\"node:module\"` and `var __webpack_modules__={...}`), which is emitted automatically when bundling Node-targeted code. The surrounding modules are clearly legitimate AWS SDK / Smithy code (STSClient, SecretsManager command serializers like se_GetSecretValueCommand, gRPC IpResolver, CBOR encoding), bundled into an ngx-virtual-scroller package. The createRequire import is a normal interop shim for ESM-to-CJS require, not dynamic code execution of attacker-controlled input. There is no eval, no obfuscated network exfiltration, no install hook, and no suspicious string decoding. The SUPPLY-012 rule fired on a generic webpack/dynamic-require pattern that is expected in transpiled vendor bundles. Provenance is 'unknown' and it appears in a virtual-scroller package shipping a large AWS SDK bundle, which is mildly unusual, but nothing in the code indicates malice \u2014 hence benign dual-use rather than fully cleared."
+          },
+          {
+            "file": "tmp/tmp49m2psr0/@ahmedhfarag-ngx-virtual-scroller/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is a standard Webpack bundle preamble using `import{createRequire as __WEBPACK_EXTERNAL_createRequire}from\"node:module\"`, which is the normal way bundlers polyfill CommonJS require in ESM output. The surrounding code consists of recognizable AWS SDK modules (STSClient, SecretsManager command serializers like de_GetSecretValueCommand, smithy CBOR codecs, gRPC IpResolver), all legitimate library code bundled into ngx-virtual-scroller's dependencies. There is no eval, no obfuscated network exfiltration, no dynamic remote code fetching, no install hooks \u2014 the SUPPLY-012 rule fired on the benign createRequire bundler pattern. The provenance is 'unknown' and it's a minified third-party bundle, so a quick human spot-check is reasonable, but nothing in this occurrence indicates actual dynamic code execution beyond standard module resolution."
+          },
+          {
+            "file": "tmp/tmp49m2psr0/@ahmedhfarag-ngx-virtual-scroller/package/bundle.js",
+            "line": 2,
+            "rule": "CRED-006",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The CRED-006 'embedded private key' match is a false positive. The matched snippet is just the start of a standard webpack-bundled JavaScript file (note the '/*! For license information please see bundle.js.LICENSE.txt */' header, __WEBPACK_EXTERNAL_createRequire, and __webpack_modules__). The code contains legitimate AWS SDK components (STSClient, resolveWebIdentityCredentials, Secrets Manager command serializers like de_GetSecretValueCommand) and gRPC IP resolver logic. These reference credential/secrets handling APIs by name but contain no actual embedded private key material \u2014 the rule appears to have triggered on the presence of credential-related identifiers in a vendored dependency bundle (ngx-virtual-scroller). No PEM blocks, base64 key blobs, or hardcoded secrets are present."
+          },
+          {
+            "file": "tmp/tmp49m2psr0/@ahmedhfarag-ngx-virtual-scroller/package/bundle.js",
+            "line": 2,
+            "rule": "SUPPLY-012",
+            "severity": "Critical",
+            "classification": "benign_dual_use",
+            "confidence": 0.85,
+            "rationale": "The matched snippet is standard webpack bundle boilerplate: `import{createRequire as __WEBPACK_EXTERNAL_createRequire}from\"node:module\"` is the conventional way webpack handles externalized CommonJS requires in an ESM bundle. The surrounding module map contains recognizable AWS SDK code (STSClient, Secrets Manager se_/de_ command serializers, web identity credential resolution) and gRPC IP resolver logic \u2014 all legitimate vendored dependencies. The `n.bind(n,90994)` style dynamic module loading is webpack's normal lazy-require mechanism, not arbitrary code execution. There is no eval, no obfuscated network exfiltration, no install-time hook, and no suspicious endpoints in this excerpt. The SUPPLY-012 'dynamic code execution' rule fired on benign bundler scaffolding. Note the provenance is 'unknown', so a brief human glance at full bundle integrity is reasonable, but the visible code is consistent with a legitimately bundled ngx-virtual-scroller package pulling in AWS SDK/gRPC deps."
+          },
+          {
+            "file": "tmp/tmp49m2psr0/@ahmedhfarag-ngx-virtual-scroller/package/package.json",
+            "line": 39,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.75,
+            "rationale": "This is a published npm package (an Angular virtual scroller) which is a compiled/distributed artifact \u2014 such packages normally ship prebuilt sources and should not require a postinstall build step. A 'postinstall': 'node bundle.js' that runs automatically on every install is unusual for a finished library distribution and is a common vector for supply-chain attacks. Additional red flags: the package name appears typosquat-like (@ahmedhfarag-ngx-virtual-scroller vs the original rintoj/ngx-virtual-scroller), inconsistent author/module naming ('ahmedfharag' vs 'ahmedhfarag'), and an odd 'test': 'npm whoami' script that probes the npm identity. The referenced bundle.js is not shown, so its actual behavior cannot be verified and the postinstall execution cannot be ruled out as malicious \u2014 this warrants human review of bundle.js contents."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@aifabrix@miso-client/4.7.2/2026-03-07-@aifabrix_miso-client-v4.7.2.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmp2ybrxrws/@aifabrix-miso-client/package_info-@aifabrix-miso-client-4.7.2.json",
+            "line": 1,
+            "rule": "NET-006",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.97,
+            "rationale": "The NET-006 rule flagged URLs inside an npm registry metadata document (package_info JSON for @aifabrix/miso-client), not executable code. The matched content consists of standard registry fields: tarball URLs (https://registry.npmjs.org/@aifabrix/miso-client/-/miso-client-1.0.0.tgz), homepage (https://docs.aifabrix.ai), repository (git+https://github.com/aifabrix/aifabrix-miso.git), and bugs URLs. None of these are webhook or callback endpoints, and there is no code path that sends data to them. This is package provenance metadata produced by the npm registry itself (note _rev, dist-tags, _npmOperationalInternal fields), so the finding is a false positive on a data file rather than dual-use functionality, let alone exfiltration."
+          },
+          {
+            "file": "tmp/tmp2ybrxrws/@aifabrix-miso-client/package_info-@aifabrix-miso-client-4.7.2.json",
+            "line": 1,
+            "rule": "PROMPT-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.95,
+            "rationale": "The matched content is standard npm registry packument metadata for @aifabrix/miso-client (fields like \"_id\", \"_rev\", \"dist-tags\", \"versions\", \"dist.integrity\", \"signatures\", \"_npmOperationalInternal\"). The PROMPT-007 'delimiter injection' rule appears to have triggered on the JSON's braces/quotes structure rather than any actual instruction-like text. There are no imperative phrases, role-play directives, hidden instructions, or LLM-targeted payloads in the description, keywords, or scripts fields \u2014 scripts are ordinary lint/test/build/prepublishOnly commands. This is registry-generated metadata, not attacker-crafted prompt content; the finding is a false positive on benign data."
+          }
+        ]
+      },
+      {
+        "name": "npm/compromised_lib/@alexcolls@nuxt-socket.io/0.0.8/2025-11-24-@alexcolls_nuxt-socket.io-v0.0.8.zip",
+        "high_total": 2,
+        "capped": false,
+        "verdicts": [
+          {
+            "file": "tmp/tmp56mn6cbq/@alexcolls-nuxt-socket.io/package/package.json",
+            "line": 29,
+            "rule": "INSTALL-003",
+            "severity": "Critical",
+            "classification": "suspicious",
+            "confidence": 0.6,
+            "rationale": "The package declares \"preinstall\": \"node setup_bun.js\", which executes arbitrary JavaScript automatically on every consumer install. The contents of setup_bun.js are not available for review, so its behavior cannot be verified. Several contextual signals warrant human review: (1) the \"files\" array only includes \"dist\", meaning setup_bun.js may not even be shipped in the published tarball (which would either break installs or indicate the hook was meant only for local dev but was published anyway); (2) installing/setting up Bun is an odd side effect for a Nuxt Socket.io module \u2014 a runtime bootstrap script is unusual for an end-user library and is a common cover story for droppers; (3) the rest of the package looks like a legitimate, conventional Nuxt module (standard scripts like prepack via nuxt-module-build, eslint, vitest, plausible dependencies such as socket.io and @nuxt/kit), so there is no overt malicious indicator in the manifest itself. The most likely benign explanation is a developer-convenience script accidentally published, but without the script's source, malice (e.g., downloading/executing a payload during install) cannot be ruled out."
+          },
+          {
+            "file": "tmp/tmp56mn6cbq/@alexcolls-nuxt-socket.io/package/setup_bun.js",
+            "line": 2,
+            "rule": "CODE-007",
+            "severity": "High",
+            "classification": "benign_dual_use",
+            "confidence": 0.7,
+            "rationale": "The flagged child_process import is used in a setup helper for the Bun runtime: execSync runs 'which bun'/'where bun' with stdio ignored purely to detect whether Bun is on PATH (isBunOnPath), and the Windows branch invokes PowerShell only to read the User/Machine PATH environment variables from the registry to refresh process.env.PATH after a presumed install. These are standard installer-bootstrap idioms; no data exfiltration, obfuscation, remote command construction, or user-data access appears in the visible context. The pattern (an npm package's setup script shelling out to detect/install a runtime) is dual-use and warrants awareness \u2014 install-time scripts that fetch binaries can be abused \u2014 but this specific occurrence's commands are fixed, benign strings consistent with the script's stated purpose. If the broader script downloads and executes a Bun binary, the download source/integrity checks elsewhere in the file would be the place to scrutinize, not this import line."
+          }
+        ]
+      }
+    ]
+  },
+  "token_usage_estimated": {
+    "input": 65484,
+    "output_visible": 18112,
+    "note": "~4 chars/token estimates; thinking tokens not visible"
+  }
+}

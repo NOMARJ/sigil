@@ -160,8 +160,10 @@ class RemediationGeneratorService:
         start_time = datetime.utcnow()
 
         try:
-            # Use Sonnet model for code generation (balance of quality and cost)
-            model = "claude-3-sonnet-20240229"
+            # Standard model for code generation (balance of quality and cost)
+            from api.llm_config import llm_config
+
+            model = llm_config.model
             credits_cost = SCAN_COSTS["remediation_suggest"]
 
             # Check credit availability
@@ -479,10 +481,11 @@ class RemediationGeneratorService:
         """Call LLM service for remediation generation."""
         from api.llm_models import LLMAnalysisRequest, LLMAnalysisType
 
-        # Create analysis request
+        # Create analysis request — the model override travels with the request
         analysis_request = LLMAnalysisRequest(
             file_contents={"remediation_context": prompt},
-            analysis_types=[LLMAnalysisType.VULNERABILITY_ANALYSIS],
+            analysis_types=[LLMAnalysisType.BEHAVIORAL_PATTERN],
+            model=model,
             max_tokens=4000,  # Larger token limit for code generation
             include_context_analysis=False,
         )
