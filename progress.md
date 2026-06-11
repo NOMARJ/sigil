@@ -1538,14 +1538,14 @@
 - **Notes:** Both paths were latently broken: remediation used nonexistent `LLMAnalysisType.VULNERABILITY_ANALYSIS`; tracer assigned `custom_prompt` post-construction (Pydantic v2 ValueError → every trace returned the fallback chain). Attack chain now deep_model end-to-end (deduction record + LLM request).
 
 ### US-110 [F-009]: Honest FP-adjudication eval on the F-008 corpus
-- **Status:** BLOCKED (2026-06-11, autopilot) — Anthropic account has no API credit
+- **Status:** DONE (2026-06-12, autopilot; owner unblocked Anthropic billing) — evidence: `evidence/F-009/fp-adjudication-eval.md` + `.json`
 - **Scope:** complex
 - **Goal:** Real before/after FP@High + recall@High with adjudication applied, on the F-008 eval set (real malicious samples + 20 popular-legit packages). Disclosure block mandatory. Report both directions even if unfavorable.
-- **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production
-- **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.md`
+- **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production — VERIFIED: 168 real claude-fable-5 verdicts, deterministic sampling, disclosure block, both directions, SHIP recommendation
+- **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.{md,json}`
 - **Dependencies:** US-106
-- **Notes:** F-008 eval gotcha carried forward: pin SIGIL_BIN (harness once picked homebrew sigil v1.0.4 off PATH); samples lived in /tmp via raw-CDN fetch. Coordinate with F-010 US-H3 (ledger-warm eval) — separate the two FP levers in reporting.
-- **BLOCKED detail:** All prerequisites verified present: control set `/tmp/control2` (20 pkgs, 117MB), malicious set `/tmp/evalset/samples` (568 extracted dirs), sigil 1.2.0 release binary, FPAdjudicator service, valid `sk-ant…` key (`CLAUDE_SECRET_KEY` in api/.env). One real smoke adjudication attempted 2026-06-11: API returned 400 `invalid_request_error` — "Your credit balance is too low to access the Anthropic API" (req_011CbwJCKmqgu82fsS8oEMFx). Resolution: owner tops up Anthropic billing (estimate ~US$15-30 for ~200 Fable 5 adjudications incl. thinking tokens) or supplies a funded key, then resume with `/autopilot tasks/prd-sigil-pro-fable.json --skip-plan`. No measurements fabricated per CHARTER II.
+- **Headline:** FP@High 70%→30% package-level (89/89 control findings benign, residual is purely the 10-findings/pkg cap); malicious sample retention 24/25 (96%), all 24 retained by verdict not cap; the 1 cleared sample's High findings were registry-metadata noise, not payload. 0 refusals/0 errors in 168 live calls. SHIP with conditions (explicit-benign-only clearing; per-finding triage not bulk suppression; US-112 before prod).
+- **Notes:** Was BLOCKED 2026-06-11 on Anthropic credit (400 billing error); owner topped up 2026-06-12. First live Fable 5 call exposed the thinking-block bug (fixed in `e5b340c`). Malicious samples are encrypted zips (not extracted dirs) — script extracts with the dataset's documented unlock phrase, same as run_eval.py. Round 2 ran with `--reuse-control` to avoid re-paying the 89 control verdicts.
 
 ### US-111 [F-009]: sigil explain — Rust CLI surface for LLM analysis
 - **Status:** DONE (2026-06-11, autopilot) — evidence: `evidence/F-009/US-111-cli-explain.md`
