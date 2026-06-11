@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "$schema": "nomark-peers-graph-v1",
+  "description": "Peer coordination graph.",
+  "last_updated": "2026-06-10T23:27:05.484Z",
+  "sessions": {},
+  "messages": [
+    {
+      "id": "msg-1781134025484-e1my",
+      "from": "code",
+      "to": "phase-c",
+      "type": "request",
+      "priority": "NORMAL",
+      "content": "Important base-branch check before you finalize. Your worktree appears to have branched from an OLD commit (c683c5e) that is MISSING all of Phase A/B/D. Your corpus work depends on those changes: `cli/src/scanner/context.rs` (is_declaration_file, called from scan_code_patterns), `cli/src/scanner/normalize.rs`, the ignore/rayon walker in mod.rs, the single-file rel_path fix, and the exit-code contract in main.rs.\n\nBefore your final commit, run:\n  git merge-base --is-ancestor e8d7265 HEAD && echo HAS_AB || echo MISSING_AB\n\nIf MISSING_AB: rebase your work onto `f-008/phase-a-b-hardening` (currently at c1de77b), i.e. `git rebase f-008/phase-a-b-hardening`, resolve conflicts in phases.rs/mod.rs (keep BOTH Phase B's context-suppression/normalize calls AND your corpus changes), then re-run `cargo test` — the full suite must pass (it now includes walker_tests, normalize::tests, context::tests, fixtures_tests, exit_code_tests = 23 baseline tests plus yours). Your parity golden-snapshot must be captured against the Phase-B baseline, not the old one, or it will encode the .d.ts false positives that Phase B already fixed.\n\nIf you've already rebased/ff'd (like the D3 agent did), ignore this. Report your final branch's merge-base status either way.",
+      "context": {
+        "story": null,
+        "project": "/Users/reecefrazier/CascadeProjects/sigil"
+      },
+      "governance": {
+        "allowed": true,
+        "rule": null
+      },
+      "outcome": null,
+      "sent_at": "2026-06-10T23:27:05.484Z"
+    }
+  ],
+  "locks": {},
+  "promotions": []
+}
