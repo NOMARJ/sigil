@@ -1442,7 +1442,7 @@
 > **Cross-feature note:** F-010 (trust-ledger allowlisting) attacks the same FP@High residual from the workflow side; US-110's eval should report adjudication's contribution separately from ledger suppression.
 
 ### US-101 [F-009]: Anthropic-first LLM config with current model registry
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — 15/15 new tests pass; full suite 239 passed/0 failed (baseline 223, delta = new tests). ANTHROPIC_API_KEY fallback added (anthropic provider only). Evidence: `.nomark/evidence/US-101.md`
 - **Scope:** moderate
 - **Goal:** `llm_config.py` defaults to Anthropic with `claude-opus-4-8` default / `claude-fable-5` deep / `claude-haiku-4-5` fast (env-overridable); `gpt-4-turbo` default gone.
 - **Done when:** `python3 -m pytest api/tests/test_llm_config.py -q` exits 0
