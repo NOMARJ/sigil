@@ -338,9 +338,9 @@ Modernized Anthropic-only LLM layer powering Pro-gated AI analysis. Replaces the
 ### F-010 · Trust-Ledger Allowlisting
 
 **Epic:** EP-003
-**Status:** ACTIVE (owner-approved 2026-06-11; PRD `tasks/prd-trust-ledger-allowlisting.md`)
+**Status:** DONE (evidence: `.nomark/evidence/F-010-trust-ledger-allowlisting-complete.md`)
 **Started:** 2026-06-11
-**Shipped:** —
+**Shipped:** 2026-06-11
 
 **Source:** F-008 follow-up. The honest eval (US-G3) showed residual 70% FP@High on clean control packages is dominated by genuine dual-use patterns; progress.md logged the trust ledger allowlist as "the next structural lever, not a rule-tuning problem."
 
@@ -348,8 +348,8 @@ Modernized Anthropic-only LLM layer powering Pro-gated AI analysis. Replaces the
 Scan-time suppression of findings for ledger-approved known-good packages. When scanned content exactly matches an approved `ContentPin.artifact_digest` (recorded by `sigil approve`), findings are marked `suppressed_by` and excluded from score/verdict — visible, auditable, bypassable via `--ignore-ledger`. Drifted content is never suppressed (rug-pull path unchanged). The eval gains a `--ledger-warm` mode measuring cold vs warm FP with a recall-delta-zero assertion.
 
 **Acceptance criteria (feature level):**
-- [ ] Digest-matched approved content → findings suppressed from score/verdict, marked `suppressed_by`, visible in JSON output (no silent drops)
-- [ ] Drifted content never suppressed; RUGPULL-001 unaffected
-- [ ] `--ignore-ledger` restores unsuppressed behavior
-- [ ] Eval `--ledger-warm`: recall byte-identical cold vs warm; warm control FP@High = 0% for digest-matched packages; report discloses warm FP is workflow suppression by construction, not detector precision (cold FP stays headline)
-- [ ] `cd cli && cargo test` green
+- [x] Digest-matched approved content → findings suppressed from score/verdict, visible in JSON output with result-level `suppressed_by` attribution (no silent drops) — `cargo test suppression` 7/7 + 11-scenario e2e
+- [x] Drifted content never suppressed; RUGPULL-001 unaffected — `cargo test rugpull` 4/4, drift e2e
+- [x] `--ignore-ledger` restores unsuppressed behavior — unit + e2e
+- [x] Eval `--ledger-warm`: recall per-sample identical cold vs warm (recall_delta 0 over 351 samples); warm control FP 0% at every threshold; TRUE-BY-CONSTRUCTION disclosure in report; cold FP@High 70% stays headline
+- [x] `cd cli && cargo test` green — 129/129 (2026-06-11)

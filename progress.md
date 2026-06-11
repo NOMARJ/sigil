@@ -1432,15 +1432,127 @@
 
 ---
 
-## Feature: Trust-Ledger Allowlisting (F-010) — GATE 1 APPROVED 2026-06-11
+## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2)
 
-> **PRD:** `tasks/prd-trust-ledger-allowlisting.md` (status: **approved**, operator 2026-06-11)
-> **Plan:** `.nomark/artifacts/plans/trust-ledger-allowlisting-plan.md`
-> **Note:** pre-existing uncommitted changes (`sigil-skill/*`, `.nomark/*` telemetry) are from
-> prior sessions and excluded from F-010 commits via selective staging.
+> **Created:** 2026-06-11 (planned via /plan_feature; owner approved SOLUTION.md entry + scope same session)
+> **PRD:** `tasks/prd-sigil-pro-fable.json` (status: approved)
+> **Scope decisions (owner, 2026-06-11):** full capability scope (FP adjudication + triage/explanation + CLI + attack-chain) · Fable 5 with Opus 4.8 refusal-fallback, Haiku 4.5 for cheap paths · free-teaser + Pro-unlimited gating
+> **Ground truth driving this feature:** `llm_config.py` defaults to `gpt-4-turbo`; `model_router.py` pins retired claude-3 models (claude-3-opus/sonnet-2024 retired; claude-3-haiku retires 2026-04-19); F-008 eval's residual 70% FP@High is dual-use patterns needing an LLM discriminator.
+> **Standing constraints:** exact model IDs `claude-fable-5` / `claude-opus-4-8` / `claude-haiku-4-5` (no date suffixes); Fable 5 omits `thinking` param, no sampling params, no prefill, handle `stop_reason: "refusal"` before reading content; org needs 30-day retention; check `.nomark/resources.json` before any env/infra reference; no fabricated metrics (US-110 eval is real-data only).
+> **Cross-feature note:** F-010 (trust-ledger allowlisting) attacks the same FP@High residual from the workflow side; US-110's eval should report adjudication's contribution separately from ledger suppression.
+
+### US-101 [F-009]: Anthropic-first LLM config with current model registry
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** `llm_config.py` defaults to Anthropic with `claude-opus-4-8` default / `claude-fable-5` deep / `claude-haiku-4-5` fast (env-overridable); `gpt-4-turbo` default gone.
+- **Done when:** `python3 -m pytest api/tests/test_llm_config.py -q` exits 0
+- **Files:** `api/llm_config.py`, `api/tests/test_llm_config.py`
+- **Dependencies:** none
+
+### US-102 [F-009]: Model router registry refresh — retire claude-3 tiers
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** `model_router.py` MODELS = exactly {claude-haiku-4-5 $1/$5, claude-opus-4-8 $5/$25, claude-fable-5 $10/$50}; downgrade path → haiku.
+- **Done when:** `python3 -m pytest api/tests/test_model_router.py -q` exits 0; no `claude-3-` in file
+- **Files:** `api/services/model_router.py`, `api/tests/test_model_router.py`
+- **Dependencies:** US-101
+
+### US-103 [F-009]: Refusal handling + Opus 4.8 fallback in llm_service
+- **Status:** TODO
+- **Scope:** complex
+- **Goal:** Fable 5 refusal (pre-output or mid-stream) retries once on `claude-opus-4-8`; fallback refusal → typed error. Fable calls omit `thinking` and sampling params.
+- **Done when:** `python3 -m pytest api/tests/test_llm_refusal_fallback.py -q` exits 0 (4 mocked cases: pre-output refusal, mid-stream refusal, fallback success, fallback refusal)
+- **Files:** `api/services/llm_service.py`, `api/tests/test_llm_refusal_fallback.py`
+- **Dependencies:** US-101
+
+### US-104 [F-009]: LLM usage metering — free teaser allowance + Pro fair-use
+- **Status:** TODO
+- **Scope:** complex
+- **Goal:** `credit_service.check_llm_allowance` / `record_llm_usage`; free = 10 calls/month (config), Pro = metered fair-use; structured denial with reset date + upgrade URL. Reuse existing tables (CHARTER II.5 — no new schema without approval).
+- **Done when:** `python3 -m pytest api/tests/test_llm_metering.py -q` exits 0
+- **Files:** `api/services/credit_service.py`, `api/tests/test_llm_metering.py`
+- **Dependencies:** US-101
+
+### US-105 [F-009]: AI-analysis gate dependency — 402 on exhausted free tier
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** `require_llm_access` in `api/gates.py`: Pro/Team pass; free passes while allowance remains; 402 + upgrade payload when exhausted; 401 unauthenticated.
+- **Done when:** `python3 -m pytest api/tests/test_tier_gating.py -q` exits 0 incl. new free-teaser cases
+- **Files:** `api/gates.py`, `api/tests/test_tier_gating.py`
+- **Dependencies:** US-104
+
+### US-106 [F-009]: FP adjudication service (Fable 5, structured verdict)
+- **Status:** TODO
+- **Scope:** complex
+- **Goal:** `fp_adjudicator` service: finding + bounded code context → structured `{classification: benign_dual_use|suspicious|malicious, confidence, rationale}` via json_schema output; deep_model through US-103 fallback path.
+- **Done when:** `python3 -m pytest api/tests/test_fp_adjudicator.py -q` exits 0
+- **Files:** `api/services/fp_adjudicator.py`, `api/tests/test_fp_adjudicator.py`
+- **Dependencies:** US-103
+
+### US-107 [F-009]: FP adjudication endpoint wired into scan results
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** `POST /v1/scans/{id}/findings/{finding_id}/adjudicate` behind `require_llm_access`; verdict persisted in `findings_json` (no schema change); idempotent.
+- **Done when:** `python3 -m pytest api/tests/test_adjudicate_endpoint.py -q` exits 0
+- **Files:** `api/routers/scan.py`, `api/tests/test_adjudicate_endpoint.py`
+- **Dependencies:** US-105, US-106
+
+### US-108 [F-009]: Modernize finding investigator + explanations
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** Both services call through `llm_service` with config-driven models; no hardcoded/retired IDs; routes gated.
+- **Done when:** `python3 -m pytest api/tests -q -k "investigator or explanations"` exits 0; `grep -rn "claude-3-" api/services/finding_investigator.py api/services/explanations.py` empty
+- **Files:** `api/services/finding_investigator.py`, `api/services/explanations.py`
+- **Dependencies:** US-105
+
+### US-109 [F-009]: Modernize remediation generator + attack-chain tracer
+- **Status:** TODO
+- **Scope:** moderate
+- **Goal:** Both call through `llm_service` (attack-chain = deep_model); no retired IDs.
+- **Done when:** `python3 -m pytest api/tests -q -k "remediation or attack_chain"` exits 0
+- **Files:** `api/services/remediation_generator.py`, `api/services/attack_chain_tracer.py`
+- **Dependencies:** US-105
+
+### US-110 [F-009]: Honest FP-adjudication eval on the F-008 corpus
+- **Status:** TODO
+- **Scope:** complex
+- **Goal:** Real before/after FP@High + recall@High with adjudication applied, on the F-008 eval set (real malicious samples + 20 popular-legit packages). Disclosure block mandatory. Report both directions even if unfavorable.
+- **Done when:** `evidence/F-009/fp-adjudication-eval.md` exists with measurements + ship/no-ship recommendation; no `random`, no synthetic-as-production
+- **Files:** `scripts/eval_fp_adjudication.py`, `evidence/F-009/fp-adjudication-eval.md`
+- **Dependencies:** US-106
+- **Notes:** F-008 eval gotcha carried forward: pin SIGIL_BIN (harness once picked homebrew sigil v1.0.4 off PATH); samples lived in /tmp via raw-CDN fetch. Coordinate with F-010 US-H3 (ledger-warm eval) — separate the two FP levers in reporting.
+
+### US-111 [F-009]: sigil explain — Rust CLI surface for LLM analysis
+- **Status:** TODO
+- **Scope:** complex
+- **Goal:** `sigil explain <scan-json> [--finding N]` posts the finding to the API with the user's token, renders verdict + rationale; 402 → clear upgrade message; no client-side LLM call (D6).
+- **Done when:** `cargo test --manifest-path cli/Cargo.toml explain` passes; transcript in `evidence/F-009/US-111-cli-explain.md`
+- **Files:** `cli/src/main.rs`, `cli/src/explain.rs`, `cli/tests/explain.rs`
+- **Dependencies:** US-107
+
+### US-112 [F-009]: Ops verification — env, retention, live smoke
+- **Status:** TODO (owner/operator-gated: live Azure + Anthropic org access)
+- **Scope:** moderate
+- **Goal:** Evidence that ANTHROPIC_API_KEY is on `sigil-api` (secretRef names only), org meets Fable 5's 30-day retention, one live Fable call (or its Opus fallback) succeeds, free-tier 402 / Pro 200 round-trip, usage row visible.
+- **Done when:** `evidence/F-009/US-112-ops-verification.md` complete; new resource refs added to `.nomark/resources.json`
+- **Files:** `evidence/F-009/US-112-ops-verification.md`
+- **Dependencies:** US-107, US-108
+
+---
+
+## Feature: Trust-Ledger Allowlisting (F-010) — COMPLETE 2026-06-11 ✅
+
+> **PRD:** `tasks/prd-trust-ledger-allowlisting.md` (approved 2026-06-11) — 3/3 stories DONE, 0 blocked
+> **Feature evidence:** `.nomark/evidence/F-010-trust-ledger-allowlisting-complete.md`
+> **Headline:** approved-content scans now suppress (warm FP 0%, exit 0); recall untouched
+> (recall_delta 0 over 351 malicious samples); cold FP@High 70% unchanged — the honest
+> detector metric. Rejection revokes pins; drift always wins; cache re-evaluates per scan.
+> **Note:** pre-existing uncommitted changes (`sigil-skill/*`, `.nomark/*` telemetry, F-009
+> session artifacts) are from other sessions and excluded from F-010 commits.
 
 ### US-H1: Digest-keyed ledger match API
-- **Status:** TODO (blocked on Gate 1)
+- **Status:** DONE ✅ (2026-06-11 — `cargo test ledger::tests` 14/14 incl. 5 new, full suite 123/123; evidence `.nomark/evidence/US-H1.md`)
+- **Design note (deviation from PRD sketch):** `match_approved` returns `Option<LedgerRecord>` (exact digest match only). Drifted content returns `None` — drift attribution/re-quarantine already lives in the path-bound `check_rugpull_for_path` (main.rs:1434); duplicating drift detection by content was redundant. Added `ledger::remove(id)` so US-H2 can revoke pins on `sigil reject` — without it, an approve-then-reject package would keep suppressing (violates PRD semantics #5).
 - **Scope:** moderate
 - **Goal:** `ledger::match_approved(path)` computes the ContentPin of a scan target and returns the approved LedgerRecord on exact `artifact_digest` match, distinguishing match vs drift vs none.
 - **Done when:** `cd cli && cargo test ledger::tests` green incl. new tests (digest match; drift signal; rejected/pending never match).
@@ -1448,7 +1560,8 @@
 - **Dependencies:** none
 
 ### US-H2: Scan-time suppression + `--ignore-ledger` flag
-- **Status:** TODO (blocked on Gate 1)
+- **Status:** DONE ✅ (2026-06-11 — `cargo test` 129/129 incl. 6 new; 11-scenario e2e with hermetic HOME; evidence `.nomark/evidence/US-H2.md`)
+- **Design note:** suppression attribution is result-level (`ScanResult.suppressed_findings` + `suppressed_by`), not per-Finding — all-or-nothing semantics make a per-finding field redundant and it would touch 22 construction sites. Scoring fns unchanged (recompute over active set). `output.rs` JSON summary stays array-free so `run_eval.py`'s first-array parser is unaffected. `cmd_reject` now revokes the ledger pin.
 - **Scope:** complex
 - **Goal:** `cmd_scan` suppresses findings (marked `suppressed_by`, excluded from score/verdict) when content digest-matches an approved ledger record; drift never suppresses; flag bypasses.
 - **Done when:** `cd cli && cargo test` green incl. suppression, drift-no-suppress, flag-bypass, and serde tests.
@@ -1456,7 +1569,8 @@
 - **Dependencies:** US-H1
 
 ### US-H3: Eval ledger-warm mode + honest FP re-measure
-- **Status:** TODO (blocked on Gate 1)
+- **Status:** DONE ✅ (2026-06-11 — full 351-sample + 20-control run, exit 0: warm FP 0% all thresholds, cold FP unchanged (70% @High), recall_delta 0; evidence `.nomark/evidence/US-H3.md`)
+- **Note:** eval `resolve_binary` now prefers repo build over PATH — a stale Homebrew sigil 1.0.4 on PATH was silently measured in the first smoke run (measurement-integrity fix). Warm metrics nest under `ledger_warm` key in the report JSON.
 - **Scope:** moderate
 - **Goal:** `run_eval.py --ledger-warm` measures cold AND warm control FP (warm = control set approved into a hermetic `HOME` ledger); asserts recall delta is zero; report discloses warm FP is true-by-construction workflow suppression, not detector precision.
 - **Done when:** Eval run vs `/tmp/evalset/samples` + `/tmp/control2` completes; JSON has `control_flagged_cold`/`control_flagged_warm`/`recall_delta: 0`; disclosure present.
