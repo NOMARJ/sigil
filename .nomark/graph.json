@@ -2,7 +2,7 @@
   "version": 1,
   "$schema": "nomark-graph-v1",
   "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-06-09T10:26:45.725213",
+  "last_rebuilt": "2026-06-12T06:36:46.590508",
   "nodes": {
     "EP-001": {
       "type": "epic",
@@ -374,6 +374,90 @@
       "status": "TODO",
       "linear_id": "NOM-1078",
       "raw_id": "US-012"
+    },
+    "F-009/US-101": {
+      "type": "story",
+      "title": "[F-009]: Anthropic-first LLM config with current model registry",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-101"
+    },
+    "F-009/US-102": {
+      "type": "story",
+      "title": "[F-009]: Model router registry refresh \u2014 retire claude-3 tiers",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-102"
+    },
+    "F-009/US-103": {
+      "type": "story",
+      "title": "[F-009]: Refusal handling + Opus 4.8 fallback in llm_service",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-103"
+    },
+    "F-009/US-104": {
+      "type": "story",
+      "title": "[F-009]: LLM usage metering \u2014 free teaser allowance + Pro fair-use",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-104"
+    },
+    "F-009/US-105": {
+      "type": "story",
+      "title": "[F-009]: AI-analysis gate dependency \u2014 402 on exhausted free tier",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-105"
+    },
+    "F-009/US-106": {
+      "type": "story",
+      "title": "[F-009]: FP adjudication service (Fable 5, structured verdict)",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-106"
+    },
+    "F-009/US-107": {
+      "type": "story",
+      "title": "[F-009]: FP adjudication endpoint wired into scan results",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-107"
+    },
+    "F-009/US-108": {
+      "type": "story",
+      "title": "[F-009]: Modernize finding investigator + explanations",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-108"
+    },
+    "F-009/US-109": {
+      "type": "story",
+      "title": "[F-009]: Modernize remediation generator + attack-chain tracer",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-109"
+    },
+    "F-009/US-110": {
+      "type": "story",
+      "title": "[F-009]: Honest FP-adjudication eval on the F-008 corpus",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-110"
+    },
+    "F-009/US-111": {
+      "type": "story",
+      "title": "[F-009]: sigil explain \u2014 Rust CLI surface for LLM analysis",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-111"
+    },
+    "F-009/US-112": {
+      "type": "story",
+      "title": "[F-009]: Ops verification \u2014 env, retention, live smoke",
+      "status": "TODO",
+      "linear_id": "",
+      "raw_id": "US-112"
     },
     "commit:1ccaaf8": {
       "type": "commit",
@@ -1569,6 +1653,310 @@
       "message": "fix(ci): correct run-block indentation in publish-jetbrains workflow (#122)",
       "date": "2026-06-09T08:24:52+10:00",
       "files_changed": 1
+    },
+    "commit:319c6d5": {
+      "type": "commit",
+      "hash": "319c6d5",
+      "message": "memory: 2026-06-11 08:12 \u2014 cli",
+      "date": "2026-06-11T08:12:04+10:00"
+    },
+    "commit:c683c5e": {
+      "type": "commit",
+      "hash": "c683c5e",
+      "message": "memory: 2026-06-09 10:26 \u2014 graph rebuild + Rust CLI status reconciliation",
+      "date": "2026-06-10T19:27:38+10:00"
+    },
+    "commit:0c1e0fb": {
+      "type": "commit",
+      "hash": "0c1e0fb",
+      "message": "Initial plan (#123)",
+      "date": "2026-06-10T09:10:28+10:00"
+    },
+    "commit:d4b74d3": {
+      "type": "commit",
+      "hash": "d4b74d3",
+      "message": "fix(dashboard): migrate auth0 for next 16",
+      "date": "2026-06-09T12:32:35+10:00"
+    },
+    "commit:e8d7265": {
+      "type": "commit",
+      "hash": "e8d7265",
+      "message": "F-008 Phase A+B: truth hygiene, BadHost fix, scanner mechanics",
+      "date": "2026-06-11T09:04:57+10:00",
+      "files_changed": 31
+    },
+    "commit:35b15d5": {
+      "type": "commit",
+      "hash": "35b15d5",
+      "message": "F-008 Phase D (US-D1, US-D2): exit-code contract + SARIF 2.1.0",
+      "date": "2026-06-11T09:09:44+10:00",
+      "files_changed": 3
+    },
+    "commit:ccc96aa": {
+      "type": "commit",
+      "hash": "ccc96aa",
+      "message": "F-008 US-D3: self-scan CI gate with rationale-backed .sigilignore",
+      "date": "2026-06-11T09:25:34+10:00",
+      "files_changed": 6
+    },
+    "commit:c1de77b": {
+      "type": "commit",
+      "hash": "c1de77b",
+      "message": "F-008 US-A2: deploy BadHost fix + fix fabricated Dockerfile.api base digest",
+      "date": "2026-06-11T09:25:54+10:00",
+      "files_changed": 3
+    },
+    "commit:fdf4459": {
+      "type": "commit",
+      "hash": "fdf4459",
+      "message": "F-008 US-C1: pack schema + loader \u2014 corpus module with 9 embedded packs",
+      "date": "2026-06-11T09:29:38+10:00",
+      "files_changed": 14
+    },
+    "commit:769b73a": {
+      "type": "commit",
+      "hash": "769b73a",
+      "message": "F-008 US-C3: port Python-only rules \u2014 OBFUSC-CHAIN-* and SUPPLY-* packs",
+      "date": "2026-06-11T09:47:58+10:00",
+      "files_changed": 4
+    },
+    "commit:ba489f5": {
+      "type": "commit",
+      "hash": "ba489f5",
+      "message": "F-008 Phase C integration fixes (post-merge verification)",
+      "date": "2026-06-11T09:58:12+10:00",
+      "files_changed": 3
+    },
+    "commit:4ee3050": {
+      "type": "commit",
+      "hash": "4ee3050",
+      "message": "F-008: mark Phase C stories US-C1..C4 DONE (corpus externalization + parity verified)",
+      "date": "2026-06-11T09:58:31+10:00",
+      "files_changed": 1
+    },
+    "commit:5fedd90": {
+      "type": "commit",
+      "hash": "5fedd90",
+      "message": "F-008 US-E1: OSV advisory feed integration",
+      "date": "2026-06-11T10:14:35+10:00",
+      "files_changed": 5
+    },
+    "commit:6db7ce3": {
+      "type": "commit",
+      "hash": "6db7ce3",
+      "message": "F-008 US-E3: provenance drift detection",
+      "date": "2026-06-11T10:40:42+10:00",
+      "files_changed": 5
+    },
+    "commit:c830b76": {
+      "type": "commit",
+      "hash": "c830b76",
+      "message": "fix(feeds): parallelize OSV + provenance fetches, reverse improper lockfile suppression",
+      "date": "2026-06-11T14:46:43+10:00",
+      "files_changed": 6
+    },
+    "commit:2dc83ec": {
+      "type": "commit",
+      "hash": "2dc83ec",
+      "message": "fix(plugins): remediate high-severity dependency CVEs in mcp-server and vscode",
+      "date": "2026-06-11T15:08:34+10:00",
+      "files_changed": 2
+    },
+    "commit:ac0c292": {
+      "type": "commit",
+      "hash": "ac0c292",
+      "message": "feat(ledger): content-pinning trust ledger on approve (F-008 US-F1)",
+      "date": "2026-06-11T15:09:07+10:00",
+      "files_changed": 3
+    },
+    "commit:46970fc": {
+      "type": "commit",
+      "hash": "46970fc",
+      "message": "docs(progress): plugin dep remediation done \u2014 self-scan gate green (0 high/critical)",
+      "date": "2026-06-11T15:11:31+10:00",
+      "files_changed": 1
+    },
+    "commit:4ace109": {
+      "type": "commit",
+      "hash": "4ace109",
+      "message": "feat(ledger): rug-pull detection on content drift (F-008 US-F2)",
+      "date": "2026-06-11T15:16:09+10:00",
+      "files_changed": 11
+    },
+    "commit:b2c9cea": {
+      "type": "commit",
+      "hash": "b2c9cea",
+      "message": "feat(cli): bash sigil delegates scanning + quarantine to Rust engine (F-008 US-G2)",
+      "date": "2026-06-11T15:28:10+10:00",
+      "files_changed": 1
+    },
+    "commit:b88a06b": {
+      "type": "commit",
+      "hash": "b88a06b",
+      "message": "feat(api): delegate scanning to Rust engine behind SIGIL_RUST_ENGINE flag (F-008 US-G1)",
+      "date": "2026-06-11T15:28:46+10:00",
+      "files_changed": 4
+    },
+    "commit:9e5afd1": {
+      "type": "commit",
+      "hash": "9e5afd1",
+      "message": "feat(eval): honest reproducible detection eval, retire fabricated scorecard (F-008 US-G3)",
+      "date": "2026-06-11T16:19:23+10:00",
+      "files_changed": 7
+    },
+    "commit:e696480": {
+      "type": "commit",
+      "hash": "e696480",
+      "message": "docs(progress): Phase G complete (US-G1/G2/G3 done, verified) \u2014 F-008 Goal 1 done",
+      "date": "2026-06-11T16:21:12+10:00",
+      "files_changed": 1
+    },
+    "commit:4ac0dd1": {
+      "type": "commit",
+      "hash": "4ac0dd1",
+      "message": "fix(packs): eval-driven FP-narrowing \u2014 FP@High 95%->70%, recall held (F-008 follow-up)",
+      "date": "2026-06-11T17:00:54+10:00",
+      "files_changed": 10
+    },
+    "commit:568df63": {
+      "type": "commit",
+      "hash": "568df63",
+      "message": "docs(plan): F-010 trust-ledger allowlisting \u2014 PRD approved, stories US-H1..H3 decomposed",
+      "date": "2026-06-11T17:49:56+10:00",
+      "files_changed": 4
+    },
+    "commit:c18bf5a": {
+      "type": "commit",
+      "hash": "c18bf5a",
+      "message": "feat(cli): [US-H1] digest-keyed ledger match + revocation API (F-010)",
+      "date": "2026-06-11T17:53:16+10:00",
+      "files_changed": 2
+    },
+    "commit:dfc968e": {
+      "type": "commit",
+      "hash": "dfc968e",
+      "message": "feat(cli): [US-H2] trust-ledger scan suppression + --ignore-ledger + reject revocation (F-010)",
+      "date": "2026-06-11T18:04:40+10:00",
+      "files_changed": 5
+    },
+    "commit:a3595b7": {
+      "type": "commit",
+      "hash": "a3595b7",
+      "message": "feat(eval): [US-H3] ledger-warm FP re-measure \u2014 warm FP 0%, recall_delta 0, cold FP unchanged (F-010)",
+      "date": "2026-06-11T18:28:26+10:00",
+      "files_changed": 4
+    },
+    "commit:bda542e": {
+      "type": "commit",
+      "hash": "bda542e",
+      "message": "feat: F-010 trust-ledger allowlisting \u2014 autopilot complete (3/3 stories, eval re-measured)",
+      "date": "2026-06-11T18:31:04+10:00",
+      "files_changed": 3
+    },
+    "commit:1783ad0": {
+      "type": "commit",
+      "hash": "1783ad0",
+      "message": "docs(plan): F-009 sigil-pro-fable \u2014 PRD approved, stories US-101..112 decomposed",
+      "date": "2026-06-11T18:54:31+10:00",
+      "files_changed": 2
+    },
+    "commit:8cfcbcb": {
+      "type": "commit",
+      "hash": "8cfcbcb",
+      "message": "docs(evidence): F-010 follow-ups resolved \u2014 brew sigil upgraded to 1.1.2, scratch dir removed",
+      "date": "2026-06-11T18:56:26+10:00",
+      "files_changed": 1
+    },
+    "commit:933fe48": {
+      "type": "commit",
+      "hash": "933fe48",
+      "message": "feat(api): [US-101] Anthropic-first LLM config \u2014 claude-opus-4-8/fable-5/haiku-4-5 defaults, gpt-4-turbo retired (F-009)",
+      "date": "2026-06-11T18:56:41+10:00",
+      "files_changed": 4
+    },
+    "commit:a06c3c4": {
+      "type": "commit",
+      "hash": "a06c3c4",
+      "message": "feat(api): [US-102] model router registry refresh \u2014 current-gen IDs, config-driven tier mapping (F-009)",
+      "date": "2026-06-11T19:04:48+10:00",
+      "files_changed": 6
+    },
+    "commit:97cd1e1": {
+      "type": "commit",
+      "hash": "97cd1e1",
+      "message": "feat(api): [US-103] Fable 5 refusal handling with single Opus 4.8 fallback, refusals excluded from retry (F-009)",
+      "date": "2026-06-11T19:10:30+10:00",
+      "files_changed": 4
+    },
+    "commit:2fa979d": {
+      "type": "commit",
+      "hash": "2fa979d",
+      "message": "feat(api): [US-104] LLM usage metering \u2014 free-teaser allowance + Pro fair-use on existing credit infra (F-009)",
+      "date": "2026-06-11T19:13:51+10:00",
+      "files_changed": 4
+    },
+    "commit:8088c55": {
+      "type": "commit",
+      "hash": "8088c55",
+      "message": "chore(release): bump CLI to 1.2.0 \u2014 first release with trust ledger (F-008) + allowlist suppression (F-010)",
+      "date": "2026-06-11T19:45:31+10:00",
+      "files_changed": 1
+    },
+    "commit:5e9cfb2": {
+      "type": "commit",
+      "hash": "5e9cfb2",
+      "message": "feat(api): [US-105] require_llm_access gate \u2014 free-teaser 402 boundary, Pro fair-use pass (F-009)",
+      "date": "2026-06-11T19:45:46+10:00",
+      "files_changed": 4
+    },
+    "commit:8164ce0": {
+      "type": "commit",
+      "hash": "8164ce0",
+      "message": "feat(api): [US-106] FP adjudication service \u2014 Fable 5 structured verdicts via json_schema output (F-009)",
+      "date": "2026-06-11T19:48:04+10:00",
+      "files_changed": 5
+    },
+    "commit:f4a6278": {
+      "type": "commit",
+      "hash": "f4a6278",
+      "message": "feat(api): [US-107] FP adjudication endpoint wired into scan results (F-009)",
+      "date": "2026-06-11T19:57:50+10:00",
+      "files_changed": 6
+    },
+    "commit:9cca3b1": {
+      "type": "commit",
+      "hash": "9cca3b1",
+      "message": "feat(api): [US-108] modernize finding investigator to config-driven models (F-009)",
+      "date": "2026-06-11T20:05:28+10:00",
+      "files_changed": 7
+    },
+    "commit:96381a4": {
+      "type": "commit",
+      "hash": "96381a4",
+      "message": "feat(api): [US-109] modernize remediation generator + attack-chain tracer (F-009)",
+      "date": "2026-06-11T20:09:34+10:00",
+      "files_changed": 7
+    },
+    "commit:335512f": {
+      "type": "commit",
+      "hash": "335512f",
+      "message": "feat(cli): [US-111] sigil explain \u2014 AI adjudication surface (F-009)",
+      "date": "2026-06-11T20:23:53+10:00",
+      "files_changed": 6
+    },
+    "commit:0dfcbce": {
+      "type": "commit",
+      "hash": "0dfcbce",
+      "message": "fix(api): [F-009] phase-3 sweep \u2014 retire last claude-3/gpt-4 references",
+      "date": "2026-06-11T22:15:05+10:00",
+      "files_changed": 6
+    },
+    "commit:0ca5e7f": {
+      "type": "commit",
+      "hash": "0ca5e7f",
+      "message": "docs: [F-009] feature verification \u2014 build complete (partial), AC table + evidence",
+      "date": "2026-06-11T22:17:00+10:00",
+      "files_changed": 2
     }
   },
   "edges": [
@@ -1600,6 +1988,16 @@
     {
       "from": "EP-003",
       "to": "F-007",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-009",
+      "rel": "contains"
+    },
+    {
+      "from": "EP-003",
+      "to": "F-010",
       "rel": "contains"
     },
     {
@@ -1835,6 +2233,66 @@
     {
       "from": "F-007",
       "to": "F-007/US-012",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-101",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-102",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-103",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-104",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-105",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-106",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-107",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-108",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-109",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-110",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-111",
+      "rel": "contains"
+    },
+    {
+      "from": "F-009",
+      "to": "F-009/US-112",
       "rel": "contains"
     },
     {
@@ -2206,6 +2664,251 @@
       "from": "STORY-001",
       "to": "commit:eb0ef0e",
       "rel": "shipped_by"
+    },
+    {
+      "from": "commit:e8d7265",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:35b15d5",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:ccc96aa",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:c1de77b",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:fdf4459",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:769b73a",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:ba489f5",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:4ee3050",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:5fedd90",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:6db7ce3",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:ac0c292",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:4ace109",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:b2c9cea",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:b88a06b",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:9e5afd1",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:e696480",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:4ac0dd1",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:568df63",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:c18bf5a",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:dfc968e",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:a3595b7",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:bda542e",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-101",
+      "to": "commit:1783ad0",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:1783ad0",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:8cfcbcb",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-101",
+      "to": "commit:933fe48",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:933fe48",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-102",
+      "to": "commit:a06c3c4",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:a06c3c4",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-103",
+      "to": "commit:97cd1e1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:97cd1e1",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-104",
+      "to": "commit:2fa979d",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:2fa979d",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:8088c55",
+      "to": "F-008",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:8088c55",
+      "to": "F-010",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-105",
+      "to": "commit:5e9cfb2",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:5e9cfb2",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-106",
+      "to": "commit:8164ce0",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:8164ce0",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-107",
+      "to": "commit:f4a6278",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:f4a6278",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-108",
+      "to": "commit:9cca3b1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:9cca3b1",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-109",
+      "to": "commit:96381a4",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:96381a4",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "US-111",
+      "to": "commit:335512f",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:335512f",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:0dfcbce",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:0ca5e7f",
+      "to": "F-009",
+      "rel": "contributes_to"
     }
   ]
 }
