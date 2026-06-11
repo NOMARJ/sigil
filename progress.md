@@ -1279,10 +1279,12 @@
 ### Phase E follow-ups (discovered, NOT yet done)
 - **Suppression reversed:** `.sigilignore` lockfile entries (added by the Phase E build agent to
   force a green gate) are REMOVED and stay removed. They hid genuine high-severity advisories.
-- **REMEDIATION-DEPS (TODO):** self-scan gate is correctly RED — `plugins/mcp-server` (25 High) and
-  `plugins/vscode` (25 High) bundle deps with real advisories (minimatch/hono/undici/fast-uri/
-  flatted/tmp/path-to-regexp/picomatch/express-rate-limit). Needs dependency bumps + plugin build
-  verification. dashboard lockfile is clean (0 high, 1 Medium postcss). Sigil's own src is clean.
+- **REMEDIATION-DEPS (DONE 2026-06-11):** relayed to a worktree agent; transitive-only bumps via
+  `npm audit fix` (no overrides, no major direct-dep bumps, lockfiles only). mcp-server 25 High→0
+  (build `npm run build` tsc clean), vscode 25 High→0 (`npm run compile` tsc clean). Independently
+  re-verified with my own binary (anti-collusion): both lockfiles scan to 0 OSV high/critical; npm
+  audit independently reports 0 vulns. Cherry-picked as 7600298. **Full self-scan now exit 0:
+  172 findings (37 Low/135 Medium), 0 high/critical — the gate is green WITHOUT suppression.**
 - **POLISH (TODO):** OSV finding-level dedup — same GHSA emits N findings when a package resolves
   at N lockfile paths. Detail-fetch is already deduped; the Finding list is not.
 
