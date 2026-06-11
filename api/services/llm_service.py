@@ -160,7 +160,11 @@ class LLMService:
         reraise=True,
     )
     async def call_llm_api(
-        self, prompt: str, max_tokens: int, model: str | None = None
+        self,
+        prompt: str,
+        max_tokens: int,
+        model: str | None = None,
+        output_config: dict | None = None,
     ) -> str:
         """Make HTTP request to the configured LLM provider with retry logic.
 
@@ -201,6 +205,8 @@ class LLMService:
                 "max_tokens": max_tokens,
                 "messages": [{"role": "user", "content": prompt}],
             }
+            if output_config is not None:
+                payload["output_config"] = output_config
         else:
             raise ValueError(f"Unsupported provider: {llm_config.provider}")
 
@@ -229,7 +235,10 @@ class LLMService:
                             f"retrying once on {llm_config.model}"
                         )
                         return await self.call_llm_api(
-                            prompt, max_tokens, model=llm_config.model
+                            prompt,
+                            max_tokens,
+                            model=llm_config.model,
+                            output_config=output_config,
                         )
                     raise LLMRefusalError(effective_model, category)
                 return result["content"][0]["text"]

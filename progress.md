@@ -1482,7 +1482,7 @@
 - **Dependencies:** US-104
 
 ### US-106 [F-009]: FP adjudication service (Fable 5, structured verdict)
-- **Status:** TODO
+- **Status:** DONE (2026-06-11, autopilot) — fp_adjudicator service with enum-locked json_schema verdicts via deep model + US-103 fallback path; 8K context bound; AdjudicationError contract. Additive output_config passthrough on call_llm_api (preserved across fallback retry). 9/9 tests; full suite 276 passed/0 failed. Evidence: `.nomark/evidence/US-106.md`
 - **Scope:** complex
 - **Goal:** `fp_adjudicator` service: finding + bounded code context → structured `{classification: benign_dual_use|suspicious|malicious, confidence, rationale}` via json_schema output; deep_model through US-103 fallback path.
 - **Done when:** `python3 -m pytest api/tests/test_fp_adjudicator.py -q` exits 0
