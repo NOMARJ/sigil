@@ -1289,11 +1289,20 @@
 ### Phase F — Stateful trust ledger (D3)
 
 ### US-F1 [F-008]: Approval ledger with content pinning
-- **Status:** TODO
+- **Status:** DONE (2026-06-11)
 - **Scope:** complex
 - **Goal:** `sigil approve` records hashes (package tarball+version, MCP tool definitions, instruction files) in a local ledger under `~/.sigil/`.
 - **Done when:** `sigil approve <id> && sigil ledger show <id>` displays pinned hashes; `cargo test ledger` passes.
-- **Files:** `cli/src/quarantine.rs`, `cli/src/ledger.rs` (new)
+- **Files:** `cli/src/ledger.rs` (new), `cli/src/main.rs`
+- **Notes:** `ledger::pin_directory` walks the artifact (excludes .git/node_modules/build dirs),
+  sha256s each file → per-file map + aggregate `artifact_digest`, classifies instruction files
+  (via `normalize::is_instruction_file`) and MCP tool-definition manifests (mcp.json/tools.json/
+  package.json with mcp|mcpServers|tools key). `record_approval_in(dir,...)`/`get_in(dir,...)` take
+  an explicit store dir → unit-testable without touching ~/.sigil. `cmd_approve` pins on approve
+  (best-effort, warns on failure); `sigil ledger show <id>` prints digest + per-file hashes. The
+  full `files` map is what US-F2 diffs. e2e demonstrated with isolated HOME (postmark-mcp@1.0.15
+  fixture): approve → "pinned 3 files", ledger show → artifact + tool-def + instruction hashes.
+  110 cargo tests pass (6 ledger).
 
 ### US-F2 [F-008]: Rug-pull detection on drift
 - **Status:** TODO

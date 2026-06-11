@@ -3,6 +3,7 @@ mod cache;
 mod corpus;
 mod diff;
 mod feeds;
+mod ledger;
 mod output;
 mod policy;
 mod provider;
@@ -224,6 +225,12 @@ enum Commands {
         action: PolicyAction,
     },
 
+    /// Inspect the content-pinning trust ledger (rug-pull detection baseline)
+    Ledger {
+        #[command(subcommand)]
+        action: LedgerAction,
+    },
+
     /// Run a command in a sandboxed environment with policy enforcement
     Run {
         /// Policy file or preset name (strict, standard, permissive)
@@ -309,6 +316,15 @@ enum ProviderAction {
     },
     /// Auto-discover credentials in current environment
     Discover,
+}
+
+#[derive(Subcommand)]
+enum LedgerAction {
+    /// Show the pinned content hashes for an approved quarantine id
+    Show {
+        /// Quarantine id whose approval pin to display
+        id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -484,6 +500,8 @@ async fn main() {
         Commands::Provider { action } => cmd_provider(action).await,
 
         Commands::Policy { action } => cmd_policy(action).await,
+
+        Commands::Ledger { action } => cmd_ledger(action).await,
 
         Commands::Sbom {
             path,
@@ -1370,12 +1388,80 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
                 entry.id,
                 entry.source
             );
+            // Pin the approved content so a later rug-pull (changed bytes, tool
+            // definitions, or instruction files) is detectable (ADR-0006, US-F1).
+            match ledger::record_approval(&entry, reason) {
+                Ok(rec) => {
+                    println!(
+                        "  pinned {} files (digest {})",
+                        rec.pin.file_count,
+                        &rec.pin.artifact_digest[..rec.pin.artifact_digest.len().min(12)]
+                    );
+                    if !rec.pin.tool_definitions.is_empty() || !rec.pin.instruction_files.is_empty() {
+                        println!(
+                            "  watching {} tool-definition + {} instruction file(s) for drift",
+                            rec.pin.tool_definitions.len(),
+                            rec.pin.instruction_files.len()
+                        );
+                    }
+                }
+                Err(e) => {
+                    // Pinning is best-effort: approval already succeeded. Warn so
+                    // the operator knows rug-pull protection is not armed.
+                    eprintln!("{} approved but ledger pin failed: {}", "warning:".bold().yellow(), e);
+                }
+            }
             0
         }
         Err(err) => {
             eprintln!("{} {}", "error:".bold().red(), err);
             1
         }
+    }
+}
+
+async fn cmd_ledger(action: LedgerAction) -> i32 {
+    match action {
+        LedgerAction::Show { id } => match ledger::get(&id) {
+            Some(rec) => {
+                println!("{} ledger pin for {}", "sigil:".bold().green(), rec.id);
+                println!("  source:      {} ({})", rec.source, rec.source_type);
+                if let Some(v) = &rec.pin.version {
+                    println!("  version:     {}", v);
+                }
+                println!("  approved_at: {}", rec.approved_at.to_rfc3339());
+                if let Some(r) = &rec.reason {
+                    println!("  reason:      {}", r);
+                }
+                println!("  artifact:    sha256:{}", rec.pin.artifact_digest);
+                println!("  files:       {}", rec.pin.file_count);
+                if !rec.pin.tool_definitions.is_empty() {
+                    println!("  tool definitions:");
+                    for f in &rec.pin.tool_definitions {
+                        if let Some(h) = rec.pin.files.get(f) {
+                            println!("    {} sha256:{}", f, h);
+                        }
+                    }
+                }
+                if !rec.pin.instruction_files.is_empty() {
+                    println!("  instruction files:");
+                    for f in &rec.pin.instruction_files {
+                        if let Some(h) = rec.pin.files.get(f) {
+                            println!("    {} sha256:{}", f, h);
+                        }
+                    }
+                }
+                0
+            }
+            None => {
+                eprintln!(
+                    "{} no ledger pin for '{}' (approve it first)",
+                    "error:".bold().red(),
+                    id
+                );
+                1
+            }
+        },
     }
 }
 
