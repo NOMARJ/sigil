@@ -99,3 +99,12 @@ tasks/instincts/pending/
 tasks/instincts/index.json
 # END NOMARK telemetry ignore
 .vercel
+
+# Stray nested NOMARK dirs — canonical .nomark is the repo root one; tools run
+# inside subprojects create these duplicates. Keep them out of git.
+/cli/.nomark/
+/sigil-skill/.nomark/
+
+# chains/ — NOMARK Chains subsystem, kept out of this repo for now (owner, 2026-06-12).
+# Contains binaries (brand PDFs) and runtime artifact dirs; revisit before adding.
+/chains/

@@ -33,7 +33,7 @@ Sigil is a multi-component system with the following top-level modules:
 | MCP Server | Service | TypeScript (Node.js) | `plugins/mcp-server/` |
 | Claude Code Plugin | Agent Plugin | Markdown/JSON | `plugins/claude-code/` |
 | GitHub Action | CI/CD | Bash (Composite) | `action.yml` |
-| Homebrew Formula | Distribution | Ruby | `Formula/sigil.rb` |
+| Homebrew Formula | Distribution | Ruby | `NOMARJ/homebrew-tap` (auto-published by `update-homebrew.yml` on release) |
 | npm Package | Distribution | Node.js | `package.json` |
 
 ---

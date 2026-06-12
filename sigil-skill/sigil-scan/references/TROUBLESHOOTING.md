@@ -5,7 +5,7 @@
 **Symptom:** `{"error": true, "message": "Sigil CLI not found..."}`
 
 **Solutions:**
-1. Run setup: `bash <skill_root>/scripts/setup.sh`
+1. Run setup: `bash scripts/setup.sh`
 2. Manual install: `brew install nomarj/tap/sigil`, `npm install -g @nomark/sigil`, or `cargo install sigil-cli`
 3. If installed but not in PATH, add: `export PATH="$PATH:$HOME/.local/bin"`
 
@@ -37,7 +37,7 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 **Cause:** Large skill directories take longer than the 30-second timeout.
 
 **Solutions:**
-- Scan the skill directory directly: `bash <skill_root>/scripts/scan.sh /path/to/skill`
+- Scan the skill directory directly: `bash scripts/scan.sh /path/to/skill`
 - The direct scan has no timeout
 
 ## False Positives
@@ -51,6 +51,8 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 3. **Build tools**: Legitimate build scripts (`Makefile`, `setup.py`) that use install hooks for compilation steps.
 
 4. **Obfuscation in dependencies**: Minified JavaScript files (`.min.js`) may trigger obfuscation rules.
+
+5. **This skill itself**: Scanning the sigil-scan skill directory (including via the installed-skills audit) reports CRITICAL. Nearly all findings point at `references/PHASES.md`, which documents every detection rule with an example of the malicious pattern it catches. When presenting installed-skills audit results, note that sigil-scan's own verdict is expected and explain why.
 
 **Recommendation:** Review each finding in context. The file path and line number help determine whether a pattern is legitimate or suspicious.
 

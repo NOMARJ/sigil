@@ -11,15 +11,18 @@ description: >
   for malware, review dependencies.
 compatibility: Requires internet for initial setup only. All scanning is local and offline. Works on macOS (arm64/x64), Linux (x64), and WSL.
 license: Apache-2.0
+allowed-tools: Read Bash(bash:*)
 metadata:
   author: nomarj
-  version: "1.0.0"
+  version: "1.1.0"
   homepage: https://sigilsec.ai
 ---
 
 # Sigil Security Scanner
 
 Sigil provides eight-phase security analysis purpose-built for AI agent code. It detects install hooks, dangerous code patterns, network exfiltration, credential access, obfuscation, provenance issues, prompt injection attacks, and AI skill security threats.
+
+All file paths in this document are relative to this skill's directory (the directory containing SKILL.md).
 
 ## When to Activate
 
@@ -38,7 +41,7 @@ Invoke this skill in ANY of these situations:
 Before first use, verify the Sigil CLI binary is installed:
 
 ```bash
-bash <skill_root>/scripts/setup.sh
+bash scripts/setup.sh
 ```
 
 Parse the JSON stdout. On success: `{"installed": true, "version": "...", "path": "..."}`. On failure: `{"error": true, "message": "..."}`. If setup fails, present the error to the user and suggest manual installation: `brew install nomarj/tap/sigil`, `npm install -g @nomark/sigil`, or `cargo install sigil-cli`.
@@ -48,7 +51,7 @@ Parse the JSON stdout. On success: `{"installed": true, "version": "...", "path"
 To scan any target, run:
 
 ```bash
-bash <skill_root>/scripts/scan.sh <target>
+bash scripts/scan.sh <target>
 ```
 
 The `<target>` argument accepts:
@@ -101,10 +104,12 @@ The script outputs a single JSON object to stdout:
 
 | Verdict | Score | Action |
 |---------|-------|--------|
-| `LOW RISK` | 0-9 | Proceed. Note that low risk does not mean zero risk. Inform the user of the result. |
+| `LOW RISK` or `CLEAN` | 0-9 | Proceed. Note that low risk does not mean zero risk. Inform the user of the result. |
 | `MEDIUM RISK` | 10-24 | Show findings to the user. Ask for explicit approval before proceeding with any installation or execution. |
 | `HIGH RISK` | 25-49 | Show detailed findings. Recommend rejection. Do NOT proceed without explicit user approval. |
-| `CRITICAL RISK` | 50+ | Show all findings prominently. Strongly recommend rejection. Never auto-proceed. |
+| `CRITICAL RISK` or `CRITICAL` | 50+ | Show all findings prominently. Strongly recommend rejection. Never auto-proceed. |
+
+Verdict strings vary slightly between CLI versions (`CLEAN` vs `LOW RISK`, `CRITICAL` vs `CRITICAL RISK`) — treat the pairs as equivalent. A `CRITICAL` verdict can also occur below score 50: any Critical-severity finding in the InstallHooks phase escalates the verdict immediately, because install hooks execute before the user can review the code.
 
 ### Presenting Findings
 
@@ -112,12 +117,12 @@ When presenting findings to the user:
 1. Group findings by phase (Install Hooks first — they are the most dangerous)
 2. Show the severity, rule ID, file path with line number, and description for each finding
 3. Highlight any `Critical` severity findings in the `InstallHooks` phase — these indicate code that runs automatically during installation
-4. For reference on what each rule detects, read `<skill_root>/references/PHASES.md`
-5. For details on how scoring works, read `<skill_root>/references/SCORING.md`
+4. For reference on what each rule detects, read `references/PHASES.md`
+5. For details on how scoring works, read `references/SCORING.md`
 
 ### Exit Codes
 
-- `0`: LOW RISK (score 0-9)
+- `0`: LOW RISK / CLEAN (score 0-9)
 - Non-zero: MEDIUM RISK or higher
 
 ## Environment Audit
@@ -125,7 +130,7 @@ When presenting findings to the user:
 To scan the developer's local environment for exposed credentials:
 
 ```bash
-bash <skill_root>/scripts/audit-env.sh
+bash scripts/audit-env.sh
 ```
 
 This checks:
@@ -141,7 +146,7 @@ Present all findings to the user. Flag any `critical` severity items prominently
 To scan all installed skills across all agent directories:
 
 ```bash
-bash <skill_root>/scripts/audit-skills.sh
+bash scripts/audit-skills.sh
 ```
 
 This enumerates skills in: `~/.agents/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, `~/.roo/skills/`, `~/.codex/skills/`, and other agent paths. Each skill is scanned and assigned a risk verdict.
@@ -153,13 +158,13 @@ Present the results as a summary table showing each skill's name, agent, verdict
 To format scan results as a readable markdown report:
 
 ```bash
-bash <skill_root>/scripts/scan.sh <target> | bash <skill_root>/scripts/report.sh
+bash scripts/scan.sh <target> | bash scripts/report.sh
 ```
 
 Or from a saved JSON file:
 
 ```bash
-bash <skill_root>/scripts/report.sh results.json
+bash scripts/report.sh results.json
 ```
 
 ## Important Behavioural Rules
@@ -173,4 +178,4 @@ bash <skill_root>/scripts/report.sh results.json
 
 ## Troubleshooting
 
-If you encounter issues, read `<skill_root>/references/TROUBLESHOOTING.md` for common solutions.
+If you encounter issues, read `references/TROUBLESHOOTING.md` for common solutions.

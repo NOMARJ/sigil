@@ -1,5 +1,20 @@
 # Sigil Detection Phases Reference
 
+## Contents
+
+- Overview — phase weights and severity levels
+- Phase 1: Install Hooks (10x) — rules INSTALL-001..008, INSTALL-MCP-001..002
+- Phase 2: Code Patterns (5x) — rules CODE-001..015, CODE-MCP-001..003
+- Phase 3: Network / Exfiltration (3x) — rules NET-001..012, NET-MCP-001..002
+- Phase 4: Credentials (2x) — rules CRED-001..011, CRED-MCP-001
+- Phase 5: Obfuscation (5x) — rules OBFUSC-001..010, OBFUSC-MCP-001
+- Phase 6: Provenance (1-3x) — rules PROV-001..006
+- Phase 7: Prompt Injection (10x) — rules prompt-* (jailbreaks, encoded payloads, exfiltration, tool abuse, social engineering)
+- Phase 8: Skill Security (5x) — rules skill-* (manifest abuse, MCP exploits, permission escalation)
+- Summary
+
+Each rule entry lists severity, weight, what it detects, and a code example.
+
 ## Overview
 
 Sigil uses an **eight-phase scanning approach** with weighted severity scoring to prioritize critical threats. Each phase targets specific attack vectors, from installation-time code execution to prompt injection and AI skill security.
