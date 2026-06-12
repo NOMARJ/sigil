@@ -1116,6 +1116,23 @@
 
 - 4: react, hooks, frontend [confidence: 0.7]
 
+
+### Session 2026-06-12
+
+**Start:** 2026-06-12T06:31:01.620Z
+**Available instincts:** 5 (proven: 5, pending: 0, promoted: 0, dormant: 0)
+**Task scope:** F-003 — 57 stories (11/41/20)
+**Instincts loaded:**
+- 0: rust, safety, unicode [confidence: 0.8]
+- 1: scanner, false-positives, patterns [confidence: 0.8]
+- 2: python, imports, packaging [confidence: 0.7]
+- 3: python, fastapi, configuration [confidence: 0.7]
+**End:** 2026-06-12T06:39:16.618Z
+**Outcome:** BLOCKED
+**Stories:** 62/82 (7 blocked)
+
+- 4: react, hooks, frontend [confidence: 0.7]
+
 ## instinct-health
 
 | ID | Pattern | Injections | Applied | Completions | Fallbacks | Applied Rate | Outcome Rate | Status |
@@ -1449,9 +1466,10 @@
 
 ---
 
-## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — BUILD COMPLETE (PARTIAL) 2026-06-12
+## Feature: F-009 Sigil Pro Tier + Fable Integration (F-008 Goal 2) — COMPLETE + DEPLOYED 2026-06-12
 
-> **Status:** 11/12 stories DONE + verified · US-112 PENDING (owner/operator-gated ops verification — the only remaining item)
+> **Status:** 12/12 DONE + verified. US-112 closed 2026-06-12 — live Fable-5 adjudication through prod (async, no 504) + metering usage row verified in `credit_transactions` (scan, -3, claude-fable-5, 318 tokens; user_credits balance 5000→4997). Prod rev `sigil-api--0000108` (image `2eff98f`). Evidence: `evidence/F-009/US-112-ops-verification.md`.
+> **US-112 deploy/fix trail (2026-06-12):** five defects to land a usage row — (1) `except db.DatabaseError`→`pyodbc.Error`; (2) `initialize_user_credits` tier source; (3) prod-compatible credits migration `add_credits_system_prod.sql` (UNIQUEIDENTIFIER FK, applied); (4) async adjudication (`POST` 202 + `GET` poll, `LLM_TIMEOUT` 30→120s) to fix a Fable-5 edge-proxy 504; (5) **root cause** — `credit_service` data layer ported off asyncpg-style `fetch_one`/`execute`/`fetch_all` to the real `MssqlClient` API. Commits `84b7ce1`, `1121136`, `2eff98f`. CLI `sigil explain` now polls. Known follow-up: `purchase_credits`/`credit_packages` (Stripe top-ups) still on old API, out of scope.
 > **Feature evidence:** `.nomark/evidence/sigil-pro-fable-complete.md` (AC table, final test runs, latent-bug list)
 > **US-110 headline (2026-06-12):** FP@High 70%→30% (89/89 control verdicts benign), malicious retention 24/25 by verdict, 0 refusals in 168 live Fable 5 calls — SHIP recommendation in `evidence/F-009/fp-adjudication-eval.md`
 > **Final integration run:** api 301 passed/0 failed (baseline 276) · cli 132+4 passed/0 failed (baseline 123)

@@ -1,6 +1,26 @@
 # Evidence: US-112 — Ops verification (env, retention, live smoke)
 
-**Date:** 2026-06-12 · **Feature:** F-009 · **Status:** PASS (core feature) — live Fable 5 adjudication verified through prod; metering code fixed + prod credits schema applied (4 objects present); adjudication made async to fix a Fable-5 latency 504. Remaining: confirm the `credit_transactions` row via a direct SELECT (the `/credits` view can't show it).
+**Date:** 2026-06-12 · **Feature:** F-009 · **Status:** ✅ DONE — live Fable 5 adjudication verified through prod (async, no 504); metering usage row written and verified in `credit_transactions`; prod credits schema applied; retention attested.
+
+## Final verification (rev `sigil-api--0000108`, image `2eff98f`)
+
+Authenticated Pro smoke against `https://api.sigilsec.ai`:
+
+```
+POST .../findings/0/adjudicate → 202 (pending) → poll → 200 complete
+  verdict: "suspicious"  model: claude-fable-5                       (async; no edge 504)
+
+credit_transactions (most recent):
+  transaction_type=scan  credits_amount=-3  model_used=claude-fable-5  tokens_used=318  2026-06-12 09:22:00
+user_credits:
+  user_id=92ad6765-…  credits_balance=4997  credits_used_month=3
+```
+
+`initialize_user_credits` created the Pro row (5000 allowance); `sp_DeductCredits` charged 3 credits (318 tokens × Fable rate); the usage row persisted with `model_used = claude-fable-5`. **Usage row visible — metering closed.**
+
+**Data Source:** Real production · **Sample Size:** 1 adjudication + 1 metered transaction (owner Pro account) · **Limitations:** Free-402 path is unit-tested only (no live Free account exercised).
+
+It took five defects to get a usage row written — see the diagnosis trail below. The original `200`-sync status note at the top of this file is superseded by the async contract (`202` + poll).
 
 ## Deploy summary
 
@@ -77,9 +97,22 @@ Post-deploy smoke on rev 106 showed the **client** got `504 "stream timeout"** w
 
 - `POST .../adjudicate` now schedules a background job → `202` + pending marker (or `200` if already complete; `?force` re-runs). `GET .../adjudicate` polls (`200` complete/error, `202` pending, `404` none). State persists on the finding; stale pending self-heals. `LLM_TIMEOUT` default 30→120s. CLI `sigil explain` polls. Commit `1121136`; full API suite 315 passed.
 
-## Pending
+## Defect trail (five, to write one usage row)
 
-1. **Confirm `credit_transactions` row** (closes the metering check) — direct `SELECT` from the owner's admin IP (the `vw_credit_analytics`-backed `/credits` endpoint can't show it; view intentionally absent). The rev-106 adjudication at 08:09:31 ran the fixed deduct, so a row should exist; the post-async smoke will also write one.
-2. **Anthropic org 30-day data retention** — Fable 5 requires it. **Owner attested: on (2026-06-12).**
+1. `deduct_credits` caught `db.DatabaseError` — `MssqlClient` has no such attr → `AttributeError` masked the real error. → `except pyodbc.Error`.
+2. `initialize_user_credits` read `SELECT subscription_tier FROM users` — no such column; tier is in `subscriptions` via `get_user_plan`. → fixed.
+3. `add_credits_system.sql` couldn't apply: `user_credits.user_id NVARCHAR(128)` FK → `users(id) UNIQUEIDENTIFIER` type mismatch. → `add_credits_system_prod.sql` (applied).
+4. Edge proxy 504 on the inline call: `timeout_seconds=30` too low for Fable-5 → retry churn >240s. → async adjudication (`202`+poll), `LLM_TIMEOUT` 120s.
+5. **Root cause** — the whole `credit_service` data layer used asyncpg-style `fetch_one`/`execute`/`fetch_all` that `MssqlClient` doesn't implement; calls `AttributeError`'d and were swallowed, so no row was ever created and `deduct_credits` recursed to "maximum recursion depth exceeded". → ported to `select_one`/`insert`/`execute_raw_sql` + recursion guard.
+
+## Resolved
+
+1. **`credit_transactions` row** — verified present (see Final verification). ✅
+2. **Anthropic org 30-day data retention** — Owner attested: on (2026-06-12). ✅
+
+## Known out-of-scope follow-up
+
+- `credit_service.purchase_credits` still uses `db.fetch_one` against `credit_packages` (not provisioned in prod) — the Stripe credit-pack top-up flow, separate from F-009 metering. Will `AttributeError`/fail if invoked; tracked separately.
+- Free-tier `402` path verified by unit test only (`test_free_exhausted_402`); no live Free account exercised.
 
 No secrets in this file — secretRef / Key-Vault names only.
