@@ -1,6 +1,6 @@
 # Evidence: US-112 — Ops verification (env, retention, live smoke)
 
-**Date:** 2026-06-12 · **Feature:** F-009 · **Status:** PASS (core feature) — live Fable 5 adjudication verified through prod. Metering usage-row write is the one remaining gap; root-caused, code fixed, prod migration prepared and pending owner approval (schema change, CHARTER II.5).
+**Date:** 2026-06-12 · **Feature:** F-009 · **Status:** PASS (core feature) — live Fable 5 adjudication verified through prod; metering code fixed + prod credits schema applied (4 objects present); adjudication made async to fix a Fable-5 latency 504. Remaining: confirm the `credit_transactions` row via a direct SELECT (the `/credits` view can't show it).
 
 ## Deploy summary
 
@@ -65,15 +65,21 @@ The owner's call returned 200 because **Pro short-circuits the gate** (`require_
 - `api/services/credit_service.py`: `initialize_user_credits` now sources tier via `get_user_plan` (defect #3).
 - Tests: `api/tests/test_llm_metering.py` — `TestDeductCreditsErrorHandling` (2 regressions: insufficient-credits maps cleanly; driver error is never masked by `AttributeError`). Suite: 36 passed.
 
-### Fix pending owner approval (schema — CHARTER II.5)
+### Schema fix (defect #1) — APPLIED to prod (owner-approved)
 
-- `api/migrations/add_credits_system_prod.sql` (NEW): prod-compatible, idempotent, minimal — `user_credits` + `credit_transactions` with `UNIQUEIDENTIFIER` user_id, plus `sp_DeductCredits` / `sp_AddCredits`. Omits `interactive_sessions` (its FK references `scans(scan_id)`, absent in prod), `credit_packages`, the tier-reset proc, and the analytics view — none are on the adjudication path. **Not applied** — applying to prod MSSQL is an owner-approval boundary.
+- `api/migrations/add_credits_system_prod.sql` (NEW): prod-compatible, idempotent, minimal — `user_credits` + `credit_transactions` with `UNIQUEIDENTIFIER` user_id, plus `sp_DeductCredits` / `sp_AddCredits`. Omits `interactive_sessions` (its FK references `scans(scan_id)`, absent in prod), `credit_packages`, the tier-reset proc, and the analytics view — none are on the adjudication path.
+- Applied 2026-06-12 via `sqlcmd` from the owner's admin IP. Verify query returned all four objects **present**: `user_credits`, `credit_transactions`, `sp_DeductCredits`, `sp_AddCredits`.
+- Code fix deployed: `sigil-api--0000106` (image `84b7ce1`).
 
-Once applied: re-run the live smoke to confirm a `credit_transactions` row is written (defect #1), and verify the Free-402 path.
+### Follow-on: async adjudication (fixes a 504 surfaced by the smoke)
 
-## Pending — needs owner action
+Post-deploy smoke on rev 106 showed the **client** got `504 "stream timeout"** while the **server completed and persisted a real verdict** (`{"classification":"suspicious","model":"claude-fable-5","adjudicated_at":"2026-06-12T08:09:31"}`). Root cause: `timeout_seconds=30` is too low for Fable-5 (thinking always on) → tenacity retry churn → total >240s → edge proxy cut. Owner chose the async pattern.
 
-1. Approve + apply `add_credits_system_prod.sql` to prod MSSQL (then I re-run the smoke to confirm the usage row + Free-402).
-2. **Anthropic org 30-day data retention** — Fable 5 requires it; an Anthropic org-console setting I can't read from here. Owner attests.
+- `POST .../adjudicate` now schedules a background job → `202` + pending marker (or `200` if already complete; `?force` re-runs). `GET .../adjudicate` polls (`200` complete/error, `202` pending, `404` none). State persists on the finding; stale pending self-heals. `LLM_TIMEOUT` default 30→120s. CLI `sigil explain` polls. Commit `1121136`; full API suite 315 passed.
+
+## Pending
+
+1. **Confirm `credit_transactions` row** (closes the metering check) — direct `SELECT` from the owner's admin IP (the `vw_credit_analytics`-backed `/credits` endpoint can't show it; view intentionally absent). The rev-106 adjudication at 08:09:31 ran the fixed deduct, so a row should exist; the post-async smoke will also write one.
+2. **Anthropic org 30-day data retention** — Fable 5 requires it. **Owner attested: on (2026-06-12).**
 
 No secrets in this file — secretRef / Key-Vault names only.
