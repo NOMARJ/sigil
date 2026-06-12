@@ -154,6 +154,17 @@ class Settings(BaseSettings):
         return bool(self.auth0_domain and self.auth0_audience)
 
     @property
+    def auth0_device_flow_configured(self) -> bool:
+        """Return True when the device-authorization flow can run.
+
+        Device flow additionally needs the client_id — without it Auth0
+        rejects the device-code request, which previously surfaced as an
+        opaque 503. Checked separately so JWT validation (domain+audience
+        only) is unaffected.
+        """
+        return self.auth0_configured and bool(self.auth0_client_id)
+
+    @property
     def supabase_configured(self) -> bool:
         """Return True when both Supabase URL and key are set (deprecated)."""
         return bool(self.supabase_url and self.supabase_key)

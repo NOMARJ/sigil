@@ -16,7 +16,6 @@ mod scanner;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -1694,32 +1693,8 @@ async fn cmd_login(token: Option<&str>, endpoint: &str, verbose: bool) -> i32 {
             }
         },
         None => {
-            // Interactive login: prompt for email and password
-            print!("Email: ");
-            if io::stdout().flush().is_err() {
-                eprintln!("{} failed to flush stdout", "error:".bold().red());
-                return 1;
-            }
-            let mut email = String::new();
-            if io::stdin().read_line(&mut email).is_err() {
-                eprintln!("{} failed to read email", "error:".bold().red());
-                return 1;
-            }
-            let email = email.trim();
-
-            print!("Password: ");
-            if io::stdout().flush().is_err() {
-                eprintln!("{} failed to flush stdout", "error:".bold().red());
-                return 1;
-            }
-            let mut password = String::new();
-            if io::stdin().read_line(&mut password).is_err() {
-                eprintln!("{} failed to read password", "error:".bold().red());
-                return 1;
-            }
-            let password = password.trim();
-
-            match client.login(email, password).await {
+            // Browser-based device authorization flow (replaces password login).
+            match client.login_device_flow().await {
                 Ok(_) => {
                     println!("{} logged in successfully", "sigil:".bold().green());
                     0

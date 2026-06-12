@@ -59,6 +59,28 @@ struct AuthResponse {
     pub expires_at: Option<String>,
 }
 
+/// Response from POST /v1/auth/device/code.
+#[derive(Debug, Deserialize)]
+struct DeviceCodeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    #[serde(default)]
+    verification_uri_complete: String,
+    #[serde(default = "default_interval")]
+    interval: u64,
+}
+
+fn default_interval() -> u64 {
+    5
+}
+
+/// Success body from POST /v1/auth/device/token.
+#[derive(Debug, Deserialize)]
+struct DeviceTokenResponse {
+    access_token: String,
+}
+
 // ---------------------------------------------------------------------------
 // Token storage
 // ---------------------------------------------------------------------------
@@ -403,39 +425,95 @@ impl SigilClient {
             .map_err(|e| format!("failed to parse response: {}", e))
     }
 
-    /// Authenticate with email and password.
+    /// Authenticate via the OAuth 2.0 device authorization flow.
     ///
-    /// POST /v1/auth/login
-    pub async fn login(&self, email: &str, password: &str) -> Result<(), String> {
-        let url = format!("{}/v1/auth/login", self.endpoint);
+    /// Requests a device code, shows the user the verification URL + code,
+    /// then polls until they complete sign-in in the browser. Saves the
+    /// resulting access token. This replaces the removed password login.
+    pub async fn login_device_flow(&self) -> Result<(), String> {
+        use colored::Colorize;
 
-        let body = serde_json::json!({
-            "email": email,
-            "password": password,
-        });
-
-        let response = self
+        // 1. Request a device code.
+        let code: DeviceCodeResponse = self
             .client
-            .post(&url)
-            .json(&body)
+            .post(format!("{}/v1/auth/device/code", self.endpoint))
+            .json(&serde_json::json!({}))
             .send()
             .await
-            .map_err(|e| offline_fallback_message(&e))?;
-
-        if !response.status().is_success() {
-            return Err(format!(
-                "login failed (server returned {})",
-                response.status()
-            ));
-        }
-
-        let auth: AuthResponse = response
+            .map_err(|e| offline_fallback_message(&e))?
+            .error_for_status()
+            .map_err(|e| match e.status() {
+                Some(s) if s.as_u16() == 503 => {
+                    "device flow unavailable (server returned 503 — Auth0 not configured)"
+                        .to_string()
+                }
+                Some(s) => format!("could not start device flow (server returned {})", s),
+                None => format!("could not start device flow: {}", e),
+            })?
             .json()
             .await
-            .map_err(|e| format!("failed to parse auth response: {}", e))?;
+            .map_err(|e| format!("failed to parse device code response: {}", e))?;
 
-        save_token(&auth.token)?;
-        Ok(())
+        // 2. Prompt the user.
+        let url = if code.verification_uri_complete.is_empty() {
+            code.verification_uri.clone()
+        } else {
+            code.verification_uri_complete.clone()
+        };
+        println!(
+            "\n{} open this URL to sign in:\n    {}\n  and confirm the code: {}\n",
+            "sigil:".bold().cyan(),
+            url.bold().underline(),
+            code.user_code.bold().yellow()
+        );
+        println!("{} waiting for you to finish in the browser…", "sigil:".dimmed());
+
+        // 3. Poll for the token.
+        let token_url = format!(
+            "{}/v1/auth/device/token?device_code={}",
+            self.endpoint, code.device_code
+        );
+        let mut interval = code.interval.max(1);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+
+            let resp = self
+                .client
+                .post(&token_url)
+                .send()
+                .await
+                .map_err(|e| offline_fallback_message(&e))?;
+
+            let status = resp.status();
+            if status.is_success() {
+                let body: DeviceTokenResponse = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("failed to parse token response: {}", e))?;
+                save_token(&body.access_token)?;
+                return Ok(());
+            }
+
+            // 400 carries an OAuth error in {"detail": {"error": ...}}.
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            let err = body
+                .get("detail")
+                .and_then(|d| d.get("error"))
+                .and_then(|e| e.as_str())
+                .unwrap_or("unknown_error");
+            match err {
+                "authorization_pending" => continue,
+                "slow_down" => {
+                    interval += 5;
+                    continue;
+                }
+                "expired_token" => {
+                    return Err("the sign-in code expired — run `sigil login` again".to_string())
+                }
+                "access_denied" => return Err("sign-in was denied".to_string()),
+                other => return Err(format!("device flow failed: {}", other)),
+            }
+        }
     }
 
     /// Register a new account and receive a token.

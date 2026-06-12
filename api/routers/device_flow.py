@@ -99,10 +99,12 @@ async def request_device_code() -> dict[str, Any]:
     Returns device code and verification URL for user to complete authentication.
     CLI should display the verification_uri and user_code to the user.
     """
-    if not settings.auth0_configured:
+    if not settings.auth0_device_flow_configured:
+        missing = "client_id" if settings.auth0_configured else "domain/audience"
+        logger.error("Device flow not configured — missing Auth0 %s", missing)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 not configured",
+            detail=f"Device flow not configured (missing Auth0 {missing})",
         )
 
     # Request device code from Auth0
@@ -222,10 +224,10 @@ async def poll_device_token(device_code: str) -> dict[str, Any]:
     - 400 with expired_token: Device code expired (restart flow)
     - 400 with access_denied: User denied authorization
     """
-    if not settings.auth0_configured:
+    if not settings.auth0_device_flow_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 not configured",
+            detail="Device flow not configured",
         )
 
     # Exchange device code for token
