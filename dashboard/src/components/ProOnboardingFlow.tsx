@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getCreditUsage } from "@/lib/api";
 
 interface OnboardingStep {
   id: string;
@@ -32,14 +33,11 @@ export function ProOnboardingFlow() {
 
   const fetchCreditBalance = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/v1/billing/credits/usage');
-      if (response.ok) {
-        const data = await response.json();
-        setCreditBalance({
-          current_balance: data.current_balance,
-          monthly_allocation: data.monthly_allocation,
-        });
-      }
+      const data = await getCreditUsage();
+      setCreditBalance({
+        current_balance: data.current_balance,
+        monthly_allocation: data.monthly_allocation,
+      });
     } catch (err) {
       console.error('Failed to fetch credit balance:', err);
     } finally {

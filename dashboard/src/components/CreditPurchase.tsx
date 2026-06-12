@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { purchaseCredits } from "@/lib/api";
 
 interface CreditPackage {
-  id: string;
+  id: number;
   credits: number;
   price: number;
   bonus?: number;
@@ -19,28 +20,29 @@ interface CreditPurchaseProps {
 
 const CREDIT_PACKAGES: CreditPackage[] = [
   {
-    id: "credits_1000",
+    id: 1,
     credits: 1000,
-    price: 10,
+    price: 9.99,
+    bonus: 100,
   },
   {
-    id: "credits_5000",
-    credits: 5000,
-    price: 40,
+    id: 2,
+    credits: 3000,
+    price: 24.99,
     bonus: 500,
     popular: true,
   },
   {
-    id: "credits_10000",
-    credits: 10000,
-    price: 75,
-    bonus: 1500,
+    id: 3,
+    credits: 5000,
+    price: 39.99,
+    bonus: 1000,
   },
   {
-    id: "credits_25000",
-    credits: 25000,
-    price: 150,
-    bonus: 5000,
+    id: 4,
+    credits: 10000,
+    price: 69.99,
+    bonus: 2500,
   },
 ];
 
@@ -62,23 +64,7 @@ export function CreditPurchase({
     setSelectedPackage(pkg);
 
     try {
-      const response = await fetch('/api/v1/billing/credits/purchase', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          package_id: pkg.id,
-          credits: pkg.credits,
-          amount: pkg.price,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create purchase session');
-      }
-
-      const data = await response.json();
+      const data = await purchaseCredits(pkg.id);
       
       // Redirect to Stripe checkout
       if (data.checkout_url) {

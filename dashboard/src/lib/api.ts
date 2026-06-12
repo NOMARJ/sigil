@@ -44,7 +44,7 @@ async function getToken(): Promise<string | null> {
 
   // Only Auth0 tokens now
   try {
-    const res = await fetch("/auth/access-token", {
+    const res = await fetch("/api/auth/token", {
       credentials: 'include',
       cache: 'no-store',
     });
@@ -453,4 +453,60 @@ export async function getSubscription(): Promise<Subscription> {
 
 export async function createPortalSession(): Promise<PortalSession> {
   return request<PortalSession>("/billing/portal", { method: "POST" });
+}
+
+export type CreditUsage = {
+  current_balance: number;
+  monthly_allocation: number;
+  used_this_month: number;
+  reset_date?: string | null;
+  days_until_reset: number;
+  transactions: Array<{
+    id: string;
+    amount: number;
+    feature: string;
+    timestamp: string;
+    description: string;
+  }>;
+};
+
+export type CreditPurchaseSession = {
+  success: boolean;
+  checkout_url?: string | null;
+  credits_purchased?: number | null;
+  new_balance?: number | null;
+};
+
+function daysUntil(resetDate?: string | null): number {
+  if (!resetDate) return 0;
+
+  const timestamp = Date.parse(resetDate);
+  if (Number.isNaN(timestamp)) return 0;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((timestamp - Date.now()) / dayMs));
+}
+
+export async function getCreditUsage(): Promise<CreditUsage> {
+  const usage = await request<{
+    current_balance: number;
+    monthly_allocation: number;
+    used_this_month: number;
+    reset_date?: string | null;
+  }>("/v1/interactive/credits");
+
+  return {
+    ...usage,
+    days_until_reset: daysUntil(usage.reset_date),
+    transactions: [],
+  };
+}
+
+export async function purchaseCredits(
+  packageId: number,
+): Promise<CreditPurchaseSession> {
+  return request<CreditPurchaseSession>("/billing/purchase-credits", {
+    method: "POST",
+    body: JSON.stringify({ package_id: packageId }),
+  });
 }

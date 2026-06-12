@@ -1625,6 +1625,24 @@
 
 ## Bugfix Log
 
+### BUGFIX: Scanner announcement docs links 404 (2026-06-12)
+- **Status:** DONE ✅ (2026-06-12, Codex)
+- **Scope:** trivial
+- **Goal:** `/docs/changelog` and `/docs/scanner-v2` from the enhanced scanner banner resolve to dashboard-owned pages instead of 404.
+- **Done when:** Dashboard regression test proves the banner links point to existing app routes, `npm run build` includes both docs routes, and lint remains clean aside from known warnings.
+- **Files:** `dashboard/src/app/docs/changelog/page.tsx`, `dashboard/src/app/docs/scanner-v2/page.tsx`, `dashboard/src/__tests__/components/SubscriptionManager.routes.test.ts`, `progress.md`
+- **Evidence:** Live probes showed both `https://app.sigilsec.ai/docs/changelog` and `https://www.sigilsec.ai/docs/changelog` return 404, so redirecting to the public site would not fix the link. `npm test -- --runInBand SubscriptionManager.routes.test.ts` passed 5/5. `npm run build` exited 0 and generated 34/34 static pages, including `/docs/changelog` and `/docs/scanner-v2`. `npx tsc --noEmit` exited 0 after build refreshed Next route types. `npm run lint` exited 0 with the same 5 pre-existing warnings.
+- **Notes:** Added dashboard-owned static docs pages for the scanner v2 improvement link and changelog link; no production deploy has been run yet.
+
+### BUGFIX: Dashboard Auth0 session token and Pro credit API routing (2026-06-12)
+- **Status:** DONE ✅ (2026-06-12, Codex)
+- **Scope:** moderate
+- **Goal:** Authenticated dashboard pages send a real Auth0 bearer token to the Sigil API and Pro credit widgets stop calling dead `/api/v1/billing/credits/*` routes.
+- **Done when:** Dashboard tests covering API route usage pass, `npm run build` succeeds, and live/header probes confirm API CORS is not the remaining blocker.
+- **Files:** `dashboard/src/lib/api.ts`, `dashboard/src/components/CreditUsageDashboard.tsx`, `dashboard/src/components/ProOnboardingFlow.tsx`, `dashboard/src/components/CreditPurchase.tsx`, dashboard regression tests.
+- **Evidence:** Live probes with `Origin: https://app.sigilsec.ai` returned `access-control-allow-origin: https://app.sigilsec.ai` for `https://api.sigilsec.ai/dashboard/stats`, `https://api.sigilsec.ai/scans?page=1&per_page=5`, and the OPTIONS preflight, so backend CORS was not the remaining blocker. `npm test -- --runInBand SubscriptionManager.routes.test.ts` passed 4/4; `npx tsc --noEmit` exited 0; `npm run build` exited 0 on Next 16.2.7 and generated 32/32 static pages; `npm run lint` exited 0 with 5 pre-existing warnings.
+- **Notes:** Root cause was missing dashboard bearer token retrieval after Auth0 v4 migration: `dashboard/src/lib/api.ts` called `/auth/access-token`, but the checked-in route is `/api/auth/token`. Pro credit widgets also called dead same-origin paths (`/api/v1/billing/credits/usage` and `/api/v1/billing/credits/purchase`); they now use shared API helpers backed by existing FastAPI routes `/v1/interactive/credits` and `/v1/billing/purchase-credits`. Credit package IDs were aligned to backend numeric IDs `1..4`.
+
 ### BUGFIX: POST /v1/scan 422 "Bad request" on valid bodies (2026-06-08)
 - **Status:** DONE ✅
 - **Symptom:** `POST /v1/scan` (and every other `Depends(RateLimiter(...))`-protected endpoint) returned `422 {"detail":"Bad request"}` on valid JSON bodies, on Python 3.11 (Docker/CI) and 3.9 (local).

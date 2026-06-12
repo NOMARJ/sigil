@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCreditUsage } from "@/lib/api";
 
 interface CreditTransaction {
   id: string;
@@ -36,11 +37,7 @@ export function CreditUsageDashboard({ subscription }: CreditUsageDashboardProps
 
   const fetchCreditUsage = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/v1/billing/credits/usage');
-      if (!response.ok) {
-        throw new Error('Failed to fetch credit usage');
-      }
-      const data = await response.json();
+      const data = await getCreditUsage();
       setUsage(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
