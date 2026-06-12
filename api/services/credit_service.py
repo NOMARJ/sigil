@@ -9,7 +9,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Literal
+from typing import Any, Dict, Optional, Literal
 
 import pyodbc
 
@@ -89,21 +89,16 @@ class CreditService:
     async def get_balance(self, user_id: str) -> int:
         """Get current credit balance for user."""
         try:
-            result = await db.fetch_one(
-                """
-                SELECT credits_balance 
-                FROM user_credits 
-                WHERE user_id = :user_id
-                """,
-                {"user_id": user_id},
-            )
+            result = await db.select_one("user_credits", {"user_id": user_id})
 
             if not result:
-                # Initialize credits for new user
+                # Initialize credits for new user, then re-read once (no
+                # recursion: if init silently failed, fall back to 0).
                 await self.initialize_user_credits(user_id)
-                return await self.get_balance(user_id)
+                result = await db.select_one("user_credits", {"user_id": user_id})
+                return int(result["credits_balance"]) if result else 0
 
-            return result["credits_balance"]
+            return int(result["credits_balance"])
 
         except Exception as e:
             logger.exception(f"Failed to get credit balance for {user_id}: {e}")
@@ -124,6 +119,7 @@ class CreditService:
         model_used: Optional[str] = None,
         tokens_used: Optional[int] = None,
         metadata: Optional[Dict] = None,
+        _retry: bool = True,
     ) -> int:
         """
         Deduct credits from user balance.
@@ -166,7 +162,16 @@ class CreditService:
                     f"User {user_id} has insufficient credits ({amount} required)"
                 )
             elif "User credits not found" in str(e):
-                # Initialize and retry
+                if not _retry:
+                    # initialize_user_credits ran but the row still isn't there
+                    # — surface instead of recursing forever.
+                    logger.error(
+                        f"Credit init did not create a row for {user_id}; "
+                        "cannot deduct."
+                    )
+                    raise CreditTransactionError(
+                        "Could not initialize user credits"
+                    )
                 await self.initialize_user_credits(user_id)
                 return await self.deduct_credits(
                     user_id,
@@ -177,6 +182,7 @@ class CreditService:
                     model_used,
                     tokens_used,
                     metadata,
+                    _retry=False,
                 )
             else:
                 logger.exception(f"Credit deduction failed for {user_id}: {e}")
@@ -232,18 +238,14 @@ class CreditService:
             tier = await get_user_plan(user_id)
             initial_credits = monthly_allowance(tier)
 
-            # Create credit record
-            await db.execute(
-                """
-                INSERT INTO user_credits (
-                    user_id, credits_balance, subscription_credits, reset_date
-                ) VALUES (
-                    :user_id, :credits, :credits, :reset_date
-                )
-                """,
+            # Create credit record (SQL Server implicitly converts the GUID
+            # string user_id to the UNIQUEIDENTIFIER column).
+            await db.insert(
+                "user_credits",
                 {
                     "user_id": user_id,
-                    "credits": initial_credits,
+                    "credits_balance": initial_credits,
+                    "subscription_credits": initial_credits,
                     "reset_date": datetime.utcnow() + timedelta(days=30),
                 },
             )
@@ -347,33 +349,23 @@ class CreditService:
     ) -> list[Dict]:
         """Get credit transaction history for user."""
         try:
-            query = """
-                SELECT 
-                    transaction_id,
-                    credits_amount,
-                    credits_balance_after,
-                    transaction_type,
-                    transaction_status,
-                    scan_id,
-                    session_id,
-                    model_used,
-                    tokens_used,
-                    metadata,
-                    created_at
-                FROM credit_transactions
-                WHERE user_id = :user_id
-            """
-
-            params = {"user_id": user_id}
-
+            # T-SQL: TOP (?) instead of LIMIT; positional ? params.
+            query = (
+                "SELECT TOP (?) transaction_id, credits_amount, "
+                "credits_balance_after, transaction_type, transaction_status, "
+                "scan_id, session_id, model_used, tokens_used, metadata, "
+                "created_at FROM credit_transactions WHERE user_id = ?"
+            )
+            params: list[Any] = [limit, user_id]
             if transaction_type:
-                query += " AND transaction_type = :transaction_type"
-                params["transaction_type"] = transaction_type
+                query += " AND transaction_type = ?"
+                params.append(transaction_type)
+            query += " ORDER BY created_at DESC"
 
-            query += " ORDER BY created_at DESC LIMIT :limit"
-            params["limit"] = limit
+            results = await db.execute_raw_sql(query, tuple(params))
 
-            results = await db.fetch_all(query, params)
+            def _iso(v):
+                return v.isoformat() if hasattr(v, "isoformat") else v
 
             return [
                 {
@@ -389,7 +381,7 @@ class CreditService:
                     "metadata": json.loads(row["metadata"])
                     if row["metadata"]
                     else None,
-                    "timestamp": row["created_at"].isoformat(),
+                    "timestamp": _iso(row["created_at"]),
                 }
                 for row in results
             ]
@@ -399,24 +391,14 @@ class CreditService:
             return []
 
     async def get_usage_analytics(self, user_id: str) -> Dict:
-        """Get credit usage analytics for user."""
+        """Get credit usage analytics for user.
+
+        Reads ``user_credits`` directly — the ``vw_credit_analytics`` view is
+        not provisioned (it depends on ``interactive_sessions`` and a
+        ``users.subscription_tier`` column that do not exist in this schema).
+        """
         try:
-            result = await db.fetch_one(
-                """
-                SELECT 
-                    credits_balance,
-                    credits_used_month,
-                    subscription_credits,
-                    bonus_credits,
-                    reset_date,
-                    scans_last_30_days,
-                    interactive_sessions_last_30_days,
-                    total_credits_consumed_month
-                FROM vw_credit_analytics
-                WHERE user_id = :user_id
-                """,
-                {"user_id": user_id},
-            )
+            result = await db.select_one("user_credits", {"user_id": user_id})
 
             if not result:
                 return {
@@ -432,19 +414,17 @@ class CreditService:
                     },
                 }
 
+            reset = result.get("reset_date")
             return {
                 "balance": result["credits_balance"],
                 "used_this_month": result["credits_used_month"],
                 "monthly_allocation": result["subscription_credits"],
                 "bonus_credits": result["bonus_credits"],
-                "reset_date": result["reset_date"].isoformat()
-                if result["reset_date"]
-                else None,
+                "reset_date": reset.isoformat() if hasattr(reset, "isoformat") else reset,
                 "usage_stats": {
-                    "scans": result["scans_last_30_days"] or 0,
-                    "interactive_sessions": result["interactive_sessions_last_30_days"]
-                    or 0,
-                    "total_consumed": result["total_credits_consumed_month"] or 0,
+                    "scans": result["credits_used_month"] or 0,
+                    "interactive_sessions": 0,
+                    "total_consumed": result["credits_used_month"] or 0,
                 },
             }
 

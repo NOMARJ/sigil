@@ -180,3 +180,48 @@ class TestDeductCreditsErrorHandling:
         with pytest.raises(Exception) as exc:
             await service.deduct_credits("u1", 5, "scan")
         assert not isinstance(exc.value, AttributeError)
+
+    @pytest.mark.asyncio
+    async def test_not_found_then_init_failure_does_not_recurse(self, monkeypatch):
+        """User-credits-not-found + a no-op init must raise cleanly, not recurse
+        forever (the prod 'maximum recursion depth exceeded' bug)."""
+        service = CreditService()
+        err = pyodbc.ProgrammingError("42000", "User credits not found (50001)")
+        monkeypatch.setattr(
+            "api.services.credit_service.db.execute_procedure",
+            AsyncMock(side_effect=err),
+        )
+        monkeypatch.setattr(service, "initialize_user_credits", AsyncMock(return_value=None))
+        with pytest.raises(Exception) as exc:
+            await service.deduct_credits("u1", 5, "scan")
+        assert not isinstance(exc.value, RecursionError)
+
+
+class TestCreditDataAccess:
+    """credit_service must use the real MssqlClient API (select_one/insert),
+    not the asyncpg-style fetch_one/execute it was originally written against
+    (which AttributeError'd at runtime and silently created no rows)."""
+
+    @pytest.mark.asyncio
+    async def test_initialize_creates_row_and_balance_reads_it(self, monkeypatch):
+        from api.database import db
+        from api import gates
+
+        service = CreditService()
+        uid = "11111111-2222-3333-4444-555555555555"
+
+        async def fake_plan(user_id):
+            return PlanTier.FREE
+
+        monkeypatch.setattr(gates, "get_user_plan", fake_plan)
+        monkeypatch.setattr(
+            "api.services.credit_service.os.getenv",
+            lambda k, d=None: "50" if k == "LLM_FREE_MONTHLY_CREDITS" else d,
+        )
+
+        await service.initialize_user_credits(uid)
+        row = await db.select_one("user_credits", {"user_id": uid})
+        assert row is not None, "initialize_user_credits must insert a row"
+        assert row["credits_balance"] == 50
+
+        assert await service.get_balance(uid) == 50
