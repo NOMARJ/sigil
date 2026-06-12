@@ -7,6 +7,7 @@
 use colored::Colorize;
 use serde_json::{json, Value};
 use std::path::Path;
+use std::time::Duration;
 
 /// Extract the findings array from a `sigil scan -f json` output file.
 ///
@@ -227,26 +228,24 @@ pub async fn cmd_explain(
         }
     };
 
-    // 2. Ask the server to adjudicate the chosen finding.
+    // 2. Schedule async adjudication. The server runs Fable-5 in the
+    //    background (it routinely takes >100s) and returns 202 with a pending
+    //    marker; a re-request of an already-adjudicated finding returns 200.
     if verbose {
         eprintln!("adjudicating finding {} of scan {}", finding_index, scan_id);
     }
-    let adjudicate = client
-        .post(format!(
-            "{}/v1/scans/{}/findings/{}/adjudicate",
-            endpoint, scan_id, finding_index
-        ))
-        .bearer_auth(&token)
-        .send()
-        .await;
-
-    match adjudicate {
+    let adj_url = format!(
+        "{}/v1/scans/{}/findings/{}/adjudicate",
+        endpoint, scan_id, finding_index
+    );
+    match client.post(&adj_url).bearer_auth(&token).send().await {
         Ok(resp) => {
             let status = resp.status();
             let body: Value = resp.json().await.unwrap_or(Value::Null);
             match status.as_u16() {
                 200 => {
-                    match body.get("adjudication") {
+                    // Already complete (idempotent re-request).
+                    return match body.get("adjudication") {
                         Some(adjudication) => {
                             render_verdict(adjudication);
                             0
@@ -258,33 +257,19 @@ pub async fn cmd_explain(
                             );
                             2
                         }
-                    }
+                    };
                 }
+                202 => { /* scheduled — fall through to poll */ }
                 402 => {
                     render_upgrade(&body);
-                    2
-                }
-                422 => {
-                    let inner = body.get("detail").unwrap_or(&body);
-                    let category = inner
-                        .get("category")
-                        .and_then(|c| c.as_str())
-                        .unwrap_or("unspecified");
-                    eprintln!(
-                        "{} the model declined to analyze this finding (category: {}). \
-                         This can happen with content that trips safety classifiers; \
-                         the finding remains unadjudicated.",
-                        "sigil:".bold().yellow(),
-                        category
-                    );
-                    2
+                    return 2;
                 }
                 401 | 403 => {
                     eprintln!(
                         "{} not authorized — run `sigil login` or check your plan",
                         "error:".bold().red()
                     );
-                    2
+                    return 2;
                 }
                 _ => {
                     eprintln!(
@@ -293,15 +278,90 @@ pub async fn cmd_explain(
                         status,
                         body
                     );
-                    2
+                    return 2;
                 }
             }
         }
         Err(e) => {
             eprintln!("{} cannot reach {}: {}", "error:".bold().red(), endpoint, e);
-            2
+            return 2;
         }
     }
+
+    // 3. Poll the GET form of the path until a terminal state. The server's
+    //    edge proxy would 504 a long inline call, so the verdict is fetched
+    //    out-of-band.
+    if verbose {
+        eprintln!("scheduled — waiting for the model (this can take a couple of minutes)…");
+    }
+    let interval = Duration::from_secs(3);
+    let max_polls = 80; // ~4 minutes
+    for _ in 0..max_polls {
+        tokio::time::sleep(interval).await;
+        let resp = match client.get(&adj_url).bearer_auth(&token).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("{} cannot reach {}: {}", "error:".bold().red(), endpoint, e);
+                return 2;
+            }
+        };
+        let status = resp.status();
+        let body: Value = resp.json().await.unwrap_or(Value::Null);
+        match status.as_u16() {
+            202 => continue, // still pending
+            200 => {
+                let state = body.get("status").and_then(|s| s.as_str()).unwrap_or("");
+                let adj = body.get("adjudication").cloned().unwrap_or(Value::Null);
+                if state == "error" {
+                    let reason = adj.get("reason").and_then(|r| r.as_str()).unwrap_or("");
+                    if reason == "llm_refusal" {
+                        let category = adj
+                            .get("category")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("unspecified");
+                        eprintln!(
+                            "{} the model declined to analyze this finding (category: {}). \
+                             This can happen with content that trips safety classifiers; \
+                             the finding remains unadjudicated.",
+                            "sigil:".bold().yellow(),
+                            category
+                        );
+                    } else {
+                        let msg = adj
+                            .get("error")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("adjudication failed");
+                        eprintln!("{} {}", "error:".bold().red(), msg);
+                    }
+                    return 2;
+                }
+                render_verdict(&adj);
+                return 0;
+            }
+            401 | 403 => {
+                eprintln!(
+                    "{} not authorized — run `sigil login` or check your plan",
+                    "error:".bold().red()
+                );
+                return 2;
+            }
+            _ => {
+                eprintln!(
+                    "{} adjudication failed ({}): {}",
+                    "error:".bold().red(),
+                    status,
+                    body
+                );
+                return 2;
+            }
+        }
+    }
+    eprintln!(
+        "{} adjudication is taking longer than expected; it may still finish. \
+         Re-run `sigil explain` on the same input to check.",
+        "sigil:".bold().yellow()
+    );
+    2
 }
 
 #[cfg(test)]

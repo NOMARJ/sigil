@@ -22,7 +22,15 @@ from typing import Any
 from typing_extensions import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
 
 from api.database import db
 from api.rate_limit import RateLimiter
@@ -906,71 +914,133 @@ async def get_scan_findings(
     return findings
 
 
-@router.post(
-    "/scans/{scan_id}/findings/{finding_index}/adjudicate",
-    response_model=dict[str, Any],
-    summary="LLM-adjudicate a single finding (F-009)",
-    responses={
-        401: {"model": ErrorResponse},
-        402: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        422: {"model": ErrorResponse},
-    },
-)
-async def adjudicate_finding(
-    scan_id: str,
-    finding_index: int,
-    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
-    _: Annotated[None, Depends(require_llm_access(4))],
-) -> dict[str, Any]:
-    """Run LLM FP adjudication on one finding and persist the verdict.
+# ---------------------------------------------------------------------------
+# F-009: single-finding LLM adjudication — async (runs as a background job)
+# ---------------------------------------------------------------------------
+# Fable-5 adjudication (thinking always on) routinely runs >100s. Running it
+# inline tripped the edge proxy's request timeout (client 504) even though the
+# server completed. POST now schedules the work and returns 202; the verdict, a
+# pending marker, or an error marker is persisted on the finding (findings_json)
+# and read back via the GET form of the path. A pending marker older than the
+# stale window is re-triggerable, so a container recycle mid-call self-heals.
+_ADJUDICATION_STALE_SECONDS = 300
 
-    Idempotent: re-adjudication overwrites the finding's previous verdict.
-    """
-    from api.llm_config import llm_config
-    from api.services.credit_service import credit_service
-    from api.services.fp_adjudicator import fp_adjudicator
-    from api.services.llm_service import LLMRefusalError
 
-    row = await _get_scan_or_404(scan_id)
+def _parse_findings(row: dict[str, Any]) -> list[dict[str, Any]]:
     findings = row.get("findings_json", [])
     if isinstance(findings, str):
         try:
             findings = json.loads(findings)
         except (json.JSONDecodeError, TypeError):
             findings = []
-    if not 0 <= finding_index < len(findings):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Finding index {finding_index} out of range for scan '{scan_id}'",
-        )
+    return findings if isinstance(findings, list) else []
 
+
+def _adjudication_state(adj: Any) -> str:
+    """none | pending | complete | error for a finding's adjudication block."""
+    if not isinstance(adj, dict):
+        return "none"
+    if adj.get("status") == "error":
+        return "error"
+    if adj.get("classification"):
+        return "complete"
+    if adj.get("status") == "pending":
+        return "pending"
+    return "none"
+
+
+def _pending_is_stale(adj: dict[str, Any]) -> bool:
+    try:
+        ts = datetime.fromisoformat(adj.get("requested_at"))
+    except (ValueError, TypeError):
+        return True
+    return (datetime.utcnow() - ts).total_seconds() > _ADJUDICATION_STALE_SECONDS
+
+
+async def _persist_adjudication(
+    scan_id: str, finding_index: int, adjudication: dict[str, Any]
+) -> None:
+    """Re-read the scan and write one finding's adjudication block so a
+    concurrent update to a sibling finding is not clobbered."""
+    row = await db.select_one(SCAN_TABLE, {"id": scan_id})
+    if row is None:
+        return
+    findings = _parse_findings(row)
+    if not 0 <= finding_index < len(findings):
+        return
+    findings[finding_index]["adjudication"] = adjudication
+    await db.update(SCAN_TABLE, {"id": scan_id}, {"findings_json": findings})
+
+
+async def _run_adjudication_job(
+    scan_id: str, finding_index: int, user_id: str
+) -> None:
+    """Background worker: run Fable-5 adjudication, persist the verdict, meter.
+
+    Persists an error marker on any failure so the poller never hangs on
+    'pending'. Metering stays best-effort — a failed deduction never discards a
+    verdict the user already paid tokens for.
+    """
+    from api.llm_config import llm_config
+    from api.services.credit_service import credit_service
+    from api.services.fp_adjudicator import fp_adjudicator
+    from api.services.llm_service import LLMRefusalError
+
+    row = await db.select_one(SCAN_TABLE, {"id": scan_id})
+    if row is None:
+        return
+    findings = _parse_findings(row)
+    if not 0 <= finding_index < len(findings):
+        return
     finding = findings[finding_index]
     code_context = finding.get("code_context") or finding.get("snippet", "")
 
     try:
         verdict = await fp_adjudicator.adjudicate(finding, code_context)
     except LLMRefusalError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "detail": "Adjudication declined by model safety classifiers",
+        await _persist_adjudication(
+            scan_id,
+            finding_index,
+            {
+                "status": "error",
+                "error": "Adjudication declined by model safety classifiers",
                 "reason": "llm_refusal",
                 "category": e.category,
+                "failed_at": datetime.utcnow().isoformat(),
             },
         )
+        return
+    except Exception as e:  # noqa: BLE001 — persist the failure, don't crash the worker
+        logger.exception(
+            f"Adjudication job failed for {scan_id}[{finding_index}]: {e}"
+        )
+        await _persist_adjudication(
+            scan_id,
+            finding_index,
+            {
+                "status": "error",
+                "error": "Adjudication failed — please retry",
+                "reason": "llm_error",
+                "failed_at": datetime.utcnow().isoformat(),
+            },
+        )
+        return
 
     usage = verdict.pop("_usage", {})
-    finding["adjudication"] = {
-        **verdict,
-        "model": llm_config.deep_model,
-        "adjudicated_at": datetime.utcnow().isoformat(),
-    }
-    await db.update(SCAN_TABLE, {"id": scan_id}, {"findings_json": findings})
+    await _persist_adjudication(
+        scan_id,
+        finding_index,
+        {
+            **verdict,
+            "status": "complete",
+            "model": llm_config.deep_model,
+            "adjudicated_at": datetime.utcnow().isoformat(),
+        },
+    )
 
     try:
         await credit_service.record_llm_usage(
-            user_id=current_user.id,
+            user_id=user_id,
             model=llm_config.deep_model,
             input_tokens=usage.get("input_tokens_est", 0),
             output_tokens=usage.get("output_tokens_est", 0),
@@ -978,14 +1048,130 @@ async def adjudicate_finding(
             scan_id=scan_id,
         )
     except Exception as e:
-        # Metering is best-effort here: the allowance gate already ran, and a
-        # failed deduction must not discard a verdict the user paid tokens for.
-        logger.warning(f"LLM usage metering failed for {current_user.id}: {e}")
+        logger.warning(f"LLM usage metering failed for {user_id}: {e}")
 
+
+@router.post(
+    "/scans/{scan_id}/findings/{finding_index}/adjudicate",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Schedule LLM adjudication of a finding (F-009, async)",
+    responses={
+        200: {"description": "Adjudication already complete — verdict returned"},
+        202: {"description": "Adjudication scheduled or already in progress"},
+        401: {"model": ErrorResponse},
+        402: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
+)
+async def adjudicate_finding(
+    scan_id: str,
+    finding_index: int,
+    background_tasks: BackgroundTasks,
+    response: Response,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+    _: Annotated[None, Depends(require_llm_access(4))],
+    force: Annotated[
+        bool, Query(description="Re-run even if a verdict already exists")
+    ] = False,
+) -> dict[str, Any]:
+    """Schedule async Fable-5 adjudication of one finding.
+
+    Returns 200 with the verdict if one already exists (unless ``force``);
+    otherwise 202 after scheduling, or 202 if one is already in progress. Poll
+    the GET form of this path for the terminal result.
+    """
+    row = await _get_scan_or_404(scan_id)
+    findings = _parse_findings(row)
+    if not 0 <= finding_index < len(findings):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Finding index {finding_index} out of range for scan '{scan_id}'",
+        )
+
+    adj = findings[finding_index].get("adjudication")
+    state = _adjudication_state(adj)
+
+    if state == "complete" and not force:
+        response.status_code = status.HTTP_200_OK
+        return {
+            "scan_id": scan_id,
+            "finding_index": finding_index,
+            "status": "complete",
+            "adjudication": adj,
+        }
+
+    if state == "pending" and not force and not _pending_is_stale(adj):
+        return {
+            "scan_id": scan_id,
+            "finding_index": finding_index,
+            "status": "pending",
+            "adjudication": adj,
+        }
+
+    pending = {
+        "status": "pending",
+        "requested_at": datetime.utcnow().isoformat(),
+        "model": "claude-fable-5",
+    }
+    findings[finding_index]["adjudication"] = pending
+    await db.update(SCAN_TABLE, {"id": scan_id}, {"findings_json": findings})
+    background_tasks.add_task(
+        _run_adjudication_job, scan_id, finding_index, current_user.id
+    )
     return {
         "scan_id": scan_id,
         "finding_index": finding_index,
-        "adjudication": finding["adjudication"],
+        "status": "pending",
+        "adjudication": pending,
+        "poll": f"/v1/scans/{scan_id}/findings/{finding_index}/adjudicate",
+    }
+
+
+@router.get(
+    "/scans/{scan_id}/findings/{finding_index}/adjudicate",
+    response_model=dict[str, Any],
+    summary="Poll adjudication status/verdict for a finding (F-009)",
+    responses={
+        200: {"description": "Complete or failed — terminal state returned"},
+        202: {"description": "Adjudication still in progress"},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
+)
+async def get_adjudication(
+    scan_id: str,
+    finding_index: int,
+    response: Response,
+    current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
+) -> dict[str, Any]:
+    """Return the current adjudication state for a finding.
+
+    200 when complete or failed (terminal), 202 while pending, 404 when no
+    adjudication has been requested yet.
+    """
+    row = await _get_scan_or_404(scan_id)
+    findings = _parse_findings(row)
+    if not 0 <= finding_index < len(findings):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Finding index {finding_index} out of range for scan '{scan_id}'",
+        )
+
+    adj = findings[finding_index].get("adjudication")
+    state = _adjudication_state(adj)
+    if state == "none":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No adjudication requested for this finding",
+        )
+    if state == "pending":
+        response.status_code = status.HTTP_202_ACCEPTED
+    return {
+        "scan_id": scan_id,
+        "finding_index": finding_index,
+        "status": state,
+        "adjudication": adj,
     }
 
 

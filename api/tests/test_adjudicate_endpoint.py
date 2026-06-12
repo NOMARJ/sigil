@@ -1,4 +1,12 @@
-"""US-107: POST /v1/scans/{scan_id}/findings/{finding_index}/adjudicate."""
+"""US-107 + async adjudication: POST/GET
+/v1/scans/{scan_id}/findings/{finding_index}/adjudicate.
+
+Adjudication is async: POST schedules a background Fable-5 job and returns 202
+with a `pending` marker; the verdict/error is persisted on the finding and read
+back via GET. Starlette's TestClient runs background tasks synchronously before
+the POST returns, so by the time `client.post(...)` returns the job has already
+run and a GET poll returns the terminal state.
+"""
 
 from __future__ import annotations
 
@@ -32,8 +40,15 @@ def _submit_scan_with_findings(client, auth_headers, sample_scan_request) -> str
     return resp.json()["scan_id"]
 
 
-def _adjudicate(client, auth_headers, scan_id, index=0):
-    return client.post(
+def _adjudicate(client, auth_headers, scan_id, index=0, force=False):
+    url = f"/v1/scans/{scan_id}/findings/{index}/adjudicate"
+    if force:
+        url += "?force=true"
+    return client.post(url, headers=auth_headers)
+
+
+def _poll(client, auth_headers, scan_id, index=0):
+    return client.get(
         f"/v1/scans/{scan_id}/findings/{index}/adjudicate", headers=auth_headers
     )
 
@@ -88,7 +103,7 @@ class TestAdjudicateEndpoint:
         assert resp.status_code == 402
         assert resp.json()["detail"]["reason"] == "allowance_exhausted"
 
-    def test_happy_path_persists_verdict(
+    def test_schedules_then_completes(
         self, client, auth_headers, sample_scan_request, pro_context
     ):
         scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
@@ -98,24 +113,56 @@ class TestAdjudicateEndpoint:
 
         with patch.object(fp_adjudicator, "adjudicate", fake_adjudicate):
             resp = _adjudicate(client, auth_headers, scan_id)
+            # 202 + pending marker is returned to the caller immediately...
+            assert resp.status_code == 202, resp.text
+            assert resp.json()["status"] == "pending"
+            assert resp.json()["adjudication"]["status"] == "pending"
+            # ...and the background job has already run by now (TestClient).
+            poll = _poll(client, auth_headers, scan_id)
 
-        assert resp.status_code == 200, resp.text
-        body = resp.json()
+        assert poll.status_code == 200, poll.text
+        body = poll.json()
+        assert body["status"] == "complete"
         assert body["adjudication"]["classification"] == "benign_dual_use"
         assert "_usage" not in body["adjudication"]
 
         # persisted on the finding
         detail = client.get(f"/v1/scans/{scan_id}", headers=auth_headers)
-        assert detail.status_code == 200, detail.text
         target = detail.json()["findings_json"][0]
         assert target["adjudication"]["classification"] == "benign_dual_use"
         assert target["adjudication"]["model"]
 
-        # metered
+        # metered exactly once
         assert len(pro_context) == 1
         assert pro_context[0]["feature"] == "fp_adjudication"
 
-    def test_idempotent_overwrite(
+    def test_completed_not_rerun_without_force(
+        self, client, auth_headers, sample_scan_request, pro_context
+    ):
+        scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
+        calls = []
+
+        async def first(finding, code_context):
+            calls.append("A")
+            return dict(VERDICT_A)
+
+        with patch.object(fp_adjudicator, "adjudicate", first):
+            _adjudicate(client, auth_headers, scan_id)  # completes -> A
+
+        async def second(finding, code_context):
+            calls.append("B")
+            return dict(VERDICT_B)
+
+        # Re-POST without force: already complete -> 200 with existing verdict,
+        # adjudicator NOT invoked again.
+        with patch.object(fp_adjudicator, "adjudicate", second):
+            r2 = _adjudicate(client, auth_headers, scan_id)
+
+        assert r2.status_code == 200
+        assert r2.json()["adjudication"]["classification"] == "benign_dual_use"
+        assert calls == ["A"]  # second never ran
+
+    def test_force_reruns(
         self, client, auth_headers, sample_scan_request, pro_context
     ):
         scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
@@ -127,19 +174,15 @@ class TestAdjudicateEndpoint:
             return dict(VERDICT_B)
 
         with patch.object(fp_adjudicator, "adjudicate", first):
-            r1 = _adjudicate(client, auth_headers, scan_id)
+            _adjudicate(client, auth_headers, scan_id)
         with patch.object(fp_adjudicator, "adjudicate", second):
-            r2 = _adjudicate(client, auth_headers, scan_id)
+            r = _adjudicate(client, auth_headers, scan_id, force=True)
+            assert r.status_code == 202
+            poll = _poll(client, auth_headers, scan_id)
 
-        assert r1.status_code == r2.status_code == 200
-        assert r2.json()["adjudication"]["classification"] == "suspicious"
+        assert poll.json()["adjudication"]["classification"] == "suspicious"
 
-        detail = client.get(f"/v1/scans/{scan_id}", headers=auth_headers)
-        assert detail.status_code == 200, detail.text
-        target = detail.json()["findings_json"][0]
-        assert target["adjudication"]["classification"] == "suspicious"
-
-    def test_refusal_maps_to_422(
+    def test_refusal_persists_error_state(
         self, client, auth_headers, sample_scan_request, pro_context
     ):
         from api.services.llm_service import LLMRefusalError
@@ -151,11 +194,39 @@ class TestAdjudicateEndpoint:
 
         with patch.object(fp_adjudicator, "adjudicate", refuse):
             resp = _adjudicate(client, auth_headers, scan_id)
+            assert resp.status_code == 202
+            poll = _poll(client, auth_headers, scan_id)
 
-        assert resp.status_code == 422
-        assert resp.json()["detail"]["reason"] == "llm_refusal"
-        assert resp.json()["detail"]["category"] == "cyber"
+        assert poll.status_code == 200
+        body = poll.json()
+        assert body["status"] == "error"
+        assert body["adjudication"]["reason"] == "llm_refusal"
+        assert body["adjudication"]["category"] == "cyber"
         assert len(pro_context) == 0  # refusals are not metered
+
+    def test_llm_error_persists_error_state(
+        self, client, auth_headers, sample_scan_request, pro_context
+    ):
+        scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
+
+        async def boom(finding, code_context):
+            raise RuntimeError("upstream exploded")
+
+        with patch.object(fp_adjudicator, "adjudicate", boom):
+            _adjudicate(client, auth_headers, scan_id)
+            poll = _poll(client, auth_headers, scan_id)
+
+        assert poll.status_code == 200
+        assert poll.json()["status"] == "error"
+        assert poll.json()["adjudication"]["reason"] == "llm_error"
+        assert len(pro_context) == 0  # failed verdicts are not metered
+
+    def test_poll_before_request_404(
+        self, client, auth_headers, sample_scan_request, pro_context
+    ):
+        scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
+        resp = _poll(client, auth_headers, scan_id)
+        assert resp.status_code == 404
 
     def test_unknown_scan_404(self, client, auth_headers, pro_context):
         resp = _adjudicate(client, auth_headers, "nonexistent-scan-id")

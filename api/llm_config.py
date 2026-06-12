@@ -26,7 +26,10 @@ class LLMConfig:
     fast_model: str = "claude-haiku-4-5"
     max_tokens_per_scan: int = 8000
     temperature: float = 0.2
-    timeout_seconds: int = 30
+    # Fable 5 (thinking always on) routinely needs >30s per adjudication; a low
+    # ceiling caused tenacity retry churn (redundant billed calls) and client
+    # 504s. Adjudication now runs async, so a generous ceiling is safe.
+    timeout_seconds: int = 120
 
     # Performance settings
     cache_ttl_hours: int = 24
@@ -56,6 +59,7 @@ class LLMConfig:
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 
         # Performance settings
+        self.timeout_seconds = int(os.getenv("LLM_TIMEOUT", "120"))
         self.cache_ttl_hours = int(os.getenv("LLM_CACHE_TTL_HOURS", "24"))
         self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
