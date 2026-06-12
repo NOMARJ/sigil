@@ -167,7 +167,9 @@ async def _submit_scan_impl(
     request: ScanRequest, user_id: str | None = None, use_v2: bool = None
 ) -> ScanResponse | ScanResponseV2:
     """Shared implementation for scan submission."""
-    scan_id = uuid4().hex[:16]
+    # Full GUID — the scans.id column is UNIQUEIDENTIFIER; a truncated hex
+    # fails to convert (SQLSTATE 42000) when persisting.
+    scan_id = str(uuid4())
 
     # Basic input hardening for user-controlled target values
     raw_target = request.target or ""
