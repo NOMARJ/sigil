@@ -1,5 +1,12 @@
 # Session Transcript Index
 
+- [code-2026-06-12-manual-1781252118211](2026-06-12-manual-1781252118211.jsonl) —  general: bash, grep
+- [code-2026-06-12-manual-1781235339849](2026-06-12-manual-1781235339849.jsonl) —  general: 
+- [code-2026-06-11-manual-1781168556812](2026-06-11-manual-1781168556812.jsonl) —  general: 
+- [code-2026-06-11-manual-1781161254981](2026-06-11-manual-1781161254981.jsonl) —  general: bash, /users/reecefrazier/cascadeprojects/sigil
+- [code-2026-06-11-manual-1781155527162](2026-06-11-manual-1781155527162.jsonl) —  general: bash, /users/reecefrazier/cascadeprojects/sigil/, echo, claude/worktrees/agent-a34ae1c2e0d4099d7
+- [code-2026-06-10-manual-1781086164443](2026-06-10-manual-1781086164443.jsonl) —  general: bash, pytest, grep, 2>/dev/null, /tmp/sigil-badhost-venv/bin/python, api/tests
+- [code-2026-06-10-manual-1781085376570](2026-06-10-manual-1781085376570.jsonl) —  general: progress
 - [code-2026-05-04-manual-1777875353257](2026-05-04-manual-1777875353257.jsonl) —  general: 
 - [code-2026-05-04-manual-1777869140797](2026-05-04-manual-1777869140797.jsonl) —  general: bash, stripe, 2>&1, head, echo
 - [code-2026-05-04-manual-1777868842961](2026-05-04-manual-1777868842961.jsonl) —  general: bash, grep, 7-blocked, echo

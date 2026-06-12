@@ -1,0 +1,4 @@
+{"type":"session-meta","id":"code-2026-06-11-manual-1781161254981","date":"2026-06-11","features":[],"topics":["bash","/users/reecefrazier/cascadeprojects/sigil"],"scope":"general","story_count":0,"duration_minutes":2}
+{"ts":"2026-06-11T07:00:54.982Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil\ngit add packs/core/v1/ cli/src/corpus/engine.rs evaluation_results/honest_d","tags":[]}
+{"ts":"2026-06-11T07:02:11.602Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil\nperl /tmp/bound.pl 90 ./cli/target/release/sigil scan . --no-cache --fail-o","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

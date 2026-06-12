@@ -1,0 +1,3 @@
+{"type":"session-meta","id":"code-2026-06-11-manual-1781168556812","date":"2026-06-11","features":[],"topics":[],"scope":"general","story_count":0,"duration_minutes":43}
+{"ts":"2026-06-11T09:02:49.493Z","role":"tool","tool":"Bash","summary":"Bash: python3 -m pytest api/tests/test_model_router.py -q 2>&1 | tail -14","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

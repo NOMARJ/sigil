@@ -1,0 +1,5 @@
+{"type":"session-meta","id":"code-2026-06-10-manual-1781086164443","date":"2026-06-10","features":[],"topics":["bash","pytest","grep","2>/dev/null","/tmp/sigil-badhost-venv/bin/python","api/tests"],"scope":"general","story_count":0,"duration_minutes":4}
+{"ts":"2026-06-10T10:09:56.596Z","role":"tool","tool":"Bash","summary":"Bash: grep -in \"pytest\" api/requirements.lock test_requirements.txt 2>/dev/null | head -6","tags":[]}
+{"ts":"2026-06-10T10:10:06.073Z","role":"tool","tool":"Bash","summary":"Bash: /tmp/sigil-badhost-venv/bin/python -m pytest api/tests -q 2>&1 | tail -8","tags":[]}
+{"ts":"2026-06-10T10:11:12.410Z","role":"tool","tool":"Bash","summary":"Bash: /tmp/sigil-badhost-venv/bin/python -m pytest api/tests -q -rs 2>/dev/null | grep \"^SKIPPED\" | sort > /tmp/skips_new.txt;","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

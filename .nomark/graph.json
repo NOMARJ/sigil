@@ -1,12 +1,12 @@
 {
   "version": 1,
   "$schema": "nomark-graph-v1",
-  "description": "Traceability graph: Epic \u2192 Feature \u2192 Story \u2192 Session \u2192 Decision \u2192 Commit. Auto-maintained by session-end hook and /memory save.",
-  "last_rebuilt": "2026-06-12T06:36:46.590508",
+  "description": "Traceability graph: Epic → Feature → Story → Session → Decision → Commit. Auto-maintained by session-end hook and /memory save.",
+  "last_rebuilt": "2026-06-12T09:58:20.345Z",
   "nodes": {
     "EP-001": {
       "type": "epic",
-      "title": "Scanner v2 \u2014 false positive reduction",
+      "title": "Scanner v2 — false positive reduction",
       "status": "DONE",
       "target": "Q1 2026"
     },
@@ -69,14 +69,14 @@
     },
     "STORY-002": {
       "type": "story",
-      "title": "`sigil policy generate` \u2014 Auto-Generate Policies from Scan Results",
+      "title": "`sigil policy generate` — Auto-Generate Policies from Scan Results",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-002"
     },
     "STORY-003": {
       "type": "story",
-      "title": "Add Phase 10 \u2014 Inference Security Detection (Rust CLI)",
+      "title": "Add Phase 10 — Inference Security Detection (Rust CLI)",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-003"
@@ -90,7 +90,7 @@
     },
     "STORY-005": {
       "type": "story",
-      "title": "`sigil run` \u2014 Sandboxed Execution with Policy Enforcement",
+      "title": "`sigil run` — Sandboxed Execution with Policy Enforcement",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-005"
@@ -104,21 +104,21 @@
     },
     "STORY-007": {
       "type": "story",
-      "title": "`sigil safe-run` \u2014 Scan + Sandbox in One Command",
+      "title": "`sigil safe-run` — Scan + Sandbox in One Command",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-007"
     },
     "STORY-008": {
       "type": "story",
-      "title": "`sigil sbom` \u2014 Software Bill of Materials Generation",
+      "title": "`sigil sbom` — Software Bill of Materials Generation",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-008"
     },
     "STORY-009": {
       "type": "story",
-      "title": "Claude Code Skills \u2014 `/fix-finding` and `/generate-policy`",
+      "title": "Claude Code Skills — `/fix-finding` and `/generate-policy`",
       "status": "DONE",
       "linear_id": "",
       "raw_id": "STORY-009"
@@ -209,7 +209,7 @@
     },
     "F-003/STORY-112": {
       "type": "story",
-      "title": "CDN cache fix \u2014 apply remediation from STORY-108 root cause",
+      "title": "CDN cache fix — apply remediation from STORY-108 root cause",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "STORY-112"
@@ -384,7 +384,7 @@
     },
     "F-009/US-102": {
       "type": "story",
-      "title": "[F-009]: Model router registry refresh \u2014 retire claude-3 tiers",
+      "title": "[F-009]: Model router registry refresh — retire claude-3 tiers",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-102"
@@ -398,14 +398,14 @@
     },
     "F-009/US-104": {
       "type": "story",
-      "title": "[F-009]: LLM usage metering \u2014 free teaser allowance + Pro fair-use",
+      "title": "[F-009]: LLM usage metering — free teaser allowance + Pro fair-use",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-104"
     },
     "F-009/US-105": {
       "type": "story",
-      "title": "[F-009]: AI-analysis gate dependency \u2014 402 on exhausted free tier",
+      "title": "[F-009]: AI-analysis gate dependency — 402 on exhausted free tier",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-105"
@@ -447,14 +447,14 @@
     },
     "F-009/US-111": {
       "type": "story",
-      "title": "[F-009]: sigil explain \u2014 Rust CLI surface for LLM analysis",
+      "title": "[F-009]: sigil explain — Rust CLI surface for LLM analysis",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-111"
     },
     "F-009/US-112": {
       "type": "story",
-      "title": "[F-009]: Ops verification \u2014 env, retention, live smoke",
+      "title": "[F-009]: Ops verification — env, retention, live smoke",
       "status": "TODO",
       "linear_id": "",
       "raw_id": "US-112"
@@ -475,7 +475,7 @@
     "commit:4c8c0d2": {
       "type": "commit",
       "hash": "4c8c0d2",
-      "message": "Release v1.0.4 \u2014 Package Managers, Threat Intelligence, and Supabase Auth (#17)",
+      "message": "Release v1.0.4 — Package Managers, Threat Intelligence, and Supabase Auth (#17)",
       "date": "2026-02-21T16:07:29+10:00",
       "files_changed": 80
     },
@@ -552,7 +552,7 @@
     "commit:9844128": {
       "type": "commit",
       "hash": "9844128",
-      "message": "chore: Replace Supabase environment variables with Auth0 placeholders\u2026 (#29)",
+      "message": "chore: Replace Supabase environment variables with Auth0 placeholders… (#29)",
       "date": "2026-03-02T09:25:09+10:00",
       "files_changed": 25
     },
@@ -720,7 +720,7 @@
     "commit:38650c1": {
       "type": "commit",
       "hash": "38650c1",
-      "message": "\ud83d\udea8 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
+      "message": "🚨 CRITICAL HOTFIX: Fix Forge API pagination total count bug (#46)",
       "date": "2026-03-07T09:28:41+10:00",
       "files_changed": 55
     },
@@ -734,7 +734,7 @@
     "commit:e6cf8b1": {
       "type": "commit",
       "hash": "e6cf8b1",
-      "message": "\ud83d\udd12 Security: Remove sensitive infrastructure data and move internal docs",
+      "message": "🔒 Security: Remove sensitive infrastructure data and move internal docs",
       "date": "2026-03-08T08:28:36+10:00",
       "files_changed": 12
     },
@@ -874,7 +874,7 @@
     "commit:4eb5ef9": {
       "type": "commit",
       "hash": "4eb5ef9",
-      "message": "\ud83d\udea8 CRITICAL: Fix Docker import paths causing container crashes (#52)",
+      "message": "🚨 CRITICAL: Fix Docker import paths causing container crashes (#52)",
       "date": "2026-03-08T20:14:19+10:00",
       "files_changed": 64
     },
@@ -1098,7 +1098,7 @@
     "commit:c31a67f": {
       "type": "commit",
       "hash": "c31a67f",
-      "message": "memory: 2026-03-30 12:38 \u2014 sigil",
+      "message": "memory: 2026-03-30 12:38 — sigil",
       "date": "2026-03-30T12:38:33+10:00",
       "files_changed": 2
     },
@@ -1123,31 +1123,31 @@
     "commit:e591efd": {
       "type": "commit",
       "hash": "e591efd",
-      "message": "memory: 2026-04-03 12:51 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:51 — sigil",
       "date": "2026-04-03T12:51:07+10:00"
     },
     "commit:d9a0c49": {
       "type": "commit",
       "hash": "d9a0c49",
-      "message": "memory: 2026-04-03 12:52 \u2014 sigil",
+      "message": "memory: 2026-04-03 12:52 — sigil",
       "date": "2026-04-03T12:52:01+10:00"
     },
     "commit:a60ca86": {
       "type": "commit",
       "hash": "a60ca86",
-      "message": "memory: 2026-04-03 13:00 \u2014 sigil",
+      "message": "memory: 2026-04-03 13:00 — sigil",
       "date": "2026-04-03T13:00:10+10:00"
     },
     "commit:78d4fa7": {
       "type": "commit",
       "hash": "78d4fa7",
-      "message": "chore: update NOMARK harness v2.1.0 \u2192 v3.0.1 (#89)",
+      "message": "chore: update NOMARK harness v2.1.0 → v3.0.1 (#89)",
       "date": "2026-04-03T15:04:12+10:00"
     },
     "commit:6337abd": {
       "type": "commit",
       "hash": "6337abd",
-      "message": "chore: update NOMARK harness v3.0.1 \u2192 v3.0.130",
+      "message": "chore: update NOMARK harness v3.0.1 → v3.0.130",
       "date": "2026-04-05T16:32:18+10:00",
       "files_changed": 14
     },
@@ -1172,13 +1172,13 @@
     "commit:6dcb760": {
       "type": "commit",
       "hash": "6dcb760",
-      "message": "chore: update trust metrics \u2014 add 2026-04-11 session #2 with 9 false completion breaches",
+      "message": "chore: update trust metrics — add 2026-04-11 session #2 with 9 false completion breaches",
       "date": "2026-04-11T20:30:52+10:00"
     },
     "commit:cf25386": {
       "type": "commit",
       "hash": "cf25386",
-      "message": "chore: update NOMARK harness v3.0.130 \u2192 v4.0.6",
+      "message": "chore: update NOMARK harness v3.0.130 → v4.0.6",
       "date": "2026-04-11T20:20:21+10:00"
     },
     "commit:22f4f2b": {
@@ -1190,19 +1190,19 @@
     "commit:106fe7b": {
       "type": "commit",
       "hash": "106fe7b",
-      "message": "chore: update NOMARK harness v3.0.1 \u2192 v3.0.130 (#90)",
+      "message": "chore: update NOMARK harness v3.0.1 → v3.0.130 (#90)",
       "date": "2026-04-06T10:07:52+10:00"
     },
     "commit:bdc9e99": {
       "type": "commit",
       "hash": "bdc9e99",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:24+10:00"
     },
     "commit:ba20a1a": {
       "type": "commit",
       "hash": "ba20a1a",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:48+10:00"
     },
     "commit:b6350c1": {
@@ -1214,7 +1214,7 @@
     "commit:cb01036": {
       "type": "commit",
       "hash": "cb01036",
-      "message": "memory: 2026-04-11 21:40 \u2014 sigil",
+      "message": "memory: 2026-04-11 21:40 — sigil",
       "date": "2026-04-11T21:40:52+10:00"
     },
     "commit:f1ed54f": {
@@ -1250,7 +1250,7 @@
     "commit:8b2f289": {
       "type": "commit",
       "hash": "8b2f289",
-      "message": "memory: 2026-05-01 08:32 \u2014 sigil",
+      "message": "memory: 2026-05-01 08:32 — sigil",
       "date": "2026-05-01T08:32:20+10:00"
     },
     "commit:170ff5e": {
@@ -1357,7 +1357,7 @@
     "commit:8bd0009": {
       "type": "commit",
       "hash": "8bd0009",
-      "message": "fix(billing): STORY-101 P0 \u2014 add 2 missing Stripe webhook events (4 \u2192 6)",
+      "message": "fix(billing): STORY-101 P0 — add 2 missing Stripe webhook events (4 → 6)",
       "date": "2026-05-03T19:35:25+10:00",
       "files_changed": 2
     },
@@ -1392,7 +1392,7 @@
     "commit:c4e3550": {
       "type": "commit",
       "hash": "c4e3550",
-      "message": "blog: add post 09 \u2014 The Three-Layer AI Security Stack",
+      "message": "blog: add post 09 — The Three-Layer AI Security Stack",
       "date": "2026-05-03T20:10:53+10:00",
       "files_changed": 1
     },
@@ -1462,7 +1462,7 @@
     "commit:3217cd2": {
       "type": "commit",
       "hash": "3217cd2",
-      "message": "docs(F-003): STORY-100 \u2014 4 live Stripe Price IDs confirmed via MCP, applied via sigil-infra PR #3",
+      "message": "docs(F-003): STORY-100 — 4 live Stripe Price IDs confirmed via MCP, applied via sigil-infra PR #3",
       "date": "2026-05-04T08:27:26+10:00",
       "files_changed": 3
     },
@@ -1476,7 +1476,7 @@
     "commit:16ee5cf": {
       "type": "commit",
       "hash": "16ee5cf",
-      "message": "docs(adr): ADR-0001 \u2014 14-day Pro/Team trial, code-level not Price-level",
+      "message": "docs(adr): ADR-0001 — 14-day Pro/Team trial, code-level not Price-level",
       "date": "2026-05-04T10:20:15+10:00",
       "files_changed": 4
     },
@@ -1497,35 +1497,35 @@
     "commit:bea7956": {
       "type": "commit",
       "hash": "bea7956",
-      "message": "docs(F-003): US-001 DONE \u2014 ADR-0003 accepted (Branch A approved)",
+      "message": "docs(F-003): US-001 DONE — ADR-0003 accepted (Branch A approved)",
       "date": "2026-05-04T14:45:17+10:00",
       "files_changed": 3
     },
     "commit:0f3a7f6": {
       "type": "commit",
       "hash": "0f3a7f6",
-      "message": "feat(api): US-002 \u2014 claude_service shim + register interactive.router (closes F1.7)",
+      "message": "feat(api): US-002 — claude_service shim + register interactive.router (closes F1.7)",
       "date": "2026-05-04T14:59:02+10:00",
       "files_changed": 9
     },
     "commit:c8f1b75": {
       "type": "commit",
       "hash": "c8f1b75",
-      "message": "docs(US-002): tighten test framing \u2014 pin parameter-threading honestly",
+      "message": "docs(US-002): tighten test framing — pin parameter-threading honestly",
       "date": "2026-05-04T15:03:13+10:00",
       "files_changed": 2
     },
     "commit:0d38ec3": {
       "type": "commit",
       "hash": "0d38ec3",
-      "message": "docs(F-003): US-002 fully DONE \u2014 AC #6 verified against production",
+      "message": "docs(F-003): US-002 fully DONE — AC #6 verified against production",
       "date": "2026-05-04T15:18:24+10:00",
       "files_changed": 2
     },
     "commit:4c9a46b": {
       "type": "commit",
       "hash": "4c9a46b",
-      "message": "docs(F-006): brand v1.0 rollout \u2014 assets, EP-004, PRD",
+      "message": "docs(F-006): brand v1.0 rollout — assets, EP-004, PRD",
       "date": "2026-05-04T15:28:15+10:00",
       "files_changed": 23
     },
@@ -1546,7 +1546,7 @@
     "commit:0f4dbbe": {
       "type": "commit",
       "hash": "0f4dbbe",
-      "message": "docs(F-003): US-005 PARTIAL \u2014 4 sections captured + structural blocker",
+      "message": "docs(F-003): US-005 PARTIAL — 4 sections captured + structural blocker",
       "date": "2026-05-04T17:08:16+10:00",
       "files_changed": 8
     },
@@ -1572,7 +1572,7 @@
     "commit:ded5ed2": {
       "type": "commit",
       "hash": "ded5ed2",
-      "message": "docs: [US-009] Rust CLI verified on CI (6 passed) \u2014 HIGH-002 closed (#117)",
+      "message": "docs: [US-009] Rust CLI verified on CI (6 passed) — HIGH-002 closed (#117)",
       "date": "2026-06-08T11:29:56+10:00"
     },
     "commit:39ed7c1": {
@@ -1584,25 +1584,25 @@
     "commit:b166903": {
       "type": "commit",
       "hash": "b166903",
-      "message": "F-007: Launch-readiness remediation \u2014 agent-buildable subset (US-001/002/003/006/008) (#115)",
+      "message": "F-007: Launch-readiness remediation — agent-buildable subset (US-001/002/003/006/008) (#115)",
       "date": "2026-06-08T11:23:58+10:00"
     },
     "commit:cf4391d": {
       "type": "commit",
       "hash": "cf4391d",
-      "message": "memory: 2026-06-08 10:01 \u2014 graph rebuild + instinct decay + resource catalog",
+      "message": "memory: 2026-06-08 10:01 — graph rebuild + instinct decay + resource catalog",
       "date": "2026-06-08T10:42:06+10:00"
     },
     "commit:5cdb2a2": {
       "type": "commit",
       "hash": "5cdb2a2",
-      "message": "memory: 2026-06-08 10:01 \u2014 sigil",
+      "message": "memory: 2026-06-08 10:01 — sigil",
       "date": "2026-06-08T10:01:45+10:00"
     },
     "commit:5612646": {
       "type": "commit",
       "hash": "5612646",
-      "message": "memory: 2026-06-08 12:27 \u2014 graph rebuild + validation-error sanitisation + rate-limit 422 bugfix",
+      "message": "memory: 2026-06-08 12:27 — graph rebuild + validation-error sanitisation + rate-limit 422 bugfix",
       "date": "2026-06-08T12:37:50+10:00"
     },
     "commit:7234364": {
@@ -1657,13 +1657,13 @@
     "commit:319c6d5": {
       "type": "commit",
       "hash": "319c6d5",
-      "message": "memory: 2026-06-11 08:12 \u2014 cli",
+      "message": "memory: 2026-06-11 08:12 — cli",
       "date": "2026-06-11T08:12:04+10:00"
     },
     "commit:c683c5e": {
       "type": "commit",
       "hash": "c683c5e",
-      "message": "memory: 2026-06-09 10:26 \u2014 graph rebuild + Rust CLI status reconciliation",
+      "message": "memory: 2026-06-09 10:26 — graph rebuild + Rust CLI status reconciliation",
       "date": "2026-06-10T19:27:38+10:00"
     },
     "commit:0c1e0fb": {
@@ -1709,14 +1709,14 @@
     "commit:fdf4459": {
       "type": "commit",
       "hash": "fdf4459",
-      "message": "F-008 US-C1: pack schema + loader \u2014 corpus module with 9 embedded packs",
+      "message": "F-008 US-C1: pack schema + loader — corpus module with 9 embedded packs",
       "date": "2026-06-11T09:29:38+10:00",
       "files_changed": 14
     },
     "commit:769b73a": {
       "type": "commit",
       "hash": "769b73a",
-      "message": "F-008 US-C3: port Python-only rules \u2014 OBFUSC-CHAIN-* and SUPPLY-* packs",
+      "message": "F-008 US-C3: port Python-only rules — OBFUSC-CHAIN-* and SUPPLY-* packs",
       "date": "2026-06-11T09:47:58+10:00",
       "files_changed": 4
     },
@@ -1772,7 +1772,7 @@
     "commit:46970fc": {
       "type": "commit",
       "hash": "46970fc",
-      "message": "docs(progress): plugin dep remediation done \u2014 self-scan gate green (0 high/critical)",
+      "message": "docs(progress): plugin dep remediation done — self-scan gate green (0 high/critical)",
       "date": "2026-06-11T15:11:31+10:00",
       "files_changed": 1
     },
@@ -1807,21 +1807,21 @@
     "commit:e696480": {
       "type": "commit",
       "hash": "e696480",
-      "message": "docs(progress): Phase G complete (US-G1/G2/G3 done, verified) \u2014 F-008 Goal 1 done",
+      "message": "docs(progress): Phase G complete (US-G1/G2/G3 done, verified) — F-008 Goal 1 done",
       "date": "2026-06-11T16:21:12+10:00",
       "files_changed": 1
     },
     "commit:4ac0dd1": {
       "type": "commit",
       "hash": "4ac0dd1",
-      "message": "fix(packs): eval-driven FP-narrowing \u2014 FP@High 95%->70%, recall held (F-008 follow-up)",
+      "message": "fix(packs): eval-driven FP-narrowing — FP@High 95%->70%, recall held (F-008 follow-up)",
       "date": "2026-06-11T17:00:54+10:00",
       "files_changed": 10
     },
     "commit:568df63": {
       "type": "commit",
       "hash": "568df63",
-      "message": "docs(plan): F-010 trust-ledger allowlisting \u2014 PRD approved, stories US-H1..H3 decomposed",
+      "message": "docs(plan): F-010 trust-ledger allowlisting — PRD approved, stories US-H1..H3 decomposed",
       "date": "2026-06-11T17:49:56+10:00",
       "files_changed": 4
     },
@@ -1842,42 +1842,42 @@
     "commit:a3595b7": {
       "type": "commit",
       "hash": "a3595b7",
-      "message": "feat(eval): [US-H3] ledger-warm FP re-measure \u2014 warm FP 0%, recall_delta 0, cold FP unchanged (F-010)",
+      "message": "feat(eval): [US-H3] ledger-warm FP re-measure — warm FP 0%, recall_delta 0, cold FP unchanged (F-010)",
       "date": "2026-06-11T18:28:26+10:00",
       "files_changed": 4
     },
     "commit:bda542e": {
       "type": "commit",
       "hash": "bda542e",
-      "message": "feat: F-010 trust-ledger allowlisting \u2014 autopilot complete (3/3 stories, eval re-measured)",
+      "message": "feat: F-010 trust-ledger allowlisting — autopilot complete (3/3 stories, eval re-measured)",
       "date": "2026-06-11T18:31:04+10:00",
       "files_changed": 3
     },
     "commit:1783ad0": {
       "type": "commit",
       "hash": "1783ad0",
-      "message": "docs(plan): F-009 sigil-pro-fable \u2014 PRD approved, stories US-101..112 decomposed",
+      "message": "docs(plan): F-009 sigil-pro-fable — PRD approved, stories US-101..112 decomposed",
       "date": "2026-06-11T18:54:31+10:00",
       "files_changed": 2
     },
     "commit:8cfcbcb": {
       "type": "commit",
       "hash": "8cfcbcb",
-      "message": "docs(evidence): F-010 follow-ups resolved \u2014 brew sigil upgraded to 1.1.2, scratch dir removed",
+      "message": "docs(evidence): F-010 follow-ups resolved — brew sigil upgraded to 1.1.2, scratch dir removed",
       "date": "2026-06-11T18:56:26+10:00",
       "files_changed": 1
     },
     "commit:933fe48": {
       "type": "commit",
       "hash": "933fe48",
-      "message": "feat(api): [US-101] Anthropic-first LLM config \u2014 claude-opus-4-8/fable-5/haiku-4-5 defaults, gpt-4-turbo retired (F-009)",
+      "message": "feat(api): [US-101] Anthropic-first LLM config — claude-opus-4-8/fable-5/haiku-4-5 defaults, gpt-4-turbo retired (F-009)",
       "date": "2026-06-11T18:56:41+10:00",
       "files_changed": 4
     },
     "commit:a06c3c4": {
       "type": "commit",
       "hash": "a06c3c4",
-      "message": "feat(api): [US-102] model router registry refresh \u2014 current-gen IDs, config-driven tier mapping (F-009)",
+      "message": "feat(api): [US-102] model router registry refresh — current-gen IDs, config-driven tier mapping (F-009)",
       "date": "2026-06-11T19:04:48+10:00",
       "files_changed": 6
     },
@@ -1891,28 +1891,28 @@
     "commit:2fa979d": {
       "type": "commit",
       "hash": "2fa979d",
-      "message": "feat(api): [US-104] LLM usage metering \u2014 free-teaser allowance + Pro fair-use on existing credit infra (F-009)",
+      "message": "feat(api): [US-104] LLM usage metering — free-teaser allowance + Pro fair-use on existing credit infra (F-009)",
       "date": "2026-06-11T19:13:51+10:00",
       "files_changed": 4
     },
     "commit:8088c55": {
       "type": "commit",
       "hash": "8088c55",
-      "message": "chore(release): bump CLI to 1.2.0 \u2014 first release with trust ledger (F-008) + allowlist suppression (F-010)",
+      "message": "chore(release): bump CLI to 1.2.0 — first release with trust ledger (F-008) + allowlist suppression (F-010)",
       "date": "2026-06-11T19:45:31+10:00",
       "files_changed": 1
     },
     "commit:5e9cfb2": {
       "type": "commit",
       "hash": "5e9cfb2",
-      "message": "feat(api): [US-105] require_llm_access gate \u2014 free-teaser 402 boundary, Pro fair-use pass (F-009)",
+      "message": "feat(api): [US-105] require_llm_access gate — free-teaser 402 boundary, Pro fair-use pass (F-009)",
       "date": "2026-06-11T19:45:46+10:00",
       "files_changed": 4
     },
     "commit:8164ce0": {
       "type": "commit",
       "hash": "8164ce0",
-      "message": "feat(api): [US-106] FP adjudication service \u2014 Fable 5 structured verdicts via json_schema output (F-009)",
+      "message": "feat(api): [US-106] FP adjudication service — Fable 5 structured verdicts via json_schema output (F-009)",
       "date": "2026-06-11T19:48:04+10:00",
       "files_changed": 5
     },
@@ -1940,23 +1940,135 @@
     "commit:335512f": {
       "type": "commit",
       "hash": "335512f",
-      "message": "feat(cli): [US-111] sigil explain \u2014 AI adjudication surface (F-009)",
+      "message": "feat(cli): [US-111] sigil explain — AI adjudication surface (F-009)",
       "date": "2026-06-11T20:23:53+10:00",
       "files_changed": 6
     },
     "commit:0dfcbce": {
       "type": "commit",
       "hash": "0dfcbce",
-      "message": "fix(api): [F-009] phase-3 sweep \u2014 retire last claude-3/gpt-4 references",
+      "message": "fix(api): [F-009] phase-3 sweep — retire last claude-3/gpt-4 references",
       "date": "2026-06-11T22:15:05+10:00",
       "files_changed": 6
     },
     "commit:0ca5e7f": {
       "type": "commit",
       "hash": "0ca5e7f",
-      "message": "docs: [F-009] feature verification \u2014 build complete (partial), AC table + evidence",
+      "message": "docs: [F-009] feature verification — build complete (partial), AC table + evidence",
       "date": "2026-06-11T22:17:00+10:00",
       "files_changed": 2
+    },
+    "commit:e5b340c": {
+      "type": "commit",
+      "hash": "e5b340c",
+      "message": "fix(api): [F-009] select text block by type — Fable 5 thinking blocks precede it",
+      "date": "2026-06-12T06:39:51+10:00",
+      "files_changed": 3
+    },
+    "commit:3f768ce": {
+      "type": "commit",
+      "hash": "3f768ce",
+      "message": "feat(eval): [US-110] honest FP-adjudication eval — 168 real Fable 5 verdicts (F-009)",
+      "date": "2026-06-12T06:52:47+10:00",
+      "files_changed": 4
+    },
+    "commit:7025601": {
+      "type": "commit",
+      "hash": "7025601",
+      "message": "docs: [F-009] US-110 done — feature at 11/12, only US-112 ops verification remains",
+      "date": "2026-06-12T06:53:55+10:00",
+      "files_changed": 2
+    },
+    "commit:236884b": {
+      "type": "commit",
+      "hash": "236884b",
+      "message": "Merge F-009: Sigil Pro tier + Fable integration (11/12 stories)",
+      "date": "2026-06-12T08:12:20+10:00",
+      "files_changed": 0
+    },
+    "commit:ed469f7": {
+      "type": "commit",
+      "hash": "ed469f7",
+      "message": "docs: [US-112] ops verification — deploy + key wiring verified, live call pending token",
+      "date": "2026-06-12T09:16:54+10:00",
+      "files_changed": 1
+    },
+    "commit:c95538c": {
+      "type": "commit",
+      "hash": "c95538c",
+      "message": "docs: [US-112] link auth-breakage finding to issue #124",
+      "date": "2026-06-12T09:19:53+10:00",
+      "files_changed": 1
+    },
+    "commit:2a08b3c": {
+      "type": "commit",
+      "hash": "2a08b3c",
+      "message": "fix(auth): device-flow login — client_id guard + CLI device flow (#124)",
+      "date": "2026-06-12T13:21:34+10:00",
+      "files_changed": 5
+    },
+    "commit:68715e6": {
+      "type": "commit",
+      "hash": "68715e6",
+      "message": "fix(api): scan persistence — drop phantom columns, derive findings_count",
+      "date": "2026-06-12T16:15:09+10:00",
+      "files_changed": 3
+    },
+    "commit:f3bbb37": {
+      "type": "commit",
+      "hash": "f3bbb37",
+      "message": "fix(api): scan_id must be a full GUID (scans.id is UNIQUEIDENTIFIER)",
+      "date": "2026-06-12T16:19:59+10:00",
+      "files_changed": 1
+    },
+    "commit:84b7ce1": {
+      "type": "commit",
+      "hash": "84b7ce1",
+      "message": "fix(metering): deduct except-clause + prod-compatible credits schema (F-009 US-112)",
+      "date": "2026-06-12T17:42:06+10:00",
+      "files_changed": 5
+    },
+    "commit:1121136": {
+      "type": "commit",
+      "hash": "1121136",
+      "message": "feat(adjudicate): async finding adjudication (202 + poll) for Fable-5",
+      "date": "2026-06-12T18:22:15+10:00",
+      "files_changed": 4
+    },
+    "commit:0854af8": {
+      "type": "commit",
+      "hash": "0854af8",
+      "message": "docs(F-009): US-112 evidence — credits schema applied, async adjudication, retention attested",
+      "date": "2026-06-12T18:23:24+10:00",
+      "files_changed": 1
+    },
+    "commit:2eff98f": {
+      "type": "commit",
+      "hash": "2eff98f",
+      "message": "fix(metering): port credit_service data layer to MssqlClient API",
+      "date": "2026-06-12T19:00:58+10:00",
+      "files_changed": 2
+    },
+    "commit:7f5af35": {
+      "type": "commit",
+      "hash": "7f5af35",
+      "message": "docs(F-009): US-112 DONE — metering usage row verified in prod, async adjudication live",
+      "date": "2026-06-12T19:23:21+10:00",
+      "files_changed": 2
+    },
+    "commit:84d3bed": {
+      "type": "commit",
+      "hash": "84d3bed",
+      "message": "fix(F-009 loose ends): drop dead purchase_credits, real Free-402 test, CLI 1.2.1",
+      "date": "2026-06-12T19:35:35+10:00",
+      "files_changed": 3
+    },
+    "commit:4410aa9": {
+      "type": "commit",
+      "hash": "4410aa9",
+      "message": "chore: drop vestigial Homebrew formula, ignore chains/ + stray nested .nomark",
+      "date": "2026-06-12T19:58:20+10:00",
+      "files_changed": 6
     }
   },
   "edges": [
@@ -2907,6 +3019,86 @@
     },
     {
       "from": "commit:0ca5e7f",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:e5b340c",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-009/US-110",
+      "to": "commit:3f768ce",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:3f768ce",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-009/US-110",
+      "to": "commit:7025601",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:7025601",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:7025601",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:236884b",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:ed469f7",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:c95538c",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:84b7ce1",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:84b7ce1",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:0854af8",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:0854af8",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "F-009/US-112",
+      "to": "commit:7f5af35",
+      "rel": "shipped_by"
+    },
+    {
+      "from": "commit:7f5af35",
+      "to": "F-009",
+      "rel": "contributes_to"
+    },
+    {
+      "from": "commit:84d3bed",
       "to": "F-009",
       "rel": "contributes_to"
     }

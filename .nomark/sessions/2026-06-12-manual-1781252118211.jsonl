@@ -1,0 +1,4 @@
+{"type":"session-meta","id":"code-2026-06-12-manual-1781252118211","date":"2026-06-12","features":[],"topics":["bash","grep"],"scope":"general","story_count":0,"duration_minutes":8}
+{"ts":"2026-06-12T08:15:55.542Z","role":"tool","tool":"Bash","summary":"Bash: grep -n \"timeout_seconds\\|LLM_TIMEOUT\" api/llm_config.py","tags":[]}
+{"ts":"2026-06-12T08:16:15.540Z","role":"tool","tool":"Bash","summary":"Bash: sed -n '1,40p' api/routers/scan.py | grep -nE \"import|from fastapi|Response|BackgroundTasks|SCAN_TABLE|^from|^import\"","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

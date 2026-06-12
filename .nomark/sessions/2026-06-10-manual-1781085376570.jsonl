@@ -1,0 +1,3 @@
+{"type":"session-meta","id":"code-2026-06-10-manual-1781085376570","date":"2026-06-10","features":[],"topics":["progress"],"scope":"general","story_count":0,"duration_minutes":3}
+{"ts":"2026-06-10T09:57:52.327Z","role":"tool","tool":"Bash","summary":"Bash: grep -n \"## Bugfix Log\\|instinct-index\\|## Context:\" progress.md | head; git diff --stat progress.md | tail -2","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}

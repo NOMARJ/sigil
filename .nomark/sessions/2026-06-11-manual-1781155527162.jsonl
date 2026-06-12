@@ -1,0 +1,6 @@
+{"type":"session-meta","id":"code-2026-06-11-manual-1781155527162","date":"2026-06-11","features":[],"topics":["bash","/users/reecefrazier/cascadeprojects/sigil/","echo","claude/worktrees/agent-a34ae1c2e0d4099d7"],"scope":"general","story_count":0,"duration_minutes":57}
+{"ts":"2026-06-11T05:25:27.163Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil\necho \"check the governance pattern wouldn't fire on alternatives\"\ngrep -niE","tags":[]}
+{"ts":"2026-06-11T05:25:35.831Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil/.claude/worktrees/agent-a34ae1c2e0d4099d7\nbash -n bin/sigil && echo \"SYNTAX","tags":[]}
+{"ts":"2026-06-11T05:25:44.797Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil/.claude/worktrees/agent-af8ebdf727195dfbb/api && SIGIL_BIN=/Users/reecefraz","tags":[]}
+{"ts":"2026-06-11T05:25:46.335Z","role":"tool","tool":"Bash","summary":"Bash: cd /Users/reecefrazier/CascadeProjects/sigil/.claude/worktrees/agent-a34ae1c2e0d4099d7\nMB=/Users/reecefrazier/CascadePro","tags":[]}
+{"type":"session-summary","decisions":[],"rejected":[],"open_threads":[],"artifacts_produced":[]}
