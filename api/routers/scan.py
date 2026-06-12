@@ -85,6 +85,23 @@ SCAN_TABLE = "scans"
 # ---------------------------------------------------------------------------
 
 
+def _findings_count(row: dict[str, Any]) -> int:
+    """Derive findings_count from findings_json.
+
+    findings_count is not a column on the `scans` table, so it is computed
+    from the stored findings rather than read back (it would always be 0).
+    """
+    findings = row.get("findings_json", [])
+    if isinstance(findings, str):
+        try:
+            findings = json.loads(findings)
+        except (json.JSONDecodeError, TypeError):
+            return row.get("findings_count", 0)
+    if isinstance(findings, list):
+        return len(findings)
+    return row.get("findings_count", 0)
+
+
 def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
     """Convert a DB row to a ScanListItem."""
     return ScanListItem(
@@ -92,7 +109,7 @@ def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
         target=row.get("target", ""),
         target_type=row.get("target_type", "directory"),
         files_scanned=row.get("files_scanned", 0),
-        findings_count=row.get("findings_count", 0),
+        findings_count=_findings_count(row),
         risk_score=row.get("risk_score", 0.0),
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
@@ -120,7 +137,7 @@ def _row_to_detail(row: dict[str, Any]) -> ScanDetail:
         target=row.get("target", ""),
         target_type=row.get("target_type", "directory"),
         files_scanned=row.get("files_scanned", 0),
-        findings_count=row.get("findings_count", 0),
+        findings_count=len(findings) if isinstance(findings, list) else row.get("findings_count", 0),
         risk_score=row.get("risk_score", 0.0),
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),

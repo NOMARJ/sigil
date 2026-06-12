@@ -64,6 +64,8 @@ class MssqlClient:
         self._connected_override: Any | None = None
         # in-memory fallback for local development
         self._memory_store: dict[str, dict[str, Any]] = {}
+        # cache of actual table columns, used to drop keys the schema lacks
+        self._table_columns_cache: dict[str, set[str]] = {}
 
     @staticmethod
     async def _configure_connection(raw_conn):
@@ -411,8 +413,45 @@ class MssqlClient:
         """Legacy compatibility helper used by resilience tests."""
         return await self.select_one("users", {"id": user_id})
 
+    async def _table_columns(self, table: str) -> set[str] | None:
+        """Return the set of column names for a table (cached).
+
+        Returns None when there's no live pool (in-memory mode) so callers
+        skip filtering. Used to drop dict keys the schema doesn't have — the
+        row builders carry derived fields (e.g. findings_count, threat_hits)
+        that were never columns on `scans`, which otherwise fail the INSERT.
+        """
+        if not self._pool:
+            return None
+        cached = self._table_columns_cache.get(table)
+        if cached is not None:
+            return cached
+        sql = "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(?)"
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(sql, (table,))
+                rows = await cursor.fetchall()
+        cols = {r[0] for r in rows}
+        if cols:
+            self._table_columns_cache[table] = cols
+        return cols or None
+
     async def store_scan(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Legacy compatibility helper used by resilience tests."""
+        """Persist a scan row, dropping any keys not present in the table.
+
+        The scan row builder includes derived fields (findings_count,
+        threat_hits) and scanner-v2 fields that are not guaranteed to exist
+        as columns. Filtering to real columns keeps the INSERT valid across
+        environments at different migration levels instead of 503-ing.
+        """
+        cols = await self._table_columns("scans")
+        if cols:
+            dropped = [k for k in data if k not in cols]
+            if dropped:
+                logger.warning(
+                    "store_scan: dropping non-schema columns %s", sorted(dropped)
+                )
+            data = {k: v for k, v in data.items() if k in cols}
         return await self.insert("scans", data)
 
     async def create_password_reset_token(
