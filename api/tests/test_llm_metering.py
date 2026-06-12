@@ -3,6 +3,9 @@
 DB calls are mocked at the service-method level; no live MSSQL.
 """
 
+from unittest.mock import AsyncMock
+
+import pyodbc
 import pytest
 
 from api.models import PlanTier
@@ -10,6 +13,7 @@ import os  # noqa: F401  (env override exercised via monkeypatch)
 from api.services.credit_service import (
     CREDIT_RATES,
     CreditService,
+    InsufficientCreditsError,
     monthly_allowance,
 )
 
@@ -141,3 +145,38 @@ class TestRecordLlmUsage:
             feature="fp_adjudication",
         )
         assert captured["transaction_type"] == "scan"
+
+
+class TestDeductCreditsErrorHandling:
+    """Regression for the prod metering crash: the deduct except clause caught
+    `db.DatabaseError`, but `db` is an MssqlClient instance with no such
+    attribute — so any DB error from sp_DeductCredits raised AttributeError
+    ('MssqlClient' object has no attribute 'DatabaseError') and masked the
+    real failure. The clause must catch the driver error (pyodbc.Error).
+    """
+
+    @pytest.mark.asyncio
+    async def test_insufficient_credits_maps_cleanly(self, monkeypatch):
+        service = CreditService()
+        err = pyodbc.Error("42000", "[SQL Server]Insufficient credits")
+        monkeypatch.setattr(
+            "api.services.credit_service.db.execute_procedure",
+            AsyncMock(side_effect=err),
+        )
+        with pytest.raises(InsufficientCreditsError):
+            await service.deduct_credits("u1", 5, "scan")
+
+    @pytest.mark.asyncio
+    async def test_driver_error_is_not_masked_by_attributeerror(self, monkeypatch):
+        service = CreditService()
+        err = pyodbc.ProgrammingError(
+            "42000", "Could not find stored procedure 'sp_DeductCredits'."
+        )
+        monkeypatch.setattr(
+            "api.services.credit_service.db.execute_procedure",
+            AsyncMock(side_effect=err),
+        )
+        # Must surface as a credit error, never AttributeError.
+        with pytest.raises(Exception) as exc:
+            await service.deduct_credits("u1", 5, "scan")
+        assert not isinstance(exc.value, AttributeError)

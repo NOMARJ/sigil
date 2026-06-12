@@ -11,6 +11,8 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Literal
 
+import pyodbc
+
 from api.database import db
 from api.models import PlanTier as SubscriptionTier
 
@@ -158,7 +160,7 @@ class CreditService:
 
             raise CreditTransactionError("Failed to deduct credits")
 
-        except db.DatabaseError as e:
+        except pyodbc.Error as e:
             if "Insufficient credits" in str(e):
                 raise InsufficientCreditsError(
                     f"User {user_id} has insufficient credits ({amount} required)"
@@ -223,16 +225,11 @@ class CreditService:
     async def initialize_user_credits(self, user_id: str) -> None:
         """Initialize credits for a new user based on their subscription tier."""
         try:
-            # Get user's subscription tier
-            user = await db.fetch_one(
-                "SELECT subscription_tier FROM users WHERE id = :user_id",
-                {"user_id": user_id},
-            )
+            # Tier lives in the subscriptions table (via get_user_plan), not on
+            # users — the users table has no subscription_tier column.
+            from api.gates import get_user_plan
 
-            if not user:
-                raise ValueError(f"User {user_id} not found")
-
-            tier = SubscriptionTier(user["subscription_tier"])
+            tier = await get_user_plan(user_id)
             initial_credits = monthly_allowance(tier)
 
             # Create credit record
