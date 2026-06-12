@@ -3,6 +3,7 @@
 DB calls are mocked at the service-method level; no live MSSQL.
 """
 
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pyodbc
@@ -225,3 +226,47 @@ class TestCreditDataAccess:
         assert row["credits_balance"] == 50
 
         assert await service.get_balance(uid) == 50
+
+    @pytest.mark.asyncio
+    async def test_allowance_denies_when_balance_below_required(self):
+        """Real allowance decision (no mocked balance): a seeded low-balance row
+        yields the structured 402 denial. Exercises the ported get_balance +
+        get_usage_analytics against the in-memory store."""
+        from api.database import db
+
+        service = CreditService()
+        uid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        await db.insert(
+            "user_credits",
+            {
+                "user_id": uid,
+                "credits_balance": 2,
+                "subscription_credits": 50,
+                "reset_date": datetime(2026, 7, 1),
+            },
+        )
+        decision = await service.check_llm_allowance(uid, credits_required=4)
+        assert decision["allowed"] is False
+        assert decision["reason"] == "allowance_exhausted"
+        assert decision["balance"] == 2
+        assert decision["credits_required"] == 4
+        assert decision["upgrade_url"]
+
+    @pytest.mark.asyncio
+    async def test_allowance_allows_when_balance_sufficient(self):
+        from api.database import db
+
+        service = CreditService()
+        uid = "ffffffff-1111-2222-3333-444444444444"
+        await db.insert(
+            "user_credits",
+            {
+                "user_id": uid,
+                "credits_balance": 50,
+                "subscription_credits": 50,
+                "reset_date": datetime(2026, 7, 1),
+            },
+        )
+        decision = await service.check_llm_allowance(uid, credits_required=4)
+        assert decision["allowed"] is True
+        assert decision["balance"] == 50

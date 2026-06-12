@@ -432,47 +432,12 @@ class CreditService:
             logger.exception(f"Failed to get usage analytics for {user_id}: {e}")
             return {}
 
-    async def purchase_credits(
-        self, user_id: str, package_id: int, stripe_payment_intent_id: str
-    ) -> Dict:
-        """Process credit package purchase."""
-        try:
-            # Get package details
-            package = await db.fetch_one(
-                """
-                SELECT credits_amount, price_usd, package_name
-                FROM credit_packages
-                WHERE package_id = :package_id AND is_active = 1
-                """,
-                {"package_id": package_id},
-            )
-
-            if not package:
-                raise ValueError(f"Invalid package ID: {package_id}")
-
-            # Add credits
-            new_balance = await self.add_credits(
-                user_id=user_id,
-                amount=package["credits_amount"],
-                transaction_type="purchase",
-                metadata={
-                    "package_id": package_id,
-                    "package_name": package["package_name"],
-                    "price_usd": float(package["price_usd"]),
-                    "stripe_payment_intent": stripe_payment_intent_id,
-                },
-            )
-
-            return {
-                "success": True,
-                "credits_added": package["credits_amount"],
-                "new_balance": new_balance,
-                "package_name": package["package_name"],
-            }
-
-        except Exception as e:
-            logger.exception(f"Failed to process credit purchase for {user_id}: {e}")
-            raise CreditTransactionError(f"Failed to process credit purchase: {e}")
+# NOTE: a former `purchase_credits` method here read the `credit_packages`
+# table via the asyncpg-style `db.fetch_one` API that MssqlClient does not
+# implement, and the table is not provisioned. It had no callers — the live
+# credit-purchase flow is `api/routers/billing.py` (the `CREDIT_PACKAGES`
+# constant + Stripe checkout + the webhook calling `add_credits`). Removed
+# rather than ported, to avoid carrying dead code against a phantom table.
 
 
 # Global service instance
