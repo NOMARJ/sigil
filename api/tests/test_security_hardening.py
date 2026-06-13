@@ -9,8 +9,24 @@ import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from api.models import AlertCreate, ChannelType, PlanTier, SubscribeRequest, UserResponse
-from api.routers import alerts, analytics, billing, policies, realtime, rescan, scan, team, threat
+from api.models import (
+    AlertCreate,
+    ChannelType,
+    PlanTier,
+    SubscribeRequest,
+    UserResponse,
+)
+from api.routers import (
+    alerts,
+    analytics,
+    billing,
+    policies,
+    realtime,
+    rescan,
+    scan,
+    team,
+    threat,
+)
 from api.database import MssqlClient
 from api.services import notifications
 
@@ -192,7 +208,9 @@ def test_payment_failed_webhook_removes_entitlement_but_preserves_paid_plan():
     )
     mock_db.select_one = AsyncMock(return_value=None)
     mock_db.upsert_subscription = AsyncMock()
-    mock_db.update = AsyncMock(return_value={"id": "user_1", "subscription_tier": "free"})
+    mock_db.update = AsyncMock(
+        return_value={"id": "user_1", "subscription_tier": "free"}
+    )
 
     event = {
         "type": "invoice.payment_failed",
@@ -259,7 +277,11 @@ def test_payment_succeeded_restore_failure_is_retryable():
 def test_dashboard_stats_are_scoped_to_user_and_team():
     mock_db = MagicMock()
     user_rows = [
-        {"id": "scan_user", "verdict": "HIGH_RISK", "metadata_json": {"approved": True}},
+        {
+            "id": "scan_user",
+            "verdict": "HIGH_RISK",
+            "metadata_json": {"approved": True},
+        },
         {"id": "scan_dup", "verdict": "ERROR", "metadata_json": {}},
     ]
     team_rows = [
@@ -394,7 +416,9 @@ def test_email_notification_does_not_reference_webhook_url_when_smtp_configured(
         patch("api.services.notifications.settings.smtp_host", "smtp.example.com"),
         patch("api.services.notifications.settings.smtp_user", "user"),
         patch("api.services.notifications.settings.smtp_password", "password"),
-        patch("api.services.notifications.settings.smtp_from_email", "alerts@example.com"),
+        patch(
+            "api.services.notifications.settings.smtp_from_email", "alerts@example.com"
+        ),
         patch("api.services.notifications._smtp_send", return_value=None) as smtp_send,
     ):
         result = asyncio.run(
@@ -444,7 +468,9 @@ def test_team_invite_cannot_take_existing_user_from_another_team():
         "team_id": "team_b",
     }
     mock_db = MagicMock()
-    mock_db.select_one = AsyncMock(side_effect=[caller_row, caller_row, team_row, existing])
+    mock_db.select_one = AsyncMock(
+        side_effect=[caller_row, caller_row, team_row, existing]
+    )
     mock_db.upsert = AsyncMock()
 
     with patch("api.routers.team.db", mock_db):
@@ -469,7 +495,9 @@ def test_team_remove_cannot_clear_other_team_user():
     target_row = {"id": "victim_1", "role": "member", "team_id": "team_b"}
     team_row = {"id": "team_a", "owner_id": "owner_a", "name": "Team A"}
     mock_db = MagicMock()
-    mock_db.select_one = AsyncMock(side_effect=[caller_row, target_row, caller_row, team_row])
+    mock_db.select_one = AsyncMock(
+        side_effect=[caller_row, target_row, caller_row, team_row]
+    )
     mock_db.upsert = AsyncMock()
 
     with patch("api.routers.team.db", mock_db):
@@ -607,9 +635,7 @@ def test_scan_detail_lookup_allows_owner_and_team_member():
         owner_result = asyncio.run(
             scan._get_user_scan_or_404("scan_1", _user("user_1"))
         )
-        team_result = asyncio.run(
-            scan._get_user_scan_or_404("scan_2", _user("user_1"))
-        )
+        team_result = asyncio.run(scan._get_user_scan_or_404("scan_2", _user("user_1")))
 
     assert owner_result == owner_row
     assert team_result == team_row
@@ -664,7 +690,10 @@ def test_enterprise_member_cannot_read_global_analytics():
     user = _user("enterprise_member")
     user.role = "member"
 
-    with patch("api.routers.analytics.get_user_tier", AsyncMock(return_value=PlanTier.ENTERPRISE)):
+    with patch(
+        "api.routers.analytics.get_user_tier",
+        AsyncMock(return_value=PlanTier.ENTERPRISE),
+    ):
         with pytest.raises(HTTPException) as exc:
             asyncio.run(analytics.require_admin_tier(user))
 
@@ -675,7 +704,10 @@ def test_enterprise_admin_can_read_global_analytics():
     user = _user("enterprise_admin")
     user.role = "admin"
 
-    with patch("api.routers.analytics.get_user_tier", AsyncMock(return_value=PlanTier.ENTERPRISE)):
+    with patch(
+        "api.routers.analytics.get_user_tier",
+        AsyncMock(return_value=PlanTier.ENTERPRISE),
+    ):
         result = asyncio.run(analytics.require_admin_tier(user))
 
     assert result == user

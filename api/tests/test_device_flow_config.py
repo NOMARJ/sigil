@@ -6,7 +6,9 @@ from api.config import Settings
 
 
 def _settings(**over) -> Settings:
-    base = dict(auth0_domain="auth.sigilsec.ai", auth0_audience="https://api.sigilsec.ai")
+    base = dict(
+        auth0_domain="auth.sigilsec.ai", auth0_audience="https://api.sigilsec.ai"
+    )
     base.update(over)
     return Settings(**base)
 
@@ -23,5 +25,11 @@ def test_device_flow_configured_when_client_id_present():
 
 
 def test_device_flow_needs_domain_and_audience():
-    assert _settings(auth0_domain=None, auth0_client_id="x").auth0_device_flow_configured is False
-    assert _settings(auth0_audience=None, auth0_client_id="x").auth0_device_flow_configured is False
+    assert (
+        _settings(auth0_domain=None, auth0_client_id="x").auth0_device_flow_configured
+        is False
+    )
+    assert (
+        _settings(auth0_audience=None, auth0_client_id="x").auth0_device_flow_configured
+        is False
+    )

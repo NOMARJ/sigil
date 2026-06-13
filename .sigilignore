@@ -27,6 +27,7 @@ README.md
 ROADMAP.md
 CHANGELOG.md
 CLAUDE.md
+SOLUTION.md
 VERIFICATION_REPORT.md
 llms.txt
 
@@ -158,12 +159,22 @@ cli/src/scanner/context.rs
 cli/src/corpus/engine.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
+# cli/src/cache.rs and cli/src/ledger.rs: unit tests embed known-risk snippets
+# to prove cache invalidation and trust-ledger suppression do not hide changed
+# artifacts. The production modules remain covered by Rust unit tests.
+cli/src/cache.rs
+cli/src/ledger.rs
+# cli/tests/explain.rs: CLI parser fixture contains JSON scan findings by design.
+cli/tests/explain.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.
 plugins/mcp-server/src/index.ts
 # plugins/vscode/src/runner.ts: execFile("child_process") to invoke the sigil binary.
 plugins/vscode/src/runner.ts
+# scripts/install-binary.js: first-party npm postinstall uses execFileSync only
+# to unpack the verified native Sigil release archive.
+scripts/install-binary.js
 
 # Dashboard onboarding/demo UI that SHOWS example malicious snippets to users.
 # FirstScanStep.tsx: demo payloads (eval/exec samples shown in onboarding).
@@ -188,6 +199,9 @@ dashboard/src/app/threats/page.tsx
 api/routers/attestation.py
 bot/attestation.py
 api/services/mcp_crawler.py
+# api/services/fp_adjudicator.py: service prompt/docstring discusses dangerous
+# API families as classifier labels, not executable code.
+api/services/fp_adjudicator.py
 
 # Placeholder/template files — values are literal placeholders, not real secrets.
 # .env.example: "sk_live_your_stripe_secret_key" and PRIVATE KEY "-----BEGIN…-----..."
@@ -215,6 +229,7 @@ test_auth0_flow.sh
 
 # Harness scripts that reference dynamic-import / pattern strings as data.
 scripts/ensure-telemetry-ignored.cjs
+scripts/eval_fp_adjudication.py
 scripts/lifecycle-engine.cjs
 scripts/transcript-backfill.cjs
 

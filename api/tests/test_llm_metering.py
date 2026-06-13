@@ -192,7 +192,9 @@ class TestDeductCreditsErrorHandling:
             "api.services.credit_service.db.execute_procedure",
             AsyncMock(side_effect=err),
         )
-        monkeypatch.setattr(service, "initialize_user_credits", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            service, "initialize_user_credits", AsyncMock(return_value=None)
+        )
         with pytest.raises(Exception) as exc:
             await service.deduct_credits("u1", 5, "scan")
         assert not isinstance(exc.value, RecursionError)

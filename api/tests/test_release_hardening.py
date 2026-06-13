@@ -62,9 +62,7 @@ def test_github_action_fails_closed_on_unparseable_success_without_report(tmp_pa
     fake_bin.mkdir()
     fake_sigil = fake_bin / "sigil"
     fake_sigil.write_text(
-        "#!/usr/bin/env bash\n"
-        "echo '[LOW] suspicious file found'\n"
-        "exit 0\n"
+        "#!/usr/bin/env bash\necho '[LOW] suspicious file found'\nexit 0\n"
     )
     fake_sigil.chmod(fake_sigil.stat().st_mode | stat.S_IXUSR)
 
@@ -108,11 +106,11 @@ def test_github_action_parses_json_scan_output_without_report(tmp_path):
         "#!/usr/bin/env bash\n"
         "cat <<'JSON'\n"
         "{\n"
-        "  \"files_scanned\": 1,\n"
-        "  \"findings_count\": 1,\n"
-        "  \"score\": 1,\n"
-        "  \"verdict\": \"LOW RISK\",\n"
-        "  \"duration_ms\": 1\n"
+        '  "files_scanned": 1,\n'
+        '  "findings_count": 1,\n'
+        '  "score": 1,\n'
+        '  "verdict": "LOW RISK",\n'
+        '  "duration_ms": 1\n'
         "}\n"
         "JSON\n"
         "exit 0\n"
@@ -160,14 +158,14 @@ def test_github_action_uses_scan_subcommand_before_format_flag(tmp_path):
     fake_sigil = fake_bin / "sigil"
     fake_sigil.write_text(
         "#!/usr/bin/env bash\n"
-        "printf '%s\\n' \"$@\" > \"$SIGIL_ARGS_FILE\"\n"
+        'printf \'%s\\n\' "$@" > "$SIGIL_ARGS_FILE"\n'
         "cat <<'JSON'\n"
         "{\n"
-        "  \"files_scanned\": 1,\n"
-        "  \"findings_count\": 0,\n"
-        "  \"score\": 0,\n"
-        "  \"verdict\": \"LOW RISK\",\n"
-        "  \"duration_ms\": 1\n"
+        '  "files_scanned": 1,\n'
+        '  "findings_count": 0,\n'
+        '  "score": 0,\n'
+        '  "verdict": "LOW RISK",\n'
+        '  "duration_ms": 1\n'
         "}\n"
         "JSON\n"
     )
@@ -226,7 +224,7 @@ def test_release_packaging_targets_native_assets():
     assert "@nomarj/sigil" in wrapper
     assert "falling back to bash script" not in installer
     assert "cargo install sigil-cli" in installer
-    assert "cargo install sigil\"" not in installer
+    assert 'cargo install sigil"' not in installer
 
 
 def test_release_workflow_publishes_npm_after_public_release_assets_exist():
@@ -253,7 +251,7 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     )
     assert "draft: true" not in workflow
     assert "cargo install sigil-cli" in workflow
-    assert "gh release edit \"${{ github.ref_name }}\" --draft=false" not in workflow
+    assert 'gh release edit "${{ github.ref_name }}" --draft=false' not in workflow
     assert "npm (macOS/Linux)" in workflow
     assert "npm publish --access public ||" not in workflow
 
@@ -287,6 +285,43 @@ def test_base_schema_contains_billing_entitlement_column():
     assert "name = 'subscription_tier'" in schema
     assert "ALTER TABLE users ADD subscription_tier" in schema
     assert "idx_users_subscription_tier" in schema
+
+
+def test_production_migrations_verify_auth_billing_and_interactive_schema():
+    repo_root = Path(__file__).resolve().parents[2]
+    auth_migration = (
+        repo_root / "api" / "migrations" / "add_auth0_subscription_columns_prod.sql"
+    ).read_text()
+    credits_migration = (
+        repo_root / "api" / "migrations" / "add_credits_system_prod.sql"
+    ).read_text()
+    runner = (repo_root / "api" / "migrations" / "apply_prod_migration.py").read_text()
+
+    assert "ALTER TABLE users ADD auth0_sub" in auth_migration
+    assert "ALTER TABLE users ADD subscription_tier" in auth_migration
+    assert "idx_users_auth0_sub" in auth_migration
+    assert "idx_users_subscription_tier" in auth_migration
+    assert "CREATE TABLE interactive_sessions" in credits_migration
+    assert "IX_sessions_user_active" in credits_migration
+    assert "IX_sessions_share_token" in credits_migration
+
+    for required_object in [
+        "users.auth0_sub",
+        "users.subscription_tier",
+        "idx_users_auth0_sub",
+        "idx_users_subscription_tier",
+        "user_credits",
+        "credit_transactions",
+        "interactive_sessions",
+        "IX_sessions_user_active",
+        "IX_sessions_scan",
+        "IX_sessions_share_token",
+        "IX_sessions_expiry",
+        "sp_DeductCredits",
+        "sp_AddCredits",
+    ]:
+        assert required_object in runner
+    assert "async def main(paths: list[str]) -> int" in runner
 
 
 def test_cli_auto_approval_uses_ledger_helper():

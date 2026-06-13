@@ -70,7 +70,9 @@ def test_attack_chain_task():
     print(f"Selected Model: {model}")
     print()
 
-    assert model == llm_config.deep_model, f"Expected deep model for attack_chain, got {model}"
+    assert model == llm_config.deep_model, (
+        f"Expected deep model for attack_chain, got {model}"
+    )
     assert complexity == TaskComplexity.COMPLEX, f"Expected COMPLEX, got {complexity}"
     print("✅ PASSED: attack_chain task correctly routes to Opus\n")
 

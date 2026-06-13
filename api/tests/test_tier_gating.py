@@ -613,11 +613,14 @@ class TestRequireLlmAccess:
         from api.services.credit_service import credit_service
 
         gate = self._gate(4)
-        with patch.object(gates, "get_user_plan", return_value=PlanTier.FREE), patch.object(
-            credit_service,
-            "check_llm_allowance",
-            return_value={"allowed": True, "balance": 42},
-        ) as mock_check:
+        with (
+            patch.object(gates, "get_user_plan", return_value=PlanTier.FREE),
+            patch.object(
+                credit_service,
+                "check_llm_allowance",
+                return_value={"allowed": True, "balance": 42},
+            ) as mock_check,
+        ):
             result = await gate(current_user=self._make_user("free_1"))
             assert result is None
             mock_check.assert_called_once_with("free_1", 4)
@@ -636,8 +639,9 @@ class TestRequireLlmAccess:
             "upgrade_url": "https://www.sigilsec.ai/pricing",
         }
         gate = self._gate(4)
-        with patch.object(gates, "get_user_plan", return_value=PlanTier.FREE), patch.object(
-            credit_service, "check_llm_allowance", return_value=denial
+        with (
+            patch.object(gates, "get_user_plan", return_value=PlanTier.FREE),
+            patch.object(credit_service, "check_llm_allowance", return_value=denial),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await gate(current_user=self._make_user("free_2"))
@@ -656,9 +660,10 @@ class TestRequireLlmAccess:
         from api.services.credit_service import credit_service
 
         gate = self._gate()
-        with patch.object(gates, "get_user_plan", return_value=PlanTier.PRO), patch.object(
-            credit_service, "check_llm_allowance"
-        ) as mock_check:
+        with (
+            patch.object(gates, "get_user_plan", return_value=PlanTier.PRO),
+            patch.object(credit_service, "check_llm_allowance") as mock_check,
+        ):
             result = await gate(current_user=self._make_user("pro_1"))
             assert result is None
             mock_check.assert_not_called()
@@ -669,9 +674,10 @@ class TestRequireLlmAccess:
         from api.services.credit_service import credit_service
 
         gate = self._gate()
-        with patch.object(gates, "get_user_plan", return_value=PlanTier.TEAM), patch.object(
-            credit_service, "check_llm_allowance"
-        ) as mock_check:
+        with (
+            patch.object(gates, "get_user_plan", return_value=PlanTier.TEAM),
+            patch.object(credit_service, "check_llm_allowance") as mock_check,
+        ):
             result = await gate(current_user=self._make_user("team_1"))
             assert result is None
             mock_check.assert_not_called()

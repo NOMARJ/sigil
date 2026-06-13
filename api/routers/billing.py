@@ -467,6 +467,7 @@ async def subscribe(
     # Audit log
     try:
         from uuid import uuid4
+
         now = datetime.utcnow()
 
         await db.insert(
@@ -871,9 +872,7 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
         await _set_user_subscription_tier(user_id, plan)
         await credit_service.initialize_user_credits(user_id)
 
-        logger.info(
-            f"Updated user {user_id} to {plan} tier with credits initialized"
-        )
+        logger.info(f"Updated user {user_id} to {plan} tier with credits initialized")
 
     # Fire PostHog conversion event for funnel tracking
     from api.services.posthog_service import posthog_service
@@ -927,9 +926,7 @@ async def _handle_subscription_updated(event: dict[str, Any]) -> None:
         # webhook processing; failures must return 500 so Stripe retries.
         if sub_status not in {"active", "trialing"}:
             await _set_user_subscription_tier(user_id, PlanTier.FREE.value)
-            logger.info(
-                f"Downgraded user {user_id} to free tier due to {sub_status}"
-            )
+            logger.info(f"Downgraded user {user_id} to free tier due to {sub_status}")
         elif current_plan != PlanTier.FREE.value:
             await _set_user_subscription_tier(user_id, current_plan)
 

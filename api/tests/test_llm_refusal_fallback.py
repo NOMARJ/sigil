@@ -129,6 +129,7 @@ async def test_anthropic_payload_omits_sampling_and_thinking(anthropic_env):
     assert "top_p" not in payload
     assert payload["max_tokens"] == 100
 
+
 @pytest.mark.asyncio
 async def test_text_block_selected_when_thinking_blocks_precede(anthropic_env):
     """Fable 5 always thinks: content[0] is a thinking block, not text.
@@ -150,7 +151,10 @@ async def test_text_block_selected_when_thinking_blocks_precede(anthropic_env):
 
 @pytest.mark.asyncio
 async def test_no_text_block_raises_not_keyerror(anthropic_env):
-    payload = {"stop_reason": "end_turn", "content": [{"type": "thinking", "thinking": ""}]}
+    payload = {
+        "stop_reason": "end_turn",
+        "content": [{"type": "thinking", "thinking": ""}],
+    }
     service = make_service([payload, payload, payload])
     with pytest.raises(Exception) as exc_info:
         await service.call_llm_api("prompt", 100, model="claude-opus-4-8")

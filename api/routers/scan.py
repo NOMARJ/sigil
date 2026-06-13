@@ -146,7 +146,9 @@ def _row_to_detail(row: dict[str, Any]) -> ScanDetail:
         target=row.get("target", ""),
         target_type=row.get("target_type", "directory"),
         files_scanned=row.get("files_scanned", 0),
-        findings_count=len(findings) if isinstance(findings, list) else row.get("findings_count", 0),
+        findings_count=len(findings)
+        if isinstance(findings, list)
+        else row.get("findings_count", 0),
         risk_score=row.get("risk_score", 0.0),
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
@@ -1009,9 +1011,7 @@ async def _persist_adjudication(
     await db.update(SCAN_TABLE, {"id": scan_id}, {"findings_json": findings})
 
 
-async def _run_adjudication_job(
-    scan_id: str, finding_index: int, user_id: str
-) -> None:
+async def _run_adjudication_job(scan_id: str, finding_index: int, user_id: str) -> None:
     """Background worker: run Fable-5 adjudication, persist the verdict, meter.
 
     Persists an error marker on any failure so the poller never hangs on
@@ -1048,9 +1048,7 @@ async def _run_adjudication_job(
         )
         return
     except Exception as e:  # noqa: BLE001 — persist the failure, don't crash the worker
-        logger.exception(
-            f"Adjudication job failed for {scan_id}[{finding_index}]: {e}"
-        )
+        logger.exception(f"Adjudication job failed for {scan_id}[{finding_index}]: {e}")
         await _persist_adjudication(
             scan_id,
             finding_index,

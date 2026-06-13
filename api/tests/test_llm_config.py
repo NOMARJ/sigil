@@ -49,8 +49,7 @@ class TestDefaults:
 
     def test_default_endpoint_is_anthropic_messages(self, clean_env):
         assert (
-            make_config().get_endpoint_url()
-            == "https://api.anthropic.com/v1/messages"
+            make_config().get_endpoint_url() == "https://api.anthropic.com/v1/messages"
         )
 
 

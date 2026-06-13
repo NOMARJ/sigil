@@ -205,7 +205,9 @@ class MssqlClient:
             raise
 
     @staticmethod
-    def _named_params(sql: str, params: dict[str, Any] | None = None) -> tuple[str, tuple[Any, ...]]:
+    def _named_params(
+        sql: str, params: dict[str, Any] | None = None
+    ) -> tuple[str, tuple[Any, ...]]:
         """Convert SQLAlchemy-style named params to pyodbc positional params."""
         params = params or {}
         values: list[Any] = []
@@ -229,7 +231,9 @@ class MssqlClient:
             base = f"{base} ORDER BY (SELECT NULL)"
         return f"{base} OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY"
 
-    async def execute(self, sql: str, values: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    async def execute(
+        self, sql: str, values: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Compatibility wrapper for legacy named-param SQL callers."""
         sql, params = self._named_params(sql, values)
         sql = self._tsql_limit(sql)

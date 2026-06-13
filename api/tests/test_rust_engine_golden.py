@@ -107,9 +107,9 @@ def test_on_mode_uses_rust_rules() -> None:
     on_findings = _scan_on(str(FIXTURE_DIR))  # may pytest.skip if no binary
     rule_ids = {f.rule for f in on_findings}
     # Rust rule ids are upper-case dashed codes (e.g. CODE-001, OBFUSC-001).
-    assert any(
-        r.upper() == r and "-" in r and r[0].isupper() for r in rule_ids
-    ), f"expected Rust rule ids, got {sorted(rule_ids)}"
-    assert not any(
-        r.startswith(("code-", "obf-", "install-")) for r in rule_ids
-    ), f"unexpected Python rule ids in Rust mode: {sorted(rule_ids)}"
+    assert any(r.upper() == r and "-" in r and r[0].isupper() for r in rule_ids), (
+        f"expected Rust rule ids, got {sorted(rule_ids)}"
+    )
+    assert not any(r.startswith(("code-", "obf-", "install-")) for r in rule_ids), (
+        f"unexpected Python rule ids in Rust mode: {sorted(rule_ids)}"
+    )

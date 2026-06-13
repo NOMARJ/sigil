@@ -43,19 +43,34 @@ class TestStoreScanColumnFilter:
             return data
 
         real_cols = {
-            "id", "target", "target_type", "files_scanned", "risk_score",
-            "verdict", "findings_json", "metadata_json", "created_at",
+            "id",
+            "target",
+            "target_type",
+            "files_scanned",
+            "risk_score",
+            "verdict",
+            "findings_json",
+            "metadata_json",
+            "created_at",
         }
-        with patch.object(client, "_table_columns", new=AsyncMock(return_value=real_cols)), \
-                patch.object(client, "insert", new=fake_insert):
-            asyncio.run(client.store_scan({
-                "id": "s1",
-                "target": "x",
-                "findings_count": 5,   # phantom column
-                "threat_hits": 2,      # phantom column
-                "risk_score": 1.0,
-                "findings_json": "[]",
-            }))
+        with (
+            patch.object(
+                client, "_table_columns", new=AsyncMock(return_value=real_cols)
+            ),
+            patch.object(client, "insert", new=fake_insert),
+        ):
+            asyncio.run(
+                client.store_scan(
+                    {
+                        "id": "s1",
+                        "target": "x",
+                        "findings_count": 5,  # phantom column
+                        "threat_hits": 2,  # phantom column
+                        "risk_score": 1.0,
+                        "findings_json": "[]",
+                    }
+                )
+            )
 
         assert "findings_count" not in captured["data"]
         assert "threat_hits" not in captured["data"]
@@ -71,8 +86,10 @@ class TestStoreScanColumnFilter:
             captured["data"] = data
             return data
 
-        with patch.object(client, "_table_columns", new=AsyncMock(return_value=None)), \
-                patch.object(client, "insert", new=fake_insert):
+        with (
+            patch.object(client, "_table_columns", new=AsyncMock(return_value=None)),
+            patch.object(client, "insert", new=fake_insert),
+        ):
             asyncio.run(client.store_scan({"id": "s1", "findings_count": 5}))
 
         assert captured["data"]["findings_count"] == 5

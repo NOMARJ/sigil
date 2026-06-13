@@ -35,7 +35,10 @@ def make_adjudicator(monkeypatch, raw_response: str, captured: dict):
 
     async def fake_call(prompt, max_tokens, model=None, output_config=None):
         captured.update(
-            prompt=prompt, max_tokens=max_tokens, model=model, output_config=output_config
+            prompt=prompt,
+            max_tokens=max_tokens,
+            model=model,
+            output_config=output_config,
         )
         return raw_response
 
@@ -120,7 +123,9 @@ class TestOutputConfigPassthrough:
 
         service = LLMService()
         service._session = FakeSession([ok_payload('{"x": 1}')])
-        schema_config = {"format": {"type": "json_schema", "schema": ADJUDICATION_SCHEMA}}
+        schema_config = {
+            "format": {"type": "json_schema", "schema": ADJUDICATION_SCHEMA}
+        }
         await service.call_llm_api(
             "p", 100, model="claude-fable-5", output_config=schema_config
         )

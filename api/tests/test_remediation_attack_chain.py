@@ -81,9 +81,7 @@ class TestRemediationModel:
             return _fake_response(request.model or "unset")
 
         with patch.object(llm_service, "analyze_threat", fake_analyze):
-            await remediation_generator._call_llm_service(
-                "fix this", llm_config.model
-            )
+            await remediation_generator._call_llm_service("fix this", llm_config.model)
 
         assert len(captured) == 1
         assert captured[0].model == llm_config.model
@@ -109,12 +107,14 @@ class TestAttackChainModel:
             captured.append(request)
             return _fake_response(request.model or "unset")
 
-        with patch.object(
-            credit_service, "has_credits", new_callable=AsyncMock
-        ) as has_credits, patch.object(
-            credit_service, "deduct_credits", new_callable=AsyncMock
-        ) as deduct, patch.object(
-            llm_service, "analyze_threat", fake_analyze
+        with (
+            patch.object(
+                credit_service, "has_credits", new_callable=AsyncMock
+            ) as has_credits,
+            patch.object(
+                credit_service, "deduct_credits", new_callable=AsyncMock
+            ) as deduct,
+            patch.object(llm_service, "analyze_threat", fake_analyze),
         ):
             has_credits.return_value = True
             deduct.return_value = 100

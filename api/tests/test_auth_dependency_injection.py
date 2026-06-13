@@ -195,9 +195,7 @@ class TestPlanGatedEndpoints:
             "updated_at": datetime.utcnow(),
         }
 
-        resp = client.delete(
-            f"/v1/signatures/{sig_id}", headers=reviewer_auth_headers
-        )
+        resp = client.delete(f"/v1/signatures/{sig_id}", headers=reviewer_auth_headers)
         assert resp.status_code == 403
         assert resp.json()["detail"] == "Admin or owner role required"
 

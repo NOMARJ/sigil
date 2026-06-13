@@ -1715,6 +1715,7 @@ class TrendingToolResponse(BaseModel):
     ecosystem: str = Field(..., description="Tool ecosystem")
     category: str = Field(..., description="Tool category")
 
+
 class TrendingResponse(BaseModel):
     """Response model for trending tools list."""
 

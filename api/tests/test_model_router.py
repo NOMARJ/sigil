@@ -34,16 +34,27 @@ class TestRegistry:
 
 class TestScorerAlignment:
     def test_recommend_model_simple_routes_to_fast(self):
-        assert complexity_scorer.recommend_model(TaskComplexity.SIMPLE) == llm_config.fast_model
+        assert (
+            complexity_scorer.recommend_model(TaskComplexity.SIMPLE)
+            == llm_config.fast_model
+        )
 
     def test_recommend_model_moderate_routes_to_default(self):
-        assert complexity_scorer.recommend_model(TaskComplexity.MODERATE) == llm_config.model
+        assert (
+            complexity_scorer.recommend_model(TaskComplexity.MODERATE)
+            == llm_config.model
+        )
 
     def test_recommend_model_complex_routes_to_deep(self):
-        assert complexity_scorer.recommend_model(TaskComplexity.COMPLEX) == llm_config.deep_model
+        assert (
+            complexity_scorer.recommend_model(TaskComplexity.COMPLEX)
+            == llm_config.deep_model
+        )
 
     def test_estimate_credits_keys_match_registry(self):
-        credits = complexity_scorer.estimate_credits(TaskComplexity.MODERATE, "investigate")
+        credits = complexity_scorer.estimate_credits(
+            TaskComplexity.MODERATE, "investigate"
+        )
         assert set(credits.keys()) == CURRENT_IDS
 
     def test_cost_comparison_savings_vs_deep_model(self):

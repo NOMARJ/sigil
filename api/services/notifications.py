@@ -134,9 +134,7 @@ async def _send_json_to_pinned_https_target(
             and "\n" not in str(value)
         )
         writer.write(
-            f"{method.upper()} {path} HTTP/1.1\r\n{header_lines}\r\n".encode(
-                "utf-8"
-            )
+            f"{method.upper()} {path} HTTP/1.1\r\n{header_lines}\r\n".encode("utf-8")
             + body
         )
         await writer.drain()

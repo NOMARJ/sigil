@@ -59,6 +59,7 @@ def monthly_allowance(tier: SubscriptionTier) -> int:
         return int(os.getenv("LLM_FREE_MONTHLY_CREDITS", "50"))
     return MONTHLY_CREDITS.get(tier, 100)
 
+
 # Feature credit costs (optimized for constrained launch)
 SCAN_COSTS = {
     "quick_investigation": 4,  # Fast finding analysis (Haiku)
@@ -169,9 +170,7 @@ class CreditService:
                         f"Credit init did not create a row for {user_id}; "
                         "cannot deduct."
                     )
-                    raise CreditTransactionError(
-                        "Could not initialize user credits"
-                    )
+                    raise CreditTransactionError("Could not initialize user credits")
                 await self.initialize_user_credits(user_id)
                 return await self.deduct_credits(
                     user_id,
@@ -420,7 +419,9 @@ class CreditService:
                 "used_this_month": result["credits_used_month"],
                 "monthly_allocation": result["subscription_credits"],
                 "bonus_credits": result["bonus_credits"],
-                "reset_date": reset.isoformat() if hasattr(reset, "isoformat") else reset,
+                "reset_date": reset.isoformat()
+                if hasattr(reset, "isoformat")
+                else reset,
                 "usage_stats": {
                     "scans": result["credits_used_month"] or 0,
                     "interactive_sessions": 0,
@@ -431,6 +432,7 @@ class CreditService:
         except Exception as e:
             logger.exception(f"Failed to get usage analytics for {user_id}: {e}")
             return {}
+
 
 # NOTE: a former `purchase_credits` method here read the `credit_packages`
 # table via the asyncpg-style `db.fetch_one` API that MssqlClient does not

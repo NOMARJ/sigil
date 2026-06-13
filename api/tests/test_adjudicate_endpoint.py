@@ -66,9 +66,12 @@ def pro_context():
         recorded.append(kwargs)
         return 100
 
-    with patch.object(gates, "get_user_plan", fake_plan), patch.object(
-        credit_service, "record_llm_usage", side_effect=None
-    ) as mock_record:
+    with (
+        patch.object(gates, "get_user_plan", fake_plan),
+        patch.object(
+            credit_service, "record_llm_usage", side_effect=None
+        ) as mock_record,
+    ):
         mock_record.side_effect = fake_record
         yield recorded
 
@@ -95,8 +98,9 @@ class TestAdjudicateEndpoint:
                 "upgrade_url": "https://www.sigilsec.ai/pricing",
             }
 
-        with patch.object(gates, "get_user_plan", fake_plan), patch.object(
-            credit_service, "check_llm_allowance", fake_allowance
+        with (
+            patch.object(gates, "get_user_plan", fake_plan),
+            patch.object(credit_service, "check_llm_allowance", fake_allowance),
         ):
             resp = _adjudicate(client, auth_headers, scan_id)
 
@@ -162,9 +166,7 @@ class TestAdjudicateEndpoint:
         assert r2.json()["adjudication"]["classification"] == "benign_dual_use"
         assert calls == ["A"]  # second never ran
 
-    def test_force_reruns(
-        self, client, auth_headers, sample_scan_request, pro_context
-    ):
+    def test_force_reruns(self, client, auth_headers, sample_scan_request, pro_context):
         scan_id = _submit_scan_with_findings(client, auth_headers, sample_scan_request)
 
         async def first(finding, code_context):
