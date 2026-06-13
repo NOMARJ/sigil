@@ -305,62 +305,6 @@ jobs:
           name: pro-tier-load-test-report
           path: api/load_test_report.md
 
-  coverage-report:
-    name: Combined Coverage Report
-    runs-on: ubuntu-latest
-    needs: [pro-tier-unit-tests, integration-tests]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Download coverage reports
-        uses: actions/download-artifact@v4
-        
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          
-      - name: Install coverage tools
-        run: |
-          pip install coverage codecov
-          
-      - name: Combine coverage reports
-        run: |
-          cd api
-          coverage combine ../artifact/coverage-*.xml || true
-          coverage report --show-missing
-          coverage html -d coverage_html
-          
-      - name: Upload combined coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: pro-tier-combined-coverage
-          path: api/coverage_html
-          
-      - name: Coverage comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            let coverageComment = `## Pro Tier Test Coverage\n\n`;
-            coverageComment += `All Pro tier tests have been executed.\n`;
-            coverageComment += `Coverage reports are available in the artifacts.\n\n`;
-            coverageComment += `**Test Categories:**\n`;
-            coverageComment += `- ✅ Unit Tests (Pro Tier, Billing, LLM, Analytics, Tier Gating)\n`;
-            coverageComment += `- ✅ Integration Tests\n`;
-            coverageComment += `- ✅ Performance Tests\n`;
-            coverageComment += `- ✅ Security Tests\n`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: coverageComment
-            });
-
   notify-on-failure:
     name: Notify on Test Failure
     runs-on: ubuntu-latest

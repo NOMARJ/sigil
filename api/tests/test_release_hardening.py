@@ -272,10 +272,15 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     repo_root = Path(__file__).resolve().parents[2]
     api_dockerfile = (repo_root / "api" / "Dockerfile").read_text()
     ci_workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text()
+    pro_workflow = (
+        repo_root / ".github" / "workflows" / "test-pro-tier.yml"
+    ).read_text()
 
     assert "api/requirements.lock" in api_dockerfile
     assert "api/requirements.txt" not in api_dockerfile
     assert "pip install -r api/requirements.lock" in ci_workflow
+    assert "cd api && pytest tests -v --tb=short" in ci_workflow
+    assert "coverage combine ../artifact/coverage-*.xml" not in pro_workflow
 
 
 def test_base_schema_contains_billing_entitlement_column():
