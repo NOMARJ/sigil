@@ -280,6 +280,7 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     assert "api/requirements.txt" not in api_dockerfile
     assert "pip install -r api/requirements.lock" in ci_workflow
     assert "cd api && pytest tests -v --tb=short" in ci_workflow
+    assert "- '.github/workflows/test-pro-tier.yml'" in pro_workflow
     assert "coverage combine ../artifact/coverage-*.xml" not in pro_workflow
 
 
