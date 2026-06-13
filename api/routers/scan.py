@@ -1312,7 +1312,16 @@ async def get_dashboard_stats(
 
     Computes totals and trends from the scans table.
     """
-    rows = await db.select(SCAN_TABLE, None, limit=10000)
+    rows_by_id: dict[str, dict[str, Any]] = {}
+    for row in await db.select(SCAN_TABLE, {"user_id": current_user.id}, limit=10000):
+        rows_by_id[str(row.get("id") or row.get("scan_id"))] = row
+
+    team_id = getattr(current_user, "team_id", None)
+    if team_id:
+        for row in await db.select(SCAN_TABLE, {"team_id": team_id}, limit=10000):
+            rows_by_id[str(row.get("id") or row.get("scan_id"))] = row
+
+    rows = list(rows_by_id.values())
 
     # Exclude ERROR scans from statistics — they represent failed scans, not results
     rows = [r for r in rows if r.get("verdict") != "ERROR"]

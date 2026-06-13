@@ -55,6 +55,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.sigilsec.ai
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -117,5 +119,9 @@ jobs:
       - name: Pull and test image
         run: |
           docker pull ${{ matrix.image }}:latest
-          docker run --rm ${{ matrix.image }}:latest --version
+          if [ "${{ matrix.image }}" = "nomark/sigil-full" ]; then
+            docker run --rm --entrypoint /usr/local/bin/sigil ${{ matrix.image }}:latest --version
+          else
+            docker run --rm ${{ matrix.image }}:latest --version
+          fi
           echo "✅ ${{ matrix.image }} works!"

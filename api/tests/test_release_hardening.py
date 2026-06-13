@@ -258,6 +258,37 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     assert "npm publish --access public ||" not in workflow
 
 
+def test_full_docker_image_builds_with_dashboard_api_url_and_rust_engine():
+    repo_root = Path(__file__).resolve().parents[2]
+    workflow = (repo_root / ".github" / "workflows" / "docker.yml").read_text()
+    dockerfile = (repo_root / "Dockerfile").read_text()
+
+    assert "NEXT_PUBLIC_API_URL=https://api.sigilsec.ai" in workflow
+    assert "COPY --from=cli-builder" in dockerfile
+    assert "/usr/local/bin/sigil-engine" in dockerfile
+    assert "ENV SIGIL_BIN=/usr/local/bin/sigil-engine" in dockerfile
+    assert "--entrypoint /usr/local/bin/sigil" in workflow
+
+
+def test_api_deploy_and_ci_use_locked_python_dependencies():
+    repo_root = Path(__file__).resolve().parents[2]
+    api_dockerfile = (repo_root / "api" / "Dockerfile").read_text()
+    ci_workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "api/requirements.lock" in api_dockerfile
+    assert "api/requirements.txt" not in api_dockerfile
+    assert "pip install -r api/requirements.lock" in ci_workflow
+
+
+def test_base_schema_contains_billing_entitlement_column():
+    repo_root = Path(__file__).resolve().parents[2]
+    schema = (repo_root / "api" / "schema.sql").read_text()
+
+    assert "name = 'subscription_tier'" in schema
+    assert "ALTER TABLE users ADD subscription_tier" in schema
+    assert "idx_users_subscription_tier" in schema
+
+
 def test_cli_auto_approval_uses_ledger_helper():
     repo_root = Path(__file__).resolve().parents[2]
     source = (repo_root / "cli" / "src" / "main.rs").read_text()

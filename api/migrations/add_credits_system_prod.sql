@@ -10,10 +10,11 @@
 --   is a type mismatch and fails to create — which is why metering has no
 --   backing tables and sp_DeductCredits is absent in prod.
 --
--- Scope: only what the F-009 metering path needs (deduct + add). Deliberately
---   omits interactive_sessions (its FK references scans(scan_id), a column that
---   does not exist on the prod scans table), credit_packages, the tier-reset
---   proc, and vw_credit_analytics — none are on the adjudication request path.
+-- Scope: what the F-009 metering path and paid interactive routes need.
+--   The legacy migration's interactive_sessions FK references scans(scan_id),
+--   a column that does not exist on the prod scans table. This prod table keeps
+--   scan_id as a string without a hard FK so existing API session IDs continue
+--   to work across old and new scan rows.
 --
 -- Idempotent: guarded with IF NOT EXISTS / CREATE OR ALTER. Safe to re-run.
 
@@ -62,7 +63,50 @@ BEGIN
 END
 GO
 
--- 3. sp_DeductCredits --------------------------------------------------------
+-- 3. interactive_sessions ----------------------------------------------------
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'interactive_sessions')
+BEGIN
+    CREATE TABLE interactive_sessions (
+        session_id            NVARCHAR(64) PRIMARY KEY,
+        user_id               UNIQUEIDENTIFIER NOT NULL,
+        scan_id               NVARCHAR(64) NOT NULL,
+        [status]              NVARCHAR(20) NOT NULL DEFAULT 'active',
+        findings_context      NVARCHAR(MAX) NOT NULL DEFAULT '{}',
+        conversation_history  NVARCHAR(MAX) NOT NULL DEFAULT '[]',
+        total_credits_used    INT NOT NULL DEFAULT 0,
+        model_preference      NVARCHAR(50) DEFAULT 'claude-3-haiku',
+        share_token           NVARCHAR(128),
+        expires_at            DATETIME2,
+        started_at            DATETIME2 NOT NULL DEFAULT GETDATE(),
+        last_activity         DATETIME2 NOT NULL DEFAULT GETDATE(),
+        completed_at          DATETIME2,
+        CONSTRAINT FK_interactive_sessions_user FOREIGN KEY (user_id)
+            REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT CK_interactive_findings_json CHECK (ISJSON(findings_context) = 1),
+        CONSTRAINT CK_interactive_history_json CHECK (ISJSON(conversation_history) = 1)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_sessions_user_active')
+    CREATE INDEX IX_sessions_user_active ON interactive_sessions (user_id, [status]);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_sessions_scan')
+    CREATE INDEX IX_sessions_scan ON interactive_sessions (scan_id);
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_sessions_share_token')
+    CREATE UNIQUE INDEX IX_sessions_share_token ON interactive_sessions (share_token)
+    WHERE share_token IS NOT NULL;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_sessions_expiry')
+    CREATE INDEX IX_sessions_expiry ON interactive_sessions (expires_at)
+    WHERE expires_at IS NOT NULL;
+GO
+
+-- 4. sp_DeductCredits --------------------------------------------------------
 --    @UserId is UNIQUEIDENTIFIER; the service passes the GUID as a string and
 --    SQL Server implicitly converts it.
 CREATE OR ALTER PROCEDURE sp_DeductCredits
@@ -123,7 +167,7 @@ BEGIN
 END;
 GO
 
--- 4. sp_AddCredits -----------------------------------------------------------
+-- 5. sp_AddCredits -----------------------------------------------------------
 CREATE OR ALTER PROCEDURE sp_AddCredits
     @UserId UNIQUEIDENTIFIER,
     @Amount INT,

@@ -30,6 +30,13 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
 
+# ── Stage 2: Build Rust CLI Engine ──────────────────────────────────────────
+FROM rust:1-bookworm AS cli-builder
+
+WORKDIR /build
+COPY cli/ /build/cli/
+RUN cd cli && cargo build --release --locked
+
 # ── Stage 3: Runtime Image ──────────────────────────────────────────────────
 # python:3.11-slim-bookworm
 FROM python:3.11-slim-bookworm AS runtime
@@ -79,7 +86,8 @@ COPY bot/ /app/bot/
 
 # ── Copy bash CLI (scanner backend) ────────────────────────────────────────
 COPY bin/sigil /usr/local/bin/sigil
-RUN chmod +x /usr/local/bin/sigil
+COPY --from=cli-builder /build/cli/target/release/sigil /usr/local/bin/sigil-engine
+RUN chmod +x /usr/local/bin/sigil /usr/local/bin/sigil-engine
 
 # ── Copy standalone dashboard ───────────────────────────────────────────────
 COPY --from=dashboard-builder /build/.next/standalone /app/dashboard
@@ -109,6 +117,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV SIGIL_HOST=0.0.0.0
 ENV SIGIL_PORT=8000
+ENV SIGIL_BIN=/usr/local/bin/sigil-engine
 
 # Expose API and dashboard ports
 EXPOSE 8000 3000

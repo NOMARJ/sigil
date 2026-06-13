@@ -784,6 +784,16 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 # ---------------------------------------------------------------------------
 
 
+async def _set_user_subscription_tier(user_id: str, tier: str) -> None:
+    updated = await db.update("users", {"id": user_id}, {"subscription_tier": tier})
+    if updated is None:
+        raise RuntimeError(f"User {user_id} not found while updating subscription tier")
+
+
+async def _get_user_for_billing_notice(user_id: str) -> dict[str, Any] | None:
+    return await db.select_one("users", {"id": user_id})
+
+
 async def _handle_checkout_completed(event: dict[str, Any]) -> None:
     """Process a completed Checkout Session.
 
@@ -856,23 +866,14 @@ async def _handle_checkout_completed(event: dict[str, Any]) -> None:
 
     # Update user subscription tier and refresh credits when subscription is activated
     if sub_status == "active" and plan != PlanTier.FREE.value:
-        try:
-            from api.services.credit_service import credit_service
+        from api.services.credit_service import credit_service
 
-            # Update user's subscription tier in users table
-            await db.execute(
-                "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-                {"tier": plan, "user_id": user_id},
-            )
+        await _set_user_subscription_tier(user_id, plan)
+        await credit_service.initialize_user_credits(user_id)
 
-            # Initialize credits for the new subscription
-            await credit_service.initialize_user_credits(user_id)
-
-            logger.info(
-                f"Updated user {user_id} to {plan} tier with credits initialized"
-            )
-        except Exception as e:
-            logger.exception(f"Failed to update user tier and credits: {e}")
+        logger.info(
+            f"Updated user {user_id} to {plan} tier with credits initialized"
+        )
 
     # Fire PostHog conversion event for funnel tracking
     from api.services.posthog_service import posthog_service
@@ -925,18 +926,12 @@ async def _handle_subscription_updated(event: dict[str, Any]) -> None:
         # Handle subscription status changes. Entitlement writes are part of
         # webhook processing; failures must return 500 so Stripe retries.
         if sub_status not in {"active", "trialing"}:
-            await db.execute(
-                "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
-                {"user_id": user_id},
-            )
+            await _set_user_subscription_tier(user_id, PlanTier.FREE.value)
             logger.info(
                 f"Downgraded user {user_id} to free tier due to {sub_status}"
             )
         elif current_plan != PlanTier.FREE.value:
-            await db.execute(
-                "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-                {"tier": current_plan, "user_id": user_id},
-            )
+            await _set_user_subscription_tier(user_id, current_plan)
 
             from api.services.credit_service import credit_service
 
@@ -970,25 +965,15 @@ async def _handle_subscription_deleted(event: dict[str, Any]) -> None:
             billing_interval="monthly",
         )
 
-        # Downgrade user to free tier
-        try:
-            await db.execute(
-                "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
-                {"user_id": user_id},
-            )
+        await _set_user_subscription_tier(user_id, PlanTier.FREE.value)
 
-            # Optionally reset credits to free tier allocation
-            from api.services.credit_service import credit_service
+        from api.services.credit_service import credit_service
 
-            await credit_service.initialize_user_credits(user_id)
+        await credit_service.initialize_user_credits(user_id)
 
-            logger.info(
-                f"Downgraded user {user_id} to free tier after subscription deletion"
-            )
-        except Exception as e:
-            logger.exception(
-                f"Failed to downgrade user after subscription deletion: {e}"
-            )
+        logger.info(
+            f"Downgraded user {user_id} to free tier after subscription deletion"
+        )
     else:
         logger.warning(
             "Received subscription.deleted for unknown customer: %s", customer_id
@@ -1047,20 +1032,13 @@ async def _handle_subscription_created(event: dict[str, Any]) -> None:
             billing_interval=billing_interval,
         )
 
-        # Activate user tier and credits
-        try:
-            await db.execute(
-                "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-                {"tier": plan, "user_id": user_id},
-            )
+        await _set_user_subscription_tier(user_id, plan)
 
-            from api.services.credit_service import credit_service
+        from api.services.credit_service import credit_service
 
-            await credit_service.initialize_user_credits(user_id)
+        await credit_service.initialize_user_credits(user_id)
 
-            logger.info(f"Activated user {user_id} with {plan} subscription")
-        except Exception as e:
-            logger.exception(f"Failed to activate user tier: {e}")
+        logger.info(f"Activated user {user_id} with {plan} subscription")
 
         # Fire PostHog trial event for funnel tracking
         if sub_status == "trialing":
@@ -1099,10 +1077,7 @@ async def _handle_payment_failed(event: dict[str, Any]) -> None:
 
         # Get user details for notification
         try:
-            user_data = await db.fetch_one(
-                "SELECT email, first_name, last_name FROM users WHERE id = :user_id",
-                {"user_id": user_id},
-            )
+            user_data = await _get_user_for_billing_notice(user_id)
 
             user_email = user_data["email"] if user_data else None
             user_name = None
@@ -1126,10 +1101,7 @@ async def _handle_payment_failed(event: dict[str, Any]) -> None:
             billing_interval=existing.get("billing_interval", "monthly"),
         )
 
-        await db.execute(
-            "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
-            {"user_id": user_id},
-        )
+        await _set_user_subscription_tier(user_id, PlanTier.FREE.value)
 
         if user_email:
             try:
@@ -1176,10 +1148,7 @@ async def _handle_payment_succeeded(event: dict[str, Any]) -> None:
             billing_interval=existing.get("billing_interval", "monthly"),
         )
 
-        await db.execute(
-            "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-            {"tier": current_plan, "user_id": user_id},
-        )
+        await _set_user_subscription_tier(user_id, current_plan)
 
         from api.services.credit_service import credit_service
 
@@ -1251,10 +1220,7 @@ async def _handle_credit_purchase_completed(
 
         # Send notification email
         try:
-            user_data = await db.fetch_one(
-                "SELECT email, first_name, last_name FROM users WHERE id = :user_id",
-                {"user_id": user_id},
-            )
+            user_data = await _get_user_for_billing_notice(user_id)
 
             if user_data and user_data.get("email"):
                 user_email = user_data["email"]

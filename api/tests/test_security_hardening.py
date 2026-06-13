@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from api.models import AlertCreate, ChannelType, PlanTier, SubscribeRequest, UserResponse
 from api.routers import alerts, analytics, billing, policies, realtime, rescan, scan, team, threat
+from api.database import MssqlClient
 from api.services import notifications
 
 
@@ -130,6 +131,20 @@ def test_billing_portal_fails_closed_without_stripe():
     assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
+def test_named_sql_compatibility_supports_interactive_queries():
+    sql, params = MssqlClient._named_params(
+        "SELECT * FROM interactive_sessions WHERE user_id = :user_id LIMIT :limit",
+        {"user_id": "user_1", "limit": 50},
+    )
+
+    assert sql == "SELECT * FROM interactive_sessions WHERE user_id = ? LIMIT ?"
+    assert params == ("user_1", 50)
+    assert (
+        MssqlClient._tsql_limit(sql)
+        == "SELECT * FROM interactive_sessions WHERE user_id = ? ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY"
+    )
+
+
 def test_payment_failed_webhook_downgrade_failure_is_retryable():
     mock_db = MagicMock()
     mock_db.get_subscription_by_stripe_customer = AsyncMock(
@@ -141,9 +156,9 @@ def test_payment_failed_webhook_downgrade_failure_is_retryable():
             "billing_interval": "monthly",
         }
     )
-    mock_db.fetch_one = AsyncMock(return_value=None)
+    mock_db.select_one = AsyncMock(return_value=None)
     mock_db.upsert_subscription = AsyncMock(side_effect=RuntimeError("db down"))
-    mock_db.execute = AsyncMock()
+    mock_db.update = AsyncMock()
 
     event = {
         "type": "invoice.payment_failed",
@@ -161,7 +176,7 @@ def test_payment_failed_webhook_downgrade_failure_is_retryable():
         with pytest.raises(RuntimeError):
             asyncio.run(billing._handle_payment_failed(event))
 
-    mock_db.execute.assert_not_awaited()
+    mock_db.update.assert_not_awaited()
 
 
 def test_payment_failed_webhook_removes_entitlement_but_preserves_paid_plan():
@@ -175,9 +190,9 @@ def test_payment_failed_webhook_removes_entitlement_but_preserves_paid_plan():
             "billing_interval": "monthly",
         }
     )
-    mock_db.fetch_one = AsyncMock(return_value=None)
+    mock_db.select_one = AsyncMock(return_value=None)
     mock_db.upsert_subscription = AsyncMock()
-    mock_db.execute = AsyncMock()
+    mock_db.update = AsyncMock(return_value={"id": "user_1", "subscription_tier": "free"})
 
     event = {
         "type": "invoice.payment_failed",
@@ -203,7 +218,9 @@ def test_payment_failed_webhook_removes_entitlement_but_preserves_paid_plan():
         current_period_end="2099-01-01T00:00:00",
         billing_interval="monthly",
     )
-    mock_db.execute.assert_awaited_once()
+    mock_db.update.assert_awaited_once_with(
+        "users", {"id": "user_1"}, {"subscription_tier": "free"}
+    )
 
 
 def test_payment_succeeded_restore_failure_is_retryable():
@@ -219,7 +236,7 @@ def test_payment_succeeded_restore_failure_is_retryable():
         }
     )
     mock_db.upsert_subscription = AsyncMock(side_effect=RuntimeError("db down"))
-    mock_db.execute = AsyncMock()
+    mock_db.update = AsyncMock()
 
     event = {
         "type": "invoice.payment_succeeded",
@@ -236,7 +253,32 @@ def test_payment_succeeded_restore_failure_is_retryable():
         with pytest.raises(RuntimeError):
             asyncio.run(billing._handle_payment_succeeded(event))
 
-    mock_db.execute.assert_not_awaited()
+    mock_db.update.assert_not_awaited()
+
+
+def test_dashboard_stats_are_scoped_to_user_and_team():
+    mock_db = MagicMock()
+    user_rows = [
+        {"id": "scan_user", "verdict": "HIGH_RISK", "metadata_json": {"approved": True}},
+        {"id": "scan_dup", "verdict": "ERROR", "metadata_json": {}},
+    ]
+    team_rows = [
+        {"id": "scan_team", "verdict": "CRITICAL_RISK", "metadata_json": {}},
+        {"id": "scan_dup", "verdict": "LOW_RISK", "metadata_json": {}},
+    ]
+    mock_db.select = AsyncMock(side_effect=[user_rows, team_rows])
+
+    with patch("api.routers.scan.db", mock_db):
+        result = asyncio.run(scan.get_dashboard_stats(_user("user_1")))
+
+    assert result.total_scans == 3
+    assert result.threats_blocked == 2
+    assert result.packages_approved == 1
+    assert result.critical_findings == 1
+    assert mock_db.select.await_args_list == [
+        call("scans", {"user_id": "user_1"}, limit=10000),
+        call("scans", {"team_id": "team_1"}, limit=10000),
+    ]
 
 
 def test_teamless_alert_user_cannot_share_default_team():

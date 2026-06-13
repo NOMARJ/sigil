@@ -72,7 +72,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r api/requirements.txt
+          pip install -r api/requirements.lock
           pip install pytest pytest-asyncio httpx
 
       - name: Run tests

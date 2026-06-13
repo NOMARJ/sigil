@@ -61,6 +61,20 @@ export interface Scan {
   rescanned_at?: string;
 }
 
+export interface RescanResult {
+  scan_id: string;
+  status: "rescanned" | "already_v2" | "not_found";
+  message: string;
+  original_score?: number | null;
+  new_score?: number | null;
+  original_verdict?: string | null;
+  new_verdict?: string | null;
+  score_change_percentage?: number | null;
+  scanner_version?: string | null;
+  confidence_level?: number | null;
+  rescanned_at?: string | null;
+}
+
 /** Known-malicious package entry from the threat intelligence feed. */
 export interface ThreatEntry {
   id: string;

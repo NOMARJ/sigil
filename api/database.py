@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import struct
 import time
 import uuid
@@ -202,6 +203,66 @@ class MssqlClient:
         except Exception as e:
             logger.error(f"Raw SQL execution failed: {e}")
             raise
+
+    @staticmethod
+    def _named_params(sql: str, params: dict[str, Any] | None = None) -> tuple[str, tuple[Any, ...]]:
+        """Convert SQLAlchemy-style named params to pyodbc positional params."""
+        params = params or {}
+        values: list[Any] = []
+
+        def replace(match: re.Match[str]) -> str:
+            name = match.group(1)
+            values.append(params[name])
+            return "?"
+
+        converted = re.sub(r":([A-Za-z_][A-Za-z0-9_]*)", replace, sql)
+        return converted, tuple(values)
+
+    @staticmethod
+    def _tsql_limit(sql: str) -> str:
+        """Translate the small LIMIT pattern used by legacy asyncpg callers."""
+        match = re.search(r"\s+LIMIT\s+\?$", sql, flags=re.IGNORECASE)
+        if not match:
+            return sql
+        base = sql[: match.start()]
+        if not re.search(r"\bORDER\s+BY\b", base, flags=re.IGNORECASE):
+            base = f"{base} ORDER BY (SELECT NULL)"
+        return f"{base} OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY"
+
+    async def execute(self, sql: str, values: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Compatibility wrapper for legacy named-param SQL callers."""
+        sql, params = self._named_params(sql, values)
+        sql = self._tsql_limit(sql)
+        if not self._pool:
+            logger.warning("execute SQL not supported in memory mode")
+            return []
+
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                cursor.timeout = 60
+                await cursor.execute(sql, params)
+                if cursor.description is None:
+                    await conn.commit()
+                    return []
+                rows = await cursor.fetchall()
+                await conn.commit()
+                return [self._row_to_dict(cursor, r) for r in rows]
+
+    async def fetch_one(
+        self, sql: str, values: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        rows = await self.fetch_all(sql, values)
+        return rows[0] if rows else None
+
+    async def fetch_all(
+        self, sql: str, values: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        sql, params = self._named_params(sql, values)
+        sql = self._tsql_limit(sql)
+        if not self._pool:
+            logger.warning("fetch SQL not supported in memory mode")
+            return []
+        return await self.execute_raw_sql(sql, params)
 
     # ── Generic CRUD ──────────────────────────────────────────────────────────
 

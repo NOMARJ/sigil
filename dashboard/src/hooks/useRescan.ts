@@ -1,17 +1,6 @@
 import { useState, useCallback } from 'react';
-
-export interface RescanResult {
-  scan_id: string;
-  original_score: number;
-  new_score: number;
-  score_change: number;
-  score_change_percentage: number;
-  original_findings: number;
-  new_findings: number;
-  findings_change: number;
-  rescanned_at: string;
-  success: boolean;
-}
+import * as api from '@/lib/api';
+import type { RescanResult } from '@/lib/types';
 
 interface UseRescanResult {
   isRescanning: boolean;
@@ -28,20 +17,7 @@ export default function useRescan(): UseRescanResult {
     setRescanError(null);
 
     try {
-      const response = await fetch(`/api/rescan/${scanId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || 'Failed to rescan');
-      }
-
-      const result: RescanResult = await response.json();
-      return result;
+      return await api.rescanScan(scanId);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to rescan';
       setRescanError(message);

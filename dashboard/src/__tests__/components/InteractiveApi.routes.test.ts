@@ -15,6 +15,8 @@ const INTERACTIVE_COMPONENTS = [
 const API_CLIENT = resolve(SRC, "lib", "api.ts");
 const LAUNCH_CONFIG = resolve(SRC, "lib", "launch-config.ts");
 const SESSION_PAGE = resolve(SRC, "pages", "session", "[id].tsx");
+const RESCAN_HOOK = resolve(SRC, "hooks", "useRescan.ts");
+const SCAN_DETAIL_PAGE = resolve(SRC, "app", "scans", "[id]", "page.tsx");
 
 describe("interactive dashboard API routing", () => {
   it("does not call local /api/v1/interactive routes from components", () => {
@@ -85,5 +87,17 @@ describe("interactive dashboard API routing", () => {
 
     expect(source).toContain("`/scans/${session.scan_id}#interactive`");
     expect(source).not.toContain("`/scan/${session.scan_id}#interactive`");
+  });
+
+  it("routes scan rescans through the authenticated backend helper", () => {
+    const apiSource = readFileSync(API_CLIENT, "utf8");
+    const hookSource = readFileSync(RESCAN_HOOK, "utf8");
+    const pageSource = readFileSync(SCAN_DETAIL_PAGE, "utf8");
+
+    expect(apiSource).toContain("`/api/rescan/${id}`");
+    expect(hookSource).toContain("api.rescanScan(scanId)");
+    expect(hookSource).not.toContain("fetch(`/api/rescan/");
+    expect(pageSource).toContain('result.status === "rescanned"');
+    expect(pageSource).not.toContain("result.success");
   });
 });

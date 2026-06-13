@@ -37,6 +37,7 @@ import type {
   CreditInfo,
   ChatSession,
   ChatMessage,
+  RescanResult,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -220,6 +221,12 @@ export const getScanById = getScan;
 
 export async function getScanFindings(id: string): Promise<Finding[]> {
   return request<Finding[]>(`/scans/${id}/findings`);
+}
+
+export async function rescanScan(id: string): Promise<RescanResult> {
+  return request<RescanResult>(`/api/rescan/${id}`, {
+    method: "POST",
+  });
 }
 
 export async function submitScan(payload: SubmitScanRequest): Promise<Scan> {

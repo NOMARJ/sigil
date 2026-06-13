@@ -148,7 +148,7 @@ export default function ScanDetailPage() {
 
   const handleRescan = async () => {
     const result = await rescanScan(scanId);
-    if (result && result.success) {
+    if (result && (result.status === "rescanned" || result.status === "already_v2")) {
       // Page reloads with updated scan after completion
       await fetchScanData();
     }

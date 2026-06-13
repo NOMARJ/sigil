@@ -22,9 +22,9 @@ RUN groupadd --gid 1001 sigil && \
 
 WORKDIR /app
 
-# Copy and install Python dependencies
-COPY api/requirements.txt ./api/requirements.txt
-RUN pip install --no-cache-dir -r ./api/requirements.txt
+# Copy and install pinned Python dependencies
+COPY api/requirements.lock ./api/requirements.lock
+RUN pip install --no-cache-dir -r ./api/requirements.lock
 
 # Copy application source
 COPY api/ ./api/
