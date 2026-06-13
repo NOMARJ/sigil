@@ -114,7 +114,7 @@ export interface Signature {
 }
 
 /** User roles within a Sigil team. */
-export type UserRole = "owner" | "admin" | "member" | "viewer";
+export type UserRole = "owner" | "admin" | "reviewer" | "member" | "viewer";
 
 /** A user account in the Sigil dashboard. */
 export interface User {
@@ -151,7 +151,23 @@ export interface TeamInvite {
 }
 
 /** Policy type for automated scan decisions. */
-export type PolicyType = "auto_approve" | "require_approval" | "auto_reject";
+export type PolicyType =
+  | "allowlist"
+  | "blocklist"
+  | "auto_approve_threshold"
+  | "required_phases";
+
+/** Backend policy resource. */
+export interface PolicyRecord {
+  id: string;
+  team_id: string;
+  name: string;
+  type: PolicyType;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 /** Policy configuration for automated decisions. */
 export interface Policy {
@@ -168,18 +184,18 @@ export type AlertChannelType = "slack" | "email" | "webhook";
 /** Alert channel configuration. */
 export interface AlertChannel {
   id: string;
-  type: AlertChannelType;
-  target: string;
+  team_id: string;
+  channel_type: AlertChannelType;
+  channel_config: Record<string, unknown>;
   enabled: boolean;
-  min_severity: Verdict;
+  created_at: string;
 }
 
 /** Alert configuration for creating/updating. */
 export interface AlertConfig {
-  type: AlertChannelType;
-  target: string;
-  enabled: boolean;
-  min_severity: Verdict;
+  channel_type: AlertChannelType;
+  channel_config: Record<string, unknown>;
+  enabled?: boolean;
 }
 
 /** Billing plan definition (matches API PlanInfo). */
@@ -271,6 +287,12 @@ export interface ReportThreatRequest {
   severity: Verdict;
   indicators: string[];
   references: string[];
+}
+
+export interface ReportThreatResponse {
+  report_id: string;
+  status: string;
+  message: string;
 }
 
 /** Package verification response. */

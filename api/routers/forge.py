@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, List
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.database import db
 from api.services.forge_matcher import forge_matcher
@@ -1682,6 +1682,8 @@ async def get_forge_feed():
 class TrendingToolResponse(BaseModel):
     """Response model for a single trending tool."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     tool_id: str = Field(..., description="Unique tool identifier")
     rank: int = Field(
         ..., description="Current ranking position", alias="rank_position"
@@ -1712,10 +1714,6 @@ class TrendingToolResponse(BaseModel):
     timeframe: TimeFrame = Field(..., description="Timeframe used for calculation")
     ecosystem: str = Field(..., description="Tool ecosystem")
     category: str = Field(..., description="Tool category")
-
-    class Config:
-        allow_population_by_field_name = True
-
 
 class TrendingResponse(BaseModel):
     """Response model for trending tools list."""

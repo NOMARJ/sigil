@@ -23,7 +23,12 @@ from pydantic import BaseModel
 
 from api.gates import get_user_plan, require_plan
 from api.models import PlanTier
-from api.routers.auth import get_current_user_unified, UserResponse
+from api.routers.auth import (
+    _auto_provision_auth0_user,
+    get_current_user_unified,
+    verify_auth0_token,
+    UserResponse,
+)
 from api.services.realtime_dashboard import (
     dashboard_service,
     send_security_notification,
@@ -68,6 +73,39 @@ class NotificationRequest(BaseModel):
 # ============================================================================
 
 
+async def get_current_user_from_websocket(websocket: WebSocket) -> UserResponse | None:
+    """Authenticate a WebSocket before accepting it."""
+
+    token = websocket.query_params.get("token")
+    auth_header = websocket.headers.get("authorization", "")
+    if not token and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+
+    if not token:
+        await websocket.close(code=1008, reason="Authentication required")
+        return None
+
+    try:
+        user_info = await verify_auth0_token(token)
+        user = await _auto_provision_auth0_user(user_info)
+    except HTTPException as exc:
+        await websocket.close(code=1008, reason=str(exc.detail))
+        return None
+    except Exception:
+        logger.exception("WebSocket authentication failed")
+        await websocket.close(code=1008, reason="Authentication failed")
+        return None
+
+    return UserResponse(
+        id=str(user["id"]),
+        email=user["email"],
+        name=user.get("name", ""),
+        role=user.get("role", "member"),
+        team_id=user.get("team_id"),
+        created_at=user.get("created_at", datetime.utcnow()),
+    )
+
+
 @router.websocket("/dashboard/{user_id}")
 async def websocket_dashboard(
     websocket: WebSocket,
@@ -76,23 +114,32 @@ async def websocket_dashboard(
 ):
     """WebSocket endpoint for real-time dashboard updates."""
 
+    current_user = await get_current_user_from_websocket(websocket)
+    if current_user is None:
+        return
+    if user_id != current_user.id:
+        await websocket.close(code=1008, reason="User mismatch")
+        return
+
     # Parse subscription preferences
     subscription_list = [s.strip() for s in subscriptions.split(",")]
 
     logger.info(
-        f"WebSocket connection attempt: user={user_id}, subs={subscription_list}"
+        f"WebSocket connection attempt: user={current_user.id}, subs={subscription_list}"
     )
 
     try:
         # Connect and handle the WebSocket session
         await dashboard_service.connect_websocket(
-            websocket=websocket, user_id=user_id, subscriptions=subscription_list
+            websocket=websocket,
+            user_id=current_user.id,
+            subscriptions=subscription_list,
         )
 
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected: user={user_id}")
+        logger.info(f"WebSocket disconnected: user={current_user.id}")
     except Exception as e:
-        logger.error(f"WebSocket error for user {user_id}: {e}")
+        logger.error(f"WebSocket error for user {current_user.id}: {e}")
 
 
 # ============================================================================

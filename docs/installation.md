@@ -41,15 +41,15 @@ brew install sigil
 ```
 *Status: Tap and formula in development*
 
-### npm (All Platforms)
+### npm (macOS/Linux)
 ```bash
-npm install -g @nomark/sigil
+npm install -g @nomarj/sigil
 ```
 *Status: Package preparation in progress*
 
 ### Cargo (Rust)
 ```bash
-cargo install @nomark/sigil
+cargo install sigil-cli
 ```
 *Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library.*
 
@@ -73,7 +73,7 @@ brew install sigil
 
 **npm:**
 ```bash
-npm install -g @nomark/sigil
+npm install -g @nomarj/sigil
 ```
 
 **Manual download:**
@@ -99,7 +99,7 @@ brew install sigil
 
 **npm:**
 ```bash
-npm install -g @nomark/sigil
+npm install -g @nomarj/sigil
 ```
 
 **APT (Debian/Ubuntu)** — *Coming soon*
@@ -123,7 +123,7 @@ curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-x
 sudo mv sigil /usr/local/bin/
 
 # ARM64
-curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-aarch64.tar.gz | tar xz
+curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-arm64.tar.gz | tar xz
 sudo mv sigil /usr/local/bin/
 ```
 
@@ -131,10 +131,7 @@ sudo mv sigil /usr/local/bin/
 
 ### Windows
 
-**npm:**
-```bash
-npm install -g @nomark/sigil
-```
+Windows npm packages are not published yet. Use the GitHub Release zip for Windows x64.
 
 **Chocolatey** — *Coming soon*
 ```powershell
@@ -296,12 +293,12 @@ brew upgrade sigil
 
 ### npm
 ```bash
-npm update -g @nomark/sigil
+npm update -g @nomarj/sigil
 ```
 
 ### Cargo
 ```bash
-cargo install sigil --force
+cargo install sigil-cli --force
 ```
 
 ### Docker
@@ -326,12 +323,12 @@ brew untap nomarj/tap
 
 ### npm
 ```bash
-npm uninstall -g @nomark/sigil
+npm uninstall -g @nomarj/sigil
 ```
 
 ### Cargo
 ```bash
-cargo uninstall sigil
+cargo uninstall sigil-cli
 ```
 
 ### Manual
@@ -377,12 +374,12 @@ sudo chmod +x /usr/local/bin/sigil
 
 **npm:**
 ```bash
-sudo npm install -g @nomark/sigil
+sudo npm install -g @nomarj/sigil
 ```
 
 ### Download fails / Binary unavailable
 
-The installer will automatically fall back to the bash script. You can also manually install:
+The installer fails closed when a platform binary or checksum is unavailable. You can also manually install:
 ```bash
 curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/bin/sigil -o sigil
 chmod +x sigil

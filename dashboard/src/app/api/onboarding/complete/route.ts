@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export async function POST(): Promise<NextResponse> {
   try {
     const session = await auth0.getSession();
 
@@ -9,27 +9,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { user_id, completion_data } = body;
-
-    // In a real implementation, this would:
-    // 1. Mark onboarding as complete in the user record
-    // 2. Send welcome email
-    // 3. Set up any necessary permissions
-    // 4. Trigger analytics events
-    
-    console.log(`Onboarding completed for user ${user_id}`, completion_data);
-
-    return NextResponse.json({
-      success: true,
-      completed_at: new Date().toISOString(),
-      message: "Onboarding completed successfully"
-    });
-  } catch (error) {
-    console.error("Error completing onboarding:", error);
+    return NextResponse.json(
+      { error: "Onboarding completion persistence is not configured." },
+      { status: 501 },
+    );
+  } catch {
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -34,7 +34,7 @@ from api.models import (
     PlanTier,
 )
 from api.routers.auth import get_current_user_unified, UserResponse
-from api.services.notifications import send_notification
+from api.services.notifications import is_safe_webhook_url, send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +43,20 @@ router = APIRouter(prefix="/v1", tags=["alerts"])
 ALERT_TABLE = "alerts"
 AUDIT_TABLE = "audit_log"
 
-_DEFAULT_TEAM_ID = "default-team"
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
 def _team_id_from_user(user: UserResponse) -> str:
-    """Extract team ID from user, with fallback."""
-    return getattr(user, "team_id", None) or _DEFAULT_TEAM_ID
+    """Extract team ID from a Team user without falling back to a shared tenant."""
+    team_id = getattr(user, "team_id", None)
+    if not team_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Team membership required",
+        )
+    return team_id
 
 
 async def _get_alert_or_404(alert_id: str, team_id: str) -> dict:
@@ -76,7 +79,7 @@ def _row_to_response(row: dict) -> AlertResponse:
     """Convert a DB row dict to an AlertResponse model."""
     return AlertResponse(
         id=row["id"],
-        team_id=row.get("team_id", _DEFAULT_TEAM_ID),
+        team_id=row.get("team_id", ""),
         channel_type=row.get("channel_type", ChannelType.WEBHOOK),
         channel_config=row.get("channel_config_json", row.get("channel_config", {})),
         enabled=row.get("enabled", True),
@@ -293,10 +296,16 @@ async def test_alert(
 def _validate_channel_config(channel_type: ChannelType, config: dict) -> None:
     """Validate that required configuration keys are present for the channel type."""
     if channel_type == ChannelType.SLACK:
-        if not config.get("webhook_url"):
+        webhook_url = config.get("webhook_url")
+        if not webhook_url:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Slack channel requires 'webhook_url' in channel_config",
+            )
+        if not is_safe_webhook_url(webhook_url):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Slack webhook_url must be a public HTTPS URL",
             )
     elif channel_type == ChannelType.EMAIL:
         recipients = config.get("recipients", [])
@@ -306,8 +315,14 @@ def _validate_channel_config(channel_type: ChannelType, config: dict) -> None:
                 detail="Email channel requires 'recipients' (list of email addresses) in channel_config",
             )
     elif channel_type == ChannelType.WEBHOOK:
-        if not config.get("webhook_url"):
+        webhook_url = config.get("webhook_url")
+        if not webhook_url:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Webhook channel requires 'webhook_url' in channel_config",
+            )
+        if not is_safe_webhook_url(webhook_url):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Webhook webhook_url must be a public HTTPS URL",
             )

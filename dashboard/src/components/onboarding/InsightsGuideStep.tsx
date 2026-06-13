@@ -15,9 +15,11 @@ interface InsightExample {
   falsePositiveLikelihood: number;
 }
 
+type InsightSection = "confidence" | "reasoning" | "remediation";
+
 export default function InsightsGuideStep({ step, onComplete }: OnboardingStepProps) {
   const [selectedInsight, setSelectedInsight] = useState<string>("supply-chain");
-  const [currentSection, setCurrentSection] = useState<"confidence" | "reasoning" | "remediation">("confidence");
+  const [currentSection, setCurrentSection] = useState<InsightSection>("confidence");
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState(false);
 
@@ -194,10 +196,10 @@ export default function InsightsGuideStep({ step, onComplete }: OnboardingStepPr
               {/* Tabs */}
               <div className="border-b border-gray-700">
                 <div className="flex">
-                  {["confidence", "reasoning", "remediation"].map((section) => (
+                  {(["confidence", "reasoning", "remediation"] satisfies InsightSection[]).map((section) => (
                     <button
                       key={section}
-                      onClick={() => setCurrentSection(section as any)}
+                      onClick={() => setCurrentSection(section)}
                       className={`px-6 py-3 font-medium text-sm transition-colors ${
                         currentSection === section
                           ? "text-purple-400 border-b-2 border-purple-500"

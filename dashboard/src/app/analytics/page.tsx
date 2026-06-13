@@ -25,6 +25,7 @@ import {
   BarChart3,
   Calendar
 } from 'lucide-react';
+import * as api from '@/lib/api';
 
 // Types for analytics data
 interface UserUsageStats {
@@ -277,32 +278,10 @@ export default function AnalyticsPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch usage stats
-      const usageResponse = await fetch(`/api/v1/analytics/my/usage?days=${timeRange}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
-
-      if (!usageResponse.ok) {
-        throw new Error('Failed to fetch usage statistics');
-      }
-
-      const usageData = await usageResponse.json();
+      const usageData = await api.getUserUsageStats<UserUsageStats>(timeRange);
       setUsage(usageData);
 
-      // Fetch engagement metrics
-      const engagementResponse = await fetch('/api/v1/analytics/my/churn-risk', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
-
-      if (!engagementResponse.ok) {
-        throw new Error('Failed to fetch engagement metrics');
-      }
-
-      const engagementData = await engagementResponse.json();
+      const engagementData = await api.getUserChurnRisk<ChurnRiskMetrics>();
       setEngagement(engagementData);
 
     } catch (err) {

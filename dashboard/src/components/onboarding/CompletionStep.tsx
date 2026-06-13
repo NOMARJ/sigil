@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { OnboardingStepProps } from "../OnboardingStep";
+import { OnboardingStepProps, type OnboardingPayload } from "../OnboardingStep";
+
+function stepData(data: OnboardingPayload, stepId: string): OnboardingPayload {
+  const value = data[stepId];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as OnboardingPayload)
+    : {};
+}
 
 export default function CompletionStep({ step, onComplete, data }: OnboardingStepProps) {
   const [showConfetti, setShowConfetti] = useState(false);
@@ -21,10 +28,12 @@ export default function CompletionStep({ step, onComplete, data }: OnboardingSte
   };
 
   // Calculate completion stats
-  const apiKeyGenerated = !!data["api-key"]?.apiKey;
-  const scanCompleted = !!data["first-scan"]?.scanCompleted;
-  const insightsLearned = !!data["insights"]?.quizScore;
-  const integrationsConfigured = data["integrations"]?.integrationsConfigured || 0;
+  const apiKeyGenerated = !!stepData(data, "api-key").apiKey;
+  const scanCompleted = !!stepData(data, "first-scan").scanCompleted;
+  const insightsLearned = !!stepData(data, "insights").quizScore;
+  const integrationCount = stepData(data, "integrations").integrationsConfigured;
+  const integrationsConfigured =
+    typeof integrationCount === "number" ? integrationCount : 0;
 
   const completionStats = [
     { 

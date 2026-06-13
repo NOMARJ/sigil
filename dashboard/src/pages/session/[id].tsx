@@ -1,13 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { format } from 'date-fns';
+import * as api from '@/lib/api';
 
 interface ConversationEntry {
   type: string;
   timestamp: string;
   credits_used: number;
-  request?: any;
-  response?: any;
+  request?: Record<string, unknown>;
+  response?: {
+    is_real_threat?: boolean;
+    is_false_positive?: boolean;
+    confidence?: number;
+    priority?: string;
+    analysis?: string;
+    explanation?: string;
+    language?: string;
+    code?: string;
+    message?: string;
+  };
 }
 
 interface SessionData {
@@ -47,6 +58,7 @@ export default function SessionPage() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -55,17 +67,7 @@ export default function SessionPage() {
       setLoading(true);
       setError(null);
       
-      // Try to fetch session by share token
-      const response = await fetch(`/api/v1/interactive/sessions/shared/${id}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Session not found or expired');
-        }
-        throw new Error('Failed to load session');
-      }
-      
-      const data = await response.json();
+      const data = await api.getSharedInteractiveSession<SessionData>(String(id));
       setSession(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load session');
@@ -84,14 +86,9 @@ export default function SessionPage() {
     if (!session) return;
     
     try {
+      setExportError(null);
       if (format === 'markdown') {
-        const response = await fetch('/api/v1/interactive/sessions/export', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ share_token: id })
-        });
-        
-        const markdown = await response.text();
+        const markdown = await api.exportInteractiveSession({ share_token: String(id) });
         
         const blob = new Blob([markdown], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
@@ -112,7 +109,7 @@ export default function SessionPage() {
       
       setShowExportModal(false);
     } catch (err) {
-      console.error('Export failed:', err);
+      setExportError(err instanceof Error ? err.message : 'Failed to export session');
     }
   };
 
@@ -126,7 +123,7 @@ export default function SessionPage() {
 
   const continueSession = () => {
     if (session?.is_owner) {
-      router.push(`/scan/${session.scan_id}#interactive`);
+      router.push(`/scans/${session.scan_id}#interactive`);
     }
   };
 
@@ -211,7 +208,10 @@ export default function SessionPage() {
                 {copySuccess ? '✓ Copied!' : '📋 Copy Link'}
               </button>
               <button
-                onClick={() => setShowExportModal(true)}
+                onClick={() => {
+                  setExportError(null);
+                  setShowExportModal(true);
+                }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
               >
                 Export
@@ -407,6 +407,11 @@ export default function SessionPage() {
             <div className="bg-white p-6 rounded-lg shadow-xl">
               <h3 className="text-lg font-semibold mb-4">Export Session</h3>
               <div className="space-y-3">
+                {exportError && (
+                  <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {exportError}
+                  </p>
+                )}
                 <button
                   onClick={() => exportSession('markdown')}
                   className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded text-left"

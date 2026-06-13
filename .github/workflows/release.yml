@@ -26,6 +26,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: sigil-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: sigil-linux-arm64
+            use_cross: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: sigil-windows-x64
@@ -37,6 +41,10 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross == true
+        run: cargo install cross --locked
 
       - name: Cache cargo
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -51,8 +59,14 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-release-
 
       - name: Build release binary
+        if: matrix.use_cross != true
         working-directory: cli
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build release binary with cross
+        if: matrix.use_cross == true
+        working-directory: cli
+        run: cross build --release --target ${{ matrix.target }}
 
       - name: Prepare artifact (Unix)
         if: matrix.os != 'windows-latest'
@@ -77,7 +91,7 @@ jobs:
           path: |
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.zip
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   release:
     name: Create Release
@@ -95,6 +109,11 @@ jobs:
         run: |
           mkdir -p release-assets
           find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          test -f release-assets/sigil-macos-arm64.tar.gz
+          test -f release-assets/sigil-macos-x64.tar.gz
+          test -f release-assets/sigil-linux-x64.tar.gz
+          test -f release-assets/sigil-linux-arm64.tar.gz
+          test -f release-assets/sigil-windows-x64.zip
           ls -la release-assets/
 
       - name: Generate checksums
@@ -109,21 +128,12 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-          npm publish --access public || echo "::warning::npm publish failed — verify NPM_TOKEN secret is configured"
-
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
         working-directory: cli
         run: |
-          cargo publish --token "${CARGO_REGISTRY_TOKEN}" || echo "::warning::cargo publish failed — verify CARGO_TOKEN secret is configured"
+          cargo publish --token "${CARGO_REGISTRY_TOKEN}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
@@ -142,14 +152,14 @@ jobs:
             brew install sigil
             ```
 
-            **npm (All platforms):**
+            **npm (macOS/Linux):**
             ```bash
-            npm install -g @nomark/sigil
+            npm install -g @nomarj/sigil
             ```
 
             **Cargo (Rust):**
             ```bash
-            cargo install sigil
+            cargo install sigil-cli
             ```
 
             **curl installer:**
@@ -177,6 +187,12 @@ jobs:
             sudo mv sigil /usr/local/bin/
             ```
 
+            **Linux (ARM64):**
+            ```bash
+            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-linux-arm64.tar.gz | tar xz
+            sudo mv sigil /usr/local/bin/
+            ```
+
             **Windows (x64):**
             Download `sigil-windows-x64.zip`, extract, and add to your PATH.
 
@@ -184,6 +200,15 @@ jobs:
             ```bash
             sha256sum -c SHA256SUMS.txt
             ```
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npm publish --access public
 
       - name: Trigger Homebrew formula update
         run: |

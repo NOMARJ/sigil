@@ -5,22 +5,39 @@ import { OnboardingStepProps } from "../OnboardingStep";
 
 export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProps) {
   const [apiKey, setApiKey] = useState("");
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
   const [copied, setCopied] = useState(false);
 
   const generateApiKey = async (): Promise<void> => {
     setIsGenerating(true);
+    setApiKeyError(null);
     try {
-      // In a real implementation, this would call the backend API
-      // For now, we'll simulate with a timeout and mock key
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const mockKey = `sp_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      setApiKey(mockKey);
+      const response = await fetch("/api/onboarding/generate-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          typeof body.error === "string"
+            ? body.error
+            : "API key generation is unavailable.",
+        );
+      }
+
+      if (typeof body.api_key !== "string" || body.api_key.length === 0) {
+        throw new Error("API key generation returned an invalid response.");
+      }
+
+      setApiKey(body.api_key);
     } catch (error) {
-      console.error("Error generating API key:", error);
-      // Show error state
+      setApiKeyError(
+        error instanceof Error ? error.message : "API key generation failed.",
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -36,26 +53,13 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
     }
   };
 
-  const testConnection = async (): Promise<void> => {
-    setIsTesting(true);
-    try {
-      // Simulate API test
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setTestResult("success");
-      // Auto-proceed after successful test
-      setTimeout(() => {
-        onComplete(step.id, { 
-          apiKey,
-          connectionTested: true,
-          testTimestamp: new Date().toISOString()
-        });
-      }, 1000);
-    } catch (error) {
-      console.error("Connection test failed:", error);
-      setTestResult("error");
-    } finally {
-      setIsTesting(false);
-    }
+  const continueWithKey = (): void => {
+    onComplete(step.id, {
+      apiKey,
+      authenticationMethod: apiKey ? "api_key" : "device_flow",
+      connectionTested: false,
+      testTimestamp: new Date().toISOString(),
+    });
   };
 
   return (
@@ -68,9 +72,9 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">Generate Your Pro API Key</h3>
+          <h3 className="text-xl font-bold text-white mb-2">Connect the Sigil CLI</h3>
           <p className="text-gray-400">
-            Create a secure API key to connect the Sigil CLI to your Pro account and access AI-powered features.
+            Authenticate the CLI with your Sigil account to access Pro analysis features.
           </p>
         </div>
 
@@ -78,10 +82,13 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
         {!apiKey ? (
           <div className="text-center">
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-6">
-              <h4 className="text-lg font-semibold text-white mb-4">Ready to Generate</h4>
+              <h4 className="text-lg font-semibold text-white mb-4">Use Device Login</h4>
               <p className="text-gray-400 mb-6">
-                Your API key will have Pro-tier permissions and access to LLM analysis features.
+                Run the CLI login command and complete the browser prompt. API key issuance remains disabled until server-side key management is available.
               </p>
+              <div className="bg-gray-800 border border-gray-600 rounded p-3 mb-6 text-left">
+                <code className="text-green-400 font-mono text-sm">sigil login</code>
+              </div>
               
               <button
                 onClick={generateApiKey}
@@ -101,6 +108,15 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
                   "Generate API Key"
                 )}
               </button>
+              <button
+                onClick={continueWithKey}
+                className="ml-3 px-6 py-3 rounded-lg font-semibold text-white transition-all bg-gray-700 hover:bg-gray-600"
+              >
+                Continue
+              </button>
+              {apiKeyError && (
+                <p className="mt-4 text-sm text-red-300">{apiKeyError}</p>
+              )}
             </div>
 
             {/* Security Notice */}
@@ -172,43 +188,13 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
                 </div>
               </div>
 
-              {/* Test Connection */}
+              {/* Continue */}
               <div className="text-center">
-                {testResult === "success" ? (
-                  <div className="bg-green-900 border border-green-700 rounded-lg p-4 mb-4">
-                    <div className="flex items-center justify-center text-green-300">
-                      <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      Connection successful! Proceeding to next step...
-                    </div>
-                  </div>
-                ) : testResult === "error" ? (
-                  <div className="bg-red-900 border border-red-700 rounded-lg p-4 mb-4">
-                    <div className="text-red-300">
-                      <p className="font-medium">Connection Failed</p>
-                      <p className="text-sm mt-1">Please check your CLI installation and try again.</p>
-                    </div>
-                  </div>
-                ) : null}
-
                 <button
-                  onClick={testConnection}
-                  disabled={isTesting}
-                  className={`px-6 py-3 rounded-lg font-semibold text-white transition-all ${
-                    isTesting
-                      ? "bg-purple-500 cursor-not-allowed"
-                      : "bg-purple-600 hover:bg-purple-700"
-                  }`}
+                  onClick={continueWithKey}
+                  className="px-6 py-3 rounded-lg font-semibold text-white transition-all bg-purple-600 hover:bg-purple-700"
                 >
-                  {isTesting ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Testing Connection...
-                    </div>
-                  ) : (
-                    "Test Connection"
-                  )}
+                  Continue
                 </button>
               </div>
             </div>

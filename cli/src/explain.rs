@@ -15,9 +15,9 @@ use std::time::Duration;
 /// findings array, and a verdict object — so this scans for the first JSON
 /// array rather than parsing the file as a single document.
 pub fn parse_scan_findings(content: &str) -> Result<Vec<Value>, String> {
-    let start = content
-        .find('[')
-        .ok_or_else(|| "no findings array in scan file (is this `sigil scan -f json` output?)".to_string())?;
+    let start = content.find('[').ok_or_else(|| {
+        "no findings array in scan file (is this `sigil scan -f json` output?)".to_string()
+    })?;
     let mut de = serde_json::Deserializer::from_str(&content[start..]).into_iter::<Value>();
     match de.next() {
         Some(Ok(Value::Array(findings))) => Ok(findings),
@@ -193,24 +193,22 @@ pub async fn cmd_explain(
         .send()
         .await;
     let scan_id = match submit {
-        Ok(resp) if resp.status().is_success() => {
-            match resp.json::<Value>().await {
-                Ok(body) => match body.get("scan_id").and_then(|i| i.as_str()) {
-                    Some(id) => id.to_string(),
-                    None => {
-                        eprintln!(
-                            "{} scan submission returned no scan_id",
-                            "error:".bold().red()
-                        );
-                        return 2;
-                    }
-                },
-                Err(e) => {
-                    eprintln!("{} scan response parse: {}", "error:".bold().red(), e);
+        Ok(resp) if resp.status().is_success() => match resp.json::<Value>().await {
+            Ok(body) => match body.get("scan_id").and_then(|i| i.as_str()) {
+                Some(id) => id.to_string(),
+                None => {
+                    eprintln!(
+                        "{} scan submission returned no scan_id",
+                        "error:".bold().red()
+                    );
                     return 2;
                 }
+            },
+            Err(e) => {
+                eprintln!("{} scan response parse: {}", "error:".bold().red(), e);
+                return 2;
             }
-        }
+        },
         Ok(resp) => {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();

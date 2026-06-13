@@ -118,10 +118,7 @@ const EPSS_BASE_URL: &str = "https://api.first.org/data/v1/epss";
 ///
 /// Returns a map of CVE ID → score (0.0–1.0).
 /// On network failure, returns whatever is cached, or empty map.
-pub fn load_epss_scores(
-    cve_ids: &[&str],
-    fixture_path: Option<&Path>,
-) -> HashMap<String, f32> {
+pub fn load_epss_scores(cve_ids: &[&str], fixture_path: Option<&Path>) -> HashMap<String, f32> {
     // Tests can inject a fixture file path — check before the empty-list short-circuit
     // so that fixture-based tests don't need to provide CVE IDs.
     if let Some(path) = fixture_path {
@@ -208,7 +205,7 @@ fn sha256_hex(data: &[u8]) -> String {
 /// `kev_fixture` and `epss_fixture` allow tests to inject recorded JSON
 /// responses instead of hitting the network.
 pub fn enrich_findings_with_kev_epss(
-    findings: &mut Vec<Finding>,
+    findings: &mut [Finding],
     kev_fixture: Option<&Path>,
     epss_fixture: Option<&Path>,
 ) {
@@ -345,7 +342,10 @@ mod tests {
             Some(&epss_fixture_path()),
         );
         assert!(findings[0].kev, "kev must be true for CVE-2023-32681");
-        assert!(findings[0].epss > 0.0, "epss must be set for CVE-2023-32681");
+        assert!(
+            findings[0].epss > 0.0,
+            "epss must be set for CVE-2023-32681"
+        );
     }
 
     // ── Negative tests ────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import type { User, UserRole } from "@/lib/types";
 const roleLabels: Record<UserRole, string> = {
   owner: "Owner",
   admin: "Admin",
+  reviewer: "Reviewer",
   member: "Member",
   viewer: "Viewer",
 };
@@ -14,6 +15,7 @@ const roleLabels: Record<UserRole, string> = {
 const roleStyles: Record<UserRole, string> = {
   owner: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   admin: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  reviewer: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   member: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   viewer: "bg-gray-800 text-gray-500 border-gray-700",
 };
@@ -196,6 +198,7 @@ export default function TeamPage() {
                 className="input"
               >
                 <option value="admin">Admin</option>
+                <option value="reviewer">Reviewer</option>
                 <option value="member">Member</option>
                 <option value="viewer">Viewer</option>
               </select>
@@ -314,6 +317,7 @@ export default function TeamPage() {
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer bg-transparent ${roleStyles[member.role]}`}
                     >
                       <option value="admin">Admin</option>
+                      <option value="reviewer">Reviewer</option>
                       <option value="member">Member</option>
                       <option value="viewer">Viewer</option>
                     </select>

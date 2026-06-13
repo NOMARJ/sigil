@@ -7,6 +7,7 @@ import {
   RemediationResult, 
   CreditInfo 
 } from "@/lib/types";
+import * as api from "@/lib/api";
 
 interface RemediationViewerProps {
   finding: Finding;
@@ -33,21 +34,10 @@ export default function RemediationViewer({
 
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/v1/interactive/remediate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          finding_id: finding.id
-        })
+      const result = await api.generateRemediation({
+        scanId: finding.scan_id,
+        findingId: finding.id,
       });
-
-      if (!response.ok) {
-        throw new Error("Remediation generation failed");
-      }
-
-      const result: RemediationResult = await response.json();
       setRemediation(result);
       setShowResults(true);
       setSelectedFixIndex(0);

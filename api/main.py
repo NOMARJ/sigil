@@ -92,29 +92,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning(f"Failed to initialize analytics services: {e}")
 
     # Start background tasks
-    print("[LIFESPAN] Importing registry stats updater...")
+    logger.info("Importing registry stats updater")
     from api.services import registry_stats_updater
 
-    print("[LIFESPAN] Starting background updater...")
+    logger.info("Starting registry stats updater")
     await registry_stats_updater.start_updater()
-    print("[LIFESPAN] Background updater started")
+    logger.info("Registry stats updater started")
 
     # Start Forge stats background updater
-    print("[LIFESPAN] Starting Forge stats updater...")
+    logger.info("Starting Forge stats updater")
     from api.services import forge_stats_updater
 
     await forge_stats_updater.start_updater()
-    print("[LIFESPAN] Forge stats updater started")
+    logger.info("Forge stats updater started")
 
     # Start monitoring and alerting
     if settings.metrics_enabled:
-        print("[LIFESPAN] Starting monitoring system...")
+        logger.info("Starting monitoring system")
         from api.monitoring import run_alert_evaluation_loop
         import asyncio
 
         # Start alert evaluation loop in background
         asyncio.create_task(run_alert_evaluation_loop())
-        print("[LIFESPAN] Monitoring and alerting started")
+        logger.info("Monitoring and alerting started")
 
     yield
 

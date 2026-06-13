@@ -159,7 +159,7 @@ install_via_homebrew() {
 install_via_npm() {
   if command -v npm >/dev/null 2>&1; then
     info "Attempting install via npm..."
-    if npm install -g @nomark/sigil 2>/dev/null; then
+    if npm install -g @nomarj/sigil 2>/dev/null; then
       local version
       version="$(sigil --version 2>/dev/null | head -1 || echo "unknown")"
       echo "$version"
@@ -201,7 +201,7 @@ main() {
   elif version="$(install_via_cargo 2>/dev/null)"; then
     method="cargo"
   else
-    die "Could not install Sigil. Install manually: brew install nomarj/tap/sigil, npm install -g @nomark/sigil, or cargo install sigil-cli"
+    die "Could not install Sigil. Install manually: brew install nomarj/tap/sigil, npm install -g @nomarj/sigil, or cargo install sigil-cli"
   fi
 
   # Check PATH

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { OnboardingStepProps } from "../OnboardingStep";
+import { OnboardingStepProps, type OnboardingPayload } from "../OnboardingStep";
 
 interface Integration {
   id: string;
@@ -12,6 +12,11 @@ interface Integration {
   configured: boolean;
   popular: boolean;
 }
+
+type SetupProps = {
+  onComplete: (data: OnboardingPayload) => void;
+  onCancel: () => void;
+};
 
 export default function IntegrationsStep({ step, onComplete, onSkip }: OnboardingStepProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([
@@ -54,7 +59,7 @@ export default function IntegrationsStep({ step, onComplete, onSkip }: Onboardin
   ]);
 
   const [activeSetup, setActiveSetup] = useState<string | null>(null);
-  const [setupData, setSetupData] = useState<Record<string, any>>({});
+  const [setupData, setSetupData] = useState<Record<string, OnboardingPayload>>({});
 
   const toggleIntegration = (id: string): void => {
     setIntegrations(prev => prev.map(integration => 
@@ -68,7 +73,7 @@ export default function IntegrationsStep({ step, onComplete, onSkip }: Onboardin
     setActiveSetup(id);
   };
 
-  const completeSetup = (id: string, data: any): void => {
+  const completeSetup = (id: string, data: OnboardingPayload): void => {
     setIntegrations(prev => prev.map(integration =>
       integration.id === id
         ? { ...integration, configured: true, enabled: true }
@@ -243,7 +248,7 @@ export default function IntegrationsStep({ step, onComplete, onSkip }: Onboardin
 }
 
 // Setup Components
-function SlackSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
+function SlackSetup({ onComplete, onCancel }: SetupProps) {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [channel, setChannel] = useState("#security");
 
@@ -295,7 +300,7 @@ function SlackSetup({ onComplete, onCancel }: { onComplete: (data: any) => void;
   );
 }
 
-function GitHubSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
+function GitHubSetup({ onComplete, onCancel }: SetupProps) {
   const [repoUrl, setRepoUrl] = useState("");
 
   return (
@@ -337,7 +342,7 @@ function GitHubSetup({ onComplete, onCancel }: { onComplete: (data: any) => void
   );
 }
 
-function VSCodeSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
+function VSCodeSetup({ onComplete, onCancel }: SetupProps) {
   return (
     <div className="p-6">
       <h4 className="text-lg font-semibold text-white mb-4">Install VS Code Extension</h4>
@@ -372,7 +377,7 @@ function VSCodeSetup({ onComplete, onCancel }: { onComplete: (data: any) => void
   );
 }
 
-function EmailSetup({ onComplete, onCancel }: { onComplete: (data: any) => void; onCancel: () => void }) {
+function EmailSetup({ onComplete, onCancel }: SetupProps) {
   const [frequency, setFrequency] = useState("weekly");
   const [criticalAlerts, setCriticalAlerts] = useState(true);
 

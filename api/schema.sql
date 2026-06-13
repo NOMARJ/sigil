@@ -52,6 +52,14 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_users_email')
     CREATE UNIQUE INDEX idx_users_email ON users (email);
 GO
 
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('users') AND name = 'auth0_sub')
+    ALTER TABLE users ADD auth0_sub NVARCHAR(255) NULL;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_users_auth0_sub')
+    CREATE UNIQUE INDEX idx_users_auth0_sub ON users (auth0_sub) WHERE auth0_sub IS NOT NULL;
+GO
+
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_users_team')
     CREATE INDEX idx_users_team ON users (team_id);
 GO

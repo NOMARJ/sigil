@@ -24,6 +24,66 @@ const channelTypeIcons: Record<string, string> = {
   webhook: "Webhook",
 };
 
+function buildChannelConfig(
+  type: AlertChannelType,
+  target: string,
+  minSeverity: Verdict,
+): Record<string, unknown> {
+  if (type === "email") {
+    return {
+      recipients: target
+        .split(",")
+        .map((recipient) => recipient.trim())
+        .filter(Boolean),
+      min_severity: minSeverity,
+    };
+  }
+
+  return {
+    webhook_url: target,
+    min_severity: minSeverity,
+  };
+}
+
+function getChannelTarget(channel: AlertChannel): string {
+  const config = channel.channel_config;
+  if (channel.channel_type === "email") {
+    const recipients = config.recipients;
+    return Array.isArray(recipients) ? recipients.join(", ") : "";
+  }
+
+  return typeof config.webhook_url === "string" ? config.webhook_url : "";
+}
+
+function getChannelMinSeverity(channel: AlertChannel): string {
+  const value = channel.channel_config.min_severity;
+  return typeof value === "string" ? value : "HIGH_RISK";
+}
+
+type SubscriptionDetailsPayload = {
+  plan: string;
+  status: string;
+  billing_interval?: "monthly" | "annual";
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  cancel_at_period_end?: boolean;
+  stripe_subscription_id?: string | null;
+  checkout_url?: string | null;
+};
+
+function normalizeSubscriptionStatus(status: string): Subscription["status"] {
+  if (
+    status === "active" ||
+    status === "canceled" ||
+    status === "past_due" ||
+    status === "trialing" ||
+    status === "incomplete"
+  ) {
+    return status;
+  }
+  return "incomplete";
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -231,10 +291,13 @@ export default function SettingsPage() {
 
     try {
       const newChannel = await api.createAlert({
-        type: newChannelType,
-        target: newChannelTarget.trim(),
+        channel_type: newChannelType,
+        channel_config: buildChannelConfig(
+          newChannelType,
+          newChannelTarget.trim(),
+          newChannelSeverity,
+        ),
         enabled: true,
-        min_severity: newChannelSeverity,
       });
       setChannels((prev) => [...prev, newChannel]);
       setNewChannelTarget("");
@@ -292,10 +355,13 @@ export default function SettingsPage() {
     setSubscription(updatedSubscription);
   };
 
-  const handleSubscriptionDetailsUpdate = (details: any) => {
+  const handleSubscriptionDetailsUpdate = (details: SubscriptionDetailsPayload) => {
     // Convert SubscriptionDetails back to Subscription
     const updatedSubscription: Subscription = {
       ...details,
+      status: normalizeSubscriptionStatus(details.status),
+      billing_interval: details.billing_interval || "monthly",
+      cancel_at_period_end: details.cancel_at_period_end || false,
       stripe_subscription_id: details.stripe_subscription_id || null,
       current_period_end: details.current_period_end || null,
       current_period_start: details.current_period_start || null,
@@ -504,16 +570,16 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-4">
                     <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${channelTypeStyles[channel.type]}`}
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${channelTypeStyles[channel.channel_type]}`}
                     >
-                      {channelTypeIcons[channel.type]}
+                      {channelTypeIcons[channel.channel_type]}
                     </span>
                     <div>
                       <p className="text-sm font-medium text-gray-200 font-mono">
-                        {channel.target}
+                        {getChannelTarget(channel)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Min severity: {channel.min_severity}
+                        Min severity: {getChannelMinSeverity(channel)}
                       </p>
                     </div>
                   </div>
@@ -582,9 +648,9 @@ export default function SettingsPage() {
                   type="text"
                   placeholder={
                     newChannelType === "slack"
-                      ? "#channel-name"
+                      ? "https://hooks.slack.com/services/..."
                       : newChannelType === "email"
-                        ? "email@example.com"
+                        ? "email@example.com, security@example.com"
                         : "https://webhook.url/..."
                   }
                   value={newChannelTarget}

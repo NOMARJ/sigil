@@ -42,21 +42,15 @@ router = APIRouter(prefix="/v1", tags=["policies"])
 POLICY_TABLE = "policies"
 AUDIT_TABLE = "audit_log"
 
-# Default team ID used when no auth/team context is available
-_DEFAULT_TEAM_ID = "default-team"
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
 def _team_id_from_user(user: UserResponse) -> str:
-    """Extract the team ID from the authenticated user, falling back to a
-    default when teams are not yet configured."""
-    # In a full implementation, user would have a team_id field.
-    # For now, derive from user ID to ensure per-user isolation.
-    return getattr(user, "team_id", None) or _DEFAULT_TEAM_ID
+    """Extract a policy owner namespace without sharing teamless users."""
+    team_id = getattr(user, "team_id", None)
+    return team_id or f"user:{user.id}"
 
 
 async def _get_policy_or_404(policy_id: str, team_id: str) -> dict:
@@ -79,7 +73,7 @@ def _row_to_response(row: dict) -> PolicyResponse:
     """Convert a DB row dict to a PolicyResponse model."""
     return PolicyResponse(
         id=row["id"],
-        team_id=row.get("team_id", _DEFAULT_TEAM_ID),
+        team_id=row.get("team_id", ""),
         name=row.get("name", ""),
         type=row.get("type", PolicyType.ALLOWLIST),
         config=row.get("config_json", row.get("config", {})),

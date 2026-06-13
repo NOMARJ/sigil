@@ -6,7 +6,7 @@
 
 **Solutions:**
 1. Run setup: `bash scripts/setup.sh`
-2. Manual install: `brew install nomarj/tap/sigil`, `npm install -g @nomark/sigil`, or `cargo install sigil-cli`
+2. Manual install: `brew install nomarj/tap/sigil`, `npm install -g @nomarj/sigil`, or `cargo install sigil-cli`
 3. If installed but not in PATH, add: `export PATH="$PATH:$HOME/.local/bin"`
 
 ## Wrong Binary (Bash Wrapper)

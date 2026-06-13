@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import type { PlanTier } from "@/lib/types";
@@ -186,7 +187,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       >
       {/* Brand */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-[#262626]">
-        <img
+        <Image
           src="/brand/brace/sigil-brace.svg"
           alt="Sigil"
           width={36}

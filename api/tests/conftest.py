@@ -139,21 +139,10 @@ async def _test_auth_override(request: Request):
         id=str(user["id"]),
         email=user["email"],
         name=user.get("name", ""),
+        role=user.get("role", "member"),
+        team_id=user.get("team_id"),
         created_at=user.get("created_at", datetime.utcnow()),
     )
-
-
-# ---------------------------------------------------------------------------
-# Event loop fixture for async tests
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    """Create a session-scoped event loop for async fixtures."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +328,53 @@ def pro_user(test_user_data: dict[str, str]) -> dict[str, Any]:
 def pro_auth_headers(pro_user: dict[str, Any]) -> dict[str, str]:
     """Return Authorization headers for a PRO plan user."""
     token = pro_user["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def reviewer_user(test_user_data: dict[str, str]) -> dict[str, Any]:
+    """Create a PRO user with reviewer authority."""
+    from api.routers.auth import _create_access_token
+    from api.config import settings
+
+    user_id = str(uuid4())
+    now = datetime.utcnow()
+    user_row = {
+        "id": user_id,
+        "email": test_user_data["email"],
+        "name": test_user_data.get("name", ""),
+        "password_hash": "",
+        "role": "reviewer",
+        "created_at": now,
+    }
+    asyncio.run(db.insert("users", user_row))
+    asyncio.run(
+        db.upsert_subscription(
+            user_id=user_id,
+            plan="pro",
+            status="active",
+            stripe_subscription_id="sub_test_reviewer",
+        )
+    )
+
+    token = _create_access_token({"sub": user_id, "email": test_user_data["email"]})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": settings.jwt_expire_minutes * 60,
+        "user": {
+            "id": user_id,
+            "email": test_user_data["email"],
+            "name": test_user_data.get("name", ""),
+            "created_at": now.isoformat(),
+        },
+    }
+
+
+@pytest.fixture()
+def reviewer_auth_headers(reviewer_user: dict[str, Any]) -> dict[str, str]:
+    """Return Authorization headers for a PRO reviewer."""
+    token = reviewer_user["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 

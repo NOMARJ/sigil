@@ -201,7 +201,7 @@ pub(crate) fn collect_files(path: &Path) -> Vec<PathBuf> {
         .parents(false)
         .add_custom_ignore_filename(".sigilignore");
     builder.filter_entry(|entry| {
-        let is_dir = entry.file_type().map_or(false, |t| t.is_dir());
+        let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
         if !is_dir {
             return true;
         }
@@ -211,7 +211,7 @@ pub(crate) fn collect_files(path: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = builder
         .build()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map_or(false, |t| t.is_file()))
+        .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
         .map(|e| e.into_path())
         .collect();
     files.sort();
@@ -296,35 +296,35 @@ pub fn run_scan(
             let contents: &str = &contents;
 
             if should_run_phase(Phase::InstallHooks) {
-                file_findings.extend(phases::scan_install_hooks(&rel_path, &contents));
+                file_findings.extend(phases::scan_install_hooks(&rel_path, contents));
             }
             if should_run_phase(Phase::CodePatterns) {
-                file_findings.extend(phases::scan_code_patterns(&rel_path, &contents));
+                file_findings.extend(phases::scan_code_patterns(&rel_path, contents));
             }
             if should_run_phase(Phase::NetworkExfil) {
-                file_findings.extend(phases::scan_network_exfil(&rel_path, &contents));
+                file_findings.extend(phases::scan_network_exfil(&rel_path, contents));
             }
             if should_run_phase(Phase::Credentials) {
-                file_findings.extend(phases::scan_credentials(&rel_path, &contents));
+                file_findings.extend(phases::scan_credentials(&rel_path, contents));
             }
             if should_run_phase(Phase::Obfuscation) {
-                file_findings.extend(phases::scan_obfuscation(&rel_path, &contents));
+                file_findings.extend(phases::scan_obfuscation(&rel_path, contents));
             }
             if should_run_phase(Phase::PromptInjection) {
-                file_findings.extend(phases::scan_prompt_injection(&rel_path, &contents));
+                file_findings.extend(phases::scan_prompt_injection(&rel_path, contents));
             }
             if should_run_phase(Phase::SkillSecurity) {
-                file_findings.extend(phases::scan_skill_security(&rel_path, &contents));
+                file_findings.extend(phases::scan_skill_security(&rel_path, contents));
             }
             if should_run_phase(Phase::InferenceSecurity) {
-                file_findings.extend(phases::scan_inference_security(&rel_path, &contents));
+                file_findings.extend(phases::scan_inference_security(&rel_path, contents));
             }
 
             // Apply cloud signatures (from ~/.sigil/signatures.json)
             if !cloud_sigs.is_empty() {
                 file_findings.extend(cloud_sigs::scan_with_cloud_signatures(
                     &rel_path,
-                    &contents,
+                    contents,
                     &cloud_sigs,
                 ));
             }
@@ -443,8 +443,8 @@ mod fixtures_tests {
     #[test]
     fn fixture_corpus_matches_manifest() {
         let root = fixtures_root();
-        let manifest_raw = std::fs::read_to_string(root.join("MANIFEST.json"))
-            .expect("MANIFEST.json readable");
+        let manifest_raw =
+            std::fs::read_to_string(root.join("MANIFEST.json")).expect("MANIFEST.json readable");
         let manifest: serde_json::Value =
             serde_json::from_str(&manifest_raw).expect("MANIFEST.json valid");
 
@@ -461,7 +461,11 @@ mod fixtures_tests {
             // then keep findings for this file.
             let result = run_scan(&file, None, None);
 
-            if case.get("expect_clean").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if case
+                .get("expect_clean")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 assert!(
                     result.findings.is_empty(),
                     "{rel} expected clean, got {:?}",

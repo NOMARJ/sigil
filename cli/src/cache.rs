@@ -1,6 +1,6 @@
 //! Scan result caching based on directory content hashing.
 //!
-//! Computes a hash of all file paths and modification times in a directory.
+//! Computes a hash of all file paths and bytes in a directory.
 //! If the hash matches a cached result, returns the cached scan without re-scanning.
 
 use crate::scanner::ScanResult;
@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -26,10 +27,10 @@ struct CacheEntry {
     result: ScanResult,
 }
 
-/// Compute a hash of directory contents (file paths + mtimes + sizes).
+/// Compute a hash of directory contents (file paths + bytes).
 pub fn compute_directory_hash(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
     let mut hasher = Sha256::new();
-    let mut file_map: BTreeMap<PathBuf, (u64, u64)> = BTreeMap::new();
+    let mut file_map: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
 
     for entry in WalkDir::new(path)
         .into_iter()
@@ -41,21 +42,23 @@ pub fn compute_directory_hash(path: &Path) -> Result<String, Box<dyn std::error:
             .strip_prefix(path)
             .unwrap_or(entry.path())
             .to_path_buf();
-        if let Ok(metadata) = entry.metadata() {
-            let mtime = metadata
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            file_map.insert(rel_path, (metadata.len(), mtime));
-        }
+        file_map.insert(rel_path, entry.path().to_path_buf());
     }
 
-    for (path, (size, mtime)) in &file_map {
-        hasher.update(path.to_string_lossy().as_bytes());
-        hasher.update(size.to_le_bytes());
-        hasher.update(mtime.to_le_bytes());
+    for (relative_path, absolute_path) in &file_map {
+        hasher.update(relative_path.to_string_lossy().as_bytes());
+        hasher.update([0]);
+
+        let mut file = fs::File::open(absolute_path)?;
+        let mut buffer = [0_u8; 8192];
+        loop {
+            let read = file.read(&mut buffer)?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        hasher.update([0]);
     }
 
     Ok(hex::encode(hasher.finalize()))
@@ -146,4 +149,30 @@ pub fn clear_cache() -> Result<usize, Box<dyn std::error::Error>> {
         }
     }
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_directory_hash;
+    use std::fs;
+    use std::time::{Duration, SystemTime};
+    use tempfile::tempdir;
+
+    #[test]
+    fn directory_hash_changes_for_same_size_same_mtime_content_change() {
+        let dir = tempdir().expect("tempdir");
+        let file = dir.path().join("sample.js");
+        fs::write(&file, "console.log(1);\n").expect("write clean file");
+        let fixed_mtime = filetime::FileTime::from_system_time(
+            SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000),
+        );
+        filetime::set_file_mtime(&file, fixed_mtime).expect("set mtime");
+
+        let before = compute_directory_hash(dir.path()).expect("hash before");
+        fs::write(&file, "eval('alert')  \n").expect("write same-size malicious file");
+        filetime::set_file_mtime(&file, fixed_mtime).expect("reset mtime");
+
+        let after = compute_directory_hash(dir.path()).expect("hash after");
+        assert_ne!(before, after);
+    }
 }

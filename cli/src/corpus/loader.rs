@@ -79,10 +79,8 @@ pub fn load_packs_from_dir(dir: &Path) -> Vec<SignaturePack> {
 
 /// Parse a single pack from a file path.
 pub fn load_pack_from_file(path: &Path) -> Result<SignaturePack, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| format!("read error: {e}"))?;
-    serde_json::from_str::<SignaturePack>(&raw)
-        .map_err(|e| format!("parse error: {e}"))
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("read error: {e}"))?;
+    serde_json::from_str::<SignaturePack>(&raw).map_err(|e| format!("parse error: {e}"))
 }
 
 /// Returns `~/.sigil/packs/` when the home directory can be determined.

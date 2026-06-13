@@ -1,6 +1,6 @@
 {
   "name": "@nomarj/sigil",
-  "version": "1.1.2",
+  "version": "1.2.1",
   "description": "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers",
   "license": "Apache-2.0",
   "type": "module",
@@ -38,16 +38,16 @@
   },
   "os": [
     "darwin",
-    "linux",
-    "win32"
+    "linux"
   ],
   "cpu": [
     "x64",
     "arm64"
   ],
   "files": [
-    "bin/",
-    "scripts/",
+    "bin/sigil-wrapper.js",
+    "scripts/install-binary.js",
+    "scripts/cleanup.js",
     "README.md",
     "LICENSE"
   ]

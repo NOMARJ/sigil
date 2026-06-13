@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import VerdictBadge from "@/components/VerdictBadge";
+import { useAuth } from "@/lib/auth";
 import * as api from "@/lib/api";
 import type { ThreatEntry, Verdict, ScanSource, ReportThreatRequest, Signature, ThreatReport } from "@/lib/types";
 
@@ -27,6 +28,8 @@ const reportStatusColors: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function ThreatsPage() {
+  const { user } = useAuth();
+  const canReview = user?.role === "reviewer" || user?.role === "admin" || user?.role === "owner";
   const [activeTab, setActiveTab] = useState<Tab>("threats");
   const [severityFilter, setSeverityFilter] = useState<Verdict | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -509,7 +512,7 @@ export default function ThreatsPage() {
                           month: "short", day: "numeric", year: "numeric"
                         })}
                       </p>
-                      {report.status === "received" && (
+                      {canReview && report.status === "received" && (
                         <button
                           onClick={() => handleReportStatusChange(report.id, "under_review")}
                           className="btn-secondary text-xs"
@@ -517,7 +520,7 @@ export default function ThreatsPage() {
                           Review
                         </button>
                       )}
-                      {report.status === "under_review" && (
+                      {canReview && report.status === "under_review" && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => handleReportStatusChange(report.id, "confirmed")}

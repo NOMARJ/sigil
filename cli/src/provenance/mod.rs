@@ -131,13 +131,9 @@ fn fetch_bytes(url: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 ///   }
 /// }
 /// ```
-fn fetch_npm_attestation(
-    name: &str,
-    version: &str,
-    fixture_dir: Option<&Path>,
-) -> Attestation {
+fn fetch_npm_attestation(name: &str, version: &str, fixture_dir: Option<&Path>) -> Attestation {
     let raw = if let Some(dir) = fixture_dir {
-        let safe_name = name.replace('/', "_").replace('@', "_");
+        let safe_name = name.replace(['/', '@'], "_");
         let file = dir.join(format!("{}-{}.json", safe_name, version));
         match std::fs::read(&file) {
             Ok(b) => b,
@@ -160,10 +156,7 @@ fn parse_npm_attestation(raw: &[u8]) -> Attestation {
         Err(_) => return Attestation::default(),
     };
 
-    let attestations = match val
-        .get("dist")
-        .and_then(|d| d.get("attestations"))
-    {
+    let attestations = match val.get("dist").and_then(|d| d.get("attestations")) {
         Some(a) => a,
         None => return Attestation::default(),
     };
@@ -202,11 +195,7 @@ fn parse_npm_attestation(raw: &[u8]) -> Attestation {
 ///   }]
 /// }
 /// ```
-fn fetch_pypi_attestation(
-    name: &str,
-    version: &str,
-    fixture_dir: Option<&Path>,
-) -> Attestation {
+fn fetch_pypi_attestation(name: &str, version: &str, fixture_dir: Option<&Path>) -> Attestation {
     let raw = if let Some(dir) = fixture_dir {
         let safe_name = name.replace(['-', '.'], "_");
         let file = dir.join(format!("{}-{}.json", safe_name, version));
@@ -467,7 +456,7 @@ pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<
         .parents(false)
         .add_custom_ignore_filename(".sigilignore");
     builder.filter_entry(|entry| {
-        if !entry.file_type().map_or(false, |t| t.is_dir()) {
+        if !entry.file_type().is_some_and(|t| t.is_dir()) {
             return true;
         }
         let name = entry.file_name().to_string_lossy();
@@ -509,7 +498,8 @@ pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<
         // ledger is read inside check_component (concurrent file reads are safe)
         // and written only after this loop, so parallel checks never race a write.
         // Cap in-flight requests so we stay a polite npm/PyPI client.
-        let check_all = || -> Vec<(Vec<Finding>, Option<(PathBuf, String, ProvRecord)>)> {
+        type ComponentCheck = (Vec<Finding>, Option<(PathBuf, String, ProvRecord)>);
+        let check_all = || -> Vec<ComponentCheck> {
             components
                 .par_iter()
                 .map(|comp| {
@@ -526,7 +516,11 @@ pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<
                         } else {
                             ledger_dir_default()?
                         };
-                        Some((ledger_dir, ledger_key(ecosystem, &comp.name, version), record))
+                        Some((
+                            ledger_dir,
+                            ledger_key(ecosystem, &comp.name, version),
+                            record,
+                        ))
                     });
                     (findings, update)
                 })
@@ -552,27 +546,13 @@ pub fn scan_for_provenance_drift(path: &Path, options: &ScanOptions<'_>) -> Vec<
     all_findings
 }
 
-// ── Public helpers exposed for testing ───────────────────────────────────────
-
-#[cfg(test)]
-pub use self::tests_helpers::*;
+// ── Helpers exposed to this module's tests ───────────────────────────────────
 
 #[cfg(test)]
 mod tests_helpers {
     use super::*;
 
-    pub fn detect_drift_pub(
-        ecosystem: &str,
-        name: &str,
-        version: &str,
-        lockfile: &str,
-        current: &Attestation,
-        baseline: &ProvRecord,
-    ) -> Vec<Finding> {
-        detect_drift(ecosystem, name, version, lockfile, current, baseline)
-    }
-
-    pub fn make_attestation(
+    pub(super) fn make_attestation(
         attested: bool,
         signer_identity: Option<&str>,
         source_repo: Option<&str>,
@@ -584,11 +564,11 @@ mod tests_helpers {
         }
     }
 
-    pub fn parse_npm_attestation_pub(raw: &[u8]) -> Attestation {
+    pub(super) fn parse_npm_attestation_pub(raw: &[u8]) -> Attestation {
         parse_npm_attestation(raw)
     }
 
-    pub fn parse_pypi_attestation_pub(raw: &[u8]) -> Attestation {
+    pub(super) fn parse_pypi_attestation_pub(raw: &[u8]) -> Attestation {
         parse_pypi_attestation(raw)
     }
 }
@@ -597,6 +577,9 @@ mod tests_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::tests_helpers::{
+        make_attestation, parse_npm_attestation_pub, parse_pypi_attestation_pub,
+    };
     use super::*;
     use std::path::PathBuf;
     use tempfile::tempdir;
@@ -620,9 +603,20 @@ mod tests {
     /// Positive test: downgrade from attested → unattested emits PROV-DOWNGRADE
     #[test]
     fn provenance_drift_downgrade_emits_finding() {
-        let baseline = make_record(true, Some("https://github.com/org/repo/.github/workflows/publish.yml@refs/heads/main"), Some("https://github.com/org/repo"));
+        let baseline = make_record(
+            true,
+            Some("https://github.com/org/repo/.github/workflows/publish.yml@refs/heads/main"),
+            Some("https://github.com/org/repo"),
+        );
         let current = make_attestation(false, None, None);
-        let findings = detect_drift("npm", "my-pkg", "1.0.0", "package-lock.json", &current, &baseline);
+        let findings = detect_drift(
+            "npm",
+            "my-pkg",
+            "1.0.0",
+            "package-lock.json",
+            &current,
+            &baseline,
+        );
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule, "PROV-DOWNGRADE");
         assert_eq!(findings[0].severity, Severity::High);
@@ -642,7 +636,14 @@ mod tests {
             Some("https://github.com/attacker/fork/.github/workflows/publish.yml@refs/heads/main"),
             Some("https://github.com/org/repo"),
         );
-        let findings = detect_drift("npm", "my-pkg", "1.0.0", "package-lock.json", &current, &baseline);
+        let findings = detect_drift(
+            "npm",
+            "my-pkg",
+            "1.0.0",
+            "package-lock.json",
+            &current,
+            &baseline,
+        );
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule, "PROV-IDENTITY-CHANGE");
         assert_eq!(findings[0].severity, Severity::Critical);
@@ -661,7 +662,14 @@ mod tests {
             Some("https://github.com/org/repo/.github/workflows/publish.yml@refs/heads/main"),
             Some("https://github.com/different-org/repo"),
         );
-        let findings = detect_drift("npm", "my-pkg", "1.0.0", "package-lock.json", &current, &baseline);
+        let findings = detect_drift(
+            "npm",
+            "my-pkg",
+            "1.0.0",
+            "package-lock.json",
+            &current,
+            &baseline,
+        );
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule, "PROV-REPO-MISMATCH");
         assert_eq!(findings[0].severity, Severity::High);
@@ -680,8 +688,18 @@ mod tests {
             Some("https://github.com/org/repo/.github/workflows/publish.yml@refs/heads/main"),
             Some("https://github.com/org/repo"),
         );
-        let findings = detect_drift("npm", "my-pkg", "1.0.0", "package-lock.json", &current, &baseline);
-        assert!(findings.is_empty(), "identical baseline must produce zero findings");
+        let findings = detect_drift(
+            "npm",
+            "my-pkg",
+            "1.0.0",
+            "package-lock.json",
+            &current,
+            &baseline,
+        );
+        assert!(
+            findings.is_empty(),
+            "identical baseline must produce zero findings"
+        );
     }
 
     /// Negative test: clean unattested package (never was attested) → zero findings
@@ -692,7 +710,14 @@ mod tests {
         // remains unattested produces no findings.
         let baseline = make_record(false, None, None);
         let current = make_attestation(false, None, None);
-        let findings = detect_drift("npm", "legacy-pkg", "2.0.0", "package-lock.json", &current, &baseline);
+        let findings = detect_drift(
+            "npm",
+            "legacy-pkg",
+            "2.0.0",
+            "package-lock.json",
+            &current,
+            &baseline,
+        );
         assert!(
             findings.is_empty(),
             "unattested-from-start package must never produce findings (ADR-0007)"
@@ -706,7 +731,10 @@ mod tests {
         let dir = tempdir().unwrap();
         let record = ProvRecord {
             attested: true,
-            signer_identity: Some("https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main".to_string()),
+            signer_identity: Some(
+                "https://github.com/org/repo/.github/workflows/release.yml@refs/heads/main"
+                    .to_string(),
+            ),
             source_repo: Some("https://github.com/org/repo".to_string()),
         };
         let key = "npm-my-pkg-1.0.0";
@@ -744,7 +772,10 @@ mod tests {
         let bytes = serde_json::to_vec(&raw).unwrap();
         let att = parse_npm_attestation_pub(&bytes);
         assert!(att.attested);
-        assert_eq!(att.source_repo.as_deref(), Some("https://github.com/org/repo"));
+        assert_eq!(
+            att.source_repo.as_deref(),
+            Some("https://github.com/org/repo")
+        );
         assert!(att.signer_identity.is_some());
     }
 
@@ -788,7 +819,10 @@ mod tests {
         let bytes = serde_json::to_vec(&raw).unwrap();
         let att = parse_pypi_attestation_pub(&bytes);
         assert!(att.attested);
-        assert_eq!(att.source_repo.as_deref(), Some("https://github.com/org/pyrepo"));
+        assert_eq!(
+            att.source_repo.as_deref(),
+            Some("https://github.com/org/pyrepo")
+        );
     }
 
     /// Negative test: PyPI package without attestations field → unattested, no panic
@@ -821,8 +855,8 @@ mod tests {
     /// write the post-scan observation without mutating the fixture on disk.
     #[test]
     fn provenance_drift_scan_detects_downgrade_via_fixtures() {
-        let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../tests/fixtures/provenance");
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/provenance");
 
         // Skip if fixture dir doesn't exist yet
         if !fixture_dir.exists() {
@@ -947,6 +981,9 @@ mod tests {
         };
         let (findings, record) = check_component(&comp, "package-lock.json", &options);
         assert!(findings.is_empty());
-        assert!(record.is_none(), "no record should be stored for unpinned packages");
+        assert!(
+            record.is_none(),
+            "no record should be stored for unpinned packages"
+        );
     }
 }

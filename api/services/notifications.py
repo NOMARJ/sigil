@@ -12,15 +12,18 @@ configured, logging warnings instead of raising exceptions.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import smtplib
 import ssl
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from ipaddress import ip_address
+from socket import gaierror, getaddrinfo
 from typing import Any
-
-import httpx
+from urllib.parse import urlsplit
 
 from api.config import settings
 
@@ -28,6 +31,128 @@ logger = logging.getLogger(__name__)
 
 # Default timeout for outbound HTTP requests (seconds)
 _HTTP_TIMEOUT = 10.0
+
+
+def is_safe_webhook_url(webhook_url: str) -> bool:
+    """Return True only for public HTTPS webhook destinations."""
+    return _safe_webhook_target(webhook_url) is not None
+
+
+def _safe_webhook_target(webhook_url: str) -> tuple[str, str, int, str] | None:
+    """Return a public resolved IP, original host, port, and request path."""
+    try:
+        parsed = urlsplit(webhook_url)
+    except ValueError:
+        return None
+
+    if parsed.scheme != "https" or not parsed.hostname:
+        return None
+
+    hostname = parsed.hostname
+    try:
+        literal_ip = ip_address(hostname)
+    except ValueError:
+        literal_ip = None
+
+    if literal_ip is not None:
+        if not _is_public_destination_ip(literal_ip):
+            return None
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+        return str(literal_ip), hostname, parsed.port or 443, path
+
+    try:
+        resolved = getaddrinfo(hostname, parsed.port or 443, type=0)
+    except gaierror:
+        logger.warning("Could not resolve webhook host: %s", hostname)
+        return None
+
+    public_addresses = []
+    for info in resolved:
+        try:
+            address = ip_address(info[4][0])
+        except ValueError:
+            return None
+        if not _is_public_destination_ip(address):
+            return None
+        public_addresses.append(str(address))
+
+    if not public_addresses:
+        return None
+
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    return public_addresses[0], hostname, parsed.port or 443, path
+
+
+def _is_public_destination_ip(address: Any) -> bool:
+    return not (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+async def _send_json_to_pinned_https_target(
+    target: tuple[str, str, int, str],
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str],
+    method: str,
+) -> tuple[int, str]:
+    address, hostname, port, path = target
+    body = json.dumps(payload).encode("utf-8")
+    request_headers = {
+        **headers,
+        "Host": hostname if port == 443 else f"{hostname}:{port}",
+        "Content-Length": str(len(body)),
+        "Connection": "close",
+    }
+    context = ssl.create_default_context()
+    reader, writer = await asyncio.wait_for(
+        asyncio.open_connection(
+            address,
+            port,
+            ssl=context,
+            server_hostname=hostname,
+        ),
+        timeout=_HTTP_TIMEOUT,
+    )
+
+    try:
+        header_lines = "".join(
+            f"{key}: {value}\r\n"
+            for key, value in request_headers.items()
+            if "\r" not in key
+            and "\n" not in key
+            and "\r" not in str(value)
+            and "\n" not in str(value)
+        )
+        writer.write(
+            f"{method.upper()} {path} HTTP/1.1\r\n{header_lines}\r\n".encode(
+                "utf-8"
+            )
+            + body
+        )
+        await writer.drain()
+        status_line = await asyncio.wait_for(reader.readline(), timeout=_HTTP_TIMEOUT)
+        parts = status_line.decode("iso-8859-1", errors="replace").split()
+        status_code = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+
+        while True:
+            line = await asyncio.wait_for(reader.readline(), timeout=_HTTP_TIMEOUT)
+            if line in (b"\r\n", b"\n", b""):
+                break
+        response_body = await asyncio.wait_for(reader.read(2048), timeout=_HTTP_TIMEOUT)
+        return status_code, response_body.decode("utf-8", errors="replace")
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
 
 # ---------------------------------------------------------------------------
@@ -69,15 +194,27 @@ async def send_slack_notification(
             for f in fields
         ]
 
+    safe_target = _safe_webhook_target(webhook_url)
+    if safe_target is None:
+        logger.warning("Blocked unsafe Slack webhook destination")
+        return False
+
     try:
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            resp = await client.post(webhook_url, json=payload)
-            if resp.status_code == 200:
-                logger.info("Slack notification sent successfully")
-                return True
-            logger.warning("Slack webhook returned %d: %s", resp.status_code, resp.text)
-            return False
-    except httpx.HTTPError as exc:
+        status_code, response_text = await _send_json_to_pinned_https_target(
+            safe_target,
+            payload,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": f"Sigil/{settings.app_version}",
+            },
+            method="POST",
+        )
+        if status_code == 200:
+            logger.info("Slack notification sent successfully")
+            return True
+        logger.warning("Slack webhook returned %d: %s", status_code, response_text)
+        return False
+    except OSError as exc:
         logger.warning("Slack notification failed: %s", exc)
         return False
     except Exception:
@@ -185,24 +322,27 @@ async def send_webhook_notification(
     if headers:
         request_headers.update(headers)
 
+    safe_target = _safe_webhook_target(webhook_url)
+    if safe_target is None:
+        logger.warning("Blocked unsafe webhook destination")
+        return False
     try:
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            resp = await client.request(
-                method,
+        status_code, response_text = await _send_json_to_pinned_https_target(
+            safe_target,
+            payload,
+            headers=request_headers,
+            method=method,
+        )
+        if 200 <= status_code < 300:
+            logger.info(
+                "Webhook notification sent to %s (status=%d)",
                 webhook_url,
-                json=payload,
-                headers=request_headers,
+                status_code,
             )
-            if 200 <= resp.status_code < 300:
-                logger.info(
-                    "Webhook notification sent to %s (status=%d)",
-                    webhook_url,
-                    resp.status_code,
-                )
-                return True
-            logger.warning("Webhook returned %d: %s", resp.status_code, resp.text[:200])
-            return False
-    except httpx.HTTPError as exc:
+            return True
+        logger.warning("Webhook returned %d: %s", status_code, response_text[:200])
+        return False
+    except OSError as exc:
         logger.warning("Webhook notification failed: %s", exc)
         return False
     except Exception:

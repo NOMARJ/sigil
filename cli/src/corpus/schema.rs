@@ -44,10 +44,7 @@ impl FileFilter {
             return true;
         }
 
-        let ext = filename
-            .rsplit_once('.')
-            .map(|(_, e)| e)
-            .unwrap_or("");
+        let ext = filename.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
         if !ext.is_empty() && self.extensions.iter().any(|e| e == ext) {
             return true;
         }
@@ -139,11 +136,7 @@ impl SuppressionPredicates {
             return true;
         }
 
-        if self
-            .safe_domains
-            .iter()
-            .any(|d| line.contains(d.as_str()))
-        {
+        if self.safe_domains.iter().any(|d| line.contains(d.as_str())) {
             return true;
         }
 

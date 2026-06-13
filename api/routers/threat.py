@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from api.gates import require_plan
+from api.permissions import require_review_role, require_signature_admin_role
 from api.models import (
     ErrorResponse,
     GateError,
@@ -174,6 +175,7 @@ async def create_or_update_signature(
 ) -> dict[str, Any]:
     """Upsert a detection signature.  Used by admins to push new patterns
     that will be distributed to all connected scanners."""
+    require_signature_admin_role(current_user)
     result = await upsert_signature(
         sig_id=request.id,
         phase=request.phase,
@@ -196,6 +198,7 @@ async def remove_signature(
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Remove a signature by ID."""
+    require_signature_admin_role(current_user)
     deleted = await delete_signature(sig_id)
     if not deleted:
         raise HTTPException(
@@ -270,6 +273,7 @@ async def update_report(
     When a report is **confirmed**, a threat entry and detection signature
     are automatically created and distributed to all connected scanners.
     """
+    require_review_role(current_user)
     try:
         return await update_report_status(
             report_id=report_id,

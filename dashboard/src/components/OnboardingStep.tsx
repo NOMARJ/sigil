@@ -8,14 +8,16 @@ import InsightsGuideStep from "./onboarding/InsightsGuideStep";
 import IntegrationsStep from "./onboarding/IntegrationsStep";
 import CompletionStep from "./onboarding/CompletionStep";
 
+export type OnboardingPayload = Record<string, unknown>;
+
 export interface OnboardingStepProps {
   step: OnboardingStepData;
   stepNumber: number;
   totalSteps: number;
-  onComplete: (stepId: string, data?: any) => void;
+  onComplete: (stepId: string, data?: OnboardingPayload) => void;
   onSkip: () => void;
   onPrevious: () => void;
-  data: Record<string, any>;
+  data: OnboardingPayload;
   canGoPrevious: boolean;
   isLastStep: boolean;
 }

@@ -18,7 +18,7 @@ const binaryPath = join(__dirname, binaryName);
 // Check if binary exists
 if (!existsSync(binaryPath)) {
   console.error('❌ Sigil binary not found. Installation may have failed.');
-  console.error('   Try reinstalling: npm install -g @nomark/sigil');
+  console.error('   Try reinstalling: npm install -g @nomarj/sigil');
   process.exit(1);
 }
 

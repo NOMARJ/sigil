@@ -246,6 +246,13 @@ def _get_stripe():
         return None
 
 
+def _payment_provider_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Payment provider is not configured. Paid subscriptions and credit purchases are unavailable.",
+    )
+
+
 async def _get_or_create_subscription(user_id: str) -> dict[str, Any]:
     """Get the DB subscription for a user, creating a free-plan default if absent."""
     sub_data = await db.get_subscription(user_id)
@@ -295,11 +302,10 @@ async def subscribe(
     """Subscribe to a plan or change the current subscription.
 
     When Stripe is configured, this creates a Stripe Checkout Session or
-    updates the existing subscription.  Without Stripe, a stub subscription
-    is recorded in the database.
+    updates the existing subscription. Paid plans fail closed when Stripe is
+    unavailable so entitlements cannot be granted without payment verification.
     """
     stripe = _get_stripe()
-    now = datetime.utcnow()
 
     if body.plan == PlanTier.ENTERPRISE:
         raise HTTPException(
@@ -311,6 +317,9 @@ async def subscribe(
     sub_data = await _get_or_create_subscription(current_user.id)
 
     interval = body.interval  # "monthly" or "annual"
+    if stripe is None and body.plan != PlanTier.FREE:
+        raise _payment_provider_unavailable()
+
     if stripe is not None:
         # --- Stripe integration path ---
         price_id = _get_price_id(body.plan, interval)
@@ -438,30 +447,27 @@ async def subscribe(
                     detail=f"Payment provider error: {exc}",
                 )
     else:
-        # --- Stub path (no Stripe) ---
-        days = 365 if interval == "annual" else 30
-        period_end = (now + timedelta(days=days)).isoformat()
+        now = datetime.utcnow()
         sub_data = await db.upsert_subscription(
             user_id=current_user.id,
-            plan=body.plan.value,
+            plan=PlanTier.FREE.value,
             status="active",
             stripe_customer_id=sub_data.get("stripe_customer_id"),
             stripe_subscription_id=sub_data.get("stripe_subscription_id"),
-            current_period_end=period_end,
-            billing_interval=interval,
+            current_period_end=sub_data.get("current_period_end"),
+            billing_interval="monthly",
         )
         sub_data["current_period_start"] = now.isoformat()
         sub_data["cancel_at_period_end"] = False
         logger.info(
-            "Stub subscription created for user %s: plan=%s interval=%s (Stripe not configured)",
+            "Free subscription recorded for user %s while Stripe is unavailable",
             current_user.id,
-            body.plan.value,
-            interval,
         )
 
     # Audit log
     try:
         from uuid import uuid4
+        now = datetime.utcnow()
 
         await db.insert(
             AUDIT_TABLE,
@@ -558,7 +564,8 @@ async def create_portal_session(
     """Create a Stripe Customer Portal session for the user to manage their
     subscription, payment methods, and invoices.
 
-    When Stripe is not configured, returns a placeholder URL.
+    When Stripe is not configured, fails closed instead of returning a
+    placeholder URL.
     """
     stripe = _get_stripe()
 
@@ -585,9 +592,7 @@ async def create_portal_session(
                 detail=f"Payment provider error: {exc}",
             )
 
-    # Stub response when Stripe is not configured
-    logger.info("Stripe not configured — returning stub portal URL")
-    return PortalResponse(url=f"{settings.cors_origins[0]}/settings/billing?stub=true")
+    raise _payment_provider_unavailable()
 
 
 @router.get(
@@ -623,6 +628,8 @@ async def purchase_credits(
     Credits are added after successful payment via webhook.
     """
     stripe = _get_stripe()
+    if stripe is None:
+        raise _payment_provider_unavailable()
 
     # Find the package
     package = next(
@@ -634,102 +641,66 @@ async def purchase_credits(
             detail="Invalid credit package ID",
         )
 
-    if stripe is not None:
-        try:
-            # Get or create Stripe customer
-            sub_data = await _get_or_create_subscription(current_user.id)
-            customer_id = sub_data.get("stripe_customer_id")
+    try:
+        # Get or create Stripe customer
+        sub_data = await _get_or_create_subscription(current_user.id)
+        customer_id = sub_data.get("stripe_customer_id")
 
-            if not customer_id:
-                customer = stripe.Customer.create(
-                    email=current_user.email,
-                    metadata={"sigil_user_id": current_user.id},
-                )
-                customer_id = customer.id
-
-                # Update subscription with customer ID
-                await db.upsert_subscription(
-                    user_id=current_user.id,
-                    plan=sub_data.get("plan", PlanTier.FREE.value),
-                    status=sub_data.get("status", "active"),
-                    stripe_customer_id=customer_id,
-                    stripe_subscription_id=sub_data.get("stripe_subscription_id"),
-                    current_period_end=sub_data.get("current_period_end"),
-                    billing_interval=sub_data.get("billing_interval", "monthly"),
-                )
-
-            # Build success/cancel URLs
-            frontend_url = settings.frontend_url.rstrip("/")
-            success_url = f"{frontend_url}/settings?credit_purchase=success"
-            cancel_url = f"{frontend_url}/settings?credit_purchase=cancel"
-
-            # Create Stripe checkout session for one-time payment
-            checkout_session = stripe.checkout.Session.create(
-                customer=customer_id,
-                mode="payment",  # One-time payment, not subscription
-                line_items=[{"price": package.stripe_price_id, "quantity": 1}],
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={
-                    "sigil_user_id": current_user.id,
-                    "credit_package_id": str(package.package_id),
-                    "credits_amount": str(package.credits + package.bonus_credits),
-                },
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                metadata={"sigil_user_id": current_user.id},
             )
+            customer_id = customer.id
 
-            # Log the purchase attempt
-            logger.info(
-                f"Created credit purchase checkout for user {current_user.id}: "
-                f"package={package.name} credits={package.credits + package.bonus_credits}"
-            )
-
-            return PurchaseCreditsResponse(
-                success=True,
-                checkout_url=checkout_session.url,
-                credits_purchased=package.credits + package.bonus_credits,
-            )
-
-        except Exception as e:
-            logger.exception(f"Failed to create credit purchase checkout: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Payment provider error: {e}",
-            )
-    else:
-        # Stub implementation - directly add credits
-        try:
-            from api.services.credit_service import credit_service
-
-            total_credits = package.credits + package.bonus_credits
-            new_balance = await credit_service.add_credits(
+            # Update subscription with customer ID
+            await db.upsert_subscription(
                 user_id=current_user.id,
-                amount=total_credits,
-                transaction_type="purchase",
-                metadata={
-                    "package_id": package.package_id,
-                    "package_name": package.name,
-                    "price_usd": package.price_usd,
-                    "stub_purchase": True,
-                },
+                plan=sub_data.get("plan", PlanTier.FREE.value),
+                status=sub_data.get("status", "active"),
+                stripe_customer_id=customer_id,
+                stripe_subscription_id=sub_data.get("stripe_subscription_id"),
+                current_period_end=sub_data.get("current_period_end"),
+                billing_interval=sub_data.get("billing_interval", "monthly"),
             )
 
-            logger.info(
-                f"Stub credit purchase for user {current_user.id}: "
-                f"added {total_credits} credits"
-            )
+        # Build success/cancel URLs
+        frontend_url = settings.frontend_url.rstrip("/")
+        success_url = f"{frontend_url}/settings?credit_purchase=success"
+        cancel_url = f"{frontend_url}/settings?credit_purchase=cancel"
 
-            return PurchaseCreditsResponse(
-                success=True,
-                credits_purchased=total_credits,
-                new_balance=new_balance,
-            )
+        # Create Stripe checkout session for one-time payment
+        checkout_session = stripe.checkout.Session.create(
+            customer=customer_id,
+            mode="payment",  # One-time payment, not subscription
+            line_items=[{"price": package.stripe_price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "sigil_user_id": current_user.id,
+                "credit_package_id": str(package.package_id),
+                "credits_amount": str(package.credits + package.bonus_credits),
+            },
+        )
 
-        except Exception as e:
-            logger.exception(f"Failed to process stub credit purchase: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to process credit purchase",
-            )
+        # Log the purchase attempt
+        logger.info(
+            f"Created credit purchase checkout for user {current_user.id}: "
+            f"package={package.name} credits={package.credits + package.bonus_credits}"
+        )
+
+        return PurchaseCreditsResponse(
+            success=True,
+            checkout_url=checkout_session.url,
+            credits_purchased=package.credits + package.bonus_credits,
+        )
+
+    except Exception as e:
+        logger.exception(f"Failed to create credit purchase checkout: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Payment provider error: {e}",
+        )
 
 
 @router.post(
@@ -740,8 +711,8 @@ async def purchase_credits(
 async def stripe_webhook(request: Request) -> WebhookResponse:
     """Handle incoming Stripe webhook events.
 
-    Verifies the webhook signature when ``SIGIL_STRIPE_WEBHOOK_SECRET`` is set,
-    then processes relevant events (subscription updates, payment failures, etc.).
+    Verifies the webhook signature, then processes relevant events
+    (subscription updates, payment failures, etc.).
 
     This endpoint does NOT require authentication — it is called by Stripe directly.
     """
@@ -749,40 +720,27 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
     body = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    event: dict[str, Any] | None = None
+    if stripe is None or not settings.stripe_webhook_secret:
+        logger.error("Stripe webhook received while webhook verification is disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe webhook verification is not configured",
+        )
 
-    if stripe is not None and settings.stripe_webhook_secret:
-        # Verify webhook signature for security
-        try:
-            event = stripe.Webhook.construct_event(
-                body, sig_header, settings.stripe_webhook_secret
-            )
-            logger.info("Webhook signature verified successfully")
-        except stripe.error.SignatureVerificationError as e:
-            logger.error(f"Webhook signature verification failed: {e}")
-            raise HTTPException(status_code=400, detail="Invalid webhook signature")
-        except ValueError as e:
-            logger.error(f"Webhook payload invalid: {e}")
-            raise HTTPException(status_code=400, detail="Invalid payload format")
-        except Exception as e:
-            logger.error(f"Webhook verification error: {e}")
-            raise HTTPException(
-                status_code=400, detail=f"Webhook verification failed: {e}"
-            )
-    else:
-        # No Stripe or no secret — parse raw JSON (development/testing mode)
-        import json
-
-        if not settings.stripe_configured:
-            logger.warning(
-                "Stripe not configured, processing webhook in development mode"
-            )
-
-        try:
-            event = json.loads(body)
-        except Exception as e:
-            logger.error(f"Invalid JSON in webhook payload: {e}")
-            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    try:
+        event = stripe.Webhook.construct_event(
+            body, sig_header, settings.stripe_webhook_secret
+        )
+        logger.info("Webhook signature verified successfully")
+    except stripe.error.SignatureVerificationError as e:
+        logger.error(f"Webhook signature verification failed: {e}")
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    except ValueError as e:
+        logger.error(f"Webhook payload invalid: {e}")
+        raise HTTPException(status_code=400, detail="Invalid payload format")
+    except Exception as e:
+        logger.error(f"Webhook verification error: {e}")
+        raise HTTPException(status_code=400, detail=f"Webhook verification failed: {e}")
 
     event_type = event.get("type", "unknown") if event else "unknown"
     event_id = event.get("id", "unknown") if event else "unknown"
@@ -813,8 +771,10 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
 
     except Exception as e:
         logger.exception(f"Error processing webhook {event_type} (ID: {event_id}): {e}")
-        # Don't raise the exception - Stripe will retry if we return an error
-        # Just log it and return success to prevent infinite retries
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed",
+        )
 
     return WebhookResponse(received=True, event_type=event_type)
 
@@ -962,31 +922,27 @@ async def _handle_subscription_updated(event: dict[str, Any]) -> None:
             billing_interval=existing.get("billing_interval", "monthly"),
         )
 
-        # Handle subscription status changes
-        try:
-            if sub_status == "canceled" or sub_status == "past_due":
-                # Downgrade to free tier
-                await db.execute(
-                    "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
-                    {"user_id": user_id},
-                )
-                logger.info(
-                    f"Downgraded user {user_id} to free tier due to {sub_status}"
-                )
-            elif sub_status == "active" and current_plan != PlanTier.FREE.value:
-                # Ensure user has correct tier and credits
-                await db.execute(
-                    "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-                    {"tier": current_plan, "user_id": user_id},
-                )
+        # Handle subscription status changes. Entitlement writes are part of
+        # webhook processing; failures must return 500 so Stripe retries.
+        if sub_status not in {"active", "trialing"}:
+            await db.execute(
+                "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
+                {"user_id": user_id},
+            )
+            logger.info(
+                f"Downgraded user {user_id} to free tier due to {sub_status}"
+            )
+        elif current_plan != PlanTier.FREE.value:
+            await db.execute(
+                "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
+                {"tier": current_plan, "user_id": user_id},
+            )
 
-                from api.services.credit_service import credit_service
+            from api.services.credit_service import credit_service
 
-                await credit_service.initialize_user_credits(user_id)
+            await credit_service.initialize_user_credits(user_id)
 
-                logger.info(f"Activated user {user_id} {current_plan} tier")
-        except Exception as e:
-            logger.exception(f"Failed to update user tier for subscription change: {e}")
+            logger.info(f"Activated user {user_id} {current_plan} tier")
     else:
         logger.warning(
             "Received subscription.updated for unknown customer: %s", customer_id
@@ -1160,70 +1116,37 @@ async def _handle_payment_failed(event: dict[str, Any]) -> None:
             user_email = None
             user_name = None
 
-        # Implement grace period for first few failures
-        if attempt_count <= 3:
-            logger.info(
-                f"Payment failure {attempt_count}/3 for user {user_id}, maintaining access"
-            )
+        await db.upsert_subscription(
+            user_id=user_id,
+            plan=existing.get("plan", PlanTier.PRO.value),
+            status="past_due",
+            stripe_customer_id=customer_id,
+            stripe_subscription_id=subscription_id,
+            current_period_end=existing.get("current_period_end"),
+            billing_interval=existing.get("billing_interval", "monthly"),
+        )
 
-            # Send notification about payment failure
-            if user_email:
-                try:
-                    from api.services.notification_service import notification_service
+        await db.execute(
+            "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
+            {"user_id": user_id},
+        )
 
-                    await notification_service.send_payment_failure_notification(
-                        user_email=user_email,
-                        user_name=user_name,
-                        attempt_count=attempt_count,
-                        amount=amount,
-                        next_retry=None,  # Could add retry date logic
-                    )
-                    logger.info(f"Sent payment failure notification to {user_email}")
-                except Exception as e:
-                    logger.exception(
-                        f"Failed to send payment failure notification: {e}"
-                    )
+        if user_email:
+            try:
+                from api.services.notification_service import notification_service
 
-            return
+                await notification_service.send_payment_failure_notification(
+                    user_email=user_email,
+                    user_name=user_name,
+                    attempt_count=attempt_count,
+                    amount=amount,
+                    next_retry=None if attempt_count <= 3 else None,
+                )
+                logger.info(f"Sent payment failure notification to {user_email}")
+            except Exception as e:
+                logger.exception(f"Failed to send payment failure notification: {e}")
 
-        # After 3 attempts, downgrade to free tier
-        try:
-            await db.upsert_subscription(
-                user_id=user_id,
-                plan=PlanTier.FREE.value,
-                status="past_due",
-                stripe_customer_id=customer_id,
-                stripe_subscription_id=subscription_id,
-                current_period_end=existing.get("current_period_end"),
-                billing_interval=existing.get("billing_interval", "monthly"),
-            )
-
-            await db.execute(
-                "UPDATE users SET subscription_tier = 'free' WHERE id = :user_id",
-                {"user_id": user_id},
-            )
-
-            # Send final downgrade notification
-            if user_email:
-                try:
-                    from api.services.notification_service import notification_service
-
-                    await notification_service.send_payment_failure_notification(
-                        user_email=user_email,
-                        user_name=user_name,
-                        attempt_count=attempt_count,
-                        amount=amount,
-                    )
-                    logger.info(f"Sent downgrade notification to {user_email}")
-                except Exception as e:
-                    logger.exception(f"Failed to send downgrade notification: {e}")
-
-            logger.info(f"Downgraded user {user_id} to free tier after payment failure")
-
-        except Exception as e:
-            logger.exception(
-                f"Failed to handle payment failure for user {user_id}: {e}"
-            )
+        logger.info(f"Downgraded user {user_id} to free tier after payment failure")
 
 
 async def _handle_payment_succeeded(event: dict[str, Any]) -> None:
@@ -1243,33 +1166,28 @@ async def _handle_payment_succeeded(event: dict[str, Any]) -> None:
         user_id = existing["user_id"]
         current_plan = existing.get("plan", PlanTier.PRO.value)
 
-        try:
-            # Restore subscription status
-            await db.upsert_subscription(
-                user_id=user_id,
-                plan=current_plan,
-                status="active",
-                stripe_customer_id=customer_id,
-                stripe_subscription_id=subscription_id,
-                current_period_end=existing.get("current_period_end"),
-                billing_interval=existing.get("billing_interval", "monthly"),
-            )
+        await db.upsert_subscription(
+            user_id=user_id,
+            plan=current_plan,
+            status="active",
+            stripe_customer_id=customer_id,
+            stripe_subscription_id=subscription_id,
+            current_period_end=existing.get("current_period_end"),
+            billing_interval=existing.get("billing_interval", "monthly"),
+        )
 
-            await db.execute(
-                "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
-                {"tier": current_plan, "user_id": user_id},
-            )
+        await db.execute(
+            "UPDATE users SET subscription_tier = :tier WHERE id = :user_id",
+            {"tier": current_plan, "user_id": user_id},
+        )
 
-            from api.services.credit_service import credit_service
+        from api.services.credit_service import credit_service
 
-            await credit_service.initialize_user_credits(user_id)
+        await credit_service.initialize_user_credits(user_id)
 
-            logger.info(
-                f"Restored user {user_id} to {current_plan} tier after successful payment"
-            )
-
-        except Exception as e:
-            logger.exception(f"Failed to restore user access after payment: {e}")
+        logger.info(
+            f"Restored user {user_id} to {current_plan} tier after successful payment"
+        )
 
 
 async def _handle_trial_will_end(event: dict[str, Any]) -> None:

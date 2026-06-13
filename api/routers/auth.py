@@ -419,8 +419,11 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
     namespace = "https://api.sigilsec.ai"
     email = payload.get(f"{namespace}/email", payload.get("email", ""))
     name = payload.get(f"{namespace}/name", payload.get("name", ""))
+    email_verified = payload.get(
+        f"{namespace}/email_verified", payload.get("email_verified")
+    )
 
-    if not email:
+    if not email or email_verified is not True:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
@@ -429,13 +432,37 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
                 )
                 resp.raise_for_status()
                 userinfo = resp.json()
-                email = userinfo.get("email", "")
+                if userinfo.get("sub") and userinfo.get("sub") != payload["sub"]:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Auth0 userinfo subject mismatch",
+                    )
+                email = email or userinfo.get("email", "")
                 if not name:
                     name = userinfo.get("name", "")
+                email_verified = userinfo.get("email_verified", False)
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error("Auth0 /userinfo fallback failed: %s", e)
 
-    return {"sub": payload["sub"], "email": email, "name": name}
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth0 token missing email claim",
+        )
+    if email_verified is not True:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth0 email must be verified",
+        )
+
+    return {
+        "sub": payload["sub"],
+        "email": email,
+        "name": name,
+        "email_verified": True,
+    }
 
 
 async def verify_custom_jwt(token: str) -> Dict[str, Any]:
@@ -471,6 +498,8 @@ async def verify_custom_jwt(token: str) -> Dict[str, Any]:
         "id": str(user["id"]),
         "email": user["email"],
         "name": user.get("name", ""),
+        "role": user.get("role", "member"),
+        "team_id": user.get("team_id"),
         "created_at": user.get("created_at", datetime.utcnow()),
     }
 
@@ -518,20 +547,50 @@ async def _auto_provision_auth0_user(user_info: Dict[str, Any]) -> Dict[str, Any
 
     Returns the user row from the database.
     """
-    email = user_info.get("email", "")
+    auth0_sub = user_info.get("sub", "")
+    email = user_info.get("email", "").strip().lower()
+    if not auth0_sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Auth0 token missing subject claim",
+        )
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Auth0 token missing email claim",
         )
 
-    user = await db.select_one(USER_TABLE, {"email": email})
+    user_columns = await db._table_columns(USER_TABLE)
+    if user_columns is not None and "auth0_sub" not in user_columns:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth0 identity binding schema is not configured",
+        )
+
+    user = await db.select_one(USER_TABLE, {"auth0_sub": auth0_sub})
+    if user is None:
+        user = await db.select_one(USER_TABLE, {"email": email})
+        if user is not None:
+            existing_sub = user.get("auth0_sub")
+            if existing_sub and existing_sub != auth0_sub:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Auth0 identity does not match this user",
+                )
+            user["auth0_sub"] = auth0_sub
+            if user.get("email") != email:
+                user["email"] = email
+            if user_info.get("name") and not user.get("name"):
+                user["name"] = user_info.get("name", "")
+            await db.upsert(USER_TABLE, user)
+
     if user is None:
         user_id = str(uuid4())
         now = datetime.utcnow()
         user_row = {
             "id": user_id,
             "email": email,
+            "auth0_sub": auth0_sub,
             "name": user_info.get("name", ""),
             "password_hash": "",  # OAuth users have no password
             "role": "member",
@@ -575,6 +634,8 @@ async def get_current_user_unified(request: Request) -> UserResponse:
             id=str(user["id"]),
             email=user["email"],
             name=user.get("name", ""),
+            role=user.get("role", "member"),
+            team_id=user.get("team_id"),
             created_at=user.get("created_at", datetime.utcnow()),
         )
     except HTTPException:

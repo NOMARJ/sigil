@@ -33,6 +33,7 @@ from fastapi import (
 )
 
 from api.database import db
+from api.permissions import require_review_role
 from api.rate_limit import RateLimiter
 from api.gates import check_scan_quota, get_user_plan, require_llm_access, require_plan
 from api.middleware.tier_check import get_scan_capabilities
@@ -159,6 +160,42 @@ async def _get_scan_or_404(scan_id: str) -> dict[str, Any]:
     """Fetch a scan by ID or raise 404."""
     row = await db.select_one(SCAN_TABLE, {"id": scan_id})
     if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found",
+        )
+    return row
+
+
+def _can_access_scan(row: dict[str, Any], user: UserResponse) -> bool:
+    row_user_id = row.get("user_id")
+    if row_user_id and row_user_id == user.id:
+        return True
+
+    row_team_id = row.get("team_id")
+    user_team_id = getattr(user, "team_id", None)
+    if row_team_id and user_team_id and row_team_id == user_team_id:
+        return True
+
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    if isinstance(metadata, dict):
+        if metadata.get("user_id") == user.id:
+            return True
+        metadata_team_id = metadata.get("team_id")
+        if metadata_team_id and user_team_id and metadata_team_id == user_team_id:
+            return True
+
+    return False
+
+
+async def _get_user_scan_or_404(scan_id: str, user: UserResponse) -> dict[str, Any]:
+    row = await _get_scan_or_404(scan_id)
+    if not _can_access_scan(row, user):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Scan '{scan_id}' not found",
@@ -864,7 +901,7 @@ async def get_scan_v1(
     scan_id: str,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> ScanDetail:
-    row = await _get_scan_or_404(scan_id)
+    row = await _get_user_scan_or_404(scan_id, current_user)
     return _row_to_detail(row)
 
 
@@ -884,7 +921,7 @@ async def get_scan(
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> ScanDetail:
     """Return the full details of a scan by its ID."""
-    row = await _get_scan_or_404(scan_id)
+    row = await _get_user_scan_or_404(scan_id, current_user)
     return _row_to_detail(row)
 
 
@@ -904,7 +941,7 @@ async def get_scan_findings(
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> list[dict[str, Any]]:
     """Return the findings extracted from a scan's findings_json field."""
-    row = await _get_scan_or_404(scan_id)
+    row = await _get_user_scan_or_404(scan_id, current_user)
     findings = row.get("findings_json", [])
     if isinstance(findings, str):
         try:
@@ -1081,7 +1118,7 @@ async def adjudicate_finding(
     otherwise 202 after scheduling, or 202 if one is already in progress. Poll
     the GET form of this path for the terminal result.
     """
-    row = await _get_scan_or_404(scan_id)
+    row = await _get_user_scan_or_404(scan_id, current_user)
     findings = _parse_findings(row)
     if not 0 <= finding_index < len(findings):
         raise HTTPException(
@@ -1150,7 +1187,7 @@ async def get_adjudication(
     200 when complete or failed (terminal), 202 while pending, 404 when no
     adjudication has been requested yet.
     """
-    row = await _get_scan_or_404(scan_id)
+    row = await _get_user_scan_or_404(scan_id, current_user)
     findings = _parse_findings(row)
     if not 0 <= finding_index < len(findings):
         raise HTTPException(
@@ -1191,7 +1228,8 @@ async def approve_scan(
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Approve a scan, marking it as reviewed in the metadata."""
-    row = await _get_scan_or_404(scan_id)
+    require_review_role(current_user)
+    row = await _get_user_scan_or_404(scan_id, current_user)
 
     metadata = row.get("metadata_json", {})
     if isinstance(metadata, str):
@@ -1231,7 +1269,8 @@ async def reject_scan(
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
 ) -> dict[str, Any]:
     """Reject a scan, marking it as blocked in the metadata."""
-    row = await _get_scan_or_404(scan_id)
+    require_review_role(current_user)
+    row = await _get_user_scan_or_404(scan_id, current_user)
 
     metadata = row.get("metadata_json", {})
     if isinstance(metadata, str):

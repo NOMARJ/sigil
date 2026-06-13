@@ -54,12 +54,43 @@ _TIER_ORDER: list[PlanTier] = [
     PlanTier.ENTERPRISE,
 ]
 
+_ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
+
 
 def _tier_rank(tier: PlanTier) -> int:
     try:
         return _TIER_ORDER.index(tier)
     except ValueError:
         return 0
+
+
+def _parse_period_end(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_subscription_entitled(sub: dict | None) -> bool:
+    if not isinstance(sub, dict):
+        return False
+    status_value = str(sub.get("status", "active")).lower()
+    if status_value not in _ACTIVE_SUBSCRIPTION_STATUSES:
+        return False
+
+    period_end = _parse_period_end(sub.get("current_period_end"))
+    if period_end is None:
+        return True
+
+    now = datetime.now(period_end.tzinfo or timezone.utc)
+    return period_end >= now
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +123,8 @@ async def get_user_plan(user_id: str) -> PlanTier:
 
     sub = await db.get_subscription(user_id)
     if sub is None:
+        return PlanTier.FREE
+    if not _is_subscription_entitled(sub):
         return PlanTier.FREE
     plan_str = sub.get("plan", "free")
     try:

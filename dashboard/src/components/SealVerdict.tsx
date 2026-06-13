@@ -8,6 +8,8 @@
 // Below 32px the Seal switches to `sigil-seal-small.svg` (no dots, no inner ring)
 // per directive §1.
 
+import Image from "next/image";
+
 export type SealVerdictTier = "clean" | "low" | "medium" | "high" | "critical";
 export type SealVerdictSize = "sm" | "md" | "lg";
 
@@ -76,7 +78,7 @@ export default function SealVerdict({
       role="img"
       aria-label={`Sigil verdict: ${config.label}${typeof score === "number" ? `, score ${score}` : ""}`}
     >
-      <img
+      <Image
         src={src}
         alt=""
         width={px}

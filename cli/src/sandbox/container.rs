@@ -18,6 +18,19 @@ pub fn detect_runtime() -> Option<String> {
     None
 }
 
+fn ensure_network_policy_enforceable(
+    policy: &SigilPolicy,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if policy.network.default_action == "deny" && !policy.network.rules.is_empty() {
+        return Err(
+            "network allowlist rules are not enforceable by the current container sandbox; use strict/no-network policy or a policy with default_action: log"
+                .into(),
+        );
+    }
+
+    Ok(())
+}
+
 /// Build a docker/podman run command from a SigilPolicy.
 pub fn build_run_command(
     runtime: &str,
@@ -25,7 +38,9 @@ pub fn build_run_command(
     workdir: &Path,
     command: &[String],
     env_vars: &HashMap<String, String>,
-) -> Command {
+) -> Result<Command, Box<dyn std::error::Error>> {
+    ensure_network_policy_enforceable(policy)?;
+
     let mut cmd = Command::new(runtime);
     cmd.arg("run").arg("--rm").arg("-it");
 
@@ -94,12 +109,11 @@ pub fn build_run_command(
         cmd.args(command);
     }
 
-    cmd
+    Ok(cmd)
 }
 
 /// Execute a command in a sandboxed container.
 ///
-/// Falls back to direct execution if no container runtime is available.
 pub fn run_sandboxed(
     policy: &SigilPolicy,
     workdir: &Path,
@@ -107,6 +121,20 @@ pub fn run_sandboxed(
     env_vars: &HashMap<String, String>,
     verbose: bool,
 ) -> Result<i32, Box<dyn std::error::Error>> {
+    run_sandboxed_with_runtime_detector(policy, workdir, command, env_vars, verbose, detect_runtime)
+}
+
+fn run_sandboxed_with_runtime_detector<F>(
+    policy: &SigilPolicy,
+    workdir: &Path,
+    command: &[String],
+    env_vars: &HashMap<String, String>,
+    verbose: bool,
+    detect_runtime: F,
+) -> Result<i32, Box<dyn std::error::Error>>
+where
+    F: FnOnce() -> Option<String>,
+{
     if command.is_empty() {
         return Err("no command specified".into());
     }
@@ -128,7 +156,7 @@ pub fn run_sandboxed(
                 );
             }
 
-            let mut cmd = build_run_command(&runtime, policy, workdir, command, env_vars);
+            let mut cmd = build_run_command(&runtime, policy, workdir, command, env_vars)?;
 
             if verbose {
                 eprintln!("sandbox: {:?}", cmd);
@@ -138,21 +166,72 @@ pub fn run_sandboxed(
             Ok(status.code().unwrap_or(1))
         }
         None => {
-            eprintln!("warning: no container runtime (docker/podman) found, running unsandboxed");
-
-            if verbose {
-                eprintln!("sandbox: fallback direct execution");
-                eprintln!("sandbox: workdir={}", workdir.display());
-                eprintln!("sandbox: command={:?}", command);
-            }
-
-            let status = Command::new(&command[0])
-                .args(&command[1..])
-                .current_dir(workdir)
-                .envs(env_vars)
-                .status()?;
-
-            Ok(status.code().unwrap_or(1))
+            Err("no container runtime (docker/podman) found; refusing to run unsandboxed".into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::policy::schema::SigilPolicy;
+
+    fn args(command: &Command) -> Vec<String> {
+        command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn fails_closed_when_runtime_is_missing() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let sentinel = tempdir.path().join("executed");
+        let command = vec![
+            "sh".to_string(),
+            "-c".to_string(),
+            format!("touch {}", sentinel.display()),
+        ];
+
+        let result = run_sandboxed_with_runtime_detector(
+            &SigilPolicy::preset("strict").expect("strict policy"),
+            tempdir.path(),
+            &command,
+            &HashMap::new(),
+            false,
+            || None,
+        );
+
+        assert!(result.is_err());
+        assert!(!sentinel.exists(), "command must not run on the host");
+    }
+
+    #[test]
+    fn strict_policy_disables_network() {
+        let command = build_run_command(
+            "docker",
+            &SigilPolicy::preset("strict").expect("strict policy"),
+            Path::new("."),
+            &["true".to_string()],
+            &HashMap::new(),
+        )
+        .expect("strict policy should be enforceable");
+
+        assert!(args(&command)
+            .windows(2)
+            .any(|window| window == ["--network", "none"]));
+    }
+
+    #[test]
+    fn allowlist_policy_does_not_run_with_unrestricted_network() {
+        let result = build_run_command(
+            "docker",
+            &SigilPolicy::preset("standard").expect("standard policy"),
+            Path::new("."),
+            &["true".to_string()],
+            &HashMap::new(),
+        );
+
+        assert!(result.is_err());
     }
 }

@@ -23,7 +23,9 @@ COPY dashboard/ ./
 
 # Set build-time environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" || \
+    (echo "NEXT_PUBLIC_API_URL build arg is required" >&2 && exit 1)
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
@@ -79,11 +81,10 @@ COPY bot/ /app/bot/
 COPY bin/sigil /usr/local/bin/sigil
 RUN chmod +x /usr/local/bin/sigil
 
-# ── Copy built dashboard ────────────────────────────────────────────────────
-COPY --from=dashboard-builder /build/.next /app/dashboard/.next
+# ── Copy standalone dashboard ───────────────────────────────────────────────
+COPY --from=dashboard-builder /build/.next/standalone /app/dashboard
+COPY --from=dashboard-builder /build/.next/static /app/dashboard/.next/static
 COPY --from=dashboard-builder /build/public /app/dashboard/public
-COPY --from=dashboard-builder /build/package.json /app/dashboard/package.json
-COPY --from=dashboard-builder /build/node_modules /app/dashboard/node_modules
 COPY --from=dashboard-builder /build/next.config.js* /app/dashboard/
 
 # ── Create sigil data directories ───────────────────────────────────────────
@@ -93,16 +94,9 @@ RUN mkdir -p /home/sigil/.sigil/quarantine \
              /home/sigil/.sigil/reports && \
     chown -R sigil:sigil /home/sigil/.sigil /app
 
-# ── Runtime env substitution script for dashboard API URL ─────────────────
-RUN printf '#!/bin/sh\n\
-if [ -n "$NEXT_PUBLIC_API_URL" ]; then\n\
-  find /app/dashboard/.next -name "*.js" -exec sed -i "s|http://localhost:8000|$NEXT_PUBLIC_API_URL|g" {} +\n\
-fi\n' > /app/substitute-env.sh && chmod +x /app/substitute-env.sh
-
 # ── Multi-service entrypoint ──────────────────────────────────────────────
 RUN printf '#!/bin/sh\n\
 set -e\n\
-/app/substitute-env.sh\n\
 cd /app/dashboard && node server.js &\n\
 exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n' > /app/start.sh && chmod +x /app/start.sh
 

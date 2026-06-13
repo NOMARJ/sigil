@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -51,6 +52,10 @@ pub struct QuarantineEntry {
 
 /// Return the base quarantine directory: ~/.sigil/quarantine/
 pub fn quarantine_path() -> PathBuf {
+    if let Ok(path) = std::env::var("SIGIL_QUARANTINE_DIR") {
+        return PathBuf::from(path);
+    }
+
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".sigil")
@@ -62,12 +67,15 @@ fn index_path() -> PathBuf {
     quarantine_path().join("index.json")
 }
 
-/// Load the quarantine index from disk (or return an empty list).
-fn load_index() -> Vec<QuarantineEntry> {
+/// Load the quarantine index from disk. Missing indexes are empty; unreadable
+/// or invalid indexes are treated as tampering and fail closed.
+fn load_index() -> Result<Vec<QuarantineEntry>, String> {
     let path = index_path();
     match fs::read_to_string(&path) {
-        Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
-        Err(_) => Vec::new(),
+        Ok(contents) => serde_json::from_str(&contents)
+            .map_err(|e| format!("failed to parse quarantine index: {}", e)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(Vec::new()),
+        Err(err) => Err(format!("failed to read quarantine index: {}", err)),
     }
 }
 
@@ -115,7 +123,7 @@ pub fn add(source: &str, source_type: &str) -> Result<QuarantineEntry, String> {
         scan_score: None,
     };
 
-    let mut index = load_index();
+    let mut index = load_index()?;
     index.push(entry.clone());
     save_index(&index)?;
 
@@ -124,7 +132,7 @@ pub fn add(source: &str, source_type: &str) -> Result<QuarantineEntry, String> {
 
 /// Approve a quarantined item by ID. Returns the updated entry.
 pub fn approve(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
-    let mut index = load_index();
+    let mut index = load_index()?;
     let entry = index
         .iter_mut()
         .find(|e| e.id == id)
@@ -150,11 +158,12 @@ pub fn approve(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String
 /// Reject a quarantined item by ID. Removes the quarantined files and returns
 /// the updated entry.
 pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
-    let mut index = load_index();
-    let entry = index
-        .iter_mut()
-        .find(|e| e.id == id)
+    let mut index = load_index()?;
+    let entry_index = index
+        .iter()
+        .position(|e| e.id == id)
         .ok_or_else(|| format!("quarantine entry '{}' not found", id))?;
+    let entry = &index[entry_index];
 
     if entry.status != QuarantineStatus::Pending {
         return Err(format!(
@@ -163,14 +172,15 @@ pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String>
         ));
     }
 
+    if entry.path.exists() {
+        fs::remove_dir_all(&entry.path)
+            .map_err(|e| format!("failed to remove quarantined files for '{}': {}", id, e))?;
+    }
+
+    let entry = &mut index[entry_index];
     entry.status = QuarantineStatus::Rejected;
     entry.updated_at = Utc::now();
     entry.reason = reason.map(|r| r.to_string());
-
-    // Remove quarantined files
-    if entry.path.exists() {
-        let _ = fs::remove_dir_all(&entry.path);
-    }
 
     let result = entry.clone();
     save_index(&index)?;
@@ -182,7 +192,7 @@ pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String>
 /// rug-pull detection (US-F2): an approved artifact whose content drifted loses
 /// its trust and must be re-reviewed. No-op (Ok) if already Pending.
 pub fn requarantine(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
-    let mut index = load_index();
+    let mut index = load_index()?;
     let entry = index
         .iter_mut()
         .find(|e| e.id == id)
@@ -199,7 +209,7 @@ pub fn requarantine(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, S
 
 /// List quarantined items, optionally filtered by status.
 pub fn list(status_filter: Option<&str>) -> Result<Vec<QuarantineEntry>, String> {
-    let index = load_index();
+    let index = load_index()?;
 
     let filter = status_filter.map(|s| match s.to_lowercase().as_str() {
         "pending" => QuarantineStatus::Pending,
@@ -216,7 +226,60 @@ pub fn list(status_filter: Option<&str>) -> Result<Vec<QuarantineEntry>, String>
     Ok(entries)
 }
 
+pub fn get(id: &str) -> Result<QuarantineEntry, String> {
+    load_index()?
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .ok_or_else(|| format!("quarantine entry '{}' not found", id))
+}
+
 /// Generate a short unique identifier (first 8 chars of a UUID v4).
 fn short_id() -> String {
     Uuid::new_v4().to_string()[..8].to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{add, get, list, reject, QuarantineStatus};
+    use std::fs;
+    use std::sync::Mutex;
+    use tempfile::tempdir;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_quarantine_dir<T>(test: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let dir = tempdir().expect("tempdir");
+        std::env::set_var("SIGIL_QUARANTINE_DIR", dir.path());
+        let result = test();
+        std::env::remove_var("SIGIL_QUARANTINE_DIR");
+        result
+    }
+
+    #[test]
+    fn invalid_index_fails_closed() {
+        with_quarantine_dir(|| {
+            let base = super::quarantine_path();
+            fs::create_dir_all(&base).expect("create quarantine");
+            fs::write(base.join("index.json"), "not json").expect("write invalid index");
+
+            let error = list(None).expect_err("invalid index should fail");
+            assert!(error.contains("failed to parse quarantine index"));
+        });
+    }
+
+    #[test]
+    fn reject_does_not_mark_entry_rejected_when_delete_fails() {
+        with_quarantine_dir(|| {
+            let entry = add("pkg", "npm").expect("add entry");
+            fs::remove_dir_all(&entry.path).expect("remove quarantine dir");
+            fs::write(&entry.path, "not a directory").expect("replace path with file");
+
+            let error = reject(&entry.id, Some("bad")).expect_err("delete should fail");
+            assert!(error.contains("failed to remove quarantined files"));
+
+            let stored = get(&entry.id).expect("entry remains indexed");
+            assert_eq!(stored.status, QuarantineStatus::Pending);
+        });
+    }
 }

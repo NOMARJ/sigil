@@ -47,7 +47,7 @@ These tests verify that the fix works correctly:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -159,12 +159,12 @@ class TestPlanGatedEndpoints:
         resp = client.get("/v1/threats", headers=pro_auth_headers)
         assert resp.status_code == 200
 
-    def test_pro_user_can_create_signature(
+    def test_reviewer_cannot_create_signature(
         self,
         client: TestClient,
-        pro_auth_headers: dict[str, str],
+        reviewer_auth_headers: dict[str, str],
     ) -> None:
-        """PRO user can POST /v1/signatures."""
+        """Reviewer cannot POST /v1/signatures."""
         payload = {
             "id": "test-sig-1",
             "phase": "obfuscation",
@@ -173,15 +173,18 @@ class TestPlanGatedEndpoints:
             "description": "Test",
         }
 
-        resp = client.post("/v1/signatures", json=payload, headers=pro_auth_headers)
-        assert resp.status_code == 200
+        resp = client.post(
+            "/v1/signatures", json=payload, headers=reviewer_auth_headers
+        )
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Admin or owner role required"
 
-    def test_pro_user_can_delete_signature(
+    def test_reviewer_cannot_delete_signature(
         self,
         client: TestClient,
-        pro_auth_headers: dict[str, str],
+        reviewer_auth_headers: dict[str, str],
     ) -> None:
-        """PRO user can DELETE /v1/signatures/{id}."""
+        """Reviewer cannot DELETE /v1/signatures/{id}."""
         sig_id = "test-sig-delete"
         db._memory_store.setdefault("signatures", {})[sig_id] = {
             "id": sig_id,
@@ -192,8 +195,11 @@ class TestPlanGatedEndpoints:
             "updated_at": datetime.utcnow(),
         }
 
-        resp = client.delete(f"/v1/signatures/{sig_id}", headers=pro_auth_headers)
-        assert resp.status_code == 200
+        resp = client.delete(
+            f"/v1/signatures/{sig_id}", headers=reviewer_auth_headers
+        )
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Admin or owner role required"
 
     def test_free_plan_blocked_from_threats(
         self,
@@ -341,6 +347,32 @@ class TestPlanSubscriptionManagement:
         plan = asyncio.run(setup_and_test())
         assert plan == PlanTier.PRO
 
+    def test_inactive_paid_subscription_is_treated_as_free(self) -> None:
+        """Paid plan rows do not grant access unless billing status is entitled."""
+        from api.gates import get_user_plan
+        from api.models import PlanTier
+        from api.database import db
+        from uuid import uuid4
+        import asyncio
+
+        async def setup_and_test(status: str, period_end: str | None = None):
+            user_id = str(uuid4())
+            await db.upsert_subscription(
+                user_id=user_id,
+                plan="pro",
+                status=status,
+                current_period_end=period_end,
+            )
+            return await get_user_plan(user_id)
+
+        for status_value in ["past_due", "incomplete", "unpaid", "canceled"]:
+            plan = asyncio.run(setup_and_test(status_value))
+            assert plan == PlanTier.FREE
+
+        expired = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        plan = asyncio.run(setup_and_test("active", expired))
+        assert plan == PlanTier.FREE
+
     def test_subscription_data_structure(self) -> None:
         """Subscription data is stored with correct structure."""
         from api.database import db
@@ -389,17 +421,6 @@ class TestPlanGatingBehavior:
         """All plan-gated endpoints return 200 for PRO users."""
         endpoints = [
             ("GET", "/v1/threats"),
-            (
-                "POST",
-                "/v1/signatures",
-                {
-                    "id": "test",
-                    "phase": "obfuscation",
-                    "pattern": "test",
-                    "severity": "MEDIUM",
-                    "description": "Test",
-                },
-            ),
             ("GET", "/v1/threat-reports"),
         ]
 

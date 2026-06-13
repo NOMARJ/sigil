@@ -538,6 +538,8 @@ class UserResponse(BaseModel):
     id: str
     email: str
     name: str = ""
+    role: str = "member"
+    team_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

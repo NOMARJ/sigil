@@ -57,8 +57,7 @@ fn spawn_mock_api(routes: Vec<Route>, max_conns: usize) -> String {
             let request_line = request.lines().next().unwrap_or("").to_string();
 
             let matched = routes.iter().find(|r| {
-                request_line.starts_with(r.method)
-                    && request_line.contains(&r.path_prefix)
+                request_line.starts_with(r.method) && request_line.contains(&r.path_prefix)
             });
             let (status, body) = match matched {
                 Some(r) => (r.status, r.body.clone()),

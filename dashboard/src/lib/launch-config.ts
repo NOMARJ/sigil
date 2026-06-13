@@ -73,10 +73,10 @@ class LaunchConfig {
         userVisible: true
       }],
       [ProFeature.INTERACTIVE_CHAT, {
-        enabled: true,
+        enabled: false,
         description: "Ask questions about your scan results", 
         creditCost: 2,
-        userVisible: true
+        userVisible: false
       }],
       [ProFeature.CREDIT_SYSTEM, {
         enabled: true,

@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 type PlanType = 'free' | 'pro' | 'enterprise' | 'trial';
 
@@ -71,7 +72,14 @@ export function UserPlanHeader({
       {/* Avatar */}
       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-600 to-brand-400 flex items-center justify-center text-white font-semibold">
         {avatarUrl ? (
-          <img src={avatarUrl} alt={userName} className="w-full h-full rounded-full" />
+          <Image
+            src={avatarUrl}
+            alt={userName}
+            width={40}
+            height={40}
+            className="w-full h-full rounded-full"
+            unoptimized
+          />
         ) : (
           userName.charAt(0).toUpperCase()
         )}

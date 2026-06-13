@@ -31,21 +31,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function restoreSession() {
       try {
-        const res = await fetch("/auth/profile", {
+        const res = await fetch("/api/auth/me", {
           credentials: 'include',
           cache: 'no-store',
         });
         if (res.ok) {
           const userData = await res.json();
-          if (!cancelled && userData.sub) {
-            // Map Auth0 user data to our User type
+          if (!cancelled && userData.id) {
             const user = {
-              id: userData.sub,
+              id: userData.id,
               email: userData.email,
               name: userData.name || userData.email,
-              avatar_url: userData.picture || null,
-              role: "owner" as const, // Default role for Auth0 users
-              plan: "pro" as const, // Default plan for Auth0 users
+              avatar_url: userData.avatar_url || null,
+              role: userData.role,
+              plan: userData.plan,
               created_at: userData.created_at || new Date().toISOString(),
               last_login: new Date().toISOString(),
             };

@@ -59,6 +59,34 @@ class RescanBatchResponse(BaseModel):
     results: list[RescanResponse]
 
 
+def _can_access_scan_record(scan_record: dict[str, Any], user: UserResponse) -> bool:
+    row_user_id = scan_record.get("user_id") or scan_record.get("owner_id")
+    if row_user_id and row_user_id == user.id:
+        return True
+
+    user_team_id = getattr(user, "team_id", None)
+    row_team_id = scan_record.get("team_id")
+    if row_team_id and user_team_id and row_team_id == user_team_id:
+        return True
+
+    metadata = scan_record.get("metadata_json", {})
+    if isinstance(metadata, str):
+        import json
+
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    if isinstance(metadata, dict):
+        if metadata.get("user_id") == user.id:
+            return True
+        metadata_team_id = metadata.get("team_id")
+        if metadata_team_id and user_team_id and metadata_team_id == user_team_id:
+            return True
+
+    return False
+
+
 @router.post(
     "/rescan/{scan_id}",
     response_model=RescanResponse,
@@ -95,6 +123,11 @@ async def rescan_package(
             scan_record = await db.select_one("scans", {"id": scan_id})
 
         if not scan_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scan {scan_id} not found",
+            )
+        if not _can_access_scan_record(scan_record, current_user):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Scan {scan_id} not found",
@@ -197,7 +230,7 @@ async def rescan_package(
         table_name = "public_scans" if scan_record.get("ecosystem") else "scans"
         filter_key = {"id": scan_id}
 
-        await db.update(table_name, update_data, filter_key)
+        await db.update(table_name, filter_key, update_data)
 
         logger.info(
             "Rescanned %s: %s (%.1f) -> %s (%.1f) - %.1f%% improvement",

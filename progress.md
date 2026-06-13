@@ -6,6 +6,49 @@
 
 ---
 
+## Feature: F-003/F-005 Production Hardening Sweep
+
+> **Started:** 2026-06-12
+> **Mode:** audit + targeted P0/P1 remediation
+> **Current state:** P0/P1 hardening slice completed and verified. Trust score is 0/probation; drift score 0/FRESH. Lifecycle manifest `.nomark/lifecycles/manifests/code.yaml` missing; `node scripts/lifecycle-engine.cjs status` reports no lifecycles configured. MEE ledger cold-start failed because `.nomark/schemas/mee-event.schema.json` is missing.
+
+### STORY-200: Remove tracked production env surface
+- **Status:** DONE
+- **Goal:** No committed dashboard production env file can carry deployment secrets.
+- **Done when:** `git ls-files dashboard/.env.production` returns no path, `.gitignore` ignores `.env.production`, and dashboard tests/build still pass.
+- **Files:** `.gitignore`, `dashboard/.env.production`
+- **Notes:** Ranked P0 security finding from audit map. `dashboard/.env.production` removed from working tree and `.gitignore` now blocks `.env.production` / `.env.*.production`. `dashboard/.env.local` and `api/.env` are untracked and left untouched. Evidence: dashboard lint/typecheck/tests/build all pass on 2026-06-12.
+
+### STORY-201: Remove fake dashboard auth and API key assumptions
+- **Status:** DONE
+- **Goal:** Dashboard code does not present every Auth0 user as owner/pro or return fake API keys as if they are real.
+- **Done when:** Regression tests prove local auth profile no longer hardcodes owner/pro and the onboarding API key route fails closed until a real backend-backed key issuer exists.
+- **Files:** `dashboard/src/app/api/auth/me/route.ts`, `dashboard/src/lib/auth.ts`, `dashboard/src/app/api/onboarding/generate-key/route.ts`, dashboard tests
+- **Notes:** Dashboard Auth0 profile now maps to member/free, API key generation route returns 501 until real issuance exists, and onboarding UI no longer fabricates keys or fake connection success. Evidence: `npm test -- --runInBand` passes 54 tests; static regression tests cover no owner/pro overgrant and no fake API key generation.
+
+### STORY-202: Route Pro dashboard actions through authenticated API helper
+- **Status:** DONE
+- **Goal:** Pro interactive components no longer call missing local `/api/v1/*` routes directly.
+- **Done when:** Static regression tests cover that Pro components use `dashboard/src/lib/api.ts` helpers and no direct local `/api/v1/interactive/*` calls remain in those components.
+- **Files:** `dashboard/src/lib/api.ts`, Pro/interactive dashboard components, dashboard tests
+- **Notes:** Interactive investigation/remediation/false-positive, analytics, shared session, and security timeline calls now route through `dashboard/src/lib/api.ts`. Interactive chat remains hidden until a backend message endpoint exists. Threat report helper now posts the backend `/report` contract. Evidence: `dashboard/src/__tests__/components/InteractiveApi.routes.test.ts` and full dashboard build pass.
+
+### STORY-203: Fail closed for sandbox, billing, WebSockets, and reviewer mutations
+- **Status:** DONE
+- **Goal:** Critical security paths do not silently grant unsafe execution, entitlements, impersonation, or review authority.
+- **Done when:** Rust sandbox tests, API regression tests, clippy, and full API tests pass.
+- **Files:** `cli/src/sandbox/container.rs`, `api/routers/billing.py`, `api/routers/realtime.py`, `api/routers/threat.py`, `api/routers/scan.py`, `api/permissions.py`, API tests
+- **Notes:** `sigil run` no longer falls back to host execution; non-enforceable network allowlists fail closed. Stripe-less paid subscriptions and credit purchases fail closed; webhook processing errors return 500 for retries. Realtime WebSocket user id is derived from Auth0 token. Threat report/signature and scan review mutations require reviewer/admin/owner role. Evidence: `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --locked --quiet`, and `python3 -m pytest api/tests -q` pass.
+
+### STORY-204: Repair release/package false-green surfaces
+- **Status:** DONE
+- **Goal:** Release/install checks cannot report success when the scanner or package install path is broken.
+- **Done when:** Packed npm tarball installs successfully and GitHub Action fails closed when Sigil produces no report.
+- **Files:** `.github/action-entrypoint.sh`, `package.json`, `package-lock.json`, `scripts/install-binary.js`, `scripts/cleanup.js`, release tests
+- **Notes:** Action command construction no longer uses `eval`, scanner failure without report now emits `verdict=error` and exits nonzero, npm package lifecycle scripts exist in packed tarball, and Windows is no longer advertised for the Bash binary package. Evidence: packed tarball install passes and `api/tests/test_release_hardening.py` passes.
+
+---
+
 ## Phase 1: Policy Foundation & Scanner Enhancements
 
 ### STORY-001: Define Sigil Policy YAML Schema
@@ -1624,6 +1667,15 @@
 ---
 
 ## Bugfix Log
+
+### STORY-205: Production hardening sweep (2026-06-13)
+- **Status:** BLOCKED (code/validation complete; requested final fresh subagent passes unavailable due usage limit)
+- **Scope:** complex
+- **Goal:** Remove critical/high vibe-code defects across API security, dashboard auth/UX, CLI release packaging, cache, quarantine, and deployment readiness.
+- **Done when:** API tests, dashboard audit/lint/type/test/build, CLI clippy/tests, package install, MCP audit, and two fresh post-fix subagent passes complete with no unresolved critical/high findings.
+- **Files:** `.github/action-entrypoint.sh`, `.github/workflows/release.yml`, `.gitignore`, `api/**`, `cli/**`, `dashboard/**`, `install.sh`, `package.json`, `package-lock.json`, `scripts/install-binary.js`, `scripts/cleanup.js`, `pytest.ini`.
+- **Evidence:** Final validation: `PYTHONPATH=. /tmp/sigil-api-venv/bin/pytest api/tests -q` -> 359 passed, 348 skipped. `cd dashboard && npm run lint && npx tsc --noEmit && npm test -- --runInBand && npm run build` -> lint/type/build passed, 9 suites / 65 tests passed, 34 static pages generated. `cd cli && cargo clippy --all-targets --all-features -- -D warnings && cargo test --locked --quiet` -> clippy clean, 140 unit + 4 integration tests passed. Root `npm ci --ignore-scripts && npm audit --audit-level=moderate && npm pack --json` -> install/audit/pack passed. Real packed install in temp prefix -> `sigil 1.2.1`. `sh -n install.sh && node --check scripts/install-binary.js scripts/cleanup.js bin/sigil-wrapper.js` -> passed. `git diff --check` -> passed.
+- **Notes:** First independent reviewer pass found real blockers: unsigned Stripe webhook entitlement grant, billing portal stub URL, shared `default-team`, alert SSRF, reviewer over-privileged signature mutation, hard-coded dashboard role/plan, blocked Pro onboarding, mock Forge local state, dead upgrade CTAs, GitHub Action false-clean, installer asset mismatch, npm Bash binary packaging, stale scan cache, and quarantine fail-open behavior. Later passes found additional blockers: team member takeover/removal, delivery-time webhook SSRF bypass, Action argument incompatibility, npm publish before release assets, weak asset validation, ledger approval bypass, Auth0 email/subject binding, past-due entitlement leaks, rescan cross-tenant mutation, analytics admin overgrant, credit purchase route mismatch, Docker standalone startup, and Linux ARM64 packaging mismatch. Those have been patched with regression tests. Two requested fresh post-completion subagents (`019ebc65-ccf0-78a3-90f5-c7169cd4dd0a`, `019ebc65-e56e-7c43-9bcd-8354389a4674`) errored before work with account usage limit; two local final audit sweeps found no remaining critical/high after fixing Docker runtime substitution and dashboard loose `any` types. `.nomark/graph.json` and `.nomark/index.json` are generated telemetry and remain unstaged unless explicitly requested.
 
 ### BUGFIX: Scanner announcement docs links 404 (2026-06-12)
 - **Status:** DONE ✅ (2026-06-12, Codex)

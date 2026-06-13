@@ -39,4 +39,5 @@ ed25519-dalek = { version = "2", features = ["serde"] }
 base64 = "0.22"
 
 [dev-dependencies]
+filetime = "0.2"
 tempfile = "3"

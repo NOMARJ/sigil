@@ -1,7 +1,7 @@
-/// Context classification that suppresses findings code cannot act on.
-/// First slice of the Python scanner's proven FP filters (ADR-0008); the
-/// remainder (UMD/polyfill/webpack preambles, safe domains) ports with the
-/// corpus work in US-C3.
+//! Context classification that suppresses findings code cannot act on.
+//! First slice of the Python scanner's proven FP filters (ADR-0008); the
+//! remainder (UMD/polyfill/webpack preambles, safe domains) ports with the
+//! corpus work in US-C3.
 
 /// Type-declaration files describe APIs; nothing in them executes. `eval(` in
 /// a `.d.ts` is a signature, not a call — the audit showed 4 of 7 test-repo

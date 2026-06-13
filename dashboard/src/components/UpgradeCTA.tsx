@@ -76,7 +76,7 @@ export default function UpgradeCTA({
               <Button variant="ghost" onClick={handleDismiss} className="flex-1 text-gray-400">
                 Maybe Later
               </Button>
-              <Link href="/upgrade" className="flex-1">
+              <Link href="/pricing" className="flex-1">
                 <Button className="w-full bg-brand-600 hover:bg-brand-700">
                   Upgrade to Pro
                 </Button>
@@ -109,9 +109,9 @@ export default function UpgradeCTA({
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <button className="btn-primary">
+                <Link href="/pricing" className="btn-primary">
                   Start 14-Day Trial
-                </button>
+                </Link>
                 <span className="text-sm text-gray-400">
                   $29/month after trial
                 </span>
@@ -121,6 +121,7 @@ export default function UpgradeCTA({
             <button
               onClick={handleDismiss}
               className="text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
+              aria-label="Dismiss upgrade prompt"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -158,12 +159,13 @@ export default function UpgradeCTA({
 
         {/* Actions */}
         <div className="flex items-center gap-3">
-          <button className="btn-primary text-sm">
+          <Link href="/pricing" className="btn-primary text-sm">
             Upgrade to Pro
-          </button>
+          </Link>
           <button
             onClick={handleDismiss}
             className="text-gray-500 hover:text-gray-300 transition-colors"
+            aria-label="Dismiss upgrade prompt"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -203,9 +205,9 @@ export function FeatureLockedCTA({
       </p>
 
       <div className="space-y-3">
-        <button className="btn-primary">
+        <Link href="/pricing" className="btn-primary inline-block">
           Upgrade to Pro - $29/month
-        </button>
+        </Link>
         <p className="text-xs text-gray-500">
           14-day free trial • Full access to AI detection
         </p>

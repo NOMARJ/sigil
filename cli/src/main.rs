@@ -7,8 +7,8 @@ mod feeds;
 mod ledger;
 mod output;
 mod policy;
-mod provider;
 mod provenance;
+mod provider;
 mod quarantine;
 mod sandbox;
 mod sbom;
@@ -674,7 +674,7 @@ async fn cmd_clone(
 
     // 4. Auto-approve if requested and scan is low risk
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
+        if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
@@ -758,7 +758,7 @@ async fn cmd_pip(
     output::print_verdict(&result.verdict, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
+        if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
@@ -840,7 +840,7 @@ async fn cmd_npm(
     output::print_verdict(&result.verdict, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
-        if let Err(err) = quarantine::approve(&entry.id, Some("auto-approved: low risk scan")) {
+        if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
             eprintln!(
                 "{} failed to auto-approve: {}",
                 "warning:".bold().yellow(),
@@ -892,7 +892,11 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
                 "  {} {} finding{} suppressed by ledger approval ({})",
                 "[*]".green(),
                 result.suppressed_findings.len(),
-                if result.suppressed_findings.len() == 1 { "" } else { "s" },
+                if result.suppressed_findings.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
                 by
             );
         }
@@ -900,6 +904,7 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
     output::print_verdict(&result.verdict, format);
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cmd_scan(
     path: &Path,
     phases: &str,
@@ -938,7 +943,8 @@ async fn cmd_scan(
             return 2;
         }
     };
-    let exit_for = |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
+    let exit_for =
+        |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
 
     println!(
         "{} scanning {}...",
@@ -989,7 +995,11 @@ async fn cmd_scan(
         let t = std::time::Instant::now();
         let osv_findings = feeds::osv::scan_for_osv_findings(path);
         if verbose {
-            eprintln!("feed osv: {:?} ({} findings)", t.elapsed(), osv_findings.len());
+            eprintln!(
+                "feed osv: {:?} ({} findings)",
+                t.elapsed(),
+                osv_findings.len()
+            );
         }
         if !osv_findings.is_empty() {
             result.findings.extend(osv_findings);
@@ -1008,12 +1018,14 @@ async fn cmd_scan(
         // ADR-0007: absence of provenance is never a finding. Network failures are
         // handled gracefully — never fatal.
         let t = std::time::Instant::now();
-        let prov_findings = provenance::scan_for_provenance_drift(
-            path,
-            &provenance::ScanOptions::default(),
-        );
+        let prov_findings =
+            provenance::scan_for_provenance_drift(path, &provenance::ScanOptions::default());
         if verbose {
-            eprintln!("feed provenance: {:?} ({} findings)", t.elapsed(), prov_findings.len());
+            eprintln!(
+                "feed provenance: {:?} ({} findings)",
+                t.elapsed(),
+                prov_findings.len()
+            );
         }
         if !prov_findings.is_empty() {
             result.findings.extend(prov_findings);
@@ -1455,42 +1467,53 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
         eprintln!("approving quarantine entry: {}", id);
     }
 
-    match quarantine::approve(id, reason) {
-        Ok(entry) => {
-            println!(
-                "{} approved {} ({})",
-                "sigil:".bold().green(),
-                entry.id,
-                entry.source
-            );
-            // Pin the approved content so a later rug-pull (changed bytes, tool
-            // definitions, or instruction files) is detectable (ADR-0006, US-F1).
-            match ledger::record_approval(&entry, reason) {
-                Ok(rec) => {
-                    println!(
-                        "  pinned {} files (digest {})",
-                        rec.pin.file_count,
-                        &rec.pin.artifact_digest[..rec.pin.artifact_digest.len().min(12)]
-                    );
-                    if !rec.pin.tool_definitions.is_empty() || !rec.pin.instruction_files.is_empty() {
-                        println!(
-                            "  watching {} tool-definition + {} instruction file(s) for drift",
-                            rec.pin.tool_definitions.len(),
-                            rec.pin.instruction_files.len()
-                        );
-                    }
-                }
-                Err(e) => {
-                    // Pinning is best-effort: approval already succeeded. Warn so
-                    // the operator knows rug-pull protection is not armed.
-                    eprintln!("{} approved but ledger pin failed: {}", "warning:".bold().yellow(), e);
-                }
-            }
-            0
-        }
+    let (entry, rec) = match approve_with_ledger(id, reason) {
+        Ok(result) => result,
         Err(err) => {
             eprintln!("{} {}", "error:".bold().red(), err);
-            1
+            return 1;
+        }
+    };
+
+    println!(
+        "{} approved {} ({})",
+        "sigil:".bold().green(),
+        entry.id,
+        entry.source
+    );
+    println!(
+        "  pinned {} files (digest {})",
+        rec.pin.file_count,
+        &rec.pin.artifact_digest[..rec.pin.artifact_digest.len().min(12)]
+    );
+    if !rec.pin.tool_definitions.is_empty() || !rec.pin.instruction_files.is_empty() {
+        println!(
+            "  watching {} tool-definition + {} instruction file(s) for drift",
+            rec.pin.tool_definitions.len(),
+            rec.pin.instruction_files.len()
+        );
+    }
+    0
+}
+
+fn approve_with_ledger(
+    id: &str,
+    reason: Option<&str>,
+) -> Result<(quarantine::QuarantineEntry, ledger::LedgerRecord), String> {
+    let pending_entry = quarantine::get(id)?;
+    let rec = ledger::record_approval(&pending_entry, reason)
+        .map_err(|err| format!("approval blocked because ledger pin failed: {}", err))?;
+
+    match quarantine::approve(id, reason) {
+        Ok(entry) => Ok((entry, rec)),
+        Err(err) => {
+            if let Err(remove_err) = ledger::remove(id) {
+                return Err(format!(
+                    "approval failed after ledger pin and rollback failed: {}; rollback: {}",
+                    err, remove_err
+                ));
+            }
+            Err(err)
         }
     }
 }
@@ -1518,7 +1541,8 @@ fn check_rugpull_for_path(path: &Path, verbose: bool) -> Vec<scanner::Finding> {
         };
         let findings = ledger::detect_rugpull(path, &record);
         if !findings.is_empty() {
-            if let Err(e) = quarantine::requarantine(&entry.id, Some("content drift (RUGPULL-001)")) {
+            if let Err(e) = quarantine::requarantine(&entry.id, Some("content drift (RUGPULL-001)"))
+            {
                 if verbose {
                     eprintln!("rug-pull: re-quarantine of {} failed: {}", entry.id, e);
                 }
@@ -2256,8 +2280,25 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 
 #[cfg(test)]
 mod exit_code_tests {
-    use super::exit_code_for;
+    use super::{approve_with_ledger, exit_code_for};
+    use std::fs;
+    use std::sync::Mutex;
+    use tempfile::tempdir;
+
     use super::scanner::{Finding, Phase, Severity};
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_isolated_home<T>(test: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let dir = tempdir().expect("tempdir");
+        std::env::set_var("HOME", dir.path());
+        std::env::set_var("SIGIL_QUARANTINE_DIR", dir.path().join("quarantine"));
+        let result = test();
+        std::env::remove_var("SIGIL_QUARANTINE_DIR");
+        std::env::remove_var("HOME");
+        result
+    }
 
     fn finding(sev: Severity) -> Finding {
         Finding {
@@ -2300,5 +2341,36 @@ mod exit_code_tests {
     fn critical_threshold_ignores_high() {
         let f = vec![finding(Severity::High)];
         assert_eq!(exit_code_for(&f, Severity::Critical), 0);
+    }
+
+    #[test]
+    fn approve_with_ledger_pins_before_marking_approved() {
+        with_isolated_home(|| {
+            let entry = super::quarantine::add("pkg@1.0.0", "npm").expect("add entry");
+            fs::write(entry.path.join("index.js"), "console.log(1);\n").expect("write file");
+
+            let (approved, record) =
+                approve_with_ledger(&entry.id, Some("reviewed")).expect("approve");
+
+            assert_eq!(approved.id, entry.id);
+            assert_eq!(record.id, entry.id);
+            assert!(super::ledger::get(&entry.id).is_some());
+        });
+    }
+
+    #[test]
+    fn approve_with_ledger_rolls_back_pin_when_status_update_fails() {
+        with_isolated_home(|| {
+            let entry = super::quarantine::add("pkg@1.0.0", "npm").expect("add entry");
+            fs::write(entry.path.join("index.js"), "console.log(1);\n").expect("write file");
+            super::quarantine::approve(&entry.id, Some("pre-approved"))
+                .expect("pre-approve without ledger");
+
+            let error = approve_with_ledger(&entry.id, Some("reviewed"))
+                .expect_err("already approved status must fail");
+
+            assert!(error.contains("already approved"));
+            assert!(super::ledger::get(&entry.id).is_none());
+        });
     }
 }

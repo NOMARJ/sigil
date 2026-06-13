@@ -8,6 +8,7 @@ import {
   CreditInfo,
   Scan 
 } from "@/lib/types";
+import * as api from "@/lib/api";
 
 interface InteractiveChatProps {
   scan: Scan;
@@ -52,21 +53,7 @@ export default function InteractiveChat({
 
   const initializeSession = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch("/api/v1/interactive/sessions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          scan_id: scan.id
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create chat session");
-      }
-
-      const newSession: ChatSession = await response.json();
+      const newSession = await api.createInteractiveSession(scan.id);
       setSession(newSession);
       onChatSessionUpdate(newSession);
     } catch (error) {
@@ -102,21 +89,7 @@ export default function InteractiveChat({
     setCurrentMessage("");
 
     try {
-      const response = await fetch(`/api/v1/interactive/sessions/${session.id}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: message.trim()
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
-
-      const updatedSessionFromServer: ChatSession = await response.json();
+      const updatedSessionFromServer = await api.continueInteractiveSession(session.id);
       setSession(updatedSessionFromServer);
       onChatSessionUpdate(updatedSessionFromServer);
     } catch (error) {
@@ -142,29 +115,61 @@ export default function InteractiveChat({
     }
   };
 
-  const formatMessage = (content: string) => {
-    // Simple markdown rendering for code blocks
+  const formatMessage = (content: string): React.ReactNode => {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)\n```/g;
     const inlineCodeRegex = /`([^`]+)`/g;
-    
-    let formatted = content;
-    
-    // Replace code blocks
-    formatted = formatted.replace(codeBlockRegex, (match, language, code) => {
-      return `<div class="code-block my-2 p-3 bg-gray-800/50 border border-gray-700 rounded font-mono text-sm overflow-x-auto"><pre><code>${code}</code></pre></div>`;
-    });
-    
-    // Replace inline code
-    formatted = formatted.replace(inlineCodeRegex, (match, code) => {
-      return `<code class="bg-gray-800/50 px-1 py-0.5 rounded text-sm font-mono text-brand-400">${code}</code>`;
-    });
 
-    return (
-      <div 
-        className="prose prose-sm max-w-none text-gray-300"
-        dangerouslySetInnerHTML={{ __html: formatted }}
-      />
-    );
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+    let blockMatch: RegExpExecArray | null;
+
+    while ((blockMatch = codeBlockRegex.exec(content)) !== null) {
+      if (blockMatch.index > cursor) {
+        nodes.push(renderInline(content.slice(cursor, blockMatch.index), nodes.length));
+      }
+      nodes.push(
+        <pre
+          key={`block-${nodes.length}`}
+          className="my-2 overflow-x-auto rounded border border-gray-700 bg-gray-800/50 p-3 text-sm"
+        >
+          <code>{blockMatch[2]}</code>
+        </pre>,
+      );
+      cursor = blockMatch.index + blockMatch[0].length;
+    }
+
+    if (cursor < content.length) {
+      nodes.push(renderInline(content.slice(cursor), nodes.length));
+    }
+
+    return <div className="prose prose-sm max-w-none text-gray-300">{nodes}</div>;
+
+    function renderInline(text: string, keyPrefix: number): React.ReactNode {
+      const inlineNodes: React.ReactNode[] = [];
+      let inlineCursor = 0;
+      let inlineMatch: RegExpExecArray | null;
+
+      while ((inlineMatch = inlineCodeRegex.exec(text)) !== null) {
+        if (inlineMatch.index > inlineCursor) {
+          inlineNodes.push(text.slice(inlineCursor, inlineMatch.index));
+        }
+        inlineNodes.push(
+          <code
+            key={`${keyPrefix}-${inlineNodes.length}`}
+            className="rounded bg-gray-800/50 px-1 py-0.5 font-mono text-sm text-brand-400"
+          >
+            {inlineMatch[1]}
+          </code>,
+        );
+        inlineCursor = inlineMatch.index + inlineMatch[0].length;
+      }
+
+      if (inlineCursor < text.length) {
+        inlineNodes.push(text.slice(inlineCursor));
+      }
+
+      return <p key={`inline-${keyPrefix}`}>{inlineNodes}</p>;
+    }
   };
 
   if (!isOpen) {
@@ -324,6 +329,7 @@ export default function InteractiveChat({
             disabled={!currentMessage.trim() || isSending || !canAfford}
             size="sm"
             className="self-end"
+            aria-label="Send message"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 

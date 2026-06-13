@@ -83,8 +83,8 @@
     --sigil-high:       #EF4444;
     --sigil-critical:   #DC2626;
 
-    --sigil-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --sigil-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --sigil-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sigil-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
   html {

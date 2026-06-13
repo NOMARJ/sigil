@@ -184,10 +184,10 @@ class TestThreatDetectionPrompts:
         assert "living-off-the-land" in prompt.lower()
 
 
-@pytest.mark.asyncio
 class TestPromptIntegration:
     """Test prompt integration with actual analysis."""
 
+    @pytest.mark.asyncio
     async def test_prompt_generates_valid_json_structure(self):
         """Test that prompts guide toward valid JSON responses."""
 

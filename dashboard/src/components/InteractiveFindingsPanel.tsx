@@ -16,12 +16,13 @@ import {
   RemediationResult,
   ChatSession
 } from "@/lib/types";
+import * as api from "@/lib/api";
 
 interface InteractiveFindingsPanelProps {
   scan: Scan;
   findings: Finding[];
   selectedFinding: Finding | null;
-  onFindingSelect: (finding: Finding) => void;
+  onFindingSelect: (finding: Finding | null) => void;
 }
 
 export default function InteractiveFindingsPanel({
@@ -99,11 +100,7 @@ export default function InteractiveFindingsPanel({
 
   const fetchCreditInfo = async (): Promise<void> => {
     try {
-      const response = await fetch("/api/v1/interactive/credits");
-      if (response.ok) {
-        const credits: CreditInfo = await response.json();
-        setCreditInfo(credits);
-      }
+      setCreditInfo(await api.getInteractiveCreditInfo());
     } catch (error) {
       console.error("Failed to fetch credit info:", error);
     }
@@ -170,16 +167,17 @@ export default function InteractiveFindingsPanel({
           ))}
         </div>
         
-        {/* Chat is always available */}
-        <div className="mt-6 pt-6 border-t border-gray-700">
-          <Button
-            onClick={() => setIsChatOpen(true)}
-            variant="outline"
-            className="w-full"
-          >
-            Ask questions about this scan
-          </Button>
-        </div>
+        {launchConfig.canUseInteractiveChat && (
+          <div className="mt-6 pt-6 border-t border-gray-700">
+            <Button
+              onClick={() => setIsChatOpen(true)}
+              variant="outline"
+              className="w-full"
+            >
+              Ask questions about this scan
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -198,7 +196,7 @@ export default function InteractiveFindingsPanel({
             </p>
           </div>
           <Button
-            onClick={() => onFindingSelect(null as any)}
+            onClick={() => onFindingSelect(null)}
             variant="ghost"
             size="sm"
             className="ml-2"
@@ -260,13 +258,15 @@ export default function InteractiveFindingsPanel({
       </div>
 
       {/* Chat component */}
-      <InteractiveChat
-        scan={scan}
-        creditInfo={creditInfo}
-        onChatSessionUpdate={handleChatSessionUpdate}
-        isOpen={isChatOpen}
-        onToggle={() => setIsChatOpen(!isChatOpen)}
-      />
+      {launchConfig.canUseInteractiveChat && (
+        <InteractiveChat
+          scan={scan}
+          creditInfo={creditInfo}
+          onChatSessionUpdate={handleChatSessionUpdate}
+          isOpen={isChatOpen}
+          onToggle={() => setIsChatOpen(!isChatOpen)}
+        />
+      )}
     </div>
   );
 }

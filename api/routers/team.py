@@ -42,7 +42,7 @@ TEAM_TABLE = "teams"
 USER_TABLE = "users"
 AUDIT_TABLE = "audit_log"
 
-_VALID_ROLES = {"member", "admin", "owner"}
+_VALID_ROLES = {"member", "admin"}
 _DEFAULT_TEAM_ID = "default-team"
 
 
@@ -110,6 +110,14 @@ def _require_admin_or_owner(user_row: dict[str, Any] | None) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only team admins or owners can perform this action",
+        )
+
+
+def _require_same_team(target_user: dict[str, Any], team_id: str) -> None:
+    if target_user.get("team_id") != team_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of your team",
         )
 
 
@@ -189,7 +197,13 @@ async def invite_member(
                 role=existing_user.get("role", "member"),
             )
 
-        # Add to team
+        if existing_user.get("team_id"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User already belongs to another team",
+            )
+
+        # Add teamless user to team
         existing_user["team_id"] = team_id
         existing_user["role"] = body.role
         await db.upsert(USER_TABLE, existing_user)
@@ -275,8 +289,11 @@ async def remove_member(
             detail=f"User '{user_id}' not found",
         )
 
-    # Cannot remove the team owner
     team = await _get_or_create_team(current_user)
+    team_id = team.get("id", _DEFAULT_TEAM_ID)
+    _require_same_team(target_user, team_id)
+
+    # Cannot remove the team owner
     if team.get("owner_id") == user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -291,7 +308,7 @@ async def remove_member(
     logger.info(
         "User %s removed from team %s by %s",
         user_id,
-        team.get("id"),
+        team_id,
         current_user.id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -315,8 +332,8 @@ async def update_member_role(
 ) -> TeamMember:
     """Update a team member's role.
 
-    Only admins and owners can change roles.  The ``owner`` role can only
-    be assigned by the current owner (effectively transferring ownership).
+    Only admins and owners can change roles. Owner transfer is intentionally
+    excluded from this endpoint.
     """
     if body.role not in _VALID_ROLES:
         raise HTTPException(
@@ -328,15 +345,6 @@ async def update_member_role(
     caller_row = await db.select_one(USER_TABLE, {"id": current_user.id})
     _require_admin_or_owner(caller_row)
 
-    # Only the owner can assign the owner role
-    if body.role == "owner":
-        caller_role = caller_row.get("role", "member") if caller_row else "member"
-        if caller_role != "owner":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the current owner can transfer ownership",
-            )
-
     target_user = await db.select_one(USER_TABLE, {"id": user_id})
     if target_user is None:
         raise HTTPException(
@@ -347,11 +355,7 @@ async def update_member_role(
     # Verify the target is on the same team
     team = await _get_or_create_team(current_user)
     team_id = team.get("id")
-    if target_user.get("team_id") != team_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User is not a member of your team",
-        )
+    _require_same_team(target_user, team_id)
 
     target_user["role"] = body.role
     await db.upsert(USER_TABLE, target_user)

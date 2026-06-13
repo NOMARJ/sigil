@@ -239,10 +239,7 @@ fn cvss3_base_score(vector: &str) -> Option<f64> {
 ///
 /// Network failures fall back to cache; complete cache miss + network failure
 /// yields an empty result (not an error) so the containing scan can continue.
-pub fn query_osv(
-    components: &[Component],
-    offline_hint: bool,
-) -> Vec<(usize, OsvVuln)> {
+pub fn query_osv(components: &[Component], offline_hint: bool) -> Vec<(usize, OsvVuln)> {
     // Build queries for components that have both a version and a known ecosystem
     let indexed: Vec<(usize, &Component, &str)> = components
         .iter()
@@ -331,10 +328,7 @@ pub fn query_osv(
                 // Already have whatever cache provided; uncached positions yield None (no findings)
             }
         }
-    } else if uncached_positions.is_empty()
-        && results.iter().any(|r| r.is_none())
-        && offline_hint
-    {
+    } else if uncached_positions.is_empty() && results.iter().any(|r| r.is_none()) && offline_hint {
         // offline_hint set and some positions have no cache
         eprintln!("sigil: OSV offline — no cached data for some packages");
     }
@@ -377,10 +371,7 @@ fn fetch_osv_batch(body: &OsvBatchRequest) -> Result<OsvBatchResponse, Box<dyn s
 ///
 /// The `lockfile_path` is used as the finding's `file` field so the source
 /// context is clear in output.
-pub fn osv_findings_for_components(
-    components: &[Component],
-    lockfile_path: &str,
-) -> Vec<Finding> {
+pub fn osv_findings_for_components(components: &[Component], lockfile_path: &str) -> Vec<Finding> {
     let pairs = query_osv(components, false);
     pairs_to_findings(pairs, lockfile_path)
 }
@@ -467,9 +458,7 @@ fn pairs_to_findings(pairs: Vec<(usize, OsvVuln)>, lockfile_path: &str) -> Vec<F
         pairs
             .iter()
             .filter(|(_, v)| {
-                !v.id.starts_with("MAL-")
-                    && v.database_specific.is_none()
-                    && v.severity.is_empty()
+                !v.id.starts_with("MAL-") && v.database_specific.is_none() && v.severity.is_empty()
             })
             .filter(|(_, v)| seen.insert(v.id.clone()))
             .map(|(_, v)| v.clone())
@@ -575,7 +564,7 @@ pub fn scan_for_osv_findings(path: &Path) -> Vec<Finding> {
         .parents(false)
         .add_custom_ignore_filename(".sigilignore");
     builder.filter_entry(|entry| {
-        let is_dir = entry.file_type().map_or(false, |t| t.is_dir());
+        let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
         if !is_dir {
             return true;
         }
@@ -598,44 +587,28 @@ pub fn scan_for_osv_findings(path: &Path) -> Vec<Finding> {
             "package-lock.json" => match parsers::parse_package_lock(file_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!(
-                        "sigil: OSV: failed to parse {}: {}",
-                        file_path.display(),
-                        e
-                    );
+                    eprintln!("sigil: OSV: failed to parse {}: {}", file_path.display(), e);
                     continue;
                 }
             },
             "requirements.txt" => match parsers::parse_requirements_txt(file_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!(
-                        "sigil: OSV: failed to parse {}: {}",
-                        file_path.display(),
-                        e
-                    );
+                    eprintln!("sigil: OSV: failed to parse {}: {}", file_path.display(), e);
                     continue;
                 }
             },
             "Cargo.lock" => match parsers::parse_cargo_lock(file_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!(
-                        "sigil: OSV: failed to parse {}: {}",
-                        file_path.display(),
-                        e
-                    );
+                    eprintln!("sigil: OSV: failed to parse {}: {}", file_path.display(), e);
                     continue;
                 }
             },
             "go.mod" => match parse_go_mod(file_path) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!(
-                        "sigil: OSV: failed to parse {}: {}",
-                        file_path.display(),
-                        e
-                    );
+                    eprintln!("sigil: OSV: failed to parse {}: {}", file_path.display(), e);
                     continue;
                 }
             },
@@ -759,22 +732,8 @@ mod tests {
     use super::*;
     use crate::sbom::Component;
 
-    fn make_component(package_type: &str, name: &str, version: &str) -> Component {
-        Component {
-            package_type: package_type.to_string(),
-            name: name.to_string(),
-            version: Some(version.to_string()),
-            hash: None,
-            threat_flagged: false,
-            threat_severity: None,
-            threat_description: None,
-        }
-    }
-
     fn make_vuln(id: &str, db_severity: Option<&str>) -> OsvVuln {
-        let database_specific = db_severity.map(|s| {
-            serde_json::json!({ "severity": s })
-        });
+        let database_specific = db_severity.map(|s| serde_json::json!({ "severity": s }));
         OsvVuln {
             id: id.to_string(),
             severity: vec![],
@@ -965,7 +924,10 @@ require (
     fn cache_key_sanitizes_slashes() {
         // go module paths contain slashes — must not create subdirectories
         let key = cache_key("Go", "github.com/foo/bar", "v1.0.0");
-        assert!(!key.contains('/'), "cache key must not contain path separators");
+        assert!(
+            !key.contains('/'),
+            "cache key must not contain path separators"
+        );
     }
 
     #[test]

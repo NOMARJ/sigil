@@ -530,6 +530,24 @@ class TestTierGatingEdgeCases:
             assert tier == PlanTier.FREE
 
     @pytest.mark.asyncio
+    async def test_past_due_paid_subscription_does_not_grant_pro_access(self):
+        """Status-denied paid rows are treated as Free by legacy helpers."""
+        with patch.object(
+            subscription_service, "get_user_subscription"
+        ) as mock_get_sub:
+            mock_get_sub.return_value = {
+                "plan": "pro",
+                "status": "past_due",
+                "has_pro_features": True,
+            }
+
+            tier = await subscription_service.get_user_tier("past_due_user")
+            has_access = await subscription_service.check_pro_access("past_due_user")
+
+        assert tier == PlanTier.FREE
+        assert has_access is False
+
+    @pytest.mark.asyncio
     async def test_user_without_subscription_record(self):
         """Test handling of users without subscription records"""
 

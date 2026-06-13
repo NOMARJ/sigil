@@ -4,7 +4,11 @@
 # Environment
 .env
 .env.local
+.env.production
+.env.*.production
 .env.*.local
+**/.env.production
+**/.env.*.production
 
 # Python
 __pycache__/

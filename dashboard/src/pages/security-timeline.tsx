@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import * as api from '@/lib/api';
 
 interface SecurityChange {
   change_type: string;
@@ -46,7 +46,6 @@ interface VersionComparison {
 }
 
 export default function SecurityTimeline() {
-  const router = useRouter();
   const [comparison, setComparison] = useState<VersionComparison | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +58,7 @@ export default function SecurityTimeline() {
 
   // Fetch credit balance
   useEffect(() => {
-    fetch('/api/v1/interactive/credits')
-      .then(res => res.json())
+    api.getInteractiveCreditInfo()
       .then(data => setCredits(data.balance))
       .catch(err => console.error('Failed to fetch credits:', err));
   }, []);
@@ -71,32 +69,8 @@ export default function SecurityTimeline() {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/v1/compare-versions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          base_ref: baseRef,
-          compare_ref: compareRef,
-          include_blame: includeBlame
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Comparison failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setComparison(data.comparison);
-      setCredits(data.credits_remaining);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to compare versions');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
+    setError('Version comparison is not available in the current API.');
   };
 
   const getTrendIcon = (trend: string) => {

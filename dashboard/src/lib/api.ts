@@ -13,10 +13,12 @@ import type {
   LoginRequest,
   PaginatedResponse,
   Policy,
+  PolicyRecord,
   PortalSession,
   Publisher,
   RegisterRequest,
   ReportThreatRequest,
+  ReportThreatResponse,
   Scan,
   Signature,
   SubmitScanRequest,
@@ -28,12 +30,23 @@ import type {
   Verdict,
   VerifyPackageResponse,
   ScanSource,
+  InvestigationDepth,
+  InvestigationResult,
+  FalsePositiveAnalysis,
+  RemediationResult,
+  CreditInfo,
+  ChatSession,
+  ChatMessage,
 } from "./types";
 
-const API_URL =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-    : process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+function getApiUrl(): string {
+  if (!API_URL) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured");
+  }
+  return API_URL;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,7 +119,7 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiUrl()}${path}`, {
     ...options,
     headers,
   });
@@ -257,10 +270,22 @@ export async function getThreat(id: string): Promise<ThreatEntry> {
 /** @deprecated Use getThreat instead */
 export const getThreatById = getThreat;
 
-export async function submitReport(payload: ReportThreatRequest): Promise<ThreatEntry> {
-  return request<ThreatEntry>("/threats/report", {
+export async function submitReport(payload: ReportThreatRequest): Promise<ReportThreatResponse> {
+  const evidence = [
+    `Threat type: ${payload.threat_type}`,
+    `Severity: ${payload.severity}`,
+    ...payload.indicators.map((indicator) => `Indicator: ${indicator}`),
+    ...payload.references.map((reference) => `Reference: ${reference}`),
+  ].join("\n");
+
+  return request<ReportThreatResponse>("/report", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      package_name: payload.package_name,
+      ecosystem: payload.source,
+      reason: payload.description,
+      evidence,
+    }),
   });
 }
 
@@ -364,24 +389,83 @@ export async function updateMemberRole(
 // ---------------------------------------------------------------------------
 
 export async function listPolicies(): Promise<Policy> {
-  return request<Policy>("/settings/policy");
+  const records = await request<PolicyRecord[]>("/settings/policy");
+  const byType = new Map(records.map((record) => [record.type, record]));
+
+  return {
+    auto_approve_threshold:
+      (byType.get("auto_approve_threshold")?.config.verdict as Verdict | undefined) ??
+      "LOW_RISK",
+    allowlisted_packages:
+      (byType.get("allowlist")?.config.packages as string[] | undefined) ?? [],
+    blocklisted_packages:
+      (byType.get("blocklist")?.config.packages as string[] | undefined) ?? [],
+    require_approval_for:
+      (byType.get("required_phases")?.config.verdicts as Verdict[] | undefined) ?? [],
+  };
 }
 
 /** @deprecated Use listPolicies instead */
 export const getPolicy = listPolicies;
 
 export async function createPolicy(policy: Partial<Policy>): Promise<Policy> {
-  return request<Policy>("/settings/policy", {
-    method: "POST",
-    body: JSON.stringify(policy),
-  });
+  return updatePolicy(policy);
 }
 
 export async function updatePolicy(policy: Partial<Policy>): Promise<Policy> {
-  return request<Policy>("/settings/policy", {
-    method: "PATCH",
-    body: JSON.stringify(policy),
-  });
+  const existing = await request<PolicyRecord[]>("/settings/policy");
+  const byType = new Map(existing.map((record) => [record.type, record]));
+
+  const desired: Array<{
+    type: PolicyRecord["type"];
+    name: string;
+    config: Record<string, unknown>;
+    enabled: boolean;
+  }> = [
+    {
+      type: "auto_approve_threshold",
+      name: "Auto-Approve Threshold",
+      config: { verdict: policy.auto_approve_threshold ?? "LOW_RISK" },
+      enabled: true,
+    },
+    {
+      type: "allowlist",
+      name: "Allowlisted Packages",
+      config: { packages: policy.allowlisted_packages ?? [] },
+      enabled: true,
+    },
+    {
+      type: "blocklist",
+      name: "Blocklisted Packages",
+      config: { packages: policy.blocklisted_packages ?? [] },
+      enabled: true,
+    },
+    {
+      type: "required_phases",
+      name: "Require Manual Approval",
+      config: { verdicts: policy.require_approval_for ?? [] },
+      enabled: true,
+    },
+  ];
+
+  await Promise.all(
+    desired.map((record) => {
+      const current = byType.get(record.type);
+      const body = JSON.stringify(record);
+      if (current) {
+        return request<PolicyRecord>(`/settings/policy/${current.id}`, {
+          method: "PATCH",
+          body,
+        });
+      }
+      return request<PolicyRecord>("/settings/policy", {
+        method: "POST",
+        body,
+      });
+    }),
+  );
+
+  return listPolicies();
 }
 
 export async function deletePolicy(id: string): Promise<void> {
@@ -429,7 +513,19 @@ export async function deleteAlert(id: string): Promise<void> {
 export const deleteAlertChannel = deleteAlert;
 
 export async function testAlert(id: string): Promise<void> {
-  await request<void>(`/settings/alerts/${id}/test`, { method: "POST" });
+  const channel = await request<AlertChannel[]>(`/settings/alerts`).then((channels) =>
+    channels.find((item) => item.id === id),
+  );
+  if (!channel) {
+    throw new Error("Alert channel not found");
+  }
+  await request<void>("/settings/alerts/test", {
+    method: "POST",
+    body: JSON.stringify({
+      channel_type: channel.channel_type,
+      channel_config: channel.channel_config,
+    }),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -502,10 +598,134 @@ export async function getCreditUsage(): Promise<CreditUsage> {
   };
 }
 
+const INTERACTIVE_CREDIT_COSTS: CreditInfo["costs"] = {
+  quick_investigation: 4,
+  thorough_investigation: 8,
+  exhaustive_investigation: 16,
+  false_positive_check: 4,
+  remediation: 6,
+  chat_message: 2,
+};
+
+export async function getInteractiveCreditInfo(): Promise<CreditInfo> {
+  const usage = await request<{
+    current_balance: number;
+    monthly_allocation: number;
+    used_this_month: number;
+  }>("/v1/interactive/credits");
+
+  return {
+    balance: usage.current_balance,
+    monthly_limit: usage.monthly_allocation,
+    used_this_month: usage.used_this_month,
+    costs: INTERACTIVE_CREDIT_COSTS,
+  };
+}
+
+export async function investigateFinding(payload: {
+  scanId: string;
+  findingId: string;
+  depth: InvestigationDepth;
+}): Promise<InvestigationResult> {
+  return request<InvestigationResult>("/v1/interactive/investigate", {
+    method: "POST",
+    body: JSON.stringify({
+      scan_id: payload.scanId,
+      finding_id: payload.findingId,
+      depth: payload.depth,
+    }),
+  });
+}
+
+export async function analyzeFalsePositive(payload: {
+  scanId: string;
+  findingId: string;
+}): Promise<FalsePositiveAnalysis> {
+  return request<FalsePositiveAnalysis>("/v1/interactive/false-positive", {
+    method: "POST",
+    body: JSON.stringify({
+      scan_id: payload.scanId,
+      finding_id: payload.findingId,
+    }),
+  });
+}
+
+export async function generateRemediation(payload: {
+  scanId: string;
+  findingId: string;
+}): Promise<RemediationResult> {
+  return request<RemediationResult>("/v1/interactive/remediate", {
+    method: "POST",
+    body: JSON.stringify({
+      scan_id: payload.scanId,
+      finding_id: payload.findingId,
+    }),
+  });
+}
+
+type InteractiveSessionResponse = {
+  session_id: string;
+  scan_id: string;
+  status: string;
+  started_at?: string;
+  last_activity?: string;
+  conversation_history?: ChatMessage[];
+};
+
+function toChatSession(session: InteractiveSessionResponse): ChatSession {
+  const createdAt = session.started_at ?? new Date().toISOString();
+  return {
+    id: session.session_id,
+    scan_id: session.scan_id,
+    messages: session.conversation_history ?? [],
+    created_at: createdAt,
+    updated_at: session.last_activity ?? createdAt,
+  };
+}
+
+export async function createInteractiveSession(scanId: string): Promise<ChatSession> {
+  const session = await request<InteractiveSessionResponse>("/v1/interactive/sessions", {
+    method: "POST",
+    body: JSON.stringify({ scan_id: scanId }),
+  });
+  return toChatSession(session);
+}
+
+export async function continueInteractiveSession(sessionId: string): Promise<ChatSession> {
+  const session = await request<InteractiveSessionResponse>(
+    `/v1/interactive/sessions/${sessionId}/continue`,
+    { method: "POST" },
+  );
+  return toChatSession(session);
+}
+
+export async function getSharedInteractiveSession<T>(token: string): Promise<T> {
+  return request<T>(`/v1/interactive/sessions/shared/${token}`);
+}
+
+export async function exportInteractiveSession(payload: {
+  session_id?: string;
+  share_token?: string;
+}): Promise<string> {
+  return request<string>("/v1/interactive/sessions/export", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getUserUsageStats<T>(days: string): Promise<T> {
+  const query = new URLSearchParams({ days });
+  return request<T>(`/v1/analytics/my/usage?${query.toString()}`);
+}
+
+export async function getUserChurnRisk<T>(): Promise<T> {
+  return request<T>("/v1/analytics/my/churn-risk");
+}
+
 export async function purchaseCredits(
   packageId: number,
 ): Promise<CreditPurchaseSession> {
-  return request<CreditPurchaseSession>("/billing/purchase-credits", {
+  return request<CreditPurchaseSession>("/v1/billing/purchase-credits", {
     method: "POST",
     body: JSON.stringify({ package_id: packageId }),
   });

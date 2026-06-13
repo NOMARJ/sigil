@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import OnboardingStep from "./OnboardingStep";
+import type { OnboardingPayload } from "./OnboardingStep";
 import ProgressIndicator from "./ProgressIndicator";
 
 // Define onboarding steps
@@ -64,15 +65,21 @@ export default function OnboardingFlow() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  const [onboardingData, setOnboardingData] = useState<Record<string, any>>({});
+  const [onboardingData, setOnboardingData] = useState<Record<string, OnboardingPayload>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Load progress from localStorage on mount
   useEffect(() => {
     const savedProgress = localStorage.getItem(ONBOARDING_STORAGE_KEY);
     if (savedProgress) {
       try {
-        const { currentStep: savedStep, completedSteps: savedCompleted, data } = JSON.parse(savedProgress);
+        const { currentStep: savedStep, completedSteps: savedCompleted, data } =
+          JSON.parse(savedProgress) as Partial<{
+            currentStep: number;
+            completedSteps: string[];
+            data: Record<string, OnboardingPayload>;
+          }>;
         setCurrentStep(savedStep || 0);
         setCompletedSteps(savedCompleted || []);
         setOnboardingData(data || {});
@@ -97,10 +104,12 @@ export default function OnboardingFlow() {
   }, [currentStep, completedSteps, onboardingData, isLoading]);
 
   // Track onboarding progress with backend
-  const trackStepCompletion = async (stepId: string, data: any): Promise<void> => {
+  const trackStepCompletion = async (
+    stepId: string,
+    data: OnboardingPayload,
+  ): Promise<void> => {
     try {
-      // This would call the backend onboarding service
-      await fetch("/api/onboarding/complete-step", {
+      const response = await fetch("/api/onboarding/complete-step", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -111,13 +120,37 @@ export default function OnboardingFlow() {
           data: data
         })
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          typeof body.error === "string"
+            ? body.error
+            : "Onboarding progress could not be saved.",
+        );
+      }
     } catch (error) {
-      console.error("Error tracking step completion:", error);
+      throw error instanceof Error
+        ? error
+        : new Error("Onboarding progress could not be saved.");
     }
   };
 
   // Handle step completion
-  const handleStepComplete = async (stepId: string, data: any = {}): Promise<void> => {
+  const handleStepComplete = async (
+    stepId: string,
+    data: OnboardingPayload = {},
+  ): Promise<void> => {
+    setErrorMessage(null);
+
+    try {
+      await trackStepCompletion(stepId, data);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Onboarding progress could not be saved.",
+      );
+      return;
+    }
+
     // Update completed steps
     if (!completedSteps.includes(stepId)) {
       setCompletedSteps([...completedSteps, stepId]);
@@ -128,9 +161,6 @@ export default function OnboardingFlow() {
       ...prevData,
       [stepId]: data
     }));
-
-    // Track with backend
-    await trackStepCompletion(stepId, data);
 
     // Move to next step or complete onboarding
     if (currentStep < ONBOARDING_STEPS.length - 1) {
@@ -163,8 +193,8 @@ export default function OnboardingFlow() {
   // Complete the entire onboarding flow
   const completeOnboarding = async (): Promise<void> => {
     try {
-      // Mark onboarding as complete in backend
-      await fetch("/api/onboarding/complete", {
+      setErrorMessage(null);
+      const response = await fetch("/api/onboarding/complete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -174,6 +204,14 @@ export default function OnboardingFlow() {
           completion_data: onboardingData
         })
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          typeof body.error === "string"
+            ? body.error
+            : "Onboarding completion could not be saved.",
+        );
+      }
 
       // Clear localStorage
       localStorage.removeItem(ONBOARDING_STORAGE_KEY);
@@ -181,9 +219,11 @@ export default function OnboardingFlow() {
       // Redirect to Pro dashboard
       router.push("/pro?onboarded=true");
     } catch (error) {
-      console.error("Error completing onboarding:", error);
-      // Still redirect on error
-      router.push("/pro");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Onboarding completion could not be saved.",
+      );
     }
   };
 
@@ -234,6 +274,11 @@ export default function OnboardingFlow() {
 
       {/* Current Step */}
       <div className="max-w-4xl mx-auto px-4 pb-8">
+        {errorMessage && (
+          <div className="mb-4 rounded-lg border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+            {errorMessage}
+          </div>
+        )}
         <OnboardingStep
           step={currentStepData}
           stepNumber={currentStep + 1}
@@ -241,7 +286,11 @@ export default function OnboardingFlow() {
           onComplete={handleStepComplete}
           onSkip={handleSkipStep}
           onPrevious={handlePreviousStep}
-          data={onboardingData[currentStepData.id] || {}}
+          data={
+            currentStepData.id === "complete"
+              ? onboardingData
+              : onboardingData[currentStepData.id] || {}
+          }
           canGoPrevious={currentStep > 0}
           isLastStep={currentStep === ONBOARDING_STEPS.length - 1}
         />

@@ -44,7 +44,7 @@ Before first use, verify the Sigil CLI binary is installed:
 bash scripts/setup.sh
 ```
 
-Parse the JSON stdout. On success: `{"installed": true, "version": "...", "path": "..."}`. On failure: `{"error": true, "message": "..."}`. If setup fails, present the error to the user and suggest manual installation: `brew install nomarj/tap/sigil`, `npm install -g @nomark/sigil`, or `cargo install sigil-cli`.
+Parse the JSON stdout. On success: `{"installed": true, "version": "...", "path": "..."}`. On failure: `{"error": true, "message": "..."}`. If setup fails, present the error to the user and suggest manual installation: `brew install nomarj/tap/sigil`, `npm install -g @nomarj/sigil`, or `cargo install sigil-cli`.
 
 ## Core Scan
 

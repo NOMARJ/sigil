@@ -45,7 +45,7 @@ CONCURRENT_LOAD_REQUESTS = 1000  # Concurrent scan requests for latency test
 
 
 @dataclass
-class TestResult:
+class D1D4TestResult:
     """Individual test result record."""
 
     test_id: str
@@ -570,7 +570,7 @@ class D1D4TestSuite:
     def __init__(self, api_base_url: str = "http://localhost:8000"):
         self.api_base_url = api_base_url
         self.client = TestClient(app)
-        self.results: List[TestResult] = []
+        self.results: List[D1D4TestResult] = []
 
     def run_full_evaluation(self) -> SigilScorecard:
         """Run complete D1-D4 evaluation and generate scorecard."""
@@ -621,7 +621,7 @@ class D1D4TestSuite:
                 f.severity in [Severity.CRITICAL, Severity.HIGH] for f in findings
             )
 
-            result = TestResult(
+            result = D1D4TestResult(
                 test_id=f"d1_{i}",
                 test_type="known_attack",
                 package_name=package_name,
@@ -684,7 +684,7 @@ class D1D4TestSuite:
             # Check if pattern was detected (any finding indicates detection)
             pattern_detected = len(findings) > 0
 
-            result = TestResult(
+            result = D1D4TestResult(
                 test_id=f"d2_{i}",
                 test_type="novel_pattern",
                 package_name=description,
@@ -842,7 +842,7 @@ class D1D4TestSuite:
                 for f in findings
             )
 
-            result = TestResult(
+            result = D1D4TestResult(
                 test_id=f"d4_{i}",
                 test_type="clean_package",
                 package_name=f"{ecosystem}:{package_name}",

@@ -107,8 +107,7 @@ pub fn pin_directory(root: &Path, version: Option<String>) -> ContentPin {
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| {
-            !(e.file_type().is_dir()
-                && e.file_name().to_str().map_or(false, is_excluded_dir))
+            !(e.file_type().is_dir() && e.file_name().to_str().is_some_and(is_excluded_dir))
         });
 
     for entry in walker
@@ -195,8 +194,8 @@ fn load_in(dir: &Path) -> Vec<LedgerRecord> {
 
 fn save_in(dir: &Path, records: &[LedgerRecord]) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("failed to create ledger dir: {}", e))?;
-    let json =
-        serde_json::to_string_pretty(records).map_err(|e| format!("failed to serialize ledger: {}", e))?;
+    let json = serde_json::to_string_pretty(records)
+        .map_err(|e| format!("failed to serialize ledger: {}", e))?;
     std::fs::write(index_path(dir), json).map_err(|e| format!("failed to write ledger: {}", e))
 }
 
@@ -264,7 +263,10 @@ pub fn match_approved_in(dir: &Path, root: &Path) -> Option<LedgerRecord> {
 
 // Default-location wrappers used by the CLI.
 
-pub fn record_approval(entry: &QuarantineEntry, reason: Option<&str>) -> Result<LedgerRecord, String> {
+pub fn record_approval(
+    entry: &QuarantineEntry,
+    reason: Option<&str>,
+) -> Result<LedgerRecord, String> {
     record_approval_in(&ledger_dir(), entry, reason)
 }
 
@@ -296,7 +298,12 @@ use crate::scanner::ScanResult;
 /// - content does not exactly match an approved pin (drift ⇒ rug-pull path),
 /// - any RUGPULL-001 finding is present (a drift signal against a path-bound
 ///   pin outranks a content match against another record).
-pub fn apply_suppression_in(dir: &Path, result: &mut ScanResult, root: &Path, ignore: bool) -> bool {
+pub fn apply_suppression_in(
+    dir: &Path,
+    result: &mut ScanResult,
+    root: &Path,
+    ignore: bool,
+) -> bool {
     let restored = !result.suppressed_findings.is_empty();
     if restored {
         let mut prior = std::mem::take(&mut result.suppressed_findings);
@@ -321,8 +328,7 @@ pub fn apply_suppression_in(dir: &Path, result: &mut ScanResult, root: &Path, ig
 
     if restored || result.suppressed_by.is_some() {
         result.score = crate::scanner::scoring::calculate_score(&result.findings);
-        result.verdict =
-            crate::scanner::scoring::determine_verdict(&result.findings, result.score);
+        result.verdict = crate::scanner::scoring::determine_verdict(&result.findings, result.score);
     }
     result.suppressed_by.is_some()
 }
@@ -402,7 +408,11 @@ pub fn detect_rugpull(current_dir: &Path, baseline: &LedgerRecord) -> Vec<Findin
     if !changed_sample.is_empty() {
         summary.push_str(&format!(
             "; changed: {}",
-            changed_sample.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+            changed_sample
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     if !changed_watched.is_empty() {
@@ -479,7 +489,10 @@ mod tests {
 
         let a = pin_directory(&art, None);
         let b = pin_directory(&art, None);
-        assert_eq!(a.artifact_digest, b.artifact_digest, "pin must be deterministic");
+        assert_eq!(
+            a.artifact_digest, b.artifact_digest,
+            "pin must be deterministic"
+        );
         assert_eq!(a.file_count, 2);
         assert!(a.files.contains_key("index.js"));
         assert!(a.files.contains_key("SKILL.md"));
@@ -530,13 +543,19 @@ mod tests {
 
     #[test]
     fn ledger_version_parsed_from_source() {
-        assert_eq!(version_from_source("lodash@4.17.20", "npm"), Some("4.17.20".to_string()));
+        assert_eq!(
+            version_from_source("lodash@4.17.20", "npm"),
+            Some("4.17.20".to_string())
+        );
         assert_eq!(
             version_from_source("@scope/pkg@1.2.3", "npm"),
             Some("1.2.3".to_string())
         );
         assert_eq!(version_from_source("lodash", "npm"), None);
-        assert_eq!(version_from_source("requests==2.31.0", "pip"), Some("2.31.0".to_string()));
+        assert_eq!(
+            version_from_source("requests==2.31.0", "pip"),
+            Some("2.31.0".to_string())
+        );
         assert_eq!(version_from_source("https://github.com/x/y", "git"), None);
     }
 
@@ -569,7 +588,11 @@ mod tests {
         let baseline = baseline_from(&v1, "postmark-mcp@1.0.15");
         // The "new version" added a BCC-exfil line to index.js.
         let findings = detect_rugpull(&v2, &baseline);
-        assert_eq!(findings.len(), 1, "drift must yield exactly one RUGPULL-001");
+        assert_eq!(
+            findings.len(),
+            1,
+            "drift must yield exactly one RUGPULL-001"
+        );
         let f = &findings[0];
         assert_eq!(f.rule, "RUGPULL-001");
         assert_eq!(f.severity, Severity::Critical);
@@ -591,17 +614,27 @@ mod tests {
     fn rugpull_flags_changed_tool_definition_surface() {
         // Approve a server, then change its package.json (tool-definition manifest).
         let art = temp();
-        write(&art, "package.json", r#"{"name":"x","version":"1.0.0","mcp":{"server":"./s.js"}}"#);
+        write(
+            &art,
+            "package.json",
+            r#"{"name":"x","version":"1.0.0","mcp":{"server":"./s.js"}}"#,
+        );
         write(&art, "s.js", "// safe\n");
         let baseline = baseline_from(&art, "x@1.0.0");
 
         let next = temp();
-        write(&next, "package.json", r#"{"name":"x","version":"1.0.0","mcp":{"server":"./evil.js"}}"#);
+        write(
+            &next,
+            "package.json",
+            r#"{"name":"x","version":"1.0.0","mcp":{"server":"./evil.js"}}"#,
+        );
         write(&next, "s.js", "// safe\n");
         let findings = detect_rugpull(&next, &baseline);
         assert_eq!(findings.len(), 1);
         assert!(
-            findings[0].snippet.contains("tool-definition/instruction files changed")
+            findings[0]
+                .snippet
+                .contains("tool-definition/instruction files changed")
                 && findings[0].snippet.contains("package.json"),
             "tool-definition drift must be called out: {}",
             findings[0].snippet
@@ -639,7 +672,11 @@ mod tests {
 
         // Any byte of drift disqualifies suppression — drift handling belongs to
         // the rug-pull path, never the allowlist.
-        write(&art, "index.js", "console.log('hi'); fetch('http://evil/x')\n");
+        write(
+            &art,
+            "index.js",
+            "console.log('hi'); fetch('http://evil/x')\n",
+        );
         assert!(match_approved_in(&store, &art).is_none());
     }
 
@@ -670,10 +707,19 @@ mod tests {
         record_approval_in(&store, &fake_entry(&art, "good-pkg@1.0.0", "npm"), None).unwrap();
         assert!(match_approved_in(&store, &art).is_some());
 
-        assert!(remove_in(&store, "ledtest1").unwrap(), "existing record removed");
-        assert!(match_approved_in(&store, &art).is_none(), "revoked pin must not match");
+        assert!(
+            remove_in(&store, "ledtest1").unwrap(),
+            "existing record removed"
+        );
+        assert!(
+            match_approved_in(&store, &art).is_none(),
+            "revoked pin must not match"
+        );
         assert!(get_in(&store, "ledtest1").is_none());
-        assert!(!remove_in(&store, "ledtest1").unwrap(), "second remove is a no-op");
+        assert!(
+            !remove_in(&store, "ledtest1").unwrap(),
+            "second remove is a no-op"
+        );
     }
 
     // ── US-H2: scan-time suppression (F-010) ────────────────────────────────
@@ -721,12 +767,22 @@ mod tests {
 
         let applied = apply_suppression_in(&store, &mut result, &art, false);
         assert!(applied, "exact-match content must suppress");
-        assert!(result.findings.is_empty(), "active findings must be emptied");
+        assert!(
+            result.findings.is_empty(),
+            "active findings must be emptied"
+        );
         assert_eq!(result.suppressed_findings.len(), 2, "no silent drops");
         assert_eq!(result.score, 0);
         assert_eq!(result.verdict, crate::scanner::Verdict::LowRisk);
-        let by = result.suppressed_by.as_deref().expect("attribution required");
-        assert!(by.contains("good-pkg@1.0.0"), "attribution names the source: {}", by);
+        let by = result
+            .suppressed_by
+            .as_deref()
+            .expect("attribution required");
+        assert!(
+            by.contains("good-pkg@1.0.0"),
+            "attribution names the source: {}",
+            by
+        );
     }
 
     #[test]
@@ -755,7 +811,11 @@ mod tests {
 
         let mut result = fake_result(vec![fake_finding("CODE-001", Severity::High)]);
         assert!(!apply_suppression_in(&store, &mut result, &art, false));
-        assert_eq!(result.findings.len(), 1, "drifted content keeps its findings");
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "drifted content keeps its findings"
+        );
     }
 
     #[test]
@@ -772,7 +832,11 @@ mod tests {
             fake_finding("RUGPULL-001", Severity::Critical),
         ]);
         assert!(!apply_suppression_in(&store, &mut result, &art, false));
-        assert_eq!(result.findings.len(), 2, "rug-pull scans are never suppressed");
+        assert_eq!(
+            result.findings.len(),
+            2,
+            "rug-pull scans are never suppressed"
+        );
         assert!(result.suppressed_by.is_none());
     }
 
@@ -789,7 +853,11 @@ mod tests {
         result.suppressed_by = Some("ledger:good-pkg@1.0.0#ledtest1".to_string());
 
         assert!(!apply_suppression_in(&store, &mut result, &art, false));
-        assert_eq!(result.findings.len(), 1, "revoked pin must restore findings");
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "revoked pin must restore findings"
+        );
         assert!(result.suppressed_findings.is_empty());
         assert!(result.suppressed_by.is_none());
         assert!(result.score > 0, "score must be recomputed after restore");
@@ -798,7 +866,8 @@ mod tests {
     #[test]
     fn scanresult_without_suppression_fields_deserializes() {
         // Cache backward-compat: pre-F-010 cached JSON has no suppression fields.
-        let old = r#"{"findings":[],"score":0,"verdict":"LowRisk","files_scanned":3,"duration_ms":9}"#;
+        let old =
+            r#"{"findings":[],"score":0,"verdict":"LowRisk","files_scanned":3,"duration_ms":9}"#;
         let parsed: crate::scanner::ScanResult =
             serde_json::from_str(old).expect("old cache entries must still parse");
         assert!(parsed.suppressed_findings.is_empty());

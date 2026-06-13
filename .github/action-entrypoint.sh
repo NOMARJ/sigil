@@ -68,25 +68,28 @@ SCAN_EXIT=0
 log "Running sigil scan on '$SCAN_PATH'..."
 echo ""
 
-SCAN_CMD="sigil scan \"$SCAN_PATH\""
+SCAN_CMD=(sigil scan "$SCAN_PATH" --format json)
 
 # Add phases filter if specified
 if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
-    SCAN_CMD="$SCAN_CMD --phases $PHASES"
+    SCAN_CMD+=(--phases "$PHASES")
 fi
 
 # Add exclusions if specified
 if [ -n "${EXCLUDE:-}" ]; then
-    SCAN_CMD="$SCAN_CMD --exclude $EXCLUDE"
+    SCAN_CMD+=(--exclude "$EXCLUDE")
 fi
 
 # Add API key for cloud features
 if [ -n "${API_KEY:-}" ]; then
     export SIGIL_API_KEY="$API_KEY"
-    SCAN_CMD="$SCAN_CMD --submit"
+    SCAN_CMD+=(--submit)
 fi
 
-eval $SCAN_CMD 2>&1 | tee "$SCAN_OUTPUT" || SCAN_EXIT=$?
+set +e
+"${SCAN_CMD[@]}" 2>&1 | tee "$SCAN_OUTPUT"
+SCAN_EXIT=${PIPESTATUS[0]}
+set -e
 
 echo ""
 
@@ -120,7 +123,51 @@ if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
         VERDICT="critical"
     fi
 else
-    warn "No report file found — scan may have failed"
+    SUMMARY_SCORE=$(sed -n 's/.*"score"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCAN_OUTPUT" | head -1)
+    SUMMARY_FINDINGS=$(sed -n 's/.*"findings_count"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCAN_OUTPUT" | head -1)
+    SUMMARY_VERDICT=$(sed -n 's/.*"verdict"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SCAN_OUTPUT" | head -1)
+
+    if [ -n "$SUMMARY_SCORE" ] && [ -n "$SUMMARY_FINDINGS" ] && [ -n "$SUMMARY_VERDICT" ]; then
+        RISK_SCORE="$SUMMARY_SCORE"
+        FINDINGS_COUNT="$SUMMARY_FINDINGS"
+        VERDICT=$(echo "$SUMMARY_VERDICT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        case "$VERDICT" in
+            low-risk) VERDICT="low" ;;
+            medium-risk) VERDICT="medium" ;;
+            high-risk) VERDICT="high" ;;
+            critical-risk) VERDICT="critical" ;;
+        esac
+    else
+        warn "No report file or parseable JSON summary found"
+    fi
+fi
+
+if [ -z "$REPORT_FILE" ] || [ ! -f "$REPORT_FILE" ]; then
+    if [ "$VERDICT" = "clean" ] && [ "$FINDINGS_COUNT" -eq 0 ] && [ "$RISK_SCORE" -eq 0 ]; then
+        SCAN_EXIT=${SCAN_EXIT:-1}
+        [ "$SCAN_EXIT" -eq 0 ] && SCAN_EXIT=1
+    fi
+fi
+
+if [ "$SCAN_EXIT" -ne 0 ] && { [ -z "$REPORT_FILE" ] || [ ! -f "$REPORT_FILE" ]; } && [ "$VERDICT" = "clean" ]; then
+    VERDICT="error"
+    fail "Sigil scan failed with exit code $SCAN_EXIT and did not produce a report."
+
+    echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+    echo "risk-score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
+    echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
+
+    {
+        echo "## Sigil Security Scan Failed"
+        echo ""
+        echo "Sigil exited with code \`$SCAN_EXIT\` before producing a report."
+        echo ""
+        echo '```'
+        sed 's/\x1b\[[0-9;]*m//g' "$SCAN_OUTPUT"
+        echo '```'
+    } >> "$GITHUB_STEP_SUMMARY"
+
+    exit "$SCAN_EXIT"
 fi
 
 log "Scan complete."

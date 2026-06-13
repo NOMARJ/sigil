@@ -53,12 +53,21 @@ class SubscriptionService:
 
     async def check_pro_access(self, user_id: str) -> bool:
         """Check if user has access to Pro features."""
+        from api.gates import _is_subscription_entitled
+
         subscription = await self.get_user_subscription(user_id)
-        return subscription.get("has_pro_features", False)
+        if not _is_subscription_entitled(subscription):
+            return False
+        tier = await self.get_user_tier(user_id)
+        return tier in (PlanTier.PRO, PlanTier.TEAM, PlanTier.ENTERPRISE)
 
     async def get_user_tier(self, user_id: str) -> PlanTier:
         """Get user's plan tier enum."""
+        from api.gates import _is_subscription_entitled
+
         subscription = await self.get_user_subscription(user_id)
+        if not _is_subscription_entitled(subscription):
+            return PlanTier.FREE
         plan_str = subscription.get("plan", "free")
 
         try:

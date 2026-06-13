@@ -7,6 +7,7 @@ import {
   FalsePositiveAnalysis, 
   CreditInfo 
 } from "@/lib/types";
+import * as api from "@/lib/api";
 
 interface FalsePositiveVerifierProps {
   finding: Finding;
@@ -31,21 +32,10 @@ export default function FalsePositiveVerifier({
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch("/api/v1/interactive/false-positive", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          finding_id: finding.id
-        })
+      const result = await api.analyzeFalsePositive({
+        scanId: finding.scan_id,
+        findingId: finding.id,
       });
-
-      if (!response.ok) {
-        throw new Error("False positive analysis failed");
-      }
-
-      const result: FalsePositiveAnalysis = await response.json();
       setAnalysis(result);
       setShowResults(true);
       onAnalysisComplete(result);
@@ -156,7 +146,7 @@ export default function FalsePositiveVerifier({
             </div>
             {!canAfford && (
               <div className="mt-2 text-xs text-red-400">
-                ⚠️ Insufficient credits. <a href="/upgrade" className="underline">Upgrade to Pro</a> for more credits.
+                ⚠️ Insufficient credits. <a href="/pricing" className="underline">Upgrade to Pro</a> for more credits.
               </div>
             )}
           </div>

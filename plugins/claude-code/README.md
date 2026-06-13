@@ -44,11 +44,11 @@ Sigil analyzes **6 threat categories** with severity weighting:
 brew tap nomarj/tap
 brew install sigil
 
-# npm (all platforms)
-npm install -g @nomark/sigil
+# npm (macOS/Linux)
+npm install -g @nomarj/sigil
 
 # Cargo (Rust)
-cargo install sigil
+cargo install sigil-cli
 
 # curl installer
 curl -sSL https://sigilsec.ai/install.sh | sh

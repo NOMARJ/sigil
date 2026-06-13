@@ -9,6 +9,7 @@ import ScanBadge from "@/components/ScanBadge";
 import ScoreComparison from "@/components/ScoreComparison";
 import FindingsList from "@/components/FindingsList";
 import useRescan from "@/hooks/useRescan";
+import { useAuth } from "@/lib/auth";
 import * as api from "@/lib/api";
 import type { Scan, Finding, Verdict, ScanPhase } from "@/lib/types";
 
@@ -79,6 +80,8 @@ const phaseLabels: Record<ScanPhase, string> = {
 export default function ScanDetailPage() {
   const params = useParams();
   const scanId = params?.id as string;
+  const { user } = useAuth();
+  const canReview = user?.role === "reviewer" || user?.role === "admin" || user?.role === "owner";
 
   const [scan, setScan] = useState<Scan | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -318,7 +321,7 @@ export default function ScanDetailPage() {
           )}
 
           {/* Approve/Reject buttons */}
-          {!(scan.metadata && (scan.metadata as Record<string, unknown>).approved) && (
+          {canReview && !(scan.metadata && (scan.metadata as Record<string, unknown>).approved) && (
             <>
               <button
                 className="btn-primary"

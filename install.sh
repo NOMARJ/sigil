@@ -40,9 +40,17 @@ case "$OS" in
 esac
 
 case "$ARCH" in
-  x86_64)          ARCH_NORM="x86_64" ;;
-  aarch64|arm64)   ARCH_NORM="aarch64" ;;
+  x86_64)          ARCH_NORM="x64" ;;
+  aarch64|arm64)   ARCH_NORM="arm64" ;;
   *)               die "Unsupported architecture: $ARCH" ;;
+esac
+
+case "${PLATFORM}/${ARCH_NORM}" in
+  macos/arm64) ASSET_NAME="${BINARY_NAME}-macos-arm64.tar.gz" ;;
+  macos/x64)   ASSET_NAME="${BINARY_NAME}-macos-x64.tar.gz" ;;
+  linux/x64)   ASSET_NAME="${BINARY_NAME}-linux-x64.tar.gz" ;;
+  linux/arm64) ASSET_NAME="${BINARY_NAME}-linux-arm64.tar.gz" ;;
+  *)           die "Unsupported release target: ${PLATFORM}/${ARCH_NORM}" ;;
 esac
 
 # ── Check install dir is writable ────────────────────────────────────────────
@@ -65,14 +73,14 @@ if have curl || have wget; then
     | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
 
   if [ -n "$LATEST_TAG" ]; then
-    ASSET_NAME="${BINARY_NAME}-${PLATFORM}-${ARCH_NORM}"
     RELEASE_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ASSET_NAME}"
   fi
 fi
 
 install_from_release() {
   info "Downloading Sigil ${LATEST_TAG} for ${PLATFORM}/${ARCH_NORM}..."
-  TMP="$(mktemp)"
+  TMP_DIR="$(mktemp -d)"
+  TMP="${TMP_DIR}/${ASSET_NAME}"
   if have curl; then
     curl -fsSL "$RELEASE_URL" -o "$TMP" || return 1
   else
@@ -82,8 +90,6 @@ install_from_release() {
   # ── Checksum verification ────────────────────────────────────────────────
   RELEASE_BASE="https://github.com/${REPO}/releases/download/${LATEST_TAG}"
   CHECKSUMS_URL="${RELEASE_BASE}/SHA256SUMS.txt"
-  TMP_DIR="$(dirname "$TMP")"
-
   if [ "$SKIP_VERIFY" != "true" ]; then
     # Download checksum file
     CHECKSUMS_FILE="${TMP_DIR}/sigil-SHA256SUMS.txt"
@@ -94,11 +100,14 @@ install_from_release() {
     fi
 
     if [ "$CHECKSUM_DL" != "ok" ]; then
-      warn "Could not download checksums file — skipping verification"
+      rm -rf "$TMP_DIR"
+      die "Could not download checksums file"
     else
       EXPECTED_HASH=$(grep "$ASSET_NAME" "$CHECKSUMS_FILE" | awk '{print $1}')
       if [ -z "$EXPECTED_HASH" ]; then
-        warn "No checksum found for $ASSET_NAME — skipping verification"
+        rm -f "$CHECKSUMS_FILE"
+        rm -rf "$TMP_DIR"
+        die "No checksum found for $ASSET_NAME"
       else
         ACTUAL_HASH=""
         if command -v sha256sum >/dev/null 2>&1; then
@@ -125,35 +134,23 @@ install_from_release() {
     warn "Checksum verification skipped (--skip-verify)"
   fi
 
-  chmod +x "$TMP"
+  tar -xzf "$TMP" -C "$TMP_DIR" sigil || {
+    rm -rf "$TMP_DIR"
+    return 1
+  }
+  chmod +x "${TMP_DIR}/sigil"
   # Quick sanity check — should print a version string
-  if ! "$TMP" --version >/dev/null 2>&1; then
-    rm -f "$TMP"
+  if ! "${TMP_DIR}/sigil" --version >/dev/null 2>&1; then
+    rm -rf "$TMP_DIR"
     return 1
   fi
-  ${SUDO:-} mv "$TMP" "${INSTALL_DIR}/${BINARY_NAME}"
+  ${SUDO:-} mv "${TMP_DIR}/sigil" "${INSTALL_DIR}/${BINARY_NAME}"
+  rm -rf "$TMP_DIR"
   ok "Installed Rust binary → ${INSTALL_DIR}/${BINARY_NAME}"
   return 0
 }
 
-# ── Fallback: download bash script from GitHub ────────────────────────────────
-
-install_from_script() {
-  info "Downloading Sigil bash script from GitHub..."
-  TMP="$(mktemp)"
-  if have curl; then
-    curl -fsSL "${GITHUB_RAW}/bin/sigil" -o "$TMP" || die "Download failed."
-  elif have wget; then
-    wget -qO "$TMP" "${GITHUB_RAW}/bin/sigil" || die "Download failed."
-  else
-    die "Neither curl nor wget found. Install one and try again."
-  fi
-  chmod +x "$TMP"
-  ${SUDO:-} mv "$TMP" "${INSTALL_DIR}/${BINARY_NAME}"
-  ok "Installed bash script → ${INSTALL_DIR}/${BINARY_NAME}"
-}
-
-# ── Try release binary first, fall back to bash script ───────────────────────
+# ── Install native release binary ────────────────────────────────────────────
 
 INSTALLED_MODE=""
 
@@ -161,14 +158,10 @@ if [ -n "$RELEASE_URL" ]; then
   if install_from_release 2>/dev/null; then
     INSTALLED_MODE="rust"
   else
-    warn "Pre-built binary not available for ${PLATFORM}/${ARCH_NORM}, falling back to bash script"
-    install_from_script
-    INSTALLED_MODE="bash"
+    die "Pre-built binary not available for ${PLATFORM}/${ARCH_NORM}. Install from source: cargo install sigil-cli"
   fi
 else
-  warn "No release found — installing bash script from main branch"
-  install_from_script
-  INSTALLED_MODE="bash"
+  die "No GitHub release found. Install from source: cargo install sigil-cli"
 fi
 
 # ── Verify ────────────────────────────────────────────────────────────────────
@@ -180,11 +173,6 @@ fi
 
 VERSION="$(sigil --version 2>/dev/null || echo 'unknown')"
 ok "Sigil installed: ${VERSION}"
-
-if [ "$INSTALLED_MODE" = "bash" ]; then
-  info "Tip: for a faster native binary, build from source:"
-  info "  git clone https://github.com/${REPO} && cd sigil/cli && cargo build --release"
-fi
 
 # ── Run setup ─────────────────────────────────────────────────────────────────
 

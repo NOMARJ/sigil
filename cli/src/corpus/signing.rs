@@ -48,6 +48,7 @@ use serde_json::Value;
 
 /// Errors returned by pack signature verification.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum VerifyError {
     /// The raw JSON could not be parsed.
     InvalidJson(serde_json::Error),
@@ -88,10 +89,12 @@ impl std::error::Error for VerifyError {}
 // ---------------------------------------------------------------------------
 
 /// Holds an Ed25519 verifying key and verifies pack signatures.
+#[allow(dead_code)]
 pub struct PackVerifier {
     key: VerifyingKey,
 }
 
+#[allow(dead_code)]
 impl PackVerifier {
     /// Construct a verifier from 32 raw public key bytes.
     ///
@@ -114,8 +117,7 @@ impl PackVerifier {
     /// - or the signature does not match the canonical content.
     pub fn verify(&self, raw_json: &str) -> Result<(), VerifyError> {
         // 1. Parse to a mutable Value so we can extract + remove the signature.
-        let mut doc: Value =
-            serde_json::from_str(raw_json).map_err(VerifyError::InvalidJson)?;
+        let mut doc: Value = serde_json::from_str(raw_json).map_err(VerifyError::InvalidJson)?;
 
         // 2. Extract the signature string from meta.signature.
         let sig_b64 = doc
@@ -131,8 +133,7 @@ impl PackVerifier {
         }
 
         // 4. Re-serialise to canonical bytes (compact JSON).
-        let canonical =
-            serde_json::to_string(&doc).map_err(VerifyError::CanonicaliseError)?;
+        let canonical = serde_json::to_string(&doc).map_err(VerifyError::CanonicaliseError)?;
 
         // 5. Decode the Base64 signature.
         let sig_bytes = BASE64
@@ -140,14 +141,9 @@ impl PackVerifier {
             .map_err(VerifyError::InvalidBase64)?;
 
         // 6. Parse into an Ed25519 Signature.
-        let sig_array: &[u8; 64] = sig_bytes
-            .as_slice()
-            .try_into()
-            .map_err(|_| {
-                VerifyError::InvalidSignatureBytes(
-                    ed25519_dalek::SignatureError::new(),
-                )
-            })?;
+        let sig_array: &[u8; 64] = sig_bytes.as_slice().try_into().map_err(|_| {
+            VerifyError::InvalidSignatureBytes(ed25519_dalek::SignatureError::new())
+        })?;
         let signature = Signature::from_bytes(sig_array);
 
         // 7. Verify.
@@ -171,10 +167,9 @@ mod pack_signature {
     fn fresh_keypair() -> (SigningKey, [u8; 32]) {
         // Use a deterministic seed for reproducibility in tests.
         let seed: [u8; 32] = [
-            0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60,
-            0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c, 0x44,
-            0xda, 0x08, 0x53, 0x47, 0x84, 0x11, 0x39, 0xbe,
-            0x0b, 0xe8, 0xd6, 0x56, 0x48, 0x20, 0x89, 0x17,
+            0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec,
+            0x2c, 0x44, 0xda, 0x08, 0x53, 0x47, 0x84, 0x11, 0x39, 0xbe, 0x0b, 0xe8, 0xd6, 0x56,
+            0x48, 0x20, 0x89, 0x17,
         ];
         let sk = SigningKey::from_bytes(&seed);
         let vk = sk.verifying_key().to_bytes();

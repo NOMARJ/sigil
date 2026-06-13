@@ -39,16 +39,14 @@ router = APIRouter(prefix="/v1/analytics", tags=["analytics"])
 async def require_admin_tier(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
 ) -> UserResponse:
-    """Require admin/enterprise access for business analytics."""
+    """Require internal admin ownership and enterprise entitlement."""
     user_tier = await get_user_tier(current_user)
+    user_role = getattr(current_user, "role", "member")
 
-    # Only allow enterprise users or internal admin users
-    if user_tier != PlanTier.ENTERPRISE and not getattr(
-        current_user, "is_admin", False
-    ):
+    if user_tier != PlanTier.ENTERPRISE or user_role not in {"admin", "owner"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or Enterprise tier required for business analytics",
+            detail="Enterprise admin role required for business analytics",
         )
 
     return current_user

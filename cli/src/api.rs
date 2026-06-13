@@ -466,7 +466,10 @@ impl SigilClient {
             url.bold().underline(),
             code.user_code.bold().yellow()
         );
-        println!("{} waiting for you to finish in the browser…", "sigil:".dimmed());
+        println!(
+            "{} waiting for you to finish in the browser…",
+            "sigil:".dimmed()
+        );
 
         // 3. Poll for the token.
         let token_url = format!(

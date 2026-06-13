@@ -8,6 +8,7 @@ import {
   InvestigationResult, 
   CreditInfo 
 } from "@/lib/types";
+import * as api from "@/lib/api";
 
 interface FindingInvestigatorProps {
   finding: Finding;
@@ -56,22 +57,11 @@ export default function FindingInvestigator({
 
     setIsInvestigating(true);
     try {
-      const response = await fetch("/api/v1/interactive/investigate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          finding_id: finding.id,
-          depth: selectedDepth
-        })
+      const result = await api.investigateFinding({
+        scanId: finding.scan_id,
+        findingId: finding.id,
+        depth: selectedDepth,
       });
-
-      if (!response.ok) {
-        throw new Error("Investigation failed");
-      }
-
-      const result: InvestigationResult = await response.json();
       setResults(result);
       setShowResults(true);
       onInvestigationComplete(result);
@@ -189,7 +179,7 @@ export default function FindingInvestigator({
               </div>
               {creditInfo.balance < selectedOption.cost && (
                 <div className="mt-2 text-xs text-red-400">
-                  ⚠️ Insufficient credits. <a href="/upgrade" className="underline">Upgrade to Pro</a> for more credits.
+                  ⚠️ Insufficient credits. <a href="/pricing" className="underline">Upgrade to Pro</a> for more credits.
                 </div>
               )}
             </div>
