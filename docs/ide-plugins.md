@@ -15,7 +15,7 @@ sudo cp target/release/sigil /usr/local/bin/
 sudo cp bin/sigil /usr/local/bin/sigil && chmod +x /usr/local/bin/sigil
 
 # Option 3: curl installer
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh && sh install.sh
 ```
 
 Verify: `sigil --version`

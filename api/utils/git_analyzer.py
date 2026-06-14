@@ -7,11 +7,68 @@ from __future__ import annotations
 
 import subprocess
 import logging
+import os
+import re
+import tempfile
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,199}$")
+
+
+def _safe_repo_path(repo_path: str) -> Path | None:
+    repo = Path(repo_path).expanduser().resolve()
+    allowed_base = os.getenv("SIGIL_GIT_ANALYZER_BASE")
+    if allowed_base:
+        base = Path(allowed_base).expanduser().resolve()
+        try:
+            repo.relative_to(base)
+        except ValueError:
+            logger.warning("Repository path is outside the configured analyzer base")
+            return None
+
+    if not repo.is_dir():
+        return None
+
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if result.returncode != 0:
+        logger.warning("Path is not a git worktree: %s", repo)
+        return None
+    return Path(result.stdout.strip()).resolve()
+
+
+def _safe_repo_file(repo: Path, file_path: str) -> str | None:
+    candidate = Path(file_path)
+    if candidate.is_absolute() or any(part == ".." for part in candidate.parts):
+        return None
+    resolved = (repo / candidate).resolve()
+    try:
+        resolved.relative_to(repo)
+    except ValueError:
+        return None
+    if not resolved.exists():
+        return None
+    return candidate.as_posix()
+
+
+def _safe_git_ref(ref: str) -> str | None:
+    if not ref or ref.startswith("-") or not _SAFE_REF_RE.fullmatch(ref):
+        return None
+    if any(token in ref for token in ("..", "//", "@{", "\\", ":", "?", "[", "^", "~", "*")):
+        return None
+    return ref
+
+
+def _safe_limit(limit: int, maximum: int) -> int:
+    return max(1, min(int(limit), maximum))
 
 
 class GitAnalyzer:
@@ -32,12 +89,12 @@ class GitAnalyzer:
             Blame info with author, commit, and timestamp
         """
         try:
-            # Ensure we're in the repo directory
-            repo = Path(repo_path)
-            file = repo / file_path
-
-            if not file.exists():
-                logger.warning(f"File not found: {file}")
+            repo = _safe_repo_path(repo_path)
+            if repo is None:
+                return None
+            safe_file = _safe_repo_file(repo, file_path)
+            if safe_file is None:
+                logger.warning("Unsafe or missing file path for blame")
                 return None
 
             # Run git blame
@@ -47,9 +104,10 @@ class GitAnalyzer:
                 str(repo),
                 "blame",
                 "-L",
-                f"{line_number},{line_number}",
+                f"{_safe_limit(line_number, 1_000_000)},{_safe_limit(line_number, 1_000_000)}",
                 "--porcelain",
-                str(file_path),
+                "--",
+                safe_file,
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -97,17 +155,25 @@ class GitAnalyzer:
             List of commit information
         """
         try:
+            repo = _safe_repo_path(repo_path)
+            if repo is None:
+                return []
+            safe_num_commits = _safe_limit(num_commits, 500)
             cmd = [
                 "git",
                 "-C",
-                repo_path,
+                str(repo),
                 "log",
-                f"-{num_commits}",
+                f"-{safe_num_commits}",
                 "--pretty=format:%H|%an|%ae|%at|%s",
             ]
 
             if branch:
-                cmd.append(branch)
+                safe_branch = _safe_git_ref(branch)
+                if safe_branch is None:
+                    logger.warning("Unsafe git branch/ref rejected")
+                    return []
+                cmd.extend([safe_branch, "--"])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
@@ -155,13 +221,22 @@ class GitAnalyzer:
             List of changed files with status
         """
         try:
+            repo = _safe_repo_path(repo_path)
+            if repo is None:
+                return []
+            safe_base = _safe_git_ref(base_ref)
+            safe_compare = _safe_git_ref(compare_ref)
+            if safe_base is None or safe_compare is None:
+                logger.warning("Unsafe git comparison refs rejected")
+                return []
             cmd = [
                 "git",
                 "-C",
-                repo_path,
+                str(repo),
                 "diff",
                 "--name-status",
-                f"{base_ref}...{compare_ref}",
+                f"{safe_base}...{safe_compare}",
+                "--",
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -209,13 +284,27 @@ class GitAnalyzer:
             Path to checked out code
         """
         try:
-            if create_worktree:
-                # Create temporary worktree
-                import tempfile
+            repo = _safe_repo_path(repo_path)
+            if repo is None:
+                return None
+            safe_ref = _safe_git_ref(ref)
+            if safe_ref is None:
+                logger.warning("Unsafe git checkout ref rejected")
+                return None
 
+            if create_worktree:
                 worktree_dir = tempfile.mkdtemp(prefix="sigil_compare_")
 
-                cmd = ["git", "-C", repo_path, "worktree", "add", worktree_dir, ref]
+                cmd = [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "add",
+                    "--detach",
+                    worktree_dir,
+                    safe_ref,
+                ]
 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
@@ -225,16 +314,8 @@ class GitAnalyzer:
 
                 return worktree_dir
             else:
-                # Direct checkout (modifies working directory)
-                cmd = ["git", "-C", repo_path, "checkout", ref]
-
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-
-                if result.returncode != 0:
-                    logger.error(f"Failed to checkout: {result.stderr}")
-                    return None
-
-                return repo_path
+                logger.warning("Direct checkout is disabled; use a detached worktree")
+                return None
 
         except Exception as e:
             logger.error(f"Failed to checkout ref: {e}")
@@ -249,14 +330,19 @@ class GitAnalyzer:
             worktree_path: Worktree path to remove
         """
         try:
+            repo = _safe_repo_path(repo_path)
+            worktree = Path(worktree_path).resolve()
+            if repo is None or not str(worktree).startswith(tempfile.gettempdir()):
+                logger.warning("Unsafe worktree cleanup path rejected")
+                return
             # Remove worktree
             cmd = [
                 "git",
                 "-C",
-                repo_path,
+                str(repo),
                 "worktree",
                 "remove",
-                worktree_path,
+                str(worktree),
                 "--force",
             ]
 
@@ -283,8 +369,21 @@ class GitAnalyzer:
             Commit statistics
         """
         try:
+            repo = _safe_repo_path(repo_path)
+            safe_commit = _safe_git_ref(commit)
+            if repo is None or safe_commit is None:
+                return {}
             # Get commit stats
-            cmd = ["git", "-C", repo_path, "show", "--stat", "--format=", commit]
+            cmd = [
+                "git",
+                "-C",
+                str(repo),
+                "show",
+                "--stat",
+                "--format=",
+                safe_commit,
+                "--",
+            ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
@@ -377,11 +476,21 @@ class GitAnalyzer:
             Author contribution statistics
         """
         try:
+            repo = _safe_repo_path(repo_path)
+            if repo is None:
+                return {}
             # Build command
-            cmd = ["git", "-C", repo_path, "shortlog", "-sn"]
+            cmd = ["git", "-C", str(repo), "shortlog", "-sn"]
 
             if file_patterns:
-                cmd.extend(["--"] + file_patterns)
+                safe_patterns = [
+                    pattern
+                    for pattern in file_patterns
+                    if _safe_repo_file(repo, pattern) is not None
+                ]
+                if not safe_patterns:
+                    return {}
+                cmd.extend(["--"] + safe_patterns)
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 

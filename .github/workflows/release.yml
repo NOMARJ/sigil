@@ -39,7 +39,7 @@ jobs:
             artifact: sigil-windows-x64
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -51,7 +51,7 @@ jobs:
         run: cargo install cross --locked
 
       - name: Cache cargo
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -89,7 +89,7 @@ jobs:
           Compress-Archive -Path "dist/sigil.exe" -DestinationPath "${{ matrix.artifact }}.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -102,12 +102,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          path: artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          gh run download "$GITHUB_RUN_ID" --dir artifacts
 
       - name: Collect release assets
         run: |
@@ -127,10 +129,10 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Publish to crates.io
         env:
@@ -140,7 +142,7 @@ jobs:
           cargo publish --token "${CARGO_REGISTRY_TOKEN}"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
@@ -166,34 +168,47 @@ jobs:
             cargo install sigil-cli
             ```
 
-            **curl installer:**
+            **Installer script:**
             ```bash
-            curl -sSL https://sigilsec.ai/install.sh | sh
+            curl -fsSLO https://www.sigilsec.ai/install.sh
+            sh install.sh
             ```
 
             ### Manual Installation
 
             **macOS (Apple Silicon):**
             ```bash
-            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-macos-arm64.tar.gz | tar xz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-macos-arm64.tar.gz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS.txt
+            sha256sum -c --ignore-missing SHA256SUMS.txt
+            tar -xzf sigil-macos-arm64.tar.gz
             sudo mv sigil /usr/local/bin/
             ```
 
             **macOS (Intel):**
             ```bash
-            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-macos-x64.tar.gz | tar xz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-macos-x64.tar.gz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS.txt
+            sha256sum -c --ignore-missing SHA256SUMS.txt
+            tar -xzf sigil-macos-x64.tar.gz
             sudo mv sigil /usr/local/bin/
             ```
 
             **Linux (x64):**
             ```bash
-            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-linux-x64.tar.gz | tar xz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-linux-x64.tar.gz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS.txt
+            sha256sum -c --ignore-missing SHA256SUMS.txt
+            tar -xzf sigil-linux-x64.tar.gz
             sudo mv sigil /usr/local/bin/
             ```
 
             **Linux (ARM64):**
             ```bash
-            curl -sSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-linux-arm64.tar.gz | tar xz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/sigil-linux-arm64.tar.gz
+            curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/SHA256SUMS.txt
+            sha256sum -c --ignore-missing SHA256SUMS.txt
+            tar -xzf sigil-linux-arm64.tar.gz
             sudo mv sigil /usr/local/bin/
             ```
 

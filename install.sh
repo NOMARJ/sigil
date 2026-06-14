@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Sigil installer
-# Usage: curl -sSL https://sigilsec.ai/install.sh | sh
-#    or: curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+# Usage: curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
+#    or: curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh && sh install.sh
 
 set -e
 

@@ -6,10 +6,55 @@ Tests for the auth endpoints: register, login, and token validation.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
+from api.routers import auth as auth_router
+
+
+class TestPasswordHashing:
+    """Regression tests for local password hash compatibility helpers."""
+
+    def test_new_password_hashes_use_versioned_pbkdf2(self) -> None:
+        password = "ValidPassword123!"
+
+        hashed = auth_router._hash_password(password)
+
+        assert hashed.startswith("pbkdf2:sha256:310000:")
+        assert auth_router._verify_password(password, hashed)
+        assert not auth_router._verify_password("WrongPassword123!", hashed)
+
+    def test_old_pbkdf2_hashes_still_verify(self) -> None:
+        password = "ValidPassword123!"
+        salt = "0123456789abcdef0123456789abcdef"
+        dk = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
+        )
+        legacy_hash = f"pbkdf2:sha256:{salt}:{dk.hex()}"
+
+        assert auth_router._verify_password(password, legacy_hash)
+        assert not auth_router._verify_password("WrongPassword123!", legacy_hash)
+
+    def test_legacy_bcrypt_hashes_still_verify_without_passlib(self) -> None:
+        if auth_router._bcrypt is None:
+            pytest.skip("bcrypt package is unavailable")
+
+        password = "ValidPassword123!"
+        bcrypt_hash = auth_router._bcrypt.hashpw(
+            password.encode("utf-8"), auth_router._bcrypt.gensalt(rounds=12)
+        ).decode("utf-8")
+
+        assert auth_router._verify_password(password, bcrypt_hash)
+        assert not auth_router._verify_password("WrongPassword123!", bcrypt_hash)
+
+    def test_malformed_pbkdf2_hashes_fail_closed(self) -> None:
+        assert not auth_router._verify_password("ValidPassword123!", "pbkdf2:sha256")
+        assert not auth_router._verify_password(
+            "ValidPassword123!", "pbkdf2:sha256:not-an-int:salt:hash"
+        )
 
 class TestRegistration:
     """Tests for POST /v1/auth/register."""

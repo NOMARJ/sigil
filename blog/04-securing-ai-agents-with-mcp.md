@@ -1,8 +1,8 @@
 # Securing Your AI Agent Workflow with MCP + Sigil
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: mcp, ai-agents, integration, tutorial*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: mcp, ai-agents, integration, tutorial_
 
 ---
 
@@ -29,7 +29,7 @@ The difference is one MCP tool call. The setup takes five minutes.
 ## Step 1: Install Sigil
 
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 ```
 
 Verify: `sigil help`
@@ -161,4 +161,4 @@ If you are not logged in, everything stays local. No network calls are made.
 
 ---
 
-*Full MCP documentation: [MCP Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/mcp.md) | Install: `curl -sSL https://sigilsec.ai/install.sh | sh`*
+_Full MCP documentation: [MCP Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/mcp.md) | Install: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`_

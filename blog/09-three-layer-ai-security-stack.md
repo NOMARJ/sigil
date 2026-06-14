@@ -1,8 +1,8 @@
 # The Three-Layer AI Security Stack: Why One Tool Isn't Enough
 
-*Published: 2026-05-03*
-*Author: NOMARK*
-*Tags: security-architecture, ai-agents, threat-detection*
+_Published: 2026-05-03_
+_Author: NOMARK_
+_Tags: security-architecture, ai-agents, threat-detection_
 
 ---
 
@@ -25,6 +25,7 @@ Comprehensive AI security needs three complementary layers:
 Sigil runs BEFORE any code executes. When you run `sigil pip langchain-utils` or `sigil clone <git-url>`, the package is downloaded to an isolated quarantine, scanned with 8 behavioral detection phases, and held until you approve it.
 
 **What it catches:**
+
 - Install hooks that read environment variables or write to webhooks
 - Eval/exec patterns that could run arbitrary code
 - Obfuscated payloads (base64, hex encoding, charCode tricks)
@@ -40,6 +41,7 @@ Sigil runs BEFORE any code executes. When you run `sigil pip langchain-utils` or
 After you approve a package in Sigil's quarantine, you can opt into deep scanning from OpenAI's Codex Security system. Aardvark provides semantic analysis — not just pattern matching, but understanding of what code actually does. It's slower than Sigil (minutes per package vs. seconds) and focuses on deep vulnerabilities: taint flow, control-flow analysis, data-flow analysis.
 
 **What it catches:**
+
 - Subtle credential leakage through variable chains
 - Indirect network exfiltration via third-party APIs
 - Business logic manipulation (authorization bypasses)
@@ -52,6 +54,7 @@ After you approve a package in Sigil's quarantine, you can opt into deep scannin
 Anthropic Claude Code Security, now in open beta, brings AI-specific threat detection to your development environment. Unlike CVE scanners, Claude Code Security understands AI agent behavior: when an agent chains function calls, reads tool outputs, and constructs prompts.
 
 **What it catches:**
+
 - Prompt injection via user input to AI skills
 - Instruction jailbreaks in agent tool definitions
 - Unsafe third-party tool integrations
@@ -65,6 +68,7 @@ Anthropic Claude Code Security, now in open beta, brings AI-specific threat dete
 Think of the three-layer stack as defense-in-depth:
 
 **Layer 1 (Sigil)** blocks obvious malware before it can run.
+
 ```
 Attacker publishes malicious npm package with install hook.
 ↓
@@ -76,6 +80,7 @@ Package is quarantined, never reaches your system.
 ```
 
 **Layer 2a (Aardvark)** catches subtle vulnerabilities you approve in Layer 1.
+
 ```
 You review Sigil's verdict: "No obvious hooks or patterns."
 ↓
@@ -87,6 +92,7 @@ You dig into the code, find it's a legitimate logging pattern, or reject the pac
 ```
 
 **Layer 2b (Claude Code Security)** finds AI-specific threats in your agent code.
+
 ```
 Your agent uses a third-party tool to search the web.
 ↓
@@ -105,7 +111,7 @@ In February 2026, an attacker published 314 malicious AI skills to ClawHub using
 
 ### Why CVE-and-dependency tools struggle here
 
-CVE scanners answer "do my dependencies have known vulnerabilities?" — and they answer it well. But OpenClaw was new code, designed to be malicious from publication, with no CVE assigned and no advisory database to match against. Hash-based reputation tools see a file only after enough victims have already encountered it. npm-scope tools don't reach MCP skill marketplaces at all. None of these tools are *failing* at what they're built for — they're solving a different problem from the one OpenClaw represents.
+CVE scanners answer "do my dependencies have known vulnerabilities?" — and they answer it well. But OpenClaw was new code, designed to be malicious from publication, with no CVE assigned and no advisory database to match against. Hash-based reputation tools see a file only after enough victims have already encountered it. npm-scope tools don't reach MCP skill marketplaces at all. None of these tools are _failing_ at what they're built for — they're solving a different problem from the one OpenClaw represents.
 
 ### Where each layer of the stack fits
 
@@ -115,7 +121,7 @@ CVE scanners answer "do my dependencies have known vulnerabilities?" — and the
 
 **Layer 2b — Claude Code Security** is built for AI-specific threats. A skill that nudges an agent into running external code is exactly the kind of agent-instruction risk this layer is designed to catch.
 
-We can't claim what *would* have happened at scale — we don't have counterfactual data. What we can say is that OpenClaw used techniques that fall squarely inside the design scope of all three layers. That's the case for defense-in-depth: not that any one layer guarantees safety, but that adversaries have to defeat every layer to succeed.
+We can't claim what _would_ have happened at scale — we don't have counterfactual data. What we can say is that OpenClaw used techniques that fall squarely inside the design scope of all three layers. That's the case for defense-in-depth: not that any one layer guarantees safety, but that adversaries have to defeat every layer to succeed.
 
 ## How to implement the three-layer stack
 
@@ -126,7 +132,7 @@ We can't claim what *would* have happened at scale — we don't have counterfact
 brew install nomarj/tap/sigil          # macOS / Linux Homebrew
 npm install -g @nomarj/sigil           # any platform with Node
 cargo install sigil-cli                # any platform with Rust
-curl -sSL https://sigilsec.ai/install.sh | sh   # universal installer
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh   # universal installer
 
 # Before installing any package or cloning any repo
 sigil pip some-package
@@ -175,7 +181,7 @@ If you're starting from zero today, the highest-leverage move is **Step 1**: get
 
 **1. Complementary, not competitive.** These tools catch different things. Sigil excels at pre-install behavioral detection. Aardvark excels at semantic analysis. Claude Code Security excels at AI agent threat modeling. Use all three.
 
-**2. Quarantine first.** Nothing should execute until you've decided it's safe. Layer 1 enforces this; Layers 2a and 2b happen *before* you deploy to production.
+**2. Quarantine first.** Nothing should execute until you've decided it's safe. Layer 1 enforces this; Layers 2a and 2b happen _before_ you deploy to production.
 
 **3. Layers, not layers of the same tool.** Don't just run Sigil twice. Run Sigil (behavioral), then Aardvark (semantic), then Claude Code Security (AI-specific).
 
@@ -207,4 +213,4 @@ Together, they give you defense-in-depth. No single tool is sufficient. No singl
 
 ---
 
-*Start with Layer 1: [Install Sigil](https://sigilsec.ai) · [Sigil on GitHub](https://github.com/NOMARJ/sigil) · [Sigil on the GitHub Marketplace](https://github.com/marketplace/actions/sigil-security-scan)*
+_Start with Layer 1: [Install Sigil](https://sigilsec.ai) · [Sigil on GitHub](https://github.com/NOMARJ/sigil) · [Sigil on the GitHub Marketplace](https://github.com/marketplace/actions/sigil-security-scan)_

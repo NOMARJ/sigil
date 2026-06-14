@@ -22,23 +22,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437de2166 # v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}
           tags: |
@@ -48,18 +48,27 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push CLI image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
-        with:
-          context: .
-          file: ./Dockerfile.cli
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://api.sigilsec.ai
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          DOCKER_TAGS: ${{ steps.meta.outputs.tags }}
+          DOCKER_LABELS: ${{ steps.meta.outputs.labels }}
+        run: |
+          build_args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && build_args+=(--tag "$tag")
+          done <<< "$DOCKER_TAGS"
+          while IFS= read -r label; do
+            [ -n "$label" ] && build_args+=(--label "$label")
+          done <<< "$DOCKER_LABELS"
+
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file ./Dockerfile.cli \
+            --build-arg NEXT_PUBLIC_API_URL=https://api.sigilsec.ai \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --push \
+            "${build_args[@]}" \
+            .
 
   build-full:
     name: Build Full Docker Image (API + Dashboard + CLI)
@@ -70,23 +79,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@70b2cdc6480c1a8b86edf1777157f8f437de2166 # v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.FULL_IMAGE_NAME }}
           tags: |
@@ -96,16 +105,26 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push full image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          DOCKER_TAGS: ${{ steps.meta.outputs.tags }}
+          DOCKER_LABELS: ${{ steps.meta.outputs.labels }}
+        run: |
+          build_args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && build_args+=(--tag "$tag")
+          done <<< "$DOCKER_TAGS"
+          while IFS= read -r label; do
+            [ -n "$label" ] && build_args+=(--label "$label")
+          done <<< "$DOCKER_LABELS"
+
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file ./Dockerfile \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --push \
+            "${build_args[@]}" \
+            .
 
   test-images:
     name: Test Docker Images

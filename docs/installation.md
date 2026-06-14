@@ -22,6 +22,7 @@ sigil install
 ```
 
 **What it does:**
+
 - Downloads the bash-based CLI implementation
 - Copies to system PATH for global access
 - Creates `~/.sigil/{quarantine,approved,logs,reports}` directories
@@ -35,29 +36,38 @@ sigil install
 The following installation methods are planned but not yet available:
 
 ### Homebrew (macOS/Linux)
+
 ```bash
 brew tap nomarj/tap
 brew install sigil
 ```
-*Status: Tap and formula in development*
+
+_Status: Tap and formula in development_
 
 ### npm (macOS/Linux)
+
 ```bash
 npm install -g @nomarj/sigil
 ```
-*Status: Package preparation in progress*
+
+_Status: Package preparation in progress_
 
 ### Cargo (Rust)
+
 ```bash
 cargo install sigil-cli
 ```
-*Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library.*
+
+_Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library._
 
 ### Quick Install Script
+
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh
+sh install.sh
 ```
-*Status: Install script development in progress*
+
+_Status: Install script development in progress_
 
 ---
 
@@ -66,24 +76,33 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 ### macOS
 
 **Homebrew:**
+
 ```bash
 brew tap nomarj/tap
 brew install sigil
 ```
 
 **npm:**
+
 ```bash
 npm install -g @nomarj/sigil
 ```
 
 **Manual download:**
+
 ```bash
 # Apple Silicon (M1/M2/M3)
-curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-arm64.tar.gz | tar xz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-arm64.tar.gz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf sigil-macos-arm64.tar.gz
 sudo mv sigil /usr/local/bin/
 
 # Intel (x64)
-curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-x64.tar.gz | tar xz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-x64.tar.gz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf sigil-macos-x64.tar.gz
 sudo mv sigil /usr/local/bin/
 ```
 
@@ -92,17 +111,20 @@ sudo mv sigil /usr/local/bin/
 ### Linux
 
 **Homebrew on Linux:**
+
 ```bash
 brew tap nomarj/tap
 brew install sigil
 ```
 
 **npm:**
+
 ```bash
 npm install -g @nomarj/sigil
 ```
 
-**APT (Debian/Ubuntu)** — *Coming soon*
+**APT (Debian/Ubuntu)** — _Coming soon_
+
 ```bash
 curl -fsSL https://apt.sigilsec.ai/key.gpg | sudo apt-key add -
 echo "deb https://apt.sigilsec.ai stable main" | sudo tee /etc/apt/sources.list.d/sigil.list
@@ -110,20 +132,28 @@ sudo apt update
 sudo apt install sigil
 ```
 
-**RPM (Fedora/RHEL)** — *Coming soon*
+**RPM (Fedora/RHEL)** — _Coming soon_
+
 ```bash
 sudo dnf config-manager --add-repo https://rpm.sigilsec.ai/sigil.repo
 sudo dnf install sigil
 ```
 
 **Manual download:**
+
 ```bash
 # x64
-curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-x64.tar.gz | tar xz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-x64.tar.gz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf sigil-linux-x64.tar.gz
 sudo mv sigil /usr/local/bin/
 
 # ARM64
-curl -sSL https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-arm64.tar.gz | tar xz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-linux-arm64.tar.gz
+curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf sigil-linux-arm64.tar.gz
 sudo mv sigil /usr/local/bin/
 ```
 
@@ -133,17 +163,20 @@ sudo mv sigil /usr/local/bin/
 
 Windows npm packages are not published yet. Use the GitHub Release zip for Windows x64.
 
-**Chocolatey** — *Coming soon*
+**Chocolatey** — _Coming soon_
+
 ```powershell
 choco install sigil
 ```
 
-**WinGet** — *Coming soon*
+**WinGet** — _Coming soon_
+
 ```powershell
 winget install NOMARK.Sigil
 ```
 
 **Manual download:**
+
 1. Download [`sigil-windows-x64.zip`](https://github.com/NOMARJ/sigil/releases/latest)
 2. Extract `sigil.exe`
 3. Add to your `PATH` or place in `C:\Windows\System32`
@@ -174,14 +207,15 @@ docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:latest
 ```
 
 **Docker Compose:**
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   sigil:
     image: nomark/sigil-full:latest
     ports:
-      - "8000:8000"  # API
-      - "3000:3000"  # Dashboard
+      - "8000:8000" # API
+      - "3000:3000" # Dashboard
     environment:
       - DATABASE_URL=postgresql://user:pass@db:5432/sigil
       - SIGIL_API_URL=http://localhost:8000
@@ -210,6 +244,7 @@ sudo cp target/release/sigil /usr/local/bin/
 ### Build the Full Stack
 
 **Requirements:**
+
 - Node.js 18+
 - Python 3.11+
 - Docker (optional, for database)
@@ -239,6 +274,7 @@ sigil version
 ```
 
 Expected output:
+
 ```
 Sigil 1.0.5
 Automated Security Auditing for AI Agent Code
@@ -252,6 +288,7 @@ sigil install
 ```
 
 This installs convenient aliases:
+
 - `gclone` — Safe git clone with scanning
 - `safepip` — Safe pip install with scanning
 - `safenpm` — Safe npm install with scanning
@@ -259,6 +296,7 @@ This installs convenient aliases:
 - `qls` — List quarantine status
 
 **Restart your shell** or run:
+
 ```bash
 source ~/.bashrc  # or ~/.zshrc
 ```
@@ -276,6 +314,7 @@ sigil login
 ```
 
 Enables:
+
 - Hash-based malware lookup
 - Auto-updating threat signatures
 - Community-reported threats
@@ -287,28 +326,34 @@ See [Authentication Guide](./authentication-guide.md) for details.
 ## 🔄 Updating Sigil
 
 ### Homebrew
+
 ```bash
 brew upgrade sigil
 ```
 
 ### npm
+
 ```bash
 npm update -g @nomarj/sigil
 ```
 
 ### Cargo
+
 ```bash
 cargo install sigil-cli --force
 ```
 
 ### Docker
+
 ```bash
 docker pull nomark/sigil:latest
 ```
 
 ### Manual / Script Install
+
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh
+sh install.sh
 ```
 
 ---
@@ -316,22 +361,26 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 ## 🗑️ Uninstallation
 
 ### Homebrew
+
 ```bash
 brew uninstall sigil
 brew untap nomarj/tap
 ```
 
 ### npm
+
 ```bash
 npm uninstall -g @nomarj/sigil
 ```
 
 ### Cargo
+
 ```bash
 cargo uninstall sigil-cli
 ```
 
 ### Manual
+
 ```bash
 sudo rm /usr/local/bin/sigil
 rm -rf ~/.sigil
@@ -339,6 +388,7 @@ rm -rf ~/.sigil
 
 **Remove shell aliases:**
 Edit your `~/.bashrc` or `~/.zshrc` and remove the block between:
+
 ```bash
 # -- sigil aliases (auto-installed) --
 ...
@@ -353,6 +403,7 @@ Edit your `~/.bashrc` or `~/.zshrc` and remove the block between:
 
 **Homebrew/Cargo:**
 Ensure `/usr/local/bin` or `~/.cargo/bin` is in your `PATH`:
+
 ```bash
 echo $PATH
 export PATH="/usr/local/bin:$PATH"  # Add to ~/.bashrc or ~/.zshrc
@@ -360,6 +411,7 @@ export PATH="/usr/local/bin:$PATH"  # Add to ~/.bashrc or ~/.zshrc
 
 **npm:**
 Find npm global bin directory:
+
 ```bash
 npm config get prefix
 export PATH="$(npm config get prefix)/bin:$PATH"
@@ -368,11 +420,13 @@ export PATH="$(npm config get prefix)/bin:$PATH"
 ### Permission denied
 
 **macOS/Linux:**
+
 ```bash
 sudo chmod +x /usr/local/bin/sigil
 ```
 
 **npm:**
+
 ```bash
 sudo npm install -g @nomarj/sigil
 ```
@@ -380,6 +434,7 @@ sudo npm install -g @nomarj/sigil
 ### Download fails / Binary unavailable
 
 The installer fails closed when a platform binary or checksum is unavailable. You can also manually install:
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/bin/sigil -o sigil
 chmod +x sigil
@@ -389,6 +444,7 @@ sudo mv sigil /usr/local/bin/
 ### Docker permission issues on Linux
 
 Add your user to the `docker` group:
+
 ```bash
 sudo usermod -aG docker $USER
 newgrp docker

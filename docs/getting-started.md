@@ -19,7 +19,8 @@ Sigil is an automated security auditing CLI for AI agent code. It scans reposito
 ### Option 1: Quick Install (recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
+sh install.sh
 ```
 
 Detects your platform, downloads a pre-built binary from the latest GitHub release if one exists for your OS/arch, falls back to the bash script otherwise. Installs to `/usr/local/bin` and runs `sigil install` to set up shell aliases.
@@ -59,6 +60,7 @@ sigil config --init
 ```
 
 This runs the full installer which:
+
 1. Copies the binary to `/usr/local/bin`
 2. Creates `~/.sigil/{quarantine,approved,logs,reports}`
 3. Installs shell aliases in your `.bashrc` or `.zshrc`
@@ -190,13 +192,13 @@ Copies the directory into quarantine and scans the copy.
 
 After every scan, Sigil produces a risk score and verdict:
 
-| Score | Verdict | What It Means | What to Do |
-|-------|---------|---------------|------------|
-| 0 | **CLEAN** | No suspicious patterns detected | Safe to approve |
-| 1-9 | **LOW RISK** | Minor findings, likely false positives | Review the flagged items, then approve |
-| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention | Read the report, check each finding manually |
-| 25-49 | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough manual review |
-| 50+ | **CRITICAL** | Multiple strong indicators of malicious intent | Reject and report |
+| Score | Verdict         | What It Means                                  | What to Do                                    |
+| ----- | --------------- | ---------------------------------------------- | --------------------------------------------- |
+| 0     | **CLEAN**       | No suspicious patterns detected                | Safe to approve                               |
+| 1-9   | **LOW RISK**    | Minor findings, likely false positives         | Review the flagged items, then approve        |
+| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention       | Read the report, check each finding manually  |
+| 25-49 | **HIGH RISK**   | Significant suspicious patterns                | Do not approve without thorough manual review |
+| 50+   | **CRITICAL**    | Multiple strong indicators of malicious intent | Reject and report                             |
 
 ### Reading the Report
 
@@ -236,17 +238,17 @@ sigil aliases
 
 This adds the following aliases to your `.bashrc` or `.zshrc`:
 
-| Alias | What It Does |
-|-------|-------------|
-| `gclone <url>` | `git clone` with quarantine + scan |
-| `safepip <pkg>` | `pip install` with scan first, prompts to install after |
-| `safenpm <pkg>` | `npm install` with scan first, prompts to install after |
-| `safefetch <url>` | Download + quarantine + scan |
-| `audit <path>` | Shortcut for `sigil scan` |
-| `audithere` | Scan the current directory |
-| `qls` | Show quarantine status |
-| `qapprove` | Approve the most recent quarantined item |
-| `qreject` | Reject the most recent quarantined item |
+| Alias             | What It Does                                            |
+| ----------------- | ------------------------------------------------------- |
+| `gclone <url>`    | `git clone` with quarantine + scan                      |
+| `safepip <pkg>`   | `pip install` with scan first, prompts to install after |
+| `safenpm <pkg>`   | `npm install` with scan first, prompts to install after |
+| `safefetch <url>` | Download + quarantine + scan                            |
+| `audit <path>`    | Shortcut for `sigil scan`                               |
+| `audithere`       | Scan the current directory                              |
+| `qls`             | Show quarantine status                                  |
+| `qapprove`        | Approve the most recent quarantined item                |
+| `qreject`         | Reject the most recent quarantined item                 |
 
 After installation, reload your shell:
 
@@ -286,15 +288,15 @@ This prompts for your email and password (or opens a browser for SSO). After aut
 
 **What changes after login:**
 
-| Feature | Offline | Authenticated |
-|---------|---------|---------------|
-| Six scan phases | Yes | Yes |
-| External scanner integration | Yes | Yes |
-| Threat intelligence lookups | No | Yes |
-| Publisher reputation scores | No | Yes |
-| Community threat signatures | No | Yes |
-| Scan history in dashboard | No | Yes |
-| Team policies | No | Yes (Team tier) |
+| Feature                      | Offline | Authenticated   |
+| ---------------------------- | ------- | --------------- |
+| Six scan phases              | Yes     | Yes             |
+| External scanner integration | Yes     | Yes             |
+| Threat intelligence lookups  | No      | Yes             |
+| Publisher reputation scores  | No      | Yes             |
+| Community threat signatures  | No      | Yes             |
+| Scan history in dashboard    | No      | Yes             |
+| Team policies                | No      | Yes (Team tier) |
 
 **What is sent to the cloud:**
 

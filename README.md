@@ -23,6 +23,7 @@ Sigil fills this gap with a **quarantine-first approach**.
 ## Quick Install
 
 **Manual Install (Current):**
+
 ```bash
 # Clone the repository
 git clone https://github.com/NOMARJ/sigil.git
@@ -37,9 +38,10 @@ sigil install
 ```
 
 **Coming Soon:**
+
 - **Homebrew**: `brew install nomarj/tap/sigil`
 - **npm (macOS/Linux)**: `npm install -g @nomarj/sigil`
-- **curl installer**: `curl -sSL https://sigilsec.ai/install.sh | sh`
+- **curl installer**: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`
 - **Docker**: `docker pull nomark/sigil:latest`
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
@@ -61,25 +63,25 @@ sigil install
 
 Sigil runs **six analysis phases** on every scan (Phases 1-6 are free, Phase 9 requires Pro):
 
-| Phase | What It Catches | Tier |
-|-------|----------------|------|
-| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install | Free |
-| **Code Patterns** | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports | Free |
-| **Network / Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunnelling | Free |
-| **Credentials** | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns | Free |
-| **Obfuscation** | Base64 decode, charCode, hex encoding, minified payloads | Free |
-| **Provenance** | Git history depth, author count, binary files, hidden files | Free |
+| Phase               | What It Catches                                                                    | Tier    |
+| ------------------- | ---------------------------------------------------------------------------------- | ------- |
+| **Install Hooks**   | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install   | Free    |
+| **Code Patterns**   | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports               | Free    |
+| **Network / Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunnelling                        | Free    |
+| **Credentials**     | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns                        | Free    |
+| **Obfuscation**     | Base64 decode, charCode, hex encoding, minified payloads                           | Free    |
+| **Provenance**      | Git history depth, author count, binary files, hidden files                        | Free    |
 | **🔒 LLM Analysis** | AI-powered zero-day detection, contextual threat correlation, advanced remediation | **Pro** |
 
 Each finding is weighted and scored. You get a clear verdict:
 
-| Score | Verdict | What Happens |
-|-------|---------|-------------|
-| 0 | **CLEAN** | Auto-approve (configurable) |
-| 1–9 | **LOW RISK** | Approve with review |
-| 10–24 | **MEDIUM RISK** | Manual review required |
-| 25–49 | **HIGH RISK** | Blocked, requires override |
-| 50+ | **CRITICAL** | Blocked, no override |
+| Score | Verdict         | What Happens                |
+| ----- | --------------- | --------------------------- |
+| 0     | **CLEAN**       | Auto-approve (configurable) |
+| 1–9   | **LOW RISK**    | Approve with review         |
+| 10–24 | **MEDIUM RISK** | Manual review required      |
+| 25–49 | **HIGH RISK**   | Blocked, requires override  |
+| 50+   | **CRITICAL**    | Blocked, no override        |
 
 ## Usage
 
@@ -122,14 +124,14 @@ sigil search "natural language processing"
 sigil search "web scraping"
 sigil search "machine learning"
 
-# Get curated tool recommendations for specific use cases  
+# Get curated tool recommendations for specific use cases
 sigil discover "chatbot development"
 sigil discover "data analysis pipeline"
 sigil discover "web scraping automation"
 
 # Get detailed information about a specific tool
 sigil info pypi/langchain
-sigil info npm/puppeteer  
+sigil info npm/puppeteer
 sigil info pypi/scrapy
 
 # Discovery integrates with security auditing
@@ -139,8 +141,9 @@ sigil pip pypdf                            # Audit before installing
 ```
 
 **Discovery Features:**
+
 - **Smart Search**: Natural language queries find relevant tools
-- **Use Case Stacks**: Get curated tool recommendations for specific workflows  
+- **Use Case Stacks**: Get curated tool recommendations for specific workflows
 - **Trust Scoring**: See security ratings and trust scores for every tool
 - **Installation Ready**: Get exact install commands with security pre-checks
 - **Ecosystem Coverage**: Search across pip, npm, and other package managers
@@ -149,14 +152,14 @@ sigil pip pypdf                            # Audit before installing
 
 After running `sigil install`, these aliases are available in every terminal session. Use the commands you already know — Sigil protects you automatically:
 
-| Alias | What It Does |
-|-------|-------------|
-| `gclone <url>` | `git clone` with quarantine + scan |
-| `safepip <pkg>` | `pip install` with scan first |
-| `safenpm <pkg>` | `npm install` with scan first |
-| `safefetch <url>` | Download + quarantine + scan |
-| `audithere` | Scan current directory |
-| `qls` | Quarantine status |
+| Alias                  | What It Does                       |
+| ---------------------- | ---------------------------------- |
+| `gclone <url>`         | `git clone` with quarantine + scan |
+| `safepip <pkg>`        | `pip install` with scan first      |
+| `safenpm <pkg>`        | `npm install` with scan first      |
+| `safefetch <url>`      | Download + quarantine + scan       |
+| `audithere`            | Scan current directory             |
+| `qls`                  | Quarantine status                  |
 | `qapprove` / `qreject` | Approve or reject most recent item |
 
 ### Git Hooks
@@ -170,13 +173,13 @@ sigil install --git-hooks
 
 Sigil works where you work. Install the plugin for your editor, or connect AI agents via MCP:
 
-| Integration | Coverage | Install |
-|-------------|----------|---------|
-| **VS Code / Cursor / Windsurf** | Scan workspace, files, selections, packages. Findings in Problems panel. | [plugins/vscode](plugins/vscode/) |
-| **JetBrains IDEs** | IntelliJ, WebStorm, PyCharm, GoLand, CLion, etc. Tool window + inline annotations. | [plugins/jetbrains](plugins/jetbrains/) |
-| **Claude Code Plugin** | 4 skills + 2 security agents. Auto-suggests scans on clone/install. | [plugins/claude-code](plugins/claude-code/) |
-| **Claude Code (MCP)** | 6 tools: scan, scan_package, clone, quarantine, approve, reject. | [plugins/mcp-server](plugins/mcp-server/) |
-| **GitHub Actions** | Run Sigil as a CI check on every PR. | [action.yml](action.yml) |
+| Integration                     | Coverage                                                                           | Install                                     |
+| ------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| **VS Code / Cursor / Windsurf** | Scan workspace, files, selections, packages. Findings in Problems panel.           | [plugins/vscode](plugins/vscode/)           |
+| **JetBrains IDEs**              | IntelliJ, WebStorm, PyCharm, GoLand, CLion, etc. Tool window + inline annotations. | [plugins/jetbrains](plugins/jetbrains/)     |
+| **Claude Code Plugin**          | 4 skills + 2 security agents. Auto-suggests scans on clone/install.                | [plugins/claude-code](plugins/claude-code/) |
+| **Claude Code (MCP)**           | 6 tools: scan, scan_package, clone, quarantine, approve, reject.                   | [plugins/mcp-server](plugins/mcp-server/)   |
+| **GitHub Actions**              | Run Sigil as a CI check on every PR.                                               | [action.yml](action.yml)                    |
 
 ### Claude Code Plugin (Recommended)
 
@@ -191,6 +194,7 @@ claude plugin install sigil-security@sigil
 ```
 
 This provides:
+
 - `/sigil-security:scan-repo` - Scan repositories
 - `/sigil-security:scan-package` - Audit npm/pip packages
 - `/sigil-security:scan-file` - Analyze specific files
@@ -240,25 +244,27 @@ sigil login
 
 ## Why Not [Existing Tool]?
 
-| Capability | Sigil | Aardvark/Codex | Claude Code | Snyk | Semgrep |
-|-----------|-------|----------------|-------------|------|---------|
-| **Pre-install quarantine** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Supply-chain attacks** | ✅ Primary | ⚠️ Limited | ⚠️ Limited | ⚠️ CVEs | ❌ |
-| **Install hook scanning** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Malware analysis** | ⚠️ Patterns | ✅ Dedicated | ⚠️ Context | ❌ | ❌ |
-| **AI-powered analysis** | ❌ | ✅ GPT-5 | ✅ Claude | ⚠️ Limited | ❌ |
-| **Deep vuln scanning** | ⚠️ Patterns | ✅ 92% recall | ✅ Primary | ✅ | ✅ |
-| **Auto-patching** | ❌ | ✅ Codex | ✅ AI patches | ⚠️ Limited | ❌ |
-| **AI agent / MCP focus** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Multi-ecosystem** | ✅ All | ✅ | ✅ | ✅ | ✅ |
-| **Free tier** | ✅ Full | Private beta | Waitlist | Limited | OSS |
+| Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep |
+| -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- |
+| **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      |
+| **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      |
+| **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      |
+| **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      |
+| **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      |
+| **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      |
+| **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      |
+| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      |
+| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      |
+| **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     |
 
 **The Complete Stack:**
-- **Sigil** (Layer 1): Quarantine-first *before* code enters your environment (supply-chain protection)
-- **Aardvark/Codex Security** (Layer 2): Deep AI analysis *after* code is committed (GPT-5 powered)
-- **Claude Code Security** (Layer 2): Deep AI analysis *after* code is committed (Claude powered)
+
+- **Sigil** (Layer 1): Quarantine-first _before_ code enters your environment (supply-chain protection)
+- **Aardvark/Codex Security** (Layer 2): Deep AI analysis _after_ code is committed (GPT-5 powered)
+- **Claude Code Security** (Layer 2): Deep AI analysis _after_ code is committed (Claude powered)
 
 **Positioning:**
+
 - Aardvark and Claude Code Security compete (both do deep vulnerability scanning)
 - Sigil complements both (different layer: pre-install vs post-commit)
 - **Use Sigil + (Aardvark OR Claude Code Security)** for complete coverage
@@ -271,20 +277,20 @@ Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. 
 
 The CLI is **free and open source** with all eight scan phases. **Sigil Pro turns your scanner into an AI security consultant.**
 
-| | Open Source | Pro — $29/mo | Team — $99/mo |
-|---|-----------|-------------|--------------|
-| Full CLI scanning | ✅ | ✅ | ✅ |
-| **🤖 AI Finding Investigation** | — | ✅ | ✅ |
-| **🔍 False Positive Verification** | — | ✅ | ✅ |
-| **💬 Interactive Security Chat** | — | ✅ | ✅ |
-| **⚡ Smart Model Routing** | — | ✅ | ✅ |
-| 5,000 monthly AI credits | — | ✅ | ✅ |
-| Cloud threat intelligence | — | ✅ | ✅ |
-| Scan history | — | 90 days | 1 year |
-| Web dashboard | — | ✅ | ✅ |
-| Team management & policies | — | — | Up to 25 seats |
-| CI/CD integration | — | — | ✅ |
-| Slack / webhook alerts | — | — | ✅ |
+|                                    | Open Source | Pro — $29/mo | Team — $99/mo  |
+| ---------------------------------- | ----------- | ------------ | -------------- |
+| Full CLI scanning                  | ✅          | ✅           | ✅             |
+| **🤖 AI Finding Investigation**    | —           | ✅           | ✅             |
+| **🔍 False Positive Verification** | —           | ✅           | ✅             |
+| **💬 Interactive Security Chat**   | —           | ✅           | ✅             |
+| **⚡ Smart Model Routing**         | —           | ✅           | ✅             |
+| 5,000 monthly AI credits           | —           | ✅           | ✅             |
+| Cloud threat intelligence          | —           | ✅           | ✅             |
+| Scan history                       | —           | 90 days      | 1 year         |
+| Web dashboard                      | —           | ✅           | ✅             |
+| Team management & policies         | —           | —            | Up to 25 seats |
+| CI/CD integration                  | —           | —            | ✅             |
+| Slack / webhook alerts             | —           | —            | ✅             |
 
 **Why upgrade?** Transform cryptic security alerts into actionable intelligence. Instead of wondering "Is this real?", get AI-powered explanations, threat assessments, and verification in seconds.
 
@@ -295,6 +301,7 @@ The CLI is **free and open source** with all eight scan phases. **Sigil Pro turn
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 **Getting Started:**
+
 - [Getting Started Guide](docs/getting-started.md) — Installation and first scan
 - [CLI Reference](docs/cli.md) — All commands and options
 - [Discovery Commands](docs/cli.md#discovery-commands) — Find and research tools before use ⭐ **NEW**
@@ -302,12 +309,14 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [Configuration](docs/configuration.md) — Environment variables and settings
 
 **Technical Deep Dives:**
+
 - [Architecture Overview](docs/architecture.md) — System design
 - [Detection Patterns](docs/detection-patterns.md) — What Sigil scans for
 - [Threat Intelligence 2025](docs/threat-intelligence-2025.md) — Current threat landscape
 - [API Reference](docs/api-reference.md) — REST API endpoints
 
 **Integration Guides:**
+
 - [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
 - [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
 - [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
@@ -317,6 +326,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [AI Agent Integration](docs/ai-agent-integration.md) — Claude Code, MCP, and other AI agents
 
 **Security Research:**
+
 - [Case Study: OpenClaw Attack](docs/CASE-STUDY-OPENCLAW-ATTACK.md) — Real-world supply chain attack
 - [Prompt Injection Patterns](docs/prompt-injection-patterns.md) — Detection techniques
 - [Malicious Signatures](docs/malicious-signatures.md) — Threat signature database

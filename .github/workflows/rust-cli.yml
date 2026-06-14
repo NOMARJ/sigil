@@ -33,7 +33,7 @@ jobs:
       RUST_TOOLCHAIN: "1.90.0"
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v5
 
       - name: Pin Rust toolchain
         run: |

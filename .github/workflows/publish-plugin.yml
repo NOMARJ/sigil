@@ -3,11 +3,11 @@ name: Publish Claude Code Plugin
 on:
   push:
     tags:
-      - 'plugin-v*.*.*'
+      - "plugin-v*.*.*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Plugin version to publish (e.g., 1.0.0)'
+        description: "Plugin version to publish (e.g., 1.0.0)"
         required: true
 
 env:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Validate plugin structure
         run: |
@@ -104,7 +104,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Extract version from tag
         id: version
@@ -209,7 +209,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Configure Git
         run: |

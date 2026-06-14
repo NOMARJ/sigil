@@ -5,6 +5,7 @@
 **Symptom:** `{"error": true, "message": "Sigil CLI not found..."}`
 
 **Solutions:**
+
 1. Run setup: `bash scripts/setup.sh`
 2. Manual install: `brew install nomarj/tap/sigil`, `npm install -g @nomarj/sigil`, or `cargo install sigil-cli`
 3. If installed but not in PATH, add: `export PATH="$PATH:$HOME/.local/bin"`
@@ -16,8 +17,9 @@
 **Cause:** The bash wrapper (`bin/sigil`) was installed instead of the Rust binary. The bash wrapper does not support `--format json`.
 
 **Solution:** Install the Rust binary:
+
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 ```
 
 ## jq or python3 Not Available
@@ -27,6 +29,7 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 **Cause:** JSON merging and report formatting require either `jq` or `python3`.
 
 **Solutions:**
+
 - Install jq: `brew install jq` (macOS), `apt install jq` (Linux)
 - Python 3 is pre-installed on most macOS and Linux systems
 
@@ -37,6 +40,7 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 **Cause:** Large skill directories take longer than the 30-second timeout.
 
 **Solutions:**
+
 - Scan the skill directory directly: `bash scripts/scan.sh /path/to/skill`
 - The direct scan has no timeout
 
@@ -61,6 +65,7 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 **Symptom:** `Permission denied` when running setup.sh.
 
 **Solutions:**
+
 - setup.sh installs to `~/.local/bin/` which should be user-writable
 - If using a custom install directory, ensure it is writable
 - Do not run with sudo unless necessary
@@ -70,6 +75,7 @@ curl -sSL https://sigilsec.ai/install.sh | sh
 **Symptom:** `{"error": true, "message": "Scan produced no output..."}`
 
 **Possible causes:**
+
 - The target path does not exist
 - The target is empty (no files to scan)
 - The sigil binary crashed (check stderr)

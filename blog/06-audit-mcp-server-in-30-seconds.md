@@ -1,8 +1,8 @@
 # How to Audit an MCP Server in 30 Seconds
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: tutorial, mcp, quick-start*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: tutorial, mcp, quick-start_
 
 ---
 
@@ -116,13 +116,13 @@ sigil reject 20260219_143000_malicious_server
 
 ## Quick reference
 
-| Verdict | Score | Action |
-|---------|-------|--------|
-| CLEAN | 0 | Approve — no findings |
-| LOW RISK | 1-9 | Review findings, usually safe to approve |
-| MEDIUM RISK | 10-24 | Read every finding carefully |
-| HIGH RISK | 25-49 | Do not approve without thorough manual review |
-| CRITICAL | 50+ | Reject immediately |
+| Verdict     | Score | Action                                        |
+| ----------- | ----- | --------------------------------------------- |
+| CLEAN       | 0     | Approve — no findings                         |
+| LOW RISK    | 1-9   | Review findings, usually safe to approve      |
+| MEDIUM RISK | 10-24 | Read every finding carefully                  |
+| HIGH RISK   | 25-49 | Do not approve without thorough manual review |
+| CRITICAL    | 50+   | Reject immediately                            |
 
 ## The whole workflow
 
@@ -145,4 +145,4 @@ Make this a habit. Every MCP server, every time.
 
 ---
 
-*Install Sigil: `curl -sSL https://sigilsec.ai/install.sh | sh` | [MCP Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/mcp.md)*
+_Install Sigil: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh` | [MCP Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/mcp.md)_

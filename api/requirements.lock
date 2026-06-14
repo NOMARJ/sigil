@@ -31,8 +31,10 @@ google-auth==2.48.0
 googleapis-common-protos==1.72.0
 h11==0.16.0
 httpcore==1.0.9
+httpcore2==2.4.0
 httpx==0.28.1
-idna==3.11
+httpx2==2.4.0
+idna==3.18
 importlib_metadata==8.7.1
 iniconfig==2.1.0
 isodate==0.7.2
@@ -66,7 +68,6 @@ opentelemetry-sdk==1.39.1
 opentelemetry-semantic-conventions==0.60b1
 opentelemetry-util-http==0.60b1
 packaging==26.0
-passlib==1.7.4
 pluggy==1.6.0
 prometheus_client==0.24.1
 propcache==0.4.1
@@ -97,6 +98,7 @@ starlette==1.2.1
 stripe==14.4.0
 structlog==25.5.0
 tenacity==8.2.3
+truststore==0.10.4
 tomli==2.4.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0

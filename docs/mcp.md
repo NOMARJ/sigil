@@ -20,7 +20,8 @@ The MCP server wraps the `sigil` CLI. Install it first:
 
 ```bash
 # Option 1: Quick install
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
+sh install.sh
 
 # Option 2: Homebrew
 brew install nomarj/tap/sigil
@@ -102,11 +103,11 @@ The MCP server exposes six tools and one resource.
 
 Scan a file or directory for security issues.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `path` | string | Yes | File or directory path to scan |
-| `phases` | string | No | Comma-separated phase filter: `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance` |
-| `severity` | string | No | Minimum severity threshold: `low`, `medium`, `high`, `critical` |
+| Parameter  | Type   | Required | Description                                                                                                                 |
+| ---------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `path`     | string | Yes      | File or directory path to scan                                                                                              |
+| `phases`   | string | No       | Comma-separated phase filter: `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance` |
+| `severity` | string | No       | Minimum severity threshold: `low`, `medium`, `high`, `critical`                                                             |
 
 **Returns:** Verdict, risk score, findings count, duration, and detailed findings with file paths, line numbers, and matched patterns.
 
@@ -131,11 +132,11 @@ Verdict: MEDIUM_RISK | Score: 12 | 3 findings | 47 files scanned in 850ms
 
 Download and scan an npm or pip package in quarantine before installing it.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `manager` | `"npm"` or `"pip"` | Yes | Package manager |
-| `package_name` | string | Yes | Package name to scan |
-| `version` | string | No | Specific version to scan |
+| Parameter      | Type               | Required | Description              |
+| -------------- | ------------------ | -------- | ------------------------ |
+| `manager`      | `"npm"` or `"pip"` | Yes      | Package manager          |
+| `package_name` | string             | Yes      | Package name to scan     |
+| `version`      | string             | No       | Specific version to scan |
 
 **Returns:** Package identifier, verdict, score, and findings.
 
@@ -145,10 +146,10 @@ Download and scan an npm or pip package in quarantine before installing it.
 
 Clone a git repository into quarantine and scan it.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `url` | string | Yes | Git repository URL |
-| `branch` | string | No | Specific branch to clone |
+| Parameter | Type   | Required | Description              |
+| --------- | ------ | -------- | ------------------------ |
+| `url`     | string | Yes      | Git repository URL       |
+| `branch`  | string | No       | Specific branch to clone |
 
 **Returns:** Repository URL, verdict, score, and findings.
 
@@ -183,9 +184,9 @@ List all items currently in quarantine.
 
 Approve a quarantined item and move it to the approved directory.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `quarantine_id` | string | Yes | Quarantine entry ID from `sigil_quarantine` |
+| Parameter       | Type   | Required | Description                                 |
+| --------------- | ------ | -------- | ------------------------------------------- |
+| `quarantine_id` | string | Yes      | Quarantine entry ID from `sigil_quarantine` |
 
 ---
 
@@ -193,9 +194,9 @@ Approve a quarantined item and move it to the approved directory.
 
 Reject and permanently delete a quarantined item.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `quarantine_id` | string | Yes | Quarantine entry ID from `sigil_quarantine` |
+| Parameter       | Type   | Required | Description                                 |
+| --------------- | ------ | -------- | ------------------------------------------- |
+| `quarantine_id` | string | Yes      | Quarantine entry ID from `sigil_quarantine` |
 
 ---
 
@@ -280,8 +281,8 @@ Agent runs on a schedule or on demand
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable       | Default | Description                                                               |
+| -------------- | ------- | ------------------------------------------------------------------------- |
 | `SIGIL_BINARY` | `sigil` | Path to the Sigil CLI binary. Set this if `sigil` is not in your `$PATH`. |
 
 **Example:** If Sigil is installed in a custom location:

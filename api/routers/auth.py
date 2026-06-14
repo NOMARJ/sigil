@@ -21,6 +21,7 @@ import re
 import secrets
 import time
 from datetime import datetime, timedelta
+from types import ModuleType
 from typing import Any, Dict, Optional
 from typing_extensions import Annotated
 from uuid import uuid4
@@ -95,37 +96,59 @@ async def _is_token_revoked(token: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Password hashing — stdlib fallback when passlib/bcrypt unavailable
+# Password hashing — stdlib PBKDF2 with legacy bcrypt verification
 # ---------------------------------------------------------------------------
 
-_pwd_context = None
+_bcrypt: ModuleType | None = None
+_PBKDF2_ITERATIONS = 310_000
 
 try:
-    from passlib.context import CryptContext
+    import bcrypt as _bcrypt_module
 
-    _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    # Smoke test to detect runtime failures (e.g. bcrypt version mismatch)
-    _pwd_context.hash("__sigil_probe__")
-    logger.info("Using passlib/bcrypt for password hashing")
+    _bcrypt_module.hashpw(b"__sigil_probe__", _bcrypt_module.gensalt(rounds=12))
+    _bcrypt = _bcrypt_module
+    logger.info("Legacy bcrypt password verification is available")
 except BaseException:
-    _pwd_context = None
-    logger.warning("passlib/bcrypt not available — using PBKDF2-SHA256 fallback")
+    _bcrypt = None
+    logger.warning("bcrypt not available — legacy bcrypt password hashes cannot verify")
 
 
 def _pbkdf2_hash(password: str) -> str:
-    """Hash a password with PBKDF2-SHA256 (stdlib fallback)."""
+    """Hash a password with PBKDF2-SHA256."""
     salt = secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return f"pbkdf2:sha256:{salt}:{dk.hex()}"
+    dk = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), _PBKDF2_ITERATIONS
+    )
+    return f"pbkdf2:sha256:{_PBKDF2_ITERATIONS}:{salt}:{dk.hex()}"
 
 
 def _pbkdf2_verify(password: str, hashed: str) -> bool:
     """Verify a PBKDF2-SHA256 hashed password."""
     try:
-        _, _, salt, dk_hex = hashed.split(":")
-        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+        parts = hashed.split(":")
+        if len(parts) == 4:
+            _, _, salt, dk_hex = parts
+            iterations = 100_000
+        elif len(parts) == 5:
+            _, _, iterations_text, salt, dk_hex = parts
+            iterations = int(iterations_text)
+        else:
+            return False
+        dk = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations
+        )
         return hmac.compare_digest(dk.hex(), dk_hex)
-    except Exception:
+    except (TypeError, ValueError):
+        return False
+
+
+def _bcrypt_verify(password: str, hashed: str) -> bool:
+    """Verify a legacy bcrypt hash without importing passlib."""
+    if _bcrypt is None:
+        return False
+    try:
+        return _bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+    except (TypeError, ValueError):
         return False
 
 
@@ -138,24 +161,16 @@ def _sanitize_display_name(name: str) -> str:
 
 
 def _hash_password(password: str) -> str:
-    """Hash a password using the best available backend."""
-    if _pwd_context is not None:
-        return _pwd_context.hash(password)
+    """Hash a password."""
     return _pbkdf2_hash(password)
 
 
 def _verify_password(password: str, hashed: str) -> bool:
     """Verify a password against its hash using the appropriate backend."""
-    if _pwd_context is not None and not hashed.startswith("pbkdf2:"):
-        return _pwd_context.verify(password, hashed)
     if hashed.startswith("pbkdf2:"):
         return _pbkdf2_verify(password, hashed)
-    # If passlib is available, try it for any other format
-    if _pwd_context is not None:
-        try:
-            return _pwd_context.verify(password, hashed)
-        except Exception:
-            return False
+    if hashed.startswith(("$2a$", "$2b$", "$2y$")):
+        return _bcrypt_verify(password, hashed)
     return False
 
 

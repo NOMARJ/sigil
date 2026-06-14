@@ -7,6 +7,8 @@ import subprocess
 import json
 from pathlib import Path
 
+import pytest
+
 
 def test_github_action_fails_closed_when_sigil_scan_produces_no_report(tmp_path):
     repo_root = Path(__file__).resolve().parents[2]
@@ -227,6 +229,87 @@ def test_release_packaging_targets_native_assets():
     assert 'cargo install sigil"' not in installer
 
 
+def test_infra_image_tag_variables_reject_mutable_defaults():
+    repo_root = Path(__file__).resolve().parents[2]
+    infra_root = repo_root.parent / "sigil-infra"
+    variables = infra_root / "azure" / "variables.tf"
+    if not variables.exists():
+        pytest.skip("sigil-infra sibling checkout is not available")
+
+    content = variables.read_text()
+
+    assert 'default     = "latest"' not in content
+    for variable_name in [
+        "api_image_tag",
+        "dashboard_image_tag",
+        "bot_image_tag",
+    ]:
+        assert f"variable \"{variable_name}\"" in content
+        assert f"{variable_name} must be an immutable image tag" in content
+        assert f'trimspace(var.{variable_name}) != "latest"' in content
+
+
+def test_infra_deploy_workflow_verifies_running_image_identity():
+    repo_root = Path(__file__).resolve().parents[2]
+    infra_root = repo_root.parent / "sigil-infra"
+    workflow = infra_root / ".github" / "workflows" / "deploy.yml"
+    if not workflow.exists():
+        pytest.skip("sigil-infra sibling checkout is not available")
+
+    content = workflow.read_text()
+
+    assert "Check deployed image tags" in content
+    assert "az containerapp show" in content
+    assert "sigilacr46iy6y.azurecr.io" in content
+    assert "sigil-api:$API_IMAGE_TAG" in content
+    assert "sigil-dashboard:$DASHBOARD_IMAGE_TAG" in content
+    assert "sigil-bot-watchers" in content
+    assert "sigil-bot-workers" in content
+    assert "sigil-bot-pr-worker" in content
+    assert "needs.terraform-apply.result == 'skipped'" in content
+
+
+def test_infra_ignores_local_nomark_chain_artifacts():
+    repo_root = Path(__file__).resolve().parents[2]
+    infra_root = repo_root.parent / "sigil-infra"
+    gitignore = infra_root / ".gitignore"
+    if not gitignore.exists():
+        pytest.skip("sigil-infra sibling checkout is not available")
+
+    assert "chains/" in gitignore.read_text()
+
+
+def test_release_workflows_avoid_node20_only_action_paths():
+    repo_root = Path(__file__).resolve().parents[2]
+    workflow_text = "\n".join(
+        path.read_text() for path in sorted((repo_root / ".github" / "workflows").glob("*.yml"))
+    )
+    infra_workflow = repo_root.parent / "sigil-infra" / ".github" / "workflows" / "deploy.yml"
+    if infra_workflow.exists():
+        workflow_text += "\n" + infra_workflow.read_text()
+
+    for removed_action in [
+        "docker/build-push-action@",
+        "actions/download-artifact@",
+        "peter-evans/repository-dispatch@",
+        "softprops/action-gh-release@c062e08",
+        "softprops/action-gh-release@3bb12739",
+        "hashicorp/setup-terraform@v3",
+        "azure/login@v2",
+    ]:
+        assert removed_action not in workflow_text
+
+    for node24_action in [
+        "actions/checkout@v5",
+        "actions/cache@v5",
+        "actions/setup-node@v5",
+        "actions/upload-artifact@v6",
+        "azure/login@v3",
+        "hashicorp/setup-terraform@v4",
+    ]:
+        assert node24_action in workflow_text
+
+
 def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     repo_root = Path(__file__).resolve().parents[2]
     workflow = (repo_root / ".github" / "workflows" / "release.yml").read_text()
@@ -280,11 +363,14 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     assert "api/requirements.txt" not in api_dockerfile
     assert "pip install -r api/requirements.lock" in ci_workflow
     assert "cd api && pytest tests -v --tb=short" in ci_workflow
-    assert "- '.github/workflows/test-pro-tier.yml'" in pro_workflow
-    assert "- 'api/gates.py'" in pro_workflow
-    assert "- 'api/permissions.py'" in pro_workflow
-    assert "- 'api/routers/scan.py'" in pro_workflow
-    assert "- 'api/routers/threat.py'" in pro_workflow
+    for watched_path in [
+        ".github/workflows/test-pro-tier.yml",
+        "api/gates.py",
+        "api/permissions.py",
+        "api/routers/scan.py",
+        "api/routers/threat.py",
+    ]:
+        assert watched_path in pro_workflow
     assert "workflow_dispatch:" in pro_workflow
     assert "actions/setup-python@v6" in pro_workflow
     assert "codecov/codecov-action@v7" in pro_workflow

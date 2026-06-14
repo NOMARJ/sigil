@@ -39,13 +39,13 @@ Developer installs CLI
 
 ## 2. Phase overview
 
-| Phase | Name | Timeframe | Objective |
-|-------|------|-----------|-----------|
-| 1 | Frictionless adoption | Months 1–3 | Single-command install, zero-config scan, ship Rust CLI |
-| 2 | Workflow embedding | Months 2–6 | CI/CD integrations, "Scanned by Sigil" branding |
-| 3 | Programmatic SEO | Months 2–12 | Automated page generation, long-tail keyword capture |
-| 4 | Security research publishing | Months 3–12 | Threat reports, CVE disclosures, credibility engine |
-| 5 | Commercial tier | Months 6–18 | Dashboard, team features, compliance, monetisation |
+| Phase | Name                         | Timeframe   | Objective                                               |
+| ----- | ---------------------------- | ----------- | ------------------------------------------------------- |
+| 1     | Frictionless adoption        | Months 1–3  | Single-command install, zero-config scan, ship Rust CLI |
+| 2     | Workflow embedding           | Months 2–6  | CI/CD integrations, "Scanned by Sigil" branding         |
+| 3     | Programmatic SEO             | Months 2–12 | Automated page generation, long-tail keyword capture    |
+| 4     | Security research publishing | Months 3–12 | Threat reports, CVE disclosures, credibility engine     |
+| 5     | Commercial tier              | Months 6–18 | Dashboard, team features, compliance, monetisation      |
 
 Phases overlap deliberately. SEO and research start before the flywheel is spinning — they create the surface area for discovery.
 
@@ -65,13 +65,13 @@ The smallest viable use case: **one developer scanning one MCP server or AI agen
 
 #### 3.3.1 Rust CLI binary
 
-| Requirement | Detail |
-|-------------|--------|
-| Language | Rust (single static binary, no runtime deps) |
+| Requirement      | Detail                                                         |
+| ---------------- | -------------------------------------------------------------- |
+| Language         | Rust (single static binary, no runtime deps)                   |
 | Target platforms | macOS (arm64, x86_64), Linux (x86_64, arm64), Windows (x86_64) |
-| Binary size | < 20MB target |
-| Startup time | < 200ms to first output |
-| Offline-capable | Full scan capability with no network required |
+| Binary size      | < 20MB target                                                  |
+| Startup time     | < 200ms to first output                                        |
+| Offline-capable  | Full scan capability with no network required                  |
 
 #### 3.3.2 Installation methods
 
@@ -85,7 +85,8 @@ brew install nomark/tap/sigil
 cargo install sigil-cli
 
 # Universal (Linux/macOS)
-curl -fsSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh
+sh install.sh
 
 # Node ecosystem (for MCP/agent developers)
 npx sigil-cli scan .
@@ -163,12 +164,12 @@ No marketing. No upsell. No "sign up for more." Just useful output.
 
 ### 3.5 Metrics
 
-| Metric | Target (M3) |
-|--------|-------------|
-| GitHub stars | 500 |
-| Unique installs (all channels) | 1,000 |
-| Weekly active scanners | 200 |
-| Mean time to first scan | < 60s |
+| Metric                         | Target (M3) |
+| ------------------------------ | ----------- |
+| GitHub stars                   | 500         |
+| Unique installs (all channels) | 1,000       |
+| Weekly active scanners         | 200         |
+| Mean time to first scan        | < 60s       |
 
 ---
 
@@ -206,7 +207,7 @@ jobs:
 
 ```yaml
 include:
-  - remote: 'https://sigilsec.ai/ci/gitlab-template.yml'
+  - remote: "https://sigilsec.ai/ci/gitlab-template.yml"
 
 sigil-scan:
   extends: .sigil-scan
@@ -223,7 +224,7 @@ repos:
     rev: v0.1.0
     hooks:
       - id: sigil-scan
-        args: ['--fail-on', 'high']
+        args: ["--fail-on", "high"]
 ```
 
 #### 4.2.4 VS Code extension (Phase 2b)
@@ -267,12 +268,12 @@ This is the Calendly mechanic. Every PR comment is a product demo visible to the
 
 ### 4.5 Metrics
 
-| Metric | Target (M6) |
-|--------|-------------|
-| GitHub Action installs | 200 |
-| CI/CD pipelines running Sigil | 500 |
-| Repos with Sigil in pipeline | 300 |
-| GitHub stars | 2,000 |
+| Metric                        | Target (M6) |
+| ----------------------------- | ----------- |
+| GitHub Action installs        | 200         |
+| CI/CD pipelines running Sigil | 500         |
+| Repos with Sigil in pipeline  | 300         |
+| GitHub stars                  | 2,000       |
 
 ---
 
@@ -343,6 +344,7 @@ Hosting: Cloudflare Pages or Vercel (edge CDN)
 ```
 
 SEO requirements per page:
+
 - Unique title tag with primary keyword
 - Structured data (JSON-LD) for software application and security advisory schemas
 - Canonical URL
@@ -361,12 +363,12 @@ SEO requirements per page:
 
 ### 5.5 Metrics
 
-| Metric | Target (M12) |
-|--------|-------------|
-| Indexed pages | 500+ |
-| Monthly organic visitors | 5,000 |
-| Keyword rankings (top 10) | 200 |
-| Backlinks from programmatic pages | 50 |
+| Metric                            | Target (M12) |
+| --------------------------------- | ------------ |
+| Indexed pages                     | 500+         |
+| Monthly organic visitors          | 5,000        |
+| Keyword rankings (top 10)         | 200          |
+| Backlinks from programmatic pages | 50           |
 
 ---
 
@@ -378,18 +380,19 @@ Establish Sigil as the authority on AI agent security. Every published report is
 
 ### 6.2 Publication cadence
 
-| Publication | Frequency | Format |
-|-------------|-----------|--------|
-| State of AI Agent Security report | Quarterly | PDF + web (gated for email) |
-| Vulnerability disclosures | As discovered | Blog post + CVE filing |
-| Technical deep-dives | Monthly | Blog post |
-| MCP attack surface analysis | Bi-annually | Long-form report |
+| Publication                       | Frequency     | Format                      |
+| --------------------------------- | ------------- | --------------------------- |
+| State of AI Agent Security report | Quarterly     | PDF + web (gated for email) |
+| Vulnerability disclosures         | As discovered | Blog post + CVE filing      |
+| Technical deep-dives              | Monthly       | Blog post                   |
+| MCP attack surface analysis       | Bi-annually   | Long-form report            |
 
 ### 6.3 Data sources
 
 All research must use **real data only**. No synthetic data. No fabricated statistics. Reference: CLAUDE.md "No Fake Data, Ever" rule.
 
 Sources:
+
 - Aggregated (anonymised) scan telemetry (opt-in only)
 - Public package registry analysis
 - GitHub public repository scanning (responsible disclosure)
@@ -435,12 +438,12 @@ Distribution: ungated web version (for SEO) + gated PDF download (for email capt
 
 ### 6.7 Metrics
 
-| Metric | Target (M12) |
-|--------|-------------|
-| Report downloads | 500 |
-| Email subscribers | 1,000 |
-| Backlinks from research | 100 |
-| Media/blog citations | 10 |
+| Metric                  | Target (M12) |
+| ----------------------- | ------------ |
+| Report downloads        | 500          |
+| Email subscribers       | 1,000        |
+| Backlinks from research | 100          |
+| Media/blog citations    | 10           |
 
 ---
 
@@ -452,30 +455,30 @@ Monetise without killing the flywheel. The free CLI stays free forever.
 
 ### 7.2 Tier structure
 
-| Feature | Free (CLI) | Team | Enterprise |
-|---------|-----------|------|------------|
-| Local scanning | ✓ | ✓ | ✓ |
-| All rules | ✓ | ✓ | ✓ |
-| JSON/SARIF output | ✓ | ✓ | ✓ |
-| CI/CD integrations | ✓ | ✓ | ✓ |
-| Hosted dashboard | — | ✓ | ✓ |
-| Scan history & trends | — | ✓ | ✓ |
-| Team management | — | ✓ | ✓ |
-| Policy enforcement | — | ✓ | ✓ |
-| Compliance reporting | — | — | ✓ |
-| SSO/SAML | — | — | ✓ |
-| Audit logs | — | — | ✓ |
-| Priority rule updates | — | — | ✓ |
-| SLA support | — | — | ✓ |
-| On-premise deployment | — | — | ✓ |
-| Custom rules | — | — | ✓ |
+| Feature               | Free (CLI) | Team | Enterprise |
+| --------------------- | ---------- | ---- | ---------- |
+| Local scanning        | ✓          | ✓    | ✓          |
+| All rules             | ✓          | ✓    | ✓          |
+| JSON/SARIF output     | ✓          | ✓    | ✓          |
+| CI/CD integrations    | ✓          | ✓    | ✓          |
+| Hosted dashboard      | —          | ✓    | ✓          |
+| Scan history & trends | —          | ✓    | ✓          |
+| Team management       | —          | ✓    | ✓          |
+| Policy enforcement    | —          | ✓    | ✓          |
+| Compliance reporting  | —          | —    | ✓          |
+| SSO/SAML              | —          | —    | ✓          |
+| Audit logs            | —          | —    | ✓          |
+| Priority rule updates | —          | —    | ✓          |
+| SLA support           | —          | —    | ✓          |
+| On-premise deployment | —          | —    | ✓          |
+| Custom rules          | —          | —    | ✓          |
 
 ### 7.3 Pricing (indicative)
 
-| Tier | Price |
-|------|-------|
-| Free | $0 forever |
-| Team | $49/month per 10 repos |
+| Tier       | Price                  |
+| ---------- | ---------------------- |
+| Free       | $0 forever             |
+| Team       | $49/month per 10 repos |
 | Enterprise | Custom (contact sales) |
 
 Pricing validated during Phase 5. Do not pre-announce.
@@ -486,13 +489,13 @@ Pricing validated during Phase 5. Do not pre-announce.
 
 ### 7.5 Dashboard engineering requirements
 
-| Requirement | Detail |
-|-------------|--------|
-| Stack | Web app (React/Next.js), API (Rust or Go) |
-| Auth | GitHub OAuth (primary), email/password, SSO/SAML (Enterprise) |
-| Data | Scan results uploaded from CLI (opt-in flag: `sigil scan . --upload`) |
-| Hosting | Single-tenant option for Enterprise, multi-tenant for Team |
-| Privacy | No scan data sent without explicit opt-in. Ever. |
+| Requirement | Detail                                                                |
+| ----------- | --------------------------------------------------------------------- |
+| Stack       | Web app (React/Next.js), API (Rust or Go)                             |
+| Auth        | GitHub OAuth (primary), email/password, SSO/SAML (Enterprise)         |
+| Data        | Scan results uploaded from CLI (opt-in flag: `sigil scan . --upload`) |
+| Hosting     | Single-tenant option for Enterprise, multi-tenant for Team            |
+| Privacy     | No scan data sent without explicit opt-in. Ever.                      |
 
 ### 7.6 Deliverables
 
@@ -505,12 +508,12 @@ Pricing validated during Phase 5. Do not pre-announce.
 
 ### 7.7 Metrics
 
-| Metric | Target (M18) |
-|--------|-------------|
-| Free → Team conversion | 2–5% of active teams |
-| Team tier MRR | $5K |
-| Enterprise pipeline | 3 qualified conversations |
-| Net revenue retention | > 120% |
+| Metric                 | Target (M18)              |
+| ---------------------- | ------------------------- |
+| Free → Team conversion | 2–5% of active teams      |
+| Team tier MRR          | $5K                       |
+| Enterprise pipeline    | 3 qualified conversations |
+| Net revenue retention  | > 120%                    |
 
 ---
 
@@ -569,29 +572,29 @@ Explicit list of activities that are out of scope. If it's not on the roadmap, i
 
 ## 10. Dependencies and risks
 
-| Risk | Mitigation |
-|------|------------|
-| Rust CLI regressions | Legacy bash CLI (`bin/sigil`) remains available as fallback |
-| AI agent security category doesn't grow | Broaden to general supply chain security (npm, pip) |
-| GitHub Action marketplace visibility | Programmatic SEO drives discovery, not marketplace ranking |
-| No one scans MCP servers | Target broader AI agent code (LangChain, CrewAI, AutoGen) |
-| Snyk/Semgrep adds MCP scanning | Speed advantage + specialisation. They're generalists, Sigil is purpose-built |
-| Research requires real data | Azure dataset is validated. Expand with opt-in telemetry and public repo scanning |
+| Risk                                    | Mitigation                                                                        |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| Rust CLI regressions                    | Legacy bash CLI (`bin/sigil`) remains available as fallback                       |
+| AI agent security category doesn't grow | Broaden to general supply chain security (npm, pip)                               |
+| GitHub Action marketplace visibility    | Programmatic SEO drives discovery, not marketplace ranking                        |
+| No one scans MCP servers                | Target broader AI agent code (LangChain, CrewAI, AutoGen)                         |
+| Snyk/Semgrep adds MCP scanning          | Speed advantage + specialisation. They're generalists, Sigil is purpose-built     |
+| Research requires real data             | Azure dataset is validated. Expand with opt-in telemetry and public repo scanning |
 
 ---
 
 ## Appendix A: Reference distribution evidence
 
-| Company | Model | Outcome |
-|---------|-------|---------|
-| Snyk | Free CLI → enterprise | 2.5M developers, $343M ARR, $8.5B peak valuation |
-| HashiCorp | OSS → cloud platform | 100M+ downloads, $14B IPO, $6.4B IBM acquisition |
-| Sentry | OSS error tracking → SaaS | $128M+ ARR, 100K+ organisations |
-| Supabase | OSS Firebase alternative | $70M ARR, $5B valuation in 5 years |
-| Zapier | Programmatic SEO | 50K+ pages, 5.8M monthly organic visits, $100M+ ARR |
-| NerdWallet | Programmatic SEO | Started with $800, grew to $245M annual revenue |
-| Calendly | PLG viral loop | $276M ARR, 20M users, zero traditional marketing |
+| Company    | Model                     | Outcome                                             |
+| ---------- | ------------------------- | --------------------------------------------------- |
+| Snyk       | Free CLI → enterprise     | 2.5M developers, $343M ARR, $8.5B peak valuation    |
+| HashiCorp  | OSS → cloud platform      | 100M+ downloads, $14B IPO, $6.4B IBM acquisition    |
+| Sentry     | OSS error tracking → SaaS | $128M+ ARR, 100K+ organisations                     |
+| Supabase   | OSS Firebase alternative  | $70M ARR, $5B valuation in 5 years                  |
+| Zapier     | Programmatic SEO          | 50K+ pages, 5.8M monthly organic visits, $100M+ ARR |
+| NerdWallet | Programmatic SEO          | Started with $800, grew to $245M annual revenue     |
+| Calendly   | PLG viral loop            | $276M ARR, 20M users, zero traditional marketing    |
 
 ---
 
-*This document is the single source of truth for Sigil's distribution strategy. Changes require CTO approval. Last updated: 2026-03-29.*
+_This document is the single source of truth for Sigil's distribution strategy. Changes require CTO approval. Last updated: 2026-03-29._

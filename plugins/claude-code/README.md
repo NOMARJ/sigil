@@ -14,24 +14,24 @@ Automated security auditing for AI agent code directly in Claude Code.
 
 Sigil analyzes **6 threat categories** with severity weighting:
 
-| Phase | What It Detects | Severity |
-|-------|----------------|----------|
-| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets | Critical (10x) |
-| **Code Patterns** | `eval()`, `exec()`, `pickle`, `child_process`, dynamic imports | High (5x) |
-| **Network/Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunneling | High (3x) |
-| **Credentials** | ENV var access, API keys, SSH keys, AWS credentials | Medium (2x) |
-| **Obfuscation** | Base64 decode, charCode, hex encoding, minified payloads | High (5x) |
-| **Provenance** | Shallow git history, binary files, hidden files, author count | Low (1-3x) |
+| Phase             | What It Detects                                                | Severity       |
+| ----------------- | -------------------------------------------------------------- | -------------- |
+| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets       | Critical (10x) |
+| **Code Patterns** | `eval()`, `exec()`, `pickle`, `child_process`, dynamic imports | High (5x)      |
+| **Network/Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunneling     | High (3x)      |
+| **Credentials**   | ENV var access, API keys, SSH keys, AWS credentials            | Medium (2x)    |
+| **Obfuscation**   | Base64 decode, charCode, hex encoding, minified payloads       | High (5x)      |
+| **Provenance**    | Shallow git history, binary files, hidden files, author count  | Low (1-3x)     |
 
 ## Risk Scoring
 
-| Score | Verdict | Action |
-|-------|---------|--------|
-| 0 | **CLEAN** | Auto-approve (configurable) |
-| 1–9 | **LOW RISK** | Approve with review |
-| 10–24 | **MEDIUM RISK** | Manual review required |
-| 25–49 | **HIGH RISK** | Blocked, requires override |
-| 50+ | **CRITICAL** | Blocked, no override |
+| Score | Verdict         | Action                      |
+| ----- | --------------- | --------------------------- |
+| 0     | **CLEAN**       | Auto-approve (configurable) |
+| 1–9   | **LOW RISK**    | Approve with review         |
+| 10–24 | **MEDIUM RISK** | Manual review required      |
+| 25–49 | **HIGH RISK**   | Blocked, requires override  |
+| 50+   | **CRITICAL**    | Blocked, no override        |
 
 ## Installation
 
@@ -51,7 +51,7 @@ npm install -g @nomarj/sigil
 cargo install sigil-cli
 
 # curl installer
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 ```
 
 2. **Claude Code 1.0.33+**
@@ -93,6 +93,7 @@ claude --plugin-dir /path/to/sigil/plugins/claude-code
 The plugin provides 6 skills for security scanning and remediation:
 
 #### 1. Scan Repository
+
 ```
 /sigil-security:scan-repo /path/to/repo
 ```
@@ -100,11 +101,13 @@ The plugin provides 6 skills for security scanning and remediation:
 Audits an entire repository for malicious patterns across all files.
 
 **Example:**
+
 ```
 /sigil-security:scan-repo ~/projects/untrusted-mcp-server
 ```
 
 #### 2. Scan Package
+
 ```
 /sigil-security:scan-package <package-name>
 ```
@@ -112,12 +115,14 @@ Audits an entire repository for malicious patterns across all files.
 Downloads and scans an npm or pip package before installation.
 
 **Examples:**
+
 ```
 /sigil-security:scan-package lodash
 /sigil-security:scan-package requests
 ```
 
 #### 3. Scan File
+
 ```
 /sigil-security:scan-file /path/to/file.py
 ```
@@ -125,11 +130,13 @@ Downloads and scans an npm or pip package before installation.
 Analyzes a specific file for security vulnerabilities.
 
 **Example:**
+
 ```
 /sigil-security:scan-file ./src/agent/tools.ts
 ```
 
 #### 4. Quarantine Review
+
 ```
 /sigil-security:quarantine-review
 ```
@@ -137,6 +144,7 @@ Analyzes a specific file for security vulnerabilities.
 Reviews all quarantined items and helps decide whether to approve or reject.
 
 #### 5. Fix Finding
+
 ```
 /sigil-security:fix-finding
 ```
@@ -144,11 +152,13 @@ Reviews all quarantined items and helps decide whether to approve or reject.
 Analyzes a Sigil scan finding and proposes a code fix with explanation. Provide a finding from scan output, a file path and line number, or a description of the security issue.
 
 **Example:**
+
 ```
 /sigil-security:fix-finding Phase 2 finding in src/agent/tools.py line 42: eval() usage
 ```
 
 #### 6. Generate Policy
+
 ```
 /sigil-security:generate-policy /path/to/project
 ```
@@ -156,6 +166,7 @@ Analyzes a Sigil scan finding and proposes a code fix with explanation. Provide 
 Generates a Sigil sandbox policy YAML (`sigil-policy.yaml`) from scan results. The policy controls filesystem, network, process, and credential access for sandboxed agent execution.
 
 **Example:**
+
 ```
 /sigil-security:generate-policy ~/projects/my-mcp-server
 ```
@@ -169,12 +180,14 @@ The plugin includes 2 specialized security agents:
 Expert security auditor for analyzing Sigil scan results and identifying threats.
 
 **When to use:**
+
 - Analyzing scan findings
 - Understanding risk scores
 - Getting remediation recommendations
 - Assessing false positives
 
 **Invoke with:**
+
 ```
 @security-auditor analyze these scan results
 ```
@@ -184,12 +197,14 @@ Expert security auditor for analyzing Sigil scan results and identifying threats
 Manages the quarantine workflow and guides approval/rejection decisions.
 
 **When to use:**
+
 - Reviewing quarantined items
 - Making approve/reject decisions
 - Understanding quarantine status
 - Coordinating multi-finding reviews
 
 **Invoke with:**
+
 ```
 @quarantine-manager review the latest quarantine
 ```
@@ -246,7 +261,7 @@ Would you like me to suggest alternative MCP servers?
 
 ### Review a Clean Package
 
-```
+````
 User: Can I safely install the requests library?
 
 Claude: Let me scan it first to confirm it's safe.
@@ -277,12 +292,14 @@ from the Python community. No malicious patterns found.
 You can install with:
 ```bash
 pip install requests
-```
+````
+
 ```
 
 ### Quarantine Management
 
 ```
+
 User: What's in my quarantine right now?
 
 Claude: Let me check your quarantine status.
@@ -313,11 +330,13 @@ Claude: Let me check your quarantine status.
    Findings: Single HTTP request in tests
 
 🎯 Recommendations:
+
 - abc123 (suspicious-ai-toolkit): REJECT - Multiple critical threats
 - def456 (helper-utils): REVIEW - Likely false positive (base64 is common)
 - ghi789 (agent-tool): APPROVE - Low risk, HTTP in test suite
 
 Commands:
+
 ```bash
 sigil reject abc123
 sigil approve def456  # after reviewing code
@@ -325,7 +344,8 @@ sigil approve ghi789
 ```
 
 Would you like me to analyze any specific item in detail?
-```
+
+````
 
 ## Configuration
 
@@ -341,7 +361,7 @@ The plugin sets `security-auditor` as the default agent. To change this, create 
     }
   }
 }
-```
+````
 
 ### Auto-Approve Threshold
 
@@ -349,7 +369,7 @@ Configure in your Sigil CLI settings (`~/.sigil/config.yaml`):
 
 ```yaml
 quarantine:
-  auto_approve_threshold: 0  # Only auto-approve CLEAN (0)
+  auto_approve_threshold: 0 # Only auto-approve CLEAN (0)
   # auto_approve_threshold: 9  # Auto-approve CLEAN and LOW (0-9)
 ```
 
@@ -374,6 +394,7 @@ claude plugin list
 ```
 
 Should show:
+
 ```
 sigil-security@1.0.0 (enabled)
 ```
@@ -408,4 +429,4 @@ Apache 2.0 — See [LICENSE](../../LICENSE) for details.
 ---
 
 **SIGIL** by [NOMARK](https://nomark.ai)
-*A protective mark for every line of code.*
+_A protective mark for every line of code._

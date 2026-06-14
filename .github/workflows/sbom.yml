@@ -9,9 +9,10 @@ on:
 
 # Required permissions for SBOM generation, signing, and release publishing
 permissions:
-  contents: write      # Upload SBOM files to releases
-  id-token: write      # Cosign keyless signing with OIDC
-  packages: read       # Access Docker images
+  actions: read # Download build artifacts through gh CLI
+  contents: write # Upload SBOM files to releases
+  id-token: write # Cosign keyless signing with OIDC
+  packages: read # Access Docker images
 
 env:
   REGISTRY: docker.io
@@ -28,7 +29,7 @@ jobs:
     steps:
       # Checkout the repository at the tagged version
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       # Install Syft for SBOM generation
       - name: Install Syft
@@ -73,7 +74,7 @@ jobs:
 
       # Upload SBOMs as artifacts for downstream jobs
       - name: Upload source SBOMs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v6
         with:
           name: source-sboms
           path: |
@@ -89,7 +90,7 @@ jobs:
     steps:
       # Checkout for context
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       # Install Syft for container SBOM generation
       - name: Install Syft
@@ -109,7 +110,7 @@ jobs:
 
       # Login to Docker Hub to pull images
       - name: Log in to Docker Hub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -173,7 +174,7 @@ jobs:
 
       # Upload container SBOMs as artifacts
       - name: Upload container SBOMs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v6
         with:
           name: container-sboms
           path: |
@@ -192,7 +193,7 @@ jobs:
     steps:
       # Checkout for release context
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       # Install Cosign for keyless signing
       - name: Install Cosign
@@ -200,17 +201,15 @@ jobs:
 
       # Download source SBOMs from generate-sbom job
       - name: Download source SBOMs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: source-sboms
-          path: sboms/
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name source-sboms --dir sboms/
 
       # Download container SBOMs from container-sbom job
       - name: Download container SBOMs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: container-sboms
-          path: sboms/
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name container-sboms --dir sboms/
 
       # List all downloaded SBOMs
       - name: List all SBOMs
@@ -304,7 +303,7 @@ jobs:
 
       # Upload all SBOMs and attestations to GitHub release
       - name: Upload SBOMs to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             sboms/sbom-source.cdx.json

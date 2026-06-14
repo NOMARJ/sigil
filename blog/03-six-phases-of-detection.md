@@ -1,8 +1,8 @@
 # The 6 Phases of Malicious Code Detection
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: educational, scanning, detection*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: educational, scanning, detection_
 
 ---
 
@@ -20,13 +20,13 @@ Score = sum of (findings_in_phase × phase_weight)
 
 A single `postinstall` hook (Phase 1, weight 10x) scores higher than five `os.environ` accesses (Phase 4, weight 2x) because install hooks are far more dangerous — they execute before you see the code.
 
-| Score | Verdict | What to do |
-|-------|---------|-----------|
-| 0 | CLEAN | Approve |
-| 1-9 | LOW RISK | Review the flagged items |
-| 10-24 | MEDIUM RISK | Read every finding manually |
-| 25-49 | HIGH RISK | Do not approve without thorough review |
-| 50+ | CRITICAL | Reject |
+| Score | Verdict     | What to do                             |
+| ----- | ----------- | -------------------------------------- |
+| 0     | CLEAN       | Approve                                |
+| 1-9   | LOW RISK    | Review the flagged items               |
+| 10-24 | MEDIUM RISK | Read every finding manually            |
+| 25-49 | HIGH RISK   | Do not approve without thorough review |
+| 50+   | CRITICAL    | Reject                                 |
 
 ## Phase 1: Install Hooks (10x weight)
 
@@ -54,17 +54,17 @@ A single `postinstall` hook (Phase 1, weight 10x) scores higher than five `os.en
 
 **What Sigil detects:**
 
-| Pattern | Language | Risk |
-|---------|----------|------|
-| `eval()`, `exec()` | Python/JS | Arbitrary code execution |
-| `compile()` | Python | Dynamic code compilation |
-| `__import__()`, `importlib` | Python | Dynamic module loading |
-| `subprocess` with `shell=True` | Python | Shell injection |
-| `os.system()`, `os.popen()` | Python | Direct shell execution |
-| `pickle.loads()`, `marshal.loads()` | Python | Unsafe deserialization |
-| `yaml.load()` (without SafeLoader) | Python | Code execution via YAML |
-| `child_process` | Node.js | Shell execution |
-| `Function()`, `vm.runInNewContext` | Node.js | Dynamic code evaluation |
+| Pattern                             | Language  | Risk                     |
+| ----------------------------------- | --------- | ------------------------ |
+| `eval()`, `exec()`                  | Python/JS | Arbitrary code execution |
+| `compile()`                         | Python    | Dynamic code compilation |
+| `__import__()`, `importlib`         | Python    | Dynamic module loading   |
+| `subprocess` with `shell=True`      | Python    | Shell injection          |
+| `os.system()`, `os.popen()`         | Python    | Direct shell execution   |
+| `pickle.loads()`, `marshal.loads()` | Python    | Unsafe deserialization   |
+| `yaml.load()` (without SafeLoader)  | Python    | Code execution via YAML  |
+| `child_process`                     | Node.js   | Shell execution          |
+| `Function()`, `vm.runInNewContext`  | Node.js   | Dynamic code evaluation  |
 
 **Example finding:**
 
@@ -189,4 +189,4 @@ cat ~/.sigil/reports/<id>_report.txt
 
 ---
 
-*Learn more: [Scan Phases Reference](https://github.com/NOMARJ/sigil/blob/main/docs/scan-rules.md) | Install: `curl -sSL https://sigilsec.ai/install.sh | sh`*
+_Learn more: [Scan Phases Reference](https://github.com/NOMARJ/sigil/blob/main/docs/scan-rules.md) | Install: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`_

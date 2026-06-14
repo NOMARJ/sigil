@@ -5,17 +5,17 @@ on:
     branches:
       - main
     paths:
-      - 'api/**'
-      - 'bot/**'
-      - 'dashboard/**'
-      - 'Dockerfile.bot'
-      - '.github/workflows/deploy-azure.yml'
+      - "api/**"
+      - "bot/**"
+      - "dashboard/**"
+      - "Dockerfile.bot"
+      - ".github/workflows/deploy-azure.yml"
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
-        default: 'production'
+        default: "production"
         type: choice
         options:
           - production
@@ -45,13 +45,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Azure
-        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -71,42 +71,38 @@ jobs:
           echo "Dashboard Image: ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${SHORT_SHA}"
 
       - name: Build and push API image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
-        with:
-          context: .
-          file: ./api/Dockerfile
-          push: true
-          tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-api:latest
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-api:${{ steps.meta.outputs.api-tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker buildx build \
+            --file ./api/Dockerfile \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-api:latest" \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-api:${{ steps.meta.outputs.api-tag }}" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --push \
+            .
 
       - name: Build and push Bot image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
-        with:
-          context: .
-          file: ./Dockerfile.bot
-          push: true
-          tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:latest
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${{ steps.meta.outputs.bot-tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker buildx build \
+            --file ./Dockerfile.bot \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-bot:latest" \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${{ steps.meta.outputs.bot-tag }}" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --push \
+            .
 
       - name: Build and push Dashboard image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v5
-        with:
-          context: ./dashboard
-          file: ./dashboard/Dockerfile
-          push: true
-          tags: |
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:latest
-            ${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${{ steps.meta.outputs.dashboard-tag }}
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://api.sigilsec.ai
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker buildx build \
+            --file ./dashboard/Dockerfile \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:latest" \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${{ steps.meta.outputs.dashboard-tag }}" \
+            --build-arg NEXT_PUBLIC_API_URL=https://api.sigilsec.ai \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --push \
+            ./dashboard
 
   trigger-infrastructure-deployment:
     name: Trigger Infrastructure Deployment
@@ -115,22 +111,32 @@ jobs:
 
     steps:
       - name: Trigger sigil-infra deployment
-        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
-        with:
-          token: ${{ secrets.INFRA_REPO_PAT }}
-          repository: NOMARJ/sigil-infra
-          event-type: deploy-infrastructure
-          client-payload: |
-            {
-              "source_repo": "${{ github.repository }}",
-              "source_ref": "${{ github.ref }}",
-              "source_sha": "${{ github.sha }}",
-              "api_image_tag": "${{ needs.build-and-push.outputs.api-image-tag }}",
-              "bot_image_tag": "${{ needs.build-and-push.outputs.bot-image-tag }}",
-              "dashboard_image_tag": "${{ needs.build-and-push.outputs.dashboard-image-tag }}",
-              "triggered_by": "${{ github.actor }}",
-              "environment": "${{ inputs.environment || 'production' }}"
-            }
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_REPO_PAT }}
+        run: |
+          jq -nc \
+            --arg source_repo "${{ github.repository }}" \
+            --arg source_ref "${{ github.ref }}" \
+            --arg source_sha "${{ github.sha }}" \
+            --arg api_image_tag "${{ needs.build-and-push.outputs.api-image-tag }}" \
+            --arg bot_image_tag "${{ needs.build-and-push.outputs.bot-image-tag }}" \
+            --arg dashboard_image_tag "${{ needs.build-and-push.outputs.dashboard-image-tag }}" \
+            --arg triggered_by "${{ github.actor }}" \
+            --arg environment "${{ inputs.environment || 'production' }}" \
+            '{
+              event_type:"deploy-infrastructure",
+              client_payload:{
+                source_repo:$source_repo,
+                source_ref:$source_ref,
+                source_sha:$source_sha,
+                api_image_tag:$api_image_tag,
+                bot_image_tag:$bot_image_tag,
+                dashboard_image_tag:$dashboard_image_tag,
+                triggered_by:$triggered_by,
+                environment:$environment
+              }
+            }' \
+            | gh api repos/NOMARJ/sigil-infra/dispatches --method POST --input -
 
       - name: Deployment triggered
         run: |

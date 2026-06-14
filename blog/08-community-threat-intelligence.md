@@ -1,8 +1,8 @@
 # Community Threat Intelligence: How Sigil Gets Smarter
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: threat-intelligence, community, product*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: threat-intelligence, community, product_
 
 ---
 
@@ -46,6 +46,7 @@ When threats are detected, they flow through a three-stage pipeline:
 ### Stage 1: Aggregation
 
 Community scans produce a continuous stream of metadata. The aggregator:
+
 - Deduplicates findings across packages and versions
 - Correlates patterns across ecosystems (the same obfuscation in npm and pip)
 - Tracks publisher behavior over time
@@ -53,6 +54,7 @@ Community scans produce a continuous stream of metadata. The aggregator:
 ### Stage 2: Confirmation
 
 Not every finding is a true threat. The review pipeline:
+
 - Automated filters separate high-confidence threats (install hook + credential exfil + obfuscation) from ambiguous signals
 - Community reports (`POST /v1/report`) are reviewed by the threat team
 - Confirmed threats generate detection signatures
@@ -60,6 +62,7 @@ Not every finding is a true threat. The review pipeline:
 ### Stage 3: Distribution
 
 Confirmed threats become signatures that propagate to every authenticated scanner:
+
 - Signatures are versioned and distributed via `GET /v1/signatures`
 - The CLI fetches updates on each authenticated scan
 - Delta sync minimizes bandwidth — only new signatures are downloaded
@@ -107,17 +110,20 @@ Reports go through the confirmation pipeline. Once confirmed, a detection signat
 Threat intelligence is opt-in. It only activates when you run `sigil login`.
 
 **Authenticated mode:**
+
 - Scan metadata is sent to the Sigil API
 - You benefit from community threat data
 - Your scans contribute to the community
 
 **Offline mode (default):**
+
 - No network calls
 - No data leaves your machine
 - All six scan phases run locally
 - No threat intelligence lookups
 
 You can switch between modes at any time:
+
 ```bash
 sigil login     # Enable threat intelligence
 sigil logout    # Disable, return to offline mode
@@ -135,7 +141,7 @@ This is the network effect of community threat intelligence: the more people use
 
 ```bash
 # Install
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 # Enable threat intelligence
 sigil login
@@ -146,4 +152,4 @@ sigil scan .
 
 ---
 
-*Learn more: [Architecture — Threat Intelligence Pipeline](https://github.com/NOMARJ/sigil/blob/main/docs/architecture.md) | [Pricing](https://sigilsec.ai/pricing)*
+_Learn more: [Architecture — Threat Intelligence Pipeline](https://github.com/NOMARJ/sigil/blob/main/docs/architecture.md) | [Pricing](https://sigilsec.ai/pricing)_

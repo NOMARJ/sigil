@@ -34,24 +34,24 @@ jobs:
 
 ### Inputs
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `path` | `.` | Directory or file to scan |
-| `threshold` | `medium` | Minimum severity to report: `low`, `medium`, `high`, `critical` |
-| `fail-on-findings` | `true` | Fail the workflow if findings meet the threshold |
-| `format` | `text` | Output format: `text`, `json`, `sarif` |
-| `phases` | (all) | Comma-separated phase filter |
-| `upload-sarif` | `false` | Upload SARIF results to GitHub Code Scanning |
-| `sigil-token` | — | Sigil API token for threat intelligence enrichment |
+| Input              | Default  | Description                                                     |
+| ------------------ | -------- | --------------------------------------------------------------- |
+| `path`             | `.`      | Directory or file to scan                                       |
+| `threshold`        | `medium` | Minimum severity to report: `low`, `medium`, `high`, `critical` |
+| `fail-on-findings` | `true`   | Fail the workflow if findings meet the threshold                |
+| `format`           | `text`   | Output format: `text`, `json`, `sarif`                          |
+| `phases`           | (all)    | Comma-separated phase filter                                    |
+| `upload-sarif`     | `false`  | Upload SARIF results to GitHub Code Scanning                    |
+| `sigil-token`      | —        | Sigil API token for threat intelligence enrichment              |
 
 ### Outputs
 
-| Output | Description |
-|--------|-------------|
-| `verdict` | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, `CRITICAL` |
-| `score` | Numeric risk score |
-| `findings-count` | Number of findings |
-| `report-path` | Path to the scan report file |
+| Output           | Description                                                               |
+| ---------------- | ------------------------------------------------------------------------- |
+| `verdict`        | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, `CRITICAL` |
+| `score`          | Numeric risk score                                                        |
+| `findings-count` | Number of findings                                                        |
+| `report-path`    | Path to the scan report file                                              |
 
 ### SARIF Upload
 
@@ -121,7 +121,7 @@ Sigil provides a CI template that you can include in your `.gitlab-ci.yml`.
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/NOMARJ/sigil/main/.gitlab-ci-template.yml'
+  - remote: "https://raw.githubusercontent.com/NOMARJ/sigil/main/.gitlab-ci-template.yml"
 
 sigil-scan:
   stage: test
@@ -134,13 +134,13 @@ sigil-scan:
 
 ### Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SIGIL_SCAN_PATH` | `.` | Directory to scan |
-| `SIGIL_THRESHOLD` | `medium` | Minimum severity to report |
-| `SIGIL_FAIL_ON_FINDINGS` | `true` | Fail the job on findings |
-| `SIGIL_FORMAT` | `text` | Output format |
-| `SIGIL_TOKEN` | — | API token (set as CI/CD variable) |
+| Variable                 | Default  | Description                       |
+| ------------------------ | -------- | --------------------------------- |
+| `SIGIL_SCAN_PATH`        | `.`      | Directory to scan                 |
+| `SIGIL_THRESHOLD`        | `medium` | Minimum severity to report        |
+| `SIGIL_FAIL_ON_FINDINGS` | `true`   | Fail the job on findings          |
+| `SIGIL_FORMAT`           | `text`   | Output format                     |
+| `SIGIL_TOKEN`            | —        | API token (set as CI/CD variable) |
 
 ### Artifacts
 
@@ -164,7 +164,8 @@ For any CI system that can run shell commands:
 ### 1. Install Sigil
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
+sh install.sh
 ```
 
 Or use the Docker image:
@@ -181,13 +182,13 @@ sigil scan . --format json > sigil-report.json
 
 ### 3. Check the Exit Code
 
-| Exit Code | Verdict | Recommended Action |
-|-----------|---------|-------------------|
-| `0` | CLEAN | Pipeline passes |
-| `4` | LOW_RISK | Pass with warning |
-| `3` | MEDIUM_RISK | Pass or fail (configurable) |
-| `2` | HIGH_RISK | Fail the pipeline |
-| `1` | CRITICAL | Fail the pipeline |
+| Exit Code | Verdict     | Recommended Action          |
+| --------- | ----------- | --------------------------- |
+| `0`       | CLEAN       | Pipeline passes             |
+| `4`       | LOW_RISK    | Pass with warning           |
+| `3`       | MEDIUM_RISK | Pass or fail (configurable) |
+| `2`       | HIGH_RISK   | Fail the pipeline           |
+| `1`       | CRITICAL    | Fail the pipeline           |
 
 ```bash
 sigil scan .
@@ -207,7 +208,7 @@ pipeline {
     stages {
         stage('Security Scan') {
             steps {
-                sh 'curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh'
+                sh 'curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh && sh install.sh'
                 sh '''
                     sigil scan . --format json > sigil-report.json
                     EXIT_CODE=$?
@@ -236,7 +237,7 @@ jobs:
       - checkout
       - run:
           name: Install Sigil
-          command: curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+          command: curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh && sh install.sh
       - run:
           name: Run security scan
           command: |
@@ -263,7 +264,7 @@ pipelines:
     - step:
         name: Sigil Security Scan
         script:
-          - curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh | sh
+          - curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh && sh install.sh
           - sigil scan . --format json > sigil-report.json
           - |
             EXIT_CODE=$?

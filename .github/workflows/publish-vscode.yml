@@ -3,12 +3,15 @@ name: Publish VS Code Extension
 on:
   push:
     tags:
-      - 'vscode-v*.*.*'
+      - "vscode-v*.*.*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Extension version to publish (e.g., 1.0.5)'
+        description: "Extension version to publish (e.g., 1.0.5)"
         required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-publish:
@@ -22,12 +25,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Extract version
         id: version
@@ -60,7 +63,7 @@ jobs:
           npx vsce publish --packagePath "${VSIX_FILE}" --pat "${{ secrets.VSCE_PAT }}"
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v6
         with:
           name: sigil-security-${{ steps.version.outputs.version }}.vsix
           path: plugins/vscode/*.vsix
@@ -71,10 +74,11 @@ jobs:
     needs: build-and-publish
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v5
 
       - name: Extract version
         id: version
@@ -87,62 +91,79 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Download VSIX artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: sigil-security-${{ steps.version.outputs.version }}.vsix
-          path: vsix-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "sigil-security-${{ steps.version.outputs.version }}.vsix" --dir vsix-release
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a07e6cbe3bec84981614 # v1
-        with:
-          tag_name: vscode-v${{ steps.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          name: Sigil VS Code Extension v${{ steps.version.outputs.version }}
-          body: |
-            # Sigil Security — VS Code Extension v${{ steps.version.outputs.version }}
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          # Sigil Security — VS Code Extension v${{ steps.version.outputs.version }}
 
-            Automated security auditing for AI agent code, right in your editor.
+          Automated security auditing for AI agent code, right in your editor.
 
-            ## Installation
+          ## Installation
 
-            ### From VS Code Marketplace (recommended)
+          ### From VS Code Marketplace (recommended)
 
-            Search for **"Sigil"** in the VS Code Extensions panel, or install via:
+          Search for **"Sigil"** in the VS Code Extensions panel, or install via:
 
-            ```bash
-            code --install-extension nomark.sigil-security
-            ```
+          ```bash
+          code --install-extension nomark.sigil-security
+          ```
 
-            Or visit the [VS Code Marketplace listing](https://marketplace.visualstudio.com/items?itemName=nomark.sigil-security).
+          Or visit the [VS Code Marketplace listing](https://marketplace.visualstudio.com/items?itemName=nomark.sigil-security).
 
-            ### From VSIX (manual)
+          ### From VSIX (manual)
 
-            ```bash
-            code --install-extension sigil-security-${{ steps.version.outputs.version }}.vsix
-            ```
+          ```bash
+          code --install-extension sigil-security-${{ steps.version.outputs.version }}.vsix
+          ```
 
-            ## Prerequisites
+          ## Prerequisites
 
-            Sigil CLI must be installed and available on your `PATH`:
+          Sigil CLI must be installed and available on your `PATH`:
 
-            ```bash
-            # Homebrew
-            brew install nomarj/tap/sigil
+          ```bash
+          # Homebrew
+          brew install nomarj/tap/sigil
 
-            # npm
-            npm install -g @nomarj/sigil
+          # npm
+          npm install -g @nomarj/sigil
 
-            # Or from source
-            cargo build --release -p sigil
-            sudo cp cli/target/release/sigil /usr/local/bin/
-            ```
+          # Or from source
+          cargo build --release -p sigil
+          sudo cp cli/target/release/sigil /usr/local/bin/
+          ```
 
-            ## Documentation
+          ## Documentation
 
-            - [Extension README](https://github.com/NOMARJ/sigil/blob/main/plugins/vscode/README.md)
-            - [Sigil Documentation](https://github.com/NOMARJ/sigil)
-          files: |
-            vsix-release/*.vsix
-          draft: false
-          prerelease: false
+          - [Extension README](https://github.com/NOMARJ/sigil/blob/main/plugins/vscode/README.md)
+          - [Sigil Documentation](https://github.com/NOMARJ/sigil)
+          EOF
 
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: vscode-v${{ steps.version.outputs.version }}
+          RELEASE_NAME: Sigil VS Code Extension v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release edit "${TAG_NAME}" \
+              --target "${GITHUB_SHA}" \
+              --title "${RELEASE_NAME}" \
+              --notes-file release-notes.md \
+              --draft=false \
+              --prerelease=false
+          else
+            gh release create "${TAG_NAME}" \
+              --target "${GITHUB_SHA}" \
+              --title "${RELEASE_NAME}" \
+              --notes-file release-notes.md
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: vscode-v${{ steps.version.outputs.version }}
+        run: gh release upload "${TAG_NAME}" vsix-release/*.vsix --clobber

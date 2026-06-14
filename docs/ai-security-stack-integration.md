@@ -6,11 +6,11 @@ Defense-in-depth for AI-powered development with three complementary layers of p
 
 Modern AI development faces security threats at every stage. The complete security stack combines:
 
-| Layer | Tool | Focus | When |
-|-------|------|-------|------|
-| **Pre-Installation** | **Sigil** (NOMARK) | Supply-chain attacks, malicious packages | Before `npm install`, `pip install`, `git clone` |
-| **Deep Analysis** | **Aardvark/Codex Security** (OpenAI) | Vulnerability scanning, auto-patching | After code is committed |
-| **Deep Analysis** | **Claude Code Security** (Anthropic) | Vulnerability scanning, AI patches | After code is committed |
+| Layer                | Tool                                 | Focus                                    | When                                             |
+| -------------------- | ------------------------------------ | ---------------------------------------- | ------------------------------------------------ |
+| **Pre-Installation** | **Sigil** (NOMARK)                   | Supply-chain attacks, malicious packages | Before `npm install`, `pip install`, `git clone` |
+| **Deep Analysis**    | **Aardvark/Codex Security** (OpenAI) | Vulnerability scanning, auto-patching    | After code is committed                          |
+| **Deep Analysis**    | **Claude Code Security** (Anthropic) | Vulnerability scanning, AI patches       | After code is committed                          |
 
 **Key Insight:** Aardvark and Claude Code Security compete in the same space (deep vulnerability scanning), but **Sigil complements both** by operating at a different layer (pre-installation protection).
 
@@ -20,7 +20,7 @@ Modern AI development faces security threats at every stage. The complete securi
 
 **Problem:** Malicious packages and repos can execute code during installation before you even review them.
 
-**Solution:** Sigil quarantines and scans code *before* it enters your environment.
+**Solution:** Sigil quarantines and scans code _before_ it enters your environment.
 
 ```bash
 # Block supply-chain attacks BEFORE installation
@@ -30,6 +30,7 @@ sigil pip malicious-toolkit
 ```
 
 **What Sigil Detects:**
+
 - ✅ Install hooks (`npm postinstall`, `setup.py cmdclass`, Makefile targets)
 - ✅ Obfuscated malicious payloads (base64, hex, charCode)
 - ✅ Network exfiltration patterns (webhooks, DNS tunneling)
@@ -37,6 +38,7 @@ sigil pip malicious-toolkit
 - ✅ Code injection patterns (`eval`, `exec`, `pickle.loads`)
 
 **Risk Scoring:**
+
 - 0 = CLEAN (auto-approve)
 - 1-9 = LOW (approve with review)
 - 10-24 = MEDIUM (manual review required)
@@ -50,6 +52,7 @@ sigil pip malicious-toolkit
 **Solution:** OpenAI's autonomous security agent powered by GPT-5.
 
 **What Aardvark/Codex Security Does:**
+
 - ✅ Scans commit-level changes against entire repository
 - ✅ Validates vulnerabilities in sandboxed environments
 - ✅ 92% detection rate on benchmark "golden" repositories
@@ -66,6 +69,7 @@ sigil pip malicious-toolkit
 **Solution:** Anthropic's AI-powered vulnerability scanner.
 
 **What Claude Code Security Does:**
+
 - ✅ Parallel codebase scanning with contextual analysis
 - ✅ Adversarial verification to minimize false positives
 - ✅ AI-suggested patches for human review
@@ -78,19 +82,20 @@ sigil pip malicious-toolkit
 
 ### Complete Threat Coverage
 
-| Threat Type | Sigil | Aardvark | Claude Code Security |
-|-------------|-------|----------|---------------------|
-| **Supply-chain attacks** | ✅ Primary | ⚠️ Limited | ⚠️ Limited |
-| **Malicious install hooks** | ✅ Blocks before execution | ❌ After installation | ❌ After installation |
-| **Obfuscated malware** | ✅ Pattern detection | ✅ Malware analysis | ⚠️ Context-dependent |
-| **SQL injection** | ⚠️ Patterns only | ✅ Deep analysis | ✅ Deep analysis |
-| **XSS vulnerabilities** | ⚠️ Patterns only | ✅ Deep analysis | ✅ Deep analysis |
-| **Auth/authz flaws** | ❌ Not focused | ✅ Logic analysis | ✅ Logic analysis |
-| **Crypto weaknesses** | ❌ Not focused | ✅ Expert analysis | ✅ Expert analysis |
-| **Zero-day vulnerabilities** | ❌ Pattern-based | ✅ AI reasoning | ✅ AI reasoning |
-| **Known CVEs** | ⚠️ Threat intel | ✅ Comprehensive | ✅ Comprehensive |
+| Threat Type                  | Sigil                      | Aardvark              | Claude Code Security  |
+| ---------------------------- | -------------------------- | --------------------- | --------------------- |
+| **Supply-chain attacks**     | ✅ Primary                 | ⚠️ Limited            | ⚠️ Limited            |
+| **Malicious install hooks**  | ✅ Blocks before execution | ❌ After installation | ❌ After installation |
+| **Obfuscated malware**       | ✅ Pattern detection       | ✅ Malware analysis   | ⚠️ Context-dependent  |
+| **SQL injection**            | ⚠️ Patterns only           | ✅ Deep analysis      | ✅ Deep analysis      |
+| **XSS vulnerabilities**      | ⚠️ Patterns only           | ✅ Deep analysis      | ✅ Deep analysis      |
+| **Auth/authz flaws**         | ❌ Not focused             | ✅ Logic analysis     | ✅ Logic analysis     |
+| **Crypto weaknesses**        | ❌ Not focused             | ✅ Expert analysis    | ✅ Expert analysis    |
+| **Zero-day vulnerabilities** | ❌ Pattern-based           | ✅ AI reasoning       | ✅ AI reasoning       |
+| **Known CVEs**               | ⚠️ Threat intel            | ✅ Comprehensive      | ✅ Comprehensive      |
 
 **Legend:**
+
 - ✅ Strong coverage
 - ⚠️ Partial coverage
 - ❌ Not covered
@@ -216,6 +221,7 @@ claude code security review  # Review patches
 ### Scenario
 
 Building an AI agent with:
+
 - MCP servers for tools
 - LangChain for orchestration
 - Custom API integrations
@@ -305,18 +311,19 @@ graph TD
 
 **Both tools solve the same problem** (deep vulnerability scanning), but differ in:
 
-| Feature | Aardvark/Codex Security | Claude Code Security |
-|---------|------------------------|---------------------|
-| **Model** | GPT-5 | Claude Sonnet/Opus |
-| **Benchmark** | 92% detection rate | Not publicly disclosed |
-| **Validation** | Sandboxed exploit testing | Adversarial verification |
-| **Patching** | One-click via Codex | AI-suggested patches |
-| **Malware Analysis** | ✅ Dedicated pipeline | ⚠️ Context analysis |
-| **CVE Discovery** | 10+ disclosed | Used by Anthropic internally |
-| **Status** | Private beta | Research preview (waitlist) |
-| **Integration** | Auto-scans on commit | Manual or scheduled scans |
+| Feature              | Aardvark/Codex Security   | Claude Code Security         |
+| -------------------- | ------------------------- | ---------------------------- |
+| **Model**            | GPT-5                     | Claude Sonnet/Opus           |
+| **Benchmark**        | 92% detection rate        | Not publicly disclosed       |
+| **Validation**       | Sandboxed exploit testing | Adversarial verification     |
+| **Patching**         | One-click via Codex       | AI-suggested patches         |
+| **Malware Analysis** | ✅ Dedicated pipeline     | ⚠️ Context analysis          |
+| **CVE Discovery**    | 10+ disclosed             | Used by Anthropic internally |
+| **Status**           | Private beta              | Research preview (waitlist)  |
+| **Integration**      | Auto-scans on commit      | Manual or scheduled scans    |
 
 **Choose based on:**
+
 - **Aardvark**: If you want automated scanning on every commit + malware analysis
 - **Claude Code Security**: If you prefer Claude's models + adversarial verification
 - **Both**: Use whichever you get access to first (both are in limited release)
@@ -362,7 +369,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Sigil
-        run: curl -sSL https://sigilsec.ai/install.sh | sh
+        run: curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
       - name: Scan repository
         run: sigil scan .
 
@@ -397,7 +404,7 @@ jobs:
 ```yaml
 # sigil-policy.yml
 quarantine:
-  auto_approve_threshold: 0  # Only CLEAN auto-approved
+  auto_approve_threshold: 0 # Only CLEAN auto-approved
   require_team_review: true
   block_critical: true
 
@@ -418,12 +425,12 @@ claude code security report --format=sarif > claude-report.json
 
 ## Cost Comparison
 
-| Tool | Pricing | Free Tier |
-|------|---------|-----------|
-| **Sigil** | Free (open source) | ✅ Full CLI |
-| **Sigil Pro** | $29/mo | 90-day scan history, threat intel |
-| **Aardvark/Codex Security** | Not disclosed (private beta) | Research access |
-| **Claude Code Security** | Not disclosed (research preview) | Waitlist access |
+| Tool                        | Pricing                          | Free Tier                         |
+| --------------------------- | -------------------------------- | --------------------------------- |
+| **Sigil**                   | Free (open source)               | ✅ Full CLI                       |
+| **Sigil Pro**               | $29/mo                           | 90-day scan history, threat intel |
+| **Aardvark/Codex Security** | Not disclosed (private beta)     | Research access                   |
+| **Claude Code Security**    | Not disclosed (research preview) | Waitlist access                   |
 
 **Recommendation:** Start with Sigil (free) + waitlist for both Aardvark and Claude Code Security.
 
@@ -432,6 +439,7 @@ claude code security report --format=sarif > claude-report.json
 ### 1. **Layer Security, Don't Choose**
 
 Don't ask "Which tool should I use?" - use all three:
+
 - **Sigil**: Every package install, every repo clone
 - **Aardvark OR Claude Code Security**: Choose based on access/preference
 - **Both deep scanners**: If you can access both, use both for maximum coverage
@@ -451,6 +459,7 @@ claude code security scan --exit-on-high
 ### 3. **Human Review Required**
 
 All three tools require human oversight:
+
 - **Sigil**: Approve/reject quarantine decisions
 - **Aardvark**: Review Codex-generated patches
 - **Claude Code Security**: Review AI-suggested patches
@@ -540,24 +549,28 @@ sigil scan .
 ### 30-Day Security Challenge
 
 **Week 1:** Install Sigil, scan all dependencies
+
 ```bash
 sigil scan .
 sigil list  # Review all findings
 ```
 
 **Week 2:** Enable automatic scanning
+
 ```bash
 alias npm='sigil npm'
 alias pip='sigil pip'
 ```
 
 **Week 3:** Deep scan with Aardvark or Claude Code Security
+
 ```bash
 claude code security scan
 # OR configure Aardvark
 ```
 
 **Week 4:** Review all findings, apply patches, establish workflow
+
 ```bash
 # Review and fix all vulnerabilities
 # Document your security workflow
@@ -569,16 +582,19 @@ claude code security scan
 ## Summary: The Complete Stack
 
 **Pre-Installation (Sigil):**
+
 - Blocks malicious packages and repos
 - Quarantine-first workflow
 - Supply-chain attack focus
 
 **Deep Analysis (Aardvark/Codex Security OR Claude Code Security):**
+
 - Finds logic-level vulnerabilities
 - AI-powered patching
 - Continuous monitoring
 
 **Together:**
+
 - Complete threat coverage
 - Defense in depth
 - Reduced attack surface

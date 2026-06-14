@@ -1,8 +1,8 @@
 # Why We Built Sigil
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: announcement, security, supply-chain*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: announcement, security, supply-chain_
 
 ---
 
@@ -39,7 +39,7 @@ This is why we built Sigil: because the tooling developers use every day — esp
 ## Try it
 
 ```bash
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 sigil scan .
 ```
 
@@ -47,4 +47,4 @@ The CLI is free and open source. All six scan phases run locally, offline, with 
 
 ---
 
-*Sigil is made by [NOMARK](https://nomark.ai). Star us on [GitHub](https://github.com/NOMARJ/sigil).*
+_Sigil is made by [NOMARK](https://nomark.ai). Star us on [GitHub](https://github.com/NOMARJ/sigil)._

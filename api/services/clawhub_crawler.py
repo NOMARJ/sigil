@@ -33,12 +33,14 @@ import io
 import json
 import logging
 import os
+import re
 import tempfile
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode, urlsplit
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,8 @@ logger = logging.getLogger(__name__)
 CLAWHUB_BASE = "https://clawhub.ai/api/v1"
 RATE_LIMIT_PER_MIN = 120
 REQUEST_DELAY = 60.0 / RATE_LIMIT_PER_MIN  # ~0.5s between requests
+MAX_RESPONSE_BYTES = 25 * 1024 * 1024
+ALLOWED_CLAWHUB_HOST = "clawhub.ai"
 
 
 # ---------------------------------------------------------------------------
@@ -97,16 +101,20 @@ async def _http_get(
     timeout: int = 30,
 ) -> dict[str, Any] | bytes | None:
     """Make an HTTP GET request with rate limiting."""
+    safe_url = _validated_clawhub_url(url)
+    if safe_url is None:
+        logger.warning("Rejected non-ClawHub URL: %s", url)
+        return None
+
     try:
         import httpx
     except ImportError:
         # Fall back to urllib — run in thread to avoid blocking the event loop
         import urllib.request
-        import urllib.parse
 
-        full_url = url
+        full_url = safe_url
         if params:
-            full_url = f"{url}?{urllib.parse.urlencode(params)}"
+            full_url = f"{safe_url}?{urlencode(params)}"
 
         def _sync_get() -> dict[str, Any] | bytes | None:
             _req = urllib.request.Request(
@@ -114,7 +122,10 @@ async def _http_get(
             )
             try:
                 with urllib.request.urlopen(_req, timeout=timeout) as resp:
-                    _data = resp.read()
+                    _data = resp.read(MAX_RESPONSE_BYTES + 1)
+                    if len(_data) > MAX_RESPONSE_BYTES:
+                        logger.warning("HTTP GET exceeded response limit: %s", full_url)
+                        return None
                     content_type = resp.headers.get("Content-Type", "")
                     if "json" in content_type:
                         return json.loads(_data)
@@ -127,15 +138,34 @@ async def _http_get(
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
-            resp = await client.get(url, params=params)
+            resp = await client.get(safe_url, params=params)
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")
+            if len(resp.content) > MAX_RESPONSE_BYTES:
+                logger.warning("HTTP GET exceeded response limit: %s", safe_url)
+                return None
             if "json" in content_type:
                 return resp.json()
             return resp.content
         except Exception as e:
-            logger.warning("HTTP GET failed: %s: %s", url, e)
+            logger.warning("HTTP GET failed: %s: %s", safe_url, e)
             return None
+
+
+def _validated_clawhub_url(url: str) -> str | None:
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or parsed.hostname != ALLOWED_CLAWHUB_HOST:
+        return None
+    if parsed.username or parsed.password or parsed.port:
+        return None
+    if not parsed.path.startswith("/api/v1/"):
+        return None
+    return url
+
+
+def _safe_temp_slug(slug: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", slug).strip(".-")
+    return safe[:64] or "skill"
 
 
 async def enumerate_skills(
@@ -238,7 +268,9 @@ async def download_skill(skill: ClawHubSkill, dest_dir: str) -> bool:
             dest = Path(dest_dir).resolve()
             for member in zf.namelist():
                 member_path = (dest / member).resolve()
-                if not str(member_path).startswith(str(dest)):
+                try:
+                    member_path.relative_to(dest)
+                except ValueError:
                     logger.warning(
                         "Zip-slip attempt in skill %s: %s", skill.slug, member
                     )
@@ -267,7 +299,9 @@ async def scan_skill(skill: ClawHubSkill) -> ClawHubScanResult:
     result = ClawHubScanResult(skill=skill, scan_id=scan_id)
     start = datetime.now(timezone.utc)
 
-    with tempfile.TemporaryDirectory(prefix=f"sigil-clawhub-{skill.slug}-") as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix=f"sigil-clawhub-{_safe_temp_slug(skill.slug)}-"
+    ) as tmpdir:
         try:
             # Download
             ok = await download_skill(skill, tmpdir)

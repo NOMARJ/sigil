@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { OnboardingStepProps } from "../OnboardingStep";
 
-export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProps) {
+export default function ApiKeySetupStep({
+  step,
+  onComplete,
+}: OnboardingStepProps) {
   const [apiKey, setApiKey] = useState("");
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -68,13 +71,26 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
         {/* Step Description */}
         <div className="mb-8 text-center">
           <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+              />
             </svg>
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">Connect the Sigil CLI</h3>
+          <h3 className="text-xl font-bold text-white mb-2">
+            Connect the Sigil CLI
+          </h3>
           <p className="text-gray-400">
-            Authenticate the CLI with your Sigil account to access Pro analysis features.
+            Authenticate the CLI with your Sigil account to access Pro analysis
+            features.
           </p>
         </div>
 
@@ -82,14 +98,20 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
         {!apiKey ? (
           <div className="text-center">
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-6">
-              <h4 className="text-lg font-semibold text-white mb-4">Use Device Login</h4>
+              <h4 className="text-lg font-semibold text-white mb-4">
+                Use Device Login
+              </h4>
               <p className="text-gray-400 mb-6">
-                Run the CLI login command and complete the browser prompt. API key issuance remains disabled until server-side key management is available.
+                Run the CLI login command and complete the browser prompt. API
+                key issuance remains disabled until server-side key management
+                is available.
               </p>
               <div className="bg-gray-800 border border-gray-600 rounded p-3 mb-6 text-left">
-                <code className="text-green-400 font-mono text-sm">sigil login</code>
+                <code className="text-green-400 font-mono text-sm">
+                  sigil login
+                </code>
               </div>
-              
+
               <button
                 onClick={generateApiKey}
                 disabled={isGenerating}
@@ -122,13 +144,22 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
             {/* Security Notice */}
             <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-4">
               <div className="flex items-start">
-                <svg className="w-5 h-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <svg
+                  className="w-5 h-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 <div className="text-yellow-300">
                   <h5 className="font-medium mb-1">Keep Your API Key Secure</h5>
                   <p className="text-sm text-yellow-400">
-                    Store your API key securely and never commit it to version control. It provides access to your Pro account and billing.
+                    Store your API key securely and never commit it to version
+                    control. It provides access to your Pro account and billing.
                   </p>
                 </div>
               </div>
@@ -138,10 +169,14 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
           <div>
             {/* Generated API Key */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-6">
-              <h4 className="text-lg font-semibold text-white mb-4">Your Pro API Key</h4>
+              <h4 className="text-lg font-semibold text-white mb-4">
+                Your Pro API Key
+              </h4>
               <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between">
-                  <code className="text-green-400 font-mono break-all">{apiKey}</code>
+                  <code className="text-green-400 font-mono break-all">
+                    {apiKey}
+                  </code>
                   <button
                     onClick={copyToClipboard}
                     className={`ml-4 px-3 py-1 rounded text-sm font-medium transition-colors ${
@@ -154,31 +189,40 @@ export default function ApiKeySetupStep({ step, onComplete }: OnboardingStepProp
                   </button>
                 </div>
               </div>
-              
+
               {/* CLI Setup Instructions */}
               <div className="mb-6">
-                <h5 className="text-white font-semibold mb-3">Setup Instructions</h5>
+                <h5 className="text-white font-semibold mb-3">
+                  Setup Instructions
+                </h5>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-gray-400 mb-2">1. Install the Sigil CLI:</p>
+                    <p className="text-sm text-gray-400 mb-2">
+                      1. Install the Sigil CLI:
+                    </p>
                     <div className="bg-gray-800 border border-gray-600 rounded p-3">
                       <code className="text-green-400 font-mono text-sm">
-                        curl -sSL https://get.sigil.sh | sh
+                        curl -fsSLO https://www.sigilsec.ai/install.sh && sh
+                        install.sh
                       </code>
                     </div>
                   </div>
-                  
+
                   <div>
-                    <p className="text-sm text-gray-400 mb-2">2. Configure your API key:</p>
+                    <p className="text-sm text-gray-400 mb-2">
+                      2. Configure your API key:
+                    </p>
                     <div className="bg-gray-800 border border-gray-600 rounded p-3">
                       <code className="text-green-400 font-mono text-sm">
                         export SIGIL_API_KEY=&quot;{apiKey}&quot;
                       </code>
                     </div>
                   </div>
-                  
+
                   <div>
-                    <p className="text-sm text-gray-400 mb-2">3. Test your connection:</p>
+                    <p className="text-sm text-gray-400 mb-2">
+                      3. Test your connection:
+                    </p>
                     <div className="bg-gray-800 border border-gray-600 rounded p-3">
                       <code className="text-green-400 font-mono text-sm">
                         sigil --version --pro

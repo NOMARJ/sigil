@@ -1,8 +1,8 @@
 # Adding Security Scanning to Your CI/CD Pipeline
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: cicd, devops, github-actions, tutorial*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: cicd, devops, github-actions, tutorial_
 
 ---
 
@@ -41,12 +41,12 @@ This scans your entire repository on every PR and push to main. If findings meet
 
 The `threshold` input controls which findings fail the build:
 
-| Threshold | Fails on |
-|-----------|----------|
-| `low` | Any finding (LOW, MEDIUM, HIGH, CRITICAL) |
-| `medium` | MEDIUM, HIGH, or CRITICAL findings |
-| `high` | HIGH or CRITICAL findings only |
-| `critical` | CRITICAL findings only |
+| Threshold  | Fails on                                  |
+| ---------- | ----------------------------------------- |
+| `low`      | Any finding (LOW, MEDIUM, HIGH, CRITICAL) |
+| `medium`   | MEDIUM, HIGH, or CRITICAL findings        |
+| `high`     | HIGH or CRITICAL findings only            |
+| `critical` | CRITICAL findings only                    |
 
 **Recommended:** Start with `medium`. This catches real threats without failing on every `os.environ` access in your codebase. Tighten to `low` once you've addressed existing findings.
 
@@ -164,7 +164,7 @@ jobs:
         with:
           path: .
           threshold: high
-          fail-on-findings: false  # Report but don't block
+          fail-on-findings: false # Report but don't block
 ```
 
 ## GitLab CI
@@ -173,7 +173,7 @@ Include the Sigil template in your `.gitlab-ci.yml`:
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/NOMARJ/sigil/main/.gitlab-ci-template.yml'
+  - remote: "https://raw.githubusercontent.com/NOMARJ/sigil/main/.gitlab-ci-template.yml"
 
 sigil-scan:
   stage: test
@@ -190,7 +190,7 @@ For Jenkins, CircleCI, Bitbucket, or any other CI system:
 
 ```bash
 # Install
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 # Scan
 sigil scan . --format json > sigil-report.json
@@ -214,4 +214,4 @@ Get notified when CI scans find issues. Configure via the dashboard (**Settings 
 
 ---
 
-*Full CI/CD documentation: [CI/CD Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/cicd.md) | Install: `curl -sSL https://sigilsec.ai/install.sh | sh`*
+_Full CI/CD documentation: [CI/CD Integration Guide](https://github.com/NOMARJ/sigil/blob/main/docs/cicd.md) | Install: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`_

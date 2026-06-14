@@ -23,6 +23,7 @@ Specialized security agents for deep analysis:
 ### 🔔 Hooks
 
 Automatic security recommendations when you:
+
 - Mention "clone", "install", "security", "scan", "package", or "malware"
 - Use commands like `git clone`, `pip install`, or `npm install`
 
@@ -48,10 +49,11 @@ npm install -g @nomarj/sigil
 cargo install sigil-cli
 
 # curl installer
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 ```
 
 Verify installation:
+
 ```bash
 sigil --version
 ```
@@ -59,11 +61,13 @@ sigil --version
 **2. Claude Code 1.0.33+**
 
 Check your version:
+
 ```bash
 claude --version
 ```
 
 Update if needed:
+
 ```bash
 claude update
 ```
@@ -117,11 +121,13 @@ claude plugin list
 ```
 
 You should see:
+
 ```
 sigil-security@1.0.0 (enabled)
 ```
 
 Test a skill:
+
 ```bash
 # Start Claude Code
 claude
@@ -141,6 +147,7 @@ claude
 ```
 
 **Examples:**
+
 ```
 /sigil-security:scan-repo ~/projects/untrusted-mcp-server
 /sigil-security:scan-repo https://github.com/someone/cool-tool
@@ -148,6 +155,7 @@ claude
 ```
 
 **Output:**
+
 ```
 🔍 SCAN RESULTS: [VERDICT]
 
@@ -173,6 +181,7 @@ Threat Level: [CLEAN|LOW_RISK|MEDIUM_RISK|HIGH_RISK|CRITICAL]
 ```
 
 **Examples:**
+
 ```
 /sigil-security:scan-package lodash
 /sigil-security:scan-package requests
@@ -188,12 +197,14 @@ Claude will automatically detect whether it's an npm or pip package and use the 
 ```
 
 **Examples:**
+
 ```
 /sigil-security:scan-file ./src/agent/tools.ts
 /sigil-security:scan-file setup.py
 ```
 
 Analyzes a specific file for:
+
 - Dangerous code patterns (eval, exec, pickle)
 - Network access (HTTP, webhooks, sockets)
 - Credential exposure (API keys, tokens)
@@ -209,6 +220,7 @@ Analyzes a specific file for:
 Lists all quarantined items and helps you decide whether to approve or reject each one.
 
 **Output:**
+
 ```
 📦 QUARANTINE REVIEW
 
@@ -237,6 +249,7 @@ Invoke for expert security analysis:
 ```
 
 **Use when:**
+
 - Analyzing scan findings
 - Understanding risk scores
 - Getting remediation recommendations
@@ -244,6 +257,7 @@ Invoke for expert security analysis:
 - Learning about security patterns
 
 **Example:**
+
 ```
 User: @security-auditor I got a HIGH risk score for base64 encoding in my config loader. Is this safe?
 
@@ -273,6 +287,7 @@ Invoke for quarantine workflow help:
 ```
 
 **Use when:**
+
 - Reviewing quarantined items
 - Making approve/reject decisions
 - Understanding quarantine status
@@ -280,6 +295,7 @@ Invoke for quarantine workflow help:
 - Documenting security decisions
 
 **Example:**
+
 ```
 User: @quarantine-manager I have 5 items in quarantine. Help me prioritize.
 
@@ -317,6 +333,7 @@ Would you like me to help with any specific item?
 The plugin automatically suggests Sigil when you:
 
 **Trigger words:**
+
 ```
 User: I want to clone this repo from GitHub
 User: Let's install the langchain package
@@ -325,6 +342,7 @@ User: This package looks suspicious
 ```
 
 **Intercepted commands:**
+
 ```
 User: git clone https://github.com/someone/repo
 → Claude: Before cloning, let me scan this with Sigil for security threats.
@@ -360,7 +378,7 @@ Edit `~/.sigil/config.yaml`:
 
 ```yaml
 quarantine:
-  auto_approve_threshold: 0  # Only auto-approve CLEAN (0)
+  auto_approve_threshold: 0 # Only auto-approve CLEAN (0)
   # auto_approve_threshold: 9  # Auto-approve CLEAN and LOW_RISK (0-9)
 ```
 
@@ -373,6 +391,7 @@ sigil login
 ```
 
 This enables:
+
 - Cloud threat intelligence
 - Scan history across devices
 - Team collaboration
@@ -385,6 +404,7 @@ This enables:
 **Cause:** Sigil CLI is not installed or not in PATH.
 
 **Fix:**
+
 ```bash
 # Install Sigil
 brew install nomarj/tap/sigil
@@ -399,6 +419,7 @@ sigil --version
 **Cause:** Plugin not installed or disabled.
 
 **Fix:**
+
 ```bash
 # List plugins
 claude plugin list
@@ -415,6 +436,7 @@ claude plugin enable sigil-security
 **Cause:** Cached old version.
 
 **Fix:**
+
 ```bash
 # Update plugin
 claude plugin update sigil-security
@@ -429,6 +451,7 @@ claude plugin install sigil-security@sigil
 **Cause:** Claude Code version too old.
 
 **Fix:**
+
 ```bash
 # Check version (need 1.0.33+)
 claude --version
@@ -442,6 +465,7 @@ claude update
 **Cause:** Sigil doesn't have permission to read files.
 
 **Fix:**
+
 ```bash
 # Check file permissions
 ls -la /path/to/file
@@ -598,4 +622,4 @@ require_review:
 ---
 
 **SIGIL** by [NOMARK](https://nomark.ai)
-*A protective mark for every line of code.*
+_A protective mark for every line of code._

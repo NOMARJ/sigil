@@ -1,8 +1,8 @@
 # Sigil vs Snyk vs Socket.dev: What's Actually Different
 
-*Published: 2026-02-19*
-*Author: NOMARK*
-*Tags: comparison, security-tools, evaluation*
+_Published: 2026-02-19_
+_Author: NOMARK_
+_Tags: comparison, security-tools, evaluation_
 
 ---
 
@@ -58,18 +58,18 @@ CodeQL is GitHub's deep semantic analysis engine. It builds a database of your c
 
 Sigil is not a replacement for any of these tools. It fills a gap that none of them address: **quarantine-first behavioral scanning for untrusted code.**
 
-| Capability | Sigil | Snyk | Socket | Semgrep | CodeQL |
-|-----------|-------|------|--------|---------|--------|
-| Quarantine before execution | Yes | No | No | No | No |
-| Install hook detection | Yes | No | Yes (npm) | No | No |
-| Behavioral scanning (eval, exec, exfil) | Yes | No | Partial | Rules needed | Rules needed |
-| Multi-ecosystem (pip, npm, git, URL) | Yes | Yes | npm only | Any (rules) | GitHub only |
-| AI agent / MCP integration | Yes | No | No | No | No |
-| Community threat intelligence | Yes | Advisory DB | Yes | Community | No |
-| Offline mode (no account) | Yes | No | No | Yes (OSS) | No |
-| CVE / advisory database | No | Yes | Partial | No | Yes |
-| Deep semantic analysis | No | No | No | Partial | Yes |
-| Free CLI with all features | Yes | Limited | Limited | OSS free | Public repos |
+| Capability                              | Sigil | Snyk        | Socket    | Semgrep      | CodeQL       |
+| --------------------------------------- | ----- | ----------- | --------- | ------------ | ------------ |
+| Quarantine before execution             | Yes   | No          | No        | No           | No           |
+| Install hook detection                  | Yes   | No          | Yes (npm) | No           | No           |
+| Behavioral scanning (eval, exec, exfil) | Yes   | No          | Partial   | Rules needed | Rules needed |
+| Multi-ecosystem (pip, npm, git, URL)    | Yes   | Yes         | npm only  | Any (rules)  | GitHub only  |
+| AI agent / MCP integration              | Yes   | No          | No        | No           | No           |
+| Community threat intelligence           | Yes   | Advisory DB | Yes       | Community    | No           |
+| Offline mode (no account)               | Yes   | No          | No        | Yes (OSS)    | No           |
+| CVE / advisory database                 | No    | Yes         | Partial   | No           | Yes          |
+| Deep semantic analysis                  | No    | No          | No        | Partial      | Yes          |
+| Free CLI with all features              | Yes   | Limited     | Limited   | OSS free     | Public repos |
 
 ## The recommended stack
 
@@ -87,7 +87,7 @@ The best way to evaluate is to scan the same project with each tool and compare 
 
 ```bash
 # Install Sigil
-curl -sSL https://sigilsec.ai/install.sh | sh
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 # Scan your project
 sigil scan .
@@ -103,4 +103,4 @@ Sigil's findings will be different from Snyk's — and that's the point. They ca
 
 ---
 
-*Install Sigil: `curl -sSL https://sigilsec.ai/install.sh | sh` | [Full documentation](https://github.com/NOMARJ/sigil/blob/main/docs/getting-started.md)*
+_Install Sigil: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh` | [Full documentation](https://github.com/NOMARJ/sigil/blob/main/docs/getting-started.md)_
