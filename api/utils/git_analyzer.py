@@ -62,7 +62,9 @@ def _safe_repo_file(repo: Path, file_path: str) -> str | None:
 def _safe_git_ref(ref: str) -> str | None:
     if not ref or ref.startswith("-") or not _SAFE_REF_RE.fullmatch(ref):
         return None
-    if any(token in ref for token in ("..", "//", "@{", "\\", ":", "?", "[", "^", "~", "*")):
+    if any(
+        token in ref for token in ("..", "//", "@{", "\\", ":", "?", "[", "^", "~", "*")
+    ):
         return None
     return ref
 

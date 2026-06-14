@@ -244,7 +244,7 @@ def test_infra_image_tag_variables_reject_mutable_defaults():
         "dashboard_image_tag",
         "bot_image_tag",
     ]:
-        assert f"variable \"{variable_name}\"" in content
+        assert f'variable "{variable_name}"' in content
         assert f"{variable_name} must be an immutable image tag" in content
         assert f'trimspace(var.{variable_name}) != "latest"' in content
 
@@ -282,9 +282,12 @@ def test_infra_ignores_local_nomark_chain_artifacts():
 def test_release_workflows_avoid_node20_only_action_paths():
     repo_root = Path(__file__).resolve().parents[2]
     workflow_text = "\n".join(
-        path.read_text() for path in sorted((repo_root / ".github" / "workflows").glob("*.yml"))
+        path.read_text()
+        for path in sorted((repo_root / ".github" / "workflows").glob("*.yml"))
     )
-    infra_workflow = repo_root.parent / "sigil-infra" / ".github" / "workflows" / "deploy.yml"
+    infra_workflow = (
+        repo_root.parent / "sigil-infra" / ".github" / "workflows" / "deploy.yml"
+    )
     if infra_workflow.exists():
         workflow_text += "\n" + infra_workflow.read_text()
 

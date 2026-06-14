@@ -56,6 +56,7 @@ class TestPasswordHashing:
             "ValidPassword123!", "pbkdf2:sha256:not-an-int:salt:hash"
         )
 
+
 class TestRegistration:
     """Tests for POST /v1/auth/register."""
 

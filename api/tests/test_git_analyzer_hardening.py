@@ -39,9 +39,7 @@ def git_repo(tmp_path: Path) -> Path:
 def test_git_analyzer_rejects_unsafe_file_paths(git_repo: Path) -> None:
     analyzer = GitAnalyzer()
 
-    result = asyncio.run(
-        analyzer.get_blame_for_line(str(git_repo), "../README.md", 1)
-    )
+    result = asyncio.run(analyzer.get_blame_for_line(str(git_repo), "../README.md", 1))
 
     assert result is None
 
@@ -52,7 +50,9 @@ def test_git_analyzer_rejects_unsafe_refs(git_repo: Path) -> None:
     commits = asyncio.run(
         analyzer.get_recent_commits(str(git_repo), branch="main;touch x")
     )
-    changed = asyncio.run(analyzer.get_changed_files(str(git_repo), "HEAD", "HEAD -- ."))
+    changed = asyncio.run(
+        analyzer.get_changed_files(str(git_repo), "HEAD", "HEAD -- .")
+    )
     stats = asyncio.run(analyzer.get_commit_stats(str(git_repo), "HEAD^{tree}"))
 
     assert commits == []

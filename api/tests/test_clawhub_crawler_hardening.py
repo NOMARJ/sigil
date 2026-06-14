@@ -12,10 +12,22 @@ from api.services.clawhub_crawler import ClawHubSkill
 
 
 def test_http_get_rejects_non_clawhub_urls() -> None:
-    assert asyncio.run(clawhub_crawler._http_get("https://evil.example/api/v1/skills")) is None
-    assert asyncio.run(clawhub_crawler._http_get("http://clawhub.ai/api/v1/skills")) is None
-    assert asyncio.run(clawhub_crawler._http_get("https://clawhub.ai.evil/api/v1/skills")) is None
-    assert asyncio.run(clawhub_crawler._http_get("https://clawhub.ai/not-api/skills")) is None
+    assert (
+        asyncio.run(clawhub_crawler._http_get("https://evil.example/api/v1/skills"))
+        is None
+    )
+    assert (
+        asyncio.run(clawhub_crawler._http_get("http://clawhub.ai/api/v1/skills"))
+        is None
+    )
+    assert (
+        asyncio.run(clawhub_crawler._http_get("https://clawhub.ai.evil/api/v1/skills"))
+        is None
+    )
+    assert (
+        asyncio.run(clawhub_crawler._http_get("https://clawhub.ai/not-api/skills"))
+        is None
+    )
 
 
 def test_safe_temp_slug_strips_path_characters() -> None:
