@@ -61,6 +61,7 @@ describe("auth and onboarding hardening", () => {
 
     expect(meRouteSource).not.toContain('plan: "pro"');
     expect(meRouteSource).toContain('fetchJson<ApiUser>("/auth/me"');
+    expect(meRouteSource).not.toContain('fetchJson<ApiUser>("/auth/me", token).catch');
     expect(meRouteSource).toContain('fetchJson<ApiSubscription>("/billing/subscription"');
     expect(meRouteSource).toContain("normalizeRole(apiUser.role)");
     expect(meRouteSource).toContain("normalizePlan(subscription.plan)");

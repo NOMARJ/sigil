@@ -4,11 +4,15 @@ Data models for LLM service responses.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class LLMAnalysisType(str, Enum):
@@ -201,7 +205,7 @@ class LLMAnalysisResponse(BaseModel):
 
     # Timestamps
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When analysis was performed"
+        default_factory=utcnow, description="When analysis was performed"
     )
 
 
@@ -230,9 +234,7 @@ class LLMUsageMetrics(BaseModel):
     # Meta
     model_used: str = Field(..., description="LLM model used")
     provider: str = Field(..., description="LLM provider (openai, azure, anthropic)")
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp"
-    )
+    created_at: datetime = Field(default_factory=utcnow, description="Timestamp")
 
 
 def confidence_to_level(score: float) -> LLMConfidence:

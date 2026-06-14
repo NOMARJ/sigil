@@ -5,10 +5,14 @@ on:
     branches: [ main, develop ]
     paths:
       - '.github/workflows/test-pro-tier.yml'
+      - 'api/gates.py'
+      - 'api/permissions.py'
       - 'api/services/llm_service.py'
       - 'api/services/subscription_service.py'
       - 'api/middleware/tier_check.py'
       - 'api/routers/billing.py'
+      - 'api/routers/scan.py'
+      - 'api/routers/threat.py'
       - 'api/scanner/phase9_llm_detector.py'
       - 'api/tests/test_pro_tier.py'
       - 'api/tests/test_billing_integration.py'
@@ -20,10 +24,14 @@ on:
     branches: [ main ]
     paths:
       - '.github/workflows/test-pro-tier.yml'
+      - 'api/gates.py'
+      - 'api/permissions.py'
       - 'api/services/llm_service.py'
       - 'api/services/subscription_service.py'
       - 'api/middleware/tier_check.py'
       - 'api/routers/billing.py'
+      - 'api/routers/scan.py'
+      - 'api/routers/threat.py'
       - 'api/scanner/phase9_llm_detector.py'
       - 'api/tests/test_pro_tier.py'
       - 'api/tests/test_billing_integration.py'
@@ -34,9 +42,11 @@ on:
   schedule:
     # Run daily at 2 AM UTC to catch any regressions
     - cron: '0 2 * * *'
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: '3.11'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: read
@@ -62,7 +72,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -75,15 +85,17 @@ jobs:
           
       - name: Set environment variables
         run: |
-          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
-          echo "SIGIL_LLM_PROVIDER=mock" >> $GITHUB_ENV
-          echo "SIGIL_DB_TYPE=memory" >> $GITHUB_ENV
-          echo "SIGIL_STRIPE_CONFIGURED=0" >> $GITHUB_ENV
+          {
+            echo "SIGIL_TEST_MODE=1"
+            echo "SIGIL_LLM_PROVIDER=mock"
+            echo "SIGIL_DB_TYPE=memory"
+            echo "SIGIL_STRIPE_CONFIGURED=0"
+          } >> "$GITHUB_ENV"
           
       - name: Run Pro tier tests
         run: |
           cd api
-          pytest tests/test_${{ matrix.test-group }}.py \
+          pytest "tests/test_${{ matrix.test-group }}.py" \
             -v \
             --cov=services/llm_service \
             --cov=services/subscription_service \
@@ -91,12 +103,12 @@ jobs:
             --cov=middleware/tier_check \
             --cov=routers/billing \
             --cov=scanner/phase9_llm_detector \
-            --cov-report=xml:coverage-${{ matrix.test-group }}.xml \
+            --cov-report="xml:coverage-${{ matrix.test-group }}.xml" \
             --cov-report=term-missing \
             --tb=short
             
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         with:
           file: api/coverage-${{ matrix.test-group }}.xml
           flags: pro-tier,${{ matrix.test-group }}
@@ -113,7 +125,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -126,10 +138,12 @@ jobs:
           
       - name: Set environment variables
         run: |
-          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
-          echo "SIGIL_PERFORMANCE_TESTS=1" >> $GITHUB_ENV
-          echo "SIGIL_LLM_PROVIDER=mock" >> $GITHUB_ENV
-          echo "SIGIL_DB_TYPE=memory" >> $GITHUB_ENV
+          {
+            echo "SIGIL_TEST_MODE=1"
+            echo "SIGIL_PERFORMANCE_TESTS=1"
+            echo "SIGIL_LLM_PROVIDER=mock"
+            echo "SIGIL_DB_TYPE=memory"
+          } >> "$GITHUB_ENV"
           
       - name: Run performance tests
         run: |
@@ -142,10 +156,12 @@ jobs:
       - name: Generate performance report
         run: |
           cd api
-          echo "## Pro Tier Performance Test Results" > performance_report.md
-          echo "Date: $(date)" >> performance_report.md
-          echo "Commit: ${{ github.sha }}" >> performance_report.md
-          echo "" >> performance_report.md
+          {
+            echo "## Pro Tier Performance Test Results"
+            echo "Date: $(date)"
+            echo "Commit: ${{ github.sha }}"
+            echo ""
+          } > performance_report.md
           pytest tests/test_pro_performance.py --tb=no -v >> performance_report.md 2>&1 || true
           
       - name: Upload performance report
@@ -175,7 +191,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Set up Python  
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -188,14 +204,16 @@ jobs:
           
       - name: Set environment variables
         run: |
-          echo "SIGIL_TEST_MODE=1" >> $GITHUB_ENV
-          echo "SIGIL_INTEGRATION_TESTS=1" >> $GITHUB_ENV
-          echo "SIGIL_REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
-          echo "SIGIL_LLM_PROVIDER=openai" >> $GITHUB_ENV
-          echo "SIGIL_LLM_API_KEY=test-key-for-integration" >> $GITHUB_ENV
-          echo "SIGIL_STRIPE_CONFIGURED=1" >> $GITHUB_ENV
-          echo "SIGIL_STRIPE_SECRET_KEY=sk_test_integration" >> $GITHUB_ENV
-          echo "SIGIL_STRIPE_WEBHOOK_SECRET=whsec_test_integration" >> $GITHUB_ENV
+          {
+            echo "SIGIL_TEST_MODE=1"
+            echo "SIGIL_INTEGRATION_TESTS=1"
+            echo "SIGIL_REDIS_URL=redis://localhost:6379"
+            echo "SIGIL_LLM_PROVIDER=openai"
+            echo "SIGIL_LLM_API_KEY=test-key-for-integration"
+            echo "SIGIL_STRIPE_CONFIGURED=1"
+            echo "SIGIL_STRIPE_SECRET_KEY=sk_test_integration"
+            echo "SIGIL_STRIPE_WEBHOOK_SECRET=whsec_test_integration"
+          } >> "$GITHUB_ENV"
           
       - name: Run integration tests
         run: |
@@ -211,7 +229,7 @@ jobs:
             --tb=short
             
       - name: Upload integration coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         with:
           file: api/coverage-integration.xml
           flags: pro-tier,integration
@@ -227,7 +245,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -276,7 +294,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -296,10 +314,12 @@ jobs:
       - name: Generate load test report
         run: |
           cd api
-          echo "## Pro Tier Load Test Results" > load_test_report.md
-          echo "Date: $(date)" >> load_test_report.md
-          echo "Commit: ${{ github.sha }}" >> load_test_report.md
-          echo "Event: ${{ github.event_name }}" >> load_test_report.md
+          {
+            echo "## Pro Tier Load Test Results"
+            echo "Date: $(date)"
+            echo "Commit: ${{ github.sha }}"
+            echo "Event: ${{ github.event_name }}"
+          } > load_test_report.md
           
       - name: Upload load test report
         uses: actions/upload-artifact@v4
@@ -315,7 +335,7 @@ jobs:
     
     steps:
       - name: Notify failure
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             const issueTitle = `Pro Tier Tests Failed - ${new Date().toISOString().split('T')[0]}`;

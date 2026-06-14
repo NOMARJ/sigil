@@ -292,7 +292,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
             content_type = request.headers.get("content-type", "")
             if "application/json" not in content_type.lower():
                 return JSONResponse(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=422,
                     content={"detail": "Bad request"},
                 )
 

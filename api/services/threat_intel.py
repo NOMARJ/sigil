@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -27,6 +27,15 @@ from api.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _utcnow_iso() -> str:
+    return _utcnow().isoformat()
+
 
 # ---------------------------------------------------------------------------
 # Tables / cache key prefixes
@@ -193,7 +202,7 @@ async def get_signatures(since: datetime | None = None) -> SignatureResponse:
     sigs: list[SignatureEntry] = []
 
     # Built-in (fallback if DB is empty)
-    now = datetime.utcnow()
+    now = _utcnow()
     for raw in _BUILTIN_SIGNATURES:
         sigs.append(
             SignatureEntry(
@@ -343,7 +352,7 @@ async def submit_report(report: ThreatReport) -> ThreatReportResponse:
         "evidence": report.evidence,
         "reporter_email": report.reporter_email,
         "status": "received",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": _utcnow_iso(),
     }
 
     await db.insert(REPORT_TABLE, row)
@@ -525,7 +534,7 @@ async def update_report_status(
         row["reviewer_id"] = reviewer_id
     if notes:
         row["review_notes"] = notes
-    row["reviewed_at"] = datetime.utcnow().isoformat()
+    row["reviewed_at"] = _utcnow_iso()
 
     await db.upsert(REPORT_TABLE, row)
 
@@ -548,7 +557,7 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     """Create a threat entry and a detection signature from a confirmed report."""
     package_name = report.get("package_name", "")
     ecosystem = report.get("ecosystem", "unknown")
-    now = datetime.utcnow()
+    now = _utcnow()
 
     # Create a synthetic hash from the package identity
     pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
@@ -631,7 +640,7 @@ async def upsert_signature(
     description: str = "",
 ) -> dict[str, Any]:
     """Create or update a detection signature."""
-    now = datetime.utcnow()
+    now = _utcnow()
     row = {
         "id": sig_id,
         "phase": phase,
@@ -672,7 +681,7 @@ async def update_publisher_from_scan(
     Called after each scan that can be attributed to a publisher.
     Increments package count, updates last_active, and adjusts trust score.
     """
-    now = datetime.utcnow()
+    now = _utcnow()
     row = await db.select_one(PUBLISHER_TABLE, {"publisher_id": publisher_id})
 
     if row is None:

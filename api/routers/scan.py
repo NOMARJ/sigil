@@ -94,6 +94,14 @@ SCAN_TABLE = "scans"
 # ---------------------------------------------------------------------------
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _utcnow_iso() -> str:
+    return _utcnow().isoformat()
+
+
 def _findings_count(row: dict[str, Any]) -> int:
     """Derive findings_count from findings_json.
 
@@ -123,7 +131,7 @@ def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
         metadata=row.get("metadata_json", {}),
-        created_at=row.get("created_at", datetime.utcnow()),
+        created_at=row.get("created_at", _utcnow()),
     )
 
 
@@ -154,7 +162,7 @@ def _row_to_detail(row: dict[str, Any]) -> ScanDetail:
         threat_hits=row.get("threat_hits", 0),
         findings_json=findings,
         metadata_json=metadata,
-        created_at=row.get("created_at", datetime.utcnow()),
+        created_at=row.get("created_at", _utcnow()),
     )
 
 
@@ -246,7 +254,7 @@ async def _submit_scan_impl(
         verdict = score_to_verdict(risk_score)
 
     # --- 3. Build response --------------------------------------------------
-    now = datetime.utcnow()
+    now = _utcnow()
 
     # Determine if we should use v2 format
     if use_v2 is None:
@@ -791,7 +799,7 @@ async def list_scans(
             verdict=r.get("verdict", "LOW_RISK"),
             threat_hits=0,
             metadata={},
-            created_at=r.get("scanned_at") or r.get("created_at") or datetime.utcnow(),
+            created_at=r.get("scanned_at") or r.get("created_at") or _utcnow(),
         )
 
     def _apply_common_filters(
@@ -993,7 +1001,7 @@ def _pending_is_stale(adj: dict[str, Any]) -> bool:
         ts = datetime.fromisoformat(adj.get("requested_at"))
     except (ValueError, TypeError):
         return True
-    return (datetime.utcnow() - ts).total_seconds() > _ADJUDICATION_STALE_SECONDS
+    return (_utcnow() - ts).total_seconds() > _ADJUDICATION_STALE_SECONDS
 
 
 async def _persist_adjudication(
@@ -1043,7 +1051,7 @@ async def _run_adjudication_job(scan_id: str, finding_index: int, user_id: str) 
                 "error": "Adjudication declined by model safety classifiers",
                 "reason": "llm_refusal",
                 "category": e.category,
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": _utcnow_iso(),
             },
         )
         return
@@ -1056,7 +1064,7 @@ async def _run_adjudication_job(scan_id: str, finding_index: int, user_id: str) 
                 "status": "error",
                 "error": "Adjudication failed — please retry",
                 "reason": "llm_error",
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": _utcnow_iso(),
             },
         )
         return
@@ -1069,7 +1077,7 @@ async def _run_adjudication_job(scan_id: str, finding_index: int, user_id: str) 
             **verdict,
             "status": "complete",
             "model": llm_config.deep_model,
-            "adjudicated_at": datetime.utcnow().isoformat(),
+            "adjudicated_at": _utcnow_iso(),
         },
     )
 
@@ -1146,7 +1154,7 @@ async def adjudicate_finding(
 
     pending = {
         "status": "pending",
-        "requested_at": datetime.utcnow().isoformat(),
+        "requested_at": _utcnow_iso(),
         "model": "claude-fable-5",
     }
     findings[finding_index]["adjudication"] = pending
@@ -1238,7 +1246,7 @@ async def approve_scan(
 
     metadata["approved"] = True
     metadata["approved_by"] = current_user.id
-    metadata["approved_at"] = datetime.utcnow().isoformat()
+    metadata["approved_at"] = _utcnow_iso()
     metadata.pop("rejected", None)
     metadata.pop("rejected_by", None)
     metadata.pop("rejected_at", None)
@@ -1279,7 +1287,7 @@ async def reject_scan(
 
     metadata["rejected"] = True
     metadata["rejected_by"] = current_user.id
-    metadata["rejected_at"] = datetime.utcnow().isoformat()
+    metadata["rejected_at"] = _utcnow_iso()
     metadata.pop("approved", None)
     metadata.pop("approved_by", None)
     metadata.pop("approved_at", None)

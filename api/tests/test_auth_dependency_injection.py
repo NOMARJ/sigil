@@ -192,7 +192,7 @@ class TestPlanGatedEndpoints:
             "pattern": r"eval\(",
             "severity": "HIGH",
             "description": "Test",
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None),
         }
 
         resp = client.delete(f"/v1/signatures/{sig_id}", headers=reviewer_auth_headers)

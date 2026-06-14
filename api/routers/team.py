@@ -134,7 +134,6 @@ def _require_same_team(target_user: dict[str, Any], team_id: str) -> None:
 )
 async def get_team(
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
-    _: Annotated[None, Depends(require_plan(PlanTier.TEAM))],
 ) -> TeamResponse:
     """Return the team for the authenticated user, including the members list.
 
@@ -174,7 +173,7 @@ async def invite_member(
     # Validate role
     if body.role not in _VALID_ROLES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail=f"Invalid role '{body.role}'. Must be one of: {', '.join(sorted(_VALID_ROLES))}",
         )
 
@@ -337,7 +336,7 @@ async def update_member_role(
     """
     if body.role not in _VALID_ROLES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail=f"Invalid role '{body.role}'. Must be one of: {', '.join(sorted(_VALID_ROLES))}",
         )
 

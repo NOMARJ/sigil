@@ -299,30 +299,30 @@ def _validate_channel_config(channel_type: ChannelType, config: dict) -> None:
         webhook_url = config.get("webhook_url")
         if not webhook_url:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=422,
                 detail="Slack channel requires 'webhook_url' in channel_config",
             )
         if not is_safe_webhook_url(webhook_url):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=422,
                 detail="Slack webhook_url must be a public HTTPS URL",
             )
     elif channel_type == ChannelType.EMAIL:
         recipients = config.get("recipients", [])
         if not recipients:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=422,
                 detail="Email channel requires 'recipients' (list of email addresses) in channel_config",
             )
     elif channel_type == ChannelType.WEBHOOK:
         webhook_url = config.get("webhook_url")
         if not webhook_url:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=422,
                 detail="Webhook channel requires 'webhook_url' in channel_config",
             )
         if not is_safe_webhook_url(webhook_url):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=422,
                 detail="Webhook webhook_url must be a public HTTPS URL",
             )

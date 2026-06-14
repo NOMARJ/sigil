@@ -281,6 +281,14 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     assert "pip install -r api/requirements.lock" in ci_workflow
     assert "cd api && pytest tests -v --tb=short" in ci_workflow
     assert "- '.github/workflows/test-pro-tier.yml'" in pro_workflow
+    assert "- 'api/gates.py'" in pro_workflow
+    assert "- 'api/permissions.py'" in pro_workflow
+    assert "- 'api/routers/scan.py'" in pro_workflow
+    assert "- 'api/routers/threat.py'" in pro_workflow
+    assert "workflow_dispatch:" in pro_workflow
+    assert "actions/setup-python@v6" in pro_workflow
+    assert "codecov/codecov-action@v7" in pro_workflow
+    assert "actions/github-script@v9" in pro_workflow
     assert "coverage combine ../artifact/coverage-*.xml" not in pro_workflow
 
 
@@ -327,7 +335,98 @@ def test_production_migrations_verify_auth_billing_and_interactive_schema():
         "sp_AddCredits",
     ]:
         assert required_object in runner
-    assert "async def main(paths: list[str]) -> int" in runner
+    assert "async def main(argv: list[str]) -> int" in runner
+    assert "--verify-only" in runner
+    assert "--apply" in runner
+    assert "SIGIL_ALLOW_SCHEMA_WRITES" in runner
+    assert "preview =" not in runner
+
+    drift_workflow = (
+        repo_root / ".github" / "workflows" / "prod-migration-drift.yml"
+    ).read_text()
+    assert (
+        "python -m api.migrations.apply_prod_migration --verify-only" in drift_workflow
+    )
+    assert "az containerapp exec" in drift_workflow
+    assert "sigil-rg" in drift_workflow
+    assert "sigil-api" in drift_workflow
+    assert "--apply" not in drift_workflow
+    assert "*.sql" not in drift_workflow
+
+
+def test_deploy_workflows_serialize_and_fail_closed_health_checks():
+    repo_root = Path(__file__).resolve().parents[2]
+    deploy_workflow = (
+        repo_root / ".github" / "workflows" / "deploy-azure.yml"
+    ).read_text()
+    infra_workflow_path = (
+        repo_root.parent / "sigil-infra" / ".github" / "workflows" / "deploy.yml"
+    )
+
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in deploy_workflow
+    assert "concurrency:" in deploy_workflow
+    assert "cancel-in-progress: true" in deploy_workflow
+
+    if not infra_workflow_path.exists():
+        return
+
+    infra_workflow = infra_workflow_path.read_text()
+    assert "concurrency:" in infra_workflow
+    assert "cancel-in-progress: false" in infra_workflow
+    assert "api_url: ${{ steps.outputs.outputs.api_url }}" in infra_workflow
+    assert "dashboard_url: ${{ steps.outputs.outputs.dashboard_url }}" in infra_workflow
+    assert "-lock-timeout=10m" in infra_workflow
+    assert "api_image_tag:" in infra_workflow
+    assert "dashboard_image_tag:" in infra_workflow
+    assert "bot_image_tag:" in infra_workflow
+    assert "production deploys require immutable" in infra_workflow
+    assert (
+        "github.event_name != 'push' && needs.terraform-plan.outputs" in infra_workflow
+    )
+    assert (
+        "github.event.inputs.api_image_tag || github.event.client_payload.api_image_tag || github.sha"
+        in infra_workflow
+    )
+    assert (
+        "TF_VAR_api_image_tag: ${{ github.event.client_payload.api_image_tag || 'latest' }}"
+        not in infra_workflow
+    )
+    assert (
+        "TF_VAR_dashboard_image_tag: ${{ github.event.client_payload.dashboard_image_tag || 'latest' }}"
+        not in infra_workflow
+    )
+    assert (
+        "TF_VAR_bot_image_tag: ${{ github.event.client_payload.bot_image_tag || 'latest' }}"
+        not in infra_workflow
+    )
+    assert (
+        'curl --fail --show-error --silent --retry 5 --retry-delay 10 "$API_URL/health"'
+        in infra_workflow
+    )
+    assert (
+        'curl --fail --show-error --silent --retry 5 --retry-delay 10 "https://api.sigilsec.ai/health"'
+        in infra_workflow
+    )
+    assert "|| echo" not in infra_workflow
+
+
+def test_release_support_workflows_have_valid_outputs_and_action_pins():
+    repo_root = Path(__file__).resolve().parents[2]
+    plugin_workflow = (
+        repo_root / ".github" / "workflows" / "publish-plugin.yml"
+    ).read_text()
+    sbom_workflow = (repo_root / ".github" / "workflows" / "sbom.yml").read_text()
+
+    assert "outputs:" in plugin_workflow
+    assert "version: ${{ steps.version.outputs.version }}" in plugin_workflow
+    assert "needs.publish-github-release.outputs.version" in plugin_workflow
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in plugin_workflow
+    assert "gh release create" in plugin_workflow
+    assert "softprops/action-gh-release" not in plugin_workflow
+
+    assert "anchore/sbom-action/download-syft@v0.24.0" in sbom_workflow
+    assert "f325610c9f50a54015d37feeff2e57e8981374a0" not in sbom_workflow
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in sbom_workflow
 
 
 def test_cli_auto_approval_uses_ledger_helper():

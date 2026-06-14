@@ -7,11 +7,15 @@ confidence levels, and enhanced metadata for progressive migration.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from api.models import Finding, Verdict, ThreatEntry
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class ConfidenceSummary(BaseModel):
@@ -62,7 +66,7 @@ class ScanResponseV2(BaseModel):
         default_factory=list,
         description="Known threat entries matching this scan",
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     metadata: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Additional scan metadata and feature flags"
     )

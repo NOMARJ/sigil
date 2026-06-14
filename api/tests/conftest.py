@@ -12,7 +12,7 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterator
 from uuid import uuid4
 
@@ -26,6 +26,10 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
 from api.database import _memory_cache, db
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 _original_async_client_init = httpx.AsyncClient.__init__
@@ -141,7 +145,7 @@ async def _test_auth_override(request: Request):
         name=user.get("name", ""),
         role=user.get("role", "member"),
         team_id=user.get("team_id"),
-        created_at=user.get("created_at", datetime.utcnow()),
+        created_at=user.get("created_at", utcnow()),
     )
 
 
@@ -246,7 +250,7 @@ def registered_user(test_user_data: dict[str, str]) -> dict[str, Any]:
     from api.config import settings
 
     user_id = str(uuid4())
-    now = datetime.utcnow()
+    now = utcnow()
     user_row = {
         "id": user_id,
         "email": test_user_data["email"],
@@ -290,7 +294,7 @@ def pro_user(test_user_data: dict[str, str]) -> dict[str, Any]:
     from api.config import settings
 
     user_id = str(uuid4())
-    now = datetime.utcnow()
+    now = utcnow()
     user_row = {
         "id": user_id,
         "email": test_user_data["email"],
@@ -338,7 +342,7 @@ def reviewer_user(test_user_data: dict[str, str]) -> dict[str, Any]:
     from api.config import settings
 
     user_id = str(uuid4())
-    now = datetime.utcnow()
+    now = utcnow()
     user_row = {
         "id": user_id,
         "email": test_user_data["email"],

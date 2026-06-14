@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import enum
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +146,7 @@ class ScanResponse(BaseModel):
         default_factory=list,
         description="Known threat entries matching this scan",
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +178,7 @@ class SignatureEntry(BaseModel):
     pattern: str = Field(..., description="Regex or literal pattern")
     severity: Severity = Field(Severity.MEDIUM)
     description: str = Field("")
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class SignatureResponse(BaseModel):
@@ -264,7 +268,7 @@ class VerifyResponse(BaseModel):
         None, description="URL to the Sigil-verified badge if approved"
     )
     findings_summary: str = Field("", description="Brief summary of any findings")
-    verified_at: datetime = Field(default_factory=datetime.utcnow)
+    verified_at: datetime = Field(default_factory=utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -324,8 +328,8 @@ class PolicyResponse(BaseModel):
     type: PolicyType
     config: Dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class PolicyEvaluateRequest(BaseModel):
@@ -383,7 +387,7 @@ class AlertResponse(BaseModel):
     channel_type: ChannelType
     channel_config: Dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class AlertTestRequest(BaseModel):
@@ -540,7 +544,7 @@ class UserResponse(BaseModel):
     name: str = ""
     role: str = "member"
     team_id: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class TokenResponse(BaseModel):
@@ -569,7 +573,7 @@ class ScanListItem(BaseModel):
     verdict: str = "LOW_RISK"
     threat_hits: int = 0
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class ScanListResponse(BaseModel):
@@ -597,7 +601,7 @@ class ScanDetail(BaseModel):
     threat_hits: int = 0
     findings_json: List[Any] = Field(default_factory=list)
     metadata_json: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class DashboardStats(BaseModel):
@@ -625,7 +629,7 @@ class TeamMember(BaseModel):
     email: str
     name: str = ""
     role: str = "member"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class TeamResponse(BaseModel):
@@ -636,7 +640,7 @@ class TeamResponse(BaseModel):
     owner_id: Optional[str] = None
     plan: str = "free"
     members: List[TeamMember] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class TeamInviteRequest(BaseModel):
@@ -846,7 +850,7 @@ class ForgeAnalyticsEvent(BaseModel):
     session_id: Optional[str] = Field(None, description="User session identifier")
     ip_address: Optional[str] = Field(None, description="Source IP address")
     user_agent: Optional[str] = Field(None, description="User agent string")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=utcnow)
 
 
 class PersonalAnalyticsRequest(BaseModel):

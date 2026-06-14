@@ -24,6 +24,11 @@ on:
 env:
   ACR_NAME: sigilacr46iy6y
   ACR_LOGIN_SERVER: sigilacr46iy6y.azurecr.io
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: deploy-azure-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-push:

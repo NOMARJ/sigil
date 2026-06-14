@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Literal
 
 import pyodbc
@@ -31,6 +31,11 @@ class CreditTransactionError(Exception):
 
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 # Credit conversion rates (credits per 1K tokens), proportional to verified
 # Anthropic pricing: haiku $1/$5 · opus 4.8 $5/$25 · fable 5 $10/$50 per MTok
@@ -245,7 +250,7 @@ class CreditService:
                     "user_id": user_id,
                     "credits_balance": initial_credits,
                     "subscription_credits": initial_credits,
-                    "reset_date": datetime.utcnow() + timedelta(days=30),
+                    "reset_date": _utcnow() + timedelta(days=30),
                 },
             )
 

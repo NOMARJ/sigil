@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -31,6 +31,10 @@ from api.database import MssqlClient
 from api.services import notifications
 
 
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _user(user_id: str = "user_1") -> UserResponse:
     return UserResponse(
         id=user_id,
@@ -38,7 +42,7 @@ def _user(user_id: str = "user_1") -> UserResponse:
         name="Test User",
         role="member",
         team_id="team_1",
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
 
 
@@ -342,7 +346,7 @@ def test_alert_webhook_rejects_private_destinations():
     with pytest.raises(HTTPException) as exc:
         alerts._validate_channel_config(request.channel_type, request.channel_config)
 
-    assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert exc.value.status_code == 422
 
 
 def test_webhook_delivery_rechecks_destination_before_posting():
@@ -440,7 +444,7 @@ def _team_user(user_id: str, role: str, team_id: str) -> UserResponse:
         name=user_id,
         role=role,
         team_id=team_id,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
 
 
@@ -454,7 +458,7 @@ def test_team_invite_rejects_owner_role():
             )
         )
 
-    assert exc.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert exc.value.status_code == 422
 
 
 def test_team_invite_cannot_take_existing_user_from_another_team():

@@ -192,7 +192,54 @@ async def test_unverified_auth0_email_is_rejected(monkeypatch):
         await auth_module.verify_auth0_token("fake-access-token")
 
     assert exc.value.status_code == 401
-    assert exc.value.detail == "Auth0 email must be verified"
+    assert exc.value.detail == "Email must be verified"
+
+
+@pytest.mark.asyncio
+async def test_userinfo_fallback_failure_returns_sanitized_401(monkeypatch):
+    from api import config as config_module
+    from api.routers import auth as auth_module
+
+    monkeypatch.setattr(config_module.settings, "auth0_domain", "test.auth0.com")
+    monkeypatch.setattr(
+        config_module.settings, "auth0_audience", "https://api.test.local"
+    )
+
+    auth_module._auth0_jwks_cache = {
+        "keys": [
+            {"kid": "test-kid", "alg": "RS256", "kty": "RSA", "n": "x", "e": "AQAB"}
+        ]
+    }
+    monkeypatch.setattr(auth_module, "_USE_JOSE", True)
+
+    fake_payload = {
+        "sub": "auth0|provider-error",
+        "iss": "https://test.auth0.com/",
+        "aud": "https://api.test.local",
+    }
+    fake_jose = MagicMock()
+    fake_jose.get_unverified_header.return_value = {"kid": "test-kid"}
+    fake_jose.decode.return_value = fake_payload
+    monkeypatch.setattr(auth_module, "_jose_jwt", fake_jose)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="provider stack trace")
+
+    transport = httpx.MockTransport(handler)
+    real_async_client = httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = transport
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(auth_module.httpx, "AsyncClient", factory)
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.verify_auth0_token("fake-access-token")
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid or expired token"
+    assert "provider stack trace" not in exc.value.detail
 
 
 @pytest.mark.asyncio
@@ -225,7 +272,7 @@ async def test_auth0_provisioning_rejects_existing_subject_mismatch(monkeypatch)
         )
 
     assert exc.value.status_code == 401
-    assert exc.value.detail == "Auth0 identity does not match this user"
+    assert exc.value.detail == "Invalid or expired token"
 
 
 @pytest.mark.asyncio

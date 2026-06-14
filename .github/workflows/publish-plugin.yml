@@ -10,6 +10,9 @@ on:
         description: 'Plugin version to publish (e.g., 1.0.0)'
         required: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   validate:
     name: Validate Plugin
@@ -97,6 +100,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -135,70 +140,66 @@ jobs:
             CHANGELOG.md
 
       - name: Generate release notes
-        id: release_notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
           # Extract changelog for this version
-          NOTES=$(awk -v ver="[$VERSION]" '
+          NOTES="$(awk -v ver="[$VERSION]" '
             $0 ~ ver { flag=1; next }
             /^## \[/ { if (flag) exit }
             flag { print }
-          ' plugins/claude-code/CHANGELOG.md)
+          ' plugins/claude-code/CHANGELOG.md)"
 
           if [ -z "$NOTES" ]; then
             NOTES="Release of Sigil Security plugin version $VERSION"
           fi
 
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "# Sigil Security Plugin for Claude Code"
+            echo
+            printf '%s\n\n' "$NOTES"
+            echo "## Installation"
+            echo
+            echo '```bash'
+            echo "# Add Sigil marketplace"
+            echo "claude plugin marketplace add https://github.com/NOMARJ/sigil.git"
+            echo
+            echo "# Install the plugin"
+            echo "claude plugin install sigil-security@sigil"
+            echo '```'
+            echo
+            echo "Or download and install manually:"
+            echo
+            echo '```bash'
+            echo "# Download and extract"
+            echo "wget https://github.com/NOMARJ/sigil/releases/download/plugin-v${VERSION}/sigil-security-plugin-${VERSION}.tar.gz"
+            echo "mkdir -p sigil-security-plugin"
+            echo "tar -xzf sigil-security-plugin-${VERSION}.tar.gz -C sigil-security-plugin"
+            echo
+            echo "# Install"
+            echo "claude plugin install ./sigil-security-plugin"
+            echo '```'
+            echo
+            echo "## Prerequisites"
+            echo
+            echo "- Claude Code 1.0.33+"
+            echo "- Sigil CLI installed: \`brew install nomarj/tap/sigil\` or \`npm install -g @nomark/sigil\`"
+            echo
+            echo "## Documentation"
+            echo
+            echo "- [Plugin README](https://github.com/NOMARJ/sigil/blob/main/plugins/claude-code/README.md)"
+            echo "- [Sigil Documentation](https://github.com/NOMARJ/sigil)"
+          } > release-notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a07e6cbe3bec84981614 # v1
-        with:
-          tag_name: plugin-v${{ steps.version.outputs.version }}
-          name: Sigil Security Plugin v${{ steps.version.outputs.version }}
-          body: |
-            # Sigil Security Plugin for Claude Code
-
-            ${{ steps.release_notes.outputs.notes }}
-
-            ## Installation
-
-            ```bash
-            # Add Sigil marketplace
-            claude plugin marketplace add https://github.com/NOMARJ/sigil.git
-
-            # Install the plugin
-            claude plugin install sigil-security@sigil
-            ```
-
-            Or download and install manually:
-
-            ```bash
-            # Download and extract
-            wget https://github.com/NOMARJ/sigil/releases/download/plugin-v${{ steps.version.outputs.version }}/sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz
-            mkdir -p sigil-security-plugin
-            tar -xzf sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz -C sigil-security-plugin
-
-            # Install
-            claude plugin install ./sigil-security-plugin
-            ```
-
-            ## Prerequisites
-
-            - Claude Code 1.0.33+
-            - Sigil CLI installed: `brew install nomarj/tap/sigil` or `npm install -g @nomark/sigil`
-
-            ## Documentation
-
-            - [Plugin README](https://github.com/NOMARJ/sigil/blob/main/plugins/claude-code/README.md)
-            - [Sigil Documentation](https://github.com/NOMARJ/sigil)
-          files: |
-            sigil-security-plugin-${{ steps.version.outputs.version }}.tar.gz
-          draft: false
-          prerelease: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "plugin-v${VERSION}" \
+            "sigil-security-plugin-${VERSION}.tar.gz" \
+            --title "Sigil Security Plugin v${VERSION}" \
+            --notes-file release-notes.md
 
   update-marketplace:
     name: Update Marketplace

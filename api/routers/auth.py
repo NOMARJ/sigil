@@ -368,13 +368,13 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
     if not settings.auth0_configured:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 authentication not configured",
+            detail="Authentication is not configured",
         )
 
     if not _USE_JOSE:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 RS256 verification requires python-jose",
+            detail="Authentication is not configured",
         )
 
     try:
@@ -407,13 +407,13 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
         logger.error("Auth0 JWT validation failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired Auth0 token",
+            detail="Invalid or expired token",
         )
     except Exception as e:
         logger.error("Auth0 JWT validation failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unable to parse Auth0 token",
+            detail="Invalid or expired token",
         )
 
     namespace = "https://api.sigilsec.ai"
@@ -430,12 +430,16 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
                     f"https://{settings.auth0_domain}/userinfo",
                     headers={"Authorization": f"Bearer {token}"},
                 )
-                resp.raise_for_status()
+                if not resp.is_success:
+                    logger.error(
+                        "Auth0 /userinfo returned %s: %s", resp.status_code, resp.text
+                    )
+                    resp.raise_for_status()
                 userinfo = resp.json()
                 if userinfo.get("sub") and userinfo.get("sub") != payload["sub"]:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Auth0 userinfo subject mismatch",
+                        detail="Invalid or expired token",
                     )
                 email = email or userinfo.get("email", "")
                 if not name:
@@ -445,16 +449,20 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
             raise
         except Exception as e:
             logger.error("Auth0 /userinfo fallback failed: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
 
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 token missing email claim",
+            detail="Invalid or expired token",
         )
     if email_verified is not True:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 email must be verified",
+            detail="Email must be verified",
         )
 
     return {
@@ -552,19 +560,19 @@ async def _auto_provision_auth0_user(user_info: Dict[str, Any]) -> Dict[str, Any
     if not auth0_sub:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 token missing subject claim",
+            detail="Invalid or expired token",
         )
     if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Auth0 token missing email claim",
+            detail="Invalid or expired token",
         )
 
     user_columns = await db._table_columns(USER_TABLE)
     if user_columns is not None and "auth0_sub" not in user_columns:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth0 identity binding schema is not configured",
+            detail="Authentication is not configured",
         )
 
     user = await db.select_one(USER_TABLE, {"auth0_sub": auth0_sub})
@@ -575,7 +583,7 @@ async def _auto_provision_auth0_user(user_info: Dict[str, Any]) -> Dict[str, Any
             if existing_sub and existing_sub != auth0_sub:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Auth0 identity does not match this user",
+                    detail="Invalid or expired token",
                 )
             user["auth0_sub"] = auth0_sub
             if user.get("email") != email:

@@ -17,6 +17,7 @@ env:
   REGISTRY: docker.io
   CLI_IMAGE_NAME: nomark/sigil
   FULL_IMAGE_NAME: nomark/sigil-full
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # Job 1: Generate SBOMs from source repository
@@ -31,7 +32,7 @@ jobs:
 
       # Install Syft for SBOM generation
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37feeff2e57e8981374a0 # v0
+        uses: anchore/sbom-action/download-syft@v0.24.0
 
       # Install Cosign for attestation signing
       - name: Install Cosign
@@ -92,7 +93,7 @@ jobs:
 
       # Install Syft for container SBOM generation
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@f325610c9f50a54015d37feeff2e57e8981374a0 # v0
+        uses: anchore/sbom-action/download-syft@v0.24.0
 
       # Install Cosign for attestation
       - name: Install Cosign
