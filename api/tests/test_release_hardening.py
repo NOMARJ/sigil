@@ -376,6 +376,9 @@ def test_deploy_workflows_serialize_and_fail_closed_health_checks():
     assert "cancel-in-progress: false" in infra_workflow
     assert "api_url: ${{ steps.outputs.outputs.api_url }}" in infra_workflow
     assert "dashboard_url: ${{ steps.outputs.outputs.dashboard_url }}" in infra_workflow
+    assert 'API_URL="$(terraform output -raw api_url)"' in infra_workflow
+    assert "Terraform output URLs are empty" in infra_workflow
+    assert 'echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"' in infra_workflow
     assert "-lock-timeout=10m" in infra_workflow
     assert "api_image_tag:" in infra_workflow
     assert "dashboard_image_tag:" in infra_workflow
