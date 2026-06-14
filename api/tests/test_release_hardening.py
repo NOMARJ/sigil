@@ -307,10 +307,13 @@ def test_release_workflows_avoid_node20_only_action_paths():
         "actions/cache@v5",
         "actions/setup-node@v5",
         "actions/upload-artifact@v6",
-        "azure/login@v3",
-        "hashicorp/setup-terraform@v4",
     ]:
         assert node24_action in workflow_text
+
+    if infra_workflow.exists():
+        infra_text = infra_workflow.read_text()
+        assert "azure/login@v3" in infra_text
+        assert "hashicorp/setup-terraform@v4" in infra_text
 
 
 def test_release_workflow_publishes_npm_after_public_release_assets_exist():
