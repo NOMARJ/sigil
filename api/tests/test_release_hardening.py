@@ -348,6 +348,7 @@ def test_production_migrations_verify_auth_billing_and_interactive_schema():
         "python -m api.migrations.apply_prod_migration --verify-only" in drift_workflow
     )
     assert "az containerapp exec" in drift_workflow
+    assert "script -q -e -c" in drift_workflow
     assert "sigil-rg" in drift_workflow
     assert "sigil-api" in drift_workflow
     assert "--apply" not in drift_workflow

@@ -26,7 +26,8 @@ jobs:
 
       - name: Run read-only migration drift verifier
         run: |
-          az containerapp exec \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$API_CONTAINER_APP" \
-            --command "python -m api.migrations.apply_prod_migration --verify-only"
+          script -q -e -c "az containerapp exec \
+            --resource-group \"$AZURE_RESOURCE_GROUP\" \
+            --name \"$API_CONTAINER_APP\" \
+            --command \"python -m api.migrations.apply_prod_migration --verify-only\"" \
+            /dev/null
