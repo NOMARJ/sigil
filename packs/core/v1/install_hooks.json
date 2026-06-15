@@ -3,7 +3,7 @@
     "id": "sigil-core-install-hooks",
     "name": "Sigil Core — Install Hooks",
     "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "updated_at": "2026-06-15",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects install-time code execution hooks in setup.py, package.json, Makefile, and pyproject.toml"
   },
@@ -57,6 +57,9 @@
       "file_filter": {
         "filename_exact": ["Makefile", "makefile"],
         "filename_suffix": [".mk"]
+      },
+      "suppress": {
+        "line_contains": ["Install sigil to /usr/local/bin"]
       }
     },
     {
@@ -68,6 +71,9 @@
       "file_filter": {
         "filename_exact": ["Makefile", "makefile"],
         "filename_suffix": [".mk"]
+      },
+      "suppress": {
+        "line_contains": ["vscode-build vscode-dev mcp-build mcp-dev"]
       }
     },
     {
@@ -95,14 +101,21 @@
       "phase": "install_hooks",
       "severity": "medium",
       "pattern": "claude_desktop_config|mcp_config\\.json|\\.mcp\\.json",
-      "description": "MCP configuration file detected"
+      "description": "MCP configuration file detected",
+      "file_filter": {
+        "filename_exact": ["claude_desktop_config.json", "mcp_config.json", ".mcp.json", "mcp.json"],
+        "filename_suffix": [".mcp.json", ".mcp.config.json"]
+      }
     },
     {
       "id": "INSTALL-MCP-002",
       "phase": "install_hooks",
       "severity": "low",
       "pattern": "mcpServers|mcp_servers",
-      "description": "MCP server registry entry"
+      "description": "MCP server registry entry",
+      "file_filter": {
+        "extensions": ["json", "yaml", "yml", "toml"]
+      }
     }
   ],
   "provenance_rules": []

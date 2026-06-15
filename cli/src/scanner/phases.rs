@@ -328,3 +328,43 @@ pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
     let phase = phase_packs(&packs, "inference_security");
     scan_file_with_packs(&phase, file, &filename(file), contents)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::scan_provenance;
+    use std::fs;
+
+    fn has_rule(findings: &[crate::scanner::Finding], rule: &str) -> bool {
+        findings.iter().any(|finding| finding.rule == rule)
+    }
+
+    #[test]
+    fn provenance_allows_standard_project_dotfiles() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let root = tempdir.path();
+        let dockerignore = root.join(".dockerignore");
+        let npmignore = root.join(".npmignore");
+        let unusual = root.join(".hidden-script");
+
+        fs::write(&dockerignore, "target\n").expect("write dockerignore");
+        fs::write(&npmignore, "node_modules\n").expect("write npmignore");
+        fs::write(&unusual, "payload\n").expect("write unusual dotfile");
+
+        let findings = scan_provenance(
+            root,
+            &[dockerignore.clone(), npmignore.clone(), unusual.clone()],
+        );
+
+        assert!(
+            has_rule(&findings, "PROV-001"),
+            "unusual hidden files must still flag; got {:?}",
+            findings
+        );
+        assert!(
+            !findings.iter().any(|finding| finding.rule == "PROV-001"
+                && (finding.file == ".dockerignore" || finding.file == ".npmignore")),
+            "standard project dotfiles must not flag PROV-001; got {:?}",
+            findings
+        );
+    }
+}

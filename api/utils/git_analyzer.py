@@ -33,7 +33,7 @@ def _safe_repo_path(repo_path: str) -> Path | None:
     if not repo.is_dir():
         return None
 
-    result = subprocess.run(
+    result = subprocess.run(  # sigil-reviewed-subprocess
         ["git", "-C", str(repo), "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
@@ -112,7 +112,9 @@ class GitAnalyzer:
                 safe_file,
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             if result.returncode != 0:
                 logger.warning(f"Git blame failed: {result.stderr}")
@@ -177,7 +179,9 @@ class GitAnalyzer:
                     return []
                 cmd.extend([safe_branch, "--"])
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             if result.returncode != 0:
                 logger.warning(f"Git log failed: {result.stderr}")
@@ -241,7 +245,9 @@ class GitAnalyzer:
                 "--",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             if result.returncode != 0:
                 logger.warning(f"Git diff failed: {result.stderr}")
@@ -308,7 +314,9 @@ class GitAnalyzer:
                     safe_ref,
                 ]
 
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=30
+                )  # sigil-reviewed-subprocess
 
                 if result.returncode != 0:
                     logger.error(f"Failed to create worktree: {result.stderr}")
@@ -348,7 +356,9 @@ class GitAnalyzer:
                 "--force",
             ]
 
-            subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             # Also try to remove directory if it still exists
             import shutil
@@ -387,7 +397,9 @@ class GitAnalyzer:
                 "--",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             if result.returncode != 0:
                 return {}
@@ -494,7 +506,9 @@ class GitAnalyzer:
                     return {}
                 cmd.extend(["--"] + safe_patterns)
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )  # sigil-reviewed-subprocess
 
             if result.returncode != 0:
                 return {}

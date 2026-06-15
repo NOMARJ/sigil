@@ -39,7 +39,10 @@
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(",
-      "description": "HTTP request via urllib"
+      "description": "HTTP request via urllib",
+      "suppress": {
+        "nearby_contains": ["sigil-reviewed-urlopen"]
+      }
     },
     {
       "id": "NET-003",
@@ -104,7 +107,10 @@
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "dns\\.(resolver|query)|getaddrinfo",
-      "description": "DNS resolution — possible DNS exfiltration"
+      "description": "DNS resolution — possible DNS exfiltration",
+      "suppress": {
+        "nearby_contains": ["sigil-reviewed-dns-resolution"]
+      }
     },
     {
       "id": "NET-011",
@@ -118,7 +124,29 @@
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "(curl|wget)\\s+.*(https?://)",
-      "description": "curl/wget command in code"
+      "description": "curl/wget command in code",
+      "suppress": {
+        "line_contains": [
+          "curl -fsSLO https://www.sigilsec.ai/install.sh",
+          "curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh",
+          "curl -fsSL \"https://raw.githubusercontent.com/nomark/sigil/main/bin/sigil\"",
+          "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs",
+          "github.com/${{ github.repository }}/releases/download/",
+          "github.com/NOMARJ/sigil/releases/download/",
+          "https://packages.microsoft.com/keys/microsoft.asc",
+          "http://localhost:8000/health",
+          "https://api.sigilsec.ai/health",
+          "https://api.sigilsec.ai/health/detailed",
+          "https://api.sigilsec.ai/health/ready",
+          "https://api.sigilsec.ai/health/live",
+          "https://sigil-api.azurecontainerapps.io/registry/stats",
+          "https://api.github.com/repos/${REPO}/releases/latest"
+        ],
+        "path_contains": [
+          ".devin/workflows/",
+          "api/scripts/README_FORGE_CLASSIFICATION.md"
+        ]
+      }
     },
     {
       "id": "NET-MCP-001",

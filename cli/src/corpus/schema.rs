@@ -83,6 +83,11 @@ pub struct SuppressionPredicates {
     #[serde(default)]
     pub line_contains: Vec<String>,
 
+    /// If set, suppress when any of these strings appear near the matched line.
+    /// This supports formatter-stable review markers on multi-line constructs.
+    #[serde(default)]
+    pub nearby_contains: Vec<String>,
+
     /// If set, suppress when any of these strings appear in the first `n` bytes
     /// of the file.  Used for UMD-wrapper / polyfill header detection.
     #[serde(default)]
@@ -100,12 +105,14 @@ impl SuppressionPredicates {
     /// `file_path`   — relative path of the scanned file
     /// `filename`    — basename of the scanned file
     /// `line`        — the matched line text
+    /// `nearby`      — matched line plus a small following context window
     /// `file_header` — first 1 KB of the file (for header checks)
     pub fn should_suppress(
         &self,
         file_path: &str,
         filename: &str,
         line: &str,
+        nearby: &str,
         file_header: &str,
     ) -> bool {
         if self
@@ -125,6 +132,14 @@ impl SuppressionPredicates {
         }
 
         if self.line_contains.iter().any(|s| line.contains(s.as_str())) {
+            return true;
+        }
+
+        if self
+            .nearby_contains
+            .iter()
+            .any(|s| nearby.contains(s.as_str()))
+        {
             return true;
         }
 

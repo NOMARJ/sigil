@@ -25,7 +25,8 @@ Build and run the Sigil API service as a single Docker container:
 
 ```bash
 # Build the image (includes Rust CLI, Python API, and Next.js dashboard)
-docker build -t sigil:latest .
+IMAGE_TAG="$(git rev-parse --short HEAD)"
+docker build -t "sigil:${IMAGE_TAG}" .
 
 # Run with minimal configuration
 docker run -d \
@@ -34,7 +35,7 @@ docker run -d \
   -p 3000:3000 \
   -e SIGIL_JWT_SECRET="$(openssl rand -hex 32)" \
   -e NEXT_PUBLIC_API_URL="https://api.yourdomain.com" \
-  sigil:latest
+  "sigil:${IMAGE_TAG}"
 ```
 
 The Dockerfile is a multi-stage build with three stages:

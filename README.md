@@ -42,7 +42,7 @@ sigil install
 - **Homebrew**: `brew install nomarj/tap/sigil`
 - **npm (macOS/Linux)**: `npm install -g @nomarj/sigil`
 - **curl installer**: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`
-- **Docker**: `docker pull nomark/sigil:latest`
+- **Docker**: `docker pull nomark/sigil:1.2.1`
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
 

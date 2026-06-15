@@ -50,19 +50,19 @@ pub fn calculate_score(findings: &[Finding]) -> u32 {
 
 /// Determine the overall risk classification from findings and the aggregate score.
 ///
-/// Thresholds (aligned with the bash CLI and API):
+/// Thresholds:
 /// - **LowRisk**: score 0-9
 /// - **MediumRisk**: score 10-24
-/// - **HighRisk**: score 25-49
-/// - **CriticalRisk**: score >= 50, or any single Critical-severity finding
-///   from the InstallHooks phase (immediate escalation)
+/// - **HighRisk**: score >= 25, unless critical evidence is present
+/// - **CriticalRisk**: any single Critical-severity finding
+///
+/// Critical is evidence-gated, not score-only. A large pile of medium/low
+/// heuristics can raise the aggregate risk, but it must not claim "almost
+/// certainly malicious" unless at least one rule actually emitted Critical.
 pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
-    // Immediate escalation: any Critical finding in InstallHooks
-    let has_critical_install = findings
-        .iter()
-        .any(|f| f.phase == Phase::InstallHooks && f.severity == Severity::Critical);
+    let has_critical = findings.iter().any(|f| f.severity == Severity::Critical);
 
-    if has_critical_install || score >= 50 {
+    if has_critical {
         return Verdict::CriticalRisk;
     }
 
@@ -160,5 +160,16 @@ mod tests {
         assert_eq!(score, 50);
         assert!(score >= 50);
         assert_eq!(determine_verdict(&findings, score), Verdict::CriticalRisk);
+    }
+
+    #[test]
+    fn test_medium_low_volume_does_not_become_critical() {
+        let findings: Vec<Finding> = (0..20)
+            .map(|_| dummy_finding(Phase::NetworkExfil, Severity::Medium, 3))
+            .chain((0..20).map(|_| dummy_finding(Phase::Provenance, Severity::Low, 1)))
+            .collect();
+        let score = calculate_score(&findings);
+        assert_eq!(score, 140);
+        assert_eq!(determine_verdict(&findings, score), Verdict::HighRisk);
     }
 }

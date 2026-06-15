@@ -5,6 +5,11 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Immutable tag to publish for manual runs. Defaults to sha-<short SHA>."
+        required: false
+        type: string
 
 env:
   REGISTRY: docker.io
@@ -36,38 +41,38 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Generate immutable image tag
+        id: image-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ inputs.image_tag }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            IMAGE_TAG="${GITHUB_REF_NAME#v}"
+          else
+            IMAGE_TAG="sha-${GITHUB_SHA::7}"
+          fi
+          case "$IMAGE_TAG" in
+            latest|""|*:*)
+              echo "::error::Docker image tag must be immutable and must not be latest"
+              exit 1
+              ;;
+          esac
+          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build and push CLI image
         env:
-          DOCKER_TAGS: ${{ steps.meta.outputs.tags }}
-          DOCKER_LABELS: ${{ steps.meta.outputs.labels }}
+          IMAGE_TAG: ${{ steps.image-tag.outputs.image-tag }}
         run: |
-          build_args=()
-          while IFS= read -r tag; do
-            [ -n "$tag" ] && build_args+=(--tag "$tag")
-          done <<< "$DOCKER_TAGS"
-          while IFS= read -r label; do
-            [ -n "$label" ] && build_args+=(--label "$label")
-          done <<< "$DOCKER_LABELS"
-
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --file ./Dockerfile.cli \
+            --tag "${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}:${IMAGE_TAG}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             --build-arg NEXT_PUBLIC_API_URL=https://api.sigilsec.ai \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             --push \
-            "${build_args[@]}" \
             .
 
   build-full:
@@ -93,37 +98,37 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.FULL_IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Generate immutable image tag
+        id: image-tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ inputs.image_tag }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            IMAGE_TAG="${GITHUB_REF_NAME#v}"
+          else
+            IMAGE_TAG="sha-${GITHUB_SHA::7}"
+          fi
+          case "$IMAGE_TAG" in
+            latest|""|*:*)
+              echo "::error::Docker image tag must be immutable and must not be latest"
+              exit 1
+              ;;
+          esac
+          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build and push full image
         env:
-          DOCKER_TAGS: ${{ steps.meta.outputs.tags }}
-          DOCKER_LABELS: ${{ steps.meta.outputs.labels }}
+          IMAGE_TAG: ${{ steps.image-tag.outputs.image-tag }}
         run: |
-          build_args=()
-          while IFS= read -r tag; do
-            [ -n "$tag" ] && build_args+=(--tag "$tag")
-          done <<< "$DOCKER_TAGS"
-          while IFS= read -r label; do
-            [ -n "$label" ] && build_args+=(--label "$label")
-          done <<< "$DOCKER_LABELS"
-
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --file ./Dockerfile \
+            --tag "${{ env.REGISTRY }}/${{ env.FULL_IMAGE_NAME }}:${IMAGE_TAG}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             --push \
-            "${build_args[@]}" \
             .
 
   test-images:
@@ -138,10 +143,18 @@ jobs:
     steps:
       - name: Pull and test image
         run: |
-          docker pull ${{ matrix.image }}:latest
-          if [ "${{ matrix.image }}" = "nomark/sigil-full" ]; then
-            docker run --rm --entrypoint /usr/local/bin/sigil ${{ matrix.image }}:latest --version
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            IMAGE_TAG="${{ inputs.image_tag }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            IMAGE_TAG="${GITHUB_REF_NAME#v}"
           else
-            docker run --rm ${{ matrix.image }}:latest --version
+            IMAGE_TAG="sha-${GITHUB_SHA::7}"
           fi
-          echo "✅ ${{ matrix.image }} works!"
+
+          docker pull ${{ matrix.image }}:${IMAGE_TAG}
+          if [ "${{ matrix.image }}" = "nomark/sigil-full" ]; then
+            docker run --rm --entrypoint /usr/local/bin/sigil ${{ matrix.image }}:${IMAGE_TAG} --version
+          else
+            docker run --rm ${{ matrix.image }}:${IMAGE_TAG} --version
+          fi
+          echo "✅ ${{ matrix.image }}:${IMAGE_TAG} works!"

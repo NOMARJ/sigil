@@ -3,7 +3,7 @@
     "id": "sigil-core-provenance",
     "name": "Sigil Core — Provenance",
     "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "updated_at": "2026-06-15",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects provenance issues: hidden files, binary files in unexpected locations, suspicious filenames, and large files"
   },
@@ -18,7 +18,12 @@
         ".gitignore",
         ".gitkeep",
         ".gitattributes",
-        ".editorconfig"
+        ".editorconfig",
+        ".dockerignore",
+        ".npmignore",
+        ".vscodeignore",
+        ".eslintrc.json",
+        ".gitlab-ci-template.yml"
       ]
     },
     {

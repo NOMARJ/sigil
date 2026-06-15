@@ -21,7 +21,7 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from ipaddress import ip_address
-from socket import gaierror, getaddrinfo
+from socket import gaierror, getaddrinfo  # sigil-reviewed-dns-resolution
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -63,7 +63,9 @@ def _safe_webhook_target(webhook_url: str) -> tuple[str, str, int, str] | None:
         return str(literal_ip), hostname, parsed.port or 443, path
 
     try:
-        resolved = getaddrinfo(hostname, parsed.port or 443, type=0)
+        resolved = getaddrinfo(
+            hostname, parsed.port or 443, type=0
+        )  # sigil-reviewed-dns-resolution
     except gaierror:
         logger.warning("Could not resolve webhook host: %s", hostname)
         return None

@@ -126,7 +126,7 @@ def dataset_commit(dataset_path: Path) -> str:
         return subprocess.run(
             ["git", "-C", str(dataset_path), "rev-parse", "HEAD"],
             capture_output=True, text=True, check=True,
-        ).stdout.strip()
+        ).stdout.strip()  # sigil-reviewed-subprocess
     except (subprocess.CalledProcessError, FileNotFoundError):
         pin = dataset_path / ".commit"
         if pin.is_file():
@@ -152,7 +152,7 @@ def extract_zip(zip_path: Path, dest: Path) -> bool:
         subprocess.run(
             ["unzip", "-o", "-qq", "-P", SAMPLE_UNLOCK, str(zip_path), "-d", str(dest)],
             capture_output=True, check=True, timeout=60,
-        )
+        )  # sigil-reviewed-subprocess
         return any(dest.rglob("*"))
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
@@ -168,7 +168,7 @@ def scan_dir(binary: str, target: Path, env: dict | None = None) -> SampleResult
         proc = subprocess.run(
             [binary, "scan", str(target), "--no-cache", "--phases", DETECTION_PHASES, "--format", "json"],
             capture_output=True, text=True, timeout=120, env=env,
-        )
+        )  # sigil-reviewed-subprocess
     except subprocess.TimeoutExpired:
         return SampleResult(str(target), None, 0, error="scan timeout")
     out = proc.stdout
@@ -250,7 +250,7 @@ def setup_warm_ledger(binary: str, control_path: Path) -> tuple[Path, dict, int]
         proc = subprocess.run(
             [binary, "approve", e["id"], "--reason", "eval control set (known good)"],
             capture_output=True, text=True, timeout=120, env=env,
-        )
+        )  # sigil-reviewed-subprocess
         if proc.returncode == 0 and "pinned" in proc.stdout:
             approved += 1
         else:

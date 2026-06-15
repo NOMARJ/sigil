@@ -3,7 +3,7 @@
     "id": "sigil-core-obfuscation",
     "name": "Sigil Core — Obfuscation",
     "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "updated_at": "2026-06-15",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects obfuscation techniques: base64 encoded payloads, String.fromCharCode, hex-encoded strings, unicode escape sequences, and codec usage"
   },
@@ -41,7 +41,10 @@
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "chr\\s*\\(\\s*\\d+\\s*\\)",
-      "description": "chr() — character code construction"
+      "description": "chr() — character code construction",
+      "suppress": {
+        "line_contains": ["chr(10).join", "chr(13).join"]
+      }
     },
     {
       "id": "OBFUSC-006",

@@ -171,7 +171,7 @@ sh install.sh
 Or use the Docker image:
 
 ```bash
-docker pull ghcr.io/nomarj/sigil:latest
+docker pull ghcr.io/nomarj/sigil:1.2.1
 ```
 
 ### 2. Run the Scan
@@ -287,7 +287,7 @@ Use the Sigil Docker image directly in CI:
 ```bash
 docker run --rm \
   -v "$(pwd):/workspace" \
-  ghcr.io/nomarj/sigil:latest \
+  ghcr.io/nomarj/sigil:1.2.1 \
   scan /workspace --format json
 ```
 
@@ -303,7 +303,7 @@ WORKDIR /app
 RUN npm install && npm run build
 
 # Security scan stage
-FROM ghcr.io/nomarj/sigil:latest AS scanner
+FROM ghcr.io/nomarj/sigil:1.2.1 AS scanner
 COPY --from=builder /app /scan
 RUN sigil scan /scan --format json > /scan/sigil-report.json
 

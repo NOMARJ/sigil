@@ -310,6 +310,21 @@ def test_release_workflows_avoid_node20_only_action_paths():
     ]:
         assert node24_action in workflow_text
 
+    for gradle_workflow in [
+        repo_root / ".github" / "workflows" / "ci.yml",
+        repo_root / ".github" / "workflows" / "publish-jetbrains.yml",
+    ]:
+        gradle_text = gradle_workflow.read_text()
+        assert "gradle/actions/setup-gradle@v6" in gradle_text
+        assert "cache-provider: basic" in gradle_text
+        assert "gradle/actions/setup-gradle@v5" not in gradle_text
+        assert "gradle/actions/setup-gradle@v4" not in gradle_text
+
+    assert (
+        "gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a"
+        not in workflow_text
+    )
+
     if infra_workflow.exists():
         infra_text = infra_workflow.read_text()
         assert "azure/login@v3" in infra_text
@@ -351,6 +366,10 @@ def test_full_docker_image_builds_with_dashboard_api_url_and_rust_engine():
     dockerfile = (repo_root / "Dockerfile").read_text()
 
     assert "NEXT_PUBLIC_API_URL=https://api.sigilsec.ai" in workflow
+    assert ":latest" not in workflow
+    assert "type=raw,value=latest" not in workflow
+    assert "image-tag" in workflow
+    assert "Docker image tag must be immutable" in workflow
     assert "COPY --from=cli-builder" in dockerfile
     assert "/usr/local/bin/sigil-engine" in dockerfile
     assert "ENV SIGIL_BIN=/usr/local/bin/sigil-engine" in dockerfile
@@ -364,9 +383,20 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     pro_workflow = (
         repo_root / ".github" / "workflows" / "test-pro-tier.yml"
     ).read_text()
+    requirements = (repo_root / "api" / "requirements.txt").read_text()
+    lock = (repo_root / "api" / "requirements.lock").read_text()
+    deploy_workflow = (
+        repo_root / ".github" / "workflows" / "deploy-azure.yml"
+    ).read_text()
 
     assert "api/requirements.lock" in api_dockerfile
     assert "api/requirements.txt" not in api_dockerfile
+    assert "httpx2>=2.4.0" in requirements
+    assert "httpx2==2.4.0" in lock
+    assert "httpcore2==2.4.0" in lock
+    assert "sigil-api:latest" not in deploy_workflow
+    assert "sigil-bot:latest" not in deploy_workflow
+    assert "sigil-dashboard:latest" not in deploy_workflow
     assert "pip install -r api/requirements.lock" in ci_workflow
     assert "cd api && pytest tests -v --tb=short" in ci_workflow
     for watched_path in [
@@ -382,6 +412,23 @@ def test_api_deploy_and_ci_use_locked_python_dependencies():
     assert "codecov/codecov-action@v7" in pro_workflow
     assert "actions/github-script@v9" in pro_workflow
     assert "coverage combine ../artifact/coverage-*.xml" not in pro_workflow
+
+
+def test_api_testclient_compatibility_uses_locked_httpx2_stack():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+
+    @app.get("/healthz")
+    def healthz():
+        return {"ok": True}
+
+    with TestClient(app) as client:
+        response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
 
 
 def test_base_schema_contains_billing_entitlement_column():

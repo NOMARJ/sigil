@@ -188,22 +188,22 @@ winget install NOMARK.Sigil
 ### CLI Only (Lightweight ~15MB)
 
 ```bash
-docker pull nomark/sigil:latest
+docker pull nomark/sigil:1.2.1
 
 # Scan a directory
-docker run --rm -v $(pwd):/workspace nomark/sigil scan .
+docker run --rm -v $(pwd):/workspace nomark/sigil:1.2.1 scan .
 
 # Clone and scan a repo
-docker run --rm -v ~/.sigil:/root/.sigil nomark/sigil clone https://github.com/someone/repo
+docker run --rm -v ~/.sigil:/root/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
 ```
 
 ### Full Stack (API + Dashboard + CLI)
 
 ```bash
-docker pull nomark/sigil-full:latest
+docker pull nomark/sigil-full:1.2.1
 
 # Run the full stack
-docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:latest
+docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:1.2.1
 ```
 
 **Docker Compose:**
@@ -212,7 +212,7 @@ docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:latest
 version: "3.8"
 services:
   sigil:
-    image: nomark/sigil-full:latest
+    image: nomark/sigil-full:1.2.1
     ports:
       - "8000:8000" # API
       - "3000:3000" # Dashboard
@@ -346,7 +346,7 @@ cargo install sigil-cli --force
 ### Docker
 
 ```bash
-docker pull nomark/sigil:latest
+docker pull nomark/sigil:1.2.1
 ```
 
 ### Manual / Script Install

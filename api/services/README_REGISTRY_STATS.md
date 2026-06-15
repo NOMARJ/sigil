@@ -52,7 +52,7 @@ Or use the Azure Portal Query Editor to run the migration SQL.
 
 ```bash
 # Build and push new image
-az acr build --registry sigilacr46iy6y --image sigil-api:latest --file Dockerfile .
+az acr build --registry sigilacr46iy6y --image sigil-api:$(git rev-parse --short HEAD) --file Dockerfile .
 
 # Force new revision with updated code
 az containerapp update \

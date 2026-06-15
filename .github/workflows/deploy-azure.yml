@@ -74,7 +74,6 @@ jobs:
         run: |
           docker buildx build \
             --file ./api/Dockerfile \
-            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-api:latest" \
             --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-api:${{ steps.meta.outputs.api-tag }}" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
@@ -85,7 +84,6 @@ jobs:
         run: |
           docker buildx build \
             --file ./Dockerfile.bot \
-            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-bot:latest" \
             --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${{ steps.meta.outputs.bot-tag }}" \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
@@ -96,7 +94,6 @@ jobs:
         run: |
           docker buildx build \
             --file ./dashboard/Dockerfile \
-            --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:latest" \
             --tag "${{ env.ACR_LOGIN_SERVER }}/sigil-dashboard:${{ steps.meta.outputs.dashboard-tag }}" \
             --build-arg NEXT_PUBLIC_API_URL=https://api.sigilsec.ai \
             --cache-from type=gha \

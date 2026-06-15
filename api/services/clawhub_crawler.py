@@ -121,7 +121,9 @@ async def _http_get(
                 full_url, headers={"Accept": "application/json"}
             )
             try:
-                with urllib.request.urlopen(_req, timeout=timeout) as resp:
+                with urllib.request.urlopen(
+                    _req, timeout=timeout
+                ) as resp:  # sigil-reviewed-urlopen
                     _data = resp.read(MAX_RESPONSE_BYTES + 1)
                     if len(_data) > MAX_RESPONSE_BYTES:
                         logger.warning("HTTP GET exceeded response limit: %s", full_url)

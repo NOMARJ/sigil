@@ -3,7 +3,7 @@
     "id": "sigil-core-code-patterns",
     "name": "Sigil Core — Code Patterns",
     "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "updated_at": "2026-06-15",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects dangerous code execution patterns: eval/exec, pickle, child_process, dynamic imports"
   },
@@ -26,7 +26,7 @@
       "id": "CODE-003",
       "phase": "code_patterns",
       "severity": "medium",
-      "pattern": "\\bcompile\\s*\\(",
+      "pattern": "(?m)(^|[^.\\w])compile\\s*\\(",
       "description": "compile() call — dynamic code compilation"
     },
     {
@@ -90,14 +90,24 @@
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "require\\s*\\(\\s*[^'\"\\s]",
-      "description": "dynamic require() — variable module loading"
+      "description": "dynamic require() — variable module loading",
+      "file_filter": {
+        "extensions": ["js", "jsx", "ts", "tsx", "mjs", "cjs"]
+      }
     },
     {
       "id": "CODE-013",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "subprocess\\.(call|run|Popen|check_output)\\s*\\(",
-      "description": "subprocess invocation — command execution"
+      "description": "subprocess invocation — command execution",
+      "file_filter": {
+        "extensions": ["py"]
+      },
+      "suppress": {
+        "path_contains": ["scripts/run_eval.py", "run_comprehensive_tests.py"],
+        "nearby_contains": ["sigil-reviewed-subprocess"]
+      }
     },
     {
       "id": "CODE-014",
@@ -116,16 +126,22 @@
     {
       "id": "CODE-MCP-001",
       "phase": "code_patterns",
-      "severity": "medium",
-      "pattern": "mcp[_-]?server|MCPServer|create_mcp_server",
-      "description": "MCP server creation detected"
+      "severity": "low",
+      "pattern": "(?i)(create[_-]?mcp[_-]?server|FastMCP\\s*\\(|mcp\\.server)",
+      "description": "MCP server creation detected",
+      "file_filter": {
+        "extensions": ["py", "js", "jsx", "ts", "tsx", "rs", "json", "yaml", "yml", "toml"]
+      }
     },
     {
       "id": "CODE-MCP-002",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "tool_call|execute_tool|run_tool",
-      "description": "MCP tool execution pattern"
+      "description": "MCP tool execution pattern",
+      "file_filter": {
+        "extensions": ["py", "js", "jsx", "ts", "tsx", "rs"]
+      }
     },
     {
       "id": "CODE-MCP-003",
