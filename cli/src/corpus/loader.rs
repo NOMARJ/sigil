@@ -175,6 +175,11 @@ mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use ed25519_dalek::{Signer, SigningKey};
+    use std::sync::Mutex;
+
+    // Serialise tests that mutate SIGIL_PACK_PUBLIC_KEY so parallel test
+    // runners don't race on the env var.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     // -----------------------------------------------------------------------
     // Helpers shared across signing tests
@@ -223,6 +228,7 @@ mod tests {
 
     #[test]
     fn signing_no_key_no_signature_ok() {
+        let _lock = ENV_LOCK.lock().unwrap();
         // No env var set, pack has no signature → accepted silently.
         std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
         let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
@@ -234,6 +240,7 @@ mod tests {
 
     #[test]
     fn signing_no_key_signed_pack_accepted_with_warning() {
+        let _lock = ENV_LOCK.lock().unwrap();
         // No env var set, but pack carries a signature.  We can't verify it,
         // so we warn (stderr) but accept.  The test just verifies it returns Ok.
         std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
@@ -247,6 +254,7 @@ mod tests {
 
     #[test]
     fn signing_keyed_valid_signature_accepted() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let (sk, vk) = test_keypair();
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
         let raw = sign_pack(&sk, minimal_pack_json());
@@ -260,6 +268,7 @@ mod tests {
 
     #[test]
     fn signing_keyed_missing_signature_rejected() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let (_, vk) = test_keypair();
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
         let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
@@ -278,6 +287,7 @@ mod tests {
 
     #[test]
     fn signing_keyed_tampered_pack_rejected() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let (sk, vk) = test_keypair();
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
 
@@ -303,6 +313,7 @@ mod tests {
 
     #[test]
     fn signing_keyed_wrong_key_rejected() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let (sk, _) = test_keypair();
         // Use a different key for the env var.
         let wrong_seed: [u8; 32] = [0xAB; 32];
@@ -322,6 +333,7 @@ mod tests {
 
     #[test]
     fn signing_malformed_hex_key_rejected() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", "not_hex_at_all");
         let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
         let result = verify_pack_if_keyed(&raw);
@@ -334,6 +346,7 @@ mod tests {
 
     #[test]
     fn signing_short_hex_key_rejected() {
+        let _lock = ENV_LOCK.lock().unwrap();
         // 62 chars instead of 64.
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", "aa".repeat(31));
         let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
