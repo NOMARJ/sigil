@@ -252,7 +252,10 @@ mod tests {
         let raw = sign_pack(&sk, minimal_pack_json());
         let result = verify_pack_if_keyed(&raw);
         std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
-        assert!(result.is_ok(), "valid signature must be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "valid signature must be accepted: {result:?}"
+        );
     }
 
     #[test]
@@ -303,7 +306,9 @@ mod tests {
         let (sk, _) = test_keypair();
         // Use a different key for the env var.
         let wrong_seed: [u8; 32] = [0xAB; 32];
-        let wrong_vk = SigningKey::from_bytes(&wrong_seed).verifying_key().to_bytes();
+        let wrong_vk = SigningKey::from_bytes(&wrong_seed)
+            .verifying_key()
+            .to_bytes();
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&wrong_vk));
 
         let raw = sign_pack(&sk, minimal_pack_json());
