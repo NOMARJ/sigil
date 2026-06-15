@@ -279,7 +279,7 @@ mod tests {
         std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
 
         // Sign the pack, then tamper with its content.
-        let mut doc = minimal_pack_json();
+        let doc = minimal_pack_json();
         let signed_raw = sign_pack(&sk, doc.clone());
         let mut tampered: serde_json::Value = serde_json::from_str(&signed_raw).unwrap();
         tampered["meta"]["id"] = serde_json::Value::String("tampered".into());
@@ -450,6 +450,7 @@ mod tests {
         use crate::corpus::schema::SuppressionPredicates;
         let s = SuppressionPredicates {
             safe_domains: vec!["api.openai.com".to_string()],
+            ..Default::default()
         };
         assert!(s.should_suppress(
             "src/client.py",
