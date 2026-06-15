@@ -1,0 +1,42 @@
+{
+  "id": "BRF-2026-06-15-NOM-616",
+  "version": "1.0",
+  "created_at": "2026-06-15T06:18:46.627Z",
+  "created_by": "n8n-linear-dispatch",
+  "source": {
+    "repo": "linear",
+    "session": "n8n",
+    "trigger": "linear-status-change"
+  },
+  "target": {
+    "owner": "NOMARJ",
+    "repo": "sigil",
+    "capability": "fullstack"
+  },
+  "intent": "NOM-616: Attestation signing failures are silent — make fatal or alertable",
+  "type": "feature",
+  "priority": "urgent",
+  "acceptance_criteria": [],
+  "context": {
+    "linear_id": "NOM-616",
+    "linear_project_id": "9725c96e-e6d6-4b62-9a86-4994a12b15e8",
+    "linear_project_name": "sigil",
+    "feature_ref": null,
+    "related_commits": [],
+    "related_briefs": [],
+    "notes": "Dispatched from Linear. AC in SOLUTION.md, stories in progress.md."
+  },
+  "governance": {
+    "max_scope": "feature",
+    "requires_approval": [],
+    "charter_constraints": [
+      "CHARTER II.4",
+      "CHARTER II.5"
+    ]
+  },
+  "status": "pending",
+  "claimed_by": null,
+  "claimed_at": null,
+  "completed_at": null,
+  "completion_ref": null
+}
