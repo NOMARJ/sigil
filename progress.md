@@ -1735,3 +1735,12 @@
 - **Blast radius:** `RateLimiter` is the only callable-class dependency in `api/`; one fix covers scan (×4), metrics, billing, email, rescan.
 - **Evidence:** `api/tests/test_scan.py` 8/8 pass (were failing pre-fix). Initial full `api/` suite after this rate-limiter fix: 210 passed, 13 failed — all 13 pre-existing and unrelated to rate limiting. Superseded by launch-readiness reassessment fixes: full `api/` suite now passes with `223 passed, 339 skipped, 6 warnings`. Field-level check: `RateLimiter query=[] req_param=request`.
 - **Follow-up (DONE, owner-approved 2026-06-08):** The `RequestValidationError` handler in `api/main.py` flattened every client validation error to `{"detail":"Bad request"}`, which made this near-undebuggable and gave API callers no actionable detail. Now returns `{"detail":"Validation error","errors":[{loc,msg,type},...]}` — actionable field locations while sanitising the raw Pydantic error (drops `input`/`ctx`/`url`, which echo the caller's submitted data and leak internals). Regression test in `api/tests/test_scan.py::test_submit_scan_validation_error` asserts both the actionable shape and that a submitted canary value is never echoed back.
+
+### NOM-616: Attestation signing failures are silent — make fatal or alertable (2026-06-22)
+- **Status:** DONE ✅ (completed in prior session, commit 3961569, PR #126)
+- **Linear:** NOM-616
+- **Scope:** moderate
+- **Goal:** When `SIGIL_PACK_PUBLIC_KEY` is set and a user-installed pack fails signature verification, the scan must abort with a fatal error rather than silently continuing with fewer rules.
+- **Root cause:** `load_packs_from_dir` in `cli/src/corpus/loader.rs` swallowed signature failures via `eprintln!`, letting the scan proceed silently — risking false negatives when an attacker tampers with installed packs.
+- **Fix:** Changed `load_packs_from_dir` → `Result<Vec<SignaturePack>, String>` propagating `[SECURITY]`-prefixed errors; changed `load_all_packs` → `Result<...>`; in `phases.rs` `all_packs()`, added `process::exit(2)` on security failure so the scan aborts with a clear fatal message. Parse errors (non-security) continue to be logged and skipped.
+- **Evidence:** Commit `3961569 NOM-616: make pack signature verification failures alertable (#126)` merged to main. Branch `claude/admiring-hopper-vyyjx1` has no commits ahead of `origin/main` (`git log origin/main..HEAD` → empty).
