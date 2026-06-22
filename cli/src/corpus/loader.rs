@@ -24,6 +24,11 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../../packs/core/v1/skill_security.json"),
     include_str!("../../../packs/core/v1/inference_security.json"),
     include_str!("../../../packs/core/v1/supply_chain.json"),
+    // LOLBin / reverse-shell corpora generated from upstream GTFOBins, LOLBAS,
+    // and the reverse-shell-generator. Regenerate via tools/corpus-gen/.
+    include_str!("../../../packs/core/v1/lolbin_unix.json"),
+    include_str!("../../../packs/core/v1/lolbin_windows.json"),
+    include_str!("../../../packs/core/v1/reverse_shells.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the

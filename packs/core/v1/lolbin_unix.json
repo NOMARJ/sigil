@@ -1,0 +1,3361 @@
+{
+  "meta": {
+    "id": "sigil-core-lolbin-unix",
+    "name": "Sigil Core — LOLBin (Unix / GTFOBins)",
+    "version": "1.0.0",
+    "updated_at": "2026-06-22",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects abuse of legitimate Unix binaries (living-off-the-land) for shell breakout, file read/write, and exfiltration. Generated from GTFOBins (https://github.com/GTFOBins/GTFOBins.github.io@master acd524623f9c, retrieved 2026-06-22, GPL-3.0-or-later (see upstream LICENSE))."
+  },
+  "rules": [
+    {
+      "id": "GTFO-7Z",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\b7z(?:\\.exe)?\\b\\s+(?:a\\s+\\-ttar\\s+\\-an\\s+\\-so\\s+\\S+\\s+\\|\\s+7z\\s+e\\s+\\-ttar\\s+\\-si\\s+\\-so)",
+      "description": "GTFOBins LOLBin abuse: 7z (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-R",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bR(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-save\\s+\\-e\\s+'system\\(\"/bin/sh\"\\)')",
+      "description": "GTFOBins LOLBin abuse: R (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AA_EXEC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\baa\\-exec(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: aa-exec (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AB",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bab(?:\\.exe)?\\b\\s+(?:\\-p\\s+\\S+\\s+http://\\S+/|\\-v2\\s+http://\\S+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ab (download, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ACR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bacr(?:\\.exe)?\\b\\s+(?:\\-r\\s+\\./relative\\S+)",
+      "description": "GTFOBins LOLBin abuse: acr (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AGETTY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bagetty(?:\\.exe)?\\b\\s+(?:\\-l\\s+/bin/sh\\s+\\-o\\s+\\-p\\s+\\-a\\s+root\\s+tty)",
+      "description": "GTFOBins LOLBin abuse: agetty (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ANSIBLE_TEST",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bansible\\-test(?:\\.exe)?\\b\\s+(?:shell)",
+      "description": "GTFOBins LOLBin abuse: ansible-test (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AOSS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\baoss(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: aoss (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-APACHE2",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bapache2(?:\\.exe)?\\b\\s+(?:\\-C\\s+'Define\\s+APACHE_RUN_DIR\\s+/'\\s+\\-C\\s+'Include\\s+\\S+')",
+      "description": "GTFOBins LOLBin abuse: apache2 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-APACHE2CTL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bapache2ctl(?:\\.exe)?\\b\\s+(?:\\-c\\s+'Include\\s+\\S+')",
+      "description": "GTFOBins LOLBin abuse: apache2ctl (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-APT_GET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bapt\\-get(?:\\.exe)?\\b\\s+(?:\\-y\\s+install\\s+\\-c\\s+\\S+\\s+sl|update\\s+\\-o\\s+APT::Update::Pre\\-Invoke::=/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: apt-get (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ARIA2C",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\baria2c(?:\\.exe)?\\b\\s+(?:\\-\\-allow\\-overwrite\\s+\\-\\-gid=aaaaaaaaaaaaaaaa\\s+\\-\\-on\\-download\\-complete=/bin/sh\\s+http://\\S+/aaaaaaaaaaaaaaaa|\\-\\-on\\-download\\-error=\\S+\\s+http://some\\-invalid\\-domain|\\-o\\s+\\S+\\s+http://\\S+\\S+)",
+      "description": "GTFOBins LOLBin abuse: aria2c (command, download) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ARJ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\barj(?:\\.exe)?\\b\\s+(?:a\\s+x\\s+output\\-file|e\\s+x\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: arj (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ARP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\barp(?:\\.exe)?\\b\\s+(?:\\-v\\s+\\-f\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: arp (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ASCII_XFR",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bascii\\-xfr(?:\\.exe)?\\b\\s+(?:\\-ns\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ascii-xfr (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ASCII85",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bascii85(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+ascii85\\s+\\-\\-decode)",
+      "description": "GTFOBins LOLBin abuse: ascii85 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ASH",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bash(?:\\.exe)?\\b\\s+(?:\\-c\\s+'echo\\s+\\S+\\s+>\\S+')",
+      "description": "GTFOBins LOLBin abuse: ash (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ASPELL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\baspell(?:\\.exe)?\\b\\s+(?:\\-\\-conf\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: aspell (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bat(?:\\.exe)?\\b\\s+(?:now|now;\\s+tail\\s+\\-f\\s+/dev/null)",
+      "description": "GTFOBins LOLBin abuse: at (command, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-AWS",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\baws(?:\\.exe)?\\b\\s+(?:ec2\\s+describe\\-instances\\s+\\-\\-filter\\s+file://\\S+)",
+      "description": "GTFOBins LOLBin abuse: aws (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BASE32",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbase32(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+base32\\s+\\-\\-decode)",
+      "description": "GTFOBins LOLBin abuse: base32 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BASE58",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbase58(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+base58\\s+\\-\\-decode)",
+      "description": "GTFOBins LOLBin abuse: base58 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BASE64",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbase64(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+base64\\s+\\-\\-decode)",
+      "description": "GTFOBins LOLBin abuse: base64 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BASENC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbasenc(?:\\.exe)?\\b\\s+(?:\\-\\-base64\\s+\\S+\\s+\\|\\s+basenc\\s+\\-d\\s+\\-\\-base64)",
+      "description": "GTFOBins LOLBin abuse: basenc (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BASEZ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbasez(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+basez\\s+\\-\\-decode)",
+      "description": "GTFOBins LOLBin abuse: basez (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BBOT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbbot(?:\\.exe)?\\b\\s+(?:\\-d\\s+\\-cy\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: bbot (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BORG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bborg(?:\\.exe)?\\b\\s+(?:extract\\s+@:/:::\\s+\\-\\-rsh\\s+\"/bin/sh\\s+\\-c\\s+'/bin/sh\\s+</dev/tty\\s+>/dev/tty\\s+2>/dev/tty'\")",
+      "description": "GTFOBins LOLBin abuse: borg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BPFTRACE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bbpftrace(?:\\.exe)?\\b\\s+(?:\\-\\-unsafe\\s+\\-e\\s+'BEGIN\\s+\\S+'|\\-\\-unsafe\\s+\\S+|\\-c\\s+/bin/sh\\s+\\-e\\s+'END\\s+\\S+')",
+      "description": "GTFOBins LOLBin abuse: bpftrace (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BUNDLE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bbundle(?:\\.exe)?\\b\\s+(?:exec\\s+/bin/sh|install)",
+      "description": "GTFOBins LOLBin abuse: bundle (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BUSCTL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bbusctl(?:\\.exe)?\\b\\s+(?:\\-\\-address=unixexec:path=/bin/sh,argv1=\\-c,argv2='/bin/sh\\s+\\-i\\s+0<\\&2\\s+1>\\&2'|set\\-property\\s+org\\.freedesktop\\.systemd1\\s+/org/freedesktop/systemd1\\s+org\\.freedesktop\\.systemd1\\.Manager\\s+LogLevel\\s+s\\s+debug\\s+\\-\\-address=unixexec:path=/bin/sh,argv1=\\-c,argv2='/bin/sh\\s+\\-i\\s+0<\\&2\\s+1>\\&2')",
+      "description": "GTFOBins LOLBin abuse: busctl (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BUSYBOX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bbusybox(?:\\.exe)?\\b\\s+(?:httpd\\s+\\-f\\s+\\-p\\s+12345\\s+\\-h\\s+\\.|nc\\s+\\-e\\s+/bin/sh\\s+\\S+\\s+12345)",
+      "description": "GTFOBins LOLBin abuse: busybox (reverse-shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-BZIP2",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bbzip2(?:\\.exe)?\\b\\s+(?:\\-c\\s+\\S+\\s+\\|\\s+bzip2\\s+\\-d)",
+      "description": "GTFOBins LOLBin abuse: bzip2 (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CABAL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcabal(?:\\.exe)?\\b\\s+(?:exec\\s+\\-\\-project\\-file=/dev/null\\s+\\-\\-\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: cabal (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CANCEL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcancel(?:\\.exe)?\\b\\s+(?:\\-h\\s+\\S+:12345\\s+\\-u\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: cancel (upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CDIST",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcdist(?:\\.exe)?\\b\\s+(?:shell\\s+\\-s\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: cdist (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CERTBOT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcertbot(?:\\.exe)?\\b\\s+(?:certonly\\s+\\-n\\s+\\-d\\s+x\\s+\\-\\-standalone\\s+\\-\\-dry\\-run\\s+\\-\\-agree\\-tos\\s+\\-\\-email\\s+x\\s+\\-\\-logs\\-dir\\s+\\.\\s+\\-\\-work\\-dir\\s+\\.\\s+\\-\\-config\\-dir\\s+\\.\\s+\\-\\-pre\\-hook\\s+'/bin/sh\\s+1>\\&0\\s+2>\\&0')",
+      "description": "GTFOBins LOLBin abuse: certbot (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_BY_SSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcheck_by_ssh(?:\\.exe)?\\b\\s+(?:\\-o\\s+\"ProxyCommand\\s+/bin/sh\\s+\\-i\\s+<\\$\\(tty\\)\\s+\\|\\&\\s+tee\\s+\\$\\(tty\\)\"\\s+\\-H\\s+localhost\\s+\\-C\\s+x)",
+      "description": "GTFOBins LOLBin abuse: check_by_ssh (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_CUPS",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcheck_cups(?:\\.exe)?\\b\\s+(?:\\-\\-extra\\-opts=@\\S+)",
+      "description": "GTFOBins LOLBin abuse: check_cups (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_LOG",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcheck_log(?:\\.exe)?\\b\\s+(?:\\-F\\s+\\S+\\s+\\-O\\s+/dev/stdout|\\-F\\s+\\S+\\s+\\-O\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: check_log (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_MEMORY",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcheck_memory(?:\\.exe)?\\b\\s+(?:\\-\\-extra\\-opts=@\\S+)",
+      "description": "GTFOBins LOLBin abuse: check_memory (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_RAID",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcheck_raid(?:\\.exe)?\\b\\s+(?:\\-\\-extra\\-opts=@\\S+)",
+      "description": "GTFOBins LOLBin abuse: check_raid (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHECK_SSL_CERT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcheck_ssl_cert(?:\\.exe)?\\b\\s+(?:\\-\\-grep\\-bin\\s+\\S+\\s+\\-H\\s+x)",
+      "description": "GTFOBins LOLBin abuse: check_ssl_cert (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHOOM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bchoom(?:\\.exe)?\\b\\s+(?:\\-n\\s+0\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: choom (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CHRT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bchrt(?:\\.exe)?\\b\\s+(?:1\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: chrt (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CLAMSCAN",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bclamscan(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-summary\\s+\\-d\\s+x\\.yara\\s+\\-f\\s+\\S+\\s+2>\\&1\\s+\\|\\s+sed\\s+\\-nE\\s+'s/\\^\\(\\.\\*\\):\\s+No\\s+such\\s+file\\s+or\\s+directory\\$/\\\\1/p')",
+      "description": "GTFOBins LOLBin abuse: clamscan (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CLISP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bclisp(?:\\.exe)?\\b\\s+(?:\\-x\\s+'\\(ext:run\\-shell\\-command\\s+\"/bin/sh\"\\)\\(ext:exit\\)')",
+      "description": "GTFOBins LOLBin abuse: clisp (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CMAKE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcmake(?:\\.exe)?\\b\\s+(?:\\-E\\s+cat\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: cmake (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CMP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcmp(?:\\.exe)?\\b\\s+(?:\\S+\\s+/dev/zero\\s+\\-b\\s+\\-l)",
+      "description": "GTFOBins LOLBin abuse: cmp (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-COBC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcobc(?:\\.exe)?\\b\\s+(?:\\-xFj\\s+\\-\\-frelax\\-syntax\\-checks\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: cobc (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CODE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcode(?:\\.exe)?\\b\\s+(?:tunnel\\s+\\-\\-name\\s+xxxxxx)",
+      "description": "GTFOBins LOLBin abuse: code (download, reverse-shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CODEX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcodex(?:\\.exe)?\\b\\s+(?:sandbox\\s+linux\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: codex (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-COMM",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcomm(?:\\.exe)?\\b\\s+(?:\\S+\\s+/dev/null)",
+      "description": "GTFOBins LOLBin abuse: comm (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-COMPOSER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcomposer(?:\\.exe)?\\b\\s+(?:run\\-script\\s+x)",
+      "description": "GTFOBins LOLBin abuse: composer (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcp(?:\\.exe)?\\b\\s+(?:/dev/stdin\\s+\\S+|\\S+\\s+/dev/stdout)",
+      "description": "GTFOBins LOLBin abuse: cp (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CPIO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcpio(?:\\.exe)?\\b\\s+(?:\\-dp\\s+\\.|\\-o\\s+\\-\\-rsh\\-command\\s+/bin/sh\\s+\\-F\\s+localhost:|\\-udp\\s+\\.)",
+      "description": "GTFOBins LOLBin abuse: cpio (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CPULIMIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcpulimit(?:\\.exe)?\\b\\s+(?:\\-l\\s+100\\s+\\-f\\s+\\-\\-\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: cpulimit (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CSPLIT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcsplit(?:\\.exe)?\\b\\s+(?:\\-z\\s+\\-b\\s+'%doutput\\-file'\\s+\\S+\\s+1)",
+      "description": "GTFOBins LOLBin abuse: csplit (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CSVTOOL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcsvtool(?:\\.exe)?\\b\\s+(?:call\\s+'/bin/sh;false'\\s+/etc/hosts|trim\\s+t\\s+\\S+|trim\\s+t\\s+\\S+\\s+\\-o\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: csvtool (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CTR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bctr(?:\\.exe)?\\b\\s+(?:run\\s+\\-\\-rm\\s+\\-\\-mount\\s+type=bind,src=/,dst=/,options=rbind\\s+\\-t\\s+docker\\.io/library/alpine:latest\\s+x)",
+      "description": "GTFOBins LOLBin abuse: ctr (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CUPSFILTER",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcupsfilter(?:\\.exe)?\\b\\s+(?:\\-i\\s+application/octet\\-stream\\s+\\-m\\s+application/octet\\-stream\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: cupsfilter (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CURL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcurl(?:\\.exe)?\\b\\s+(?:\\-X\\s+POST\\s+\\-\\-data\\-binary\\s+@\\S+\\s+http://\\S+|\\-X\\s+POST\\s+\\-\\-data\\-binary\\s+\\S+\\s+http://\\S+|\\-\\-engine\\s+\\S+\\s+x|file://\\S+|file://\\S+\\s+\\-o\\s+\\S+|gopher://\\S+:12345/_DATA|http://\\S+\\S+\\s+\\-o\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: curl (download, file-read, file-write, library-load, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-CUT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcut(?:\\.exe)?\\b\\s+(?:\\-d\\s+''\\s+\\-f1\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: cut (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdc(?:\\.exe)?\\b\\s+(?:\\-e\\s+'!/bin/sh')",
+      "description": "GTFOBins LOLBin abuse: dc (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdd(?:\\.exe)?\\b\\s+(?:if=\\S+|of=\\S+)",
+      "description": "GTFOBins LOLBin abuse: dd (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DHCLIENT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdhclient(?:\\.exe)?\\b\\s+(?:\\-sf\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: dhclient (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DIALOG",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdialog(?:\\.exe)?\\b\\s+(?:\\-\\-textbox\\s+\\S+\\s+0\\s+0)",
+      "description": "GTFOBins LOLBin abuse: dialog (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DIFF",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdiff(?:\\.exe)?\\b\\s+(?:\\-\\-line\\-format=%L\\s+/dev/null\\s+\\S+|\\-\\-recursive\\s+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: diff (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DISTCC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdistcc(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: distcc (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DMESG",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdmesg(?:\\.exe)?\\b\\s+(?:\\-rF\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: dmesg (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DMIDECODE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdmidecode(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-sysfs\\s+\\-d\\s+x\\.dmi\\s+\\-\\-dump\\-bin\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: dmidecode (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DMSETUP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdmsetup(?:\\.exe)?\\b\\s+(?:create\\s+base\\s+<<EOF|ls\\s+\\-\\-exec\\s+'/bin/sh\\s+\\-s')",
+      "description": "GTFOBins LOLBin abuse: dmsetup (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DNF",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdnf(?:\\.exe)?\\b\\s+(?:install\\s+\\-y\\s+x\\-1\\.0\\-1\\.noarch\\.rpm\\s+\\-\\-disablerepo=\\*)",
+      "description": "GTFOBins LOLBin abuse: dnf (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DNSMASQ",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdnsmasq(?:\\.exe)?\\b\\s+(?:\\-\\-conf\\-script='\\S+\\s+1>\\&2')",
+      "description": "GTFOBins LOLBin abuse: dnsmasq (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DOAS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdoas(?:\\.exe)?\\b\\s+(?:\\-u\\s+root\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: doas (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DOCKER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdocker(?:\\.exe)?\\b\\s+(?:cp\\s+\\$CONTAINER_ID:input\\-file\\s+\\S+|cp\\s+\\$CONTAINER_ID\\s+\\S+|cp\\s+\\S+\\s+\\$CONTAINER_ID:input\\-file|cp\\s+\\S+\\s+\\$CONTAINER_ID:temp\\-file|run\\s+\\-\\-rm\\s+\\-it\\s+\\-\\-privileged\\s+\\-u\\s+root\\s+alpine|run\\s+\\-v\\s+/:/mnt\\s+\\-\\-rm\\s+\\-it\\s+alpine\\s+chroot\\s+/mnt\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: docker (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DOS2UNIX",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdos2unix(?:\\.exe)?\\b\\s+(?:\\-f\\s+\\-O\\s+\\S+|\\-f\\s+\\-n\\s+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: dos2unix (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DOSBOX",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdosbox(?:\\.exe)?\\b\\s+(?:\\-c\\s+'mount\\s+c\\s+/'\\s+\\-c\\s+\"echo\\s+\\S+\\s+>c:\\\\path\\\\to\\\\output\"\\s+\\-c\\s+exit|\\-c\\s+'mount\\s+c\\s+/'\\s+\\-c\\s+'copy\\s+c:\\\\path\\\\to\\\\input\\s+c:\\\\path\\\\to\\\\output'\\s+\\-c\\s+exit|\\-c\\s+'mount\\s+c\\s+/'\\s+\\-c\\s+'type\\s+c:\\\\path\\\\to\\\\input')",
+      "description": "GTFOBins LOLBin abuse: dosbox (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DOTNET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdotnet(?:\\.exe)?\\b\\s+(?:fsi)",
+      "description": "GTFOBins LOLBin abuse: dotnet (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DPKG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdpkg(?:\\.exe)?\\b\\s+(?:\\-i\\s+x_1\\.0_all\\.deb)",
+      "description": "GTFOBins LOLBin abuse: dpkg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-DVIPS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdvips(?:\\.exe)?\\b\\s+(?:\\-R0\\s+texput\\.dvi)",
+      "description": "GTFOBins LOLBin abuse: dvips (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-EASYRSA",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\beasyrsa(?:\\.exe)?\\b\\s+(?:\\-\\-vars=\\S+)",
+      "description": "GTFOBins LOLBin abuse: easyrsa (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ELVISH",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\belvish(?:\\.exe)?\\b\\s+(?:\\-c\\s+'print\\s+\\(slurp\\s+<\\S+'|\\-c\\s+'print\\s+\\S+\\s+>\\S+')",
+      "description": "GTFOBins LOLBin abuse: elvish (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-EMACS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bemacs(?:\\.exe)?\\b\\s+(?:\\-Q\\s+\\-nw\\s+\\-\\-eval\\s+'\\(term\\s+\"/bin/sh\"\\)')",
+      "description": "GTFOBins LOLBin abuse: emacs (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ENSCRIPT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\benscript(?:\\.exe)?\\b\\s+(?:/dev/null\\s+\\-qo\\s+/dev/null\\s+\\-I\\s+'/bin/sh\\s+>\\&2')",
+      "description": "GTFOBins LOLBin abuse: enscript (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ENV",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\benv(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: env (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ESPEAK",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bespeak(?:\\.exe)?\\b\\s+(?:\\-qXf\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: espeak (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-EX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bex(?:\\.exe)?\\b\\s+(?:\\-c\\s+':!/bin/sh')",
+      "description": "GTFOBins LOLBin abuse: ex (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-EXIFTOOL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bexiftool(?:\\.exe)?\\b\\s+(?:\"\\-description<=\\S+\\s+\\-\\-filename\\s+\\S+|\"\\-description=\\S+\\s+\\-\\-filename\\s+\\S+|\\-description\\s+\\-W\\s+\\S+\\s+\\-\\-filename\\s+\\S+|\\-filename=\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: exiftool (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FAIL2BAN_CLIENT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bfail2ban\\-client(?:\\.exe)?\\b\\s+(?:\\-c\\s+\\S+\\s+\\-v\\s+restart|add\\s+x|set\\s+x\\s+action\\s+x\\s+actionban\\s+\\S+|set\\s+x\\s+addaction\\s+x|set\\s+x\\s+banip\\s+999\\.999\\.999\\.999|set\\s+x\\s+unbanip\\s+999\\.999\\.999\\.999|start\\s+x|stop\\s+x)",
+      "description": "GTFOBins LOLBin abuse: fail2ban-client (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FASTFETCH",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bfastfetch(?:\\.exe)?\\b\\s+(?:\\-\\-file\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: fastfetch (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FFMPEG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bffmpeg(?:\\.exe)?\\b\\s+(?:\\-f\\s+lavfi\\s+\\-i\\s+anullsrc\\s+\\-af\\s+ladspa=file=\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ffmpeg (library-load) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FIND",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bfind(?:\\.exe)?\\b\\s+(?:/\\s+\\-fprintf\\s+\\S+\\s+\\S+\\s+\\-quit|\\.\\s+\\-exec\\s+/bin/sh\\s+\\\\;\\s+\\-quit|\\S+\\s+\\-exec\\s+cat\\s+\\S+\\s+\\\\;)",
+      "description": "GTFOBins LOLBin abuse: find (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FIREJAIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bfirejail(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: firejail (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FLOCK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bflock(?:\\.exe)?\\b\\s+(?:\\-u\\s+/\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: flock (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FMT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bfmt(?:\\.exe)?\\b\\s+(?:\\-999\\s+\\S+|\\-pNON_EXISTING_PREFIX\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: fmt (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FOLD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bfold(?:\\.exe)?\\b\\s+(?:\\-w999\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: fold (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FORGE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bforge(?:\\.exe)?\\b\\s+(?:build\\s+\\-\\-use\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: forge (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-FZF",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bfzf(?:\\.exe)?\\b\\s+(?:\\-\\-bind\\s+'enter:execute\\(/bin/sh\\)'|\\-\\-listen=12345)",
+      "description": "GTFOBins LOLBin abuse: fzf (command, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GAWK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgawk(?:\\.exe)?\\b\\s+(?:'BEGIN\\s+\\S+'|'BEGIN\\s+\\{)",
+      "description": "GTFOBins LOLBin abuse: gawk (bind-shell, reverse-shell, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GCC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgcc(?:\\.exe)?\\b\\s+(?:\\-wrapper\\s+/bin/sh,\\-s\\s+x|\\-x\\s+c\\s+/dev/null\\s+\\-o\\s+\\S+|\\-x\\s+c\\s+\\-E\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: gcc (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GCORE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bgcore(?:\\.exe)?\\b\\s+(?:\\$PID)",
+      "description": "GTFOBins LOLBin abuse: gcore (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GEM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgem(?:\\.exe)?\\b\\s+(?:open\\s+\\-e\\s+'/bin/sh\\s+\\-s'\\s+debug)",
+      "description": "GTFOBins LOLBin abuse: gem (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GENIE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgenie(?:\\.exe)?\\b\\s+(?:\\-c\\s+'/bin/sh')",
+      "description": "GTFOBins LOLBin abuse: genie (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GENISOIMAGE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bgenisoimage(?:\\.exe)?\\b\\s+(?:\\-q\\s+\\-o\\s+\\-\\s+\\S+|\\-sort\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: genisoimage (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgit(?:\\.exe)?\\b\\s+(?:\\-C\\s+\\.\\s+commit\\s+\\-\\-allow\\-empty\\s+\\-m\\s+x|\\-\\-exec\\-path=\\.\\s+x|\\-p\\s+help|apply\\s+\\-\\-unsafe\\-paths\\s+\\-\\-directory\\s+/\\s+x\\.patch|diff\\s+/dev/null\\s+\\S+|init\\s+\\.)",
+      "description": "GTFOBins LOLBin abuse: git (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GNUPLOT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgnuplot(?:\\.exe)?\\b\\s+(?:\\-e\\s+'system\\(\"/bin/sh\\s+1>\\&0\"\\)')",
+      "description": "GTFOBins LOLBin abuse: gnuplot (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgo(?:\\.exe)?\\b\\s+(?:run\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: go (bind-shell, file-read, file-write, reverse-shell, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GRC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bgrc(?:\\.exe)?\\b\\s+(?:\\-\\-pty\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: grc (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GUILE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bguile(?:\\.exe)?\\b\\s+(?:\\-c\\s+'\\(system\\s+\"/bin/sh\"\\)')",
+      "description": "GTFOBins LOLBin abuse: guile (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-GZIP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bgzip(?:\\.exe)?\\b\\s+(?:\\-c\\s+\\S+\\s+\\|\\s+gzip\\s+\\-d)",
+      "description": "GTFOBins LOLBin abuse: gzip (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-HASHCAT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bhashcat(?:\\.exe)?\\b\\s+(?:\\-m\\s+0\\s+\\-\\-quiet\\s+\\-\\-potfile\\-disable\\s+\\-o\\s+\\S+\\s+\\-\\-outfile\\-format=2\\s+\\-\\-outfile\\-autohex\\-disable\\s+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: hashcat (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-HEAD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bhead(?:\\.exe)?\\b\\s+(?:\\-c\\-0\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: head (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-HG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bhg(?:\\.exe)?\\b\\s+(?:\\-\\-config\\s+alias\\.x='!/bin/sh'\\s+x)",
+      "description": "GTFOBins LOLBin abuse: hg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-HIGHLIGHT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bhighlight(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-doc\\s+\\-\\-failsafe\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: highlight (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-HPING3",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bhping3(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\-\\-icmp\\s+\\-\\-data\\s+999\\s+\\-\\-sign\\s+xxx\\s+\\-\\-file\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: hping3 (upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ICONV",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\biconv(?:\\.exe)?\\b\\s+(?:\\-f\\s+8859_1\\s+\\-t\\s+8859_1\\s+\\-o\\s+\\S+|\\-f\\s+8859_1\\s+\\-t\\s+8859_1\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: iconv (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-IONICE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bionice(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: ionice (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-IP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bip(?:\\.exe)?\\b\\s+(?:\\-force\\s+\\-batch\\s+\\S+|netns\\s+add\\s+foo|netns\\s+delete\\s+bar|netns\\s+delete\\s+foo|netns\\s+exec\\s+bar\\s+/bin/sh|netns\\s+exec\\s+foo\\s+/bin/ln\\s+\\-s\\s+/proc/1/ns/net\\s+/var/run/netns/bar|netns\\s+exec\\s+foo\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: ip (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ISPELL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bispell(?:\\.exe)?\\b\\s+(?:/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: ispell (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JAVA",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bjava(?:\\.exe)?\\b\\s+(?:Shell)",
+      "description": "GTFOBins LOLBin abuse: java (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JOIN",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bjoin(?:\\.exe)?\\b\\s+(?:\\-a\\s+2\\s+/dev/null\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: join (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JQ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bjq(?:\\.exe)?\\b\\s+(?:\\-Rr\\s+\\.\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: jq (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JRUNSCRIPT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bjrunscript(?:\\.exe)?\\b\\s+(?:\\-e\\s+'br\\s+=\\s+new\\s+BufferedReader\\(new\\s+java\\.io\\.FileReader\\(\"\\S+\"\\)\\);|\\-e\\s+'cp\\(\"http://\\S+\\S+\",\"\\S+\"\\)'|\\-e\\s+'exec\\(\"/bin/sh\\s+\\-c\\s+\\$@\\|sh\\s+_\\s+echo\\s+sh\\s+</dev/tty\\s+>/dev/tty\\s+2>/dev/tty\"\\)'|\\-e\\s+'var\\s+fw=new\\s+java\\.io\\.FileWriter\\(\"\\S+\"\\);|\\-e\\s+'var\\s+host=\"\\S+\";)",
+      "description": "GTFOBins LOLBin abuse: jrunscript (download, file-read, file-write, reverse-shell, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JTAG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bjtag(?:\\.exe)?\\b\\s+(?:\\-\\-interactive)",
+      "description": "GTFOBins LOLBin abuse: jtag (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-JULIA",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bjulia(?:\\.exe)?\\b\\s+(?:\\-e\\s+'download\\(\"http://\\S+\\S+\",\\s+\"\\S+\"\\)'|\\-e\\s+'open\\(f\\->write\\(f,\\s+\"\\S+\"\\),\\s+\\S+\\s+\"w\"\\)'|\\-e\\s+'print\\(open\\(f\\->read\\(f,\\s+String\\),\\s+\"\\S+\"\\)\\)'|\\-e\\s+'run\\(`/bin/sh`\\)'|\\-e\\s+'using\\s+Sockets;\\s+sock=connect\\(\"\\S+\",\\s+parse\\(Int64,\\s+12345\\)\\);\\s+while\\s+true;\\s+cmd\\s+=\\s+readline\\(sock\\);\\s+if\\s+!isempty\\(cmd\\);\\s+cmd\\s+=\\s+split\\(cmd\\);\\s+ioo\\s+=\\s+IOBuffer\\(\\);\\s+ioe\\s+=\\s+IOBuffer\\(\\);\\s+run\\(pipeline\\(`\\$cmd`,\\s+stdout=ioo,\\s+stderr=ioe\\)\\);\\s+write\\(sock,\\s+String\\(take!\\(ioo\\)\\)\\s+\\*\\s+String\\(take!\\(ioe\\)\\)\\);\\s+end;\\s+end;')",
+      "description": "GTFOBins LOLBin abuse: julia (download, file-read, file-write, reverse-shell, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-KSU",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bksu(?:\\.exe)?\\b\\s+(?:\\-q\\s+\\-e\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: ksu (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-KUBECTL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bkubectl(?:\\.exe)?\\b\\s+(?:get\\s+pods\\s+\\-\\-kubeconfig=\\S+|proxy\\s+\\-\\-address=0\\.0\\.0\\.0\\s+\\-\\-port=12345\\s+\\-\\-www=\\S+\\s+\\-\\-www\\-prefix=/x/)",
+      "description": "GTFOBins LOLBin abuse: kubectl (shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LAST",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\blast(?:\\.exe)?\\b\\s+(?:\\-a\\s+\\-f\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: last (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LATEX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\blatex(?:\\.exe)?\\b\\s+(?:'\\\\documentclass\\S+\\\\newwrite\\\\tempfile\\\\begin\\S+\\\\immediate\\\\openout\\\\tempfile=output\\-file\\.tex\\\\immediate\\\\write\\\\tempfile\\S+\\\\immediate\\\\closeout\\\\tempfile\\\\end\\S+'|'\\\\documentclass\\S+\\\\usepackage\\S+\\\\begin\\S+\\\\verbatiminput\\{\\S+'|\\-\\-shell\\-escape\\s+'\\\\immediate\\\\write18\\S+')",
+      "description": "GTFOBins LOLBin abuse: latex (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LATEXMK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\blatexmk(?:\\.exe)?\\b\\s+(?:\\-dvi\\s+\\S+|\\-pdf\\s+\\-pdflatex='/bin/sh\\s+\\#'\\s+/dev/null)",
+      "description": "GTFOBins LOLBin abuse: latexmk (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LD_SO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bld\\.so(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: ld.so (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LESS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bless(?:\\.exe)?\\b\\s+(?:/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: less (command, file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LFTP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\blftp(?:\\.exe)?\\b\\s+(?:\\-c\\s+'!/bin/sh')",
+      "description": "GTFOBins LOLBin abuse: lftp (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LOGINCTL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bloginctl(?:\\.exe)?\\b\\s+(?:user\\-status)",
+      "description": "GTFOBins LOLBin abuse: loginctl (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LOGROTATE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\blogrotate(?:\\.exe)?\\b\\s+(?:\\-m\\s+\\S+\\s+\\-f\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: logrotate (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LOGSAVE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\blogsave(?:\\.exe)?\\b\\s+(?:/dev/null\\s+/bin/sh\\s+\\-i)",
+      "description": "GTFOBins LOLBin abuse: logsave (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LTRACE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bltrace(?:\\.exe)?\\b\\s+(?:\\-F\\s+\\S+\\s+/dev/null|\\-b\\s+\\-L\\s+/bin/sh|\\-s\\s+999\\s+\\-o\\s+\\S+\\s+ltrace\\s+\\-F\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ltrace (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LWP_DOWNLOAD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\blwp\\-download(?:\\.exe)?\\b\\s+(?:file://\\S+\\s+/dev/stdout|file://\\S+\\s+\\S+|http://\\S+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: lwp-download (download, file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-LWP_REQUEST",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\blwp\\-request(?:\\.exe)?\\b\\s+(?:file://\\S+)",
+      "description": "GTFOBins LOLBin abuse: lwp-request (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MAIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmail(?:\\.exe)?\\b\\s+(?:\\-\\-exec='!/bin/sh'|\\-f\\s+/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: mail (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MAKE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmake(?:\\.exe)?\\b\\s+(?:\\-\\-eval='\\$\\(shell\\s+/bin/sh\\s+1>\\&0\\)'\\s+\\.|\\-s\\s+\\-\\-eval='\\$\\(file\\s+>/dev/stdout,\\$\\(file\\s+<\\S+'\\s+\\.|\\-s\\s+\\-\\-eval='\\$\\(file\\s+>\\S+'\\s+\\.)",
+      "description": "GTFOBins LOLBin abuse: make (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MAN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bman(?:\\.exe)?\\b\\s+(?:'\\-H/bin/sh\\s+\\#'\\s+man)",
+      "description": "GTFOBins LOLBin abuse: man (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MAWK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmawk(?:\\.exe)?\\b\\s+(?:'BEGIN\\s+\\S+')",
+      "description": "GTFOBins LOLBin abuse: mawk (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MINICOM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bminicom(?:\\.exe)?\\b\\s+(?:\\-D\\s+/dev/null|\\-D\\s+/dev/null\\s+\\-S\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: minicom (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MORE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmore(?:\\.exe)?\\b\\s+(?:/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: more (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MSGFILTER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmsgfilter(?:\\.exe)?\\b\\s+(?:\\-P\\s+/bin/sh\\s+\\-c\\s+'/bin/sh\\s+0<\\&2\\s+1>\\&2;\\s+kill\\s+\\$PPID'|\\-P\\s+\\-i\\s+\\S+\\s+/bin/cat)",
+      "description": "GTFOBins LOLBin abuse: msgfilter (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MSGMERGE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bmsgmerge(?:\\.exe)?\\b\\s+(?:\\-P\\s+\\S+\\s+/dev/null)",
+      "description": "GTFOBins LOLBin abuse: msgmerge (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MTR",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bmtr(?:\\.exe)?\\b\\s+(?:\\-\\-raw\\s+\\-F\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: mtr (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MULTITIME",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmultitime(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: multitime (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MYPY",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bmypy(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\-\\-junit\\-xml\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: mypy (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-MYSQL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmysql(?:\\.exe)?\\b\\s+(?:\\-\\-default\\-auth\\s+\\.\\./\\.\\./\\.\\./\\.\\./\\.\\.\\S+|\\-e\\s+'\\\\!\\s+/bin/sh')",
+      "description": "GTFOBins LOLBin abuse: mysql (library-load, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NANO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnano(?:\\.exe)?\\b\\s+(?:\\-s\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: nano (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnc(?:\\.exe)?\\b\\s+(?:\\-e\\s+/bin/sh\\s+\\S+\\s+12345|\\-l\\s+\\-p\\s+12345\\s+<\\S+|\\-l\\s+\\-p\\s+12345\\s+>\\S+|\\-l\\s+\\-p\\s+12345\\s+\\-e\\s+/bin/sh|\\S+\\s+12345\\s+<\\S+|\\S+\\s+12345\\s+>\\S+)",
+      "description": "GTFOBins LOLBin abuse: nc (bind-shell, download, reverse-shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NEOFETCH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bneofetch(?:\\.exe)?\\b\\s+(?:\\-\\-ascii\\s+\\S+|\\-\\-config\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: neofetch (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NGINX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnginx(?:\\.exe)?\\b\\s+(?:\\-t\\s+\\-c\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: nginx (library-load) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NICE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnice(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: nice (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bnl(?:\\.exe)?\\b\\s+(?:\\-bn\\s+\\-w1\\s+\\-s\\s+''\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: nl (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NMAP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnmap(?:\\.exe)?\\b\\s+(?:\\-\\-interactive|\\-iL\\s+\\S+|\\-oG=\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: nmap (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NOHUP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnohup(?:\\.exe)?\\b\\s+(?:/bin/sh\\s+\\-c\\s+'/bin/sh\\s+</dev/tty\\s+>/dev/tty\\s+2>/dev/tty')",
+      "description": "GTFOBins LOLBin abuse: nohup (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NPM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnpm(?:\\.exe)?\\b\\s+(?:\\-C\\s+\\.\\s+i|\\-C\\s+\\.\\s+run\\s+xxx|exec\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: npm (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NSENTER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bnsenter(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: nsenter (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-NTPDATE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bntpdate(?:\\.exe)?\\b\\s+(?:\\-a\\s+x\\s+\\-k\\s+\\S+\\s+\\-d\\s+localhost)",
+      "description": "GTFOBins LOLBin abuse: ntpdate (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-OD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bod(?:\\.exe)?\\b\\s+(?:\\-An\\s+\\-c\\s+\\-w999\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: od (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-OPENSSL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bopenssl(?:\\.exe)?\\b\\s+(?:enc\\s+\\-in\\s+\\S+|enc\\s+\\-in\\s+\\S+\\s+\\-out\\s+\\S+|enc\\s+\\-out\\s+\\S+|req\\s+\\-engine\\s+\\./lib\\.so|s_client\\s+\\-quiet\\s+\\-connect\\s+\\S+:12345\\s+<\\S+|s_client\\s+\\-quiet\\s+\\-connect\\s+\\S+:12345\\s+>\\S+)",
+      "description": "GTFOBins LOLBin abuse: openssl (download, file-read, file-write, library-load, reverse-shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-OPENVPN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bopenvpn(?:\\.exe)?\\b\\s+(?:\\-\\-config\\s+\\S+|\\-\\-dev\\s+null\\s+\\-\\-script\\-security\\s+2\\s+\\-\\-up\\s+'/bin/sh\\s+\\-s')",
+      "description": "GTFOBins LOLBin abuse: openvpn (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-OPKG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bopkg(?:\\.exe)?\\b\\s+(?:install\\s+x_1\\.0_all\\.deb)",
+      "description": "GTFOBins LOLBin abuse: opkg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PANDOC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bpandoc(?:\\.exe)?\\b\\s+(?:\\-t\\s+plain\\s+\\-o\\s+\\S+|\\-t\\s+plain\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: pandoc (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PAX",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bpax(?:\\.exe)?\\b\\s+(?:\\-w\\s+\\S+\\s+\\|\\s+tar\\s+\\-xO)",
+      "description": "GTFOBins LOLBin abuse: pax (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PDFLATEX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpdflatex(?:\\.exe)?\\b\\s+(?:'\\\\documentclass\\S+\\\\newwrite\\\\tempfile\\\\begin\\S+\\\\immediate\\\\openout\\\\tempfile=output\\-file\\.tex\\\\immediate\\\\write\\\\tempfile\\S+\\\\immediate\\\\closeout\\\\tempfile\\\\end\\S+'|'\\\\documentclass\\S+\\\\usepackage\\S+\\\\begin\\S+\\\\verbatiminput\\{\\S+'|\\-\\-shell\\-escape\\s+'\\\\documentclass\\S+\\\\begin\\S+\\\\immediate\\\\write18\\S+\\\\end\\S+')",
+      "description": "GTFOBins LOLBin abuse: pdflatex (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PDFTEX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpdftex(?:\\.exe)?\\b\\s+(?:\\-\\-shell\\-escape\\s+'\\\\write18\\S+\\\\end')",
+      "description": "GTFOBins LOLBin abuse: pdftex (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PERF",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bperf(?:\\.exe)?\\b\\s+(?:stat\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: perf (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PERLBUG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bperlbug(?:\\.exe)?\\b\\s+(?:\\-s\\s+'x\\s+x\\s+x'\\s+\\-r\\s+x\\s+\\-c\\s+x\\s+\\-e\\s+'exec\\s+/bin/sh\\s+\\#')",
+      "description": "GTFOBins LOLBin abuse: perlbug (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PEXEC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpexec(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: pexec (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpg(?:\\.exe)?\\b\\s+(?:/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: pg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PIDSTAT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpidstat(?:\\.exe)?\\b\\s+(?:\\-e\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: pidstat (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PIP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpip(?:\\.exe)?\\b\\s+(?:config\\s+\\-\\-editor\\s+'/bin/sh\\s+\\-s'\\s+edit)",
+      "description": "GTFOBins LOLBin abuse: pip (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PKEXEC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpkexec(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: pkexec (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PKG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpkg(?:\\.exe)?\\b\\s+(?:install\\s+\\-y\\s+\\-\\-no\\-repo\\-update\\s+\\./x\\-1\\.0\\.txz)",
+      "description": "GTFOBins LOLBin abuse: pkg (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PLYMOUTH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bplymouth(?:\\.exe)?\\b\\s+(?:ask\\-for\\-password\\s+\\-\\-prompt=x\\s+\\-\\-command=/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: plymouth (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PODMAN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpodman(?:\\.exe)?\\b\\s+(?:run\\s+\\-\\-rm\\s+\\-it\\s+\\-\\-privileged\\s+\\-\\-volume\\s+/:/mnt\\s+alpine\\s+chroot\\s+/mnt\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: podman (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PTX",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bptx(?:\\.exe)?\\b\\s+(?:\\-w\\s+999\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ptx (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PUPPET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bpuppet(?:\\.exe)?\\b\\s+(?:apply\\s+\\-e\\s+\"exec\\s+\\S+\"|filebucket\\s+\\-l\\s+diff\\s+/dev/null\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: puppet (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PWSH",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bpwsh(?:\\.exe)?\\b\\s+(?:\\-c\\s+'\"\\S+\"\\s+\\|\\s+Out\\-File\\s+\\S+')",
+      "description": "GTFOBins LOLBin abuse: pwsh (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PYGMENTIZE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bpygmentize(?:\\.exe)?\\b\\s+(?:\\-l\\s+text\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: pygmentize (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-PYRIGHT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bpyright(?:\\.exe)?\\b\\s+(?:\\-\\-outputjson\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: pyright (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-QPDF",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bqpdf(?:\\.exe)?\\b\\s+(?:\\-\\-empty\\s+\\-\\-add\\-attachment\\s+\\S+\\s+\\-\\-key=x\\s+\\-\\-\\s+\\S+|\\-\\-show\\-attachment=x\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: qpdf (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RESTIC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brestic(?:\\.exe)?\\b\\s+(?:\\-\\-password\\-command='/bin/sh\\s+\\-c\\s+\"/bin/sh\\s+0<\\&2\\s+1<\\&2\"'\\s+backup|\\-\\-password\\-command='\\S+'\\s+backup|backup|backup\\s+\\-r\\s+rest:http://\\S+:12345/x\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: restic (command, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-REV",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\brev(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+rev)",
+      "description": "GTFOBins LOLBin abuse: rev (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RLOGIN",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\brlogin(?:\\.exe)?\\b\\s+(?:\\-l\\s+\\S+\\s+\\-p\\s+12345\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: rlogin (upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RLWRAP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brlwrap(?:\\.exe)?\\b\\s+(?:/bin/sh|\\-l\\s+\\S+\\s+echo\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: rlwrap (file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RPM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brpm(?:\\.exe)?\\b\\s+(?:\\-\\-eval\\s+'%\\(/bin/sh\\s+1>\\&2\\)'|\\-\\-pipe\\s+'/bin/sh\\s+0<\\&1'|\\-ivh\\s+x\\-1\\.0\\-1\\.noarch\\.rpm)",
+      "description": "GTFOBins LOLBin abuse: rpm (command, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RPMDB",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brpmdb(?:\\.exe)?\\b\\s+(?:\\-\\-eval\\s+'%\\(/bin/sh\\s+1>\\&2\\)')",
+      "description": "GTFOBins LOLBin abuse: rpmdb (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RPMQUERY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brpmquery(?:\\.exe)?\\b\\s+(?:\\-\\-eval\\s+'%\\(/bin/sh\\s+1>\\&2\\)')",
+      "description": "GTFOBins LOLBin abuse: rpmquery (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RPMVERIFY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brpmverify(?:\\.exe)?\\b\\s+(?:\\-\\-eval\\s+'%\\(/bin/sh\\s+1>\\&2\\)')",
+      "description": "GTFOBins LOLBin abuse: rpmverify (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RSYNC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brsync(?:\\.exe)?\\b\\s+(?:\\-e\\s+'/bin/sh\\s+\\-c\\s+\"/bin/sh\\s+0<\\&2\\s+1>\\&2\"'\\s+x:x)",
+      "description": "GTFOBins LOLBin abuse: rsync (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RUN_PARTS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brun\\-parts(?:\\.exe)?\\b\\s+(?:\\-\\-new\\-session\\s+\\-\\-regex\\s+'\\^sh\\$'\\s+/bin)",
+      "description": "GTFOBins LOLBin abuse: run-parts (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-RUSTUP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brustup(?:\\.exe)?\\b\\s+(?:run\\s+x\\s+rustc|toolchain\\s+link\\s+x\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: rustup (command, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SCP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bscp(?:\\.exe)?\\b\\s+(?:\\-S\\s+\\S+\\s+x\\s+x:|\\-o\\s+'ProxyCommand=;/bin/sh\\s+0<\\&2\\s+1>\\&2'\\s+x\\s+x:)",
+      "description": "GTFOBins LOLBin abuse: scp (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SCREEN",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bscreen(?:\\.exe)?\\b\\s+(?:\\-L\\s+\\-Logfile\\s+\\S+\\s+echo\\s+\\S+|\\-L\\s+\\S+\\s+echo\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: screen (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SCRIPT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bscript(?:\\.exe)?\\b\\s+(?:\\-q\\s+/dev/null|\\-q\\s+\\-c\\s+'\\#\\s+\\S+'\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: script (file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SCROT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bscrot(?:\\.exe)?\\b\\s+(?:\\-e\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: scrot (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SED",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsed(?:\\.exe)?\\b\\s+(?:\\-n\\s+'1e\\s+exec\\s+/bin/sh\\s+1>\\&0'\\s+/etc/hosts|\\-n\\s+'1s/\\.\\*/\\S+/w\\s+\\S+'\\s+/etc/hosts)",
+      "description": "GTFOBins LOLBin abuse: sed (file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SERVICE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bservice(?:\\.exe)?\\b\\s+(?:\\.\\./\\.\\./bin/sh)",
+      "description": "GTFOBins LOLBin abuse: service (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SETARCH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsetarch(?:\\.exe)?\\b\\s+(?:\\-3\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: setarch (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SETLOCK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsetlock(?:\\.exe)?\\b\\s+(?:\\-\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: setlock (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SFTP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsftp(?:\\.exe)?\\b\\s+(?:user@\\S+)",
+      "description": "GTFOBins LOLBin abuse: sftp (download, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsg(?:\\.exe)?\\b\\s+(?:\\$\\(id\\s+\\-ng\\))",
+      "description": "GTFOBins LOLBin abuse: sg (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SHUF",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bshuf(?:\\.exe)?\\b\\s+(?:\\-e\\s+\\S+\\s+\\-o\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: shuf (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SLSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bslsh(?:\\.exe)?\\b\\s+(?:\\-e\\s+'system\\(\"/bin/sh\"\\)')",
+      "description": "GTFOBins LOLBin abuse: slsh (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SMBCLIENT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsmbclient(?:\\.exe)?\\b\\s+(?:'\\\\\\\\\\S+\\\\share'\\s+\\-c\\s+'get\\s+\\S+\\s+\\S+'|'\\\\\\\\\\S+\\\\share'\\s+\\-c\\s+'put\\s+\\S+\\s+\\S+'|'\\\\\\\\host\\\\share')",
+      "description": "GTFOBins LOLBin abuse: smbclient (download, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SNAP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsnap(?:\\.exe)?\\b\\s+(?:install\\s+xxxx_1\\.0_all\\.snap\\s+\\-\\-dangerous\\s+\\-\\-devmode)",
+      "description": "GTFOBins LOLBin abuse: snap (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SOCAT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsocat(?:\\.exe)?\\b\\s+(?:\\-\\s+exec:/bin/sh,pty,ctty,raw,echo=0|\\-u\\s+'exec:echo\\s+\\S+'\\s+open:\\S+|\\-u\\s+file:\\S+\\s+\\-|\\-u\\s+file:\\S+\\s+tcp\\-connect:\\S+:12345|\\-u\\s+tcp\\-connect:\\S+:12345\\s+open:\\S+|tcp\\-connect:\\S+:12345\\s+exec:/bin/sh,pty,stderr,setsid,sigint,sane|tcp\\-listen:12345,reuseaddr,fork\\s+exec:/bin/sh,pty,stderr,setsid,sigint,sane)",
+      "description": "GTFOBins LOLBin abuse: socat (bind-shell, download, file-read, file-write, reverse-shell, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SOCKET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsocket(?:\\.exe)?\\b\\s+(?:\\-qvp\\s+'/bin/sh\\s+\\-i'\\s+\\S+\\s+12345|\\-svp\\s+'/bin/sh\\s+\\-i'\\s+12345)",
+      "description": "GTFOBins LOLBin abuse: socket (bind-shell, reverse-shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SOFTLIMIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsoftlimit(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: softlimit (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SORT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bsort(?:\\.exe)?\\b\\s+(?:\\-m\\s+\\-o\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: sort (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SPLIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsplit(?:\\.exe)?\\b\\s+(?:\\-\\-filter='/bin/sh\\s+\\-i\\s+0<\\&2\\s+1>\\&2'\\s+/etc/hosts|\\-b\\s+999\\s+\\-\\-additional\\-suffix\\s+suffix\\s+\\S+\\s+prefix)",
+      "description": "GTFOBins LOLBin abuse: split (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SQLITE3",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsqlite3(?:\\.exe)?\\b\\s+(?:/dev/null\\s+'\\.shell\\s+/bin/sh'|/dev/null\\s+\\-cmd\\s+'\\.output\\s+\\S+'\\s+'select\\s+\"\\S+\";'|<<EOF)",
+      "description": "GTFOBins LOLBin abuse: sqlite3 (file-read, file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SS",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bss(?:\\.exe)?\\b\\s+(?:\\-a\\s+\\-F\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: ss (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bssh(?:\\.exe)?\\b\\s+(?:\\-F\\s+\\S+\\s+x|\\-o\\s+PermitLocalCommand=yes\\s+\\-o\\s+LocalCommand=/bin/sh\\s+localhost|\\-o\\s+ProxyCommand=';/bin/sh\\s+0<\\&2\\s+1>\\&2'\\s+x|localhost\\s+/bin/sh|user@\\S+\\s+'cat\\s+>\\S+\"|user@\\S+\\s+'cat\\s+\\S+\")",
+      "description": "GTFOBins LOLBin abuse: ssh (download, file-read, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSH_AGENT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bssh\\-agent(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: ssh-agent (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSH_COPY_ID",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bssh\\-copy\\-id(?:\\.exe)?\\b\\s+(?:\\-f\\s+\\-i\\s+\\S+\\s+\\-t\\s+\\S+\\s+user@host|\\-f\\s+\\-i\\s+\\S+\\s+user@\\S+)",
+      "description": "GTFOBins LOLBin abuse: ssh-copy-id (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSHFS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsshfs(?:\\.exe)?\\b\\s+(?:\\-o\\s+ssh_command=\\S+\\s+x:\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: sshfs (command, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSHPASS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsshpass(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: sshpass (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SSHUTTLE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsshuttle(?:\\.exe)?\\b\\s+(?:\\-r\\s+x\\s+\\-\\-ssh\\-cmd\\s+'/bin/sh\\s+\\-c\\s+\"/bin/sh\\s+0<\\&2\\s+1>\\&2\"'\\s+localhost)",
+      "description": "GTFOBins LOLBin abuse: sshuttle (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-START_STOP_DAEMON",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bstart\\-stop\\-daemon(?:\\.exe)?\\b\\s+(?:\\-S\\s+\\-x\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: start-stop-daemon (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-STDBUF",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bstdbuf(?:\\.exe)?\\b\\s+(?:\\-i0\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: stdbuf (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-STRACE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bstrace(?:\\.exe)?\\b\\s+(?:\\-o\\s+/dev/null\\s+/bin/sh|\\-s\\s+999\\s+\\-o\\s+\\S+\\s+strace\\s+\\-\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: strace (file-write, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SU",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsu(?:\\.exe)?\\b\\s+(?:\\-c\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: su (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SUDO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsudo(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: sudo (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SYSCTL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsysctl(?:\\.exe)?\\b\\s+(?:'kernel\\.core_pattern=\\|\\S+')",
+      "description": "GTFOBins LOLBin abuse: sysctl (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SYSTEMCTL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsystemctl(?:\\.exe)?\\b\\s+(?:edit\\s+basic\\.target|enable\\s+\\-\\-now\\s+\\S+|link\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: systemctl (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-SYSTEMD_RUN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsystemd\\-run(?:\\.exe)?\\b\\s+(?:\\-t\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: systemd-run (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TAC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\btac(?:\\.exe)?\\b\\s+(?:\\-s\\s+'RANDOM'\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: tac (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TAIL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\btail(?:\\.exe)?\\b\\s+(?:\\-c\\+0\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: tail (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TAILSCALE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\btailscale(?:\\.exe)?\\b\\s+(?:serve\\s+\\-\\-http=12345\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: tailscale (upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TAR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btar(?:\\.exe)?\\b\\s+(?:Pxf\\s+\\S+\\s+\\-\\-xform\\s+s@\\.\\*@\\S+|cf\\s+/dev/null\\s+/dev/null\\s+\\-\\-checkpoint=1\\s+\\-\\-checkpoint\\-action=exec=/bin/sh|cf\\s+/dev/stdout\\s+\\S+\\s+\\-I\\s+'tar\\s+xO'|cf\\s+\\S+\\s+\\S+|cvf\\s+\\S+\\s+\\S+\\s+\\-\\-rsh\\-command=/bin/ssh|xf\\s+/dev/null\\s+\\-I\\s+'/bin/sh\\s+\\-c\\s+\"/bin/sh\\s+0<\\&2\\s+1>\\&2\"'|xf\\s+\\S+\\s+\\-\\-to\\-command\\s+/bin/sh|xvf\\s+\\S+\\s+\\-\\-rsh\\-command=/bin/ssh)",
+      "description": "GTFOBins LOLBin abuse: tar (download, file-read, file-write, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TASK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btask(?:\\.exe)?\\b\\s+(?:execute\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: task (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TASKSET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btaskset(?:\\.exe)?\\b\\s+(?:1\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: taskset (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TCPDUMP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btcpdump(?:\\.exe)?\\b\\s+(?:\\-ln\\s+\\-i\\s+lo\\s+\\-w\\s+'command\\-argument'\\s+\\-W\\s+1\\s+\\-G\\s+1\\s+\\-z\\s+\\S+|\\-ln\\s+\\-i\\s+lo\\s+\\-w\\s+/dev/null\\s+\\-W\\s+1\\s+\\-G\\s+1\\s+\\-z\\s+\\S+|\\-ln\\s+\\-i\\s+lo\\s+\\-w\\s+\\S+\\s+\\-c\\s+1\\s+\\-Z\\s+user)",
+      "description": "GTFOBins LOLBin abuse: tcpdump (command, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TELNET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btelnet(?:\\.exe)?\\b\\s+(?:\\S+\\s+12345\\s+<\\S+\\s+\\|\\s+/bin/sh\\s+>\\S+)",
+      "description": "GTFOBins LOLBin abuse: telnet (reverse-shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TERRAFORM",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bterraform(?:\\.exe)?\\b\\s+(?:console)",
+      "description": "GTFOBins LOLBin abuse: terraform (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TEX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btex(?:\\.exe)?\\b\\s+(?:\\-\\-shell\\-escape\\s+'\\\\immediate\\\\write18\\S+')",
+      "description": "GTFOBins LOLBin abuse: tex (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TIME",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btime(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: time (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TIMEOUT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btimeout(?:\\.exe)?\\b\\s+(?:0\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: timeout (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TMATE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btmate(?:\\.exe)?\\b\\s+(?:\\-c\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: tmate (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TMUX",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btmux(?:\\.exe)?\\b\\s+(?:\\-c\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: tmux (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TORIFY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btorify(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: torify (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TORSOCKS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\btorsocks(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: torsocks (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-TSC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\btsc(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\-\\-outFile\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: tsc (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-UNEXPAND",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bunexpand(?:\\.exe)?\\b\\s+(?:\\-t999\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: unexpand (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-UNSHARE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bunshare(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: unshare (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-UPDATE_ALTERNATIVES",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bupdate\\-alternatives(?:\\.exe)?\\b\\s+(?:\\-\\-force\\s+\\-\\-install\\s+\\S+\\s+x\\s+\\S+\\s+0)",
+      "description": "GTFOBins LOLBin abuse: update-alternatives (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-UUENCODE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\buuencode(?:\\.exe)?\\b\\s+(?:\\S+\\s+/dev/stdout\\s+\\|\\s+uudecode)",
+      "description": "GTFOBins LOLBin abuse: uuencode (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-UV",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\buv(?:\\.exe)?\\b\\s+(?:run\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: uv (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-VALGRIND",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bvalgrind(?:\\.exe)?\\b\\s+(?:/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: valgrind (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-VARNISHNCSA",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bvarnishncsa(?:\\.exe)?\\b\\s+(?:\\-g\\s+request\\s+\\-q\\s+'ReqURL\\s+\\~\\s+\"/xxxxxxxxxx\"'\\s+\\-F\\s+'%\\S+i'\\s+\\-w\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: varnishncsa (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-VI",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bvi(?:\\.exe)?\\b\\s+(?:\\-c\\s+':!/bin/sh'\\s+/dev/null|\\-c\\s+':set\\s+shell=/bin/sh\\s+\\|\\s+shell'|\\-c\\s+':shell'|\\-c\\s+:terminal\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: vi (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-VIM",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bvim(?:\\.exe)?\\b\\s+(?:\\-c\\s+':redir!\\s+>\\S+\\s+\\|\\s+echo\\s+\"\\S+\"\\s+\\|\\s+redir\\s+END\\s+\\|\\s+q')",
+      "description": "GTFOBins LOLBin abuse: vim (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-VIRSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bvirsh(?:\\.exe)?\\b\\s+(?:\\-c\\s+qemu:///system\\s+create\\s+\\S+|\\-c\\s+qemu:///system\\s+destroy\\s+x|\\-c\\s+qemu:///system\\s+pool\\-create\\-as\\s+x\\s+dir\\s+\\-\\-target\\s+\\S+|\\-c\\s+qemu:///system\\s+pool\\-destroy\\s+x|\\-c\\s+qemu:///system\\s+vol\\-create\\s+\\-\\-pool\\s+x\\s+\\-\\-file\\s+\\S+|\\-c\\s+qemu:///system\\s+vol\\-download\\s+\\-\\-pool\\s+x\\s+input\\-file\\s+output\\-file|\\-c\\s+qemu:///system\\s+vol\\-upload\\s+\\-\\-pool\\s+x\\s+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: virsh (command, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-W3M",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bw3m(?:\\.exe)?\\b\\s+(?:\\-dump\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: w3m (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WALL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bwall(?:\\.exe)?\\b\\s+(?:\\-\\-nobanner\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: wall (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WATCH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwatch(?:\\.exe)?\\b\\s+(?:'reset;\\s+exec\\s+/bin/sh\\s+1>\\&0\\s+2>\\&0'|\\-x\\s+/bin/sh\\s+\\-c\\s+'reset;\\s+exec\\s+/bin/sh\\s+1>\\&0\\s+2>\\&0')",
+      "description": "GTFOBins LOLBin abuse: watch (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bwc(?:\\.exe)?\\b\\s+(?:\\-\\-files0\\-from\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: wc (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WG_QUICK",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwg\\-quick(?:\\.exe)?\\b\\s+(?:up\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: wg-quick (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WGET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwget(?:\\.exe)?\\b\\s+(?:\\-\\-post\\-data=\\S+\\s+http://\\S+|\\-\\-post\\-file=\\S+\\s+http://\\S+|\\-\\-use\\-askpass=\\S+\\s+0|\\-i\\s+\\S+\\s+\\-o\\s+\\S+|http://\\S+\\S+\\s+\\-O\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: wget (download, file-write, shell, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WHIPTAIL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bwhiptail(?:\\.exe)?\\b\\s+(?:\\-\\-textbox\\s+\\-\\-scrolltext\\s+\\S+\\s+0\\s+0)",
+      "description": "GTFOBins LOLBin abuse: whiptail (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WHOIS",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bwhois(?:\\.exe)?\\b\\s+(?:\\-h\\s+\\S+\\s+\\-p\\s+12345\\s+\\S+|\\-h\\s+\\S+\\s+\\-p\\s+12345\\s+x)",
+      "description": "GTFOBins LOLBin abuse: whois (download, upload) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-WIRESHARK",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bwireshark(?:\\.exe)?\\b\\s+(?:\\-c\\s+1\\s+\\-i\\s+lo\\s+\\-k\\s+\\-f\\s+'udp\\s+port\\s+12345'\\s+\\&)",
+      "description": "GTFOBins LOLBin abuse: wireshark (file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-XARGS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bxargs(?:\\.exe)?\\b\\s+(?:\\-a\\s+/dev/null\\s+/bin/sh|\\-a\\s+\\S+\\s+\\-0|\\-o\\s+\\-a\\s+/dev/null\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: xargs (file-read, shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-XDG_USER_DIR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bxdg\\-user\\-dir(?:\\.exe)?\\b\\s+(?:'\\};\\s+/bin/sh\\s+\\#')",
+      "description": "GTFOBins LOLBin abuse: xdg-user-dir (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-XDOTOOL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bxdotool(?:\\.exe)?\\b\\s+(?:exec\\s+\\-\\-sync\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: xdotool (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-XXD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bxxd(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\|\\s+xxd\\s+\\-r|\\|\\s+xxd\\s+\\-r\\s+\\-\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: xxd (file-read, file-write) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-XZ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bxz(?:\\.exe)?\\b\\s+(?:\\-c\\s+\\S+\\s+\\|\\s+xz\\s+\\-d)",
+      "description": "GTFOBins LOLBin abuse: xz (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-YARN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\byarn(?:\\.exe)?\\b\\s+(?:\\-\\-cwd\\s+\\.|\\-\\-cwd\\s+\\.\\s+xxx|exec\\s+/bin/sh)",
+      "description": "GTFOBins LOLBin abuse: yarn (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-YELP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\byelp(?:\\.exe)?\\b\\s+(?:man:\\S+)",
+      "description": "GTFOBins LOLBin abuse: yelp (file-read) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-YT_DLP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\byt\\-dlp(?:\\.exe)?\\b\\s+(?:'https://www\\.youtube\\.com/watch\\?v=xxxxxxxxxxx'\\s+\\-\\-exec\\s+'/bin/sh\\s+\\#')",
+      "description": "GTFOBins LOLBin abuse: yt-dlp (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-YUM",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\byum(?:\\.exe)?\\b\\s+(?:install\\s+http://\\S+\\S+|localinstall\\s+\\-y\\s+x\\-1\\.0\\-1\\.noarch\\.rpm)",
+      "description": "GTFOBins LOLBin abuse: yum (command, download) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ZIC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bzic(?:\\.exe)?\\b\\s+(?:\\-d\\s+\\.\\s+\\-y\\s+\\S+\\s+\\S+)",
+      "description": "GTFOBins LOLBin abuse: zic (command) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "GTFO-ZIP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bzip(?:\\.exe)?\\b\\s+(?:\\S+\\s+/etc/hosts\\s+\\-T\\s+\\-TT\\s+'/bin/sh\\s+\\#')",
+      "description": "GTFOBins LOLBin abuse: zip (shell) — living-off-the-land binary execution/exfil",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    }
+  ],
+  "provenance_rules": []
+}
