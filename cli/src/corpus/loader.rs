@@ -24,10 +24,13 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../../packs/core/v1/skill_security.json"),
     include_str!("../../../packs/core/v1/inference_security.json"),
     include_str!("../../../packs/core/v1/supply_chain.json"),
-    // LOLBin / reverse-shell corpora generated from upstream GTFOBins, LOLBAS,
-    // and the reverse-shell-generator. Regenerate via tools/corpus-gen/.
-    include_str!("../../../packs/core/v1/lolbin_unix.json"),
-    include_str!("../../../packs/core/v1/lolbin_windows.json"),
+    // Reverse/bind-shell corpus generated from the MIT-licensed
+    // reverse-shell-generator. Regenerate via tools/corpus-gen/.
+    //
+    // NOTE: the GTFOBins / LOLBAS LOLBin packs are deliberately NOT embedded
+    // here — they are GPL-3.0 and ship as the optional, separately-distributed
+    // bundle in packs/lolbin/v1/ (loaded at runtime from ~/.sigil/packs/). See
+    // packs/lolbin/v1/NOTICE.md and tools/corpus-gen/README.md.
     include_str!("../../../packs/core/v1/reverse_shells.json"),
 ];
 

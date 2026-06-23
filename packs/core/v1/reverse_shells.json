@@ -3,7 +3,7 @@
     "id": "sigil-core-reverse-shells",
     "name": "Sigil Core — Reverse / Bind Shells",
     "version": "1.0.0",
-    "updated_at": "2026-06-22",
+    "updated_at": "2026-06-23",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects reverse and bind shell command payloads across shells and languages (interactive C2 establishment). Generated from reverse-shell-generator (https://github.com/0dayCTF/reverse-shell-generator@main 9fda27f91b1b, retrieved 2026-06-22, MIT (see upstream LICENSE))."
   },

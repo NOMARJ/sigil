@@ -3,7 +3,7 @@
     "id": "sigil-core-lolbin-unix",
     "name": "Sigil Core — LOLBin (Unix / GTFOBins)",
     "version": "1.0.0",
-    "updated_at": "2026-06-22",
+    "updated_at": "2026-06-23",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects abuse of legitimate Unix binaries (living-off-the-land) for shell breakout, file read/write, and exfiltration. Generated from GTFOBins (https://github.com/GTFOBins/GTFOBins.github.io@master acd524623f9c, retrieved 2026-06-22, GPL-3.0-or-later (see upstream LICENSE))."
   },

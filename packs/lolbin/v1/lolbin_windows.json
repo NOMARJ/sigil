@@ -3,7 +3,7 @@
     "id": "sigil-core-lolbin-windows",
     "name": "Sigil Core — LOLBin (Windows / LOLBAS)",
     "version": "1.0.0",
-    "updated_at": "2026-06-22",
+    "updated_at": "2026-06-23",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects abuse of native Windows binaries, scripts and libraries (living-off-the-land) for execution, download, and AWL bypass. Generated from LOLBAS (https://github.com/LOLBAS-Project/LOLBAS@master f06df108eef2, retrieved 2026-06-22, GPL-3.0 (see upstream LICENSE))."
   },

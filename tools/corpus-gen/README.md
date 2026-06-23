@@ -4,11 +4,18 @@ Generates three Sigil signature packs from upstream living-off-the-land
 corpora, so detection content stays sourced from the community references rather
 than hand-maintained guesses:
 
-| Pack (`packs/core/v1/`) | Upstream source | Detects |
-| --- | --- | --- |
-| `lolbin_unix.json` | [GTFOBins](https://gtfobins.github.io/) | Abuse of legit **Unix** binaries (shell breakout, file read/write, exfil) |
-| `lolbin_windows.json` | [LOLBAS](https://lolbas-project.github.io/) | Abuse of native **Windows** binaries (execute, download, AWL bypass) |
-| `reverse_shells.json` | [reverse-shell-generator](https://www.revshells.com/) | Reverse / bind shell payloads (interactive C2) |
+| Pack | Output | Upstream source | License | Distribution |
+| --- | --- | --- | --- | --- |
+| `lolbin_unix.json` | `packs/lolbin/v1/` | [GTFOBins](https://gtfobins.github.io/) | GPL-3.0 | **Optional bundle** (runtime) |
+| `lolbin_windows.json` | `packs/lolbin/v1/` | [LOLBAS](https://lolbas-project.github.io/) | GPL-3.0 | **Optional bundle** (runtime) |
+| `reverse_shells.json` | `packs/core/v1/` | [reverse-shell-generator](https://www.revshells.com/) | MIT | Embedded in binary |
+
+> **Licensing split (deliberate).** Sigil is Apache-2.0. GTFOBins and LOLBAS are
+> **GPL-3.0**, so their derived packs are **not** compiled into the binary — they
+> ship as the optional, separately-licensed bundle in `packs/lolbin/v1/`
+> (GPL-3.0, see its `LICENSE` + `NOTICE.md`) that users opt into by installing
+> into `~/.sigil/packs/`. Only the MIT-derived reverse-shell pack is embedded.
+> See the "Licensing" section below.
 
 ## Pipeline
 
@@ -16,7 +23,8 @@ Two deterministic steps, split so pack regeneration is reproducible and offline:
 
 ```
 fetch.py     # network: download pinned upstream, distill -> vendor/*.json (+ provenance)
-generate.py  # offline: vendor/*.json -> packs/core/v1/{lolbin_unix,lolbin_windows,reverse_shells}.json
+generate.py  # offline: vendor/*.json -> packs/core/v1/reverse_shells.json (embedded, MIT)
+             #                        -> packs/lolbin/v1/lolbin_{unix,windows}.json (bundle, GPL-3.0)
 ```
 
 ```bash
@@ -53,12 +61,28 @@ synthetic or hand-invented signal (see `CLAUDE.md`, "No Fake Data").
 Each rule supports an opt-out review marker: add `sigil-reviewed-lolbin` (LOLBin
 packs) or `sigil-reviewed-revshell` (reverse-shell pack) on the matched line.
 
-## ⚠️ Licensing — needs maintainer review
+## Licensing — resolution
 
-Sigil is **Apache-2.0**. **GTFOBins and LOLBAS are GPL-3.0**;
-reverse-shell-generator is MIT. The generated regexes are *derived from* the
-GPL-licensed command corpora. Whether signature regexes distilled from GPL data
-constitute a derivative work is a genuine licensing question that a maintainer
-(not this tooling) must resolve before release — e.g. relicensing the generated
-packs, isolating them, or seeking upstream clarification. The provenance blocks
-in `vendor/` record the exact upstream and license for that review.
+Sigil is **Apache-2.0**. **GTFOBins and LOLBAS are GPL-3.0** (verified: each
+upstream repo has a single repo-wide GPL-3.0 `LICENSE`, no separate data
+carve-out); reverse-shell-generator is **MIT**. GPL-3.0 is copyleft and is not
+one-way compatible with Apache-2.0, so GPL-derived material cannot be
+redistributed as part of the Apache-2.0 binary.
+
+**Resolution adopted (the "split"):**
+
+* **MIT → embedded.** `reverse_shells.json` is compiled into the Apache-2.0
+  binary via `include_str!` (`packs/core/v1/`).
+* **GPL-3.0 → optional runtime bundle.** `lolbin_unix.json` and
+  `lolbin_windows.json` are **not** embedded. They ship as the standalone
+  GPL-3.0 bundle in `packs/lolbin/v1/` (with its own `LICENSE` + `NOTICE.md`)
+  and are loaded at runtime as data when the user installs them into
+  `~/.sigil/packs/`. This keeps the binary free of statically-combined GPL
+  material and treats the packs as opt-in data rather than linked code — the
+  more defensible "not a derivative work / mere aggregation" posture.
+
+Whether regex signatures distilled from the GPL corpora are a derivative work is
+still a fact-specific legal question; the conservative split above does not
+require resolving it to ship safely, but **commercial redistributors should
+confirm with counsel**. The `vendor/*.json` provenance blocks record the exact
+upstream repo, commit, and license.

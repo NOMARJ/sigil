@@ -36,7 +36,12 @@ import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VENDOR = os.path.join(HERE, "vendor")
-PACKS = os.path.normpath(os.path.join(HERE, "..", "..", "packs", "core", "v1"))
+# revshells (MIT) is embedded into the Apache-2.0 binary -> packs/core/v1/.
+PACKS_CORE = os.path.normpath(os.path.join(HERE, "..", "..", "packs", "core", "v1"))
+# GTFOBins / LOLBAS (GPL-3.0) ship as an OPTIONAL, separately-distributed bundle
+# loaded at runtime from ~/.sigil/packs/ — NOT compiled into the Apache binary.
+# See tools/corpus-gen/README.md (licensing) and packs/lolbin/v1/LICENSE.
+PACKS_LOLBIN = os.path.normpath(os.path.join(HERE, "..", "..", "packs", "lolbin", "v1"))
 
 # Interpreters/shells whose abuse is generic code execution (already covered by
 # core code-pattern rules and the reverse-shell pack). Excluded from LOLBin packs.
@@ -321,8 +326,9 @@ def build_revshells(data: dict) -> dict:
     }
 
 
-def _write(pack: dict, filename: str) -> None:
-    path = os.path.join(PACKS, filename)
+def _write(pack: dict, out_dir: str, filename: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, filename)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(pack, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -335,9 +341,11 @@ def _load(name: str) -> dict:
 
 
 def main() -> int:
-    _write(build_gtfobins(_load("gtfobins")), "lolbin_unix.json")
-    _write(build_lolbas(_load("lolbas")), "lolbin_windows.json")
-    _write(build_revshells(_load("revshells")), "reverse_shells.json")
+    # GPL-3.0 corpora -> optional, separately-distributed bundle (not embedded).
+    _write(build_gtfobins(_load("gtfobins")), PACKS_LOLBIN, "lolbin_unix.json")
+    _write(build_lolbas(_load("lolbas")), PACKS_LOLBIN, "lolbin_windows.json")
+    # MIT corpus -> embedded into the Apache-2.0 binary.
+    _write(build_revshells(_load("revshells")), PACKS_CORE, "reverse_shells.json")
     return 0
 
 
