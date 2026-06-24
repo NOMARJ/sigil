@@ -34,9 +34,9 @@
       "CHARTER II.5"
     ]
   },
-  "status": "claimed",
+  "status": "complete",
   "claimed_by": "claude/admiring-hopper-dj4c04",
   "claimed_at": "2026-06-24T00:00:00.000Z",
-  "completed_at": null,
-  "completion_ref": null
+  "completed_at": "2026-06-24T00:00:00.000Z",
+  "completion_ref": "https://github.com/NOMARJ/sigil/pull/131"
 }
