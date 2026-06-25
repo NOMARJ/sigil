@@ -1,7 +1,7 @@
 {
-  "data_source": "Synthetic \u2014 hand-authored, modeled on published advisories",
-  "sample_size": 6,
-  "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence.",
+  "data_source": "Synthetic \u2014 hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
+  "sample_size": 7,
+  "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead \u2014 those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
       "path": "install_hooks/setup.py",
@@ -29,6 +29,13 @@
       "expect_phase": "InferenceSecurity",
       "expect_min_severity": "High",
       "source": "hermes-px base_url hijack (JFrog 2026-04)",
+      "synthetic": true
+    },
+    {
+      "path": "reverse_shell/payload.sh",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "reverse-shell-generator bash /dev/tcp (revshells.com)",
       "synthetic": true
     },
     {

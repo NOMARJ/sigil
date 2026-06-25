@@ -47,6 +47,15 @@ blog/
 packs/
 
 # ─────────────────────────────────────────────────────────────────────────────
+# (a3b) Signature-generation tooling (tools/corpus-gen/). The vendored snapshots
+# under vendor/ are upstream GTFOBins/LOLBAS/reverse-shell command corpora —
+# i.e. literal living-off-the-land and reverse-shell payloads, ingested ON
+# PURPOSE as detection-rule SOURCE. The generator scripts read them to emit the
+# LOLBin packs. Self-reference by design, not vulnerabilities.
+# ─────────────────────────────────────────────────────────────────────────────
+tools/corpus-gen/
+
+# ─────────────────────────────────────────────────────────────────────────────
 # (a4) The Sigil skill (sigil-skill/) — phase documentation, the scan SKILL.md,
 # audit scripts, and its own deliberately-malicious test fixtures. PHASES.md is the
 # single largest source of self-reference (it lists every pattern the scanner flags).
