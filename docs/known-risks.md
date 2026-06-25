@@ -4,6 +4,8 @@ Date: 2026-06-08
 
 Reassessed: 2026-06-09 01:05 UTC
 
+Reassessed: 2026-06-25 — F-008/F-009/F-010 cleared items added; billing risk entry updated to reflect live-mode webhook verified, test-mode still operator-gated (NOM-884).
+
 Reconciled: 2026-06-09 — each item below cross-checked against fresh live probes and repo source. Prior live/source divergences for signup, pricing, and installer are now cleared.
 
 ## Critical
@@ -12,9 +14,10 @@ No active critical public-route risk remains from the June 9 reassessment.
 
 ## High
 
-1. Paid billing journeys remain unverified.
-   - Evidence: no fresh credentialed Stripe test/live round-trip evidence was produced in this reassessment.
-   - Approval: owner/operator required for checkout, webhook, portal cancel, live payment, and refund evidence.
+1. Paid billing journeys partially verified — test-mode round-trip still operator-gated.
+   - Live-mode webhook endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` verified at 6/6 required events (STORY-101 — see `evidence/F-003/US-101-fix-applied.md`).
+   - Test-mode webhook audit (NOM-884/US-003) remains operator-gated: Stripe CLI is configured for the wrong account (`acct_1TNsZTFvlPr69lA2` = exectables, not Sigil), and reading test secrets from Azure Key Vault is blocked by CHARTER II.5. Operator runbook is documented in `evidence/F-003/US-105a-test-mode-webhook-audit.md` (Option B: 30 seconds via Stripe Dashboard → Test mode → Developers → Webhooks).
+   - Approval: owner/operator required to complete test-mode audit and for full end-to-end checkout, portal cancel, live payment, and refund evidence.
 
 ## Medium
 
@@ -40,6 +43,31 @@ No active critical public-route risk remains from the June 9 reassessment.
      org-name inconsistency remains across docs (e.g.
      `SIGIL-DISTRIBUTION-ROADMAP.md`) — flagged for owner, not mass-edited
      here to avoid guessing the canonical org.
+
+## Cleared Post-June-9 (F-008 / F-009 / F-010)
+
+Reassessed: 2026-06-25. Items below cleared after June 9 baseline and confirmed in `.nomark/resources.json` and production revision history.
+
+1. Sandbox fail-closed (F-008 BadHost fix) — CLEARED.
+   - Evidence: production revision `sigil-api--0000096` deployed the sandbox fail-closed fix. Any unknown scheme (including `BadHost://`) now raises a hard error rather than silently passing to the host OS. CHARTER II.4 compliance confirmed.
+
+2. Dashboard auth hardening (F-008) — CLEARED.
+   - Evidence: Auth0 SDK migration from v3 to v4 complete (2026-06-09); `npm audit --audit-level=high --omit=dev` exits 0 on dashboard. High-severity auth vulnerability cleared.
+
+3. Release hardening (F-008) — CLEARED.
+   - Evidence: commit signing, dependency pinning, and SBOM generation phases of F-008 complete. All 7 phases A–G shipped.
+
+4. Live-mode Stripe webhook (F-009 STORY-101) — CLEARED.
+   - Evidence: `we_1T2AXKFhPhxEz27fCYP53mKc` confirmed at 6/6 required events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`. See `evidence/F-003/US-101-fix-applied.md`.
+
+5. Auth0 v4 migration (F-009) — CLEARED.
+   - Evidence: Auth0 v4 client deployed to `sigil-api--0000108` (image tag `2eff98f`). Domain remains `auth.sigilsec.ai` (verified in `.nomark/resources.json`).
+
+6. Pro/Team billing plans deployed (F-009) — CLEARED.
+   - Evidence: `/v1/billing/plans` pricing matches public pricing page. Pro $29/mo, Team $99/mo, 14-day trial. Revision `sigil-api--0000108`.
+
+7. Trust-ledger allowlisting (F-010) — CLEARED.
+   - Evidence: all 3 F-010 stories DONE. Allowlist enforcement + trust-ledger storage operational.
 
 ## Cleared In Reassessment
 

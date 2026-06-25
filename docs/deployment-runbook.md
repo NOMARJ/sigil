@@ -2,6 +2,8 @@
 
 Date: 2026-06-08
 
+Reassessed: 2026-06-25 — all resource names verified against `.nomark/resources.json`. Current production revision: `sigil-api--0000108` (image tag `2eff98f`).
+
 ## Verified Resources
 
 Resource names and URLs below are recorded in `.nomark/resources.json`.
