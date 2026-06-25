@@ -99,8 +99,9 @@ fn pack_has_signature(raw: &str) -> bool {
 ///
 /// Embedded pack parse failures are logged with a `[SECURITY]` prefix because
 /// they indicate binary corruption (the packs are bundled at compile time).
-/// User-installed pack failures are also logged; see `load_packs_from_dir`.
-pub fn load_all_packs() -> Vec<SignaturePack> {
+/// User-installed pack signature failures are propagated as `Err` so the
+/// caller can abort the scan; see `load_packs_from_dir`.
+pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
     let mut packs: Vec<SignaturePack> = Vec::new();
 
     // 1. Embedded packs (always available; not signature-verified — their
@@ -118,23 +119,25 @@ pub fn load_all_packs() -> Vec<SignaturePack> {
 
     // 2. User-installed packs from ~/.sigil/packs/
     if let Some(user_packs) = user_packs_dir() {
-        packs.extend(load_packs_from_dir(&user_packs));
+        packs.extend(load_packs_from_dir(&user_packs)?);
     }
 
-    packs
+    Ok(packs)
 }
 
 /// Load packs from a directory.
 ///
-/// Non-JSON files are skipped silently. Parse errors and signature failures
-/// are logged to stderr and the offending pack is rejected — a tampered or
-/// unsigned pack never reaches the engine.
-pub fn load_packs_from_dir(dir: &Path) -> Vec<SignaturePack> {
+/// Non-JSON files are skipped silently. I/O and parse errors are logged to
+/// stderr and the offending pack is skipped. Signature verification failures
+/// are **fatal**: when `SIGIL_PACK_PUBLIC_KEY` is configured, a pack that
+/// fails verification is evidence of tampering — the caller must abort rather
+/// than continue with a degraded rule set.
+pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<SignaturePack>, String> {
     let mut packs = Vec::new();
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return packs,
+        Err(_) => return Ok(packs),
     };
 
     for entry in entries.filter_map(|e| e.ok()) {
@@ -144,13 +147,17 @@ pub fn load_packs_from_dir(dir: &Path) -> Vec<SignaturePack> {
         }
         match load_pack_from_file(&path) {
             Ok(pack) => packs.push(pack),
+            Err(e) if e.contains("[SECURITY]") => {
+                eprintln!("[corpus] {}: {e}", path.display());
+                return Err(e);
+            }
             Err(e) => {
                 eprintln!("[corpus] skipping {}: {e}", path.display());
             }
         }
     }
 
-    packs
+    Ok(packs)
 }
 
 /// Parse (and signature-verify) a single user pack from a file path.
@@ -382,7 +389,7 @@ mod tests {
     #[test]
     fn corpus_loader_embedded_packs_parse() {
         // All embedded pack JSON must be valid and contain at least one rule.
-        let packs = load_all_packs();
+        let packs = load_all_packs().expect("embedded packs must parse");
         assert!(
             !packs.is_empty(),
             "corpus_loader: no packs loaded from embedded data"
@@ -400,6 +407,32 @@ mod tests {
                 pack.meta.id
             );
         }
+    }
+
+    #[test]
+    fn signing_keyed_fatal_on_signature_failure() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let (_, vk) = test_keypair();
+        std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
+
+        // Write an unsigned pack to a temp directory.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pack_path = dir.path().join("unsigned.json");
+        let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
+        std::fs::write(&pack_path, &raw).unwrap();
+
+        let result = load_packs_from_dir(dir.path());
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+
+        assert!(
+            result.is_err(),
+            "load_packs_from_dir must return Err when a pack fails signature verification"
+        );
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("[SECURITY]"),
+            "error must carry [SECURITY] tag; got: {msg}"
+        );
     }
 
     #[test]

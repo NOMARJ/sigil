@@ -295,6 +295,7 @@ mod parity_rust {
 
     fn packs_for_phase(phase: &str) -> Vec<SignaturePack> {
         load_all_packs()
+            .expect("embedded packs must parse")
             .into_iter()
             .filter(|p| p.rules.iter().any(|r| r.phase == phase))
             .collect()
@@ -889,6 +890,7 @@ mod parity_python {
 
     fn packs_for_phase(phase: &str) -> Vec<SignaturePack> {
         load_all_packs()
+            .expect("embedded packs must parse")
             .into_iter()
             .filter(|p| p.rules.iter().any(|r| r.phase == phase))
             .collect()
