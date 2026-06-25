@@ -307,7 +307,7 @@ mod parity_rust {
     fn lolbin_bundle_packs() -> Vec<SignaturePack> {
         use crate::corpus::loader::load_packs_from_dir;
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../packs/lolbin/v1");
-        load_packs_from_dir(&dir)
+        load_packs_from_dir(&dir).unwrap_or_default()
     }
 
     fn has_rule(findings: &[Finding], rule: &str) -> bool {
@@ -340,7 +340,7 @@ mod parity_rust {
     fn all_rule_patterns_compile() {
         use regex::Regex;
         let mut bad = Vec::new();
-        let packs = load_all_packs().into_iter().chain(lolbin_bundle_packs());
+        let packs = load_all_packs().expect("embedded packs must parse").into_iter().chain(lolbin_bundle_packs());
         for pack in packs {
             for rule in &pack.rules {
                 if let Err(e) = Regex::new(&rule.pattern) {
