@@ -340,7 +340,10 @@ mod parity_rust {
     fn all_rule_patterns_compile() {
         use regex::Regex;
         let mut bad = Vec::new();
-        let packs = load_all_packs().expect("embedded packs must parse").into_iter().chain(lolbin_bundle_packs());
+        let packs = load_all_packs()
+            .expect("embedded packs must parse")
+            .into_iter()
+            .chain(lolbin_bundle_packs());
         for pack in packs {
             for rule in &pack.rules {
                 if let Err(e) = Regex::new(&rule.pattern) {
