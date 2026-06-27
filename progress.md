@@ -1224,11 +1224,11 @@
 - **Notes:** Use Playwright if Vercel Agent Browser remains unavailable. June 9 Playwright probe: pricing copy and signup no-404 pass; full credentialed login/dashboard/billing journey not completed.
 
 ### LAUNCH-005: Deployment and rollback readiness docs
-- **Status:** TODO
+- **Status:** DONE (2026-06-27, claude/admiring-hopper-rgo06o)
 - **Goal:** Ensure launch operators have current deployment and rollback instructions grounded in verified resource graph entries.
 - **Done when:** `docs/deployment-runbook.md` and `docs/rollback-runbook.md` exist and reference only `.nomark/resources.json`-verified resources or explicitly unresolved placeholders.
 - **Files:** `docs/deployment-runbook.md`, `docs/rollback-runbook.md`
-- **Notes:** Check `.nomark/resources.json` before writing any resource names, endpoints, or environment variables.
+- **Notes:** Both runbooks rewritten 2026-06-27. All resource names (`sigil-rg`, `sigilacr46iy6y`, `sigil-api`, `sigil-bot-watchers`, `sigil-bot-workers`, `sigil-bot-pr-worker`, `sigil-redis`, `sigil-kv-46iy6y`, `sigil-sql-w2-46iy6y.database.windows.net`) verified from `.nomark/resources.json`. No Azure subscription IDs or database connection strings in public docs. deployment-runbook.md covers: pre-deploy checks, `az acr build` for sigil-api and sigil-bot images, DB migration check, `az containerapp update` for all 4 apps, Vercel frontend deploy, and post-deploy curl verification. rollback-runbook.md covers: rollback triggers, `az containerapp revision list` for all 4 apps, `az containerapp ingress traffic set --revision-weight` traffic redirect, Vercel dashboard promote-to-production, post-rollback verification, and incident logging template.
 
 
 
