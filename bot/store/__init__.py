@@ -149,6 +149,14 @@ class _MssqlStore:
                 msg = str(e)
                 if sqlstate != "23000" or ("2627" not in msg and "2601" not in msg):
                     raise
+                # Drain any pending results before rollback. pyodbc raises
+                # "Connection is busy with results for another command" if a
+                # cursor still has unread rows when the next execute() fires on
+                # the same connection.
+                try:
+                    await cursor.fetchall()
+                except Exception:
+                    pass
                 await conn.rollback()
 
             if not update_cols:
@@ -160,6 +168,9 @@ class _MssqlStore:
             update_values = [values[cols.index(c)] for c in update_cols]
             where_values = [values[cols.index(c)] for c in conflict]
             update_sql = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+            # Create a fresh cursor — the original is stale after the failed
+            # INSERT and rollback and must not be reused.
+            cursor = await conn.cursor()
             await cursor.execute(update_sql, tuple(update_values + where_values))
             await conn.commit()
             return data
