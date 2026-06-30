@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     # --- Stripe (optional — for billing) ---------------------------------------
     stripe_secret_key: Union[str, None] = None
     stripe_webhook_secret: Union[str, None] = None
+    stripe_test_secret_key: Union[str, None] = None
+    stripe_test_webhook_secret: Union[str, None] = None
     stripe_publishable_key: Union[str, None] = None
     stripe_price_pro: str = (
         "price_1QQQKzE7LGYj7YY7YoYoYo"  # Updated Pro monthly price ID
@@ -202,6 +204,11 @@ class Settings(BaseSettings):
     def stripe_configured(self) -> bool:
         """Return True when a Stripe secret key is set."""
         return bool(self.stripe_secret_key)
+
+    @property
+    def stripe_test_configured(self) -> bool:
+        """Return True when Stripe test-mode keys are set."""
+        return bool(self.stripe_test_secret_key)
 
     @property
     def github_app_configured(self) -> bool:
