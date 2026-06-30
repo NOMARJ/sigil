@@ -72,7 +72,10 @@ def test_webhook_503_when_no_secrets_configured():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 503
@@ -89,7 +92,10 @@ def test_webhook_503_when_stripe_module_unavailable_and_no_secrets():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 503
@@ -112,7 +118,10 @@ def test_webhook_live_mode_success():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 200
@@ -136,7 +145,10 @@ def test_webhook_live_mode_bad_signature_returns_400():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 400
@@ -164,7 +176,10 @@ def test_webhook_test_mode_success_no_live_secret():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 200
@@ -192,7 +207,10 @@ def test_webhook_test_mode_bad_signature_returns_400():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 400
@@ -242,7 +260,10 @@ def test_webhook_dual_secret_live_fails_test_succeeds():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 200
@@ -273,7 +294,10 @@ def test_webhook_dual_secret_both_fail_returns_400():
         resp = client.post(
             WEBHOOK_URL,
             content=PAYLOAD,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 400
@@ -287,10 +311,22 @@ def test_webhook_dual_secret_both_fail_returns_400():
 @pytest.mark.parametrize(
     "event_type,handler_path",
     [
-        ("checkout.session.completed", "api.routers.billing._handle_checkout_completed"),
-        ("customer.subscription.created", "api.routers.billing._handle_subscription_created"),
-        ("customer.subscription.updated", "api.routers.billing._handle_subscription_updated"),
-        ("customer.subscription.deleted", "api.routers.billing._handle_subscription_deleted"),
+        (
+            "checkout.session.completed",
+            "api.routers.billing._handle_checkout_completed",
+        ),
+        (
+            "customer.subscription.created",
+            "api.routers.billing._handle_subscription_created",
+        ),
+        (
+            "customer.subscription.updated",
+            "api.routers.billing._handle_subscription_updated",
+        ),
+        (
+            "customer.subscription.deleted",
+            "api.routers.billing._handle_subscription_deleted",
+        ),
         ("invoice.payment_failed", "api.routers.billing._handle_payment_failed"),
         ("invoice.payment_succeeded", "api.routers.billing._handle_payment_succeeded"),
     ],
@@ -312,7 +348,10 @@ def test_webhook_test_mode_all_required_events(event_type: str, handler_path: st
         resp = client.post(
             WEBHOOK_URL,
             content=payload,
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 200
@@ -343,7 +382,10 @@ def test_webhook_invalid_payload_format_returns_400():
         resp = client.post(
             WEBHOOK_URL,
             content=b"not json",
-            headers={"stripe-signature": SIG_HEADER, "content-type": "application/json"},
+            headers={
+                "stripe-signature": SIG_HEADER,
+                "content-type": "application/json",
+            },
         )
 
     assert resp.status_code == 400
