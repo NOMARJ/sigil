@@ -19,10 +19,10 @@ from unittest.mock import MagicMock, patch
 for _mod in ("pyodbc", "aiohttp", "aiohttp.client"):
     sys.modules.setdefault(_mod, MagicMock())
 
-import pytest
-from fastapi.testclient import TestClient
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-from api.main import app
+from api.main import app  # noqa: E402
 
 client = TestClient(app)
 
