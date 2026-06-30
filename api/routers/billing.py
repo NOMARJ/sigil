@@ -232,12 +232,13 @@ def _get_price_id(plan: PlanTier, interval: str) -> str | None:
 
 def _get_stripe():
     """Import and configure the Stripe module, or return None."""
-    if not settings.stripe_configured:
+    if not settings.stripe_configured and not settings.stripe_test_configured:
         return None
     try:
         import stripe
 
-        stripe.api_key = settings.stripe_secret_key
+        # Prefer live key; fall back to test key when only test is configured.
+        stripe.api_key = settings.stripe_secret_key or settings.stripe_test_secret_key
         return stripe
     except ImportError:
         logger.warning(
@@ -721,27 +722,42 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
     body = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    if stripe is None or not settings.stripe_webhook_secret:
+    live_secret = settings.stripe_webhook_secret
+    test_secret = settings.stripe_test_webhook_secret
+
+    if stripe is None or (not live_secret and not test_secret):
         logger.error("Stripe webhook received while webhook verification is disabled")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe webhook verification is not configured",
         )
 
-    try:
-        event = stripe.Webhook.construct_event(
-            body, sig_header, settings.stripe_webhook_secret
-        )
-        logger.info("Webhook signature verified successfully")
-    except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Webhook signature verification failed: {e}")
+    event = None
+    # Try live secret first; on failure try test secret (dual-mode support).
+    if live_secret:
+        try:
+            event = stripe.Webhook.construct_event(body, sig_header, live_secret)
+            logger.info("Webhook signature verified (live mode)")
+        except stripe.error.SignatureVerificationError:
+            logger.debug("Live-mode signature check failed; trying test-mode secret")
+        except ValueError as e:
+            logger.error(f"Webhook payload invalid: {e}")
+            raise HTTPException(status_code=400, detail="Invalid payload format")
+
+    if event is None and test_secret:
+        try:
+            event = stripe.Webhook.construct_event(body, sig_header, test_secret)
+            logger.info("Webhook signature verified (test mode)")
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"Webhook signature verification failed (test mode): {e}")
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        except ValueError as e:
+            logger.error(f"Webhook payload invalid: {e}")
+            raise HTTPException(status_code=400, detail="Invalid payload format")
+
+    if event is None:
+        logger.error("Webhook signature verification failed: no valid secret matched")
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
-    except ValueError as e:
-        logger.error(f"Webhook payload invalid: {e}")
-        raise HTTPException(status_code=400, detail="Invalid payload format")
-    except Exception as e:
-        logger.error(f"Webhook verification error: {e}")
-        raise HTTPException(status_code=400, detail=f"Webhook verification failed: {e}")
 
     event_type = event.get("type", "unknown") if event else "unknown"
     event_id = event.get("id", "unknown") if event else "unknown"

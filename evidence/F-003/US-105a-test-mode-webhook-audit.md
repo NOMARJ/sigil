@@ -148,3 +148,82 @@ Verdict: PASS — STORY-101 parity achieved for test mode; US-005 unblocked.
 ## Why This Is PARTIAL Not BLOCKED
 
 This is not a model limitation — Stripe's API supports the operation, the operator has credentials, and the runbook above is unambiguous. The block is purely a credential-sharing boundary: autopilot does not read secrets out of Azure to run a curl that the operator can run in 30 seconds with a Dashboard click. STORY-101 followed the same pattern (operator-authorized POST against live-mode); this is the test-mode mirror.
+
+---
+
+## NOM-884 US-003 Implementation Audit (2026-06-30)
+
+**Branch:** `claude/admiring-hopper-ok11n3`  
+**Status:** DONE — API-side implementation complete; 15/15 tests passing.
+
+### What Was Built
+
+The Sigil API now fully supports test-mode Stripe webhooks at the code level.
+
+**`api/config.py`** — Two new settings fields + one new property added in the Stripe section:
+
+```python
+stripe_test_secret_key: Union[str, None] = None       # SIGIL_STRIPE_TEST_SECRET_KEY
+stripe_test_webhook_secret: Union[str, None] = None   # SIGIL_STRIPE_TEST_WEBHOOK_SECRET
+
+@property
+def stripe_test_configured(self) -> bool:
+    """Return True when Stripe test-mode keys are set."""
+    return bool(self.stripe_test_secret_key)
+```
+
+**`api/routers/billing.py`** — Two changes:
+
+1. `_get_stripe()` now initialises when only test credentials are configured (uses `stripe_test_secret_key` when `stripe_secret_key` is absent).
+2. `stripe_webhook()` handler uses dual-secret fallback:
+   - Try live secret → on `SignatureVerificationError`, try test secret
+   - If both fail → 400; if neither configured → 503; malformed payload → 400
+
+**`api/tests/test_billing_testmode_webhook.py`** — 15 new tests covering:
+
+| Scenario | Test | Result |
+|---|---|---|
+| Neither secret configured | `test_webhook_503_when_no_secrets_configured` | PASS |
+| Stripe module present but no secrets | `test_webhook_503_when_stripe_module_unavailable_and_no_secrets` | PASS |
+| Live secret only, valid signature | `test_webhook_live_mode_success` | PASS |
+| Live secret only, bad signature | `test_webhook_live_mode_bad_signature_returns_400` | PASS |
+| Test secret only, valid signature | `test_webhook_test_mode_success_no_live_secret` | PASS |
+| Test secret only, bad signature | `test_webhook_test_mode_bad_signature_returns_400` | PASS |
+| Dual: live fails → test succeeds | `test_webhook_dual_secret_live_fails_test_succeeds` | PASS |
+| Dual: both fail | `test_webhook_dual_secret_both_fail_returns_400` | PASS |
+| `checkout.session.completed` in test mode | parametrize[0] | PASS |
+| `customer.subscription.created` in test mode | parametrize[1] | PASS |
+| `customer.subscription.updated` in test mode | parametrize[2] | PASS |
+| `customer.subscription.deleted` in test mode | parametrize[3] | PASS |
+| `invoice.payment_failed` in test mode | parametrize[4] | PASS |
+| `invoice.payment_succeeded` in test mode | parametrize[5] | PASS |
+| Malformed payload | `test_webhook_invalid_payload_format_returns_400` | PASS |
+
+### Test Run Evidence
+
+```
+python3 -m pytest api/tests/test_billing_testmode_webhook.py -q
+15 passed in 1.27s
+```
+
+### Environment Variables Required
+
+Set these in Azure Key Vault / Container App for test-mode webhooks to work in production:
+
+```
+SIGIL_STRIPE_TEST_SECRET_KEY=sk_test_...
+SIGIL_STRIPE_TEST_WEBHOOK_SECRET=whsec_...
+```
+
+These coexist with the live-mode variables; the handler tries live first, then test.
+
+### Acceptance Criteria — NOM-884 US-003
+
+| AC | Status |
+|---|---|
+| `stripe_test_secret_key` and `stripe_test_webhook_secret` fields in config | DONE |
+| `stripe_test_configured` property | DONE |
+| `_get_stripe()` works with only test credentials | DONE |
+| Dual-secret fallback: live fails → test succeeds | DONE |
+| All 6 required event types routed correctly in test mode | DONE |
+| 15/15 tests passing | DONE |
