@@ -760,7 +760,7 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
             await _handle_subscription_deleted(event)
         elif event_type == "invoice.payment_failed":
             await _handle_payment_failed(event)
-        elif event_type == "invoice.payment_succeeded":
+        elif event_type in ("invoice.paid", "invoice.payment_succeeded"):
             await _handle_payment_succeeded(event)
         elif event_type == "customer.subscription.trial_will_end":
             await _handle_trial_will_end(event)

@@ -9,18 +9,20 @@
 
 ## Audit Target
 
-Sigil's test-mode Stripe webhook endpoint must be subscribed to the full 6-event union enforced for live-mode in STORY-101:
+Sigil's test-mode Stripe webhook endpoint must be subscribed to the full 6-event union required by SOLUTION.md F-003 AC:
 
 ```
 checkout.session.completed
 customer.subscription.created
 customer.subscription.updated
 customer.subscription.deleted
-invoice.payment_succeeded
+invoice.paid
 invoice.payment_failed
 ```
 
-This is the same set of events the live-mode endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` was reconfigured to subscribe to in `evidence/F-003/US-101-fix-applied.md` (verified `count: 6`). The test-mode endpoint sits in the same Stripe account (`acct_1RkD8NFhPhxEz27f`) and must match before US-005's test-card flow can be observed end-to-end.
+**Note on event naming:** SOLUTION.md F-003 AC specifies `invoice.paid` (the current Stripe API 2022-08-01+ event name). The earlier live-mode audit (`US-101-fix-applied.md`) used `invoice.payment_succeeded` (the legacy name). Both event names represent the same invoice payment success; Stripe fires both for backward compatibility. The canonical required name per SOLUTION.md is `invoice.paid`. The live-mode endpoint runbook in US-101 should be re-confirmed against this name when the operator next audits.
+
+This is the same event set the live-mode endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` was reconfigured for in `evidence/F-003/US-101-fix-applied.md`. The test-mode endpoint sits in the same Stripe account (`acct_1RkD8NFhPhxEz27f`) and must match before US-005's test-card flow can be observed end-to-end.
 
 ## What Autopilot Tried
 
@@ -86,7 +88,7 @@ curl -sS -X POST "https://api.stripe.com/v1/webhook_endpoints/we_TESTMODEID" \
   -d "enabled_events[]=customer.subscription.created" \
   -d "enabled_events[]=customer.subscription.updated" \
   -d "enabled_events[]=customer.subscription.deleted" \
-  -d "enabled_events[]=invoice.payment_succeeded" \
+  -d "enabled_events[]=invoice.paid" \
   -d "enabled_events[]=invoice.payment_failed" | jq
 
 # Re-verify count:
@@ -105,7 +107,7 @@ curl -sS -X POST https://api.stripe.com/v1/webhook_endpoints \
   -d "enabled_events[]=customer.subscription.created" \
   -d "enabled_events[]=customer.subscription.updated" \
   -d "enabled_events[]=customer.subscription.deleted" \
-  -d "enabled_events[]=invoice.payment_succeeded" \
+  -d "enabled_events[]=invoice.paid" \
   -d "enabled_events[]=invoice.payment_failed" | jq
 ```
 
@@ -137,6 +139,39 @@ After running Option A, B, or C above, append to this file:
 
 Verdict: PASS — STORY-101 parity achieved for test mode; US-005 unblocked.
 ```
+
+## Code Audit (autonomous, NOM-884, 2026-06-26)
+
+**Scope:** Code-side review of `api/routers/billing.py` webhook handler against the 6 required events.
+
+| Required event (SOLUTION.md F-003 AC) | Code handled? | Evidence |
+|---|---|---|
+| `checkout.session.completed` | YES | `billing.py` L753 |
+| `customer.subscription.created` | YES | `billing.py` L755 |
+| `customer.subscription.updated` | YES | `billing.py` L757 |
+| `customer.subscription.deleted` | YES | `billing.py` L759 |
+| `invoice.payment_failed` | YES | `billing.py` L761 |
+| `invoice.paid` | **NO → FIXED** | was missing; added to L762 (see below) |
+
+**Gap found:** The handler matched on `invoice.payment_succeeded` (legacy Stripe event name) but not `invoice.paid` (modern name, required by SOLUTION.md). Both names represent the same event; Stripe fires both for backward compat, but the Stripe Dashboard and CLI surface `invoice.paid` as the canonical subscription event name.
+
+**Fix applied (branch `claude/admiring-hopper-ufn5al`):**
+
+```python
+# Before
+elif event_type == "invoice.payment_succeeded":
+    await _handle_payment_succeeded(event)
+
+# After
+elif event_type in ("invoice.paid", "invoice.payment_succeeded"):
+    await _handle_payment_succeeded(event)
+```
+
+File: `api/routers/billing.py`, line 762.
+
+**Test added:** `TestPaymentFailureHandling.test_invoice_paid_webhook` in `api/tests/test_billing_integration.py` — verifies `invoice.paid` dispatches to `_handle_payment_succeeded` and returns HTTP 200.
+
+**Operator-gated items remain PENDING:** Verbatim `enabled_events` from the actual test-mode Stripe endpoint (requires `sk_test_…` key, Stripe CLI with Sigil project, or Dashboard access). See runbook above.
 
 ## Cross-References
 

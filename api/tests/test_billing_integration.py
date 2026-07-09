@@ -413,6 +413,38 @@ class TestPaymentFailureHandling:
                 assert "Payment succeeded" in log_call
                 assert "cus_payment_success" in log_call
 
+    def test_invoice_paid_webhook(
+        self, client: TestClient, webhook_headers: dict[str, str]
+    ):
+        """Test invoice.paid event (modern Stripe API name for invoice payment success)"""
+
+        webhook_payload = {
+            "type": "invoice.paid",
+            "data": {
+                "object": {
+                    "customer": "cus_invoice_paid",
+                    "amount_paid": 2900,
+                }
+            },
+        }
+
+        with patch("api.routers.billing._get_stripe") as mock_get_stripe:
+            mock_stripe = MagicMock()
+            mock_get_stripe.return_value = mock_stripe
+            mock_stripe.Webhook.construct_event.return_value = webhook_payload
+
+            with patch("api.routers.billing.logger") as mock_logger:
+                response = client.post(
+                    "/v1/billing/webhook", json=webhook_payload, headers=webhook_headers
+                )
+
+                assert response.status_code == 200
+
+                mock_logger.info.assert_called()
+                log_call = mock_logger.info.call_args[0][0]
+                assert "Payment succeeded" in log_call
+                assert "cus_invoice_paid" in log_call
+
 
 class TestSubscriptionManagement:
     """Test subscription management operations"""
