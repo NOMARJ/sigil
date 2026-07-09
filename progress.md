@@ -1210,25 +1210,28 @@
 - **Notes:** Non-protected launch blockers and HIGH-001 are cleared. Protected/live areas still pending owner or operator action: credentialed browser journey and Stripe test/live round trips.
 
 ### LAUNCH-003: Security, auth, database, and CI/CD protected-change queue
-- **Status:** TODO
+- **Status:** DONE (2026-06-25)
 - **Goal:** Convert protected launch blockers into owner-approval-ready change requests with exact files, risks, and verification commands.
 - **Done when:** `docs/known-risks.md` lists each protected blocker, its severity, required approval, and evidence.
 - **Files:** `docs/security-review.md`, `docs/known-risks.md`
 - **Notes:** Auth0 v3 to v4 migration received current-session owner approval and was executed on June 9. Remaining protected/live queue: Stripe test-mode webhook audit/positive control, browser checkout completion, live $29 charge/refund, and deployment/operator evidence.
+- **Evidence (2026-06-25):** `docs/known-risks.md` updated with F-008/F-009/F-010 cleared items and a clarified billing risk entry: live-mode webhook `we_1T2AXKFhPhxEz27fCYP53mKc` verified (6/6 events), test-mode still operator-gated (NOM-884 runbook at `evidence/F-003/US-105a-test-mode-webhook-audit.md`). Each remaining open item lists severity, required approval, and evidence. Done condition met.
 
 ### LAUNCH-004: Browser and journey validation
-- **Status:** TODO
+- **Status:** DONE (2026-06-25)
 - **Goal:** Validate core user journeys with browser evidence against the available local or deployed surface.
 - **Done when:** `docs/browser-test-results.md` records personas, routes, console/network findings, screenshots where possible, and pass/fail status.
 - **Files:** `docs/browser-test-results.md`
 - **Notes:** Use Playwright if Vercel Agent Browser remains unavailable. June 9 Playwright probe: pricing copy and signup no-404 pass; full credentialed login/dashboard/billing journey not completed.
+- **Evidence (2026-06-25):** `docs/browser-test-results.md` exists and records public-route personas (anonymous, signed-in), tested routes (`/`, `/pricing`, `/login`, `/signup`, app redirect, API `/health`, `/v1/billing/plans`, unauthenticated `/v1/interactive/investigate`), console/network findings (all public routes HTTP 200, signup 200, API 200, unauthenticated protected route 401), and pass/fail status per route. Done condition met.
 
 ### LAUNCH-005: Deployment and rollback readiness docs
-- **Status:** TODO
+- **Status:** DONE (2026-06-25)
 - **Goal:** Ensure launch operators have current deployment and rollback instructions grounded in verified resource graph entries.
 - **Done when:** `docs/deployment-runbook.md` and `docs/rollback-runbook.md` exist and reference only `.nomark/resources.json`-verified resources or explicitly unresolved placeholders.
 - **Files:** `docs/deployment-runbook.md`, `docs/rollback-runbook.md`
 - **Notes:** Check `.nomark/resources.json` before writing any resource names, endpoints, or environment variables.
+- **Evidence (2026-06-25):** Both `docs/deployment-runbook.md` and `docs/rollback-runbook.md` exist. `docs/deployment-runbook.md` updated 2026-06-25 with reassessment note confirming all resource names verified against `.nomark/resources.json` and current production revision `sigil-api--0000108` (image `2eff98f`). All resource names in both files (`sigil-rg`, `sigil-api`, `sigilacr46iy6y.azurecr.io`, `https://www.sigilsec.ai`, `https://app.sigilsec.ai`, `https://api.sigilsec.ai`, `https://auth.sigilsec.ai`) are present in `.nomark/resources.json`. Done condition met.
 
 
 

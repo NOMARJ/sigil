@@ -34,9 +34,9 @@
       "CHARTER II.5"
     ]
   },
-  "status": "pending",
-  "claimed_by": null,
-  "claimed_at": null,
+  "status": "in_progress",
+  "claimed_by": "claude/admiring-hopper-imeia4",
+  "claimed_at": "2026-06-25T00:00:00.000Z",
   "completed_at": null,
   "completion_ref": null
 }
