@@ -324,32 +324,28 @@ async def list_ecosystem(
 ) -> RegistrySearchResponse:
     """List all scanned packages in a given ecosystem (clawhub, npm, pip, etc.)."""
     if db._pool:
-        # Dedup (latest scan per package@version), sort, and paginate in SQL
-        # instead of pulling up to 10k full rows into Python per request.
+        # No dedup needed: UQ_public_scans_ecosystem_package guarantees one
+        # row per (ecosystem, package_name, package_version), so the previous
+        # ROW_NUMBER window (and its exact COUNT) only forced full partition
+        # scans of the LOB-heavy table (2026-07-19 saturation incident).
+        # Plain paged query + one-extra-row total estimate, like /search.
         sort_sql = {
             "risk": "risk_score DESC",
             "name": "package_name ASC",
         }.get(sort, "scanned_at DESC")
         offset = (page - 1) * per_page
-        dedup_cte = (
-            f"SELECT {SUMMARY_COLUMNS}, ROW_NUMBER() OVER ("
-            "PARTITION BY package_name, package_version "
-            "ORDER BY scanned_at DESC) AS rn "
-            f"FROM {TABLE} WHERE ecosystem = ? AND verdict != 'ERROR'"
-        )
+        fetch_limit = per_page + 1
         page_rows = await db.execute_raw_sql(
-            f"WITH latest AS ({dedup_cte}) "
-            f"SELECT {SUMMARY_COLUMNS} FROM latest WHERE rn = 1 "
+            f"SELECT {SUMMARY_COLUMNS} FROM {TABLE} "
+            "WHERE ecosystem = ? AND verdict != 'ERROR' "
             f"ORDER BY {sort_sql} "
-            f"OFFSET {offset} ROWS FETCH NEXT {per_page} ROWS ONLY",
+            f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY",
             (ecosystem,),
         )
-        count_rows = await db.execute_raw_sql(
-            f"WITH latest AS ({dedup_cte}) "
-            "SELECT COUNT(*) AS total FROM latest WHERE rn = 1",
-            (ecosystem,),
-        )
-        total = count_rows[0].get("total", 0) if count_rows else 0
+        has_more = len(page_rows) > per_page
+        if has_more:
+            page_rows = page_rows[:per_page]
+        total = offset + len(page_rows) + (1 if has_more else 0)
     else:
         rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
 
