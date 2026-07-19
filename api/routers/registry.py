@@ -34,6 +34,13 @@ router = APIRouter(prefix="/registry", tags=["registry"])
 
 TABLE = "public_scans"
 
+# List views never need findings_json/metadata_json — both are NVARCHAR(MAX)
+# LOBs, and reading them per row dominates query cost.
+SUMMARY_COLUMNS = (
+    "id, ecosystem, package_name, package_version, risk_score, "
+    "verdict, findings_count, files_scanned, scanned_at, created_at"
+)
+
 
 # ---------------------------------------------------------------------------
 # Response models
@@ -216,15 +223,8 @@ async def search_registry(
         # Fetch one extra row to detect if there are more results
         # This avoids an expensive COUNT(*) over the full table
         fetch_limit = per_page + 1
-        # List views never need findings_json/metadata_json — both are
-        # NVARCHAR(MAX) LOBs, and reading them per row dominates query cost
-        # on the S0 tier.
-        summary_cols = (
-            "id, ecosystem, package_name, package_version, risk_score, "
-            "verdict, findings_count, files_scanned, scanned_at, created_at"
-        )
         data_sql = (
-            f"SELECT {summary_cols} FROM {TABLE} WHERE {where} "
+            f"SELECT {SUMMARY_COLUMNS} FROM {TABLE} WHERE {where} "
             f"ORDER BY scanned_at DESC "
             f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY"
         )
@@ -323,31 +323,60 @@ async def list_ecosystem(
     sort: str = Query("recent", description="Sort: recent, risk, name"),
 ) -> RegistrySearchResponse:
     """List all scanned packages in a given ecosystem (clawhub, npm, pip, etc.)."""
-    rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
-
-    # Exclude failed scans — ERROR verdicts have no meaningful results
-    rows = [r for r in rows if r.get("verdict") != "ERROR"]
-
-    if sort == "risk":
-        rows.sort(key=lambda r: r.get("risk_score", 0), reverse=True)
-    elif sort == "name":
-        rows.sort(key=lambda r: r.get("package_name", ""))
-    else:
-        rows.sort(
-            key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
+    if db._pool:
+        # Dedup (latest scan per package@version), sort, and paginate in SQL
+        # instead of pulling up to 10k full rows into Python per request.
+        sort_sql = {
+            "risk": "risk_score DESC",
+            "name": "package_name ASC",
+        }.get(sort, "scanned_at DESC")
+        offset = (page - 1) * per_page
+        dedup_cte = (
+            f"SELECT {SUMMARY_COLUMNS}, ROW_NUMBER() OVER ("
+            "PARTITION BY package_name, package_version "
+            "ORDER BY scanned_at DESC) AS rn "
+            f"FROM {TABLE} WHERE ecosystem = ? AND verdict != 'ERROR'"
         )
+        page_rows = await db.execute_raw_sql(
+            f"WITH latest AS ({dedup_cte}) "
+            f"SELECT {SUMMARY_COLUMNS} FROM latest WHERE rn = 1 "
+            f"ORDER BY {sort_sql} "
+            f"OFFSET {offset} ROWS FETCH NEXT {per_page} ROWS ONLY",
+            (ecosystem,),
+        )
+        count_rows = await db.execute_raw_sql(
+            f"WITH latest AS ({dedup_cte}) "
+            "SELECT COUNT(*) AS total FROM latest WHERE rn = 1",
+            (ecosystem,),
+        )
+        total = count_rows[0].get("total", 0) if count_rows else 0
+    else:
+        rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
 
-    # Deduplicate: keep latest scan per package
-    seen: dict[str, dict[str, Any]] = {}
-    for r in rows:
-        key = f"{r.get('package_name', '')}@{r.get('package_version', '')}"
-        if key not in seen:
-            seen[key] = r
+        # Exclude failed scans — ERROR verdicts have no meaningful results
+        rows = [r for r in rows if r.get("verdict") != "ERROR"]
 
-    deduped = list(seen.values())
-    total = len(deduped)
-    start = (page - 1) * per_page
-    page_rows = deduped[start : start + per_page]
+        if sort == "risk":
+            rows.sort(key=lambda r: r.get("risk_score", 0), reverse=True)
+        elif sort == "name":
+            rows.sort(key=lambda r: r.get("package_name", ""))
+        else:
+            rows.sort(
+                key=lambda r: r.get("scanned_at", r.get("created_at", "")),
+                reverse=True,
+            )
+
+        # Deduplicate: keep latest scan per package
+        seen: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            key = f"{r.get('package_name', '')}@{r.get('package_version', '')}"
+            if key not in seen:
+                seen[key] = r
+
+        deduped = list(seen.values())
+        total = len(deduped)
+        start = (page - 1) * per_page
+        page_rows = deduped[start : start + per_page]
 
     return RegistrySearchResponse(
         items=[_row_to_summary(r) for r in page_rows],
