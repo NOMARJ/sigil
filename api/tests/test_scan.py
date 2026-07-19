@@ -142,7 +142,9 @@ class TestScanSubmission:
             return []
 
         with (
-            patch("api.routers.scan.lookup_threats_for_hashes", side_effect=slow_lookup),
+            patch(
+                "api.routers.scan.lookup_threats_for_hashes", side_effect=slow_lookup
+            ),
             patch("api.routers.scan._THREAT_LOOKUP_TIMEOUT_SECONDS", 0.01),
         ):
             resp = client.post("/v1/scan", json=payload, headers=auth_headers)
