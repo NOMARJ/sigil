@@ -216,8 +216,15 @@ async def search_registry(
         # Fetch one extra row to detect if there are more results
         # This avoids an expensive COUNT(*) over the full table
         fetch_limit = per_page + 1
+        # List views never need findings_json/metadata_json — both are
+        # NVARCHAR(MAX) LOBs, and reading them per row dominates query cost
+        # on the S0 tier.
+        summary_cols = (
+            "id, ecosystem, package_name, package_version, risk_score, "
+            "verdict, findings_count, files_scanned, scanned_at, created_at"
+        )
         data_sql = (
-            f"SELECT * FROM {TABLE} WHERE {where} "
+            f"SELECT {summary_cols} FROM {TABLE} WHERE {where} "
             f"ORDER BY scanned_at DESC "
             f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY"
         )
