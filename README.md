@@ -115,6 +115,12 @@ sigil fetch https://example.com/agent-tool.tar.gz
 sigil list              # See all quarantined items
 sigil approve abc123    # Move approved code out of quarantine
 sigil reject abc123     # Permanently delete quarantined code
+
+# Wire Sigil into your tooling
+sigil setup claude      # Register the Claude Code plugin (marketplace + install)
+sigil setup shell       # Add gclone/safepip/safenpm aliases to your shell rc
+sigil setup git         # Install a pre-commit hook (sigil scan --fail-on high)
+sigil setup all         # All of the above
 ```
 
 ### Discovery Commands

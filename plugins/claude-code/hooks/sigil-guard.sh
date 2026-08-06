@@ -46,6 +46,18 @@ deny() {
 
 INPUT=$(cat)
 
+# ── Delegate to the native implementation when available ───────────────────
+# `sigil hook pretooluse` (CLI v1.3.0+) is the maintained home of this
+# policy; the patterns below are the dependency-free fallback for missing or
+# older binaries (which exit non-zero on the unknown subcommand and fall
+# through here).
+if command -v sigil >/dev/null 2>&1; then
+  NATIVE=$(printf '%s' "$INPUT" | sigil hook pretooluse 2>/dev/null) || NATIVE=""
+  case "$NATIVE" in
+    *permissionDecision*) printf '%s\n' "$NATIVE"; exit 0 ;;
+  esac
+fi
+
 if command -v jq >/dev/null 2>&1; then
   CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 else

@@ -17,55 +17,40 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ### sigil install
 
-Full interactive installation. Copies the binary, creates directories, installs shell aliases, and optionally installs recommended security scanners.
+Copies the running `sigil` binary to an install directory (default `/usr/local/bin`, may require sudo).
 
 ```bash
-sigil install
+sigil install [--path <dir>]
 ```
 
-**What it does:**
-
-1. Copies `sigil` to `/usr/local/bin/` (requires sudo)
-2. Creates `~/.sigil/{quarantine,approved,logs,reports}`
-3. Installs shell aliases in your `.bashrc` or `.zshrc`
-4. Prompts to install optional scanners (semgrep, bandit, trufflehog, safety)
+For shell aliases, Claude Code wiring, and git hooks, use `sigil setup`.
 
 ---
 
-### sigil aliases
+### sigil setup
 
-Install or print shell aliases that wrap common commands with automatic quarantine and scanning.
-
-```bash
-sigil aliases            # Install aliases to shell config
-sigil aliases --print    # Print aliases without installing
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--print` | Print the alias block to stdout without modifying shell config |
-
-**Aliases installed:**
-
-| Alias | Equivalent | Description |
-|-------|-----------|-------------|
-| `gclone <url>` | `sigil clone <url>` | Git clone with quarantine + scan |
-| `safepip <pkg>` | `sigil pip <pkg>` | pip install with scan first |
-| `safenpm <pkg>` | `sigil npm <pkg>` | npm install with scan first |
-| `safefetch <url>` | `sigil fetch <url>` | Download + quarantine + scan |
-| `audit <path>` | `sigil scan <path>` | Scan a directory or file |
-| `audithere` | `sigil scan .` | Scan current directory |
-| `qls` | `sigil list` | Show quarantine status |
-| `qapprove` | `sigil approve <latest>` | Approve most recent quarantined item |
-| `qreject` | `sigil reject <latest>` | Reject most recent quarantined item |
-
-After installation, reload your shell:
+Wire Sigil into AI agent and developer workflows. Every step is best-effort and idempotent — re-running never duplicates configuration.
 
 ```bash
-source ~/.bashrc   # or source ~/.zshrc
+sigil setup claude   # Register the Claude Code plugin marketplace + install sigil-security
+sigil setup shell    # Append gclone/safepip/safenpm aliases to your .bashrc/.zshrc
+sigil setup git      # Install a pre-commit hook running `sigil scan . --fail-on high`
+sigil setup all      # claude + shell, plus git when run inside a repository
 ```
+
+`setup claude` requires the `claude` CLI on PATH and skips with a pointer when it is absent. `setup git` refuses to overwrite a pre-commit hook it didn't write.
+
+---
+
+### sigil hook
+
+Respond to a Claude Code hook event. Reads the hook JSON payload from stdin and prints a `permissionDecision` response. This is the native implementation behind the plugin's PreToolUse enforcement gate — the plugin's `sigil-guard.sh` delegates here when the CLI is on PATH.
+
+```bash
+sigil hook pretooluse    # currently the only supported event
+```
+
+Honors `SIGIL_GUARD_MODE` (`enforce`/`advise`/`off`) and `SIGIL_BYPASS=1`. Always exits 0; unsupported events produce no output so they never block a tool call.
 
 ---
 
@@ -93,30 +78,6 @@ sigil config --init      # Create ~/.sigil directories
 
 ---
 
-### sigil hooks
-
-Install a pre-commit hook that scans staged files for dangerous patterns before each commit.
-
-```bash
-sigil hooks              # Install in current git repo
-sigil hooks /path/to/repo    # Install in specific repo
-```
-
-**Arguments:**
-
-| Argument | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `git-dir` | No | Current directory | Path to the git repository |
-
-**Patterns checked by the hook:**
-
-- `eval(`, `exec(`, `__import__(`
-- `subprocess` with `shell=True`
-- `os.system`, `pickle.loads`, `child_process`
-
-The hook blocks the commit if any patterns are found. Bypass with `git commit --no-verify` when the pattern is intentional.
-
----
 
 ## Audit Commands
 

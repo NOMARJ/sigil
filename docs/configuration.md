@@ -205,40 +205,32 @@ curl -X PATCH \
 ### Installation
 
 ```bash
-sigil aliases              # Detect shell and install to config file
-sigil aliases --print      # Print aliases without installing
+sigil setup shell          # Append aliases to your ~/.bashrc or ~/.zshrc
 ```
 
-Sigil detects your shell by checking for `~/.zshrc`, `~/.bashrc`, or Fish config.
+Sigil detects your shell from `$SHELL` (bash or zsh). The step is idempotent — re-running it never duplicates the block. `install.sh --with-aliases` installs the same block.
 
 ### Alias Definitions
 
 ```bash
-# Git clone with quarantine
-alias gclone='sigil clone'
-
-# Safe package installation
-alias safepip='sigil pip'
-alias safenpm='sigil npm'
-alias safefetch='sigil fetch'
-
-# Quick scanning
-alias audit='sigil scan'
-alias audithere='sigil scan .'
-
-# Quarantine management
-alias qls='sigil list'
-alias qapprove='sigil approve "$(ls -t "$HOME/.sigil/quarantine" | head -1)"'
-alias qreject='sigil reject "$(ls -t "$HOME/.sigil/quarantine" | head -1)"'
+# Installed by `sigil setup shell`
+alias gclone='sigil clone'     # Git clone with quarantine + scan
+alias safepip='sigil pip'      # pip install with scan first
+alias safenpm='sigil npm'      # npm install with scan first
 ```
 
-### Customization
+Useful extras you can add manually:
 
-To customize aliases, run `sigil aliases --print` and add only the ones you want to your shell config manually. You can rename them or modify the behavior.
+```bash
+alias safefetch='sigil fetch'
+alias audit='sigil scan'
+alias audithere='sigil scan .'
+alias qls='sigil list'
+```
 
 ### Removing Aliases
 
-Aliases are added to your shell config file (`.bashrc`, `.zshrc`, or Fish config). To remove them, open the file and delete the block between the `# SIGIL ALIASES` comments, then reload your shell.
+Aliases are added to your shell config file. To remove them, delete the block between the `# >>> sigil aliases >>>` and `# <<< sigil aliases <<<` markers, then reload your shell.
 
 ---
 
@@ -246,28 +238,24 @@ Aliases are added to your shell config file (`.bashrc`, `.zshrc`, or Fish config
 
 ### Pre-Commit Hook
 
-Install a pre-commit hook that scans staged files for dangerous patterns:
+Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
-sigil hooks              # Install in current repo
-sigil hooks /path/to/repo    # Install in specific repo
+sigil setup git          # Install in the current repo
 ```
 
-The hook runs before every commit and checks staged files for:
-
-- `eval(`, `exec(`, `__import__(`
-- `subprocess` with `shell=True`
-- `os.system`, `pickle.loads`, `child_process`
+The hook runs `sigil scan . --fail-on high` — all eight scan phases, blocking the commit on HIGH or CRITICAL findings.
 
 ### Hook Behavior
 
-- **Finding detected:** Hook prints a warning with the file and pattern, then exits with code 1 (blocking the commit)
-- **No findings:** Hook exits with code 0 (commit proceeds)
-- **Bypass:** `git commit --no-verify` skips the hook when you know the pattern is safe
+- **HIGH/CRITICAL findings:** the scan exits non-zero and the commit is blocked
+- **Clean or lower-severity findings:** the commit proceeds
+- **Bypass:** `git commit --no-verify` skips the hook for a single commit
+- **Missing binary:** if `sigil` is not on PATH the hook warns and lets the commit through
 
 ### Hook Location
 
-The hook is written to `.git/hooks/pre-commit` in the target repository. It does not modify any global git configuration.
+The hook is written to `.git/hooks/pre-commit`. An existing pre-commit hook not written by sigil is never overwritten. Teams using the [pre-commit framework](https://pre-commit.com) can use the repo's `.pre-commit-hooks.yaml` instead.
 
 ---
 

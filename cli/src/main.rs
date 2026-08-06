@@ -4,6 +4,7 @@ mod corpus;
 mod diff;
 mod explain;
 mod feeds;
+mod hook;
 mod ledger;
 mod output;
 mod policy;
@@ -13,6 +14,7 @@ mod quarantine;
 mod sandbox;
 mod sbom;
 mod scanner;
+mod setup;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -305,6 +307,18 @@ enum Commands {
         #[arg(last = true, required = true)]
         command: Vec<String>,
     },
+
+    /// Respond to a Claude Code hook event (reads the hook JSON from stdin)
+    Hook {
+        /// Hook event to handle (currently: pretooluse)
+        event: String,
+    },
+
+    /// Wire Sigil into AI agent and developer workflows
+    Setup {
+        /// What to set up: claude, shell, git, or all
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -569,6 +583,10 @@ async fn main() {
                 }
             }
         }
+
+        Commands::Hook { event } => hook::cmd_hook(&event),
+
+        Commands::Setup { target } => setup::cmd_setup(&target),
     };
 
     process::exit(exit_code);

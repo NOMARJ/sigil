@@ -137,3 +137,11 @@ Once configured, AI agents can use Sigil tools naturally:
 
 > "Has anyone scanned the `requests` PyPI package?"
 > → Agent calls `sigil_check_package` with ecosystem="pypi", package_name="requests"
+
+## Publishing
+
+Publishing to npm is automated by `.github/workflows/publish-mcp.yml`: push a
+tag `mcp-vX.Y.Z` matching the version in `package.json` (or run the workflow
+manually with a version input), and it builds and runs `npm publish --access
+public` using the repository's `NPM_TOKEN` secret. The version-match check
+fails the run if the tag and `package.json` disagree.

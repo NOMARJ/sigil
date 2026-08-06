@@ -390,9 +390,9 @@ rm -rf ~/.sigil
 Edit your `~/.bashrc` or `~/.zshrc` and remove the block between:
 
 ```bash
-# -- sigil aliases (auto-installed) --
+# >>> sigil aliases >>>
 ...
-# -- end sigil aliases --
+# <<< sigil aliases <<<
 ```
 
 ---

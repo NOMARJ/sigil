@@ -215,7 +215,7 @@ Manages the quarantine workflow and guides approval/rejection decisions.
 
 ### Enforcement Gate (PreToolUse Hook)
 
-The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A PreToolUse hook (`hooks/sigil-guard.sh`) inspects every Bash command Claude Code is about to run and applies this policy:
+The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A PreToolUse hook (`hooks/sigil-guard.sh`) inspects every Bash command Claude Code is about to run and applies this policy. When the Sigil CLI (v1.3.0+) is on PATH, the script delegates to the native `sigil hook pretooluse` implementation of the same policy; without it, the script's own dependency-free patterns apply.
 
 | Command pattern                                                        | Decision | Why                                                          |
 | ---------------------------------------------------------------------- | -------- | ------------------------------------------------------------ |
