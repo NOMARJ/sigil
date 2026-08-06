@@ -1,15 +1,25 @@
 {
   "name": "@nomark/sigil-mcp-server",
-  "version": "1.2.0",
-  "description": "Sigil Forge MCP server — security scanning and discovery tools for AI agent skills and MCP servers",
+  "version": "1.3.0",
+  "description": "Sigil MCP server — security scanning tools for AI agent code, packages, and repositories",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "sigil-mcp-server": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsc --watch"
   },

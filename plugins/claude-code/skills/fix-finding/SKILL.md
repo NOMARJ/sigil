@@ -1,7 +1,7 @@
 ---
 name: fix-finding
 description: Analyze a Sigil scan finding and propose a code fix with explanation
-allowed-tools: Bash(./bin/sigil *), Read, Edit, Grep, Glob
+allowed-tools: Bash(sigil *), Read, Edit, Grep, Glob
 ---
 
 # Fix Security Finding

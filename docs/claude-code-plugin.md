@@ -4,14 +4,16 @@ The Sigil Security plugin for Claude Code provides automated security auditing d
 
 ## Features
 
-### 🎯 Skills (4)
+### 🎯 Skills (6)
 
 Invoke security scans with the `/` slash command:
 
 - `/sigil-security:scan-repo` - Scan entire repositories for malicious patterns
 - `/sigil-security:scan-package` - Audit npm/pip packages before installation
 - `/sigil-security:scan-file` - Analyze specific files or code selections
-- `/sigil-security:quarantine-review` - Review and manage quarantine findings
+- `/sigil-security:review-quarantine` - Review and manage quarantine findings
+- `/sigil-security:fix-finding` - Analyze a scan finding and propose a code fix
+- `/sigil-security:generate-policy` - Generate a sandbox policy YAML from scan results
 
 ### 🤖 Agents (2)
 
@@ -20,14 +22,19 @@ Specialized security agents for deep analysis:
 - `@security-auditor` - Expert threat analysis, risk assessment, and remediation guidance
 - `@quarantine-manager` - Quarantine workflow coordination and approval decisions
 
-### 🔔 Hooks
+### 🚧 Enforcement Hooks
 
-Automatic security recommendations when you:
+The plugin enforces the quarantine-first workflow by default:
 
-- Mention "clone", "install", "security", "scan", "package", or "malware"
-- Use commands like `git clone`, `pip install`, or `npm install`
+- **PreToolUse gate** - Blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, `cargo`/`gem`/`go` installs, and curl-pipe-to-shell, redirecting to `sigil clone` / `sigil npm` / `sigil pip`. Lockfile restores (`npm ci`, `pip install -r`) and one-shot runners (`npx`, `dlx`, `pipx run`) prompt for confirmation instead of being blocked
+- **SessionStart check** - Verifies the `sigil` binary is available when a session starts
+- **Advisory prompts** - Suggests Sigil skills when you mention "clone", "install", "security", "scan", "package", or "malware"
 
-Claude Code will suggest using Sigil's quarantine-first workflow.
+Escape hatches: `SIGIL_BYPASS=1 <command>` allows a single command through; `SIGIL_GUARD_MODE=advise` downgrades denies to confirmation prompts; `SIGIL_GUARD_MODE=off` disables the gate.
+
+### 🔌 Bundled MCP Server
+
+Installing the plugin automatically registers Sigil's MCP server (`npx -y @nomark/sigil-mcp-server`), exposing 9 scanning and quarantine tools to Claude Code. See the [MCP guide](mcp.md).
 
 ## Installation
 
@@ -78,10 +85,10 @@ claude update
 
 ```bash
 # Add the Sigil marketplace
-claude plugin marketplace add https://github.com/NOMARJ/sigil.git
+claude plugin marketplace add NOMARJ/sigil
 
 # Install the plugin
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
 #### Option 2: From Release Archive
@@ -123,7 +130,7 @@ claude plugin list
 You should see:
 
 ```
-sigil-security@1.0.0 (enabled)
+sigil-security@1.1.0 (enabled)
 ```
 
 Test a skill:
@@ -214,7 +221,7 @@ Analyzes a specific file for:
 #### Review Quarantine
 
 ```
-/sigil-security:quarantine-review
+/sigil-security:review-quarantine
 ```
 
 Lists all quarantined items and helps you decide whether to approve or reject each one.
@@ -328,11 +335,9 @@ Recommended order:
 Would you like me to help with any specific item?
 ```
 
-### Automated Recommendations
+### Enforcement in Action
 
-The plugin automatically suggests Sigil when you:
-
-**Trigger words:**
+**Trigger words** (advisory prompts suggest Sigil skills):
 
 ```
 User: I want to clone this repo from GitHub
@@ -341,33 +346,32 @@ User: Can you check this code for security issues
 User: This package looks suspicious
 ```
 
-**Intercepted commands:**
+**Blocked commands** (PreToolUse gate denies and redirects):
 
 ```
-User: git clone https://github.com/someone/repo
-→ Claude: Before cloning, let me scan this with Sigil for security threats.
+Claude runs: git clone https://github.com/someone/repo
+→ BLOCKED: git clone pulls unscanned code. Use: sigil clone <url> (quarantine + scan first)
 
-User: pip install some-package
-→ Claude: I recommend scanning this package first with Sigil.
+Claude runs: pip install some-package
+→ BLOCKED: pip install with a package installs unscanned code. Use: sigil pip <pkg>
 
-User: npm install @someone/tool
-→ Claude: Let me check this npm package for malicious code before installing.
+Claude runs: npm ci
+→ ASK: Lockfile restore can still run install scripts from unreviewed dependencies. Confirm the lockfile is trusted.
 ```
+
+To let a specific command through, prefix it with `SIGIL_BYPASS=1`.
 
 ## Configuration
 
-### Default Agent
+### Enforcement Mode
 
-By default, the `security-auditor` agent is active. To change this, add to your Claude Code settings:
+Control the PreToolUse gate with environment variables:
 
-```json
-{
-  "plugins": {
-    "sigil-security": {
-      "agent": "quarantine-manager"
-    }
-  }
-}
+```bash
+SIGIL_GUARD_MODE=enforce   # default: deny risky installs/clones
+SIGIL_GUARD_MODE=advise    # every deny becomes a confirmation prompt
+SIGIL_GUARD_MODE=off       # disable the gate
+SIGIL_BYPASS=1 <command>   # allow one specific command through
 ```
 
 ### Auto-Approve Threshold
@@ -425,7 +429,7 @@ sigil --version
 claude plugin list
 
 # If not listed, install
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # If disabled, enable
 claude plugin enable sigil-security
@@ -443,7 +447,7 @@ claude plugin update sigil-security
 
 # Or reinstall
 claude plugin uninstall sigil-security
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
 ### Hooks not triggering

@@ -1,19 +1,19 @@
 ---
 name: review-quarantine
 description: Review items in Sigil quarantine and help decide whether to approve or reject them. Use when scan results are available or when managing quarantined code.
-allowed-tools: Bash(./bin/sigil *)
+allowed-tools: Bash(sigil *)
 ---
 
 # Quarantine Review
 
 Review and manage quarantined items:
 
-1. List quarantined items: `./bin/sigil list`
+1. List quarantined items: `sigil list`
 2. Review findings for each item
 3. Explain detected threats and risk levels
 4. Guide approval decision:
-   - `./bin/sigil approve <id>` - Move to working directory
-   - `./bin/sigil reject <id>` - Permanently delete
+   - `sigil approve <id>` - Move to working directory
+   - `sigil reject <id>` - Permanently delete
 
 **Decision criteria:**
 - CLEAN/LOW: Generally safe to approve

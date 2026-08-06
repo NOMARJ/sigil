@@ -18,7 +18,48 @@ const SIGIL_API_URL =
 const DISCLAIMER =
   "\n---\nDisclaimer: Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.";
 
+const INSTALL_ONE_LINER =
+  "curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh";
+
+const SIGIL_MISSING_TEXT = `The Sigil CLI ("${SIGIL_BINARY}") was not found on this system, so this tool cannot run a scan.
+
+To install Sigil:
+  ${INSTALL_ONE_LINER}
+
+If Sigil is already installed at a non-default location, set the SIGIL_BINARY environment variable to its full path and restart the MCP server. Database-backed tools (sigil_check_package, sigil_search_database) work without the CLI.`;
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+class SigilNotInstalledError extends Error {
+  constructor() {
+    super(`sigil binary not found: ${SIGIL_BINARY}`);
+  }
+}
+
+type TextToolResult = { content: { type: "text"; text: string }[] };
+
+function sigilMissingResult(): TextToolResult {
+  return { content: [{ type: "text" as const, text: SIGIL_MISSING_TEXT }] };
+}
+
+/**
+ * Wrap a CLI-backed tool handler so a missing sigil binary degrades to a
+ * normal text result (install instructions) instead of a thrown error.
+ */
+function guardSigil<A>(
+  handler: (args: A) => Promise<TextToolResult>
+): (args: A) => Promise<TextToolResult> {
+  return async (args: A) => {
+    try {
+      return await handler(args);
+    } catch (err: unknown) {
+      if (err instanceof SigilNotInstalledError) {
+        return sigilMissingResult();
+      }
+      throw err;
+    }
+  };
+}
 
 async function runSigil(
   args: string[]
@@ -29,13 +70,38 @@ async function runSigil(
       maxBuffer: 10 * 1024 * 1024,
     });
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; message?: string };
+    const e = err as {
+      code?: string;
+      stdout?: string;
+      stderr?: string;
+      message?: string;
+    };
+    if (e.code === "ENOENT") {
+      throw new SigilNotInstalledError();
+    }
     // sigil exits non-zero on findings — that's expected
     if (e.stdout) {
       return { stdout: e.stdout, stderr: e.stderr ?? "" };
     }
     throw new Error(e.stderr || e.message || "sigil execution failed");
   }
+}
+
+/**
+ * Startup probe: warn (on stderr — stdout is the MCP transport) if the sigil
+ * binary is missing. Never exits; CLI-backed tools degrade gracefully.
+ */
+function probeSigilBinary(): void {
+  execFile(SIGIL_BINARY, ["--version"], { timeout: 10_000 }, (err) => {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    if (code === "ENOENT") {
+      console.error(
+        `[sigil-mcp] warning: sigil binary "${SIGIL_BINARY}" not found. ` +
+          `CLI-backed tools will return install instructions instead of scan results. ` +
+          `Install with: ${INSTALL_ONE_LINER} — or set SIGIL_BINARY to the binary path.`
+      );
+    }
+  });
 }
 
 async function fetchAPI(path: string): Promise<unknown> {
@@ -71,7 +137,7 @@ async function fetchAPI(path: string): Promise<unknown> {
 
 const server = new McpServer({
   name: "sigil",
-  version: "1.2.0",
+  version: "1.3.0",
 });
 
 // ── Tool: scan ─────────────────────────────────────────────────────────────
@@ -85,14 +151,14 @@ server.tool(
       .string()
       .optional()
       .describe(
-        "Comma-separated scan phases: install_hooks,code_patterns,network_exfil,credentials,obfuscation,provenance"
+        "Comma-separated scan phases: install_hooks,code_patterns,network_exfil,credentials,obfuscation,provenance,prompt_injection,skill_security"
       ),
     severity: z
       .enum(["low", "medium", "high", "critical"])
       .optional()
       .describe("Minimum severity threshold"),
   },
-  async ({ path, phases, severity }) => {
+  guardSigil(async ({ path, phases, severity }) => {
     const args = ["--format", "json", "scan", path];
     if (phases) args.push("--phases", phases);
     if (severity) args.push("--severity", severity);
@@ -112,7 +178,7 @@ server.tool(
         { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
-  }
+  })
 );
 
 // ── Tool: scan_package ─────────────────────────────────────────────────────
@@ -130,7 +196,7 @@ server.tool(
       .optional()
       .describe("Specific version to scan"),
   },
-  async ({ manager, package_name, version }) => {
+  guardSigil(async ({ manager, package_name, version }) => {
     const args = ["--format", "json", manager, package_name];
     if (version) args.push("--version", version);
 
@@ -149,7 +215,7 @@ server.tool(
         { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
-  }
+  })
 );
 
 // ── Tool: clone_and_scan ───────────────────────────────────────────────────
@@ -161,7 +227,7 @@ server.tool(
     url: z.string().describe("Git repository URL"),
     branch: z.string().optional().describe("Specific branch to clone"),
   },
-  async ({ url, branch }) => {
+  guardSigil(async ({ url, branch }) => {
     const args = ["--format", "json", "clone", url];
     if (branch) args.push("--branch", branch);
 
@@ -180,7 +246,7 @@ server.tool(
         { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
       ],
     };
-  }
+  })
 );
 
 // ── Tool: quarantine_list ──────────────────────────────────────────────────
@@ -189,7 +255,7 @@ server.tool(
   "sigil_quarantine",
   "List all items currently in the Sigil quarantine, showing their scan status and verdict.",
   {},
-  async () => {
+  guardSigil(async () => {
     const { stdout } = await runSigil(["list", "--format", "json"]);
     const entries = JSON.parse(stdout);
 
@@ -209,7 +275,7 @@ server.tool(
     return {
       content: [{ type: "text" as const, text }],
     };
-  }
+  })
 );
 
 // ── Tool: approve / reject ─────────────────────────────────────────────────
@@ -220,14 +286,14 @@ server.tool(
   {
     quarantine_id: z.string().describe("Quarantine entry ID"),
   },
-  async ({ quarantine_id }) => {
+  guardSigil(async ({ quarantine_id }) => {
     const { stdout, stderr } = await runSigil(["approve", quarantine_id]);
     return {
       content: [
         { type: "text" as const, text: stdout || stderr || "Approved." },
       ],
     };
-  }
+  })
 );
 
 server.tool(
@@ -236,14 +302,14 @@ server.tool(
   {
     quarantine_id: z.string().describe("Quarantine entry ID"),
   },
-  async ({ quarantine_id }) => {
+  guardSigil(async ({ quarantine_id }) => {
     const { stdout, stderr } = await runSigil(["reject", quarantine_id]);
     return {
       content: [
         { type: "text" as const, text: stdout || stderr || "Rejected." },
       ],
     };
-  }
+  })
 );
 
 // ── Tool: check_package (query public scan database) ─────────────────────
@@ -390,24 +456,48 @@ server.tool(
 
 server.tool(
   "sigil_report_threat",
-  "Flag a suspicious package or skill to the Sigil threat intelligence database. Reports are reviewed by the security team.",
+  "Report a malicious file to the Sigil threat intelligence database by its SHA256 hash. Requires the Sigil CLI and an authenticated session (sigil login). Reports are reviewed by the security team.",
   {
-    package_name: z.string().describe("Name of the suspicious package"),
-    ecosystem: z
-      .enum(["clawhub", "pypi", "npm", "github", "mcp"])
-      .describe("Package ecosystem"),
-    reason: z.string().describe("Why you believe this package is malicious"),
+    sha256: z
+      .string()
+      .regex(/^[a-fA-F0-9]{64}$/, "must be a 64-character hex SHA256 hash")
+      .describe("SHA256 hash of the malicious file"),
+    threat_type: z
+      .string()
+      .describe("Type of threat (e.g. malware, backdoor, exfil)"),
+    description: z.string().describe("Description of the threat"),
   },
-  async ({ package_name, ecosystem, reason }) => {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Threat report noted for ${ecosystem}/${package_name}.\nReason: ${reason}\n\nTo submit formally, run: sigil report --package "${package_name}" --ecosystem "${ecosystem}" --reason "${reason}"`,
-        },
-      ],
-    };
-  }
+  guardSigil(async ({ sha256, threat_type, description }) => {
+    try {
+      const { stdout, stderr } = await runSigil([
+        "report",
+        sha256,
+        "--threat-type",
+        threat_type,
+        "--description",
+        description,
+      ]);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: stdout || stderr || "Threat report submitted.",
+          },
+        ],
+      };
+    } catch (err: unknown) {
+      if (err instanceof SigilNotInstalledError) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Threat report failed: ${msg}\n\nNote: reporting requires authentication (run: sigil login). Manual invocation:\n  sigil report ${sha256} --threat-type "${threat_type}" --description "<description>"`,
+          },
+        ],
+      };
+    }
+  })
 );
 
 // Forge tools removed - discovery feature sunset
@@ -447,7 +537,16 @@ server.resource(
 
 6. Provenance (Low, 1-3x weight)
    Checks code origin: binary files, hidden dotfiles, git history
-   anomalies, unsigned commits, suspicious file permissions.`,
+   anomalies, unsigned commits, suspicious file permissions.
+
+7. Prompt Injection (Critical, 10x weight)
+   Detects AI agent instruction injection: hidden directives in
+   READMEs, docs, comments, and tool descriptions that attempt to
+   override or manipulate agent behavior.
+
+8. Skill Security (High, 5x weight)
+   Audits AI agent skills and MCP tooling: permission escalation,
+   overbroad tool scopes, unsafe skill and server manifests.`,
       },
     ],
   })
@@ -456,6 +555,7 @@ server.resource(
 // ── Start ──────────────────────────────────────────────────────────────────
 
 async function main() {
+  probeSigilBinary();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
