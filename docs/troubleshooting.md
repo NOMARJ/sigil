@@ -47,7 +47,7 @@ chmod +x ~/bin/sigil
 export PATH="$HOME/bin:$PATH"
 ```
 
-### Shell aliases not loading after `sigil aliases`
+### Shell aliases not loading after `sigil setup shell`
 
 Aliases are written to your shell config file but only take effect in new sessions.
 

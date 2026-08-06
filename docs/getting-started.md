@@ -233,22 +233,16 @@ Approved code is moved to `~/.sigil/approved/<id>/`. You can then copy or symlin
 Sigil can install shell aliases that wrap your existing commands with automatic quarantine and scanning:
 
 ```bash
-sigil aliases
+sigil setup shell
 ```
 
 This adds the following aliases to your `.bashrc` or `.zshrc`:
 
-| Alias             | What It Does                                            |
-| ----------------- | ------------------------------------------------------- |
-| `gclone <url>`    | `git clone` with quarantine + scan                      |
-| `safepip <pkg>`   | `pip install` with scan first, prompts to install after |
-| `safenpm <pkg>`   | `npm install` with scan first, prompts to install after |
-| `safefetch <url>` | Download + quarantine + scan                            |
-| `audit <path>`    | Shortcut for `sigil scan`                               |
-| `audithere`       | Scan the current directory                              |
-| `qls`             | Show quarantine status                                  |
-| `qapprove`        | Approve the most recent quarantined item                |
-| `qreject`         | Reject the most recent quarantined item                 |
+| Alias           | What It Does                       |
+| --------------- | ---------------------------------- |
+| `gclone <url>`  | `git clone` with quarantine + scan |
+| `safepip <pkg>` | `pip install` with scan first      |
+| `safenpm <pkg>` | `npm install` with scan first      |
 
 After installation, reload your shell:
 
@@ -256,25 +250,16 @@ After installation, reload your shell:
 source ~/.bashrc   # or source ~/.zshrc
 ```
 
-You can also print the aliases without installing them:
-
-```bash
-sigil aliases --print
-```
-
 ## Git Hooks Setup
 
-Install a pre-commit hook that scans staged files for dangerous patterns:
+Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
 # Install in the current repository
-sigil hooks
-
-# Install in a specific repository
-sigil hooks /path/to/repo
+sigil setup git
 ```
 
-The pre-commit hook checks every staged file for patterns like `eval()`, `exec()`, `__import__()`, `subprocess` with `shell=True`, `os.system`, `pickle.loads`, and `child_process`. If any are found, the commit is blocked with a warning. You can bypass it with `git commit --no-verify` when you know the pattern is safe.
+The pre-commit hook runs `sigil scan . --fail-on high` — all eight scan phases — and blocks the commit on HIGH or CRITICAL findings. You can bypass it with `git commit --no-verify` when you know a finding is safe.
 
 ## Connecting to Cloud (sigil login)
 
