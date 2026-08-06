@@ -26,19 +26,21 @@ sh install.sh
 # Option 2: Homebrew
 brew install nomarj/tap/sigil
 
-# Option 3: Manual
-git clone https://github.com/NOMARJ/sigil.git
-chmod +x sigil/bin/sigil
-sudo cp sigil/bin/sigil /usr/local/bin/sigil
+# Option 3: Build from source (Rust)
+cargo install sigil-cli
 ```
+
+> **Note**: The `sigil` package name on crates.io is occupied by an unrelated project — the Rust CLI is published as `sigil-cli`.
 
 Verify: `sigil help`
 
 ### 2. Configure Your Client
 
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm. The `npx`-based configurations below are the target state and will work once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js` — see [Building from Source](#building-from-source-current-working-path) below.
+
 #### Claude Code (Plugin — Recommended)
 
-The Sigil Claude Code plugin registers the MCP server automatically. No manual MCP configuration is needed:
+The Sigil Claude Code plugin registers the MCP server automatically — the automatic `npx`-based registration takes effect once `@nomark/sigil-mcp-server` is published to npm. No manual MCP configuration is needed:
 
 ```bash
 claude plugin marketplace add NOMARJ/sigil
@@ -92,9 +94,9 @@ Open **Settings > MCP Servers** and add:
 
 Open **Settings > MCP** and add the same configuration as Cursor.
 
-#### Building from Source (Optional)
+#### Building from Source (Current Working Path)
 
-If you prefer to run from a local checkout instead of `npx`:
+Until `@nomark/sigil-mcp-server` is published to npm, this is the working install path (it also works if you simply prefer a local checkout):
 
 ```bash
 cd plugins/mcp-server
@@ -361,6 +363,8 @@ Agent runs on a schedule or on demand
   }
 }
 ```
+
+(Until `@nomark/sigil-mcp-server` v1.3.0 is published to npm, replace the `npx` command/args with `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]`.)
 
 ---
 

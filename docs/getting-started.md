@@ -76,7 +76,7 @@ You should see the Sigil help menu listing all available commands.
 
 ## Installing Optional Security Scanners
 
-Sigil's built-in scanner runs all six phases without any external tools. However, installing additional scanners improves detection quality:
+Sigil's built-in scanner runs all eight phases without any external tools. However, installing additional scanners improves detection quality:
 
 ```bash
 # Python security scanners
@@ -110,7 +110,7 @@ sigil clone https://github.com/someone/interesting-mcp-server
 What happens:
 
 1. Sigil clones the repository into `~/.sigil/quarantine/<id>/` (shallow clone, depth 1)
-2. The six scan phases run against the quarantined copy
+2. The eight scan phases run against the quarantined copy
 3. External scanners run if available
 4. A risk score and verdict are displayed
 5. A detailed report is saved to `~/.sigil/reports/`
@@ -290,7 +290,7 @@ This prompts for your email and password (or opens a browser for SSO). After aut
 
 | Feature                      | Offline | Authenticated   |
 | ---------------------------- | ------- | --------------- |
-| Six scan phases              | Yes     | Yes             |
+| Eight scan phases            | Yes     | Yes             |
 | External scanner integration | Yes     | Yes             |
 | Threat intelligence lookups  | No      | Yes             |
 | Publisher reputation scores  | No      | Yes             |

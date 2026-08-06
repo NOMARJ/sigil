@@ -26,15 +26,17 @@ If the Sigil CLI binary is not found, CLI-backed tools return install instructio
 
 ## Installation
 
-### Via npx (recommended)
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm. The `npx` path below is the target state and will work once the package is published. Until then, install from source and point your MCP client at `node .../dist/index.js`.
 
-No install step needed — MCP clients can launch the published package directly:
+### Via npx (once published)
+
+Once the package is published to npm, no install step will be needed — MCP clients can launch it directly:
 
 ```bash
 npx -y @nomark/sigil-mcp-server
 ```
 
-### From source
+### From source (current working path)
 
 ```bash
 cd plugins/mcp-server
@@ -55,15 +57,17 @@ Without it, the server still starts and the database-backed tools still work.
 
 ## Configuration
 
+> **Note**: The `npx`-based configurations below take effect once `@nomark/sigil-mcp-server` v1.3.0 is published to npm. Until then, build from source (see above) and use `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]` instead of the `npx` command/args.
+
 ### Claude Code (via the Sigil plugin — automatic)
 
-The `sigil-security` Claude Code plugin registers this MCP server automatically through the `mcpServers` field in its `plugin.json`:
+The `sigil-security` Claude Code plugin registers this MCP server automatically through the `mcpServers` field in its `plugin.json` — the automatic registration takes effect once the package is published to npm:
 
 ```bash
 claude plugin install sigil-security@sigil-marketplace
 ```
 
-No manual MCP configuration is needed when the plugin is installed.
+Once the package is published, no manual MCP configuration is needed when the plugin is installed.
 
 ### Claude Code / any MCP client (manual)
 

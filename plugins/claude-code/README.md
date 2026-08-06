@@ -247,6 +247,8 @@ UserPromptSubmit hooks additionally suggest Sigil skills when you mention "clone
 
 Installing the plugin also registers Sigil's MCP server (`npx -y @nomark/sigil-mcp-server`), giving Claude Code direct tool access to scanning, quarantine management, and the public scan database. See [docs/mcp.md](../../docs/mcp.md) for the full tool reference.
 
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm, so the automatic `npx`-based registration takes effect once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js`.
+
 ## Examples
 
 ### Scan a Suspicious MCP Server

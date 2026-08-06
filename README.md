@@ -22,15 +22,16 @@ Sigil fills this gap with a **quarantine-first approach**.
 
 ## Quick Install
 
-**Install from Source (Current):**
+**Install via Script (Current):**
 
 ```bash
 # Clone the repository
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil
 
-# Run the installer — installs the CLI and wires up the Claude Code
-# integration by default (opt out with --no-integrations)
+# Run the installer — downloads the prebuilt release binary for your
+# platform and wires up the Claude Code integration by default
+# (opt out with --no-integrations)
 ./install.sh
 
 # Optional: add gclone/safepip/safenpm shell aliases
@@ -217,6 +218,8 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
   }
 }
 ```
+
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm — the `npx` config above will work once it is. Until then, build from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js`.
 
 [**→ See MCP integration guide**](docs/mcp.md)
 

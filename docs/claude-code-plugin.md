@@ -36,6 +36,8 @@ Escape hatches: `SIGIL_BYPASS=1 <command>` allows a single command through; `SIG
 
 Installing the plugin automatically registers Sigil's MCP server (`npx -y @nomark/sigil-mcp-server`), exposing 9 scanning and quarantine tools to Claude Code. See the [MCP guide](mcp.md).
 
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm, so the automatic `npx`-based registration takes effect once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js` — see the [MCP guide](mcp.md) for the manual config.
+
 ## Installation
 
 ### Prerequisites

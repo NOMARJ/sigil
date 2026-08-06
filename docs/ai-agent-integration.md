@@ -16,7 +16,7 @@ claude plugin install sigil-security@sigil-marketplace
 That single install gives you everything:
 
 - **Enforcement gate** — a PreToolUse hook blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, and curl-pipe-to-shell inside Claude Code sessions, redirecting them through Sigil's quarantine-first equivalents. Lockfile restores and one-shot runners (`npx`, `dlx`) prompt for confirmation. Override per-command with `SIGIL_BYPASS=1`, or set `SIGIL_GUARD_MODE=advise|off` to soften or disable it
-- **MCP server** — `@nomark/sigil-mcp-server` is registered automatically, exposing Sigil's scanning tools to Claude directly
+- **MCP server** — `@nomark/sigil-mcp-server` is registered automatically, exposing Sigil's scanning tools to Claude directly. The automatic `npx`-based registration takes effect once the package is published to npm (v1.3.0 is not yet published); until then, build from source and register it manually — see the note below
 - **6 skills** — `/sigil-security:scan-repo`, `scan-package`, `scan-file`, `review-quarantine`, `fix-finding`, `generate-policy`
 - **2 agents** — `@security-auditor` and `@quarantine-manager`
 - **Session check** — a SessionStart hook verifies the `sigil` binary is installed
@@ -73,6 +73,8 @@ Any AI agent that supports MCP (Model Context Protocol) can use Sigil's security
   }
 }
 ```
+
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm — the `npx` config above will work once it is. Until then, build from source (`cd plugins/mcp-server && npm install && npm run build`) and use `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]` instead.
 
 See the [MCP integration guide](mcp.md) for full tool schemas and environment variables (`SIGIL_BINARY`, `SIGIL_API_URL`).
 
