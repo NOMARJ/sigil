@@ -1,7 +1,7 @@
 ---
 name: scan-repo
 description: Scan a repository or directory for security threats using Sigil. Use when auditing AI agent code, reviewing cloned repositories, checking dependencies, or analyzing suspicious packages. Auto-invoke when users clone repos or install packages from untrusted sources.
-allowed-tools: Bash(./bin/sigil *)
+allowed-tools: Bash(sigil *)
 ---
 
 # Security Scan with Sigil
@@ -15,7 +15,7 @@ Scan the target repository/directory for malicious patterns:
 
 **Usage:**
 ```bash
-./bin/sigil scan <path>
+sigil scan <path>
 ```
 
 **Output interpretation:**

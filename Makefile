@@ -3,10 +3,10 @@
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install sigil to /usr/local/bin
-	chmod +x bin/sigil
-	sudo cp bin/sigil /usr/local/bin/sigil
-	@echo "Installed. Run: sigil install"
+install: cli-build ## Build and install the Rust sigil CLI to /usr/local/bin
+	# bin/ holds the legacy bash CLI (superseded by cli/) — no longer installed
+	sudo cp cli/target/release/sigil /usr/local/bin/sigil
+	@echo "Installed: /usr/local/bin/sigil"
 
 test: ## Run sigil self-scan
 	./bin/sigil scan .

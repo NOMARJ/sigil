@@ -1,7 +1,7 @@
 ---
 name: generate-policy
 description: Generate a Sigil sandbox policy YAML from scan results for secure agent execution
-allowed-tools: Bash(./bin/sigil *), Read, Write, Glob
+allowed-tools: Bash(sigil *), Read, Write, Glob
 ---
 
 # Generate Sandbox Policy
@@ -10,7 +10,7 @@ Generate a Sigil security policy YAML file based on scan results. The policy con
 
 ## Process
 
-1. **Scan the target** — Run `./bin/sigil scan <path>` to get findings
+1. **Scan the target** — Run `sigil scan <path>` to get findings
 2. **Analyze findings** — Map each finding to a policy restriction:
    - Phase 1 (Install Hooks) → Filesystem restrictions (read-only paths)
    - Phase 3 (Network) → Network allowlist (only permit known-good endpoints)

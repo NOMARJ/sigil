@@ -8,7 +8,7 @@ Connect Sigil to AI agents via the Model Context Protocol (MCP). This gives Clau
 
 AI coding agents install packages, clone repositories, and fetch files autonomously. An agent with `npm install` access and no scanning is a supply chain attack waiting to happen — it cannot distinguish a legitimate package from a typosquatted one containing a `postinstall` hook that exfiltrates your API keys.
 
-Sigil's MCP server solves this by giving agents six tools they can call before taking any action that introduces external code. The agent scans first, checks the verdict, and only proceeds if the code is clean.
+Sigil's MCP server solves this by giving agents nine tools they can call before taking any action that introduces external code. The agent scans first, checks the verdict, and only proceeds if the code is clean.
 
 ---
 
@@ -26,27 +26,28 @@ sh install.sh
 # Option 2: Homebrew
 brew install nomarj/tap/sigil
 
-# Option 3: Manual
-git clone https://github.com/NOMARJ/sigil.git
-chmod +x sigil/bin/sigil
-sudo cp sigil/bin/sigil /usr/local/bin/sigil
+# Option 3: Build from source (Rust)
+cargo install sigil-cli
 ```
+
+> **Note**: The `sigil` package name on crates.io is occupied by an unrelated project — the Rust CLI is published as `sigil-cli`.
 
 Verify: `sigil help`
 
-### 2. Build the MCP Server
+### 2. Configure Your Client
+
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm. The `npx`-based configurations below are the target state and will work once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js` — see [Building from Source](#building-from-source-current-working-path) below.
+
+#### Claude Code (Plugin — Recommended)
+
+The Sigil Claude Code plugin registers the MCP server automatically — the automatic `npx`-based registration takes effect once `@nomark/sigil-mcp-server` is published to npm. No manual MCP configuration is needed:
 
 ```bash
-cd plugins/mcp-server
-npm install
-npm run build
+claude plugin marketplace add NOMARJ/sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
-This compiles `src/index.ts` to `dist/index.js`.
-
-### 3. Configure Your Client
-
-#### Claude Code
+#### Claude Code (Manual)
 
 Add to `~/.claude/claude_desktop_config.json`:
 
@@ -54,8 +55,8 @@ Add to `~/.claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/absolute/path/to/sigil/plugins/mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
     }
   }
 }
@@ -69,8 +70,8 @@ Add a `.mcp.json` file to your project root:
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["./plugins/mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
     }
   }
 }
@@ -83,8 +84,8 @@ Open **Settings > MCP Servers** and add:
 ```json
 {
   "sigil": {
-    "command": "node",
-    "args": ["/absolute/path/to/sigil/plugins/mcp-server/dist/index.js"]
+    "command": "npx",
+    "args": ["-y", "@nomark/sigil-mcp-server"]
   }
 }
 ```
@@ -93,21 +94,44 @@ Open **Settings > MCP Servers** and add:
 
 Open **Settings > MCP** and add the same configuration as Cursor.
 
+#### Building from Source (Current Working Path)
+
+Until `@nomark/sigil-mcp-server` is published to npm, this is the working install path (it also works if you simply prefer a local checkout):
+
+```bash
+cd plugins/mcp-server
+npm install
+npm run build
+```
+
+Then point your client at the compiled entry point:
+
+```json
+{
+  "mcpServers": {
+    "sigil": {
+      "command": "node",
+      "args": ["/absolute/path/to/sigil/plugins/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
 ---
 
 ## Available Tools
 
-The MCP server exposes six tools and one resource.
+The MCP server exposes nine tools and one resource.
 
 ### sigil_scan
 
 Scan a file or directory for security issues.
 
-| Parameter  | Type   | Required | Description                                                                                                                 |
-| ---------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `path`     | string | Yes      | File or directory path to scan                                                                                              |
-| `phases`   | string | No       | Comma-separated phase filter: `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance` |
-| `severity` | string | No       | Minimum severity threshold: `low`, `medium`, `high`, `critical`                                                             |
+| Parameter  | Type   | Required | Description                                                                                                                                                                     |
+| ---------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`     | string | Yes      | File or directory path to scan                                                                                                                                                  |
+| `phases`   | string | No       | Comma-separated phase filter: `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance`, `prompt_injection`, `skill_security` |
+| `severity` | string | No       | Minimum severity threshold: `low`, `medium`, `high`, `critical`                                                                                                                 |
 
 **Returns:** Verdict, risk score, findings count, duration, and detailed findings with file paths, line numbers, and matched patterns.
 
@@ -200,9 +224,47 @@ Reject and permanently delete a quarantined item.
 
 ---
 
+### sigil_check_package
+
+Look up a package or skill's risk assessment in the Sigil public scan database. Works without the Sigil CLI installed — it queries the API directly.
+
+| Parameter      | Type                                              | Required | Description                                            |
+| -------------- | ------------------------------------------------- | -------- | ------------------------------------------------------ |
+| `ecosystem`    | `"clawhub"`, `"pypi"`, `"npm"`, `"github"`, `"mcp"` | Yes      | Package ecosystem                                      |
+| `package_name` | string                                            | Yes      | Package name, skill slug, or repo path (e.g. `todoist-cli`) |
+
+**Returns:** Verdict, risk score, findings count, scan date, report/badge URLs, and up to five top findings. If the package has not been scanned, the tool suggests a local scan instead.
+
+---
+
+### sigil_search_database
+
+Search the Sigil public scan database for packages by name or keyword. Also works without the Sigil CLI installed.
+
+| Parameter   | Type                                              | Required | Description                          |
+| ----------- | ------------------------------------------------- | -------- | ------------------------------------ |
+| `query`     | string                                            | Yes      | Search query (package name or keyword) |
+| `ecosystem` | `"clawhub"`, `"pypi"`, `"npm"`, `"github"`, `"mcp"` | No       | Filter by ecosystem                  |
+
+**Returns:** Up to 10 matching packages with their verdicts and risk scores.
+
+---
+
+### sigil_report_threat
+
+Report a malicious file to the Sigil threat intelligence database by its SHA256 hash. Requires the Sigil CLI and an authenticated session (`sigil login`). Reports are reviewed by the security team.
+
+| Parameter     | Type   | Required | Description                                       |
+| ------------- | ------ | -------- | ------------------------------------------------- |
+| `sha256`      | string | Yes      | SHA256 hash of the malicious file (64 hex chars)  |
+| `threat_type` | string | Yes      | Type of threat (e.g. `malware`, `backdoor`, `exfil`) |
+| `description` | string | Yes      | Description of the threat                         |
+
+---
+
 ### Resource: sigil://docs/phases
 
-A read-only resource that provides documentation about Sigil's six scan phases. Agents can read this resource to understand what each phase detects and how scoring works.
+A read-only resource that provides documentation about Sigil's eight scan phases. Agents can read this resource to understand what each phase detects and how scoring works.
 
 **URI:** `sigil://docs/phases`
 
@@ -281,9 +343,10 @@ Agent runs on a schedule or on demand
 
 ## Environment Variables
 
-| Variable       | Default | Description                                                               |
-| -------------- | ------- | ------------------------------------------------------------------------- |
-| `SIGIL_BINARY` | `sigil` | Path to the Sigil CLI binary. Set this if `sigil` is not in your `$PATH`. |
+| Variable        | Default                   | Description                                                               |
+| --------------- | ------------------------- | ------------------------------------------------------------------------- |
+| `SIGIL_BINARY`  | `sigil`                   | Path to the Sigil CLI binary. Set this if `sigil` is not in your `$PATH`. |
+| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Base URL for the public scan database used by `sigil_check_package` and `sigil_search_database`. |
 
 **Example:** If Sigil is installed in a custom location:
 
@@ -291,8 +354,8 @@ Agent runs on a schedule or on demand
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/path/to/plugins/mcp-server/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"],
       "env": {
         "SIGIL_BINARY": "/opt/sigil/bin/sigil"
       }
@@ -301,21 +364,21 @@ Agent runs on a schedule or on demand
 }
 ```
 
+(Until `@nomark/sigil-mcp-server` v1.3.0 is published to npm, replace the `npx` command/args with `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]`.)
+
 ---
 
 ## Troubleshooting
 
-### MCP server won't start
+### "Sigil CLI was not found"
 
-**Error:** `"sigil execution failed"`
-
-The MCP server cannot find the `sigil` binary. Fix:
+The server starts and stays usable even when the `sigil` binary is missing — CLI-backed tools return install instructions instead of failing, and the database tools (`sigil_check_package`, `sigil_search_database`) keep working. To restore full functionality:
 
 ```bash
 # Check if sigil is in PATH
 which sigil
 
-# If not, set the SIGIL_BINARY environment variable in your MCP config
+# If not, install it — or set the SIGIL_BINARY environment variable in your MCP config
 ```
 
 ### Scans timeout

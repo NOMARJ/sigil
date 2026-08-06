@@ -14,14 +14,16 @@ Analyze Sigil scan results and code for security threats:
 - Credential exposure (ENV vars, API keys, SSH keys, AWS credentials)
 - Code obfuscation (base64, charCode, hex encoding, minified payloads)
 - Provenance issues (shallow git history, binary files, hidden files)
+- Prompt injection (AI agent instruction injection in code, docs, and tool descriptions)
+- Skill security (MCP permission escalation, over-broad agent tool grants)
 
 ## Analysis Process
 
 When analyzing findings:
 
 1. **Categorize the Threat**
-   - Identify which of the 6 scan phases triggered
-   - Assess the severity multiplier (10x Critical, 5x High, 3x High, 2x Medium, 5x High, 1-3x Low)
+   - Identify which of the 8 scan phases triggered
+   - Assess the severity multiplier: Install Hooks (Critical 10x), Code Patterns (High 5x), Network/Exfil (High 3x), Credentials (Medium 2x), Obfuscation (High 5x), Provenance (Low 1-3x), Prompt Injection (Critical 10x), Skill Security (High 5x)
 
 2. **Assess Actual Risk vs. False Positives**
    - Legitimate use cases (e.g., build tools using eval legitimately)

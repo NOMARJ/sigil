@@ -15,7 +15,7 @@ The system is organized into three layers that can operate independently or in c
 |  +-------------------------+                                          |
 |  |      CLI (bin/sigil)    |   Bash today, Rust (cli/) in future      |
 |  |  - quarantine manager   |                                          |
-|  |  - 6-phase scanner      |   Runs fully offline. No account needed. |
+|  |  - 8-phase scanner      |   Runs fully offline. No account needed. |
 |  |  - verdict engine       |                                          |
 |  +----------+--------------+                                          |
 |             |                                                         |
@@ -49,10 +49,10 @@ The system is organized into three layers that can operate independently or in c
 
 **Location:** `bin/sigil` (Bash), `cli/` (future Rust binary)
 
-The CLI is the primary interface for developers. It manages the quarantine directory, runs all six scan phases locally, and produces a risk score and verdict. Key responsibilities:
+The CLI is the primary interface for developers. It manages the quarantine directory, runs all eight scan phases locally, and produces a risk score and verdict. Key responsibilities:
 
 - Quarantine lifecycle management (clone, download, scan, approve, reject)
-- Six-phase security analysis with weighted scoring
+- Eight-phase security analysis with weighted scoring
 - Shell alias installation for transparent protection (`gclone`, `safepip`, `safenpm`)
 - Git pre-commit hook installation
 - Integration with external scanners (semgrep, bandit, trufflehog, safety)
@@ -112,7 +112,7 @@ A Next.js web application that provides a visual interface for scan history, tea
        +-----+-----+ +----+------+
        | Quarantine | | Scanner   |
        | Manager    | | Engine    |
-       | (copy to   | | (6 phases |
+       | (copy to   | | (8 phases |
        |  ~/.sigil/ | |  + ext)   |
        |  quarantine)|            |
        +-----+------+ +----+-----+
@@ -168,13 +168,15 @@ A Next.js web application that provides a visual interface for scan history, tea
    Nothing is executed. No install hooks run.
         |
         v
-3. ANALYSIS (6 phases, all local)
+3. ANALYSIS (8 phases, all local)
    Phase 1: Install Hook Scanner     (weight 10x)
    Phase 2: Code Pattern Scanner     (weight 5x)
    Phase 3: Network/Exfil Scanner    (weight 3x)
    Phase 4: Credential Scanner       (weight 2x)
    Phase 5: Obfuscation Scanner      (weight 5x)
    Phase 6: Provenance Scanner       (weight 1-3x)
+   Phase 7: Prompt Injection Scanner (weight 10x)
+   Phase 8: Skill Security Scanner   (weight 5x)
         |
         + External scanners (semgrep, bandit, trufflehog, safety)
         + Dependency analysis
@@ -259,10 +261,10 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ### Offline Mode (Default)
 
-All six scan phases run locally without any network calls. This is the default behavior and requires no account or internet connection. The CLI uses built-in pattern matching and any locally installed external scanners.
+All eight scan phases run locally without any network calls. This is the default behavior and requires no account or internet connection. The CLI uses built-in pattern matching and any locally installed external scanners.
 
 What works offline:
-- All six scan phases with full scoring
+- All eight scan phases with full scoring
 - External scanner integration (semgrep, bandit, trufflehog, safety)
 - Quarantine management (approve, reject, list)
 - Shell aliases and git hooks
