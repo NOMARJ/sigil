@@ -4,6 +4,7 @@
 **Story:** US-003 — test-mode Stripe webhook endpoint must subscribe to all 6 required events before US-005 (test-mode round-trip) can execute.
 **Status:** PARTIAL — autopilot blocked on Stripe credentials for `acct_1RkD8NFhPhxEz27f` (Sigil/NOMARK account); operator runbook below.
 **Captured:** 2026-05-04 (autopilot, branch `feature/f-003-closeout`)
+**Re-attempted:** 2026-06-21 (autopilot, branch `claude/admiring-hopper-0q4dj4`, NOM-884)
 
 ---
 
@@ -148,3 +149,21 @@ Verdict: PASS — STORY-101 parity achieved for test mode; US-005 unblocked.
 ## Why This Is PARTIAL Not BLOCKED
 
 This is not a model limitation — Stripe's API supports the operation, the operator has credentials, and the runbook above is unambiguous. The block is purely a credential-sharing boundary: autopilot does not read secrets out of Azure to run a curl that the operator can run in 30 seconds with a Dashboard click. STORY-101 followed the same pattern (operator-authorized POST against live-mode); this is the test-mode mirror.
+
+## Re-attempt Log
+
+### 2026-05-04 (autopilot, branch `feature/f-003-closeout`)
+
+All three blocking conditions first confirmed on this date. Stripe MCP connected to `acct_1RkD8NFhPhxEz27f` but `GetWebhookEndpoints` unavailable. Stripe CLI on wrong account. CHARTER II.5 forbids Azure secret access. Runbook written; verbatim `enabled_events` capture deferred to operator.
+
+### 2026-06-21 (autopilot, branch `claude/admiring-hopper-0q4dj4`, NOM-884)
+
+All three blocking conditions confirmed unchanged:
+
+1. **Stripe MCP `GetWebhookEndpoints` — still unavailable.** Returns "Operation not available" in this session. No webhook endpoint management operations are exposed by the Stripe MCP in this cloud environment.
+
+2. **Stripe CLI wrong account — still misconfigured.** Active CLI project is `acct_1TNsZTFvlPr69lA2` (exectables), not Sigil/NOMARK `acct_1RkD8NFhPhxEz27f`. Any `stripe webhook_endpoints list` call would query the wrong account.
+
+3. **CHARTER II.5 credential boundary — unchanged.** The `sk_test_*` key for the Sigil Stripe account lives in Azure Key Vault / Container App secrets. Autopilot does not read secrets out of Container App config.
+
+**Conclusion:** Runbook above remains valid and complete. No new agent-executable path identified. Operator action still required. Options A, B, and C above are all viable paths — Option B (Stripe Dashboard toggle to test mode → Developers → Webhooks) requires no CLI setup and is the fastest path. Linear comment on NOM-884 contains the operator handoff summary.
