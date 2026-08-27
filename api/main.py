@@ -42,6 +42,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sigil.api")
 
+# ---------------------------------------------------------------------------
+# Sentry error tracking (optional — enabled only when SIGIL_SENTRY_DSN is set)
+# ---------------------------------------------------------------------------
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.sentry_environment,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            release=f"sigil-api@{settings.app_version}",
+            # Never attach request bodies or local variables: scan payloads
+            # can contain customer source code (see docs/data-handling.md).
+            send_default_pii=False,
+            max_request_body_size="never",
+            include_local_variables=False,
+        )
+        logger.info(
+            "Sentry error tracking enabled (environment=%s)",
+            settings.sentry_environment,
+        )
+    except ImportError:
+        logger.warning(
+            "SIGIL_SENTRY_DSN is set but sentry-sdk is not installed — "
+            "error tracking is DISABLED. Add sentry-sdk[fastapi] to the "
+            "environment to enable it."
+        )
+
 
 # ---------------------------------------------------------------------------
 # Lifespan — connect/disconnect external services
@@ -61,20 +90,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
         )
 
-    # Validate Stripe configuration consistency
+    # Validate Stripe configuration consistency. A Stripe key without price
+    # IDs means every paid checkout is rejected with a 400 — fail loudly here
+    # instead of letting the first paying customer discover it.
     if settings.stripe_configured:
-        placeholders = [
-            v
-            for v in [
-                settings.stripe_price_pro,
-                settings.stripe_price_team,
-            ]
-            if "placeholder" in v
-        ]
-        if placeholders:
-            logger.warning(
-                "Stripe is configured but price IDs contain placeholders. "
-                "Set SIGIL_STRIPE_PRICE_PRO and SIGIL_STRIPE_PRICE_TEAM."
+        missing_prices = settings.missing_stripe_price_ids
+        if missing_prices:
+            logger.critical(
+                "BILLING: Stripe is configured but subscription price IDs are "
+                "missing — paid-plan checkout WILL fail until these are set: %s",
+                ", ".join(missing_prices),
             )
 
     await db.connect()

@@ -189,10 +189,20 @@ When Redis is not configured, the API falls back to an in-memory cache.
 |----------|---------|-------------|
 | `SIGIL_STRIPE_SECRET_KEY` | `None` | Stripe secret API key |
 | `SIGIL_STRIPE_WEBHOOK_SECRET` | `None` | Stripe webhook signing secret |
-| `SIGIL_STRIPE_PRICE_PRO` | `price_pro_placeholder` | Stripe Price ID for the Pro plan |
-| `SIGIL_STRIPE_PRICE_TEAM` | `price_team_placeholder` | Stripe Price ID for the Team plan |
+| `SIGIL_STRIPE_PRICE_PRO` | `None` | Stripe Price ID — Pro monthly (**required for paid checkout**) |
+| `SIGIL_STRIPE_PRICE_PRO_ANNUAL` | `None` | Stripe Price ID — Pro annual (**required for paid checkout**) |
+| `SIGIL_STRIPE_PRICE_TEAM` | `None` | Stripe Price ID — Team monthly (**required for paid checkout**) |
+| `SIGIL_STRIPE_PRICE_TEAM_ANNUAL` | `None` | Stripe Price ID — Team annual (**required for paid checkout**) |
+| `SIGIL_STRIPE_PRICE_CREDITS_STARTER` | `None` | Stripe Price ID — 1,000-credit pack (credit purchases 503 if unset) |
+| `SIGIL_STRIPE_PRICE_CREDITS_POWER` | `None` | Stripe Price ID — 3,000-credit pack |
+| `SIGIL_STRIPE_PRICE_CREDITS_PRO` | `None` | Stripe Price ID — 5,000-credit pack |
+| `SIGIL_STRIPE_PRICE_CREDITS_ULTIMATE` | `None` | Stripe Price ID — 10,000-credit pack |
 
-When Stripe is not configured, the billing endpoints return stub responses. No real charges are made.
+When Stripe is not configured, the billing endpoints return stub responses and no
+real charges are made. When the Stripe secret key **is** set but subscription
+price IDs are missing, the API logs a `CRITICAL` warning at startup and every
+paid-plan checkout is rejected with a 503 — there are deliberately no default
+price IDs in code.
 
 ### Docker Compose Variables
 
@@ -270,9 +280,15 @@ Before deploying to production, you **must** configure:
   ```bash
   export SIGIL_STRIPE_SECRET_KEY="sk_live_..."
   export SIGIL_STRIPE_WEBHOOK_SECRET="whsec_..."
-  export SIGIL_STRIPE_PRICE_PRO="price_..."
+  export SIGIL_STRIPE_PRICE_PRO="price_..."          # from dashboard.stripe.com/prices
+  export SIGIL_STRIPE_PRICE_PRO_ANNUAL="price_..."
   export SIGIL_STRIPE_PRICE_TEAM="price_..."
+  export SIGIL_STRIPE_PRICE_TEAM_ANNUAL="price_..."
   ```
+
+  All four subscription price IDs are required for paid checkout to work —
+  verify them against the startup log, which reports any missing IDs at
+  `CRITICAL` level.
 
 ### Example `.env` File
 

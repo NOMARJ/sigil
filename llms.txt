@@ -7,7 +7,7 @@
 - Matches compatible skills + MCPs into Forge Stacks for specific use cases
 - Provides Sigil trust scores for every listing (0-100 scale)
 - Publishes Forge Weekly digest of new tools, trends, and security alerts
-- Maintains real-time security scanning of 5,700+ skills and 2,000+ MCP servers
+- Maintains real-time security scanning of 37,000+ skills and 37,000+ MCP servers (live counts: https://api.sigilsec.ai/forge/stats)
 
 ## API Endpoints
 - Search: GET https://api.sigilsec.ai/forge/search?q={query}&type=skill|mcp|both
@@ -17,7 +17,8 @@
 - Classifications: GET https://api.sigilsec.ai/forge/classifications/mcps
 
 ## MCP Server Tools
-Install: npm install -g @nomark/sigil-mcp-server
+Install: build from source — https://github.com/NOMARJ/sigil/tree/main/plugins/mcp-server
+(npm package @nomark/sigil-mcp-server is not yet published; this line will change to `npm install -g @nomark/sigil-mcp-server` when it is)
 
 Available tools:
 - sigil_scan: Scan files/directories for security issues
