@@ -67,7 +67,7 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.red());
             println!(
                 "{}",
-                "  HIGH RISK -- Likely malicious patterns found"
+                "  HIGH RISK -- Dangerous patterns found; review before use"
                     .red()
                     .bold()
             );
@@ -77,15 +77,45 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
             println!("{}", line.red().bold());
             println!(
                 "{}",
-                "  CRITICAL RISK -- Almost certainly malicious!"
+                "  CRITICAL RISK -- Strong malicious indicators found"
                     .red()
                     .bold()
             );
-            println!("{}", "  DO NOT install or execute this code.".red().bold());
+            println!(
+                "{}",
+                "  DO NOT install or execute this code until reviewed."
+                    .red()
+                    .bold()
+            );
             println!("{}", line.red().bold());
         }
     }
     println!();
+
+    // Honest false-positive framing on non-clean verdicts. Measured on the
+    // clean control set (evaluation_results/honest_detection_eval.md), the
+    // static phases over-trigger on benign idioms — network calls, base64,
+    // env reads — so a flagged verdict on legitimate code is common and the
+    // user's next step should be review + ledger approval, not alarm.
+    if matches!(verdict, Verdict::MediumRisk | Verdict::HighRisk) {
+        println!(
+            "{}",
+            "  These patterns also appear in legitimate code (network calls,".dimmed()
+        );
+        println!(
+            "{}",
+            "  base64, env access). If you trust this package after review:".dimmed()
+        );
+        println!(
+            "{}",
+            "    sigil explain <rule-id>   why a finding fired".dimmed()
+        );
+        println!(
+            "{}",
+            "    sigil approve <id>        trust it — suppresses these findings".dimmed()
+        );
+        println!();
+    }
 
     // Disclaimer: long form on first run, short on subsequent (configurable)
     if !disclaimer_suppressed() {

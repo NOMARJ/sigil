@@ -233,7 +233,11 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
 
 When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
 
-No source code is ever transmitted — only pattern match metadata (which rules triggered, file types, risk scores).
+**What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
+
+- **Offline / unauthenticated (default):** nothing. All eight phases run locally; no network calls, no account.
+- **Authenticated threat intel (`sigil login`):** scan submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
+- **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
 
 **Offline mode:** All eight scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
@@ -274,6 +278,37 @@ sigil login
 [**→ See complete integration guide**](docs/ai-security-stack-integration.md)
 
 Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not a workflow. **The AI security stack (Sigil + Aardvark/Claude Code Security) provides defense-in-depth.**
+
+## Detection Accuracy — Measured, Not Marketed
+
+Sigil publishes its measured detection numbers, including the ones that
+aren't flattering. Full method and results:
+[`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md).
+
+```
+Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
+             malicious npm/PyPI packages) + a 20-package clean control set of
+             popular npm/PyPI packages fetched from the live registries.
+Sample Size: 351 malicious samples; 20 clean control packages.
+Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
+             Offline static phases only. Small clean control set.
+```
+
+| Metric | Measured |
+| --- | --- |
+| Recall (malicious detected, any severity) | 96.87% |
+| Recall at ≥ High | 90.31% |
+| False-positive rate at ≥ High, clean packages, first scan | **70%** |
+| FP rate after trust-ledger approval (`sigil approve`) | 0% |
+| FP rate at ≥ High with Pro AI adjudication | 30% |
+
+**What this means in practice:** the static phases deliberately over-trigger —
+network calls, base64, and env access are dangerous in malware and routine in
+legitimate code, and a first scan of a normal package will often come back
+MEDIUM or HIGH. That is the designed workflow, not a bug: review the findings,
+then `sigil approve` what you trust (drops its findings to zero on re-scan) or
+use Pro's false-positive verification to have AI adjudicate them. Recall is
+unaffected by ledger approvals (measured `recall_delta = 0`).
 
 ## Pricing
 

@@ -318,4 +318,4 @@ After running `sigil login`, the CLI sends scan metadata (never source code) to 
   +------------------------------------------------+
 ```
 
-The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to all authenticated users within minutes. No source code is ever transmitted -- only metadata about which scan rules triggered and at what severity.
+The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to all authenticated users within minutes. Scan submissions carry finding metadata (rule IDs, severities, file paths) plus the flagged source-line excerpts (`Finding.snippet`); full source files are transmitted only by the Pro enhanced-scan path, which uploads relevant file contents for LLM analysis. See `docs/data-handling.md` for the complete per-tier data flow.

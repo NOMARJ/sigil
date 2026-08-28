@@ -1,0 +1,18 @@
+# Ruff policy for the Python API.
+#
+# CI installs ruff unpinned, and ruff 0.16 changed the default lint selection
+# (adding TRY/BLE/UP/I/ASYNC/... rules) and began formatting fenced code
+# blocks in Markdown — which turned "Lint Python (ruff)" red across the whole
+# tree with 2,154 pre-existing findings. This file makes the intended policy
+# explicit so a linter upgrade can never silently rewrite it.
+#
+# Widening the rule set is welcome — do it here, deliberately, with the
+# codebase brought along in the same PR.
+
+[lint]
+# The classic ruff defaults the codebase is clean under.
+select = ["E4", "E7", "E9", "F"]
+
+[format]
+# Don't format fenced code blocks inside Markdown docs.
+exclude = ["*.md"]

@@ -79,7 +79,9 @@ class PurchaseCreditsResponse(BaseModel):
     new_balance: int | None = Field(default=None, description="New credit balance")
 
 
-# Credit packages available for purchase
+# Credit packages available for purchase. Price IDs come from the environment
+# (SIGIL_STRIPE_PRICE_CREDITS_*); a package with no price ID is rejected at
+# purchase time rather than sent to Stripe with a fabricated ID.
 CREDIT_PACKAGES: list[CreditPackage] = [
     CreditPackage(
         package_id=1,
@@ -87,7 +89,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=1000,
         price_usd=9.99,
         bonus_credits=100,
-        stripe_price_id="price_1QQQPzE7LGYj7YY7CrCrCr",  # Would be real Stripe price ID
+        stripe_price_id=settings.stripe_price_credits_starter,
     ),
     CreditPackage(
         package_id=2,
@@ -95,7 +97,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=3000,
         price_usd=24.99,
         bonus_credits=500,
-        stripe_price_id="price_1QQQQzE7LGYj7YY7DsDsDs",
+        stripe_price_id=settings.stripe_price_credits_power,
     ),
     CreditPackage(
         package_id=3,
@@ -103,7 +105,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=5000,
         price_usd=39.99,
         bonus_credits=1000,
-        stripe_price_id="price_1QQQRzE7LGYj7YY7EtEtEt",
+        stripe_price_id=settings.stripe_price_credits_pro,
     ),
     CreditPackage(
         package_id=4,
@@ -111,7 +113,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=10000,
         price_usd=69.99,
         bonus_credits=2500,
-        stripe_price_id="price_1QQQSzE7LGYj7YY7FuFuFu",
+        stripe_price_id=settings.stripe_price_credits_ultimate,
     ),
 ]
 
@@ -325,11 +327,18 @@ async def subscribe(
         # --- Stripe integration path ---
         price_id = _get_price_id(body.plan, interval)
 
-        # Reject if the price ID is missing for paid plans
+        # Reject if the price ID is missing for paid plans (unset
+        # SIGIL_STRIPE_PRICE_* env var — see startup check in api/main.py)
         if body.plan != PlanTier.FREE and not price_id:
+            logger.error(
+                "Subscribe rejected: no Stripe price ID configured for "
+                "plan=%s interval=%s. Set the SIGIL_STRIPE_PRICE_* env vars.",
+                body.plan.value,
+                interval,
+            )
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"The {interval} billing interval is not available for the {body.plan.value} plan. Please contact support.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Checkout for the {body.plan.value} plan is temporarily unavailable. Please contact support.",
             )
 
         if body.plan == PlanTier.FREE:
@@ -641,6 +650,18 @@ async def purchase_credits(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid credit package ID",
+        )
+
+    if not package.stripe_price_id:
+        logger.error(
+            "Credit purchase rejected: no Stripe price ID configured for "
+            "package %s (%s). Set the SIGIL_STRIPE_PRICE_CREDITS_* env vars.",
+            package.package_id,
+            package.name,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Credit purchases are temporarily unavailable. Please contact support.",
         )
 
     try:

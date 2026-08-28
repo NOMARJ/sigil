@@ -73,7 +73,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install linters
-        run: pip install ruff flake8
+        # Pinned: an unpinned ruff upgrade (0.16) changed default rule
+        # selection and Markdown formatting, turning this job red repo-wide.
+        # Policy lives in ruff.toml; bump the pin deliberately.
+        run: pip install 'ruff==0.16.5' flake8
 
       - name: Run ruff check
         run: ruff check api/

@@ -102,18 +102,18 @@ class Settings(BaseSettings):
     stripe_test_secret_key: Union[str, None] = None
     stripe_test_webhook_secret: Union[str, None] = None
     stripe_publishable_key: Union[str, None] = None
-    stripe_price_pro: str = (
-        "price_1QQQKzE7LGYj7YY7YoYoYo"  # Updated Pro monthly price ID
-    )
-    stripe_price_team: str = (
-        "price_1QQQLzE7LGYj7YY7ZpZpZp"  # Updated Team monthly price ID
-    )
-    stripe_price_pro_annual: str = (
-        "price_1QQQMzE7LGYj7YY7AqAqAq"  # Updated Pro annual price ID
-    )
-    stripe_price_team_annual: str = (
-        "price_1QQQNzE7LGYj7YY7BrBrBr"  # Updated Team annual price ID
-    )
+    # Subscription price IDs. No defaults on purpose: a fabricated fallback ID
+    # means checkout 500s in production while the code "looks configured".
+    # Paid-plan subscribe requests fail with a clear 400 until these are set.
+    stripe_price_pro: Union[str, None] = None  # SIGIL_STRIPE_PRICE_PRO
+    stripe_price_team: Union[str, None] = None  # SIGIL_STRIPE_PRICE_TEAM
+    stripe_price_pro_annual: Union[str, None] = None  # SIGIL_STRIPE_PRICE_PRO_ANNUAL
+    stripe_price_team_annual: Union[str, None] = None  # SIGIL_STRIPE_PRICE_TEAM_ANNUAL
+    # One-time credit pack price IDs (SIGIL_STRIPE_PRICE_CREDITS_*)
+    stripe_price_credits_starter: Union[str, None] = None
+    stripe_price_credits_power: Union[str, None] = None
+    stripe_price_credits_pro: Union[str, None] = None
+    stripe_price_credits_ultimate: Union[str, None] = None
 
     # --- GitHub App (optional — for PR scanning) --------------------------------
     github_app_id: Union[str, None] = None
@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     structured_logging: bool = True  # SIGIL_STRUCTURED_LOGGING
     azure_insights_key: Union[str, None] = None  # SIGIL_AZURE_INSIGHTS_KEY
     prometheus_enabled: bool = True  # SIGIL_PROMETHEUS_ENABLED
+    # Sentry error tracking — enabled only when a DSN is set
+    sentry_dsn: Union[str, None] = None  # SIGIL_SENTRY_DSN
+    sentry_environment: str = "production"  # SIGIL_SENTRY_ENVIRONMENT
+    sentry_traces_sample_rate: float = 0.05  # SIGIL_SENTRY_TRACES_SAMPLE_RATE
 
     # --- PostHog (optional — for conversion funnel analytics) ----------------
     posthog_api_key: Union[str, None] = None  # SIGIL_POSTHOG_API_KEY
@@ -209,6 +213,22 @@ class Settings(BaseSettings):
     def stripe_test_configured(self) -> bool:
         """Return True when Stripe test-mode keys are set."""
         return bool(self.stripe_test_secret_key)
+
+    @property
+    def missing_stripe_price_ids(self) -> list[str]:
+        """Return env var names for subscription price IDs that are unset.
+
+        Used at startup to fail loudly: a Stripe key without price IDs means
+        every paid checkout is rejected, which is invisible until a customer
+        hits it.
+        """
+        required = {
+            "SIGIL_STRIPE_PRICE_PRO": self.stripe_price_pro,
+            "SIGIL_STRIPE_PRICE_TEAM": self.stripe_price_team,
+            "SIGIL_STRIPE_PRICE_PRO_ANNUAL": self.stripe_price_pro_annual,
+            "SIGIL_STRIPE_PRICE_TEAM_ANNUAL": self.stripe_price_team_annual,
+        }
+        return [name for name, value in required.items() if not value]
 
     @property
     def github_app_configured(self) -> bool:
