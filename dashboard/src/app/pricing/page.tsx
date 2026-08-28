@@ -9,6 +9,8 @@ export default function PricingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getSubscription()
@@ -26,6 +28,28 @@ export default function PricingPage() {
       alert("Unable to open billing portal. Please try again.");
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  // Start Stripe Checkout directly from the pricing page — the ad-driven
+  // upgrade path should not detour through /settings first.
+  const handleSubscribe = async () => {
+    setSubscribeLoading(true);
+    setSubscribeError(null);
+    try {
+      const sub = await api.subscribe("pro", "monthly");
+      if (sub.checkout_url) {
+        window.location.href = sub.checkout_url;
+      } else {
+        // Subscription updated without needing checkout (e.g. plan change)
+        setSubscription(sub);
+      }
+    } catch (err) {
+      setSubscribeError(
+        err instanceof Error ? err.message : "Unable to start checkout. Please try again.",
+      );
+    } finally {
+      setSubscribeLoading(false);
     }
   };
 
@@ -190,9 +214,24 @@ export default function PricingPage() {
               </li>
             ))}
           </ul>
-          <a href="/settings" className="btn-primary w-full text-center block">
-            Subscribe — $29/month
-          </a>
+          <button
+            onClick={handleSubscribe}
+            disabled={subscribeLoading}
+            className="btn-primary w-full text-center block disabled:opacity-60"
+          >
+            {subscribeLoading ? "Opening checkout…" : "Start 14-day free trial — then $29/month"}
+          </button>
+          {subscribeError && (
+            <p className="mt-3 text-sm text-center" style={{ color: 'var(--color-danger, #f87171)' }}>
+              {subscribeError}
+            </p>
+          )}
+          <p className="mt-3 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
+            Pro AI investigation uploads the relevant source files for analysis.{" "}
+            <a href="https://github.com/NOMARJ/sigil/blob/main/docs/data-handling.md" className="underline">
+              How your data is handled
+            </a>
+          </p>
         </div>
       </div>
     </div>

@@ -7,7 +7,9 @@ determination for various finding combinations.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -121,6 +123,64 @@ class TestScanSubmission:
         data = resp.json()
         # No matching threat in empty DB, so should still be CLEAN
         assert data["threat_intel_hits"] == []
+
+    def test_submit_scan_threat_intel_timeout_fails_open(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        payload = {
+            "target": "timeout-pkg",
+            "target_type": "pip",
+            "files_scanned": 3,
+            "findings": [],
+            "metadata": {
+                "hashes": ["abc123def456"],
+            },
+        }
+
+        async def slow_lookup(_hashes: list[str]):
+            await asyncio.sleep(0.05)
+            return []
+
+        with (
+            patch(
+                "api.routers.scan.lookup_threats_for_hashes", side_effect=slow_lookup
+            ),
+            patch("api.routers.scan._THREAT_LOOKUP_TIMEOUT_SECONDS", 0.01),
+        ):
+            resp = client.post("/v1/scan", json=payload, headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["threat_intel_hits"] == []
+
+    def test_submit_scan_publisher_enrichment_timeout_fails_open(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        payload = {
+            "target": "publisher-timeout-pkg",
+            "target_type": "pip",
+            "files_scanned": 3,
+            "findings": [],
+            "metadata": {
+                "publisher_id": "pub-timeout-1",
+            },
+        }
+
+        async def slow_publisher_update(*_args, **_kwargs):
+            await asyncio.sleep(0.05)
+            return {}
+
+        with (
+            patch(
+                "api.routers.scan.update_publisher_from_scan",
+                side_effect=slow_publisher_update,
+            ),
+            patch("api.routers.scan._PUBLISHER_ENRICH_TIMEOUT_SECONDS", 0.01),
+        ):
+            resp = client.post("/v1/scan", json=payload, headers=auth_headers)
+
+        assert resp.status_code == 200
+        assert "scan_id" in resp.json()
 
     def test_submit_scan_validation_error(
         self, client: TestClient, auth_headers: dict[str, str]

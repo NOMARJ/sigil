@@ -1,5 +1,7 @@
 ---
+name: scan-file
 description: Scan a specific file or code selection for security threats
+allowed-tools: Bash(sigil *)
 ---
 
 # Scan File with Sigil

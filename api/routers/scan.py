@@ -14,6 +14,7 @@ GET  /dashboard/stats — Aggregate dashboard statistics.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -87,6 +88,12 @@ router = APIRouter(prefix="/v1", tags=["scan"])
 dashboard_router = APIRouter(tags=["scan"])
 
 SCAN_TABLE = "scans"
+_MAX_THREAT_HASHES = 200
+_THREAT_LOOKUP_TIMEOUT_SECONDS = 3.0
+_USAGE_METER_TIMEOUT_SECONDS = 2.0
+_PUBLISHER_ENRICH_TIMEOUT_SECONDS = 2.0
+_ANALYTICS_TRACK_TIMEOUT_SECONDS = 2.0
+_ENHANCED_SCAN_LLM_TIMEOUT_SECONDS = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -240,11 +247,38 @@ async def _submit_scan_impl(
     # --- 2. Threat intelligence enrichment ----------------------------------
     hashes: list[str] = []
     if "hashes" in request.metadata:
-        hashes = request.metadata["hashes"]
+        raw_hashes = request.metadata["hashes"]
+        if isinstance(raw_hashes, list):
+            hashes = [h.strip() for h in raw_hashes if isinstance(h, str) and h.strip()]
     elif "hash" in request.metadata:
-        hashes = [request.metadata["hash"]]
+        raw_hash = request.metadata["hash"]
+        if isinstance(raw_hash, str) and raw_hash.strip():
+            hashes = [raw_hash.strip()]
 
-    threat_hits = await lookup_threats_for_hashes(hashes) if hashes else []
+    if len(hashes) > _MAX_THREAT_HASHES:
+        logger.warning(
+            "Truncating threat-intel lookup hashes for scan %s: %d -> %d",
+            scan_id,
+            len(hashes),
+            _MAX_THREAT_HASHES,
+        )
+        hashes = hashes[:_MAX_THREAT_HASHES]
+
+    threat_hits = []
+    if hashes:
+        try:
+            threat_hits = await asyncio.wait_for(
+                lookup_threats_for_hashes(hashes),
+                timeout=_THREAT_LOOKUP_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Threat-intel enrichment timed out for scan %s after %.1fs",
+                scan_id,
+                _THREAT_LOOKUP_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            logger.exception("Threat-intel enrichment failed for scan %s", scan_id)
 
     if threat_hits:
         threat_bonus = sum(10.0 for _ in threat_hits)
@@ -349,25 +383,43 @@ async def _submit_scan_impl(
     if user_id:
         try:
             year_month = datetime.now(timezone.utc).strftime("%Y-%m")
-            await db.increment_scan_usage(user_id, year_month)
+            await asyncio.wait_for(
+                db.increment_scan_usage(user_id, year_month),
+                timeout=_USAGE_METER_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Scan usage increment timed out for user %s after %.1fs",
+                user_id,
+                _USAGE_METER_TIMEOUT_SECONDS,
+            )
         except Exception:
             logger.exception("Failed to increment scan usage for user %s", user_id)
 
         # --- 4c. Track analytics event ----------------------------------------
         try:
-            await track_forge_event(
-                user_id=user_id,
-                event_type=ForgeEventType.SCAN_COMPLETED,
-                event_data={
-                    "scan_id": scan_id,
-                    "target": safe_target,
-                    "target_type": request.target_type,
-                    "risk_score": response.risk_score,
-                    "verdict": verdict.value,
-                    "findings_count": len(request.findings),
-                    "threat_hits": len(threat_hits),
-                    "files_scanned": request.files_scanned,
-                },
+            await asyncio.wait_for(
+                track_forge_event(
+                    user_id=user_id,
+                    event_type=ForgeEventType.SCAN_COMPLETED,
+                    event_data={
+                        "scan_id": scan_id,
+                        "target": safe_target,
+                        "target_type": request.target_type,
+                        "risk_score": response.risk_score,
+                        "verdict": verdict.value,
+                        "findings_count": len(request.findings),
+                        "threat_hits": len(threat_hits),
+                        "files_scanned": request.files_scanned,
+                    },
+                ),
+                timeout=_ANALYTICS_TRACK_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Scan analytics tracking timed out for user %s after %.1fs",
+                user_id,
+                _ANALYTICS_TRACK_TIMEOUT_SECONDS,
             )
         except Exception:
             logger.exception("Failed to track scan analytics for user %s", user_id)
@@ -388,7 +440,16 @@ async def _submit_scan_impl(
     if publisher_id:
         is_flagged = verdict.value in ("HIGH_RISK", "CRITICAL_RISK")
         try:
-            await update_publisher_from_scan(publisher_id, is_flagged=is_flagged)
+            await asyncio.wait_for(
+                update_publisher_from_scan(publisher_id, is_flagged=is_flagged),
+                timeout=_PUBLISHER_ENRICH_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Publisher enrichment timed out for publisher %s after %.1fs",
+                publisher_id,
+                _PUBLISHER_ENRICH_TIMEOUT_SECONDS,
+            )
         except Exception:
             logger.exception(
                 "Failed to update publisher reputation for %s", publisher_id
@@ -574,28 +635,34 @@ async def submit_enhanced_scan(
             )
 
             # Use scanner engine for comprehensive analysis
-            enhanced_findings = await scanner_engine.scan_with_pro_features(
-                content=None,  # No directory path
-                repository_context=request.metadata,
-                user_tier=current_tier.value,
+            enhanced_findings = await asyncio.wait_for(
+                scanner_engine.scan_with_pro_features(
+                    content=None,  # No directory path
+                    repository_context=request.metadata,
+                    user_tier=current_tier.value,
+                ),
+                timeout=_ENHANCED_SCAN_LLM_TIMEOUT_SECONDS,
             )
 
             # Track Pro feature usage
-            await subscription_service.track_pro_feature_usage(
-                user_id=current_user.id,
-                feature_type="llm_analysis",
-                usage_data={
-                    "scan_id": basic_response.scan_id,
-                    "files_analyzed": len(file_contents),
-                    "enhanced_findings": len(
-                        [
-                            f
-                            for f in enhanced_findings
-                            if f.phase.value == "llm_analysis"
-                        ]
-                    ),
-                    "total_findings": len(enhanced_findings),
-                },
+            await asyncio.wait_for(
+                subscription_service.track_pro_feature_usage(
+                    user_id=current_user.id,
+                    feature_type="llm_analysis",
+                    usage_data={
+                        "scan_id": basic_response.scan_id,
+                        "files_analyzed": len(file_contents),
+                        "enhanced_findings": len(
+                            [
+                                f
+                                for f in enhanced_findings
+                                if f.phase.value == "llm_analysis"
+                            ]
+                        ),
+                        "total_findings": len(enhanced_findings),
+                    },
+                ),
+                timeout=_USAGE_METER_TIMEOUT_SECONDS,
             )
 
             # Merge LLM findings with basic findings

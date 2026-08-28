@@ -665,12 +665,22 @@ async def search_tools(
         # Get both count and data in a single optimized query to prevent connection conflicts
         if hasattr(db, "execute_raw_sql"):
             # Use a single query with both count and data
+            # ORDER BY must use an indexed column: created_at has no index, so
+            # ordering by it forced a sort of all ~290k rows *including their
+            # NVARCHAR(MAX) LOBs* (~33GB) for every request — three of these
+            # stacked pinned the database at 100% read IO for hours on
+            # 2026-07-19. scanned_at is indexed (idx_public_scans_scanned_at)
+            # and the crawler writes both columns from the same timestamp.
+            # The total likewise comes from partition metadata instead of a
+            # full COUNT(*) scan.
             count_and_data_sql = f"""
                 SELECT
-                    (SELECT COUNT(*) FROM public_scans) as total_count,
+                    (SELECT SUM(p.rows) FROM sys.partitions p
+                      WHERE p.object_id = OBJECT_ID('public_scans')
+                        AND p.index_id IN (0, 1)) as total_count,
                     *
                 FROM public_scans
-                ORDER BY created_at DESC
+                ORDER BY scanned_at DESC
                 OFFSET {offset} ROWS FETCH NEXT {limit * 5} ROWS ONLY
             """
             rows = await db.execute_raw_sql(count_and_data_sql, ())

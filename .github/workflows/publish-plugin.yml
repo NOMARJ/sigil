@@ -29,6 +29,11 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f ".claude-plugin/marketplace.json" ]; then
+            echo "❌ Missing root .claude-plugin/marketplace.json"
+            exit 1
+          fi
+
           if [ ! -d "plugins/claude-code/skills" ]; then
             echo "❌ Missing skills directory"
             exit 1
@@ -54,8 +59,8 @@ jobs:
             exit 1
           }
 
-          # Validate marketplace.json
-          jq empty plugins/claude-code/.claude-plugin/marketplace.json || {
+          # Validate marketplace.json (repo root, so `claude plugin marketplace add NOMARJ/sigil` works)
+          jq empty .claude-plugin/marketplace.json || {
             echo "❌ Invalid marketplace.json"
             exit 1
           }
@@ -125,8 +130,8 @@ jobs:
           mv tmp.json plugins/claude-code/.claude-plugin/plugin.json
 
           jq --arg version "$VERSION" '.plugins[0].version = $version' \
-            plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
-          mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+            .claude-plugin/marketplace.json > tmp.json
+          mv tmp.json .claude-plugin/marketplace.json
 
       - name: Create plugin archive
         run: |
@@ -162,10 +167,10 @@ jobs:
             echo
             echo '```bash'
             echo "# Add Sigil marketplace"
-            echo "claude plugin marketplace add https://github.com/NOMARJ/sigil.git"
+            echo "claude plugin marketplace add NOMARJ/sigil"
             echo
             echo "# Install the plugin"
-            echo "claude plugin install sigil-security@sigil"
+            echo "claude plugin install sigil-security@sigil-marketplace"
             echo '```'
             echo
             echo "Or download and install manually:"
@@ -222,11 +227,11 @@ jobs:
 
           # Update version in marketplace.json
           jq --arg version "$VERSION" '.plugins[0].version = $version' \
-            plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
-          mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+            .claude-plugin/marketplace.json > tmp.json
+          mv tmp.json .claude-plugin/marketplace.json
 
           # Commit and push
-          git add plugins/claude-code/.claude-plugin/marketplace.json
+          git add .claude-plugin/marketplace.json
           git commit -m "chore: update plugin marketplace to v${VERSION}" || true
           git push origin main || true
 

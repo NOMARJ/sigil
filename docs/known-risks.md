@@ -12,6 +12,18 @@ No active critical public-route risk remains from the June 9 reassessment.
 
 ## High
 
+0. First-scan false-positive rate on clean packages (added 2026-08-27).
+   - Evidence: `evaluation_results/honest_detection_eval.md` — 70% of the
+     20-package clean control set flagged at ≥ High on a cold scan; 0% after
+     trust-ledger approval; 30% with Pro adjudication.
+   - Exposure: paid-acquisition traffic lands on the free tier, so the first
+     verdict a new user sees on their own legitimate code is often HIGH.
+   - Mitigation shipped 2026-08-27: CLI verdict output now carries honest FP
+     framing with the `sigil explain` / `sigil approve` next steps
+     (`cli/src/output.rs`), and README discloses the measured rates.
+   - Residual: the rule set still needs FP-narrowing (per the eval's own
+     note) before ≥ High severities can gate installs without noise.
+
 1. Paid billing journeys remain unverified.
    - Evidence: no fresh credentialed Stripe test/live round-trip evidence was produced in this reassessment.
    - Approval: owner/operator required for checkout, webhook, portal cancel, live payment, and refund evidence.

@@ -4,6 +4,7 @@ mod corpus;
 mod diff;
 mod explain;
 mod feeds;
+mod hook;
 mod ledger;
 mod output;
 mod policy;
@@ -13,6 +14,7 @@ mod quarantine;
 mod sandbox;
 mod sbom;
 mod scanner;
+mod setup;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -305,6 +307,18 @@ enum Commands {
         #[arg(last = true, required = true)]
         command: Vec<String>,
     },
+
+    /// Respond to a Claude Code hook event (reads the hook JSON from stdin)
+    Hook {
+        /// Hook event to handle (currently: pretooluse)
+        event: String,
+    },
+
+    /// Wire Sigil into AI agent and developer workflows
+    Setup {
+        /// What to set up: claude, shell, git, or all
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -569,6 +583,10 @@ async fn main() {
                 }
             }
         }
+
+        Commands::Hook { event } => hook::cmd_hook(&event),
+
+        Commands::Setup { target } => setup::cmd_setup(&target),
     };
 
     process::exit(exit_code);
@@ -992,8 +1010,13 @@ async fn cmd_scan(
         // The three feeds make network round-trips (OSV detail fetches, npm/PyPI
         // registry lookups). --verbose reports each feed's wall-clock so a slow
         // scan can be attributed to a specific feed rather than guessed at.
+        // The feeds use reqwest::blocking, which spins up its own tokio
+        // runtime; calling that directly inside this async fn panics with
+        // "Cannot drop a runtime in a context where blocking is not allowed"
+        // as soon as a lockfile triggers an HTTP call. block_in_place moves
+        // the call off the async worker so the nested runtime is legal.
         let t = std::time::Instant::now();
-        let osv_findings = feeds::osv::scan_for_osv_findings(path);
+        let osv_findings = tokio::task::block_in_place(|| feeds::osv::scan_for_osv_findings(path));
         if verbose {
             eprintln!(
                 "feed osv: {:?} ({} findings)",
@@ -1008,7 +1031,9 @@ async fn cmd_scan(
         // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
         // Best-effort — network/parse failures leave findings unchanged.
         let t = std::time::Instant::now();
-        feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+        tokio::task::block_in_place(|| {
+            feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None)
+        });
         if verbose {
             eprintln!("feed kev_epss: {:?}", t.elapsed());
         }
@@ -1018,8 +1043,9 @@ async fn cmd_scan(
         // ADR-0007: absence of provenance is never a finding. Network failures are
         // handled gracefully — never fatal.
         let t = std::time::Instant::now();
-        let prov_findings =
-            provenance::scan_for_provenance_drift(path, &provenance::ScanOptions::default());
+        let prov_findings = tokio::task::block_in_place(|| {
+            provenance::scan_for_provenance_drift(path, &provenance::ScanOptions::default())
+        });
         if verbose {
             eprintln!(
                 "feed provenance: {:?} ({} findings)",

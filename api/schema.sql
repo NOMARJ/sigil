@@ -525,6 +525,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_public_scans_scanned_
     CREATE INDEX idx_public_scans_scanned_at ON public_scans (scanned_at DESC);
 GO
 
+-- Covering index for /registry/{ecosystem} dedup queries (see migration 008)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_public_scans_eco_pkg_scanned')
+    CREATE INDEX idx_public_scans_eco_pkg_scanned
+        ON public_scans (ecosystem, package_name, package_version, scanned_at DESC)
+        INCLUDE (id, risk_score, verdict, findings_count, files_scanned, created_at);
+GO
+
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_public_scans_ecosystem_verdict')
     CREATE INDEX idx_public_scans_ecosystem_verdict ON public_scans (ecosystem, verdict);
 GO

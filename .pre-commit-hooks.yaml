@@ -1,0 +1,18 @@
+# Pre-commit hook definitions for Sigil.
+# Consumer config (see SIGIL-DISTRIBUTION-ROADMAP.md §4.2.3):
+#
+#   repos:
+#     - repo: https://github.com/NOMARJ/sigil
+#       rev: v0.1.0
+#       hooks:
+#         - id: sigil-scan
+#           args: ["--fail-on", "high"]
+#
+# Requires the sigil binary on PATH (language: system).
+- id: sigil-scan
+  name: Sigil security scan
+  description: Scan the repository for malicious patterns with the Sigil CLI
+  entry: sigil scan .
+  args: ["--fail-on", "high"]
+  language: system
+  pass_filenames: false

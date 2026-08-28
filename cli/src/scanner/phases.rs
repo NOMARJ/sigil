@@ -3,6 +3,7 @@
 //! declared in `packs/core/v1/*.json` and loaded via `corpus::loader`.
 
 use std::path::{Path, PathBuf};
+use std::process;
 
 use super::{Finding, Phase, Severity};
 use crate::corpus::{
@@ -16,7 +17,10 @@ use crate::corpus::{
 // ---------------------------------------------------------------------------
 
 fn all_packs() -> Vec<SignaturePack> {
-    load_all_packs()
+    load_all_packs().unwrap_or_else(|e| {
+        eprintln!("[corpus] fatal: {e}");
+        process::exit(2);
+    })
 }
 
 fn phase_packs(packs: &[SignaturePack], phase: &str) -> Vec<SignaturePack> {

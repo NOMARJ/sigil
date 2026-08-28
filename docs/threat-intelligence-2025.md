@@ -311,7 +311,7 @@ creds = response.json()
 | PickleScan | 20-30% | 2% | Recent bypasses discovered |
 | Behavioral analysis | 2-5% | 2-3% | Requires dynamic analysis |
 
-**Key insight:** Sigil's multi-phase approach (6 phases × weights) is strong, but needs:
+**Key insight:** Sigil's multi-phase approach (8 phases × weights) is strong, but needs:
 - Better obfuscation detection
 - Homoglyph normalization
 - Behavioral heuristics beyond pattern matching
@@ -484,7 +484,7 @@ The 2024-2025 period saw escalation in supply chain attack sophistication, with 
 4. **Credential-aware scanning** (detect token access)
 5. **Continuous threat intelligence** (regular updates)
 
-Sigil's quarantine-first workflow and six-phase detection system is well-positioned to detect these threats, with recommended enhancements in:
+Sigil's quarantine-first workflow and eight-phase detection system is well-positioned to detect these threats, with recommended enhancements in:
 - Unicode normalization
 - Obfuscation detection
 - Cloud credential awareness

@@ -79,7 +79,9 @@ class PurchaseCreditsResponse(BaseModel):
     new_balance: int | None = Field(default=None, description="New credit balance")
 
 
-# Credit packages available for purchase
+# Credit packages available for purchase. Price IDs come from the environment
+# (SIGIL_STRIPE_PRICE_CREDITS_*); a package with no price ID is rejected at
+# purchase time rather than sent to Stripe with a fabricated ID.
 CREDIT_PACKAGES: list[CreditPackage] = [
     CreditPackage(
         package_id=1,
@@ -87,7 +89,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=1000,
         price_usd=9.99,
         bonus_credits=100,
-        stripe_price_id="price_1QQQPzE7LGYj7YY7CrCrCr",  # Would be real Stripe price ID
+        stripe_price_id=settings.stripe_price_credits_starter,
     ),
     CreditPackage(
         package_id=2,
@@ -95,7 +97,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=3000,
         price_usd=24.99,
         bonus_credits=500,
-        stripe_price_id="price_1QQQQzE7LGYj7YY7DsDsDs",
+        stripe_price_id=settings.stripe_price_credits_power,
     ),
     CreditPackage(
         package_id=3,
@@ -103,7 +105,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=5000,
         price_usd=39.99,
         bonus_credits=1000,
-        stripe_price_id="price_1QQQRzE7LGYj7YY7EtEtEt",
+        stripe_price_id=settings.stripe_price_credits_pro,
     ),
     CreditPackage(
         package_id=4,
@@ -111,7 +113,7 @@ CREDIT_PACKAGES: list[CreditPackage] = [
         credits=10000,
         price_usd=69.99,
         bonus_credits=2500,
-        stripe_price_id="price_1QQQSzE7LGYj7YY7FuFuFu",
+        stripe_price_id=settings.stripe_price_credits_ultimate,
     ),
 ]
 
@@ -232,12 +234,13 @@ def _get_price_id(plan: PlanTier, interval: str) -> str | None:
 
 def _get_stripe():
     """Import and configure the Stripe module, or return None."""
-    if not settings.stripe_configured:
+    if not settings.stripe_configured and not settings.stripe_test_configured:
         return None
     try:
         import stripe
 
-        stripe.api_key = settings.stripe_secret_key
+        # Prefer live key; fall back to test key when only test is configured.
+        stripe.api_key = settings.stripe_secret_key or settings.stripe_test_secret_key
         return stripe
     except ImportError:
         logger.warning(
@@ -324,11 +327,18 @@ async def subscribe(
         # --- Stripe integration path ---
         price_id = _get_price_id(body.plan, interval)
 
-        # Reject if the price ID is missing for paid plans
+        # Reject if the price ID is missing for paid plans (unset
+        # SIGIL_STRIPE_PRICE_* env var — see startup check in api/main.py)
         if body.plan != PlanTier.FREE and not price_id:
+            logger.error(
+                "Subscribe rejected: no Stripe price ID configured for "
+                "plan=%s interval=%s. Set the SIGIL_STRIPE_PRICE_* env vars.",
+                body.plan.value,
+                interval,
+            )
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"The {interval} billing interval is not available for the {body.plan.value} plan. Please contact support.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Checkout for the {body.plan.value} plan is temporarily unavailable. Please contact support.",
             )
 
         if body.plan == PlanTier.FREE:
@@ -642,6 +652,18 @@ async def purchase_credits(
             detail="Invalid credit package ID",
         )
 
+    if not package.stripe_price_id:
+        logger.error(
+            "Credit purchase rejected: no Stripe price ID configured for "
+            "package %s (%s). Set the SIGIL_STRIPE_PRICE_CREDITS_* env vars.",
+            package.package_id,
+            package.name,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Credit purchases are temporarily unavailable. Please contact support.",
+        )
+
     try:
         # Get or create Stripe customer
         sub_data = await _get_or_create_subscription(current_user.id)
@@ -721,27 +743,42 @@ async def stripe_webhook(request: Request) -> WebhookResponse:
     body = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    if stripe is None or not settings.stripe_webhook_secret:
+    live_secret = settings.stripe_webhook_secret
+    test_secret = settings.stripe_test_webhook_secret
+
+    if stripe is None or (not live_secret and not test_secret):
         logger.error("Stripe webhook received while webhook verification is disabled")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe webhook verification is not configured",
         )
 
-    try:
-        event = stripe.Webhook.construct_event(
-            body, sig_header, settings.stripe_webhook_secret
-        )
-        logger.info("Webhook signature verified successfully")
-    except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Webhook signature verification failed: {e}")
+    event = None
+    # Try live secret first; on failure try test secret (dual-mode support).
+    if live_secret:
+        try:
+            event = stripe.Webhook.construct_event(body, sig_header, live_secret)
+            logger.info("Webhook signature verified (live mode)")
+        except stripe.error.SignatureVerificationError:
+            logger.debug("Live-mode signature check failed; trying test-mode secret")
+        except ValueError as e:
+            logger.error(f"Webhook payload invalid: {e}")
+            raise HTTPException(status_code=400, detail="Invalid payload format")
+
+    if event is None and test_secret:
+        try:
+            event = stripe.Webhook.construct_event(body, sig_header, test_secret)
+            logger.info("Webhook signature verified (test mode)")
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"Webhook signature verification failed (test mode): {e}")
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        except ValueError as e:
+            logger.error(f"Webhook payload invalid: {e}")
+            raise HTTPException(status_code=400, detail="Invalid payload format")
+
+    if event is None:
+        logger.error("Webhook signature verification failed: no valid secret matched")
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
-    except ValueError as e:
-        logger.error(f"Webhook payload invalid: {e}")
-        raise HTTPException(status_code=400, detail="Invalid payload format")
-    except Exception as e:
-        logger.error(f"Webhook verification error: {e}")
-        raise HTTPException(status_code=400, detail=f"Webhook verification failed: {e}")
 
     event_type = event.get("type", "unknown") if event else "unknown"
     event_id = event.get("id", "unknown") if event else "unknown"

@@ -128,10 +128,16 @@ class RegistryStatsUpdater:
                     total_scans = total_scans_row[0] if total_scans_row else 0
                     print(f"[REGISTRY_STATS] Total scans: {total_scans}")
 
-                    # Get unique packages count
-                    await cursor.execute(f"""
+                    # Get unique packages count.
+                    # No verdict filter: verdict lives only in the clustered
+                    # index, so filtering here forces a full scan of the
+                    # LOB-heavy table (33GB — the 2026-07-19 saturation
+                    # incident). Unfiltered, this scans the narrow
+                    # (ecosystem, package_name) index. Skew: packages whose
+                    # only scans are ERROR are counted — a small overcount.
+                    await cursor.execute("""
                         SELECT COUNT(DISTINCT CONCAT(ecosystem, ':', package_name))
-                        FROM public_scans {_where}
+                        FROM public_scans
                     """)
                     packages_row = await cursor.fetchone()
                     total_packages = packages_row[0] if packages_row else 0
@@ -147,10 +153,13 @@ class RegistryStatsUpdater:
                     threats = threats_row[0] if threats_row else 0
                     print(f"[REGISTRY_STATS] Threats: {threats}")
 
-                    # Get ecosystem breakdown
-                    await cursor.execute(f"""
+                    # Get ecosystem breakdown — unfiltered so it runs off the
+                    # narrow ecosystem index instead of scanning the clustered
+                    # index for the verdict filter (see unique-packages note).
+                    # Skew: per-ecosystem counts include ERROR scans.
+                    await cursor.execute("""
                         SELECT ecosystem, COUNT(*) as count
-                        FROM public_scans {_where}
+                        FROM public_scans
                         GROUP BY ecosystem
                     """)
                     ecosystems = {}

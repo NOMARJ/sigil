@@ -4,7 +4,28 @@ This guide shows how to integrate Sigil into AI agent workflows for automated se
 
 ## For Claude Code
 
-### 1. Add to User Memory (~/.claude/CLAUDE.md)
+### Install the Plugin (Recommended — One Command)
+
+The Sigil plugin makes security enforcement the default, not a suggestion:
+
+```bash
+claude plugin marketplace add NOMARJ/sigil
+claude plugin install sigil-security@sigil-marketplace
+```
+
+That single install gives you everything:
+
+- **Enforcement gate** — a PreToolUse hook blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, and curl-pipe-to-shell inside Claude Code sessions, redirecting them through Sigil's quarantine-first equivalents. Lockfile restores and one-shot runners (`npx`, `dlx`) prompt for confirmation. Override per-command with `SIGIL_BYPASS=1`, or set `SIGIL_GUARD_MODE=advise|off` to soften or disable it
+- **MCP server** — `@nomark/sigil-mcp-server` is registered automatically, exposing Sigil's scanning tools to Claude directly. The automatic `npx`-based registration takes effect once the package is published to npm (v1.3.0 is not yet published); until then, build from source and register it manually — see the note below
+- **6 skills** — `/sigil-security:scan-repo`, `scan-package`, `scan-file`, `review-quarantine`, `fix-finding`, `generate-policy`
+- **2 agents** — `@security-auditor` and `@quarantine-manager`
+- **Session check** — a SessionStart hook verifies the `sigil` binary is installed
+
+See the [Claude Code plugin guide](claude-code-plugin.md) for details.
+
+### Optional: Add to User Memory (~/.claude/CLAUDE.md)
+
+To reinforce the workflow in projects where the plugin isn't installed:
 
 ```markdown
 # Security Standards for AI Agent Development
@@ -17,44 +38,12 @@ Before cloning repositories or installing packages:
 
 ## Threat Detection Priorities
 - Install hooks (setup.py, npm postinstall) → CRITICAL
+- Prompt injection in agent code/docs → CRITICAL
 - Eval/exec/pickle usage → HIGH
 - Network exfiltration → HIGH
-- Credential access → MEDIUM
 - Code obfuscation → HIGH
-```
-
-### 2. Install Sigil Skills
-
-Clone this repository and add to your Claude Code skills directory:
-
-```bash
-cp -r skills/* ~/.claude/skills/sigil/
-```
-
-Claude will auto-discover these skills:
-- `/scan-repo` — Auto-scan repositories
-- `/scan-package` — Auto-scan packages before install
-- `/review-quarantine` — Review quarantined items
-
-### 3. MCP Server Integration
-
-To make Sigil available as an MCP tool, add to your `~/.claude/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "sigil": {
-      "command": "node",
-      "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-Build the MCP server first:
-```bash
-cd plugins/mcp-server
-npm install && npm run build
+- Skill/MCP permission escalation → HIGH
+- Credential access → MEDIUM
 ```
 
 ## For Other AI Agents (via MCP)
@@ -65,9 +54,12 @@ Any AI agent that supports MCP (Model Context Protocol) can use Sigil's security
 1. `sigil_scan` — Scan a file or directory
 2. `sigil_scan_package` — Scan a pip or npm package
 3. `sigil_clone` — Clone and quarantine a git repository
-4. `sigil_list_quarantine` — List quarantined items
+4. `sigil_quarantine` — List quarantined items
 5. `sigil_approve` — Approve a quarantined item
 6. `sigil_reject` — Reject and delete a quarantined item
+7. `sigil_check_package` — Look up a package/skill in the public scan database
+8. `sigil_search_database` — Search the public scan database
+9. `sigil_report_threat` — Report a malicious file by SHA256 hash
 
 ### Example MCP Configuration:
 
@@ -75,14 +67,16 @@ Any AI agent that supports MCP (Model Context Protocol) can use Sigil's security
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/usr/local/lib/node_modules/@nomark/sigil-mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
     }
   }
 }
 ```
 
-(After npm package is published)
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm — the `npx` config above will work once it is. Until then, build from source (`cd plugins/mcp-server && npm install && npm run build`) and use `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]` instead.
+
+See the [MCP integration guide](mcp.md) for full tool schemas and environment variables (`SIGIL_BINARY`, `SIGIL_API_URL`).
 
 ## For Custom AI Agent Systems
 
@@ -121,7 +115,7 @@ import json
 def scan_repository(path: str) -> dict:
     """Scan a repository for security threats."""
     result = subprocess.run(
-        ["./bin/sigil", "scan", path, "--json"],
+        ["sigil", "--format", "json", "scan", path],
         capture_output=True,
         text=True
     )
@@ -130,7 +124,7 @@ def scan_repository(path: str) -> dict:
 def scan_package(pkg_name: str, pkg_type: str = "pip") -> dict:
     """Scan a package before installation."""
     result = subprocess.run(
-        ["./bin/sigil", pkg_type, pkg_name, "--json"],
+        ["sigil", "--format", "json", pkg_type, pkg_name],
         capture_output=True,
         text=True
     )

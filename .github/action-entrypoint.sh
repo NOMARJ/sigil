@@ -28,7 +28,6 @@ THRESHOLD="${INPUT_THRESHOLD:-medium}"
 API_KEY="${INPUT_API_KEY:-}"
 FAIL_ON_FINDINGS="${INPUT_FAIL_ON_FINDINGS:-true}"
 PHASES="${INPUT_PHASES:-all}"
-EXCLUDE="${INPUT_EXCLUDE:-}"
 ACTION_PATH="${SIGIL_ACTION_PATH:-$(dirname "$(dirname "$0")")}"
 
 # ── Validate inputs ──────────────────────────────────────────────────────────
@@ -51,7 +50,6 @@ log "  Path:      $SCAN_PATH"
 log "  Threshold: $THRESHOLD"
 log "  Phases:    $PHASES"
 log "  Fail:      $FAIL_ON_FINDINGS"
-[ -n "$EXCLUDE" ] && log "  Exclude:   $EXCLUDE"
 [ -n "$API_KEY" ] && log "  API key:   (provided)"
 
 # ── Set up temporary report directory ────────────────────────────────────────
@@ -75,10 +73,6 @@ if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
     SCAN_CMD+=(--phases "$PHASES")
 fi
 
-# Add exclusions if specified
-if [ -n "${EXCLUDE:-}" ]; then
-    SCAN_CMD+=(--exclude "$EXCLUDE")
-fi
 
 # Add API key for cloud features
 if [ -n "${API_KEY:-}" ]; then
