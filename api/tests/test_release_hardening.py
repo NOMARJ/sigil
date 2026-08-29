@@ -367,6 +367,13 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     # crates.io publish must stay idempotent so a re-run of the release job
     # (e.g. after an npm failure) does not die on "crate already exists".
     assert "already on crates.io" in workflow
+
+    # A release created via the web UI is published (immutable, assetless)
+    # before the workflow can act — the preflight guard must fail fast on
+    # that, before the five platform builds run (v1.3.4, run 33269519976).
+    assert "A published release already exists" in workflow
+    assert workflow.index("preflight:") < workflow.index("build:")
+    assert "needs: preflight" in workflow
     assert "cargo install sigil-cli" in workflow
     assert "npm (macOS/Linux)" in workflow
     assert "npm publish --access public ||" not in workflow
