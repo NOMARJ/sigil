@@ -30,10 +30,12 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: sigil-linux-x64
+          # Built natively on GitHub's arm64 runner. cross is unusable here:
+          # its container mounts only cli/, so the corpus include_str! paths
+          # into repo-root packs/ can never resolve (release run 33239558719).
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             artifact: sigil-linux-arm64
-            use_cross: true
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: sigil-windows-x64
