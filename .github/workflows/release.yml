@@ -14,8 +14,33 @@ permissions:
   contents: write
 
 jobs:
+  # Creating a release from the web UI creates BOTH the tag and a published
+  # (immutable, therefore forever assetless) release before this workflow can
+  # act — that is how v1.3.0–v1.3.4 all shipped empty. Fail fast with a clear
+  # message before spending five platform builds. A draft release for the tag
+  # is fine: that's this workflow's own partial progress.
+  preflight:
+    name: Guard against web-published releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if a published release already exists for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "Not a tag push — nothing to check."
+            exit 0
+          fi
+          DRAFT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" --jq .draft 2>/dev/null || echo "absent")"
+          if [[ "$DRAFT" == "false" ]]; then
+            echo "::error::A published release already exists for ${GITHUB_REF_NAME}. This repo uses immutable releases, so it can never receive assets. It was almost certainly created via the web UI (Releases → 'Draft a new release'), which publishes the release before this workflow can attach binaries. Recovery: bump the version, then push the new tag from git ONLY — never publish a release from the web UI."
+            exit 1
+          fi
+          echo "No published release for ${GITHUB_REF_NAME} — proceeding."
+
   build:
     name: Build ${{ matrix.target }}
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
