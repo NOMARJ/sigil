@@ -1,6 +1,6 @@
 [package]
 name = "sigil-cli"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2021"
 description = "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers"
 license = "Apache-2.0"
@@ -20,7 +20,11 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "blocking"] }
+# native-tls-vendored statically compiles OpenSSL into the binary: required
+# for the aarch64-linux cross build (no target-arch libssl headers in the
+# cross container — release run 33235288512 failed there), and it makes the
+# published binaries independent of each distro's system libssl.
+reqwest = { version = "0.11", features = ["json", "blocking", "native-tls-vendored"] }
 regex = "1"
 walkdir = "2"
 ignore = "0.4"
