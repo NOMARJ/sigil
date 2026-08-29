@@ -347,15 +347,27 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
 
     assert "aarch64-unknown-linux-gnu" in workflow
     assert "cross build --release --target ${{ matrix.target }}" in workflow
-    assert workflow.index("name: Publish to crates.io") < workflow.index(
-        "name: Create GitHub Release"
+
+    # The repo uses immutable releases: assets can only be attached before
+    # publication, so the workflow must create the release as a draft with
+    # every asset already attached, flip it to published, and only then run
+    # the registry publishes (a crates.io failure must never block assets —
+    # runs 33244784841 and 33247510578 are the incidents behind this order).
+    assert "draft: true" in workflow
+    assert "-F draft=false" in workflow
+    assert workflow.index(
+        "name: Create draft GitHub Release with assets"
+    ) < workflow.index("name: Publish GitHub Release")
+    assert workflow.index("name: Publish GitHub Release") < workflow.index(
+        "name: Publish to crates.io"
     )
-    assert workflow.index("name: Create GitHub Release") < workflow.index(
+    assert workflow.index("name: Publish to crates.io") < workflow.index(
         "name: Publish to npm"
     )
-    assert "draft: true" not in workflow
+    # crates.io publish must stay idempotent so a re-run of the release job
+    # (e.g. after an npm failure) does not die on "crate already exists".
+    assert "already on crates.io" in workflow
     assert "cargo install sigil-cli" in workflow
-    assert 'gh release edit "${{ github.ref_name }}" --draft=false' not in workflow
     assert "npm (macOS/Linux)" in workflow
     assert "npm publish --access public ||" not in workflow
 
