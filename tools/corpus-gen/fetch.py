@@ -7,7 +7,7 @@ command templates, and writes them to ``vendor/<source>.json`` together with a
 provenance block (repo, ref, commit, retrieval date, tarball SHA-256, license).
 
 `generate.py` consumes those vendored snapshots to emit the signature packs in
-``packs/core/v1/``. Splitting fetch (network) from generate (deterministic)
+``cli/packs/core/v1/``. Splitting fetch (network) from generate (deterministic)
 keeps pack regeneration reproducible and offline.
 
 NO synthetic data: every entry here is parsed verbatim from the named upstream

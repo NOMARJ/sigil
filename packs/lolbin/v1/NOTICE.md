@@ -19,7 +19,7 @@ GPL-3.0 is a copyleft license and is not one-way compatible with Apache-2.0. To
 keep the Apache-2.0 binary free of GPL-derived material, these packs are kept
 out of the compiled binary and shipped as this clearly-separated, GPL-3.0
 bundle that the user opts into and loads as runtime data. The reverse/bind-shell
-pack (`packs/core/v1/reverse_shells.json`) is derived from the MIT-licensed
+pack (`cli/packs/core/v1/reverse_shells.json`) is derived from the MIT-licensed
 reverse-shell-generator and therefore *is* embedded in the binary.
 
 > Note: whether regex signatures distilled from these corpora are a derivative

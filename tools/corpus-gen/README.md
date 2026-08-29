@@ -8,7 +8,7 @@ than hand-maintained guesses:
 | --- | --- | --- | --- | --- |
 | `lolbin_unix.json` | `packs/lolbin/v1/` | [GTFOBins](https://gtfobins.github.io/) | GPL-3.0 | **Optional bundle** (runtime) |
 | `lolbin_windows.json` | `packs/lolbin/v1/` | [LOLBAS](https://lolbas-project.github.io/) | GPL-3.0 | **Optional bundle** (runtime) |
-| `reverse_shells.json` | `packs/core/v1/` | [reverse-shell-generator](https://www.revshells.com/) | MIT | Embedded in binary |
+| `reverse_shells.json` | `cli/packs/core/v1/` | [reverse-shell-generator](https://www.revshells.com/) | MIT | Embedded in binary |
 
 > **Licensing split (deliberate).** Sigil is Apache-2.0. GTFOBins and LOLBAS are
 > **GPL-3.0**, so their derived packs are **not** compiled into the binary — they
@@ -23,7 +23,7 @@ Two deterministic steps, split so pack regeneration is reproducible and offline:
 
 ```
 fetch.py     # network: download pinned upstream, distill -> vendor/*.json (+ provenance)
-generate.py  # offline: vendor/*.json -> packs/core/v1/reverse_shells.json (embedded, MIT)
+generate.py  # offline: vendor/*.json -> cli/packs/core/v1/reverse_shells.json (embedded, MIT)
              #                        -> packs/lolbin/v1/lolbin_{unix,windows}.json (bundle, GPL-3.0)
 ```
 
@@ -72,7 +72,7 @@ redistributed as part of the Apache-2.0 binary.
 **Resolution adopted (the "split"):**
 
 * **MIT → embedded.** `reverse_shells.json` is compiled into the Apache-2.0
-  binary via `include_str!` (`packs/core/v1/`).
+  binary via `include_str!` (`cli/packs/core/v1/`).
 * **GPL-3.0 → optional runtime bundle.** `lolbin_unix.json` and
   `lolbin_windows.json` are **not** embedded. They ship as the standalone
   GPL-3.0 bundle in `packs/lolbin/v1/` (with its own `LICENSE` + `NOTICE.md`)
