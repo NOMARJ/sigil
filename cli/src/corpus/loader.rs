@@ -13,17 +13,17 @@ use super::signing::PackVerifier;
 /// Using separate constants keeps the compiler error local when a file is
 /// missing.
 const EMBEDDED_PACKS: &[&str] = &[
-    include_str!("../../../packs/core/v1/install_hooks.json"),
-    include_str!("../../../packs/core/v1/code_patterns.json"),
-    include_str!("../../../packs/core/v1/network_exfil.json"),
-    include_str!("../../../packs/core/v1/creds.json"),
-    include_str!("../../../packs/core/v1/obfuscation.json"),
-    include_str!("../../../packs/core/v1/obfuscation_chain.json"),
-    include_str!("../../../packs/core/v1/provenance.json"),
-    include_str!("../../../packs/core/v1/prompt_injection.json"),
-    include_str!("../../../packs/core/v1/skill_security.json"),
-    include_str!("../../../packs/core/v1/inference_security.json"),
-    include_str!("../../../packs/core/v1/supply_chain.json"),
+    include_str!("../../packs/core/v1/install_hooks.json"),
+    include_str!("../../packs/core/v1/code_patterns.json"),
+    include_str!("../../packs/core/v1/network_exfil.json"),
+    include_str!("../../packs/core/v1/creds.json"),
+    include_str!("../../packs/core/v1/obfuscation.json"),
+    include_str!("../../packs/core/v1/obfuscation_chain.json"),
+    include_str!("../../packs/core/v1/provenance.json"),
+    include_str!("../../packs/core/v1/prompt_injection.json"),
+    include_str!("../../packs/core/v1/skill_security.json"),
+    include_str!("../../packs/core/v1/inference_security.json"),
+    include_str!("../../packs/core/v1/supply_chain.json"),
     // Reverse/bind-shell corpus generated from the MIT-licensed
     // reverse-shell-generator. Regenerate via tools/corpus-gen/.
     //
@@ -31,7 +31,7 @@ const EMBEDDED_PACKS: &[&str] = &[
     // here — they are GPL-3.0 and ship as the optional, separately-distributed
     // bundle in packs/lolbin/v1/ (loaded at runtime from ~/.sigil/packs/). See
     // packs/lolbin/v1/NOTICE.md and tools/corpus-gen/README.md.
-    include_str!("../../../packs/core/v1/reverse_shells.json"),
+    include_str!("../../packs/core/v1/reverse_shells.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
