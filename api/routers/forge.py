@@ -91,13 +91,17 @@ class ClassifiedTool(BaseModel):
 
 async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> ClassifiedTool:
     """Classify a tool based on its scan data and metadata."""
-    # Basic classification logic for tests
-    description = scan_data.get("metadata", {}).get("description", "")
-    risk_score = scan_data.get("risk_score", 0)
-    findings = scan_data.get("findings", [])
+    # Crawler-written rows carry JSON nulls ("description": null), which
+    # .get(key, "") passes through as None — that None reaching .lower() was
+    # the production 'NoneType' 500 on /forge/search, and one such row poisons
+    # the whole result page. Coerce every nullable field at this boundary.
+    metadata = scan_data.get("metadata") or {}
+    description = metadata.get("description") or ""
+    risk_score = scan_data.get("risk_score") or 0
+    findings = scan_data.get("findings") or []
 
     # Use stored category from metadata if available, otherwise derive from name/description
-    stored_category = scan_data.get("metadata", {}).get("category", "")
+    stored_category = metadata.get("category") or ""
     if stored_category:
         # Try to map stored category string to a ToolCategory enum value
         try:
@@ -120,7 +124,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
 
     # Build GitHub URL if available
     github_url = None
-    repo_url = scan_data.get("metadata", {}).get("repository", {}).get("url")
+    repo_url = (metadata.get("repository") or {}).get("url")
     if repo_url and "github.com" in repo_url:
         github_url = repo_url
 
@@ -146,7 +150,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
         category=category,
         capabilities=capabilities,
         trust_score=trust_score,
-        verdict=scan_data.get("verdict", "UNKNOWN"),
+        verdict=scan_data.get("verdict") or "UNKNOWN",
         compatibility_signals=compatibility_signals,
         github_url=github_url,
         install_command=install_command,
@@ -246,8 +250,10 @@ def _determine_capabilities(findings: list, description: str) -> list[ToolCapabi
 
     # Check findings for capability indicators
     for finding in findings:
-        snippet = finding.get("snippet", "").lower()
-        phase = finding.get("phase", "")
+        if not isinstance(finding, dict):
+            continue
+        snippet = (finding.get("snippet") or "").lower()
+        phase = finding.get("phase") or ""
 
         if phase == "credentials" or "env" in snippet or "password" in snippet:
             capabilities.append(ToolCapability.AUTHENTICATION)
@@ -285,8 +291,10 @@ def _extract_compatibility_signals(findings: list) -> list[str]:
     endpoints = 0
 
     for finding in findings:
-        snippet = finding.get("snippet", "")
-        phase = finding.get("phase", "")
+        if not isinstance(finding, dict):
+            continue
+        snippet = finding.get("snippet") or ""
+        phase = finding.get("phase") or ""
 
         if phase == "credentials":
             # Extract environment variable names
@@ -331,9 +339,12 @@ def _parse_jsonish(value: Any, default: Any):
         return value
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
         except Exception:
             return default
+        # A stored literal "null" (or a scalar) must not masquerade as the
+        # dict/list shape callers expect.
+        return parsed if isinstance(parsed, type(default)) else default
     return default
 
 
