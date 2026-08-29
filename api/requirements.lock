@@ -93,6 +93,7 @@ requests==2.32.5
 resend==2.25.0
 requests-oauthlib==2.0.0
 rsa==4.9.1
+sentry-sdk==2.68.1
 six==1.17.0
 starlette==1.2.1
 stripe==14.4.0
