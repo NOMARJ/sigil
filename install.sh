@@ -75,9 +75,22 @@ fi
 
 RELEASE_URL=""
 if have curl || have wget; then
-  # Check if a versioned release binary exists on GitHub Releases
-  LATEST_TAG="$(curl -sfL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
-    | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  # Honor an explicit version override (e.g. SIGIL_VERSION=v1.3.5)
+  LATEST_TAG="${SIGIL_VERSION:-}"
+
+  if [ -z "$LATEST_TAG" ]; then
+    # Check if a versioned release binary exists on GitHub Releases
+    LATEST_TAG="$(curl -sfL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
+      | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
+  fi
+
+  if [ -z "$LATEST_TAG" ]; then
+    # The API is rate-limited (60 req/hr unauthenticated) and routinely 403s
+    # behind NAT/CI. The web "latest" redirect is not rate-limited: resolve
+    # the tag from its Location header instead.
+    LATEST_TAG="$(curl -sfI "https://github.com/${REPO}/releases/latest" 2>/dev/null \
+      | tr -d '\r' | grep -i '^location:' | head -1 | sed 's|.*/tag/||')"
+  fi
 
   if [ -n "$LATEST_TAG" ]; then
     RELEASE_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${ASSET_NAME}"
@@ -89,9 +102,17 @@ install_from_release() {
   TMP_DIR="$(mktemp -d)"
   TMP="${TMP_DIR}/${ASSET_NAME}"
   if have curl; then
-    curl -fsSL "$RELEASE_URL" -o "$TMP" || return 1
+    curl -fsSL "$RELEASE_URL" -o "$TMP" || {
+      warn "Download failed: ${RELEASE_URL}"
+      rm -rf "$TMP_DIR"
+      return 1
+    }
   else
-    wget -qO "$TMP" "$RELEASE_URL" || return 1
+    wget -qO "$TMP" "$RELEASE_URL" || {
+      warn "Download failed: ${RELEASE_URL}"
+      rm -rf "$TMP_DIR"
+      return 1
+    }
   fi
 
   # ── Checksum verification ────────────────────────────────────────────────
@@ -142,15 +163,21 @@ install_from_release() {
   fi
 
   tar -xzf "$TMP" -C "$TMP_DIR" sigil || {
+    warn "Could not extract sigil from ${ASSET_NAME} — the archive may be corrupt or incomplete."
     rm -rf "$TMP_DIR"
     return 1
   }
   chmod +x "${TMP_DIR}/sigil"
-  # Quick sanity check — should print a version string
-  if ! "${TMP_DIR}/sigil" --version >/dev/null 2>&1; then
+  # Quick sanity check — should print a version string. If this fails, the
+  # binary downloaded fine but cannot run on this system (commonly a glibc
+  # version mismatch on older Linux distros).
+  EXEC_OUTPUT="$("${TMP_DIR}/sigil" --version 2>&1)" || {
+    EXEC_FAILED=true
+    warn "Downloaded binary failed to execute on ${PLATFORM}/${ARCH_NORM}:"
+    warn "  ${EXEC_OUTPUT:-<no output>}"
     rm -rf "$TMP_DIR"
     return 1
-  fi
+  }
   ${SUDO:-} mv "${TMP_DIR}/sigil" "${INSTALL_DIR}/${BINARY_NAME}"
   rm -rf "$TMP_DIR"
   ok "Installed Rust binary → ${INSTALL_DIR}/${BINARY_NAME}"
@@ -160,12 +187,15 @@ install_from_release() {
 # ── Install native release binary ────────────────────────────────────────────
 
 INSTALLED_MODE=""
+EXEC_FAILED=false
 
 if [ -n "$RELEASE_URL" ]; then
-  if install_from_release 2>/dev/null; then
+  if install_from_release; then
     INSTALLED_MODE="rust"
+  elif [ "$EXEC_FAILED" = "true" ]; then
+    die "The pre-built binary was downloaded but cannot run on this system (see error above — often an incompatible glibc on older Linux distros). Install from source instead: cargo install sigil-cli"
   else
-    die "Pre-built binary not available for ${PLATFORM}/${ARCH_NORM}. Install from source: cargo install sigil-cli"
+    die "Failed to install the pre-built binary for ${PLATFORM}/${ARCH_NORM} (see error above). Install from source: cargo install sigil-cli"
   fi
 else
   die "No GitHub release found. Install from source: cargo install sigil-cli"

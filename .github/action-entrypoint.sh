@@ -80,72 +80,60 @@ if [ -n "${API_KEY:-}" ]; then
     SCAN_CMD+=(--submit)
 fi
 
+# The CLI emits a single JSON document on stdout (--format json), shaped
+# {"summary": {...}, "findings": [...]}, with its log lines on stderr.
+# Capture stdout for parsing and let the logs stream through to the console.
 set +e
-"${SCAN_CMD[@]}" 2>&1 | tee "$SCAN_OUTPUT"
-SCAN_EXIT=${PIPESTATUS[0]}
+"${SCAN_CMD[@]}" > "$SCAN_OUTPUT"
+SCAN_EXIT=$?
 set -e
 
 echo ""
 
-# ── Parse results from the report file ───────────────────────────────────────
-REPORT_FILE=$(find "$SIGIL_REPORT_DIR" -name "*_report.txt" -type f | head -1)
-
+# ── Parse results from the JSON output ───────────────────────────────────────
 RISK_SCORE=0
 VERDICT="clean"
 FINDINGS_COUNT=0
+JSON_OK=false
 
-if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
-    # Extract risk score from the verdict line
-    SCORE_LINE=$(grep -o 'Risk Score: [0-9]*' "$REPORT_FILE" | tail -1 || true)
-    if [ -n "$SCORE_LINE" ]; then
-        RISK_SCORE=$(echo "$SCORE_LINE" | grep -o '[0-9]*')
-    fi
+if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
+    JSON_OK=true
+    RISK_SCORE=$(jq -r '(.summary.score // 0) | (tonumber? // 0) | floor' "$SCAN_OUTPUT")
+    FINDINGS_COUNT=$(jq -r '.summary.findings_count // ((.findings // []) | length)' "$SCAN_OUTPUT")
+    VERDICT=$(jq -r '.summary.verdict // empty' "$SCAN_OUTPUT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+    case "$VERDICT" in
+        low-risk) VERDICT="low" ;;
+        medium-risk) VERDICT="medium" ;;
+        high-risk) VERDICT="high" ;;
+        critical-risk) VERDICT="critical" ;;
+    esac
 
-    # Count findings (lines with [FAIL] or [warn])
-    FAIL_COUNT=$(grep -c '\[FAIL\]' "$REPORT_FILE" 2>/dev/null || echo "0")
-    WARN_COUNT=$(grep -c '\[warn\]' "$REPORT_FILE" 2>/dev/null || echo "0")
-    FINDINGS_COUNT=$((FAIL_COUNT + WARN_COUNT))
-
-    # Determine verdict from score
-    if [ "$RISK_SCORE" -lt 10 ]; then
-        VERDICT="low"
-    elif [ "$RISK_SCORE" -lt 25 ]; then
-        VERDICT="medium"
-    elif [ "$RISK_SCORE" -lt 50 ]; then
-        VERDICT="high"
-    else
-        VERDICT="critical"
+    # Fall back to deriving the verdict from the score if the JSON lacks one
+    if [ -z "$VERDICT" ]; then
+        if [ "$RISK_SCORE" -lt 10 ]; then
+            VERDICT="low"
+        elif [ "$RISK_SCORE" -lt 25 ]; then
+            VERDICT="medium"
+        elif [ "$RISK_SCORE" -lt 50 ]; then
+            VERDICT="high"
+        else
+            VERDICT="critical"
+        fi
     fi
 else
-    SUMMARY_SCORE=$(sed -n 's/.*"score"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCAN_OUTPUT" | head -1)
-    SUMMARY_FINDINGS=$(sed -n 's/.*"findings_count"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCAN_OUTPUT" | head -1)
-    SUMMARY_VERDICT=$(sed -n 's/.*"verdict"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SCAN_OUTPUT" | head -1)
-
-    if [ -n "$SUMMARY_SCORE" ] && [ -n "$SUMMARY_FINDINGS" ] && [ -n "$SUMMARY_VERDICT" ]; then
-        RISK_SCORE="$SUMMARY_SCORE"
-        FINDINGS_COUNT="$SUMMARY_FINDINGS"
-        VERDICT=$(echo "$SUMMARY_VERDICT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-        case "$VERDICT" in
-            low-risk) VERDICT="low" ;;
-            medium-risk) VERDICT="medium" ;;
-            high-risk) VERDICT="high" ;;
-            critical-risk) VERDICT="critical" ;;
-        esac
-    else
-        warn "No report file or parseable JSON summary found"
-    fi
+    warn "No parseable JSON scan output found"
 fi
 
-if [ -z "$REPORT_FILE" ] || [ ! -f "$REPORT_FILE" ]; then
+if [ "$JSON_OK" != "true" ]; then
     if [ "$VERDICT" = "clean" ] && [ "$FINDINGS_COUNT" -eq 0 ] && [ "$RISK_SCORE" -eq 0 ]; then
         SCAN_EXIT=${SCAN_EXIT:-1}
         [ "$SCAN_EXIT" -eq 0 ] && SCAN_EXIT=1
     fi
 fi
 
-if [ "$SCAN_EXIT" -ne 0 ] && { [ -z "$REPORT_FILE" ] || [ ! -f "$REPORT_FILE" ]; } && [ "$VERDICT" = "clean" ]; then
+if [ "$SCAN_EXIT" -ne 0 ] && [ "$JSON_OK" != "true" ] && [ "$VERDICT" = "clean" ]; then
     VERDICT="error"
-    fail "Sigil scan failed with exit code $SCAN_EXIT and did not produce a report."
+    fail "Sigil scan failed with exit code $SCAN_EXIT and did not produce parseable JSON output."
 
     echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
     echo "risk-score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
@@ -154,7 +142,7 @@ if [ "$SCAN_EXIT" -ne 0 ] && { [ -z "$REPORT_FILE" ] || [ ! -f "$REPORT_FILE" ];
     {
         echo "## Sigil Security Scan Failed"
         echo ""
-        echo "Sigil exited with code \`$SCAN_EXIT\` before producing a report."
+        echo "Sigil exited with code \`$SCAN_EXIT\` before producing parseable JSON output."
         echo ""
         echo '```'
         sed 's/\x1b\[[0-9;]*m//g' "$SCAN_OUTPUT"
@@ -177,10 +165,12 @@ echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
 # ── Write job summary ────────────────────────────────────────────────────────
 VERDICT_EMOJI=""
 case "$VERDICT" in
+    clean)    VERDICT_EMOJI="CLEAN" ;;
     low)      VERDICT_EMOJI="LOW RISK" ;;
     medium)   VERDICT_EMOJI="MEDIUM RISK" ;;
     high)     VERDICT_EMOJI="HIGH RISK" ;;
     critical) VERDICT_EMOJI="CRITICAL RISK" ;;
+    *)        VERDICT_EMOJI=$(echo "$VERDICT" | tr '[:lower:]' '[:upper:]') ;;
 esac
 
 {
@@ -195,7 +185,7 @@ esac
     echo "| **Scan Path** | \`$SCAN_PATH\` |"
     echo ""
 
-    if [ "$FINDINGS_COUNT" -gt 0 ] && [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
+    if [ "$FINDINGS_COUNT" -gt 0 ] && [ "$JSON_OK" = "true" ]; then
         echo "### Findings"
         echo ""
         echo "<details>"
@@ -203,11 +193,11 @@ esac
         echo ""
         echo '```'
 
-        # Extract finding lines from the report
-        grep -E '\[FAIL\]|\[warn\]' "$REPORT_FILE" | while IFS= read -r line; do
-            # Strip ANSI colour codes for the summary
-            echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
-        done
+        # One line per finding, straight from the JSON
+        jq -r '(.findings // [])[]
+            | "[\(.severity // "info" | ascii_upcase)] \(.phase // "unknown"): \(.title // .message // .description // .rule // "finding")"
+              + (if .file then " (\(.file)" + (if .line then ":\(.line)" else "" end) + ")" else "" end)' \
+            "$SCAN_OUTPUT"
 
         echo '```'
         echo ""
@@ -215,30 +205,24 @@ esac
         echo ""
     fi
 
-    if [ "$FINDINGS_COUNT" -gt 0 ]; then
+    if [ "$FINDINGS_COUNT" -gt 0 ] && [ "$JSON_OK" = "true" ]; then
         echo "### Phase Breakdown"
         echo ""
-        echo "| Phase | Status |"
-        echo "|-------|--------|"
+        echo "| Phase | Findings |"
+        echo "|-------|----------|"
 
-        for phase in "Phase 1: Install Hook" "Phase 2: Code Pattern" "Phase 3: Network" "Phase 4: Credential" "Phase 5: Obfuscation" "Phase 6: Provenance"; do
-            if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
-                phase_short=$(echo "$phase" | sed 's/Phase [0-9]: //')
-                if grep -q "$phase" "$REPORT_FILE" 2>/dev/null; then
-                    phase_findings=$(sed -n "/$phase/,/Phase\|===\|VERDICT/p" "$REPORT_FILE" | grep -c '\[FAIL\]\|\[warn\]' 2>/dev/null || echo "0")
-                    if [ "$phase_findings" -gt 0 ]; then
-                        echo "| $phase_short | \`$phase_findings finding(s)\` |"
-                    else
-                        echo "| $phase_short | \`clean\` |"
-                    fi
-                fi
-            fi
-        done
+        # Derive the phase list from the findings themselves rather than a
+        # hardcoded list — the scanner has eight phases plus inference security.
+        jq -r '[(.findings // [])[] | (.phase // "unknown")]
+            | group_by(.)
+            | map("| \(.[0]) | `\(length) finding(s)` |")
+            | .[]' \
+            "$SCAN_OUTPUT"
         echo ""
     fi
 
     echo "---"
-    echo "*Scanned by [Sigil](https://github.com/nomark/sigil) — automated security auditing for AI agent code.*"
+    echo "*Scanned by [Sigil](https://github.com/NOMARJ/sigil) — automated security auditing for AI agent code.*"
     echo ""
     echo "*Automated static analysis result. Not a security certification. Provided as-is without warranty. See [sigilsec.ai/terms](https://sigilsec.ai/terms) for full terms.*"
 } >> "$GITHUB_STEP_SUMMARY"
