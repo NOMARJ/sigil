@@ -124,6 +124,9 @@ enum Commands {
         ignore_ledger: bool,
     },
 
+    /// Show the active detection corpus: which packs are loaded, from where
+    Corpus,
+
     /// Clear all cached scan results
     ClearCache,
 
@@ -493,6 +496,7 @@ async fn main() {
             .await
         }
 
+        Commands::Corpus => cmd_corpus(&cli.format),
         Commands::ClearCache => cmd_clear_cache().await,
 
         Commands::Fetch { force } => cmd_fetch(force, cli.verbose).await,
@@ -685,6 +689,89 @@ fn extract_archives(dir: &Path) -> Result<ExtractionReport, Box<dyn std::error::
     }
 
     Ok(report)
+}
+
+/// Show the active detection corpus.
+///
+/// Makes the data plane inspectable: which packs are live, what version, and
+/// whether each came from the binary, the released corpus, or a user pack.
+/// Without this there is no way to answer "which rules did that scan actually
+/// run" short of reading a scan report.
+fn cmd_corpus(format: &str) -> i32 {
+    let packs = match corpus::loader::load_all_packs_with_origin() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {}", "error:".bold().red(), e);
+            return EXIT_ERROR;
+        }
+    };
+    let compiled = corpus::compiled::corpus();
+
+    if format == "json" {
+        let doc = serde_json::json!({
+            "corpus_digest": compiled.digest(),
+            "rule_count": compiled.rule_count(),
+            "packs": packs.iter().map(|(p, origin)| serde_json::json!({
+                "id": p.meta.id,
+                "name": p.meta.name,
+                "version": p.meta.version,
+                "updated_at": p.meta.updated_at,
+                "origin": origin.to_string(),
+                "rules": p.rules.len(),
+                "provenance_rules": p.provenance_rules.len(),
+            })).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return EXIT_CLEAN;
+    }
+
+    println!();
+    println!("  {} detection corpus", "sigil".bold().cyan());
+    println!("  digest: {}", compiled.digest());
+    println!(
+        "  {} content rules across {} packs",
+        compiled.rule_count(),
+        packs.len()
+    );
+    println!();
+    println!(
+        "  {:<34} {:<9} {:<10} {:>6}",
+        "PACK".bold(),
+        "VERSION".bold(),
+        "ORIGIN".bold(),
+        "RULES".bold()
+    );
+    for (pack, origin) in &packs {
+        let origin_label = match origin {
+            corpus::loader::PackOrigin::Embedded => origin.to_string().dimmed().to_string(),
+            corpus::loader::PackOrigin::Released => origin.to_string().green().to_string(),
+            corpus::loader::PackOrigin::User => origin.to_string().yellow().to_string(),
+        };
+        println!(
+            "  {:<34} {:<9} {:<19} {:>6}",
+            pack.meta.id,
+            pack.meta.version,
+            origin_label,
+            pack.rules.len() + pack.provenance_rules.len()
+        );
+    }
+    println!();
+    println!(
+        "  Released packs load from {}",
+        corpus::loader::released_corpus_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.sigil/corpus/".to_string())
+    );
+    println!(
+        "  User packs load from     {}",
+        corpus::loader::user_packs_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.sigil/packs/".to_string())
+    );
+    println!("  A pack supersedes an embedded pack with the same id.");
+    println!();
+
+    EXIT_CLEAN
 }
 
 /// Stamp findings with a composable locator naming the artifact they came
