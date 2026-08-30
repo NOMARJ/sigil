@@ -66,7 +66,17 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-6">
+        <p className="text-center text-sm text-gray-500 mt-6">
+          New to Sigil?{" "}
+          <a
+            href="/auth/login?screen_hint=signup"
+            className="text-brand-400 hover:text-brand-300 font-medium transition-colors"
+          >
+            Create an account
+          </a>
+        </p>
+
+        <p className="text-center text-xs text-gray-600 mt-4">
           By signing in, you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>

@@ -144,9 +144,9 @@ export default function DashboardPage() {
       <div className="card">
         <div className="card-header flex items-center justify-between">
           <div>
-            <h2 className="section-header">Recent Scans</h2>
+            <h2 className="section-header">Recent Community Scans</h2>
             <p className="section-description">
-              Latest package and repository scans.
+              Latest public, community, and your own package and repository scans.
             </p>
           </div>
           <Link
@@ -172,7 +172,16 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <ScanTable scans={recentScans} />
+            <>
+              {stats?.total_scans === 0 && (
+                <p className="mb-4 p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-sm text-gray-400">
+                  You haven&apos;t run any scans yet — scans you submit will
+                  appear here. The list below shows recent scans from the
+                  public community feed.
+                </p>
+              )}
+              <ScanTable scans={recentScans} />
+            </>
           )}
         </div>
       </div>

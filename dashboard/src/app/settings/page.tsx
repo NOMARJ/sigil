@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { SubscriptionManager } from "@/components/SubscriptionManager";
+import { useAuth } from "@/lib/auth";
 import * as api from "@/lib/api";
 import type { Verdict, AlertChannel, AlertChannelType, Policy, BillingPlan, Subscription } from "@/lib/types";
 
@@ -91,6 +92,11 @@ function normalizeSubscriptionStatus(status: string): Subscription["status"] {
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const checkoutStatus = searchParams?.get("checkout");
+  const { user, loading: authLoading } = useAuth();
+
+  // Custom scan policies require a paid plan — the API rejects saves from
+  // free accounts, so disable the controls up front instead of failing silently.
+  const policiesLocked = !authLoading && (user?.plan ?? "free") === "free";
 
   // Policy state
   const [autoApproveThreshold, setAutoApproveThreshold] = useState<Verdict>("LOW_RISK");
@@ -221,6 +227,10 @@ export default function SettingsPage() {
   };
 
   const handleSavePolicy = async () => {
+    if (policiesLocked) {
+      setPolicyError("Scan policies require the Pro plan or higher.");
+      return;
+    }
     setPolicySaving(true);
     setPolicyError(null);
     setPolicySaveSuccess(false);
@@ -371,6 +381,22 @@ export default function SettingsPage() {
   };
 
   // ---------------------------------------------------------------------------
+  // Derived values
+  // ---------------------------------------------------------------------------
+
+  // Annual savings badge, computed from the actual plan prices so the copy
+  // can never drift from what we charge. Uses the smallest discount across
+  // paid plans so we never overstate.
+  const annualSavingsPercent = (() => {
+    const discounts = plans
+      .filter((plan) => plan.price_monthly > 0 && plan.price_yearly > 0)
+      .map((plan) => 1 - plan.price_yearly / (plan.price_monthly * 12));
+    if (discounts.length === 0) return null;
+    const pct = Math.round(Math.min(...discounts) * 100);
+    return pct > 0 ? pct : null;
+  })();
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -409,6 +435,21 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
+              {policiesLocked && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-400 flex items-center justify-between gap-4">
+                  <span>
+                    Custom scan policies require the Pro plan or higher. Upgrade
+                    to edit and save these settings.
+                  </span>
+                  <a
+                    href="/pricing"
+                    className="shrink-0 text-amber-300 hover:text-amber-200 text-xs font-medium underline"
+                  >
+                    Upgrade
+                  </a>
+                </div>
+              )}
+
               {policyError && (
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
                   {policyError}
@@ -432,7 +473,8 @@ export default function SettingsPage() {
                     <button
                       key={v}
                       onClick={() => setAutoApproveThreshold(v)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      disabled={policiesLocked}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         autoApproveThreshold === v
                           ? "bg-brand-600/20 text-brand-400 border border-brand-500/30"
                           : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
@@ -455,7 +497,8 @@ export default function SettingsPage() {
                     <button
                       key={v}
                       onClick={() => toggleApproval(v)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      disabled={policiesLocked}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                         requireApproval.includes(v)
                           ? "bg-red-600/20 text-red-400 border border-red-500/30"
                           : "bg-gray-800/50 text-gray-400 border border-gray-800 hover:border-gray-700"
@@ -480,7 +523,8 @@ export default function SettingsPage() {
                   value={allowlist}
                   onChange={(e) => setAllowlist(e.target.value)}
                   rows={4}
-                  className="input font-mono text-xs"
+                  disabled={policiesLocked}
+                  className="input font-mono text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="package-name"
                 />
               </div>
@@ -498,16 +542,17 @@ export default function SettingsPage() {
                   value={blocklist}
                   onChange={(e) => setBlocklist(e.target.value)}
                   rows={4}
-                  className="input font-mono text-xs"
+                  disabled={policiesLocked}
+                  className="input font-mono text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="package-name@version"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex items-center gap-3 flex-wrap">
                 <button
-                  className="btn-primary"
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleSavePolicy}
-                  disabled={policySaving}
+                  disabled={policySaving || policiesLocked}
                 >
                   {policySaving ? (
                     <span className="flex items-center gap-2">
@@ -521,6 +566,11 @@ export default function SettingsPage() {
                     "Save Policies"
                   )}
                 </button>
+                {policyError && !policySaving && (
+                  <span className="text-sm text-red-400" role="alert">
+                    {policyError}
+                  </span>
+                )}
               </div>
             </>
           )}
@@ -781,7 +831,11 @@ export default function SettingsPage() {
                     }`}
                   >
                     Annual
-                    <span className="ml-1.5 text-green-400 font-semibold">Save 17%</span>
+                    {annualSavingsPercent !== null && (
+                      <span className="ml-1.5 text-green-400 font-semibold">
+                        Save {annualSavingsPercent}%
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>

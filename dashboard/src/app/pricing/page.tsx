@@ -85,7 +85,7 @@ export default function PricingPage() {
         "Attack chain tracing & analysis",
         "Security version comparison",
         "Compliance mapping & reporting",
-        "Priority support & API access",
+        "Priority support",
       ],
       team: [
         "50,000 monthly AI credits",
@@ -204,7 +204,7 @@ export default function PricingPage() {
               "False Positive Verification",
               "Interactive Security Chat",
               "Attack chain tracing & analysis",
-              "Priority support & API access",
+              "Priority support",
             ].map((f) => (
               <li key={f} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--color-accent)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
