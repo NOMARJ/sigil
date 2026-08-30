@@ -25,13 +25,13 @@ sh install.sh
 
 Detects your platform, downloads a pre-built binary from the latest GitHub release if one exists for your OS/arch, falls back to the bash script otherwise. Installs to `/usr/local/bin` and runs `sigil install` to set up shell aliases.
 
-### Option 2: Homebrew (coming soon)
+### Option 2: Homebrew
 
 ```bash
 brew install nomarj/tap/sigil
 ```
 
-### Option 3: npm global package (coming soon)
+### Option 3: npm global package
 
 ```bash
 npm install -g @nomarj/sigil
@@ -192,13 +192,12 @@ Copies the directory into quarantine and scans the copy.
 
 After every scan, Sigil produces a risk score and verdict:
 
-| Score | Verdict         | What It Means                                  | What to Do                                    |
-| ----- | --------------- | ---------------------------------------------- | --------------------------------------------- |
-| 0     | **CLEAN**       | No suspicious patterns detected                | Safe to approve                               |
-| 1-9   | **LOW RISK**    | Minor findings, likely false positives         | Review the flagged items, then approve        |
-| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention       | Read the report, check each finding manually  |
-| 25-49 | **HIGH RISK**   | Significant suspicious patterns                | Do not approve without thorough manual review |
-| 50+   | **CRITICAL**    | Multiple strong indicators of malicious intent | Reject and report                             |
+| Score / Evidence                     | Verdict           | What It Means                                              | What to Do                                    |
+| ------------------------------------ | ----------------- | ---------------------------------------------------------- | --------------------------------------------- |
+| 0-9                                  | **LOW RISK**      | No known malicious patterns detected                       | Review any flagged items, then approve        |
+| 10-24                                | **MEDIUM RISK**   | Multiple findings that warrant attention                   | Read the report, check each finding manually  |
+| 25+                                  | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
+| Any single Critical-severity finding | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report                             |
 
 ### Reading the Report
 
@@ -216,7 +215,7 @@ The report lists every finding from every phase, with file names and line number
 After reviewing the scan results:
 
 ```bash
-# Approve -- move the code out of quarantine
+# Approve -- mark as trusted and pin its digest in the trust ledger
 sigil approve <quarantine-id>
 
 # Reject -- permanently delete the quarantined code
@@ -226,7 +225,7 @@ sigil reject <quarantine-id>
 sigil list
 ```
 
-Approved code is moved to `~/.sigil/approved/<id>/`. You can then copy or symlink it into your project.
+Approved code stays at `~/.sigil/quarantine/<id>/` — approval records the item in the trust ledger (so future digest-matching scans are allowlisted). Copy or symlink the files into your project yourself.
 
 ## Shell Aliases Setup
 

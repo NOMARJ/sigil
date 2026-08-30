@@ -6,17 +6,15 @@ The Sigil CLI now supports **LLM-powered enhanced scanning** for authenticated u
 
 ## Authentication Required
 
-Enhanced scanning requires authentication. Users must first log in:
-
-```bash
-sigil login --token YOUR_API_TOKEN
-```
-
-Or use interactive login:
+Enhanced scanning requires authentication. Users must first log in via the
+browser-based device authorization flow:
 
 ```bash
 sigil login
 ```
+
+(The `--token` flag exists for non-interactive use, but API token issuance is
+not yet available from the dashboard — the device flow is the supported path.)
 
 ## Usage
 
