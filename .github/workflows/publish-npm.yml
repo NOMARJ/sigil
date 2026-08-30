@@ -14,8 +14,14 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# Publishes via npm Trusted Publishing (OIDC): no NPM_TOKEN secret at all.
+# npmjs.com > @nomarj/sigil > Settings > Trusted Publisher must point at
+# THIS workflow file (org NOMARJ, repo sigil, workflow publish-npm.yml).
+# npm allows one trusted publisher per package, so this is the only
+# workflow that runs `npm publish` — release.yml dispatches it.
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -26,14 +32,13 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
+      # Node 24 bundles npm >= 11.5.1, the minimum for trusted publishing.
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION="${{ inputs.tag }}"
           VERSION="${VERSION#v}"
