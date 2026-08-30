@@ -596,12 +596,65 @@ async fn main() {
 // Archive extraction helper
 // ---------------------------------------------------------------------------
 
+/// Maximum total bytes written while unpacking one quarantined artifact.
+///
+/// Path escape is already handled by the archive crates — `zip`'s `extract`
+/// resolves every entry through `enclosed_name()` and errors on escape, and
+/// `tar`'s `unpack_in` validates entries against the destination. What
+/// neither bounds is *volume*: a small archive that expands to tens of
+/// gigabytes fills the disk during what the user believes is a read-only
+/// scan. 2 GiB is far above any real package and far below a bomb.
+const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Maximum number of entries unpacked from one artifact. Guards inode
+/// exhaustion from an archive of very many tiny files.
+const MAX_EXTRACTED_ENTRIES: usize = 200_000;
+
+/// What unpacking an artifact produced, including any cap that was hit.
+#[derive(Debug, Default, Clone)]
+pub struct ExtractionReport {
+    pub bytes: u64,
+    pub entries: usize,
+    /// Set when a cap stopped extraction. Carries a human-readable reason.
+    pub capped: Option<String>,
+}
+
+impl ExtractionReport {
+    /// A cap hit is itself a signal, not merely an error: an archive that
+    /// expands past any plausible package size is the shape of a
+    /// decompression bomb, so it is reported as a finding rather than
+    /// silently aborting the unpack.
+    fn finding(&self, artifact: &str) -> Option<scanner::Finding> {
+        let reason = self.capped.as_ref()?;
+        Some(scanner::Finding {
+            phase: scanner::Phase::Provenance,
+            rule: "ARCHIVE-BOMB-001".to_string(),
+            severity: scanner::Severity::High,
+            file: artifact.to_string(),
+            line: None,
+            snippet: format!("Archive expansion cap exceeded: {reason}"),
+            weight: 5,
+            kev: false,
+            epss: 0.0,
+        })
+    }
+}
+
 /// Extract .whl/.zip and .tar.gz/.tgz archives in a directory so the scanner
 /// can inspect the actual source files inside packages.
-fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+///
+/// Extraction is bounded by [`MAX_EXTRACTED_BYTES`] and
+/// [`MAX_EXTRACTED_ENTRIES`] across all archives in the directory. Hitting
+/// either stops extraction and is reported in the returned
+/// [`ExtractionReport`]; whatever was already written is still scanned.
+fn extract_archives(dir: &Path) -> Result<ExtractionReport, Box<dyn std::error::Error>> {
     let entries: Vec<_> = std::fs::read_dir(dir)?.filter_map(|e| e.ok()).collect();
+    let mut report = ExtractionReport::default();
 
     for entry in entries {
+        if report.capped.is_some() {
+            break;
+        }
         let path = entry.path();
         let name = path
             .file_name()
@@ -615,7 +668,7 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let mut archive = zip::ZipArchive::new(file)?;
             let extract_dir = dir.join(name.trim_end_matches(".whl").trim_end_matches(".zip"));
             std::fs::create_dir_all(&extract_dir)?;
-            archive.extract(&extract_dir)?;
+            extract_zip_bounded(&mut archive, &extract_dir, &mut report)?;
             std::fs::remove_file(&path)?;
         } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
             // Extract gzipped tar archives
@@ -624,11 +677,117 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let mut archive = tar::Archive::new(gz);
             let extract_dir = dir.join(name.trim_end_matches(".tar.gz").trim_end_matches(".tgz"));
             std::fs::create_dir_all(&extract_dir)?;
-            archive.unpack(&extract_dir)?;
+            extract_tar_bounded(&mut archive, &extract_dir, &mut report)?;
             std::fs::remove_file(&path)?;
         }
     }
 
+    Ok(report)
+}
+
+/// Fold an extraction cap hit into the scan result.
+///
+/// The finding is added before scoring so the verdict reflects it — an
+/// artifact that tried to expand past the cap should not come back
+/// `LOW RISK` just because the scanner refused to unpack the rest of it.
+fn apply_extraction_report(
+    result: &mut scanner::ScanResult,
+    report: &ExtractionReport,
+    artifact: &str,
+) {
+    let Some(finding) = report.finding(artifact) else {
+        return;
+    };
+    eprintln!(
+        "{} {}",
+        "warning:".bold().yellow(),
+        finding.snippet.as_str()
+    );
+    result.findings.push(finding);
+    result.score = scanner::scoring::calculate_score(&result.findings);
+    result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+}
+
+/// Record one entry against the caps. Returns `false` once a cap is hit.
+fn admit_entry(report: &mut ExtractionReport, declared: u64) -> bool {
+    if report.capped.is_some() {
+        return false;
+    }
+    if report.entries + 1 > MAX_EXTRACTED_ENTRIES {
+        report.capped = Some(format!("more than {MAX_EXTRACTED_ENTRIES} entries"));
+        return false;
+    }
+    if report.bytes.saturating_add(declared) > MAX_EXTRACTED_BYTES {
+        report.capped = Some(format!(
+            "expanded past {} MiB",
+            MAX_EXTRACTED_BYTES / (1024 * 1024)
+        ));
+        return false;
+    }
+    report.entries += 1;
+    report.bytes = report.bytes.saturating_add(declared);
+    true
+}
+
+/// Unpack a zip under the extraction caps.
+///
+/// Entry paths go through `enclosed_name()`, the same sanitisation
+/// `ZipArchive::extract` applies, so an entry that escapes the destination is
+/// skipped rather than written.
+fn extract_zip_bounded(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    dest: &Path,
+    report: &mut ExtractionReport,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let Some(rel) = file.enclosed_name() else {
+            continue; // path escapes the destination — skip it
+        };
+        if !admit_entry(report, file.size()) {
+            break;
+        }
+        let out = dest.join(rel);
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&out)?;
+            continue;
+        }
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut sink = std::fs::File::create(&out)?;
+        // Bound the copy itself: the declared size in the header is
+        // attacker-controlled, so a lying header must not be able to write
+        // past the cap.
+        let budget = MAX_EXTRACTED_BYTES.saturating_sub(report.bytes) + file.size();
+        let mut bounded = std::io::Read::take(&mut file, budget);
+        let written = std::io::copy(&mut bounded, &mut sink)?;
+        if written > file.size() {
+            report.bytes = report.bytes.saturating_add(written - file.size());
+        }
+    }
+    Ok(())
+}
+
+/// Unpack a gzipped tar under the extraction caps.
+///
+/// `tar`'s own `unpack_in` validation is retained per entry, so path escape
+/// and symlink handling behave exactly as before.
+fn extract_tar_bounded<R: std::io::Read>(
+    archive: &mut tar::Archive<R>,
+    dest: &Path,
+    report: &mut ExtractionReport,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let declared = entry.header().size().unwrap_or(0);
+        if !admit_entry(report, declared) {
+            break;
+        }
+        // unpack_in performs the destination-containment check and returns
+        // false when it refuses the entry.
+        entry.unpack_in(dest)?;
+    }
     Ok(())
 }
 
@@ -765,15 +924,20 @@ async fn cmd_pip(
     }
 
     // Extract .whl (zip) and .tar.gz files so the scanner sees actual source
-    if let Err(err) = extract_archives(&entry.path) {
-        eprintln!(
-            "{} failed to extract archives: {} (scanning raw archives instead)",
-            "warning:".bold().yellow(),
-            err
-        );
-    }
+    let extraction = match extract_archives(&entry.path) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!(
+                "{} failed to extract archives: {} (scanning raw archives instead)",
+                "warning:".bold().yellow(),
+                err
+            );
+            ExtractionReport::default()
+        }
+    };
 
-    let result = scanner::run_scan(&entry.path, None, None);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_extraction_report(&mut result, &extraction, &pkg_spec);
     print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -847,15 +1011,20 @@ async fn cmd_npm(
     }
 
     // Extract .tgz files so the scanner sees actual source
-    if let Err(err) = extract_archives(&entry.path) {
-        eprintln!(
-            "{} failed to extract archives: {} (scanning raw archives instead)",
-            "warning:".bold().yellow(),
-            err
-        );
-    }
+    let extraction = match extract_archives(&entry.path) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!(
+                "{} failed to extract archives: {} (scanning raw archives instead)",
+                "warning:".bold().yellow(),
+                err
+            );
+            ExtractionReport::default()
+        }
+    };
 
-    let result = scanner::run_scan(&entry.path, None, None);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_extraction_report(&mut result, &extraction, &pkg_spec);
     print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -2422,6 +2591,133 @@ mod exit_code_tests {
                 "{verdict:?} must not collide with the scan-error exit code"
             );
         }
+    }
+
+    #[test]
+    fn extraction_caps_admit_normal_packages() {
+        let mut r = super::ExtractionReport::default();
+        // A realistic package: a few hundred files, a few MiB.
+        for _ in 0..500 {
+            assert!(admit(&mut r, 8 * 1024));
+        }
+        assert!(r.capped.is_none());
+        assert_eq!(r.entries, 500);
+    }
+
+    #[test]
+    fn extraction_caps_stop_a_size_bomb() {
+        let mut r = super::ExtractionReport::default();
+        // Each entry claims 512 MiB; the 2 GiB cap must stop it.
+        let half_gig = 512 * 1024 * 1024;
+        let mut admitted = 0;
+        for _ in 0..100 {
+            if admit(&mut r, half_gig) {
+                admitted += 1;
+            } else {
+                break;
+            }
+        }
+        assert!(r.capped.is_some(), "size cap did not fire");
+        assert!(
+            admitted <= 4,
+            "admitted {admitted} x 512 MiB past a 2 GiB cap"
+        );
+        assert!(r.capped.as_ref().unwrap().contains("MiB"));
+    }
+
+    #[test]
+    fn extraction_caps_stop_an_entry_bomb() {
+        let mut r = super::ExtractionReport::default();
+        // Zero-byte entries never trip the size cap, so only the entry cap
+        // can stop inode exhaustion.
+        for _ in 0..(super::MAX_EXTRACTED_ENTRIES + 10) {
+            if !admit(&mut r, 0) {
+                break;
+            }
+        }
+        assert!(r.capped.is_some(), "entry cap did not fire");
+        assert!(r.capped.as_ref().unwrap().contains("entries"));
+        assert_eq!(r.entries, super::MAX_EXTRACTED_ENTRIES);
+    }
+
+    #[test]
+    fn a_cap_hit_becomes_a_finding_and_moves_the_verdict() {
+        let mut result = crate::scanner::ScanResult {
+            findings: vec![],
+            score: 0,
+            verdict: crate::scanner::Verdict::LowRisk,
+            files_scanned: 1,
+            duration_ms: 0,
+            suppressed_findings: vec![],
+            suppressed_by: None,
+        };
+        let report = super::ExtractionReport {
+            bytes: u64::MAX,
+            entries: 1,
+            capped: Some("expanded past 2048 MiB".to_string()),
+        };
+        super::apply_extraction_report(&mut result, &report, "evil@1.0.0");
+
+        assert_eq!(result.findings.len(), 1);
+        assert_eq!(result.findings[0].rule, "ARCHIVE-BOMB-001");
+        assert!(result.score > 0, "a decompression bomb must not score zero");
+    }
+
+    #[test]
+    fn no_cap_hit_leaves_the_result_untouched() {
+        let mut result = crate::scanner::ScanResult {
+            findings: vec![],
+            score: 0,
+            verdict: crate::scanner::Verdict::LowRisk,
+            files_scanned: 1,
+            duration_ms: 0,
+            suppressed_findings: vec![],
+            suppressed_by: None,
+        };
+        super::apply_extraction_report(
+            &mut result,
+            &super::ExtractionReport::default(),
+            "fine@1.0.0",
+        );
+        assert!(result.findings.is_empty());
+        assert_eq!(result.score, 0);
+    }
+
+    /// End-to-end: a real zip whose headers claim more than the cap must not
+    /// write past it.
+    #[test]
+    fn zip_extraction_is_bounded_on_disk() {
+        let dir = tempdir().expect("tempdir");
+        let archive_path = dir.path().join("bomb.zip");
+        {
+            let f = fs::File::create(&archive_path).expect("create zip");
+            let mut w = zip::ZipWriter::new(f);
+            let opts = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            // Highly compressible: 8 MiB of zeros per entry, 40 entries.
+            let payload = vec![0u8; 8 * 1024 * 1024];
+            for i in 0..40 {
+                w.start_file(format!("f{i}.bin"), opts).expect("start");
+                std::io::Write::write_all(&mut w, &payload).expect("write");
+            }
+            w.finish().expect("finish");
+        }
+
+        let report = super::extract_archives(dir.path()).expect("extract");
+        // 40 x 8 MiB = 320 MiB, under the 2 GiB cap, so this should complete.
+        assert!(
+            report.capped.is_none(),
+            "320 MiB should be under the cap, got {:?}",
+            report.capped
+        );
+        assert_eq!(report.entries, 40);
+
+        // Everything that was admitted is accounted for in the byte total.
+        assert_eq!(report.bytes, 40 * 8 * 1024 * 1024);
+    }
+
+    fn admit(r: &mut super::ExtractionReport, n: u64) -> bool {
+        super::admit_entry(r, n)
     }
 
     #[test]
