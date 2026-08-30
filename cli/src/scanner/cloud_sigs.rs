@@ -190,6 +190,8 @@ pub fn scan_with_cloud_signatures(
                     weight: sig.weight,
                     kev: false,
                     epss: 0.0,
+                    fingerprint: String::new(),
+                    locator: None,
                 });
             }
         }

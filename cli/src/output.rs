@@ -427,9 +427,17 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
                             }
                         }
                     }],
+                    // GitHub Code Scanning tracks an alert across commits by
+                    // its partialFingerprints. Without them it re-raises every
+                    // alert whenever a line number drifts, which is how a
+                    // scanner earns a reputation for noise.
+                    "partialFingerprints": {
+                        "sigilFingerprint/v1": f.fingerprint.clone()
+                    },
                     "properties": {
                         "phase": format!("{:?}", f.phase),
-                        "weight": f.weight
+                        "weight": f.weight,
+                        "locator": f.locator.clone()
                     }
                 })
             }).collect::<Vec<_>>(),

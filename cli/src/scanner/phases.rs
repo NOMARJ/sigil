@@ -42,6 +42,8 @@ fn make_finding(
         weight,
         kev: false,
         epss: 0.0,
+        fingerprint: String::new(),
+        locator: None,
     }
 }
 

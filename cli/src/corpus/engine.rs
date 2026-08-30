@@ -120,6 +120,8 @@ pub fn scan_file_with_packs(
                     weight,
                     kev: false,
                     epss: 0.0,
+                    fingerprint: String::new(),
+                    locator: None,
                 });
             }
         }
@@ -190,6 +192,8 @@ pub fn scan_provenance_with_packs(
                                     weight: default_weight(Phase::Provenance),
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }
@@ -209,6 +213,8 @@ pub fn scan_provenance_with_packs(
                                 weight: 1,
                                 kev: false,
                                 epss: 0.0,
+                                fingerprint: String::new(),
+                                locator: None,
                             });
                         }
                     }
@@ -238,6 +244,8 @@ pub fn scan_provenance_with_packs(
                                     weight: 2,
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }
@@ -257,6 +265,8 @@ pub fn scan_provenance_with_packs(
                                     weight: 1,
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }

@@ -33,13 +33,14 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
     let mut resolved_findings = Vec::new();
     let mut unchanged_findings = Vec::new();
 
-    // Match findings by (rule, file, line) tuple
+    // Match findings by content-anchored fingerprint, falling back to the
+    // old (rule, file, line) tuple when either side predates fingerprints.
+    //
+    // The line number is deliberately not part of the fingerprint: keying on
+    // it made every finding below an inserted line report as new *and*
+    // resolved in the same diff, for a change that touched neither.
     for finding in &current.findings {
-        let exists_in_previous = previous
-            .findings
-            .iter()
-            .any(|f| f.rule == finding.rule && f.file == finding.file && f.line == finding.line);
-        if exists_in_previous {
+        if same_finding_in(&previous.findings, finding) {
             unchanged_findings.push(finding.clone());
         } else {
             new_findings.push(finding.clone());
@@ -47,11 +48,7 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
     }
 
     for finding in &previous.findings {
-        let exists_in_current = current
-            .findings
-            .iter()
-            .any(|f| f.rule == finding.rule && f.file == finding.file && f.line == finding.line);
-        if !exists_in_current {
+        if !same_finding_in(&current.findings, finding) {
             resolved_findings.push(finding.clone());
         }
     }
@@ -122,6 +119,105 @@ pub fn diff_scans(previous: &ScanResult, current: &ScanResult) -> ScanDiff {
     }
 }
 
+/// Parse a baseline scan report.
+///
+/// Accepts both shapes that exist in the wild:
+///
+/// - a serialized [`ScanResult`], with `score` and `verdict` at the top level;
+/// - the `--format json` document, where those live under `summary` and
+///   `verdict` is the human string (`"HIGH RISK"`).
+///
+/// The second is what `sigil scan -f json > baseline.json` actually writes,
+/// and it did not previously deserialize — `sigil diff --baseline` rejected
+/// the scanner's own output with "missing field `score`". Fixing that is
+/// what makes the fingerprint and corpus-provenance work reachable from the
+/// command line.
+pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
+    if let Ok(result) = serde_json::from_str::<ScanResult>(data) {
+        return Ok(result);
+    }
+
+    let doc: serde_json::Value =
+        serde_json::from_str(data).map_err(|e| format!("not valid JSON: {e}"))?;
+
+    let findings: Vec<Finding> = serde_json::from_value(
+        doc.get("findings")
+            .cloned()
+            .ok_or_else(|| "no `findings` array in baseline".to_string())?,
+    )
+    .map_err(|e| format!("could not read `findings`: {e}"))?;
+
+    let summary = doc.get("summary");
+    let score = summary
+        .and_then(|s| s.get("score"))
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u32)
+        // A baseline with findings but no recorded score can still be
+        // diffed; recomputing is better than refusing.
+        .unwrap_or_else(|| crate::scanner::scoring::calculate_score(&findings));
+
+    let verdict = summary
+        .and_then(|s| s.get("verdict"))
+        .and_then(|v| v.as_str())
+        .and_then(verdict_from_display)
+        .unwrap_or_else(|| crate::scanner::scoring::determine_verdict(&findings, score));
+
+    let scanner = doc
+        .get("scanner")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+    Ok(ScanResult {
+        findings,
+        score,
+        verdict,
+        files_scanned: summary
+            .and_then(|s| s.get("files_scanned"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize,
+        duration_ms: summary
+            .and_then(|s| s.get("duration_ms"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        suppressed_findings: doc
+            .get("suppressed_findings")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        suppressed_by: doc
+            .get("suppressed_by")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        scanner,
+    })
+}
+
+/// Invert `Verdict`'s `Display`.
+fn verdict_from_display(s: &str) -> Option<Verdict> {
+    match s.trim().to_ascii_uppercase().as_str() {
+        "LOW RISK" => Some(Verdict::LowRisk),
+        "MEDIUM RISK" => Some(Verdict::MediumRisk),
+        "HIGH RISK" => Some(Verdict::HighRisk),
+        "CRITICAL RISK" => Some(Verdict::CriticalRisk),
+        _ => None,
+    }
+}
+
+/// Is `needle` present in `haystack`?
+///
+/// Uses the content-anchored fingerprint when both findings carry one, so a
+/// finding that merely moved to a different line stays the same finding.
+/// Falls back to `(rule, file, line)` when either side has no fingerprint —
+/// a baseline captured before fingerprints existed still diffs, exactly as
+/// it used to.
+fn same_finding_in(haystack: &[Finding], needle: &Finding) -> bool {
+    haystack.iter().any(|f| {
+        if !f.fingerprint.is_empty() && !needle.fingerprint.is_empty() {
+            f.fingerprint == needle.fingerprint
+        } else {
+            f.rule == needle.rule && f.file == needle.file && f.line == needle.line
+        }
+    })
+}
+
 /// Shorten a `sha256:…` digest for display.
 fn short_digest(d: &str) -> String {
     let hex = d.strip_prefix("sha256:").unwrap_or(d);
@@ -144,6 +240,8 @@ mod tests {
             weight: 5,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         }
     }
 
@@ -240,6 +338,71 @@ mod tests {
             d.new_from_new_rules.is_empty(),
             "must not attribute findings when the baseline rule set is unknown"
         );
+    }
+
+    /// `sigil scan -f json > baseline.json` writes score and verdict under
+    /// "summary", not at the top level. That document previously failed to
+    /// deserialize, so `sigil diff --baseline` rejected the scanner's own
+    /// output with "missing field `score`".
+    #[test]
+    fn parses_the_format_json_document_shape() {
+        let doc = r#"{
+            "findings": [
+                {"phase":"CodePatterns","rule":"CODE-001","severity":"High",
+                 "file":"a.js","line":3,"snippet":"sample rule hit: token-a",
+                 "weight":5,"fingerprint":"abc123"}
+            ],
+            "scanner": {"engine_version":"1.3.6","corpus_digest":"sha256:aa",
+                        "corpus_rule_count":1,"rule_ids":["CODE-001"]},
+            "summary": {"files_scanned":1,"findings_count":1,
+                        "suppressed_count":0,"score":15,
+                        "verdict":"MEDIUM RISK","duration_ms":7}
+        }"#;
+        let r = parse_baseline(doc).expect("should parse the --format json shape");
+        assert_eq!(r.findings.len(), 1);
+        assert_eq!(r.score, 15);
+        assert_eq!(r.verdict, Verdict::MediumRisk);
+        assert_eq!(r.files_scanned, 1);
+        assert_eq!(r.scanner.expect("scanner block").corpus_digest, "sha256:aa");
+    }
+
+    /// The serialized ScanResult shape must keep working.
+    #[test]
+    fn parses_the_scan_result_shape() {
+        let prev = result(
+            vec![finding("CODE-001", "a.js", 1)],
+            Some(info("aaa", &["CODE-001"])),
+        );
+        let json = serde_json::to_string(&prev).expect("serialize");
+        let r = parse_baseline(&json).expect("should parse a ScanResult");
+        assert_eq!(r.findings.len(), 1);
+        assert_eq!(r.score, prev.score);
+        assert_eq!(r.verdict, prev.verdict);
+    }
+
+    #[test]
+    fn rejects_junk_with_a_useful_message() {
+        assert!(parse_baseline("not json").is_err());
+        let err = parse_baseline("{}").unwrap_err();
+        assert!(err.contains("findings"), "unhelpful error: {err}");
+    }
+
+    /// Line drift must not churn the diff. This is the end-to-end form of the
+    /// fingerprint property.
+    #[test]
+    fn line_drift_alone_produces_no_diff() {
+        let mut before = vec![finding("CODE-001", "a.js", 3)];
+        let mut after = vec![finding("CODE-001", "a.js", 28)];
+        crate::scanner::assign_fingerprints(&mut before);
+        crate::scanner::assign_fingerprints(&mut after);
+
+        let d = diff_scans(
+            &result(before, Some(info("aaa", &["CODE-001"]))),
+            &result(after, Some(info("aaa", &["CODE-001"]))),
+        );
+        assert!(d.new_findings.is_empty(), "{:?}", d.new_findings);
+        assert!(d.resolved_findings.is_empty(), "{:?}", d.resolved_findings);
+        assert_eq!(d.unchanged_findings.len(), 1);
     }
 
     #[test]

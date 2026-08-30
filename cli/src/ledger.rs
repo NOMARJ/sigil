@@ -441,6 +441,8 @@ pub fn detect_rugpull(current_dir: &Path, baseline: &LedgerRecord) -> Vec<Findin
         weight: 10,
         kev: false,
         epss: 0.0,
+        fingerprint: String::new(),
+        locator: None,
     }]
 }
 
@@ -735,6 +737,8 @@ mod tests {
             weight: 5,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         }
     }
 

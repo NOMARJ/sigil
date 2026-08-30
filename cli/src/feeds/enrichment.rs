@@ -269,6 +269,8 @@ mod tests {
             weight: 5,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         }
     }
 
@@ -362,6 +364,8 @@ mod tests {
             weight: 5,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         }];
         enrich_findings_with_kev_epss(
             &mut findings,

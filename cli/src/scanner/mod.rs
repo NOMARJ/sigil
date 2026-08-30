@@ -161,6 +161,65 @@ pub struct Finding {
     /// Only set for OSV-derived CVE findings; defaults to 0.0 for all other findings.
     #[serde(default, skip_serializing_if = "is_zero_f32")]
     pub epss: f32,
+    /// Content-anchored identity for this finding.
+    ///
+    /// Deliberately **excludes the line number**: identity keyed on
+    /// `(rule, file, line)` makes every finding below an inserted line look
+    /// new and resolved at once, which churns `sigil diff` and re-raises
+    /// every GitHub Code Scanning alert on any drift. Assigned centrally by
+    /// [`assign_fingerprints`] once a result set is complete, because
+    /// disambiguating repeats of the same rule and snippet in one file needs
+    /// to see all of them.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub fingerprint: String,
+    /// Where the finding lives when it is inside a container, as a composable
+    /// locator: `npm://left-pad-1.3.0.tgz|tar://package/dist/index.js`.
+    ///
+    /// Modelled on Ghidra's FSRL, which addresses a file inside an archive
+    /// inside an image by composing `fstype://path` segments with `|`. `file`
+    /// alone points into a temporary extraction directory, which says nothing
+    /// about which artifact the finding came from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locator: Option<String>,
+}
+
+/// Assign content-anchored fingerprints across a complete result set.
+///
+/// The fingerprint covers the rule, the file, the normalised snippet, and an
+/// occurrence index that distinguishes genuine repeats of the same rule and
+/// text within one file. It does not cover the line number, so moving code
+/// around a file does not change any finding's identity.
+pub fn assign_fingerprints(findings: &mut [Finding]) {
+    use sha2::{Digest, Sha256};
+    use std::collections::HashMap;
+
+    let mut seen: HashMap<(String, String, String), usize> = HashMap::new();
+    for f in findings.iter_mut() {
+        let snippet = normalize_snippet(&f.snippet);
+        let key = (f.rule.clone(), f.file.clone(), snippet.clone());
+        let occurrence = seen.entry(key).or_insert(0);
+
+        let mut hasher = Sha256::new();
+        for part in [
+            f.rule.as_str(),
+            f.file.as_str(),
+            snippet.as_str(),
+            &occurrence.to_string(),
+        ] {
+            hasher.update(part.as_bytes());
+            hasher.update([0u8]);
+        }
+        f.fingerprint = format!("{:x}", hasher.finalize())
+            .chars()
+            .take(32)
+            .collect();
+        *occurrence += 1;
+    }
+}
+
+/// Collapse whitespace so reindentation does not change a fingerprint.
+fn normalize_snippet(snippet: &str) -> String {
+    snippet.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn is_zero_f32(v: &f32) -> bool {
@@ -431,6 +490,8 @@ pub fn run_scan(
     let score = scoring::calculate_score(&findings);
     let verdict = scoring::determine_verdict(&findings, score);
 
+    assign_fingerprints(&mut findings);
+
     let compiled = crate::corpus::compiled::corpus();
     ScanResult {
         findings,
@@ -669,5 +730,99 @@ mod fixtures_tests {
                     .collect::<Vec<_>>()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod fingerprint_tests {
+    use super::*;
+
+    fn f(rule: &str, file: &str, line: usize, snippet: &str) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: rule.to_string(),
+            severity: Severity::High,
+            file: file.to_string(),
+            line: Some(line),
+            snippet: snippet.to_string(),
+            weight: 5,
+            kev: false,
+            epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+        }
+    }
+
+    /// The whole point: a finding that moves down the file is the same
+    /// finding. Keying identity on the line number is what made `sigil diff`
+    /// report every finding below an inserted line as new *and* resolved.
+    #[test]
+    fn fingerprint_survives_line_drift() {
+        let mut a = [f("CODE-001", "a.js", 12, "sample rule hit: token-a")];
+        let mut b = [f("CODE-001", "a.js", 480, "sample rule hit: token-a")];
+        assign_fingerprints(&mut a);
+        assign_fingerprints(&mut b);
+        assert_eq!(a[0].fingerprint, b[0].fingerprint);
+        assert!(!a[0].fingerprint.is_empty());
+    }
+
+    /// Reindenting a line must not change its identity either.
+    #[test]
+    fn fingerprint_survives_reindentation() {
+        let mut a = [f("CODE-001", "a.js", 1, "sample rule hit: token-a")];
+        let mut b = [f("CODE-001", "a.js", 1, "sample rule hit:      token-a")];
+        assign_fingerprints(&mut a);
+        assign_fingerprints(&mut b);
+        assert_eq!(a[0].fingerprint, b[0].fingerprint);
+    }
+
+    #[test]
+    fn different_rule_file_or_content_differ() {
+        let mut v = [
+            f("CODE-001", "a.js", 1, "sample rule hit: token-a"),
+            f("CODE-002", "a.js", 1, "sample rule hit: token-a"),
+            f("CODE-001", "b.js", 1, "sample rule hit: token-a"),
+            f("CODE-001", "a.js", 1, "sample rule hit: token-b"),
+        ];
+        assign_fingerprints(&mut v);
+        let mut fps: Vec<&str> = v.iter().map(|x| x.fingerprint.as_str()).collect();
+        fps.sort_unstable();
+        let before = fps.len();
+        fps.dedup();
+        assert_eq!(before, fps.len(), "distinct findings collided: {v:#?}");
+    }
+
+    /// Genuine repeats of the same rule and text in one file are still
+    /// distinct findings and must not collapse into one fingerprint.
+    #[test]
+    fn repeated_identical_matches_stay_distinct() {
+        let mut v = [
+            f("CODE-001", "a.js", 1, "sample rule hit: token-a"),
+            f("CODE-001", "a.js", 9, "sample rule hit: token-a"),
+            f("CODE-001", "a.js", 40, "sample rule hit: token-a"),
+        ];
+        assign_fingerprints(&mut v);
+        let mut fps: Vec<&str> = v.iter().map(|x| x.fingerprint.as_str()).collect();
+        fps.sort_unstable();
+        fps.dedup();
+        assert_eq!(fps.len(), 3, "repeats collapsed: {v:#?}");
+    }
+
+    /// Fingerprints must be stable across runs, or GitHub Code Scanning
+    /// re-raises every alert on every scan.
+    #[test]
+    fn fingerprints_are_deterministic() {
+        let build = || {
+            let mut v = [
+                f("CODE-001", "a.js", 1, "sample rule hit: token-a"),
+                f("NET-012", "b.sh", 4, "sample rule hit: token-c"),
+            ];
+            assign_fingerprints(&mut v);
+            v
+        };
+        let a = build();
+        let b = build();
+        assert_eq!(a[0].fingerprint, b[0].fingerprint);
+        assert_eq!(a[1].fingerprint, b[1].fingerprint);
     }
 }

@@ -636,6 +636,8 @@ impl ExtractionReport {
             weight: 5,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         })
     }
 }
@@ -683,6 +685,24 @@ fn extract_archives(dir: &Path) -> Result<ExtractionReport, Box<dyn std::error::
     }
 
     Ok(report)
+}
+
+/// Stamp findings with a composable locator naming the artifact they came
+/// from.
+///
+/// Modelled on Ghidra's FSRL: segments compose with `|`, so a finding inside
+/// an unpacked package reads
+/// `npm://left-pad-1.3.0|file://package/dist/index.js` rather than a path
+/// into a temporary extraction directory that says nothing about which
+/// artifact produced it.
+fn apply_container_locator(result: &mut scanner::ScanResult, ecosystem: &str, artifact: &str) {
+    for f in result
+        .findings
+        .iter_mut()
+        .chain(result.suppressed_findings.iter_mut())
+    {
+        f.locator = Some(format!("{ecosystem}://{artifact}|file://{}", f.file));
+    }
 }
 
 /// Fold an extraction cap hit into the scan result.
@@ -847,7 +867,8 @@ async fn cmd_clone(
     }
 
     // 3. Scan the cloned repo
-    let result = scanner::run_scan(&entry.path, None, None);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_container_locator(&mut result, "git", url);
     print_scan_output(&result, &entry.path, format);
 
     // 4. Auto-approve if requested and scan is low risk
@@ -938,6 +959,7 @@ async fn cmd_pip(
 
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_extraction_report(&mut result, &extraction, &pkg_spec);
+    apply_container_locator(&mut result, "pip", &pkg_spec);
     print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -1025,6 +1047,7 @@ async fn cmd_npm(
 
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_extraction_report(&mut result, &extraction, &pkg_spec);
+    apply_container_locator(&mut result, "npm", &pkg_spec);
     print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -1567,7 +1590,7 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
         }
     };
 
-    let baseline_result: scanner::ScanResult = match serde_json::from_str(&baseline_data) {
+    let baseline_result: scanner::ScanResult = match diff::parse_baseline(&baseline_data) {
         Ok(result) => result,
         Err(err) => {
             eprintln!(
@@ -2539,6 +2562,8 @@ mod exit_code_tests {
             weight: 1,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
         }
     }
 
