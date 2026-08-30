@@ -14,18 +14,7 @@ use super::schema::{ProvenanceKind, SignaturePack};
 // ---------------------------------------------------------------------------
 
 fn parse_phase(s: &str) -> Option<Phase> {
-    match s.to_lowercase().as_str() {
-        "install_hooks" | "install-hooks" => Some(Phase::InstallHooks),
-        "code_patterns" | "code-patterns" => Some(Phase::CodePatterns),
-        "network_exfil" | "network-exfil" => Some(Phase::NetworkExfil),
-        "credentials" => Some(Phase::Credentials),
-        "obfuscation" => Some(Phase::Obfuscation),
-        "provenance" => Some(Phase::Provenance),
-        "prompt_injection" | "prompt-injection" => Some(Phase::PromptInjection),
-        "skill_security" | "skill-security" => Some(Phase::SkillSecurity),
-        "inference_security" | "inference-security" => Some(Phase::InferenceSecurity),
-        _ => None,
-    }
+    Phase::from_name(s)
 }
 
 fn parse_severity(s: &str) -> Severity {
@@ -38,17 +27,7 @@ fn parse_severity(s: &str) -> Severity {
 }
 
 fn default_weight(phase: Phase) -> u32 {
-    match phase {
-        Phase::InstallHooks => 10,
-        Phase::CodePatterns => 5,
-        Phase::NetworkExfil => 3,
-        Phase::Credentials => 2,
-        Phase::Obfuscation => 5,
-        Phase::Provenance => 1,
-        Phase::PromptInjection => 10,
-        Phase::SkillSecurity => 5,
-        Phase::InferenceSecurity => 5,
-    }
+    phase.default_weight()
 }
 
 // ---------------------------------------------------------------------------

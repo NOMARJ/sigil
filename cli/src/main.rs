@@ -661,7 +661,7 @@ async fn cmd_clone(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -683,7 +683,7 @@ async fn cmd_clone(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} git clone failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
@@ -707,11 +707,7 @@ async fn cmd_clone(
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
 
 async fn cmd_pip(
@@ -743,7 +739,7 @@ async fn cmd_pip(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -764,7 +760,7 @@ async fn cmd_pip(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} pip download failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
@@ -795,11 +791,7 @@ async fn cmd_pip(
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
 
 async fn cmd_npm(
@@ -831,7 +823,7 @@ async fn cmd_npm(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -850,7 +842,7 @@ async fn cmd_npm(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} npm pack failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
@@ -881,21 +873,38 @@ async fn cmd_npm(
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
+
+/// Exit codes, per ADR-0010. These are the CI interface and a compatibility
+/// promise: `2` means *the scan did not produce a usable verdict*, never
+/// "the verdict was bad".
+pub const EXIT_CLEAN: i32 = 0;
+pub const EXIT_FINDINGS: i32 = 1;
+pub const EXIT_ERROR: i32 = 2;
 
 #[allow(clippy::too_many_arguments)]
 /// Exit-code contract (ADR-0010): 1 if any finding is at or above the fail
 /// threshold, else 0. Scan errors (handled by the caller) are 2.
 fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severity) -> i32 {
     if findings.iter().any(|f| f.severity >= fail_threshold) {
-        1
+        EXIT_FINDINGS
     } else {
-        0
+        EXIT_CLEAN
+    }
+}
+
+/// Exit-code contract for the acquisition commands (`clone`, `pip`, `npm`).
+///
+/// These previously returned `2` for a High-or-Critical verdict, colliding
+/// with the code ADR-0010 reserves for "the scan itself failed". A CI job
+/// that treats `2` as an infrastructure failure and retries would have
+/// silently passed a malicious package. Anything the caller should act on is
+/// now `1`; `2` is reserved for the command failing.
+fn acquisition_exit_code(verdict: scanner::Verdict) -> i32 {
+    match verdict {
+        scanner::Verdict::LowRisk => EXIT_CLEAN,
+        _ => EXIT_FINDINGS,
     }
 }
 
@@ -2391,6 +2400,47 @@ mod exit_code_tests {
     fn critical_threshold_ignores_high() {
         let f = vec![finding(Severity::High)];
         assert_eq!(exit_code_for(&f, Severity::Critical), 0);
+    }
+
+    /// The acquisition commands (`clone`/`pip`/`npm`) must never return 2 for
+    /// a risky verdict. ADR-0010 reserves 2 for "the scan did not produce a
+    /// usable verdict"; a CI job that treats 2 as an infrastructure failure
+    /// and retries would otherwise silently pass a malicious package.
+    #[test]
+    fn acquisition_never_returns_error_code_for_a_bad_verdict() {
+        use super::acquisition_exit_code;
+        use crate::scanner::Verdict;
+        for verdict in [
+            Verdict::LowRisk,
+            Verdict::MediumRisk,
+            Verdict::HighRisk,
+            Verdict::CriticalRisk,
+        ] {
+            assert_ne!(
+                acquisition_exit_code(verdict),
+                super::EXIT_ERROR,
+                "{verdict:?} must not collide with the scan-error exit code"
+            );
+        }
+    }
+
+    #[test]
+    fn acquisition_exit_code_contract() {
+        use super::acquisition_exit_code;
+        use crate::scanner::Verdict;
+        assert_eq!(acquisition_exit_code(Verdict::LowRisk), super::EXIT_CLEAN);
+        assert_eq!(
+            acquisition_exit_code(Verdict::MediumRisk),
+            super::EXIT_FINDINGS
+        );
+        assert_eq!(
+            acquisition_exit_code(Verdict::HighRisk),
+            super::EXIT_FINDINGS
+        );
+        assert_eq!(
+            acquisition_exit_code(Verdict::CriticalRisk),
+            super::EXIT_FINDINGS
+        );
     }
 
     #[test]

@@ -33,19 +33,93 @@ pub enum Phase {
     InferenceSecurity,
 }
 
+impl Phase {
+    /// Every phase, in canonical scan order.
+    ///
+    /// This is the single enumeration of phases in the codebase. Anything that
+    /// needs to iterate phases, or that needs to prove it handles all of them,
+    /// goes through here — see `phase_registry_is_total` in the tests below.
+    pub const ALL: [Phase; 9] = [
+        Phase::InstallHooks,
+        Phase::CodePatterns,
+        Phase::NetworkExfil,
+        Phase::Credentials,
+        Phase::Obfuscation,
+        Phase::Provenance,
+        Phase::PromptInjection,
+        Phase::SkillSecurity,
+        Phase::InferenceSecurity,
+    ];
+
+    /// The canonical `snake_case` identifier, as used in signature packs,
+    /// cloud signatures and the `--phases` CLI flag.
+    pub fn canonical_name(self) -> &'static str {
+        match self {
+            Phase::InstallHooks => "install_hooks",
+            Phase::CodePatterns => "code_patterns",
+            Phase::NetworkExfil => "network_exfil",
+            Phase::Credentials => "credentials",
+            Phase::Obfuscation => "obfuscation",
+            Phase::Provenance => "provenance",
+            Phase::PromptInjection => "prompt_injection",
+            Phase::SkillSecurity => "skill_security",
+            Phase::InferenceSecurity => "inference_security",
+        }
+    }
+
+    /// The human-readable label used in terminal output.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Phase::InstallHooks => "Install Hooks",
+            Phase::CodePatterns => "Code Patterns",
+            Phase::NetworkExfil => "Network/Exfil",
+            Phase::Credentials => "Credentials",
+            Phase::Obfuscation => "Obfuscation",
+            Phase::Provenance => "Provenance",
+            Phase::PromptInjection => "Prompt Injection",
+            Phase::SkillSecurity => "Skill Security",
+            Phase::InferenceSecurity => "Inference Security",
+        }
+    }
+
+    /// The phase's severity-weight multiplier.
+    ///
+    /// Provenance findings carry per-finding weights (1–3) and override this.
+    pub fn default_weight(self) -> u32 {
+        match self {
+            Phase::InstallHooks => 10,
+            Phase::CodePatterns => 5,
+            Phase::NetworkExfil => 3,
+            Phase::Credentials => 2,
+            Phase::Obfuscation => 5,
+            Phase::Provenance => 1,
+            Phase::PromptInjection => 10,
+            Phase::SkillSecurity => 5,
+            Phase::InferenceSecurity => 5,
+        }
+    }
+
+    /// Parse a phase name, accepting `snake_case`, `kebab-case` and
+    /// `concatenated` spellings, case-insensitively.
+    ///
+    /// Returns `None` for an unrecognised name. Callers must decide what an
+    /// unknown phase means for them — silently defaulting to a real phase
+    /// gives a rule the wrong weight and files it under the wrong heading.
+    pub fn from_name(name: &str) -> Option<Phase> {
+        let normalized: String = name
+            .chars()
+            .filter(|c| !matches!(c, '_' | '-' | ' '))
+            .flat_map(|c| c.to_lowercase())
+            .collect();
+        Phase::ALL
+            .into_iter()
+            .find(|p| p.canonical_name().replace('_', "") == normalized)
+    }
+}
+
 impl fmt::Display for Phase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Phase::InstallHooks => write!(f, "Install Hooks"),
-            Phase::CodePatterns => write!(f, "Code Patterns"),
-            Phase::NetworkExfil => write!(f, "Network/Exfil"),
-            Phase::Credentials => write!(f, "Credentials"),
-            Phase::Obfuscation => write!(f, "Obfuscation"),
-            Phase::Provenance => write!(f, "Provenance"),
-            Phase::PromptInjection => write!(f, "Prompt Injection"),
-            Phase::SkillSecurity => write!(f, "Skill Security"),
-            Phase::InferenceSecurity => write!(f, "Inference Security"),
-        }
+        f.write_str(self.display_name())
     }
 }
 
@@ -135,20 +209,7 @@ pub struct ScanResult {
 }
 
 fn phase_from_name(name: &str) -> Option<Phase> {
-    match name.to_lowercase().as_str() {
-        "install-hooks" | "install_hooks" | "installhooks" => Some(Phase::InstallHooks),
-        "code-patterns" | "code_patterns" | "codepatterns" => Some(Phase::CodePatterns),
-        "network-exfil" | "network_exfil" | "networkexfil" => Some(Phase::NetworkExfil),
-        "credentials" => Some(Phase::Credentials),
-        "obfuscation" => Some(Phase::Obfuscation),
-        "provenance" => Some(Phase::Provenance),
-        "prompt-injection" | "prompt_injection" | "promptinjection" => Some(Phase::PromptInjection),
-        "skill-security" | "skill_security" | "skillsecurity" => Some(Phase::SkillSecurity),
-        "inference-security" | "inference_security" | "inferencesecurity" => {
-            Some(Phase::InferenceSecurity)
-        }
-        _ => None,
-    }
+    Phase::from_name(name)
 }
 
 fn severity_from_name(name: &str) -> Option<Severity> {
@@ -239,8 +300,9 @@ pub fn run_scan(
         }
     };
 
-    // Load cloud signatures (if available — gracefully returns empty if offline)
-    let cloud_sigs = cloud_sigs::load_cloud_signatures();
+    // Load cloud signatures (if available — gracefully returns empty if
+    // offline) and compile them once, not once per file.
+    let cloud_sigs = cloud_sigs::compile_cloud_signatures(&cloud_sigs::load_cloud_signatures());
 
     let files = collect_files(path);
     let files_scanned = files.len();
@@ -350,6 +412,88 @@ pub fn run_scan(
         duration_ms,
         suppressed_findings: Vec::new(),
         suppressed_by: None,
+    }
+}
+
+#[cfg(test)]
+mod phase_registry_tests {
+    use super::*;
+
+    /// `Phase::ALL` must actually list every variant. If a phase is added to
+    /// the enum but not to `ALL`, every consumer that iterates phases silently
+    /// skips it — which is the shape of the cloud-signature misfiling bug.
+    ///
+    /// The match below is exhaustive, so adding a variant fails to compile
+    /// until it is handled here, and the assertion then forces it into `ALL`.
+    #[test]
+    fn phase_registry_is_total() {
+        for phase in Phase::ALL {
+            // Exhaustive match: a new variant breaks the build here first.
+            let expected_in_all = match phase {
+                Phase::InstallHooks
+                | Phase::CodePatterns
+                | Phase::NetworkExfil
+                | Phase::Credentials
+                | Phase::Obfuscation
+                | Phase::Provenance
+                | Phase::PromptInjection
+                | Phase::SkillSecurity
+                | Phase::InferenceSecurity => true,
+            };
+            assert!(expected_in_all);
+        }
+        assert_eq!(
+            Phase::ALL.len(),
+            9,
+            "Phase::ALL is out of sync with the Phase enum"
+        );
+    }
+
+    /// Every phase must round-trip through its own canonical name. This is
+    /// what makes a missing parse arm impossible: `Phase::from_name` is
+    /// derived from `ALL`, so it cannot omit a phase the way three separate
+    /// hand-written `match` blocks could.
+    #[test]
+    fn every_phase_round_trips_through_its_canonical_name() {
+        for phase in Phase::ALL {
+            assert_eq!(
+                Phase::from_name(phase.canonical_name()),
+                Some(phase),
+                "{phase} did not round-trip"
+            );
+        }
+    }
+
+    #[test]
+    fn from_name_accepts_kebab_and_concatenated_spellings() {
+        assert_eq!(
+            Phase::from_name("prompt-injection"),
+            Some(Phase::PromptInjection)
+        );
+        assert_eq!(
+            Phase::from_name("promptinjection"),
+            Some(Phase::PromptInjection)
+        );
+        assert_eq!(
+            Phase::from_name("PROMPT_INJECTION"),
+            Some(Phase::PromptInjection)
+        );
+    }
+
+    #[test]
+    fn from_name_rejects_unknown_phases() {
+        assert_eq!(Phase::from_name("phase_from_the_future"), None);
+        assert_eq!(Phase::from_name(""), None);
+    }
+
+    /// Canonical names must be unique, or `from_name` becomes ambiguous.
+    #[test]
+    fn canonical_names_are_unique() {
+        let mut names: Vec<&str> = Phase::ALL.iter().map(|p| p.canonical_name()).collect();
+        names.sort_unstable();
+        let before = names.len();
+        names.dedup();
+        assert_eq!(before, names.len(), "duplicate canonical phase name");
     }
 }
 

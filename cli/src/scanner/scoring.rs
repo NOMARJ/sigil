@@ -10,19 +10,7 @@ use super::{Finding, Phase, Severity, Verdict};
 /// - Provenance:   1-3x (Low, varies per finding)
 #[allow(dead_code)]
 pub fn phase_weight(phase: Phase) -> u32 {
-    match phase {
-        Phase::InstallHooks => 10,
-        Phase::CodePatterns => 5,
-        Phase::NetworkExfil => 3,
-        Phase::Credentials => 2,
-        Phase::Obfuscation => 5,
-        // Provenance uses per-finding weights (1-3), so default to 1 here.
-        // Individual findings carry their own weight field.
-        Phase::Provenance => 1,
-        Phase::PromptInjection => 10,
-        Phase::SkillSecurity => 5,
-        Phase::InferenceSecurity => 5,
-    }
+    phase.default_weight()
 }
 
 /// Severity base score: used in combination with phase weight.
