@@ -264,3 +264,177 @@ class TestScanSubmission:
         # MEDIUM (2.0) * CREDENTIALS (2x) = 4 -> LOW_RISK
         assert data["risk_score"] == 4.0
         assert data["verdict"] == "LOW_RISK"
+
+
+class TestNullLineFindings:
+    """Regression tests for M-4: the Rust CLI emits "line": null for findings
+    not tied to a specific line (e.g. PROV-006 "No .git directory"); the
+    submission model must accept them instead of 422-ing every real scan."""
+
+    def test_submit_scan_with_null_line_finding(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """A finding with "line": null must be accepted (was 422 int_type)."""
+        payload = {
+            "target": "no-git-pkg",
+            "target_type": "pip",
+            "files_scanned": 4,
+            "findings": [
+                {
+                    "phase": "provenance",
+                    "rule": "PROV-006",
+                    "severity": "LOW",
+                    "file": ".",
+                    "line": None,
+                    "snippet": "",
+                    "weight": 1.0,
+                    "description": "No .git directory",
+                },
+                {
+                    "phase": "code_patterns",
+                    "rule": "code-eval",
+                    "severity": "HIGH",
+                    "file": "setup.py",
+                    "line": 12,
+                    "snippet": "eval(data)",
+                    "weight": 1.0,
+                },
+            ],
+            "metadata": {},
+        }
+        resp = client.post("/v1/scan", json=payload, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+        data = resp.json()
+        assert len(data["findings"]) == 2
+        by_rule = {f["rule"]: f for f in data["findings"]}
+        assert by_rule["PROV-006"]["line"] is None
+        assert by_rule["code-eval"]["line"] == 12
+
+    def test_null_line_finding_survives_detail_roundtrip(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        """A stored null-line finding must come back out of GET /v1/scans/{id}."""
+        payload = {
+            "target": "roundtrip-pkg",
+            "target_type": "npm",
+            "files_scanned": 1,
+            "findings": [
+                {
+                    "phase": "provenance",
+                    "rule": "PROV-006",
+                    "severity": "LOW",
+                    "file": ".",
+                    "line": None,
+                    "snippet": "",
+                    "weight": 1.0,
+                },
+            ],
+            "metadata": {},
+        }
+        resp = client.post("/v1/scan", json=payload, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        scan_id = resp.json()["scan_id"]
+
+        detail = client.get(f"/v1/scans/{scan_id}", headers=auth_headers)
+        assert detail.status_code == 200, detail.text
+        findings = detail.json()["findings_json"]
+        assert findings[0]["line"] is None
+
+
+class TestScanListEndpoint:
+    """Regression tests for B-4: GET /scans?scope=all must not ship LOB
+    columns per row, and must map MSSQL-style rows (JSON columns as strings)
+    without failing response validation."""
+
+    def _submit(self, client, auth_headers, target="listed-pkg"):
+        payload = {
+            "target": target,
+            "target_type": "pip",
+            "files_scanned": 2,
+            "findings": [
+                {
+                    "phase": "code_patterns",
+                    "rule": "code-eval",
+                    "severity": "HIGH",
+                    "file": "a.py",
+                    "line": 1,
+                    "snippet": "eval(x)",
+                    "weight": 1.0,
+                },
+            ],
+            "metadata": {"origin": "unit-test"},
+        }
+        resp = client.post("/v1/scan", json=payload, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["scan_id"]
+
+    def test_list_scans_scope_all(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        self._submit(client, auth_headers, target="listed-pkg-1")
+        self._submit(client, auth_headers, target="listed-pkg-2")
+
+        resp = client.get(
+            "/scans", params={"page": 1, "per_page": 20, "scope": "all"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["total"] == 2
+        targets = {item["target"] for item in data["items"]}
+        assert targets == {"listed-pkg-1", "listed-pkg-2"}
+        for item in data["items"]:
+            assert item["findings_count"] == 1
+            assert isinstance(item["metadata"], dict)
+
+    def test_list_scans_v1_alias_scope_all(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        self._submit(client, auth_headers)
+        resp = client.get(
+            "/v1/scans", params={"scope": "all"}, headers=auth_headers
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["total"] == 1
+
+    def test_row_to_list_item_handles_mssql_string_json(self) -> None:
+        """MSSQL returns NVARCHAR(MAX) JSON columns as strings; the mapper
+        must parse them rather than fail ScanListItem validation (HTTP 500)."""
+        from api.routers.scan import _row_to_list_item
+
+        item = _row_to_list_item(
+            {
+                "id": "abc",
+                "target": "pkg",
+                "target_type": "pip",
+                "files_scanned": 3,
+                "risk_score": 1.0,
+                "verdict": "LOW_RISK",
+                "findings_json": '[{"rule": "x"}]',
+                "metadata_json": '{"approved": true}',
+                "created_at": "2026-08-30T00:00:00",
+            }
+        )
+        assert item.metadata == {"approved": True}
+        assert item.findings_count == 1
+
+    def test_row_to_list_item_handles_slim_row(self) -> None:
+        """Slim list rows carry a SQL-computed findings_count instead of the
+        findings_json LOB; the mapper must use it (not default to 0)."""
+        from api.routers.scan import _row_to_list_item
+
+        item = _row_to_list_item(
+            {
+                "id": "abc",
+                "target": "pkg",
+                "target_type": "pip",
+                "files_scanned": 3,
+                "risk_score": 1.0,
+                "verdict": "LOW_RISK",
+                "findings_count": 7,
+                "created_at": "2026-08-30T00:00:00",
+            }
+        )
+        assert item.findings_count == 7
+        assert item.metadata == {}

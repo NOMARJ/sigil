@@ -78,7 +78,7 @@ class FPAdjudicator:
             phase=finding.get("phase", "unknown"),
             severity=finding.get("severity", "unknown"),
             file=finding.get("file", "unknown"),
-            line=finding.get("line", "?"),
+            line=finding.get("line") or "?",
             snippet=finding.get("snippet", ""),
             code_context=code_context,
         )

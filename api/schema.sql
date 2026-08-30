@@ -130,6 +130,13 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scans_risk_score')
     CREATE INDEX idx_scans_risk_score ON scans (risk_score DESC);
 GO
 
+-- Per-user newest-first list queries for GET /scans (see migration 009)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scans_user_created')
+    CREATE INDEX idx_scans_user_created
+        ON scans (user_id, created_at DESC)
+        INCLUDE (target_type, files_scanned, risk_score, verdict);
+GO
+
 -- =====================================================================
 -- Threats (known-malicious package registry)
 -- =====================================================================
@@ -534,6 +541,14 @@ GO
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_public_scans_ecosystem_verdict')
     CREATE INDEX idx_public_scans_ecosystem_verdict ON public_scans (ecosystem, verdict);
+GO
+
+-- Covering index for the newest-first public branch of GET /scans (see migration 009)
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_public_scans_scanned_cover')
+    CREATE INDEX idx_public_scans_scanned_cover
+        ON public_scans (scanned_at DESC)
+        INCLUDE (id, ecosystem, package_name, risk_score, verdict,
+                 findings_count, files_scanned, created_at);
 GO
 
 -- =====================================================================

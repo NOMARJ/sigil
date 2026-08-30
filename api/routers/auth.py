@@ -368,6 +368,80 @@ async def _get_auth0_jwks() -> dict:
     return _auth0_jwks_cache
 
 
+# /userinfo results cached per token. Auth0 hard-rate-limits /userinfo
+# (~5 requests/minute per token); device-flow CLI tokens carry no namespaced
+# email claim, so without a cache every authenticated CLI request re-hits the
+# endpoint and multi-request flows (e.g. `sigil explain`) burn the budget
+# within a few calls (M-5). Keyed by token digest, bounded, TTL-limited.
+_USERINFO_CACHE_TTL_SECONDS = 300.0
+_USERINFO_CACHE_MAX_ENTRIES = 1024
+_userinfo_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
+
+
+def _userinfo_cache_key(token: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def _fetch_auth0_userinfo(token: str) -> Dict[str, Any]:
+    """Fetch (or reuse a cached copy of) the Auth0 /userinfo claims for *token*.
+
+    Failure mapping (M-5): a 401/403 from Auth0 means the token itself was
+    rejected — genuine invalidity, so 401 "Invalid or expired token". A 429
+    (the endpoint is strictly rate-limited), 5xx, or network error is an
+    upstream failure, not token invalidity — those surface as a retryable,
+    sanitized 503 instead of sending users with valid sessions to re-login.
+    """
+    import time as _time
+
+    cache_key = _userinfo_cache_key(token)
+    cached = _userinfo_cache.get(cache_key)
+    now = _time.monotonic()
+    if cached is not None and cached[0] > now:
+        return cached[1]
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"https://{settings.auth0_domain}/userinfo",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if not resp.is_success:
+                logger.error(
+                    "Auth0 /userinfo returned %s: %s", resp.status_code, resp.text
+                )
+                if resp.status_code in (401, 403):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid or expired token",
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Authentication service temporarily unavailable",
+                )
+            userinfo = resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Auth0 /userinfo fallback failed: %s", e)
+        # Sanitized: never echo upstream response bodies to the caller.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable",
+        )
+
+    if len(_userinfo_cache) >= _USERINFO_CACHE_MAX_ENTRIES:
+        # Drop expired entries first; if still full, drop the oldest.
+        expired = [k for k, (exp, _) in _userinfo_cache.items() if exp <= now]
+        for k in expired:
+            _userinfo_cache.pop(k, None)
+        while len(_userinfo_cache) >= _USERINFO_CACHE_MAX_ENTRIES:
+            _userinfo_cache.pop(next(iter(_userinfo_cache)), None)
+    _userinfo_cache[cache_key] = (now + _USERINFO_CACHE_TTL_SECONDS, userinfo)
+    return userinfo
+
+
 async def verify_auth0_token(token: str) -> Dict[str, Any]:
     """Verify an Auth0-issued RS256 JWT and return user claims.
 
@@ -439,35 +513,16 @@ async def verify_auth0_token(token: str) -> Dict[str, Any]:
     )
 
     if not email or email_verified is not True:
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(
-                    f"https://{settings.auth0_domain}/userinfo",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                if not resp.is_success:
-                    logger.error(
-                        "Auth0 /userinfo returned %s: %s", resp.status_code, resp.text
-                    )
-                    resp.raise_for_status()
-                userinfo = resp.json()
-                if userinfo.get("sub") and userinfo.get("sub") != payload["sub"]:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Invalid or expired token",
-                    )
-                email = email or userinfo.get("email", "")
-                if not name:
-                    name = userinfo.get("name", "")
-                email_verified = userinfo.get("email_verified", False)
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error("Auth0 /userinfo fallback failed: %s", e)
+        userinfo = await _fetch_auth0_userinfo(token)
+        if userinfo.get("sub") and userinfo.get("sub") != payload["sub"]:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired token",
             )
+        email = email or userinfo.get("email", "")
+        if not name:
+            name = userinfo.get("name", "")
+        email_verified = userinfo.get("email_verified", False)
 
     if not email:
         raise HTTPException(
@@ -664,10 +719,15 @@ async def get_current_user_unified(request: Request) -> UserResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Auth0 authentication failed: %s", e)
+        # Token verification failures raise HTTPException(401) above; what
+        # lands here is auto-provisioning / database failure after the token
+        # was already verified. Reporting those as "Invalid or expired token"
+        # misdirects users with valid sessions into re-login loops — return a
+        # retryable service error instead.
+        logger.exception("Post-auth provisioning failed: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable",
         )
 
 

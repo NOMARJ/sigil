@@ -113,17 +113,37 @@ def _findings_count(row: dict[str, Any]) -> int:
     """Derive findings_count from findings_json.
 
     findings_count is not a column on the `scans` table, so it is computed
-    from the stored findings rather than read back (it would always be 0).
+    from the stored findings when they are present on the row. Slim list
+    queries omit findings_json and instead compute a `findings_count` alias
+    in SQL (via OPENJSON) — for those rows, fall back to that value.
     """
+    if "findings_json" not in row:
+        return row.get("findings_count", 0) or 0
     findings = row.get("findings_json", [])
     if isinstance(findings, str):
         try:
             findings = json.loads(findings)
         except (json.JSONDecodeError, TypeError):
-            return row.get("findings_count", 0)
+            return row.get("findings_count", 0) or 0
     if isinstance(findings, list):
         return len(findings)
-    return row.get("findings_count", 0)
+    return row.get("findings_count", 0) or 0
+
+
+def _row_metadata(row: dict[str, Any]) -> dict[str, Any]:
+    """Return metadata_json as a dict.
+
+    MSSQL returns NVARCHAR(MAX) JSON columns as strings; memory mode stores
+    dicts. ScanListItem.metadata requires a dict, so parse defensively —
+    passing the raw string through fails response validation (HTTP 500).
+    """
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    return metadata if isinstance(metadata, dict) else {}
 
 
 def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
@@ -137,7 +157,7 @@ def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
         risk_score=row.get("risk_score", 0.0),
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
-        metadata=row.get("metadata_json", {}),
+        metadata=_row_metadata(row),
         created_at=row.get("created_at", _utcnow()),
     )
 
@@ -891,13 +911,53 @@ async def list_scans(
     own_rows: list[dict[str, Any]] = []
     pub_rows: list[dict[str, Any]] = []
 
+    # Both branches fetch only the slim columns a list item needs. The
+    # NVARCHAR(MAX) LOB columns (findings_json / metadata_json) are what made
+    # the old SELECT * approach take tens of seconds: up to 1000 rows of
+    # multi-KB..MB JSON blobs were read and shipped per request only to be
+    # discarded. findings_count for own scans is computed server-side with
+    # OPENJSON instead of len(findings_json) client-side. (Memory-mode db
+    # ignores include_columns and returns full rows, which the row mappers
+    # also accept.)
     if resolved_scope in ("own", "all"):
-        own_rows = await db.select(SCAN_TABLE, {"user_id": current_user.id}, limit=500)
+        own_rows = await db.select(
+            SCAN_TABLE,
+            {"user_id": current_user.id},
+            limit=500,
+            order_by="created_at",
+            order_desc=True,
+            include_columns=[
+                "[id]",
+                "[target]",
+                "[target_type]",
+                "[files_scanned]",
+                "[risk_score]",
+                "[verdict]",
+                "[created_at]",
+                "(SELECT COUNT(*) FROM OPENJSON([findings_json]))"
+                " AS [findings_count]",
+            ],
+        )
         own_rows = _apply_common_filters(own_rows, "target", "target_type")
 
     if resolved_scope in ("public", "community", "all"):
         pub_rows = await db.select(
-            "public_scans", None, limit=500, order_by="scanned_at", order_desc=True
+            "public_scans",
+            None,
+            limit=500,
+            order_by="scanned_at",
+            order_desc=True,
+            include_columns=[
+                "[id]",
+                "[package_name]",
+                "[ecosystem]",
+                "[files_scanned]",
+                "[findings_count]",
+                "[risk_score]",
+                "[verdict]",
+                "[scanned_at]",
+                "[created_at]",
+            ],
         )
         pub_rows = _apply_common_filters(pub_rows, "package_name", "ecosystem")
 
