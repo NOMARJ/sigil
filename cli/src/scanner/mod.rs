@@ -184,6 +184,96 @@ pub struct Finding {
     pub locator: Option<String>,
 }
 
+/// Detect a package that partly matches a published release.
+///
+/// If several files under a directory are byte-identical to
+/// `npm:lodash@4.17.21` and a sibling file is not the published bytes, the
+/// tree is a *modified copy* of that release. That is the `event-stream` /
+/// `ua-parser-js` shape, and Sigil could not previously observe it at any
+/// severity: without something to compare against, a trojanised library is
+/// just code.
+///
+/// Reported as Critical, because the whole point of the known-good corpus is
+/// that drift is a finding rather than a suppression.
+fn detect_knowngood_drift(
+    files: &[PathBuf],
+    strip_base: &Path,
+    known_good: &crate::knowngood::KnownGood,
+    recognised: &std::collections::HashMap<String, (String, String)>,
+) -> Vec<Finding> {
+    use std::collections::{HashMap, HashSet};
+
+    if recognised.is_empty() {
+        return Vec::new();
+    }
+
+    // Where each recognised release is rooted in the scanned tree.
+    //
+    // A recognised file's scanned path ends with its path inside the release
+    // (`vendor/leftpad/package/index.js` ends with `package/index.js`), so the
+    // prefix is where that release was unpacked. Anchoring on the release's
+    // own layout rather than on directory adjacency is what lets drift be
+    // detected in a subdirectory of the package.
+    let mut roots: HashMap<(String, String), usize> = HashMap::new();
+    for (scanned_path, (coordinate, index_path)) in recognised {
+        if let Some(prefix) = scanned_path.strip_suffix(index_path.as_str()) {
+            *roots
+                .entry((coordinate.clone(), prefix.to_string()))
+                .or_insert(0) += 1;
+        }
+    }
+
+    let present: HashSet<&str> = files
+        .iter()
+        .filter_map(|f| f.strip_prefix(strip_base).ok())
+        .filter_map(|p| p.to_str())
+        .collect();
+
+    let mut out = Vec::new();
+    let mut reported: HashSet<String> = HashSet::new();
+
+    for ((coordinate, root), anchors) in &roots {
+        // Require more than one anchor: a single coincidental match (an empty
+        // file, a common LICENSE) is not evidence that a tree is that release.
+        if *anchors < 2 {
+            continue;
+        }
+
+        for index_path in known_good.release_paths(coordinate) {
+            let expected = format!("{root}{index_path}");
+            // Only files the release is supposed to contain, that exist here,
+            // and whose bytes are not the published bytes.
+            if !present.contains(expected.as_str()) || recognised.contains_key(&expected) {
+                continue;
+            }
+            if !reported.insert(expected.clone()) {
+                continue;
+            }
+
+            out.push(Finding {
+                phase: Phase::Provenance,
+                rule: "KNOWNGOOD-DRIFT-001".to_string(),
+                severity: Severity::Critical,
+                file: expected.clone(),
+                line: None,
+                snippet: format!(
+                    "Modified copy of a published release: {anchors} sibling file(s) match \
+                     {coordinate} exactly, but this file differs from the published bytes. \
+                     A library that is mostly a known release with local modifications is \
+                     the trojanised-dependency shape."
+                ),
+                weight: 10,
+                kev: false,
+                epss: 0.0,
+                fingerprint: String::new(),
+                locator: Some(format!("{coordinate}|file://{expected}")),
+            });
+        }
+    }
+
+    out
+}
+
 /// Run every enabled content phase over one unit of content.
 ///
 /// Factored out of the scan loop so the same phase set applies to a file and
@@ -440,6 +530,16 @@ pub fn run_scan(
     // offline) and compile them once, not once per file.
     let cloud_sigs = cloud_sigs::compile_cloud_signatures(&cloud_sigs::load_cloud_signatures());
 
+    // Known-good corpus (ADR-0011). Absent by default; a verification failure
+    // is fatal, because an index that can suppress findings is a trust input.
+    let known_good = match crate::knowngood::load_installed() {
+        Ok(kg) => kg,
+        Err(e) => {
+            eprintln!("[known-good] fatal: {e}");
+            std::process::exit(2);
+        }
+    };
+
     let files = collect_files(path);
     let files_scanned = files.len();
 
@@ -540,10 +640,69 @@ pub fn run_scan(
     }
 
     let duration_ms = start.elapsed().as_millis() as u64;
-    let score = scoring::calculate_score(&findings);
-    let verdict = scoring::determine_verdict(&findings, score);
 
     assign_fingerprints(&mut findings);
+
+    // Known-good recognition (ADR-0011). Findings in files that are
+    // byte-identical to published releases move to `suppressed_findings` with
+    // attribution — never dropped. Files the corpus does not recognise are
+    // scanned and reported exactly as before, so an absent or partial index
+    // can only ever reduce noise, never create false confidence.
+    let mut suppressed_by_knowngood: Vec<Finding> = Vec::new();
+    let mut knowngood_note: Option<String> = None;
+    if !known_good.is_empty() {
+        let recognised: std::collections::HashMap<String, (String, String)> = files
+            .par_iter()
+            .filter_map(|p| {
+                let bytes = std::fs::read(p).ok()?;
+                match known_good.lookup(&bytes) {
+                    crate::knowngood::Match::Exact { coordinate, path } => {
+                        let rel = p
+                            .strip_prefix(strip_base)
+                            .unwrap_or(p)
+                            .to_string_lossy()
+                            .to_string();
+                        Some((rel, (coordinate, path)))
+                    }
+                    crate::knowngood::Match::Unknown => None,
+                }
+            })
+            .collect();
+
+        if !recognised.is_empty() {
+            let mut kept = Vec::with_capacity(findings.len());
+            for f in findings.into_iter() {
+                match recognised.get(&f.file) {
+                    Some(_) => suppressed_by_knowngood.push(f),
+                    None => kept.push(f),
+                }
+            }
+            findings = kept;
+
+            let mut coords: Vec<&String> = recognised.values().map(|(c, _)| c).collect();
+            coords.sort_unstable();
+            coords.dedup();
+            knowngood_note = Some(format!(
+                "known-good: {} file(s) matched {} published release(s) unmodified",
+                recognised.len(),
+                coords.len()
+            ));
+        }
+
+        // Drift: a release we partly recognise, where some files are not the
+        // published bytes, is the trojanised-dependency shape. This is the
+        // detection Sigil could not previously make at any severity.
+        findings.extend(detect_knowngood_drift(
+            &files,
+            strip_base,
+            &known_good,
+            &recognised,
+        ));
+        assign_fingerprints(&mut findings);
+    }
+
+    let score = scoring::calculate_score(&findings);
+    let verdict = scoring::determine_verdict(&findings, score);
 
     let compiled = crate::corpus::compiled::corpus();
     ScanResult {
@@ -552,8 +711,8 @@ pub fn run_scan(
         verdict,
         files_scanned,
         duration_ms,
-        suppressed_findings: Vec::new(),
-        suppressed_by: None,
+        suppressed_findings: suppressed_by_knowngood,
+        suppressed_by: knowngood_note,
         scanner: Some(ScannerInfo {
             engine_version: env!("CARGO_PKG_VERSION").to_string(),
             corpus_digest: compiled.digest(),

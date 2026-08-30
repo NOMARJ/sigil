@@ -5,6 +5,7 @@ mod diff;
 mod explain;
 mod feeds;
 mod hook;
+mod knowngood;
 mod ledger;
 mod output;
 mod policy;
@@ -126,6 +127,13 @@ enum Commands {
 
     /// Show the active detection corpus: which packs are loaded, from where
     Corpus,
+
+    /// Known-good corpus (ADR-0011): recognise published code instead of
+    /// re-judging it
+    KnownGood {
+        #[command(subcommand)]
+        action: KnownGoodAction,
+    },
 
     /// Clear all cached scan results
     ClearCache,
@@ -497,6 +505,7 @@ async fn main() {
         }
 
         Commands::Corpus => cmd_corpus(&cli.format),
+        Commands::KnownGood { action } => cmd_known_good(action, &cli.format),
         Commands::ClearCache => cmd_clear_cache().await,
 
         Commands::Fetch { force } => cmd_fetch(force, cli.verbose).await,
@@ -689,6 +698,117 @@ fn extract_archives(dir: &Path) -> Result<ExtractionReport, Box<dyn std::error::
     }
 
     Ok(report)
+}
+
+#[derive(Subcommand, Debug)]
+enum KnownGoodAction {
+    /// Show the installed known-good corpus
+    Status,
+    /// Build an index by hashing a directory of published files
+    Build {
+        /// Directory to hash (the unpacked release)
+        path: String,
+        /// Ecosystem, e.g. npm or pypi
+        #[arg(long, default_value = "npm")]
+        ecosystem: String,
+        /// Package name
+        #[arg(long)]
+        name: String,
+        /// Package version
+        #[arg(long)]
+        version: String,
+        /// Write the index here (default: stdout)
+        #[arg(long)]
+        out: Option<String>,
+    },
+}
+
+/// Known-good corpus commands.
+fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
+    match action {
+        KnownGoodAction::Status => {
+            let kg = match knowngood::load_installed() {
+                Ok(kg) => kg,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let dir = knowngood::known_good_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "~/.sigil/known-good/".to_string());
+
+            if format == "json" {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "directory": dir,
+                        "releases": kg.release_count(),
+                        "files": kg.file_count(),
+                    }))
+                    .unwrap_or_default()
+                );
+                return EXIT_CLEAN;
+            }
+
+            println!();
+            println!("  {} known-good corpus", "sigil".bold().cyan());
+            println!("  directory: {dir}");
+            println!(
+                "  {} release(s), {} file(s) indexed",
+                kg.release_count(),
+                kg.file_count()
+            );
+            if kg.is_empty() {
+                println!();
+                println!("  No index installed. Files are scanned and reported normally —");
+                println!("  an absent corpus never creates false confidence (ADR-0011).");
+                println!(
+                    "  Build one with: sigil known-good build <dir> --name <pkg> --version <v>"
+                );
+            }
+            println!();
+            EXIT_CLEAN
+        }
+
+        KnownGoodAction::Build {
+            path,
+            ecosystem,
+            name,
+            version,
+            out,
+        } => {
+            let index = match knowngood::build_index(Path::new(&path), &ecosystem, &name, &version)
+            {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let json = serde_json::to_string_pretty(&index).unwrap_or_default();
+            match out {
+                Some(dest) => {
+                    if let Err(e) = std::fs::write(&dest, &json) {
+                        eprintln!("{} failed to write {dest}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                    let files = index.releases.first().map(|r| r.files.len()).unwrap_or(0);
+                    eprintln!(
+                        "{} indexed {} file(s) for {}:{}@{} -> {}",
+                        "sigil:".bold().green(),
+                        files,
+                        ecosystem,
+                        name,
+                        version,
+                        dest
+                    );
+                }
+                None => println!("{json}"),
+            }
+            EXIT_CLEAN
+        }
+    }
 }
 
 /// Show the active detection corpus.

@@ -304,12 +304,28 @@ pub fn apply_suppression_in(
     root: &Path,
     ignore: bool,
 ) -> bool {
-    let restored = !result.suppressed_findings.is_empty();
+    // Restore only what the *ledger* suppressed.
+    //
+    // Known-good recognition (ADR-0011) also parks findings in
+    // `suppressed_findings`, with its own attribution. That is a different
+    // judgement — "this file is a published release, unmodified" rather than
+    // "this user approved this artifact" — and it must survive ledger
+    // re-evaluation. Restoring it here would silently undo it.
+    let ledger_note = result
+        .suppressed_by
+        .as_deref()
+        .is_some_and(|s| s.starts_with("ledger:"));
+    let restored = ledger_note && !result.suppressed_findings.is_empty();
     if restored {
         let mut prior = std::mem::take(&mut result.suppressed_findings);
         result.findings.append(&mut prior);
     }
-    result.suppressed_by = None;
+    // Drop only a ledger attribution; keep a known-good one.
+    let carried_note = match result.suppressed_by.take() {
+        Some(note) if !note.starts_with("ledger:") => Some(note),
+        _ => None,
+    };
+    result.suppressed_by = carried_note.clone();
 
     let matched = if ignore || result.findings.iter().any(|f| f.rule == "RUGPULL-001") {
         None
@@ -317,20 +333,38 @@ pub fn apply_suppression_in(
         match_approved_in(dir, root)
     };
     if let Some(rec) = matched {
-        result.suppressed_findings = std::mem::take(&mut result.findings);
-        result.suppressed_by = Some(format!(
+        // Append rather than replace, so anything known-good already set
+        // aside stays set aside.
+        let mut newly = std::mem::take(&mut result.findings);
+        result.suppressed_findings.append(&mut newly);
+        let note = format!(
             "ledger:{}#{} approved {}",
             rec.source,
             rec.id,
             rec.approved_at.format("%Y-%m-%d")
-        ));
+        );
+        result.suppressed_by = Some(match carried_note.clone() {
+            Some(prev) => format!("{prev}; {note}"),
+            None => note,
+        });
     }
 
-    if restored || result.suppressed_by.is_some() {
+    if restored || matched_changed(&result.suppressed_by, &carried_note) {
         result.score = crate::scanner::scoring::calculate_score(&result.findings);
         result.verdict = crate::scanner::scoring::determine_verdict(&result.findings, result.score);
     }
-    result.suppressed_by.is_some()
+    result
+        .suppressed_by
+        .as_deref()
+        .is_some_and(|s| s.contains("ledger:"))
+}
+
+/// Did this call change the suppression state?
+///
+/// Used to decide whether score and verdict need recomputing. A known-good
+/// note carried through unchanged is not a change.
+fn matched_changed(current: &Option<String>, carried: &Option<String>) -> bool {
+    current != carried
 }
 
 /// Default-location wrapper for the CLI.
@@ -444,6 +478,120 @@ pub fn detect_rugpull(current_dir: &Path, baseline: &LedgerRecord) -> Vec<Findin
         fingerprint: String::new(),
         locator: None,
     }]
+}
+
+#[cfg(test)]
+mod knowngood_interaction_tests {
+    use super::*;
+    use crate::scanner::{Finding, Phase, ScanResult, Severity, Verdict};
+    use tempfile::tempdir;
+
+    fn finding(rule: &str) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: rule.to_string(),
+            severity: Severity::High,
+            file: "package/index.js".to_string(),
+            line: Some(1),
+            snippet: "sample rule hit".to_string(),
+            weight: 5,
+            kev: false,
+            epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+        }
+    }
+
+    fn result_with_knowngood_suppression() -> ScanResult {
+        ScanResult {
+            findings: vec![finding("CODE-100")],
+            score: 15,
+            verdict: Verdict::MediumRisk,
+            files_scanned: 2,
+            duration_ms: 1,
+            suppressed_findings: vec![finding("CODE-002"), finding("CODE-007")],
+            suppressed_by: Some(
+                "known-good: 2 file(s) matched 1 published release(s) unmodified".to_string(),
+            ),
+            scanner: None,
+        }
+    }
+
+    /// The ledger restores previously-suppressed findings so a revoked pin
+    /// stops hiding them. It must restore only *its own* suppressions: a
+    /// known-good match (ADR-0011) is a different judgement and silently
+    /// undoing it would resurrect findings about code that is provably an
+    /// unmodified published release.
+    #[test]
+    fn ledger_does_not_restore_knowngood_suppressions() {
+        let dir = tempdir().expect("tempdir");
+        let root = tempdir().expect("root");
+        let mut result = result_with_knowngood_suppression();
+
+        // Empty ledger: nothing approved, so no ledger suppression applies.
+        let suppressed = apply_suppression_in(dir.path(), &mut result, root.path(), false);
+
+        assert!(!suppressed, "no ledger record, so no ledger suppression");
+        assert_eq!(
+            result.suppressed_findings.len(),
+            2,
+            "known-good suppressions must survive ledger re-evaluation"
+        );
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "active findings must be untouched"
+        );
+        assert_eq!(
+            result.suppressed_by.as_deref(),
+            Some("known-good: 2 file(s) matched 1 published release(s) unmodified"),
+            "known-good attribution must be preserved"
+        );
+    }
+
+    /// A ledger suppression from a cached result is still restored, so a pin
+    /// revoked since the cache was written stops hiding findings.
+    #[test]
+    fn ledger_still_restores_its_own_suppressions() {
+        let dir = tempdir().expect("tempdir");
+        let root = tempdir().expect("root");
+        let mut result = ScanResult {
+            findings: vec![],
+            score: 0,
+            verdict: Verdict::LowRisk,
+            files_scanned: 1,
+            duration_ms: 1,
+            suppressed_findings: vec![finding("CODE-002")],
+            suppressed_by: Some("ledger:pkg@1.0.0#abc approved 2026-01-01".to_string()),
+            scanner: None,
+        };
+
+        let suppressed = apply_suppression_in(dir.path(), &mut result, root.path(), false);
+
+        assert!(!suppressed);
+        assert!(
+            result.suppressed_findings.is_empty(),
+            "a revoked ledger pin must restore its findings"
+        );
+        assert_eq!(result.findings.len(), 1);
+        assert!(result.suppressed_by.is_none());
+        assert!(result.score > 0, "score must be recomputed after restore");
+    }
+
+    #[test]
+    fn ignore_ledger_leaves_knowngood_alone() {
+        let dir = tempdir().expect("tempdir");
+        let root = tempdir().expect("root");
+        let mut result = result_with_knowngood_suppression();
+
+        apply_suppression_in(dir.path(), &mut result, root.path(), true);
+
+        assert_eq!(
+            result.suppressed_findings.len(),
+            2,
+            "--ignore-ledger disables ledger suppression, not known-good"
+        );
+    }
 }
 
 #[cfg(test)]
