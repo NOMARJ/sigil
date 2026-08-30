@@ -2650,6 +2650,7 @@ mod exit_code_tests {
             duration_ms: 0,
             suppressed_findings: vec![],
             suppressed_by: None,
+            scanner: None,
         };
         let report = super::ExtractionReport {
             bytes: u64::MAX,
@@ -2673,6 +2674,7 @@ mod exit_code_tests {
             duration_ms: 0,
             suppressed_findings: vec![],
             suppressed_by: None,
+            scanner: None,
         };
         super::apply_extraction_report(
             &mut result,

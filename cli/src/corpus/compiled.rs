@@ -133,6 +133,46 @@ impl CompiledCorpus {
         self.per_phase.get(&phase)
     }
 
+    /// Every active rule ID, sorted.
+    ///
+    /// Recorded in scan output so `sigil diff` can tell a finding that is new
+    /// because the *code* changed from one that is new because the *rules*
+    /// changed. Without it, every corpus update makes a diff against an older
+    /// baseline report rule additions as regressions in the code — which is
+    /// what trains people to stop trusting a diff gate.
+    pub fn rule_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .per_phase
+            .values()
+            .flat_map(|p| p.rules.iter().map(|r| r.id.clone()))
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    /// A stable digest over the active corpus: every rule's id and pattern.
+    ///
+    /// Two scans with the same digest ran the same detection logic, so any
+    /// difference between them is a difference in the scanned code.
+    pub fn digest(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let mut entries: Vec<(&str, &str)> = self
+            .per_phase
+            .values()
+            .flat_map(|p| p.rules.iter().map(|r| (r.id.as_str(), r.regex.as_str())))
+            .collect();
+        entries.sort_unstable();
+        let mut hasher = Sha256::new();
+        for (id, pattern) in entries {
+            hasher.update(id.as_bytes());
+            hasher.update([0u8]);
+            hasher.update(pattern.as_bytes());
+            hasher.update([0u8]);
+        }
+        format!("sha256:{:x}", hasher.finalize())
+    }
+
     /// Total number of compiled content rules across all phases.
     #[allow(dead_code)]
     pub fn rule_count(&self) -> usize {

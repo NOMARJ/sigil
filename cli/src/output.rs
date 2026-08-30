@@ -252,6 +252,14 @@ pub fn print_scan_result_json(result: &ScanResult) {
         doc["suppressed_by"] = serde_json::json!(by);
         doc["suppressed_findings"] = serde_json::json!(result.suppressed_findings);
     }
+    // Corpus provenance, so `sigil diff` can separate a code change from a
+    // rules change. The key must sort *after* "findings": serde_json orders
+    // keys alphabetically and consumers locate the findings array by the
+    // first `[` in stdout, so a key like "engine" or "corpus" would break
+    // them. "scanner" sorts after "findings" and before "summary".
+    if let Some(info) = &result.scanner {
+        doc["scanner"] = serde_json::json!(info);
+    }
     println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
 }
 

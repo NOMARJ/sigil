@@ -749,6 +749,7 @@ mod tests {
             duration_ms: 1,
             suppressed_findings: Vec::new(),
             suppressed_by: None,
+            scanner: None,
         }
     }
 

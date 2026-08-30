@@ -206,6 +206,33 @@ pub struct ScanResult {
     /// approved 2026-06-11`. `None` when nothing is suppressed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suppressed_by: Option<String>,
+    /// What produced this result: engine version and corpus identity.
+    ///
+    /// `None` on results written by an older binary, which is why `diff`
+    /// degrades gracefully rather than assuming it is present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scanner: Option<ScannerInfo>,
+}
+
+/// Provenance of a scan: which engine and which detection corpus ran.
+///
+/// `cache.rs` already refuses to serve a result produced by a different
+/// scanner version, because a stale verdict after a detection upgrade is a
+/// security bug. This carries the same discipline into the output contract so
+/// consumers — `sigil diff` above all — can tell a code change from a rules
+/// change.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ScannerInfo {
+    /// The `sigil` binary version that produced the result.
+    pub engine_version: String,
+    /// Stable digest over every active rule's id and pattern.
+    pub corpus_digest: String,
+    /// Number of active content rules.
+    pub corpus_rule_count: usize,
+    /// Every active rule ID, sorted — lets `diff` attribute a new finding to
+    /// a newly added rule rather than to changed code.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rule_ids: Vec<String>,
 }
 
 fn phase_from_name(name: &str) -> Option<Phase> {
@@ -404,6 +431,7 @@ pub fn run_scan(
     let score = scoring::calculate_score(&findings);
     let verdict = scoring::determine_verdict(&findings, score);
 
+    let compiled = crate::corpus::compiled::corpus();
     ScanResult {
         findings,
         score,
@@ -412,6 +440,12 @@ pub fn run_scan(
         duration_ms,
         suppressed_findings: Vec::new(),
         suppressed_by: None,
+        scanner: Some(ScannerInfo {
+            engine_version: env!("CARGO_PKG_VERSION").to_string(),
+            corpus_digest: compiled.digest(),
+            corpus_rule_count: compiled.rule_count(),
+            rule_ids: compiled.rule_ids(),
+        }),
     }
 }
 
