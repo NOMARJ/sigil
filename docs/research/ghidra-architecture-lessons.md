@@ -25,6 +25,25 @@ though the domain does not:
    release", which is both its largest false-positive source and a blind spot for
    trojanised dependencies.
 
+### Verification status
+
+Every gap below was checked against the source before being written down, not inferred
+from Ghidra's feature list. Checked at commit `1f2a608` on
+`claude/sigil-ghidra-learning-iocs0r`:
+
+| Lesson | Claimed gap | Verified how | Result |
+|---|---|---|---|
+| §1 | Corpus re-parsed and re-compiled per file | `grep OnceLock\|OnceCell\|lazy_static\|once_cell` over `cli/src` → no hits; 11 `all_packs()` call sites in `phases.rs`; `Regex::new` at `engine.rs:94` inside the per-rule loop; `cli/Cargo.toml` has `regex` only, no prefilter crate | **Confirmed gap** |
+| §2 | Decoded content never re-scanned | Every `base64`/`decode` hit in `cli/src` is pack *signing* (`loader.rs`, `signing.rs`) or a test-fixture string; none decodes scanned content. No `queue`/`VecDeque`/`depth` in `scanner/mod.rs`. `extract_archives` is a single non-recursive `read_dir` pass, so nested archives are never unpacked either | **Confirmed gap** |
+| §3 | No locators or fingerprints | `Finding.file` is `String` (`mod.rs:76`); no `fingerprint` in `output.rs`; `diff.rs:28` keys on `rule + file + line` | **Confirmed gap** |
+| §4 | No known-good corpus | `grep -i known_good\|known-good\|upstream_hash\|registry_hash\|published_hash` over `cli/src` → no hits | **Confirmed gap** |
+| §5 | Extraction hazards | Partly **wrong as first written** — see §5. `zip 0.6.6` sanitises via `enclosed_name()`; `tar 0.4.46` validates against the destination. Only the missing size and entry caps are real | **Corrected — narrower gap** |
+| §6 | Corpus version absent from output | No `corpus`/`pack_version`/`engine_version` in `output.rs`; `cache.rs:82-85` *does* version its key, so the discipline exists but stops at the cache | **Confirmed gap** |
+| §7 | Corpus embedded at compile time | 12 `include_str!` entries at `loader.rs:15-35` | **Confirmed gap** |
+
+The four incidental defects in §10 were confirmed the same way. §5 is the one place the
+first draft overstated the problem; it has been narrowed to what the code actually shows.
+
 Ranked recommendations are in [§9](#9-ranked-recommendations). Nothing here requires
 walking back [ADR-0005](../adr/ADR-0005-signed-declarative-signature-packs.md)'s
 "the rules engine never executes user code" — Ghidra's most useful lessons are all
@@ -173,13 +192,14 @@ cannot run away. Every existing phase then applies to derived content for free, 
 obfuscation phase changes character: instead of trying to recognise every possible
 encoding *shape*, it decodes and lets the other seven phases judge the result.
 
-The related, much smaller cleanup: phase identity is currently duplicated across eight
-hardcoded `match` sites (`mod.rs:15`, `mod.rs:38`, `mod.rs:138`, `engine.rs:16`,
-`engine.rs:40`, `scoring.rs:12`, `cloud_sigs.rs:91`, `output.rs:173`). Adding a phase
-means editing all eight, and one of them is already wrong — `cloud_sigs::parse_phase`
-(`cloud_sigs.rs:91-101`) has no arms for `prompt_injection`, `skill_security` or
-`inference_security` and silently defaults them to `CodePatterns`, so a cloud signature
-targeting the three newest phases lands with the wrong phase weight and is scored wrong.
+The related, much smaller cleanup: phase identity is duplicated across six files
+(`scanner/mod.rs`, `scanner/scoring.rs`, `scanner/cloud_sigs.rs`, `corpus/engine.rs`,
+`policy/generate.rs`, `output.rs`), each carrying its own hardcoded `match`. Adding a phase
+means editing all of them, and one is already wrong — `cloud_sigs::parse_phase`
+(`cloud_sigs.rs:91-101`) has six arms and no cases for `prompt_injection`,
+`skill_security` or `inference_security`, so they fall through `_ => Phase::CodePatterns`.
+A cloud signature targeting any of the three newest phases is filed under the wrong phase
+and scored with the wrong weight (5 instead of 10 for prompt injection).
 A single static registry — one array of phase descriptors carrying name, weight and
 handler — collapses those eight sites into one and makes that class of bug unexpressible.
 This is Ghidra's `Analyzer` interface without Ghidra's runtime class discovery.
@@ -203,7 +223,7 @@ inside a firmware image without instantiating any of the intermediate filesystem
 because the hash travels with the locator, a reference stays verifiable across sessions.
 
 **Sigil today.** `Finding.file` is a plain `String` relative path (`scanner/mod.rs:73-90`).
-`sigil npm`/`sigil pip` already extract tarballs before scanning (`main.rs:615-624`), so
+`sigil npm`/`sigil pip` already extract tarballs before scanning (`main.rs:601-632`), so
 findings inside a package are reported against a path in a temporary extraction directory,
 with the container it came from lost. The roadmap adds Docker/OCI layers, which makes this
 worse: a layer path alone does not identify anything.
@@ -320,37 +340,58 @@ binary, it restarts and recovers transparently. Ghidra's authors decided that th
 parser should not share a failure domain with the tool.
 
 **Sigil today.** Sigil's whole purpose is processing bytes chosen by an attacker, and its
-riskiest surface is archive extraction: `main.rs:615-624` runs `zip`, `tar` and `flate2`
-over downloaded package archives before scanning. Rust gives memory safety here, but
-memory safety is not the whole threat model for an unpacker. Zip-slip path traversal,
-symlink escape during extraction, decompression bombs and unbounded nesting depth are all
-logic-level, and all reachable during what the user believes is a read-only scan.
+riskiest surface is archive extraction: `extract_archives` (`main.rs:601-632`) runs `zip`,
+`tar` and `flate2` over downloaded package archives before scanning.
 
-There is also a live instance of the general class: `cloud_sigs.rs:149` slices
-`&line[..200]` by byte index without walking to a character boundary. The identical bug was
-found and fixed in `engine.rs:114-124` — with a regression test — but the fix was never
-ported to the cloud-signature path. A cloud signature matching a line with a multi-byte
-character straddling byte 200 panics and kills the scan.
+Two of the obvious hazards here turn out to be **already handled, by the crates rather than
+by Sigil**, and it is worth recording that explicitly so nobody "fixes" them twice:
+
+- **Zip-slip is covered.** `zip 0.6.6`'s `ZipArchive::extract` resolves each entry through
+  `enclosed_name()` and errors on any path that escapes the destination
+  (`zip-0.6.6/src/read.rs:448-457`).
+- **Tar path escape and symlink handling are covered.** `tar 0.4.46` validates entries
+  against the destination and handles symlink and hardlink entries deliberately
+  (`tar-0.4.46/src/entry.rs`, `unpack_in` and its `validate_inside_dst` path).
+
+What is genuinely unguarded is **resource** exhaustion, not path escape:
+
+- **No extraction size cap.** `archive.extract()` and `archive.unpack()` are called with no
+  byte budget. `MAX_CONTENT_SCAN_BYTES` (10 MB, `scanner/mod.rs:184`) bounds *scanning*, not
+  *extraction*. A small gzip that expands to tens of gigabytes fills the disk during what
+  the user believes is a read-only scan.
+- **No entry-count cap**, so an archive of very many tiny files can exhaust inodes.
+- **`zip` is pinned at `0.6`**, several major versions behind current. Worth a dependency
+  review on its own terms.
+
+That is a narrower finding than "the unpacker is unsafe", and the narrower version is the
+true one. It still matters, because filling a developer's disk from a package they only
+asked Sigil to *look* at is a real denial of service, and the fix is cheap.
+
+There is also a live instance of a related class — hostile input reaching a fragile parse
+path — confirmed in source and detailed under "incidental defects" below:
+`cloud_sigs.rs:147` slices `&line[..200]` by raw byte index, where the equivalent code in
+`engine.rs:114-124` walks to a character boundary.
 
 **What to adopt.** Not Ghidra's IPC design — that is a Java problem. The transferable part
 is the principle, and Sigil has already accepted the machinery for it:
 [ADR-0009](../adr/ADR-0009-capability-minimal-scanning-sandbox-optin.md) commits to
 OS-native sandbox primitives (Landlock and seccomp on Linux, Seatbelt on macOS) for the
-opt-in `run` subcommand. Ghidra's lesson is that those primitives belong on the
-**scanner's own extraction and parse path**, not only on the subcommand that admits it
-executes something.
+opt-in `run` subcommand. Neither `landlock` nor `seccomp` appears anywhere in `cli/src` or
+`cli/Cargo.toml` today, so this is machinery that is decided but not yet built. Ghidra's
+lesson is about where it should land first: the **scanner's own extraction path**, not only
+the subcommand that admits it executes something.
 
-This directly reinforces Sigil's own stated design constraint. ADR-0009's principle is
-that Sigil must never request broader permission than it warns against in other tools. A
-scanner that can be induced to write outside its quarantine directory while "just
-scanning" fails that test regardless of what permissions it requested. Concretely: extract
-under a Landlock ruleset scoped to the quarantine path, refuse symlinks and absolute or
-`..`-bearing entries, cap total extracted bytes and nesting depth, and treat a hit on any
-of those caps as a finding rather than an error — a decompression bomb in a dependency is
-itself a signal.
+This reinforces Sigil's own stated design constraint. ADR-0009's principle is that Sigil
+must never request broader permission than it warns against in other tools; a scanner that
+can be induced to exhaust a developer's disk while "just scanning" sits uncomfortably
+against that. Concretely, and scoped to what is actually missing: cap total extracted bytes
+and entry count, extract under a ruleset scoped to the quarantine path, and treat a cap hit
+as a **finding** rather than an error — a decompression bomb in a dependency is itself a
+signal worth reporting, not just a condition to abort on.
 
-**Cost:** small–medium. **Payoff:** closes an unaudited attack surface on the tool itself,
-and strengthens a claim Sigil already makes publicly.
+**Cost:** small. **Payoff:** closes a real denial-of-service path on the tool itself. Lower
+than I first estimated, because the crates already cover path escape — but the size cap is
+cheap enough that the reduced payoff still clears the bar.
 
 ---
 
@@ -450,7 +491,7 @@ engine over richer normalised data, which is exactly what Ghidra chose.
 | 2 | Worklist scheduling; re-scan derived content | `Analyzer` types + priority + fixpoint | 8 phases, once, over original bytes; decoded payloads never scanned | M | **Highest detection gain** |
 | 3 | Composable hash-bearing locators | FSRL `a://x\|b://y` + content hash | `Finding.file` is a bare path; no fingerprints; SARIF lacks `partialFingerprints` | S–M | Fixes 3 known defects at once |
 | 4 | Known-good corpus, exact + fuzzy tiers | Function ID + BSim (LSH, cosine) | No notion of "unmodified published release"; trojanised copies invisible | L | **Highest ceiling** — own ADR |
-| 5 | Sandbox the scanner's own parse path | Decompiler as separate recoverable process | Archive extraction unsandboxed; `cloud_sigs.rs:149` byte-slice panic | S–M | Closes attack surface on the tool |
+| 5 | Cap and sandbox the scanner's own extraction path | Decompiler as separate recoverable process | No extraction size or entry cap (path escape *is* covered by the crates) | S | Closes a real DoS path |
 | 6 | Pin corpus version in results | Analysis options persisted with program | `diff` baseline unaware of corpus version; two exit-code contracts | S | Removes systematic diff noise |
 | 7 | Corpus as a separately-released dataset | FID DBs distributed independently | Core packs `include_str!`-embedded; rule change needs a binary release | S | Delivers ADR-0005's stated goal |
 
@@ -458,6 +499,47 @@ engine over richer normalised data, which is exactly what Ghidra chose.
 (5) is small and closes a live bug. (3) unblocks (4) by giving it an addressing scheme, so
 it should precede it. (2) is the highest-value change and the one most worth doing
 carefully. (4) is a programme and should get its own ADR before any code.
+
+---
+
+## 10. Incidental defects confirmed while grounding this analysis
+
+These are not Ghidra lessons. They were found by reading the code to verify the claims
+above, are confirmed in source, and are listed here so they are not lost. None is fixed by
+this note.
+
+1. **`cloud_sigs.rs:147` panics on multi-byte input.** The snippet truncation is
+   `&line[..200]` — a raw byte slice. If byte 200 falls inside a multi-byte character,
+   Rust panics. The identical bug was found and fixed in `engine.rs:114-124`, which walks
+   `char_indices()` to a character boundary and has a regression test
+   (`header_slice_handles_multibyte_at_boundary`), but the fix was never ported to the
+   cloud-signature path. Reachable whenever a cloud signature matches a long line
+   containing non-ASCII text. Fix is a four-line copy of the `engine.rs` version.
+
+2. **`cloud_sigs::parse_phase` mis-files three phases.** Six arms, no cases for
+   `prompt_injection`, `skill_security` or `inference_security`; all three fall through
+   `_ => Phase::CodePatterns`. Cloud signatures for the three newest phases get weight 5
+   instead of 10, so a cloud-distributed prompt-injection signature scores at half its
+   intended weight and reports under the wrong phase heading.
+
+3. **Two exit-code contracts in one binary.** `exit_code_for` (`main.rs:894-900`)
+   implements ADR-0010: 1 if any finding is at or above `--fail-on`, else 0. The
+   acquisition commands use a separate verdict-based scheme (`main.rs:884-888`):
+   `LowRisk => 0, MediumRisk => 1, _ => 2`. So `sigil npm <pkg>` returns 2 for a
+   High-or-Critical verdict, while ADR-0010 reserves 2 for scan *errors*. A CI job that
+   treats 2 as infrastructure failure and retries will silently pass malicious packages.
+
+4. **Phase identity duplicated across six files.** `scanner/mod.rs`, `scanner/scoring.rs`,
+   `scanner/cloud_sigs.rs`, `corpus/engine.rs`, `policy/generate.rs` and `output.rs` each
+   carry their own `match` over `Phase`. Defect 2 is an instance of the class this
+   duplication produces.
+
+Worth noting for context: the self-scan gate currently passes with 10 findings (4 Low,
+6 Medium), score 63, verdict `HIGH RISK`, exit 0. The verdict banner and the exit code
+disagree by design — `exit_code_for` keys on individual finding severity while the verdict
+keys on aggregate score — but a reader seeing "HIGH RISK" next to a passing gate will
+reasonably wonder which one is authoritative. Related to defect 3, and worth resolving
+alongside it.
 
 ---
 
