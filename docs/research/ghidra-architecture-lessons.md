@@ -25,6 +25,32 @@ though the domain does not:
    release", which is both its largest false-positive source and a blind spot for
    trojanised dependencies.
 
+### Implementation status
+
+All seven lessons and the four incidental defects in §10 have since been implemented.
+This note is kept as written — the analysis, the measurements it was based on, and the
+§5 correction are the record of how the decisions were reached. What shipped:
+
+| § | Shipped as | Result |
+|---|---|---|
+| 1 | `corpus::compiled` — `OnceLock` corpus, per-phase `RegexSet` | self-scan 9829 ms → 1377 ms (**7.1×**), output identical |
+| 2 | `scanner::derive` — bounded worklist over decoded content | decoded payloads now reach every phase; 0 new false positives across 450 files |
+| 3 | `Finding::fingerprint` + FSRL-shaped `locator`, SARIF `partialFingerprints` | 25 inserted lines: 3 new + 3 resolved → **0 new, 0 resolved** |
+| 4 | `knowngood` + [ADR-0011](../adr/ADR-0011-known-good-corpus.md) | recognised release → LOW RISK; one file changed → `KNOWNGOOD-DRIFT-001`, CRITICAL |
+| 5 | extraction byte and entry caps, `ARCHIVE-BOMB-001` | bounded; path escape confirmed already handled by the crates |
+| 6 | `ScannerInfo` in scan output, corpus-aware `diff` | new findings attributed to added rules, not to code |
+| 7 | `~/.sigil/corpus/` + `sigil corpus` | rule updates ship without a binary release |
+
+Two things worth recording because they were not visible from the analysis alone:
+
+- **`sigil diff --baseline` never accepted the scanner's own JSON.** `--format json` writes
+  score and verdict under `summary`; `diff` deserialized a `ScanResult` expecting them at
+  the top level and failed with "missing field `score`". Both §3 and §6 are unusable
+  without fixing it.
+- **Two suppression sources collided.** `ledger::apply_suppression_in` restored *all*
+  previously-suppressed findings, which silently undid known-good suppression. It now
+  restores only its own.
+
 ### Verification status
 
 Every gap below was checked against the source before being written down, not inferred
