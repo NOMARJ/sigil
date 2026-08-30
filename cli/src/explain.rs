@@ -11,10 +11,20 @@ use std::time::Duration;
 
 /// Extract the findings array from a `sigil scan -f json` output file.
 ///
-/// That output is a concatenation of a banner line, a summary object, the
-/// findings array, and a verdict object — so this scans for the first JSON
-/// array rather than parsing the file as a single document.
+/// Current output is a single JSON document with a top-level "findings"
+/// array. Older versions emitted a concatenation of a banner line, a summary
+/// object, the findings array, and a verdict object — for those (and for a
+/// bare findings array) fall back to scanning for the first JSON array.
 pub fn parse_scan_findings(content: &str) -> Result<Vec<Value>, String> {
+    if let Ok(Value::Object(doc)) = serde_json::from_str::<Value>(content) {
+        return match doc.get("findings") {
+            Some(Value::Array(findings)) => Ok(findings.clone()),
+            _ => Err(
+                "no findings array in scan file (is this `sigil scan -f json` output?)".to_string(),
+            ),
+        };
+    }
+
     let start = content.find('[').ok_or_else(|| {
         "no findings array in scan file (is this `sigil scan -f json` output?)".to_string()
     })?;
@@ -365,6 +375,14 @@ pub async fn cmd_explain(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_single_document_scan_output() {
+        let content = "{\"findings\":[{\"phase\":\"NetworkExfil\",\"severity\":\"High\",\"rule\":\"NET-006\",\"file\":\"a.js\"}],\"summary\":{\"files_scanned\":1,\"findings_count\":1,\"score\":15,\"verdict\":\"HIGH RISK\",\"duration_ms\":3}}";
+        let findings = parse_scan_findings(content).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0]["rule"], "NET-006");
+    }
 
     #[test]
     fn parses_multi_document_scan_output() {

@@ -29,16 +29,9 @@ fn disclaimer_suppressed() -> bool {
 // Verdict display
 // ---------------------------------------------------------------------------
 
-/// Print the final verdict with color coding and ASCII art.
-pub fn print_verdict(verdict: &Verdict, format: &str) {
-    if format == "json" {
-        println!(
-            "{}",
-            serde_json::json!({ "verdict": format!("{}", verdict) })
-        );
-        return;
-    }
-
+/// Print the final verdict with color coding and ASCII art (text format only;
+/// JSON output goes through `print_scan_result_json`).
+pub fn print_verdict(verdict: &Verdict) {
     println!();
     let line = "=".repeat(60);
 
@@ -108,7 +101,11 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
         );
         println!(
             "{}",
-            "    sigil explain <rule-id>   why a finding fired".dimmed()
+            "    sigil scan <path> -f json > scan.json".dimmed()
+        );
+        println!(
+            "{}",
+            "    sigil explain scan.json   why a finding fired".dimmed()
         );
         println!(
             "{}",
@@ -157,16 +154,9 @@ pub fn print_verdict(verdict: &Verdict, format: &str) {
 // Findings display
 // ---------------------------------------------------------------------------
 
-/// Print findings grouped by scan phase.
-pub fn print_findings(findings: &[Finding], format: &str) {
-    if format == "json" {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(findings).unwrap_or_default()
-        );
-        return;
-    }
-
+/// Print findings grouped by scan phase (text format only; JSON output goes
+/// through `print_scan_result_json`).
+pub fn print_findings(findings: &[Finding]) {
     if findings.is_empty() {
         println!("{} No findings.", "  [*]".green());
         return;
@@ -181,7 +171,8 @@ pub fn print_findings(findings: &[Finding], format: &str) {
             .push(finding);
     }
 
-    // Print in phase order
+    // Print in phase order. Every Phase variant must be listed here or its
+    // findings are grouped but never printed.
     let phase_order = [
         Phase::InstallHooks,
         Phase::CodePatterns,
@@ -189,6 +180,9 @@ pub fn print_findings(findings: &[Finding], format: &str) {
         Phase::Credentials,
         Phase::Obfuscation,
         Phase::Provenance,
+        Phase::PromptInjection,
+        Phase::SkillSecurity,
+        Phase::InferenceSecurity,
     ];
 
     for phase in &phase_order {
@@ -237,26 +231,36 @@ fn format_severity(severity: Severity) -> String {
 // Scan summary
 // ---------------------------------------------------------------------------
 
-/// Print a summary with scan statistics.
-pub fn print_scan_summary(result: &ScanResult, format: &str) {
-    if format == "json" {
-        // Scalars only: scripts/run_eval.py locates the findings array by the
-        // first `[` in stdout, so this object must never contain an array.
-        let summary = serde_json::json!({
+/// Print the complete scan result as a single JSON document on stdout.
+///
+/// This is the entire `--format json` contract for scan commands: one
+/// parseable object holding the summary scalars and the findings array.
+/// The "summary" object must hold scalars only: scripts/run_eval.py and
+/// `sigil explain` locate the findings array by the first `[` in stdout,
+/// so no other array may precede "findings" in the serialized output
+/// (serde_json orders keys alphabetically).
+pub fn print_scan_result_json(result: &ScanResult) {
+    let mut doc = serde_json::json!({
+        "findings": result.findings,
+        "summary": {
             "files_scanned": result.files_scanned,
             "findings_count": result.findings.len(),
             "suppressed_count": result.suppressed_findings.len(),
             "score": result.score,
             "verdict": format!("{}", result.verdict),
             "duration_ms": result.duration_ms,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&summary).unwrap_or_default()
-        );
-        return;
+        },
+    });
+    if let Some(by) = &result.suppressed_by {
+        doc["suppressed_by"] = serde_json::json!(by);
+        doc["suppressed_findings"] = serde_json::json!(result.suppressed_findings);
     }
+    println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+}
 
+/// Print a summary with scan statistics (text format only; JSON output goes
+/// through `print_scan_result_json`).
+pub fn print_scan_summary(result: &ScanResult) {
     println!();
     println!(
         "  {} Scan complete in {}ms",

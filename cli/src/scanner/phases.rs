@@ -272,11 +272,22 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
         }
     }
 
-    // PROV-005: shallow clone (not expressible as a pack rule — requires
-    // checking a path outside the scanned file set).
+    // PROV-005 / PROV-006 are gated on how the scan target was obtained
+    // (not expressible as pack rules — they check paths outside the scanned
+    // file set):
+    //
+    // - PROV-005 (shallow clone) is suppressed inside sigil's own quarantine:
+    //   `sigil clone` performs the shallow clone itself (`--depth 1`), so
+    //   flagging it there would penalise sigil's own behavior. A shallow
+    //   clone the user made and scanned directly is still worth flagging.
+    // - PROV-006 (no .git) only fires inside quarantine, where the artifact
+    //   was fetched from a remote source and missing history is meaningful.
+    //   For a plain `sigil scan <dir>` of a local directory it tells the
+    //   user nothing.
+    let in_quarantine = is_quarantine_artifact(base_path);
     let git_dir = base_path.join(".git");
     if git_dir.exists() {
-        if git_dir.join("shallow").exists() {
+        if git_dir.join("shallow").exists() && !in_quarantine {
             findings.push(make_finding(
                 Phase::Provenance,
                 "PROV-005",
@@ -287,7 +298,9 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
                 1,
             ));
         }
-    } else if base_path.join("package.json").exists() || base_path.join("setup.py").exists() {
+    } else if in_quarantine
+        && (base_path.join("package.json").exists() || base_path.join("setup.py").exists())
+    {
         // PROV-006: no .git directory but project manifest present.
         findings.push(make_finding(
             Phase::Provenance,
@@ -301,6 +314,15 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
     }
 
     findings
+}
+
+/// True when `path` lives under sigil's own quarantine directory — i.e. the
+/// artifact was fetched by `sigil clone` / `sigil pip` / `sigil npm`.
+fn is_quarantine_artifact(path: &Path) -> bool {
+    let root = crate::quarantine::quarantine_path();
+    let root = std::fs::canonicalize(&root).unwrap_or(root);
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    target.starts_with(&root)
 }
 
 // ---------------------------------------------------------------------------
