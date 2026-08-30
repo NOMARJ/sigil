@@ -13,19 +13,9 @@ use super::schema::{ProvenanceKind, SignaturePack};
 // Phase/severity parsers (mirrors scanner::cloud_sigs helpers)
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 fn parse_phase(s: &str) -> Option<Phase> {
-    match s.to_lowercase().as_str() {
-        "install_hooks" | "install-hooks" => Some(Phase::InstallHooks),
-        "code_patterns" | "code-patterns" => Some(Phase::CodePatterns),
-        "network_exfil" | "network-exfil" => Some(Phase::NetworkExfil),
-        "credentials" => Some(Phase::Credentials),
-        "obfuscation" => Some(Phase::Obfuscation),
-        "provenance" => Some(Phase::Provenance),
-        "prompt_injection" | "prompt-injection" => Some(Phase::PromptInjection),
-        "skill_security" | "skill-security" => Some(Phase::SkillSecurity),
-        "inference_security" | "inference-security" => Some(Phase::InferenceSecurity),
-        _ => None,
-    }
+    Phase::from_name(s)
 }
 
 fn parse_severity(s: &str) -> Severity {
@@ -38,17 +28,7 @@ fn parse_severity(s: &str) -> Severity {
 }
 
 fn default_weight(phase: Phase) -> u32 {
-    match phase {
-        Phase::InstallHooks => 10,
-        Phase::CodePatterns => 5,
-        Phase::NetworkExfil => 3,
-        Phase::Credentials => 2,
-        Phase::Obfuscation => 5,
-        Phase::Provenance => 1,
-        Phase::PromptInjection => 10,
-        Phase::SkillSecurity => 5,
-        Phase::InferenceSecurity => 5,
-    }
+    phase.default_weight()
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +40,13 @@ fn default_weight(phase: Phase) -> u32 {
 /// `file_path` is the relative path used in findings.
 /// `filename`  is the basename (used for file-filter matching).
 /// `contents`  is the full file text.
+/// Retained as the reference implementation for the compiled corpus.
+///
+/// Production scanning goes through `corpus::compiled`, which compiles the
+/// packs once. This uncompiled path is what
+/// `compiled::tests::compiled_matches_uncompiled_engine` diffs against, so
+/// the optimisation cannot silently change detection behaviour.
+#[allow(dead_code)]
 pub fn scan_file_with_packs(
     packs: &[SignaturePack],
     file_path: &str,
@@ -133,6 +120,8 @@ pub fn scan_file_with_packs(
                     weight,
                     kev: false,
                     epss: 0.0,
+                    fingerprint: String::new(),
+                    locator: None,
                 });
             }
         }
@@ -203,6 +192,8 @@ pub fn scan_provenance_with_packs(
                                     weight: default_weight(Phase::Provenance),
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }
@@ -222,6 +213,8 @@ pub fn scan_provenance_with_packs(
                                 weight: 1,
                                 kev: false,
                                 epss: 0.0,
+                                fingerprint: String::new(),
+                                locator: None,
                             });
                         }
                     }
@@ -251,6 +244,8 @@ pub fn scan_provenance_with_packs(
                                     weight: 2,
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }
@@ -270,6 +265,8 @@ pub fn scan_provenance_with_packs(
                                     weight: 1,
                                     kev: false,
                                     epss: 0.0,
+                                    fingerprint: String::new(),
+                                    locator: None,
                                 });
                             }
                         }

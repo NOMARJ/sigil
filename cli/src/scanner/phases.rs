@@ -7,7 +7,7 @@ use std::process;
 
 use super::{Finding, Phase, Severity};
 use crate::corpus::{
-    engine::scan_file_with_packs,
+    compiled::corpus,
     loader::load_all_packs,
     schema::{ProvenanceKind, SignaturePack},
 };
@@ -21,14 +21,6 @@ fn all_packs() -> Vec<SignaturePack> {
         eprintln!("[corpus] fatal: {e}");
         process::exit(2);
     })
-}
-
-fn phase_packs(packs: &[SignaturePack], phase: &str) -> Vec<SignaturePack> {
-    packs
-        .iter()
-        .filter(|p| p.rules.iter().any(|r| r.phase == phase))
-        .cloned()
-        .collect()
 }
 
 fn make_finding(
@@ -50,6 +42,8 @@ fn make_finding(
         weight,
         kev: false,
         epss: 0.0,
+        fingerprint: String::new(),
+        locator: None,
     }
 }
 
@@ -65,9 +59,7 @@ fn filename(file: &str) -> String {
 // ---------------------------------------------------------------------------
 
 pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "install_hooks");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::InstallHooks, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -78,9 +70,7 @@ pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
     if super::context::is_declaration_file(file) {
         return Vec::new();
     }
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "code_patterns");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::CodePatterns, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -88,9 +78,7 @@ pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
 // ---------------------------------------------------------------------------
 
 pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "network_exfil");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::NetworkExfil, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -98,9 +86,7 @@ pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
 // ---------------------------------------------------------------------------
 
 pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "credentials");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::Credentials, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -108,9 +94,7 @@ pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
 // ---------------------------------------------------------------------------
 
 pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "obfuscation");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::Obfuscation, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -330,9 +314,7 @@ fn is_quarantine_artifact(path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "prompt_injection");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::PromptInjection, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -340,9 +322,7 @@ pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
 // ---------------------------------------------------------------------------
 
 pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "skill_security");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::SkillSecurity, file, &filename(file), contents)
 }
 
 // ---------------------------------------------------------------------------
@@ -350,9 +330,7 @@ pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
 // ---------------------------------------------------------------------------
 
 pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "inference_security");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase(Phase::InferenceSecurity, file, &filename(file), contents)
 }
 
 #[cfg(test)]

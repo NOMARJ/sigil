@@ -511,6 +511,8 @@ fn pairs_to_findings(pairs: Vec<(usize, OsvVuln)>, lockfile_path: &str) -> Vec<F
                 weight,
                 kev: false,
                 epss: 0.0,
+                fingerprint: String::new(),
+                locator: None,
             }
         })
         .collect()
