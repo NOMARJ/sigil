@@ -9,7 +9,9 @@
 //! - [`schema`] — `SignaturePack`, `PackRule`, `FileFilter`, `SuppressionPredicates`
 //! - [`loader`] — discovers and parses packs from embedded data and `~/.sigil/packs/`
 //! - [`engine`] — runs pack rules against file content, returning `Finding`s
+//! - [`compiled`] — the same rules compiled once into a cached, per-phase form
 
+pub mod compiled;
 pub mod engine;
 pub mod loader;
 pub mod schema;

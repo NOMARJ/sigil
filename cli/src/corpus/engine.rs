@@ -13,6 +13,7 @@ use super::schema::{ProvenanceKind, SignaturePack};
 // Phase/severity parsers (mirrors scanner::cloud_sigs helpers)
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 fn parse_phase(s: &str) -> Option<Phase> {
     Phase::from_name(s)
 }
@@ -39,6 +40,13 @@ fn default_weight(phase: Phase) -> u32 {
 /// `file_path` is the relative path used in findings.
 /// `filename`  is the basename (used for file-filter matching).
 /// `contents`  is the full file text.
+/// Retained as the reference implementation for the compiled corpus.
+///
+/// Production scanning goes through `corpus::compiled`, which compiles the
+/// packs once. This uncompiled path is what
+/// `compiled::tests::compiled_matches_uncompiled_engine` diffs against, so
+/// the optimisation cannot silently change detection behaviour.
+#[allow(dead_code)]
 pub fn scan_file_with_packs(
     packs: &[SignaturePack],
     file_path: &str,
