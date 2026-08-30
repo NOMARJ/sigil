@@ -99,10 +99,7 @@ pub fn print_verdict(verdict: &Verdict) {
             "{}",
             "  base64, env access). If you trust this package after review:".dimmed()
         );
-        println!(
-            "{}",
-            "    sigil scan <path> -f json > scan.json".dimmed()
-        );
+        println!("{}", "    sigil scan <path> -f json > scan.json".dimmed());
         println!(
             "{}",
             "    sigil explain scan.json   why a finding fired".dimmed()
