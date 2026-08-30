@@ -89,8 +89,27 @@ appear in `cli/src/` at all.
 
 For a 1,000-file repository against the ~210 embedded rules, that is roughly 8,000 full
 corpus deserialisations and on the order of 200,000 regex compilations, for a workload
-whose rule set never changes during the scan. This is almost certainly the dominant cost
-in ADR-0008's unmet `<60s` self-scan target.
+whose rule set never changes during the scan.
+
+Measured on this repository:
+
+```
+Data Source:  Real measurement — `sigil scan . --no-cache -f json` against the
+              Sigil repo, release build (cargo build --release) at commit 7e91369
+Sample Size:  451 files scanned, single run
+Result:       9,279 ms wall on 4 cores => ~20.6 ms/file wall, ~82 ms CPU/file
+Limitations:  Single run, no repetition or variance measurement; one machine;
+              no profiler attribution, so the split between corpus reloading,
+              regex compilation and actual matching is inferred from the code
+              path, not measured directly. Treat the total as solid and the
+              attribution as a strong hypothesis.
+```
+
+82 ms of CPU per file — for mostly small text files against a fixed rule set — is far
+above what line-matching should cost, and it scales linearly: a 10,000-file repository
+would land near three and a half minutes, well past ADR-0008's `<60s` target. The repo
+only stays under that today because `.sigilignore` and the default excludes keep the file
+count at 451.
 
 **What to adopt.** Ghidra's split between *spec* and *compiled spec*. Introduce a
 `CompiledCorpus` built exactly once per process — parsed packs, pre-compiled `Regex`
@@ -427,7 +446,7 @@ engine over richer normalised data, which is exactly what Ghidra chose.
 
 | # | Lesson | Ghidra mechanism | Sigil's gap | Cost | Payoff |
 |---|---|---|---|---|---|
-| 1 | Compile the corpus once, add a literal prefilter | SLEIGH `.slaspec` → cached `.sla` | `all_packs()` + `Regex::new` per rule per file per phase; zero memoisation | S | **High** — likely the dominant scan cost |
+| 1 | Compile the corpus once, add a literal prefilter | SLEIGH `.slaspec` → cached `.sla` | `all_packs()` + `Regex::new` per rule per file per phase; zero memoisation | S | **High** — measured ~82 ms CPU/file (§1) |
 | 2 | Worklist scheduling; re-scan derived content | `Analyzer` types + priority + fixpoint | 8 phases, once, over original bytes; decoded payloads never scanned | M | **Highest detection gain** |
 | 3 | Composable hash-bearing locators | FSRL `a://x\|b://y` + content hash | `Finding.file` is a bare path; no fingerprints; SARIF lacks `partialFingerprints` | S–M | Fixes 3 known defects at once |
 | 4 | Known-good corpus, exact + fuzzy tiers | Function ID + BSim (LSH, cosine) | No notion of "unmodified published release"; trojanised copies invisible | L | **Highest ceiling** — own ADR |
