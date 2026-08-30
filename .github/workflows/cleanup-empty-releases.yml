@@ -1,0 +1,52 @@
+name: Cleanup Empty Releases
+
+# One-shot janitor for the assetless immutable releases shipped by the broken
+# pre-v1.3.5 release flow (v1.3.0–v1.3.4). Refuses to touch any release that
+# has assets, so a real release can never be deleted by mistyping a tag.
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Space-separated tags whose releases + git tags to delete (only when the release has zero assets)"
+        required: true
+        default: "v1.3.0 v1.3.1 v1.3.2 v1.3.3 v1.3.4"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete assetless releases and tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          set -u
+          FAILED=0
+          for TAG in $TAGS; do
+            COUNT="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" --jq '.assets | length' 2>/dev/null || echo missing)"
+            if [[ "$COUNT" == "missing" ]]; then
+              echo "::notice::${TAG}: no release found — will still try to delete the git tag"
+            elif [[ "$COUNT" != "0" ]]; then
+              echo "::warning::${TAG}: release has ${COUNT} assets — refusing to delete release or tag"
+              continue
+            else
+              if gh release delete "${TAG}" --repo "${GITHUB_REPOSITORY}" --yes; then
+                echo "::notice::${TAG}: release deleted"
+              else
+                echo "::warning::${TAG}: release deletion was refused — leaving its tag in place"
+                FAILED=1
+                continue
+              fi
+            fi
+            if gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" >/dev/null; then
+              echo "::notice::${TAG}: git tag deleted"
+            else
+              echo "::warning::${TAG}: git tag deletion failed"
+              FAILED=1
+            fi
+          done
+          exit $FAILED
