@@ -934,8 +934,7 @@ async def list_scans(
                 "[risk_score]",
                 "[verdict]",
                 "[created_at]",
-                "(SELECT COUNT(*) FROM OPENJSON([findings_json]))"
-                " AS [findings_count]",
+                "(SELECT COUNT(*) FROM OPENJSON([findings_json])) AS [findings_count]",
             ],
         )
         own_rows = _apply_common_filters(own_rows, "target", "target_type")

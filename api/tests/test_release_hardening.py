@@ -51,7 +51,7 @@ def test_github_action_fails_closed_when_sigil_scan_produces_no_report(tmp_path)
     assert result.returncode == 127
     assert "verdict=error" in output.read_text()
     assert "verdict=clean" not in output.read_text()
-    assert "did not produce a report" in result.stdout + result.stderr
+    assert "did not produce parseable JSON" in result.stdout + result.stderr
 
 
 def test_github_action_fails_closed_on_unparseable_success_without_report(tmp_path):
@@ -108,11 +108,14 @@ def test_github_action_parses_json_scan_output_without_report(tmp_path):
         "#!/usr/bin/env bash\n"
         "cat <<'JSON'\n"
         "{\n"
-        '  "files_scanned": 1,\n'
-        '  "findings_count": 1,\n'
-        '  "score": 1,\n'
-        '  "verdict": "LOW RISK",\n'
-        '  "duration_ms": 1\n'
+        '  "summary": {\n'
+        '    "files_scanned": 1,\n'
+        '    "findings_count": 1,\n'
+        '    "score": 1,\n'
+        '    "verdict": "LOW RISK",\n'
+        '    "duration_ms": 1\n'
+        "  },\n"
+        '  "findings": []\n'
         "}\n"
         "JSON\n"
         "exit 0\n"
@@ -163,11 +166,14 @@ def test_github_action_uses_scan_subcommand_before_format_flag(tmp_path):
         'printf \'%s\\n\' "$@" > "$SIGIL_ARGS_FILE"\n'
         "cat <<'JSON'\n"
         "{\n"
-        '  "files_scanned": 1,\n'
-        '  "findings_count": 0,\n'
-        '  "score": 0,\n'
-        '  "verdict": "LOW RISK",\n'
-        '  "duration_ms": 1\n'
+        '  "summary": {\n'
+        '    "files_scanned": 1,\n'
+        '    "findings_count": 0,\n'
+        '    "score": 0,\n'
+        '    "verdict": "LOW RISK",\n'
+        '    "duration_ms": 1\n'
+        "  },\n"
+        '  "findings": []\n'
         "}\n"
         "JSON\n"
     )

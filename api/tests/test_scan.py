@@ -376,7 +376,8 @@ class TestScanListEndpoint:
         self._submit(client, auth_headers, target="listed-pkg-2")
 
         resp = client.get(
-            "/scans", params={"page": 1, "per_page": 20, "scope": "all"},
+            "/scans",
+            params={"page": 1, "per_page": 20, "scope": "all"},
             headers=auth_headers,
         )
         assert resp.status_code == 200, resp.text
@@ -392,9 +393,7 @@ class TestScanListEndpoint:
         self, client: TestClient, auth_headers: dict[str, str]
     ) -> None:
         self._submit(client, auth_headers)
-        resp = client.get(
-            "/v1/scans", params={"scope": "all"}, headers=auth_headers
-        )
+        resp = client.get("/v1/scans", params={"scope": "all"}, headers=auth_headers)
         assert resp.status_code == 200, resp.text
         assert resp.json()["total"] == 1
 
