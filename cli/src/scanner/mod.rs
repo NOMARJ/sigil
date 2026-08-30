@@ -1,5 +1,6 @@
 pub mod cloud_sigs;
 pub mod context;
+pub mod derive;
 pub mod normalize;
 pub mod phases;
 pub mod scoring;
@@ -181,6 +182,55 @@ pub struct Finding {
     /// about which artifact the finding came from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locator: Option<String>,
+}
+
+/// Run every enabled content phase over one unit of content.
+///
+/// Factored out of the scan loop so the same phase set applies to a file and
+/// to anything derived from it. `rel_path` stays the originating file for
+/// derived units, so file-filtered rules (a `setup.py`-gated install-hook
+/// rule, say) still apply to a payload decoded out of that file.
+fn run_phases(
+    rel_path: &str,
+    contents: &str,
+    should_run_phase: &impl Fn(Phase) -> bool,
+    cloud_sigs: &[cloud_sigs::CompiledCloudSignature],
+) -> Vec<Finding> {
+    let mut out: Vec<Finding> = Vec::new();
+
+    if should_run_phase(Phase::InstallHooks) {
+        out.extend(phases::scan_install_hooks(rel_path, contents));
+    }
+    if should_run_phase(Phase::CodePatterns) {
+        out.extend(phases::scan_code_patterns(rel_path, contents));
+    }
+    if should_run_phase(Phase::NetworkExfil) {
+        out.extend(phases::scan_network_exfil(rel_path, contents));
+    }
+    if should_run_phase(Phase::Credentials) {
+        out.extend(phases::scan_credentials(rel_path, contents));
+    }
+    if should_run_phase(Phase::Obfuscation) {
+        out.extend(phases::scan_obfuscation(rel_path, contents));
+    }
+    if should_run_phase(Phase::PromptInjection) {
+        out.extend(phases::scan_prompt_injection(rel_path, contents));
+    }
+    if should_run_phase(Phase::SkillSecurity) {
+        out.extend(phases::scan_skill_security(rel_path, contents));
+    }
+    if should_run_phase(Phase::InferenceSecurity) {
+        out.extend(phases::scan_inference_security(rel_path, contents));
+    }
+
+    // Cloud signatures (from ~/.sigil/signatures.json)
+    if !cloud_sigs.is_empty() {
+        out.extend(cloud_sigs::scan_with_cloud_signatures(
+            rel_path, contents, cloud_sigs,
+        ));
+    }
+
+    out
 }
 
 /// Assign content-anchored fingerprints across a complete result set.
@@ -441,41 +491,44 @@ pub fn run_scan(
                 file_findings.extend(normalize::inspect_invisible(&rel_path, &contents));
             }
             let contents = normalize::normalize_for_matching(&contents);
-            let contents: &str = &contents;
 
-            if should_run_phase(Phase::InstallHooks) {
-                file_findings.extend(phases::scan_install_hooks(&rel_path, contents));
-            }
-            if should_run_phase(Phase::CodePatterns) {
-                file_findings.extend(phases::scan_code_patterns(&rel_path, contents));
-            }
-            if should_run_phase(Phase::NetworkExfil) {
-                file_findings.extend(phases::scan_network_exfil(&rel_path, contents));
-            }
-            if should_run_phase(Phase::Credentials) {
-                file_findings.extend(phases::scan_credentials(&rel_path, contents));
-            }
-            if should_run_phase(Phase::Obfuscation) {
-                file_findings.extend(phases::scan_obfuscation(&rel_path, contents));
-            }
-            if should_run_phase(Phase::PromptInjection) {
-                file_findings.extend(phases::scan_prompt_injection(&rel_path, contents));
-            }
-            if should_run_phase(Phase::SkillSecurity) {
-                file_findings.extend(phases::scan_skill_security(&rel_path, contents));
-            }
-            if should_run_phase(Phase::InferenceSecurity) {
-                file_findings.extend(phases::scan_inference_security(&rel_path, contents));
+            // Analysis is a bounded worklist, not a single pass. A phase that
+            // decodes something enqueues the decoded content, and every phase
+            // then runs over that too — so a payload hidden inside base64
+            // reaches the install-hook, exfiltration and credential rules
+            // instead of only tripping one obfuscation rule on its shape.
+            let mut budget = derive::DeriveBudget::new();
+            let mut queue: Vec<derive::DerivedUnit> = vec![derive::DerivedUnit {
+                contents: contents.into_owned(),
+                via: String::new(),
+                parent_line: 0,
+                depth: 0,
+            }];
+
+            while let Some(unit) = queue.pop() {
+                let unit_findings =
+                    run_phases(&rel_path, &unit.contents, &should_run_phase, &cloud_sigs);
+
+                if unit.depth == 0 {
+                    file_findings.extend(unit_findings);
+                } else {
+                    // Re-anchor findings from decoded content onto the line of
+                    // the parent file that carried the blob, so a finding still
+                    // points at a real line of a real file, and record how the
+                    // content was obtained.
+                    file_findings.extend(unit_findings.into_iter().map(|mut f| {
+                        f.line = Some(unit.parent_line);
+                        f.snippet = format!("[decoded {}] {}", unit.via, f.snippet);
+                        f.locator = Some(format!("file://{}|{}", rel_path, unit.via));
+                        f
+                    }));
+                }
+
+                for derived in derive::derive_units(&unit.contents, unit.depth, &mut budget) {
+                    queue.push(derived);
+                }
             }
 
-            // Apply cloud signatures (from ~/.sigil/signatures.json)
-            if !cloud_sigs.is_empty() {
-                file_findings.extend(cloud_sigs::scan_with_cloud_signatures(
-                    &rel_path,
-                    contents,
-                    &cloud_sigs,
-                ));
-            }
             file_findings
         })
         .collect();

