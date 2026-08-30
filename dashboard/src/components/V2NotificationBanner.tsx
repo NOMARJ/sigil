@@ -39,8 +39,9 @@ export default function V2NotificationBanner() {
                 Enhanced Scanner Now Available!
               </h3>
               <p className="text-xs text-gray-300 leading-relaxed">
-                Our new scanner reduces false positives by 85% with context-aware analysis, 
-                confidence scoring, and improved threat detection. All new scans automatically use the enhanced scanner.
+                Our new scanner adds context-aware analysis and confidence scoring — in our
+                measured evaluation, Pro AI adjudication cuts false positives at High severity
+                from 70% to 30%. All new scans automatically use the enhanced scanner.
               </p>
               
               {/* Links */}

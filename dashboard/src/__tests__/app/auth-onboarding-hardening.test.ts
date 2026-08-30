@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const SRC = resolve(__dirname, "..", "..");
@@ -8,30 +8,18 @@ const DOCKERFILE = resolve(REPO, "Dockerfile");
 const NEXT_CONFIG = resolve(ROOT, "next.config.js");
 const AUTH_PROVIDER = resolve(SRC, "lib", "auth.ts");
 const AUTH_ME_ROUTE = resolve(SRC, "app", "api", "auth", "me", "route.ts");
-const GENERATE_KEY_ROUTE = resolve(
-  SRC,
-  "app",
-  "api",
-  "onboarding",
-  "generate-key",
-  "route.ts",
-);
-const API_KEY_STEP = resolve(
-  SRC,
-  "components",
-  "onboarding",
-  "ApiKeySetupStep.tsx",
-);
-const COMPLETE_ROUTE = resolve(SRC, "app", "api", "onboarding", "complete", "route.ts");
-const COMPLETE_STEP_ROUTE = resolve(
-  SRC,
-  "app",
-  "api",
-  "onboarding",
-  "complete-step",
-  "route.ts",
-);
-const ONBOARDING_FLOW = resolve(SRC, "components", "OnboardingFlow.tsx");
+
+// The free-tier OnboardingFlow (API-key setup and its 501-stub routes) was
+// never reachable — only ProOnboardingFlow is routed — and once contained
+// fabricated API-key generation. It was deleted rather than parked; these
+// paths must stay gone until server-side key management actually exists.
+const DELETED_ONBOARDING_PATHS = [
+  resolve(SRC, "app", "api", "onboarding"),
+  resolve(SRC, "components", "OnboardingFlow.tsx"),
+  resolve(SRC, "components", "OnboardingStep.tsx"),
+  resolve(SRC, "components", "ProgressIndicator.tsx"),
+  resolve(SRC, "components", "onboarding"),
+];
 
 describe("auth and onboarding hardening", () => {
   it("fails production builds when the backend API URL is missing", () => {
@@ -67,31 +55,9 @@ describe("auth and onboarding hardening", () => {
     expect(meRouteSource).toContain("normalizePlan(subscription.plan)");
   });
 
-  it("fails closed for dashboard API key issuance instead of returning fake credentials", () => {
-    const routeSource = readFileSync(GENERATE_KEY_ROUTE, "utf8");
-    const stepSource = readFileSync(API_KEY_STEP, "utf8");
-
-    for (const source of [routeSource, stepSource]) {
-      expect(source).not.toMatch(/Math\.random|mockApiKey|mockKey|Date\.now/);
+  it("keeps the dead API-key onboarding flow deleted instead of shipping fake credentials", () => {
+    for (const path of DELETED_ONBOARDING_PATHS) {
+      expect(existsSync(path)).toBe(false);
     }
-
-    expect(routeSource).toContain("{ status: 501 }");
-    expect(routeSource).not.toContain("api_key:");
-    expect(stepSource).toContain('fetch("/api/onboarding/generate-key"');
-    expect(stepSource).toContain('authenticationMethod: apiKey ? "api_key" : "device_flow"');
-    expect(stepSource).toContain("sigil login");
-  });
-
-  it("fails closed for onboarding persistence instead of reporting fake success", () => {
-    const completeSource = readFileSync(COMPLETE_ROUTE, "utf8");
-    const completeStepSource = readFileSync(COMPLETE_STEP_ROUTE, "utf8");
-    const flowSource = readFileSync(ONBOARDING_FLOW, "utf8");
-
-    expect(completeSource).toContain("{ status: 501 }");
-    expect(completeStepSource).toContain("{ status: 501 }");
-    expect(completeSource).not.toContain("success: true");
-    expect(completeStepSource).not.toContain("success: true");
-    expect(flowSource).toContain("if (!response.ok)");
-    expect(flowSource).not.toContain("Still redirect on error");
   });
 });

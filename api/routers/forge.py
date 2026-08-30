@@ -77,7 +77,10 @@ class ClassifiedTool(BaseModel):
     ecosystem: str
     category: ToolCategory
     capabilities: list[ToolCapability]
-    trust_score: int
+    # float, not int: public_scans rows store fractional risk scores, so the
+    # derived trust score (100 - risk_score) is fractional too. Declaring int
+    # 500'd every /forge/search response (sibling of the #147 null-field bug).
+    trust_score: float
     verdict: str
     compatibility_signals: list[str]
     github_url: str | None = None

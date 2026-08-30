@@ -42,7 +42,7 @@ jobs:
 | `format`           | `text`   | Output format: `text`, `json`, `sarif`                          |
 | `phases`           | (all)    | Comma-separated phase filter                                    |
 | `upload-sarif`     | `false`  | Upload SARIF results to GitHub Code Scanning                    |
-| `sigil-token`      | —        | Sigil API token for threat intelligence enrichment              |
+| `api-key`          | —        | Sigil cloud API key for threat intelligence enrichment (key issuance is not yet available — leave unset) |
 
 ### Outputs
 
@@ -102,13 +102,15 @@ Require Sigil scans to pass before merging. Add Sigil as a required status check
 
 ### Authenticated Scans in CI
 
-Add your Sigil API token as a repository secret to enable threat intelligence in CI:
+The action accepts an `api-key` input for cloud threat-intelligence enrichment. API key
+issuance is not yet available from the dashboard, so this currently stays unset — all
+scan phases run fully offline without it. Once keys ship, pass one as a repository secret:
 
 ```yaml
 - uses: NOMARJ/sigil@main
   with:
     path: .
-    sigil-token: ${{ secrets.SIGIL_TOKEN }}
+    api-key: ${{ secrets.SIGIL_API_KEY }}
 ```
 
 ---
@@ -140,7 +142,6 @@ sigil-scan:
 | `SIGIL_THRESHOLD`        | `medium` | Minimum severity to report        |
 | `SIGIL_FAIL_ON_FINDINGS` | `true`   | Fail the job on findings          |
 | `SIGIL_FORMAT`           | `text`   | Output format                     |
-| `SIGIL_TOKEN`            | —        | API token (set as CI/CD variable) |
 
 ### Artifacts
 

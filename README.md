@@ -22,7 +22,7 @@ Sigil fills this gap with a **quarantine-first approach**.
 
 ## Quick Install
 
-**Install via Script (Current):**
+**Install via Script:**
 
 ```bash
 # Clone the repository
@@ -38,12 +38,25 @@ cd sigil
 ./install.sh --with-aliases
 ```
 
+**Package managers:**
+
+```bash
+# Homebrew (macOS/Linux)
+brew install nomarj/tap/sigil
+
+# npm (macOS/Linux)
+npm install -g @nomarj/sigil
+
+# Cargo (Rust)
+cargo install sigil-cli
+
+# curl installer
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
+```
+
 **Coming Soon:**
 
-- **Homebrew**: `brew install nomarj/tap/sigil`
-- **npm (macOS/Linux)**: `npm install -g @nomarj/sigil`
-- **curl installer**: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`
-- **Docker**: `docker pull nomark/sigil:1.2.1`
+- **Docker**: `docker pull nomark/sigil`
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
 
@@ -78,13 +91,14 @@ Sigil runs **eight analysis phases** on every scan (all free; LLM analysis requi
 
 Each finding is weighted and scored. You get a clear verdict:
 
-| Score | Verdict         | What Happens                |
-| ----- | --------------- | --------------------------- |
-| 0     | **CLEAN**       | Auto-approve (configurable) |
-| 1–9   | **LOW RISK**    | Approve with review         |
-| 10–24 | **MEDIUM RISK** | Manual review required      |
-| 25–49 | **HIGH RISK**   | Blocked, requires override  |
-| 50+   | **CRITICAL**    | Blocked, no override        |
+| Score / Evidence                      | Verdict           | What Happens                                        |
+| ------------------------------------- | ----------------- | --------------------------------------------------- |
+| 0–9                                   | **LOW RISK**      | No known malicious patterns detected                |
+| 10–24                                 | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
+| 25+                                   | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
+| Any single Critical-severity finding  | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
+
+CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
 
 ## Usage
 
@@ -104,7 +118,7 @@ sigil npm langchain-community-plugin
 sigil scan ./downloaded-skill/
 
 # 🔒 Pro: Enhanced LLM-powered scanning (requires authentication)
-sigil login --token YOUR_API_TOKEN
+sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
 
@@ -113,7 +127,8 @@ sigil fetch https://example.com/agent-tool.tar.gz
 
 # Manage quarantine
 sigil list              # See all quarantined items
-sigil approve abc123    # Move approved code out of quarantine
+sigil approve abc123    # Mark trusted: pins the item's digest in the trust ledger
+                        # (files stay at ~/.sigil/quarantine/<id>/ — copy them out yourself)
 sigil reject abc123     # Permanently delete quarantined code
 
 # Wire Sigil into your tooling
@@ -122,40 +137,6 @@ sigil setup shell       # Add gclone/safepip/safenpm aliases to your shell rc
 sigil setup git         # Install a pre-commit hook (sigil scan --fail-on high)
 sigil setup all         # All of the above
 ```
-
-### Discovery Commands
-
-Find and research AI tools, packages, and dependencies before using them:
-
-```bash
-# Search for AI tools and packages
-sigil search "natural language processing"
-sigil search "web scraping"
-sigil search "machine learning"
-
-# Get curated tool recommendations for specific use cases
-sigil discover "chatbot development"
-sigil discover "data analysis pipeline"
-sigil discover "web scraping automation"
-
-# Get detailed information about a specific tool
-sigil info pypi/langchain
-sigil info npm/puppeteer
-sigil info pypi/scrapy
-
-# Discovery integrates with security auditing
-sigil search "pdf processing" | head -3    # Find options
-sigil info pypi/pypdf                      # Research a tool
-sigil pip pypdf                            # Audit before installing
-```
-
-**Discovery Features:**
-
-- **Smart Search**: Natural language queries find relevant tools
-- **Use Case Stacks**: Get curated tool recommendations for specific workflows
-- **Trust Scoring**: See security ratings and trust scores for every tool
-- **Installation Ready**: Get exact install commands with security pre-checks
-- **Ecosystem Coverage**: Search across pip, npm, and other package managers
 
 ### Shell Aliases
 
@@ -321,7 +302,8 @@ The CLI is **free and open source** with all eight scan phases. **Sigil Pro turn
 | **🔍 False Positive Verification** | —           | ✅           | ✅             |
 | **💬 Interactive Security Chat**   | —           | ✅           | ✅             |
 | **⚡ Smart Model Routing**         | —           | ✅           | ✅             |
-| 5,000 monthly AI credits           | —           | ✅           | ✅             |
+| Monthly AI credits                 | —           | 5,000        | 50,000         |
+| Monthly cloud scans                | —           | 500          | 5,000          |
 | Cloud threat intelligence          | —           | ✅           | ✅             |
 | Scan history                       | —           | 90 days      | 1 year         |
 | Web dashboard                      | —           | ✅           | ✅             |
@@ -341,7 +323,6 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - [Getting Started Guide](docs/getting-started.md) — Installation and first scan
 - [CLI Reference](docs/cli.md) — All commands and options
-- [Discovery Commands](docs/cli.md#discovery-commands) — Find and research tools before use ⭐ **NEW**
 - [Authentication Guide](docs/authentication-guide.md) — Connect to Sigil Pro
 - [Configuration](docs/configuration.md) — Environment variables and settings
 
@@ -357,7 +338,6 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
 - [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
 - [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
-- [Forge to CLI Migration](docs/migration-guides/forge-to-cli.md) — Migrate from Forge web UI to CLI discovery ⭐ **NEW**
 - [AI Security Stack](docs/ai-security-stack-integration.md) — Sigil + Aardvark + Claude Code Security
 - [Claude Code Security Integration](docs/claude-code-security-integration.md) — Defense-in-depth with Anthropic
 - [AI Agent Integration](docs/ai-agent-integration.md) — Claude Code, MCP, and other AI agents
@@ -378,7 +358,7 @@ See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
 **Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** Homebrew tap and npm package. Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
+**Next:** Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

@@ -20,6 +20,17 @@ import pytest
 from fastapi import HTTPException
 
 
+@pytest.fixture(autouse=True)
+def _clear_userinfo_cache():
+    """Isolate the per-token /userinfo cache between tests (they share a
+    "fake-access-token" token string)."""
+    from api.routers import auth as auth_module
+
+    auth_module._userinfo_cache.clear()
+    yield
+    auth_module._userinfo_cache.clear()
+
+
 @pytest.mark.asyncio
 async def test_userinfo_fallback_when_email_claim_missing(monkeypatch):
     """If the JWT payload has no email claim, /userinfo should be queried."""
@@ -196,7 +207,13 @@ async def test_unverified_auth0_email_is_rejected(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_userinfo_fallback_failure_returns_sanitized_401(monkeypatch):
+async def test_userinfo_fallback_upstream_failure_returns_sanitized_503(monkeypatch):
+    """An Auth0-side /userinfo failure (5xx) is not token invalidity.
+
+    It must surface as a retryable 503, never as 401 "Invalid or expired
+    token" (M-5: valid sessions were misreported as expired logins), and must
+    never echo the upstream response body.
+    """
     from api import config as config_module
     from api.routers import auth as auth_module
 
@@ -237,9 +254,120 @@ async def test_userinfo_fallback_failure_returns_sanitized_401(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await auth_module.verify_auth0_token("fake-access-token")
 
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Authentication service temporarily unavailable"
+    assert "provider stack trace" not in exc.value.detail
+
+
+def _patch_verified_jwt(monkeypatch, sub: str = "auth0|no-email-claim"):
+    """Set up a token that passes signature checks but lacks email claims."""
+    from api import config as config_module
+    from api.routers import auth as auth_module
+
+    monkeypatch.setattr(config_module.settings, "auth0_domain", "test.auth0.com")
+    monkeypatch.setattr(
+        config_module.settings, "auth0_audience", "https://api.test.local"
+    )
+    auth_module._auth0_jwks_cache = {
+        "keys": [
+            {"kid": "test-kid", "alg": "RS256", "kty": "RSA", "n": "x", "e": "AQAB"}
+        ]
+    }
+    monkeypatch.setattr(auth_module, "_USE_JOSE", True)
+    fake_jose = MagicMock()
+    fake_jose.get_unverified_header.return_value = {"kid": "test-kid"}
+    fake_jose.decode.return_value = {
+        "sub": sub,
+        "iss": "https://test.auth0.com/",
+        "aud": "https://api.test.local",
+    }
+    monkeypatch.setattr(auth_module, "_jose_jwt", fake_jose)
+    return auth_module
+
+
+def _patch_userinfo_response(monkeypatch, auth_module, status_code: int, body: str):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, text=body)
+
+    transport = httpx.MockTransport(handler)
+    real_async_client = httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = transport
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(auth_module.httpx, "AsyncClient", factory)
+
+
+@pytest.mark.asyncio
+async def test_userinfo_rate_limit_returns_503_not_401(monkeypatch):
+    """Auth0 hard-rate-limits /userinfo (~5/min per token). A 429 there means
+    "slow down", not "your login expired" — it must map to 503, not 401.
+
+    This was the M-5 production signature: a burst of CLI calls (each explain
+    is several authenticated requests) succeeded a few times, then every
+    subsequent request returned 401 "Invalid or expired token" for a
+    perfectly valid token.
+    """
+    auth_module = _patch_verified_jwt(monkeypatch)
+    _patch_userinfo_response(monkeypatch, auth_module, 429, "Too Many Requests")
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.verify_auth0_token("fake-access-token")
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Authentication service temporarily unavailable"
+
+
+@pytest.mark.asyncio
+async def test_userinfo_result_is_cached_per_token(monkeypatch):
+    """Repeated requests with the same token must not re-hit the strictly
+    rate-limited Auth0 /userinfo endpoint (the M-5 burn-out mechanism)."""
+    auth_module = _patch_verified_jwt(monkeypatch)
+
+    calls: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "sub": "auth0|no-email-claim",
+                "email": "cached@example.com",
+                "name": "Cached User",
+                "email_verified": True,
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    real_async_client = httpx.AsyncClient
+
+    def factory(*args, **kwargs):
+        kwargs["transport"] = transport
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(auth_module.httpx, "AsyncClient", factory)
+
+    first = await auth_module.verify_auth0_token("fake-access-token")
+    second = await auth_module.verify_auth0_token("fake-access-token")
+
+    assert first["email"] == "cached@example.com"
+    assert second["email"] == "cached@example.com"
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_userinfo_rejecting_token_still_returns_401(monkeypatch):
+    """A 401 from /userinfo means Auth0 rejected the token itself — genuine
+    token invalidity stays 401."""
+    auth_module = _patch_verified_jwt(monkeypatch)
+    _patch_userinfo_response(monkeypatch, auth_module, 401, "Unauthorized")
+
+    with pytest.raises(HTTPException) as exc:
+        await auth_module.verify_auth0_token("fake-access-token")
+
     assert exc.value.status_code == 401
     assert exc.value.detail == "Invalid or expired token"
-    assert "provider stack trace" not in exc.value.detail
 
 
 @pytest.mark.asyncio

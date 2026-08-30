@@ -1,5 +1,12 @@
 # Migration Guide: Forge Web UI to CLI Discovery
 
+> **⚠️ Not available in the current CLI.** The discovery commands described in this guide
+> (`sigil search`, `sigil info`, `sigil discover`) are **not implemented** in Sigil v1.3.6 —
+> running them returns "unrecognized subcommand". This document describes a proposed workflow
+> and is retained for planning purposes only. For tool discovery, use the Forge web UI at
+> [sigilsec.ai](https://sigilsec.ai); for security auditing, use `sigil scan`, `sigil clone`,
+> `sigil pip`, and `sigil npm`.
+
 This guide helps you transition from the Forge web interface to CLI-based tool discovery commands.
 
 ## Quick Reference

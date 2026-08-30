@@ -4,6 +4,39 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ---
 
+## [1.3.6] - 2026-08-30
+
+Fixes for every code-level finding of the 2026-08-30 anonymous cold-start audit.
+
+### 🐛 Fixed
+
+#### CLI
+- Prompt Injection, Skill Security, and Inference Security findings now render in the default text output (previously scored but never printed)
+- `--format json` emits a single valid JSON document (`{"summary", "findings"}`); progress lines go to stderr
+- `sigil clone` no longer flags its own shallow clone (PROV-005) and PROV-006 no longer fires on plain directory scans
+- Post-scan hint shows the real `sigil explain <scan.json>` usage; `sigil approve` prints where the approved code lives
+
+#### API
+- `/forge/search` no longer 500s on fractional trust scores (`ClassifiedTool.trust_score` widened to float)
+- `GET /scans?scope=all` no longer hangs 30s and 500s: slim column selection with server-side finding counts, MSSQL string-JSON row mapping fixed, new covering indexes (migration 009)
+- Scan submission accepts findings with `"line": null` (unblocks `sigil explain` on real scans)
+- Plan/credit rejections return honest 402/403 instead of `401 "Invalid or expired token"`; Auth0 `/userinfo` responses are cached per-token and its outages map to 503
+
+#### Dashboard
+- Unverified-email sessions get a "check your inbox" screen instead of a silent redirect loop to /login; login page gained a create-account link
+- Scan History has a 15s timeout and a retry-able error state instead of an infinite skeleton
+- Free-plan policy settings are disabled behind the plan gate and save errors are surfaced
+- Community scan feed labeled honestly with an own-scans empty state; annual-discount badge computed from live prices (33%, was hardcoded 17%); false-positive banner uses the measured 70%→30% figures
+- Removed the dead free-tier OnboardingFlow and its fake-key API stubs
+
+#### Release & install
+- Linux binaries build on ubuntu-22.04 (glibc 2.35 floor, was 2.38/2.39)
+- `install.sh` no longer swallows errors (glibc and checksum failures surface distinctly), falls back to the releases/latest redirect when the GitHub API is rate-limited, honors `SIGIL_VERSION`
+- CI action summary is generated from scan JSON (was gated on a never-written report file); footer link fixed to NOMARJ org; macOS release notes use `shasum -a 256`
+
+### 📝 Documentation
+- Removed six documented-but-nonexistent commands (`search`, `discover`, `info`, `logout`, `shell-init`, `scan npm:`); corrected verdict thresholds, exit codes, quarantine/approve semantics, install methods, phase counts (8), pricing claims, and API-token instructions (device flow only until key issuance ships)
+
 ## [1.1.1] - 2026-03-08
 
 ### ✨ Added

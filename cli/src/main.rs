@@ -643,10 +643,13 @@ async fn cmd_clone(
     format: &str,
     verbose: bool,
 ) -> i32 {
-    println!(
-        "{} cloning {} into quarantine...",
-        "sigil:".bold().cyan(),
-        url.bold()
+    print_progress(
+        format,
+        format!(
+            "{} cloning {} into quarantine...",
+            "sigil:".bold().cyan(),
+            url.bold()
+        ),
     );
 
     // 1. Create quarantine entry
@@ -686,9 +689,7 @@ async fn cmd_clone(
 
     // 3. Scan the cloned repo
     let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    print_scan_output(&result, &entry.path, format);
 
     // 4. Auto-approve if requested and scan is low risk
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -699,7 +700,10 @@ async fn cmd_clone(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
@@ -722,10 +726,13 @@ async fn cmd_pip(
         None => package.to_string(),
     };
 
-    println!(
-        "{} downloading pip package {} into quarantine...",
-        "sigil:".bold().cyan(),
-        pkg_spec.bold()
+    print_progress(
+        format,
+        format!(
+            "{} downloading pip package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            pkg_spec.bold()
+        ),
     );
 
     let entry = match quarantine::add(&pkg_spec, "pip") {
@@ -771,9 +778,7 @@ async fn cmd_pip(
     }
 
     let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -783,7 +788,10 @@ async fn cmd_pip(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
@@ -806,10 +814,13 @@ async fn cmd_npm(
         None => package.to_string(),
     };
 
-    println!(
-        "{} downloading npm package {} into quarantine...",
-        "sigil:".bold().cyan(),
-        pkg_spec.bold()
+    print_progress(
+        format,
+        format!(
+            "{} downloading npm package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            pkg_spec.bold()
+        ),
     );
 
     let entry = match quarantine::add(&pkg_spec, "npm") {
@@ -853,9 +864,7 @@ async fn cmd_npm(
     }
 
     let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    print_scan_output(&result, &entry.path, format);
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -865,7 +874,10 @@ async fn cmd_npm(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
@@ -887,39 +899,44 @@ fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severit
     }
 }
 
+/// Print a progress/log line: stdout in text mode, stderr for machine-readable
+/// formats (json, sarif) so stdout stays a single parseable document.
+fn print_progress(format: &str, msg: String) {
+    if format == "text" {
+        println!("{}", msg);
+    } else {
+        eprintln!("{}", msg);
+    }
+}
+
 /// Shared scan output: summary, findings, verdict, plus the ledger-suppression
-/// attribution when active. In JSON mode the suppression object is emitted
-/// AFTER the findings array, so consumers that parse the first array in the
-/// stream (e.g. scripts/run_eval.py) see only active findings.
+/// attribution when active. In JSON mode everything is emitted as exactly one
+/// JSON document on stdout (see `output::print_scan_result_json`).
 fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
     if format == "sarif" {
         output::print_scan_sarif(result, &path.to_string_lossy());
         return;
     }
-    output::print_scan_summary(result, format);
-    output::print_findings(&result.findings, format);
-    if let Some(by) = &result.suppressed_by {
-        if format == "json" {
-            let obj = serde_json::json!({
-                "suppressed_by": by,
-                "suppressed_findings": result.suppressed_findings,
-            });
-            println!("{}", serde_json::to_string_pretty(&obj).unwrap_or_default());
-        } else {
-            println!(
-                "  {} {} finding{} suppressed by ledger approval ({})",
-                "[*]".green(),
-                result.suppressed_findings.len(),
-                if result.suppressed_findings.len() == 1 {
-                    ""
-                } else {
-                    "s"
-                },
-                by
-            );
-        }
+    if format == "json" {
+        output::print_scan_result_json(result);
+        return;
     }
-    output::print_verdict(&result.verdict, format);
+    output::print_scan_summary(result);
+    output::print_findings(&result.findings);
+    if let Some(by) = &result.suppressed_by {
+        println!(
+            "  {} {} finding{} suppressed by ledger approval ({})",
+            "[*]".green(),
+            result.suppressed_findings.len(),
+            if result.suppressed_findings.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+            by
+        );
+    }
+    output::print_verdict(&result.verdict);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -964,10 +981,13 @@ async fn cmd_scan(
     let exit_for =
         |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
 
-    println!(
-        "{} scanning {}...",
-        "sigil:".bold().cyan(),
-        path.display().to_string().bold()
+    print_progress(
+        format,
+        format!(
+            "{} scanning {}...",
+            "sigil:".bold().cyan(),
+            path.display().to_string().bold()
+        ),
     );
 
     // --- Cache: only use when running a full unfiltered scan ---
@@ -976,7 +996,10 @@ async fn cmd_scan(
     // Try loading from cache
     if use_cache {
         if let Some(mut cached) = cache::load_cached(path) {
-            println!("{} using cached result", "sigil:".bold().green(),);
+            print_progress(
+                format,
+                format!("{} using cached result", "sigil:".bold().green()),
+            );
             // Re-evaluate ledger suppression against the CURRENT ledger: a pin
             // approved or revoked since the cache was written must take effect.
             ledger::apply_suppression(&mut cached, path, ignore_ledger);
@@ -1507,6 +1530,7 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
         entry.id,
         entry.source
     );
+    println!("  code lives at {}", entry.path.display());
     println!(
         "  pinned {} files (digest {})",
         rec.pin.file_count,

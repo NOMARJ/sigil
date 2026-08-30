@@ -49,6 +49,16 @@ async function fetchJson<T>(path: string, token: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function emailUnverifiedResponse(email: unknown): NextResponse {
+  return NextResponse.json(
+    {
+      error: "email_unverified",
+      email: typeof email === "string" ? email : null,
+    },
+    { status: 403 },
+  );
+}
+
 export async function GET(): Promise<NextResponse> {
   try {
     const session = await auth0.getSession();
@@ -61,12 +71,26 @@ export async function GET(): Promise<NextResponse> {
     if (!token) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
-    const [apiUser, subscription] = await Promise.all([
-      fetchJson<ApiUser>("/auth/me", token),
-      fetchJson<ApiSubscription>("/billing/subscription", token).catch(
-        (): ApiSubscription => ({}),
-      ),
-    ]);
+
+    let apiUser: ApiUser;
+    let subscription: ApiSubscription;
+    try {
+      [apiUser, subscription] = await Promise.all([
+        fetchJson<ApiUser>("/auth/me", token),
+        fetchJson<ApiSubscription>("/billing/subscription", token).catch(
+          (): ApiSubscription => ({}),
+        ),
+      ]);
+    } catch (error) {
+      // The backend rejects tokens for unverified email addresses. When the
+      // Auth0 session itself says the email is unverified, surface that as a
+      // distinct state so the client can prompt the user to verify instead of
+      // bouncing them back to the login page.
+      if (session.user.email_verified === false) {
+        return emailUnverifiedResponse(session.user.email);
+      }
+      throw error;
+    }
 
     return NextResponse.json({
       id: apiUser.id ?? session.user.sub,

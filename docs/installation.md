@@ -31,9 +31,7 @@ sigil install
 
 ---
 
-## 🔮 Coming Soon
-
-The following installation methods are planned but not yet available:
+## Package Managers & Install Script
 
 ### Homebrew (macOS/Linux)
 
@@ -42,15 +40,11 @@ brew tap nomarj/tap
 brew install sigil
 ```
 
-_Status: Tap and formula in development_
-
 ### npm (macOS/Linux)
 
 ```bash
 npm install -g @nomarj/sigil
 ```
-
-_Status: Package preparation in progress_
 
 ### Cargo (Rust)
 
@@ -58,7 +52,7 @@ _Status: Package preparation in progress_
 cargo install sigil-cli
 ```
 
-_Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library._
+_Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library — the Rust CLI is published as `sigil-cli`._
 
 ### Quick Install Script
 
@@ -66,8 +60,6 @@ _Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is oc
 curl -fsSLO https://www.sigilsec.ai/install.sh
 sh install.sh
 ```
-
-_Status: Install script development in progress_
 
 ---
 
@@ -94,14 +86,14 @@ npm install -g @nomarj/sigil
 # Apple Silicon (M1/M2/M3)
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-arm64.tar.gz
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
-sha256sum -c --ignore-missing SHA256SUMS.txt
+shasum -a 256 -c --ignore-missing SHA256SUMS.txt
 tar -xzf sigil-macos-arm64.tar.gz
 sudo mv sigil /usr/local/bin/
 
 # Intel (x64)
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-x64.tar.gz
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
-sha256sum -c --ignore-missing SHA256SUMS.txt
+shasum -a 256 -c --ignore-missing SHA256SUMS.txt
 tar -xzf sigil-macos-x64.tar.gz
 sudo mv sigil /usr/local/bin/
 ```

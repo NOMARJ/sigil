@@ -257,10 +257,10 @@ sigil list
 
 ### sigil approve
 
-Move a quarantined item to the approved directory after review.
+Mark a quarantined item as trusted after review.
 
 ```bash
-sigil approve <quarantine-id>
+sigil approve <quarantine-id> [--reason "why"]
 ```
 
 **Arguments:**
@@ -268,16 +268,13 @@ sigil approve <quarantine-id>
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `quarantine-id` | Yes | ID shown in `sigil list` output |
-
-**Security:**
-
-- Validates the quarantine ID format (alphanumeric and underscores only)
-- Uses `realpath` to prevent path traversal attacks
-- Verifies the source path is within the quarantine directory
+| `--reason` | No | Reason for approval, recorded in the trust ledger |
 
 **Behavior:**
 
-Moves the item from `~/.sigil/quarantine/<id>/` to `~/.sigil/approved/<id>/`.
+Marks the entry as approved and pins its content digest in the trust ledger, so
+digest-matching content is allowlisted on future scans. The files themselves stay
+at `~/.sigil/quarantine/<id>/` — copy them into your project yourself once approved.
 
 ---
 
@@ -312,21 +309,20 @@ Permanently removes the item from `~/.sigil/quarantine/<id>/`. This cannot be un
 Authenticate with the Sigil cloud API to enable threat intelligence, scan history, and team features.
 
 ```bash
-sigil login
-sigil login --email dev@example.com --password mysecret
+sigil login                       # browser-based device authorization flow
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--email <email>` | Email address (interactive prompt if omitted) |
-| `--password <password>` | Password (interactive prompt if omitted) |
+| `-t, --token <token>` | API token; if omitted, a browser-based device authorization flow runs. Note: there is currently no way to generate an API token from the dashboard, so use the device flow |
+| `--endpoint <url>` | API endpoint URL (default: `https://api.sigilsec.ai`) |
 
 **Behavior:**
 
-1. Authenticates against the Sigil API (`POST /v1/auth/login`)
-2. Stores the JWT token to `~/.sigil/token`
+1. Authenticates against the Sigil API (device flow, or validates the provided token)
+2. Stores the token to `~/.sigil/token`
 3. Subsequent scans include threat intelligence enrichment
 
 **What authentication enables:**
@@ -339,15 +335,15 @@ sigil login --email dev@example.com --password mysecret
 
 ---
 
-### sigil logout
+### Logging out
 
-Remove stored authentication credentials.
+There is no `logout` subcommand. To clear stored credentials, delete the token file:
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 ```
 
-Deletes the token file at `~/.sigil/token`. Scans return to offline-only mode.
+Scans return to offline-only mode.
 
 ---
 
@@ -378,13 +374,14 @@ Every audit command runs these eight phases. Each phase has a severity weight th
 
 The risk score is the sum of `(finding_count * phase_weight)` across all phases.
 
-| Score | Verdict | Meaning | Recommended Action |
+| Score / Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
-| 0 | **CLEAN** | No suspicious patterns detected | Safe to approve |
-| 1-9 | **LOW RISK** | Minor findings, likely false positives | Review flagged items, then approve |
+| 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
 | 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention | Manual review of each finding |
-| 25-49 | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
-| 50+ | **CRITICAL** | Multiple strong indicators of malicious intent | Reject and report |
+| 25+ | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
+| Any single Critical-severity finding | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+
+CRITICAL is evidence-gated, not score-based: it requires at least one Critical-severity finding, and one such finding forces a CRITICAL verdict at any score.
 
 ---
 
@@ -392,11 +389,9 @@ The risk score is the sum of `(finding_count * phase_weight)` across all phases.
 
 | Code | Meaning |
 |------|---------|
-| `0` | CLEAN — no findings, or command completed successfully |
-| `1` | CRITICAL — score 50+, or command error |
-| `2` | HIGH_RISK — score 25-49 |
-| `3` | MEDIUM_RISK — score 10-24 |
-| `4` | LOW_RISK — score 1-9 |
+| `0` | Pass — no findings at or above the `--fail-on` severity threshold (default: `high`) |
+| `1` | Fail — at least one finding at or above the `--fail-on` threshold |
+| `2` | Scan error — invalid path, invalid flags, or the scan could not run |
 
 Use exit codes in scripts and CI pipelines to gate on scan results:
 

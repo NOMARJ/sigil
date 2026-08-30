@@ -50,6 +50,19 @@ async def test_classify_tool_survives_json_null_fields():
 
 
 @pytest.mark.asyncio
+async def test_classify_tool_survives_fractional_risk_score():
+    # Production incident 2026-08-30: public_scans rows store fractional risk
+    # scores (e.g. 22.5); ClassifiedTool.trust_score declared int made every
+    # /forge/search response 500 with an int_from_float validation error.
+    scan_data = _poisoned_scan_data()
+    scan_data["risk_score"] = 22.5
+
+    tool = await classify_tool("npm", "fractional-score-pkg", scan_data)
+
+    assert tool.trust_score == 77.5
+
+
+@pytest.mark.asyncio
 async def test_classify_tool_survives_metadata_that_parsed_to_none():
     scan_data = _poisoned_scan_data()
     scan_data["metadata"] = None
