@@ -1,0 +1,45 @@
+name: Publish npm Package
+
+# Manually re-publish @nomarj/sigil for an existing release tag. Exists so a
+# failed npm step in release.yml (e.g. the v1.3.5 run, where the @nomarj npm
+# scope did not exist yet) can be completed without re-running the release job
+# — that job cannot re-run cleanly once its immutable release is published.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.3.5)"
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish @nomarj/sigil
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          if npm view "@nomarj/sigil@${VERSION}" version >/dev/null 2>&1; then
+            echo "@nomarj/sigil ${VERSION} is already on npm — nothing to do"
+            exit 0
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npm publish --access public
