@@ -79,7 +79,7 @@ real run, with the run described in §7 or in the row.
 | Skill discovery (§2) | English and Chinese trigger phrases in every `SKILL.md`; `sigil-skill/skill.json` | none — this is metadata |
 | Community (§1) | issue templates (bug, false positive, false negative, new rule, threat report), PR template, code of conduct, CONTRIBUTING rule-authoring guide | none |
 | MCP server fix (§6) | scan tools read the JSON contract's `summary`; exit code 1 with a document is a result | 12 tools verified over stdio: `tools/list`, `sigil_scan`, `sigil_grade`, `sigil_residue_scan`, `sigil_residue_plan` |
-| Rule metadata | `remediation`, `references`, `tags` on every rule that lacked them (179 rules across 10 packs, written by one agent per pack) | ⟨REMEDIATION_STATUS⟩ |
+| Rule metadata | `remediation`, `references`, `tags` on every rule that lacked them (179 rules across 10 packs, written by one agent per pack) | all 276 rules now carry `remediation` and `tags`, and `references` where an identifier was certain; every pack diffed against HEAD as parsed rules — ids, patterns, severities, descriptions, filters and suppressions unchanged; 304 tests pass |
 
 ### Verification status
 
