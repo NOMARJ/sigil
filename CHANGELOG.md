@@ -4,6 +4,50 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ---
 
+## [Unreleased]
+
+Everything here came out of the prism-scanner review
+([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every
+detection change was measured on the Datadog malicious-package set and a clean control
+set before it was kept; the numbers are in the note.
+
+### ✨ Added
+
+#### CLI
+- `sigil residue scan | plan | apply | rollback` — what installed agent tooling left on this machine: shell rc edits, cron/launchd/systemd/autostart/sudoers persistence, git hooks and `core.hooksPath`, credential file modes, leftover tool directories, `/etc/hosts` redirects of API hosts, global agent packages. `apply` backs every target up and `rollback` restores it; system files are reported, never changed
+- `--format html`: one self-contained report page, no scripts
+- Inline `sigil:ignore RULE-ID -- reason`, `sigil:ignore-next-line` and `sigil:ignore-file` markers; suppressed findings stay in the report (`inline_suppressed`, SARIF `suppressions`)
+- `sigil scan <git-url>` clones into quarantine first
+- Letter grade, recommendation, behaviour profile and key risks in every output; `summary.grade`, `summary.recommendation`, `summary.platform` and the top-level `profile` object in `--format json` (additive, ADR-0010)
+- Rule metadata on findings: `remediation`, `references`, `tags` (JSON, SARIF `help` and `properties`, HTML)
+- Correlation rules: `EXFIL-CHAIN-001` fires when a credential read reaches a network send within 20 lines and the value is what is sent
+- `TYPOSQUAT-001`: direct dependencies one edit away from a top npm or PyPI name
+- `HYGIENE-001..007`: source maps, `.env` files, private keys, `.npmrc`/`.pypirc`/`.netrc`, dumps shipped in a package
+- New rules: `PERSIST-001..013` (cron, launchd, systemd, shell rc, authorized_keys, sudoers, hosts, Windows Run keys, git hooks, autostart), `MANIP-001..005` (gaslighting, guilt, authority impersonation, urgency bypass, emotional coercion aimed at an agent), `PROMPT-009..011`, `NET-013` (cloud metadata), `NET-014` (tunnel and dynamic-DNS hosts), `NET-015` (abused TLDs), `NET-017` (miners), `NET-018` (DNS exfiltration), `CRED-013..029` (vendor token shapes), `CRED-030..043` (credential stores, browser and keychain theft, same-line credential-plus-send), `SKILL-007..010` (malformed manifests, wildcard grants, destructive grants, downloader grants), `INSTALL-REF-001` (a lifecycle script runs a local file with findings)
+- `CRED-001`/`CRED-002` now cover every `*_KEY`/`*_SECRET`/`*_TOKEN` environment read at Medium (with `NEXT_PUBLIC_`/`REACT_APP_`/`VITE_` excluded)
+- `dist/` and `build/` are scanned: in a published package they are the shipped code (230 of the 844 malicious packages in the evaluation set carry files under `dist/`); a git checkout's `.gitignore` still applies
+- Prompt-injection rules also cover `.cursorrules`, `.windsurfrules`, `.clinerules`, `AGENTS.md`, `CLAUDE.md`, `.mdx` and `.rst`
+
+#### GitHub Action
+- `upload-sarif` and `sarif-file` inputs with a guarded `codeql-action/upload-sarif` step; `grade`, `badge` and `sarif-file` outputs; the grade badge in the job summary
+
+#### MCP server
+- `sigil_grade`, `sigil_residue_scan`, `sigil_residue_plan` (apply and rollback are deliberately not tools)
+- `server.json` and `mcpName` for the official MCP registry (publishing follows the npm release)
+
+#### Packaging and community
+- `python/`: `pip install sigilsec`, a standard-library wrapper that downloads the release binary and verifies it against `SHA256SUMS.txt` before running it (`sigil-cli` is taken on PyPI)
+- Issue templates (bug, false positive, false negative, new rule, threat report), pull request template, code of conduct, and a CONTRIBUTING rewrite with the rule-authoring guide
+- English and Chinese trigger phrases in the skill descriptions; `sigil-skill/skill.json`
+
+### 🐛 Fixed
+- MCP server scan tools printed `undefined` for verdict and score: they read the top level while the JSON contract puts the scalars under `summary`
+- `NET-015` matched URL *paths* that end in an abused TLD (`/assets/file.download`)
+- `sigil diff` rejects a residue document as a baseline instead of failing on a missing field
+
+### 📝 Documentation
+- CLI reference: scan options, host residue, inline suppression, walker policy; ADR-0010 addendum listing the additive keys; research note on prism-scanner with measured comparisons
+
 ## [1.3.6] - 2026-08-30
 
 Fixes for every code-level finding of the 2026-08-30 anonymous cold-start audit.

@@ -24,3 +24,25 @@ Three output modes: human text (default), `--format json` (stable, versioned sch
 ## Consequences
 
 Exit-code discipline and schema stability become a compatibility promise. Detail: `docs/internal/ARCHITECTURE-DECISIONS-2026-06.md` D7.
+
+## Addendum (2026-09-02): additive keys and document kinds
+
+The JSON contract grew in the prism-scanner review. All changes are additive; nothing
+moved or was renamed.
+
+- `summary` gained `grade` (A–F), `recommendation`, `inline_suppressed_count` and
+  `platform` — scalars only, as before.
+- New top-level keys: `profile` (`behaviors`, `key_risks`) and `inline_suppressed`
+  (findings silenced by `sigil:ignore` markers, with attributions). Both sort after
+  `findings`, so the findings array is still the first `[` on stdout, which is how
+  `scripts/run_eval.py` and `sigil explain` locate it. Any future top-level key must keep
+  sorting after `findings`.
+- Each finding may carry `title`, `remediation`, `references`, `tags` and `behavior`.
+- SARIF: rules carry `fullDescription`, `help` and `properties.tags`; suppressed findings
+  are emitted with `suppressions` (`kind: inSource`) rather than dropped.
+- `sigil residue` documents are a different kind and are not scan results: they carry
+  `"kind": "residue"` / `"residue-plan"` / `"residue-apply"` / `"residue-rollback"` and a
+  `residue_schema` version. Consumers dispatch on `kind`; `sigil diff` refuses them as a
+  baseline. The first-`[` rule applies to scan documents only.
+- `--format html` is a fourth output mode: one self-contained page, no scripts, every
+  value escaped. It is a presentation of the JSON document, not a contract of its own.

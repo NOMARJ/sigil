@@ -100,6 +100,12 @@ Each finding is weighted and scored. You get a clear verdict:
 
 CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
 
+Every scan also prints a letter grade (A–F, a label over the verdict), the behaviours the
+findings add up to (`exfiltration`, `persistence`, `harvests_credentials`, …), the five key
+risks, and what it scanned (`npm`, `pypi`, `agent-skill`, `mcp-server`, …). Findings carry
+remediation text and references; a reviewed finding can be silenced in place with
+`# sigil:ignore RULE-ID -- reason` and stays in the report as suppressed.
+
 ## Usage
 
 ### Core Commands
@@ -114,8 +120,16 @@ sigil pip some-agent-toolkit
 # Download and scan an npm package before installing
 sigil npm langchain-community-plugin
 
-# Scan a directory or file already on disk
+# Scan a directory or file already on disk — or a git URL (quarantined first)
 sigil scan ./downloaded-skill/
+sigil scan https://github.com/someone/cool-mcp-server
+sigil scan ./downloaded-skill/ --format html > report.html   # shareable report
+sigil scan ./downloaded-skill/ --format json | jq .summary    # verdict, score, grade, platform
+
+# What installed agent tooling left behind on THIS machine (read-only, then reversible)
+sigil residue scan        # shell rc edits, cron/launchd/systemd, git hooks, credential modes, /etc/hosts
+sigil residue plan        # the fixes it would make, without making them
+sigil residue apply       # apply with a backup of every target; undo with `sigil residue rollback --last`
 
 # 🔒 Pro: Enhanced LLM-powered scanning (requires authentication)
 sigil login                               # browser-based device authorization
@@ -234,14 +248,15 @@ sigil login
 | Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep | Prism Scanner               |
 | -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- | --------------------------- |
 | **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      | ❌                          |
+| **Host residue cleanup**   | ✅ Reversible | ❌           | ❌            | ❌         | ❌      | ✅                          |
 | **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      | ⚠️ Patterns                 |
 | **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      | ⚠️ `package.json` scripts   |
 | **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      | ⚠️ Patterns                 |
 | **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      | ❌                          |
 | **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      | ❌                          |
 | **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      | ❌                          |
-| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      | ❌                          |
-| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ❌ Python/pip only          |
+| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      | ✅ Skills / MCP             |
+| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ⚠️ Python AST; regex elsewhere |
 | **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     | ✅ Apache-2.0               |
 
 **The Complete Stack:**

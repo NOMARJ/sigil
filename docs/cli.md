@@ -176,31 +176,61 @@ sigil npm @langchain/community
 
 ### sigil scan
 
-Scan an existing file or directory for security issues.
+Scan a file, a directory, or a git URL for security issues.
 
 ```bash
-sigil scan <path>
+sigil scan <path-or-url> [--format text|json|sarif|html] [--fail-on <severity>] [--phases <list>] [--severity <min>]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `path` | Yes | File or directory to scan |
+| `path` | Yes | File or directory to scan. A git URL (`https://…`, `git@…`, anything ending in `.git`) is cloned into quarantine first, exactly like `sigil clone` |
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--format` | `text` | `text`, `json` (the stable contract, [ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)), `sarif` (2.1.0), or `html` (one self-contained page, no scripts, safe to attach to a ticket) |
+| `--fail-on` | `high` | Exit 1 when a finding at or above this severity is present |
+| `--phases` | `all` | Comma-separated phase filter |
+| `--severity` | `low` | Minimum severity to report |
+| `--no-cache` | | Force a fresh scan even if the content is unchanged |
+| `--no-ledger` | | Report findings even when the content matches a trust-ledger approval |
 
 **Behavior:**
 
-1. Verifies the path exists
-2. Copies into quarantine (if not already quarantined)
-3. Runs all 8 scan phases + external scanners
-4. Generates verdict and saves report
+1. Walks the tree honouring `.gitignore` (inside real git repositories only, so an
+   archive cannot hide files from the scanner) and `.sigilignore`. `node_modules/`,
+   `.git/`, `target/`, `.next/`, virtualenvs and caches are never content-scanned.
+   `dist/` and `build/` **are** scanned: in a published package they are the shipped
+   code, and in a git checkout the project's own `.gitignore` already keeps build
+   output out of the walk.
+2. Runs the eight phases, the decode worklist (decoded payloads reach every phase),
+   the correlation rules, the typosquat check on direct dependencies, and the
+   publish-hygiene checks.
+3. Prints a verdict, a letter grade, a behaviour profile and the key risks. The grade
+   is a label over the verdict, not a second score: **A** no findings, **B**
+   low-severity only, **C** MEDIUM RISK, **D** HIGH RISK, **F** CRITICAL RISK.
+4. Labels what it scanned (`summary.platform` in JSON, `Platform:` in text): `npm`,
+   `pypi`, `agent-skill`, `mcp-server`, `claude-plugin`, `vscode-extension`,
+   `agent-instructions`, `cargo`, `go`, `maven`, `rubygems` or `generic`, judged from
+   the shallowest manifest in the tree. A monorepo reports its root manifest.
+5. When a lifecycle script (`postinstall`, `prepare`, …) or `setup.py` runs a local
+   file that has findings, the manifest gets one extra finding, `INSTALL-REF-001`,
+   one level above the worst finding in that file. The file's own findings are left
+   as they are.
 
 **Example:**
 
 ```bash
-sigil scan .                           # Scan current directory
-sigil scan ./vendor/                   # Scan vendor directory
-sigil scan ./downloaded-mcp-server/    # Scan a specific directory
+sigil scan .                                    # Scan current directory
+sigil scan ./vendor/                            # Scan vendor directory
+sigil scan https://github.com/someone/mcp-tool  # Clone into quarantine, then scan
+sigil scan ./skill --format html > report.html  # Shareable report
+sigil scan ./pkg --format json | jq .summary    # verdict, score, grade, platform
+sigil scan ./pkg --format sarif > sigil.sarif   # GitHub Code Scanning upload
 ```
 
 ---
@@ -302,6 +332,75 @@ Permanently removes the item from `~/.sigil/quarantine/<id>/`. This cannot be un
 
 ---
 
+## Host Residue
+
+`sigil scan` judges code *before* it runs. `sigil residue` looks at this machine
+*after* something ran: the crontab entry an uninstalled skill left behind, the line a
+setup script appended to `~/.zshrc`, the git hook that still fires on every commit, the
+credential file an agent wrote world-readable, the cache directory of a tool that is no
+longer installed, the `/etc/hosts` line that redirects an API host.
+
+### sigil residue scan
+
+```bash
+sigil residue scan [--repo <path>] [--fail-on info|low|medium|high|critical]
+sigil --format json residue scan
+```
+
+Read-only. Nine checks: shell startup files (`RES-SHELL-*`), persistence entries
+(`RES-PERSIST-*`: crontab and `/etc/cron*`, launchd on macOS, systemd on Linux, autostart
+entries, `sudoers.d`), git hooks in the repo, the hook templates and `core.hooksPath`
+(`RES-HOOK-*`), credential file permissions (`RES-CRED-*`), leftover tool directories
+(`RES-DIR-*`), `/etc/hosts` redirects of watched API hosts (`RES-NET-*`) and global agent
+packages (`RES-PKG-*`). Commands found in persistence entries and hooks are judged by
+shape (pipe-to-shell, base64 decode, remote `eval`, inline Python, reverse shell, a
+binary in a temporary or cache path, a binary that no longer exists) and by the
+detection corpus, not by keyword lists. Sigil's own footprint (the alias block written by
+`sigil setup shell`, its pre-commit hook) is reported as inventory, or as tampering when
+it no longer matches what Sigil writes.
+
+Items you accept go in `~/.sigil/residue-allow`, one `RULE-ID path` per line; they are
+still reported, under `items_suppressed`.
+
+Exit codes follow the scan convention: `0` nothing at or above `--fail-on`, `1`
+something is, `2` the scan could not run. The JSON document is a different kind from a
+scan result (`"kind": "residue"`, `"residue_schema": 1`) and `sigil diff` refuses it as a
+baseline. Secrets in evidence lines are redacted before they are printed.
+
+### sigil residue plan
+
+```bash
+sigil residue plan [--repo <path>] [--out plan.json]
+```
+
+Shows the reversible fixes a scan would make, without making them: remove a line,
+tighten a file mode, delete a file or directory, remove a crontab line. Only fixable
+items at Medium or above are planned, and only targets under your home directory or the
+repository; system files (`/etc/hosts`, `/etc/cron.d`, `sudoers.d`) are reported, never
+touched.
+
+### sigil residue apply
+
+```bash
+sigil residue apply [--repo <path>] [--plan plan.json] [--yes]
+```
+
+Runs the plan, asking `y/N/q` per action on a terminal (`--yes` is required when stdin
+is not one). Every target is copied to `~/.sigil/backups/<id>/` with a manifest before it
+is changed, and each action is checked against the file as it is now, so a file that
+changed since the plan was made is skipped rather than edited blindly. Symlinks, paths
+outside your home or the repository, and anything under `~/.sigil` are refused.
+
+### sigil residue rollback
+
+```bash
+sigil residue rollback <id> | --last | --list [--force]
+```
+
+Restores a backup. A target that changed after `apply` is skipped unless `--force`.
+
+---
+
 ## Account Commands
 
 ### sigil login
@@ -385,6 +484,36 @@ CRITICAL is evidence-gated, not score-based: it requires at least one Critical-s
 
 ---
 
+## Inline Suppression
+
+A finding you have reviewed and accepted can be silenced where it lives, with the rule
+id and a reason, in any comment syntax:
+
+```text
+subprocess.run(argv)  # sigil:ignore CODE-013 -- argv list, no shell
+# sigil:ignore-next-line CRED-008 -- placeholder value in a test
+// sigil:ignore CODE-001,CODE-002 -- template engine, input is a constant
+```
+
+A whole-file marker within the first 50 lines covers every match of that rule in the
+file:
+
+```text
+//! sigil:ignore-file PERSIST-001 -- this module inspects crontabs
+```
+
+Markers suppress by exact rule id only; there is no wildcard. A marker on the line that
+carries an encoded payload also covers the findings decoded out of it. Suppressed
+findings are not dropped: they are listed under `inline_suppressed` in `--format json`
+(with `file:line RULE — reason` attributions), as `suppressions` in SARIF, and counted in
+the text summary, so a reviewer can audit every one from the report. They do not count
+toward the score, the verdict, or the exit code.
+
+For paths rather than lines, use `.sigilignore` (gitignore syntax, whole files). For
+artifacts you trust as a unit, use `sigil approve` and the trust ledger.
+
+---
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -392,6 +521,8 @@ CRITICAL is evidence-gated, not score-based: it requires at least one Critical-s
 | `0` | Pass — no findings at or above the `--fail-on` severity threshold (default: `high`) |
 | `1` | Fail — at least one finding at or above the `--fail-on` threshold |
 | `2` | Scan error — invalid path, invalid flags, or the scan could not run |
+
+`sigil residue scan` uses the same three codes against its own `--fail-on` level (which also accepts `info`).
 
 Use exit codes in scripts and CI pipelines to gate on scan results:
 
@@ -418,6 +549,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_CONFIG` | `~/.sigil/config` | Path to config file |
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
 | `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
+| `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 
 ---
 
@@ -436,7 +568,7 @@ Sigil scans the following file types:
 | `*.json` | JSON |
 | `*.toml` | TOML |
 
-**Excluded by default:** `node_modules/`, `.git/`, test files, example files, documentation files.
+**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them.
 
 Custom exclusions can be added via a `.sigilignore` file (see [Configuration Guide](configuration.md)).
 

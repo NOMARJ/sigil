@@ -121,7 +121,7 @@ Then point your client at the compiled entry point:
 
 ## Available Tools
 
-The MCP server exposes nine tools and one resource.
+The MCP server exposes twelve tools and one resource.
 
 ### sigil_scan
 
@@ -133,7 +133,7 @@ Scan a file or directory for security issues.
 | `phases`   | string | No       | Comma-separated phase filter: `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance`, `prompt_injection`, `skill_security` |
 | `severity` | string | No       | Minimum severity threshold: `low`, `medium`, `high`, `critical`                                                                                                                 |
 
-**Returns:** Verdict, risk score, findings count, duration, and detailed findings with file paths, line numbers, and matched patterns.
+**Returns:** Verdict, risk score, grade, recommendation, findings count, duration, and detailed findings with file paths, line numbers, and matched patterns.
 
 **Example response:**
 
@@ -149,6 +149,63 @@ Verdict: MEDIUM_RISK | Score: 12 | 3 findings | 47 files scanned in 850ms
 [LOW] outbound_http — src/api.py:18
   requests.post(endpoint, json=data)
 ```
+
+---
+
+### sigil_grade
+
+Letter grade, recommendation, behaviour profile and key risks for a path. Cheaper for an
+agent to read than `sigil_scan` when only the verdict matters.
+
+| Parameter | Type   | Required | Description                    |
+| --------- | ------ | -------- | ------------------------------ |
+| `path`    | string | Yes      | File or directory path to grade |
+
+**Returns:** Grade (A–F), verdict, score, findings count, recommendation, the behaviours
+the findings add up to, and up to five key risks.
+
+**Example response:**
+
+```
+Grade: F | Verdict: CRITICAL RISK | Score: 60 | 4 findings
+Recommendation: Strong malicious indicators — do not install or execute this code.
+Behaviours: install_hook, executes_commands, downloads_payload
+Key risks:
+  CRITICAL: npm lifecycle script (runs automatically on install) (INSTALL-003) — package.json:5
+  CRITICAL: Lifecycle script runs a file with findings (INSTALL-REF-001) — package.json:5
+  HIGH: child_process usage — command execution (CODE-007) — scripts/setup.js:2
+```
+
+---
+
+### sigil_residue_scan
+
+Read-only scan of the machine the server runs on for what installed agent tooling left
+behind: shell rc edits, cron/launchd/systemd/autostart persistence, git hooks, credential
+file permissions, leftover tool directories, `/etc/hosts` redirects of API hosts, and
+global agent packages. Nothing is changed.
+
+| Parameter | Type   | Required | Description                                                                 |
+| --------- | ------ | -------- | --------------------------------------------------------------------------- |
+| `repo`    | string | No       | Git repository whose hooks to include (default: the current directory if it is one) |
+
+**Returns:** Host line, counts per level, skipped checks with reasons, then one block per
+item with its evidence (secrets redacted) and the fix text.
+
+---
+
+### sigil_residue_plan
+
+The reversible fixes `sigil residue apply` would make, without making them. Apply and
+rollback are deliberately not exposed as tools: a human runs them in a terminal, where
+every target is backed up first.
+
+| Parameter | Type   | Required | Description                                  |
+| --------- | ------ | -------- | -------------------------------------------- |
+| `repo`    | string | No       | Git repository whose hooks to include        |
+
+**Returns:** A numbered list of actions (remove line, tighten mode, delete file or
+directory, remove crontab line) ending with the statement that nothing has been changed.
 
 ---
 
