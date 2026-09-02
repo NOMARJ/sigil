@@ -1,6 +1,6 @@
 {
   "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 27,
+  "sample_size": 29,
   "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
@@ -187,6 +187,20 @@
       "expect_phase": "InstallHooks",
       "expect_min_severity": "Critical",
       "source": "prepare script runs a local file with High findings; INSTALL-REF-001 sits one level above (prism-scanner S11 review)",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/coercion.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "Low",
+      "source": "Skill instructing the agent to act without the user (Datadog ai-skills sample shape; prism-scanner P10 review)",
+      "synthetic": true
+    },
+    {
+      "path": "code_patterns/embedded_exe.py",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "PE dropper carried as a bytes literal (Datadog pypi sample shape, 22 MB padded setup.py)",
       "synthetic": true
     }
   ]

@@ -2,7 +2,7 @@
   "meta": {
     "id": "sigil-core-supply-chain",
     "name": "Sigil Core — Supply Chain Attack Patterns",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "updated_at": "2026-06-11",
     "author": "NOMARK <hello@sigilsec.ai>",
     "description": "Novel supply chain attack vectors: dependency polymorphism, build-time code generation, cross-language bridge exploits, and registry hijacking. Ported from Python NOVEL_VECTOR_RULES."
@@ -244,6 +244,32 @@
       "remediation": "Reaching Java's Runtime.exec or ProcessBuilder through JNI or a Java.type bridge runs shell commands from a layer that neither the JavaScript nor the Java side of a review naturally covers. A package that embeds Java should not need to spawn processes from it; treat this as command execution and require a documented reason before installing.",
       "references": ["MITRE T1059"],
       "tags": ["execution", "jni", "java", "exec"]
+    },
+    {
+      "id": "SUPPLY-020",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "b?['\"]MZ(\\\\x90|\\\\u0090|\\x90)|TVqQAAMAAAAEAAAA|\\\\x4[dD]\\\\x5[aA]\\\\x90\\\\x00",
+      "description": "Embedded Windows executable (MZ header) in a source literal",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "/fixtures/"
+        ]
+      },
+      "remediation": "A DOS/PE header inside a string or bytes literal means an executable is being carried in source, usually written to a temp path and run. There is no packaging reason to do this; treat the file as a dropper and reject the package.",
+      "references": [
+        "MITRE T1027.009",
+        "MITRE T1105",
+        "CWE-506"
+      ],
+      "tags": [
+        "supply-chain",
+        "dropper",
+        "embedded-executable",
+        "windows"
+      ]
     }
   ],
   "provenance_rules": []

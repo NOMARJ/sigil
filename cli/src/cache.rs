@@ -23,6 +23,12 @@ struct CacheEntry {
     // serve stale security verdicts. Entries without this field are invalid.
     #[serde(default)]
     scanner_version: String,
+    // The corpus can change without the binary changing (an installed
+    // `~/.sigil/corpus/`, or a dev rebuild under the same version), and a
+    // verdict from an older rule set is just as stale. Entries without this
+    // field are invalid.
+    #[serde(default)]
+    corpus_digest: String,
     directory_hash: String,
     result: ScanResult,
 }
@@ -73,14 +79,19 @@ fn cache_dir() -> PathBuf {
 
 /// Try to load a cached scan result for the given directory.
 pub fn load_cached(path: &Path) -> Option<ScanResult> {
+    load_cached_in(&cache_dir(), path)
+}
+
+fn load_cached_in(cache_path: &Path, path: &Path) -> Option<ScanResult> {
     let dir_hash = compute_directory_hash(path).ok()?;
-    let cache_file = cache_dir().join(format!("{}.json", &dir_hash[..16]));
+    let cache_file = cache_path.join(format!("{}.json", &dir_hash[..16]));
 
     let data = fs::read_to_string(&cache_file).ok()?;
     let entry: CacheEntry = serde_json::from_str(&data).ok()?;
 
     if entry.version == CACHE_VERSION
         && entry.scanner_version == env!("CARGO_PKG_VERSION")
+        && entry.corpus_digest == crate::corpus::compiled::corpus().digest()
         && entry.directory_hash == dir_hash
     {
         Some(entry.result)
@@ -91,13 +102,21 @@ pub fn load_cached(path: &Path) -> Option<ScanResult> {
 
 /// Save a scan result to cache.
 pub fn save_to_cache(path: &Path, result: &ScanResult) -> Result<(), Box<dyn std::error::Error>> {
+    save_to_cache_in(&cache_dir(), path, result)
+}
+
+fn save_to_cache_in(
+    cache_path: &Path,
+    path: &Path,
+    result: &ScanResult,
+) -> Result<(), Box<dyn std::error::Error>> {
     let dir_hash = compute_directory_hash(path)?;
-    let cache_path = cache_dir();
-    fs::create_dir_all(&cache_path)?;
+    fs::create_dir_all(cache_path)?;
 
     let entry = CacheEntry {
         version: CACHE_VERSION,
         scanner_version: env!("CARGO_PKG_VERSION").to_string(),
+        corpus_digest: crate::corpus::compiled::corpus().digest(),
         directory_hash: dir_hash.clone(),
         result: result.clone(),
     };
@@ -106,7 +125,7 @@ pub fn save_to_cache(path: &Path, result: &ScanResult) -> Result<(), Box<dyn std
     fs::write(&cache_file, serde_json::to_string(&entry)?)?;
 
     // Prune old cache entries (keep max 100)
-    prune_cache(&cache_path, 100);
+    prune_cache(cache_path, 100);
 
     Ok(())
 }
@@ -153,10 +172,38 @@ pub fn clear_cache() -> Result<usize, Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    use super::compute_directory_hash;
+    use super::{compute_directory_hash, load_cached_in, save_to_cache_in};
     use std::fs;
     use std::time::{Duration, SystemTime};
     use tempfile::tempdir;
+
+    /// A cached verdict is bound to the rule set that produced it, not only
+    /// to the binary version: the same build with a different corpus must
+    /// re-scan.
+    #[test]
+    fn cache_entry_is_rejected_when_the_corpus_digest_differs() {
+        let cache = tempdir().expect("cache dir");
+        let target = tempdir().expect("target dir");
+        fs::write(target.path().join("index.js"), "console.log(1);\n").unwrap();
+        let result = crate::scanner::run_scan(target.path(), None, None);
+        save_to_cache_in(cache.path(), target.path(), &result).expect("save");
+        assert!(load_cached_in(cache.path(), target.path()).is_some());
+
+        let entry_file = fs::read_dir(cache.path())
+            .unwrap()
+            .flatten()
+            .find(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .unwrap()
+            .path();
+        let mut entry: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&entry_file).unwrap()).unwrap();
+        entry["corpus_digest"] = serde_json::json!("sha256:stale");
+        fs::write(&entry_file, entry.to_string()).unwrap();
+        assert!(
+            load_cached_in(cache.path(), target.path()).is_none(),
+            "an entry from another corpus must not be served"
+        );
+    }
 
     #[test]
     fn directory_hash_changes_for_same_size_same_mtime_content_change() {

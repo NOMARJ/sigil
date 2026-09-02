@@ -484,7 +484,7 @@
       "id": "PROMPT-011",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\boverride\\s+(all\\s+)?(your|the\\s+system|any)\\s+(previous\\s+|prior\\s+|existing\\s+)?(instructions?|rules?|constraints?|guidelines?|restrictions?|safety)\\b",
+      "pattern": "(?i)\\boverride\\s+(all\\s+)?(your|the\\s+system|any)\\s+(previous\\s+|prior\\s+|existing\\s+)?(instructions?|rules?|constraints?|guidelines?|restrictions?|safety|instincts?|judge?ments?|defaults|training|programming)\\b",
       "description": "Prompt injection — override your instructions/rules",
       "file_filter": {
         "extensions": [

@@ -27,6 +27,8 @@ set before it was kept; the numbers are in the note.
 - `CRED-001`/`CRED-002` now cover every `*_KEY`/`*_SECRET`/`*_TOKEN` environment read at Medium (with `NEXT_PUBLIC_`/`REACT_APP_`/`VITE_` excluded)
 - `dist/` and `build/` are scanned: in a published package they are the shipped code (230 of the 844 malicious packages in the evaluation set carry files under `dist/`); a git checkout's `.gitignore` still applies
 - Prompt-injection rules also cover `.cursorrules`, `.windsurfrules`, `.clinerules`, `AGENTS.md`, `CLAUDE.md`, `.mdx` and `.rst`
+- Files past the 10 MB content cap are no longer skipped: the first and last 2 MB are scanned and tail findings carry real line numbers (a 22 MB `setup.py` in the evaluation set hides a dropper behind one byte literal); `PROV-007` flags an install script over 1 MB at High and `PROV-008` a source script over 8 MB at Medium
+- `SUPPLY-020`: a Windows executable (MZ header) carried in a string or bytes literal; `MANIP-006`: instruction text telling the agent to act without the user; `PROMPT-011` also covers "override your instinct/judgement/defaults/training"
 
 #### GitHub Action
 - `upload-sarif` and `sarif-file` inputs with a guarded `codeql-action/upload-sarif` step; `grade`, `badge` and `sarif-file` outputs; the grade badge in the job summary
@@ -44,6 +46,7 @@ set before it was kept; the numbers are in the note.
 - MCP server scan tools printed `undefined` for verdict and score: they read the top level while the JSON contract puts the scalars under `summary`
 - `NET-015` matched URL *paths* that end in an abused TLD (`/assets/file.download`)
 - `sigil diff` rejects a residue document as a baseline instead of failing on a missing field
+- The scan cache is keyed on the corpus digest as well as the binary version: a rule update (installed corpus or a rebuild under the same version) no longer serves stale verdicts
 
 ### 📝 Documentation
 - CLI reference: scan options, host residue, inline suppression, walker policy; ADR-0010 addendum listing the additive keys; research note on prism-scanner with measured comparisons

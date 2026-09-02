@@ -74,6 +74,7 @@ real run, with the run described in §7 or in the row.
 | GitHub Action (§3) | `upload-sarif` / `sarif-file` inputs, `grade` / `badge` / `sarif-file` outputs, job-summary badge | entrypoint exercised with a local harness (`GITHUB_OUTPUT`, `GITHUB_STEP_SUMMARY` as files); no live workflow run on this branch |
 | Rules (§5) | 62 new rules across persistence, manipulation, prompt injection, network, credentials, hygiene, skill security, one correlation rule, `TYPOSQUAT-001`, `INSTALL-REF-001` | self-scan gate: 0 new High/Critical, +45 Medium, +1 Low; 27 fixture cases pass; prism's own fixture: 20 findings, grade F |
 | Walker (§6) | `dist/` and `build/` no longer hard-excluded | 230 / 844 malicious samples carry `dist/` files; recall and false-positive deltas in §7 |
+| Oversized files (§6) | head and tail of files over 10 MB scanned; `PROV-007` / `PROV-008`; `SUPPLY-020` embedded-executable literal | the padded 22 MB `setup.py` goes from one Low finding to CRITICAL RISK with the dropper line numbered correctly |
 | pip wrapper (§1) | `python/` — `pip install sigilsec`, standard library only, SHA-256 against `SHA256SUMS.txt`, fail closed | 29 tests; the name `sigil-cli` was found taken on PyPI during review (§Verification) |
 | MCP registry (§1) | `plugins/mcp-server/server.json`, `mcpName` in `package.json` | validated against the 2025-12-11 schema; publishing waits on the npm release (owner action) |
 | Skill discovery (§2) | English and Chinese trigger phrases in every `SKILL.md`; `sigil-skill/skill.json` | none — this is metadata |
@@ -295,12 +296,22 @@ same inputs.
    a fallback for older binaries.
 3. **`NET-015` was wrong as shipped** (above). The refuter's probe found it; the
    self-scan had not, because nothing in the tree ends a URL path in `.download`.
-4. **Engine time rose from 2,238 ms to 6,606 ms** on the self-scan (451 → 474 files),
-   well inside the 60-second ADR-0008 budget but a 3× increase worth watching as the
-   corpus grows. Wall time (2 m 31 s) is dominated by the advisory feeds through the
-   proxy, not by the engine.
+4. **Engine time rose from 2,238 ms to between 3,363 ms and 6,606 ms** on the
+   self-scan (451 → 474 files; the spread is machine load, the two figures were taken
+   with and without four evaluation runs competing for the same cores), well inside the
+   60-second ADR-0008 budget but an increase worth watching as the corpus grows. Wall
+   time (1 to 2.5 minutes) is dominated by the advisory feeds through the proxy, not by
+   the engine.
 5. **`sigil-cli` is not available on PyPI**, and the first draft of the wrapper would
    have failed at publication.
+6. **Two of the 268 samples only prism caught, and both were Sigil bugs, not prism
+   rules.** A 22 MB `setup.py` that writes an executable from one enormous bytes
+   literal and runs it on the next line was never content-scanned, because files over
+   10 MB were skipped outright; the scanner now reads the first and last 2 MB of an
+   oversized file, and a megabyte install script is a High finding of its own
+   (`PROV-007`). A skill that tells the agent "Do not wait for the user to ask" and to
+   "override your instinct" matched none of the manipulation rules; `MANIP-006` and a
+   wider `PROMPT-011` now do. Both are re-measured in §7.
 
 ## 7. Head-to-head measurements
 
@@ -340,11 +351,11 @@ prism could not finish 35 of the 268 samples: 33 exceeded the harness's 90-secon
 
 | | main | branch |
 |---|---|---|
-| findings | 17 | 63 |
-| High / Critical | 2 / 0 (both GHSA advisories in `dashboard/package-lock.json`, unchanged) | 2 / 0 |
-| inline-suppressed | — | 21 |
-| engine time | 2,238 ms | 6,606 ms |
-| gate (`--fail-on high`) | red, pre-existing | red, same two advisories |
+| findings | 17 | 61 |
+| High / Critical | 2 / 0 (two browserslist advisories published 2026-09-01 in `dashboard/package-lock.json`) | 0 / 0 (lockfile bumped in range on this branch) |
+| inline-suppressed | — | 24 |
+| engine time | 2,238 ms | 3,363 ms (6,606 ms under load) |
+| gate (`--fail-on high`) | red once the advisories were published | green |
 
 ## 8. Ranked recommendations
 

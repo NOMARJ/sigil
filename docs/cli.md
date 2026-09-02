@@ -207,6 +207,10 @@ sigil scan <path-or-url> [--format text|json|sarif|html] [--fail-on <severity>] 
    `dist/` and `build/` **are** scanned: in a published package they are the shipped
    code, and in a git checkout the project's own `.gitignore` already keeps build
    output out of the walk.
+   Files over 10 MB are not read whole, but they are not skipped either: the first
+   and last 2 MB are scanned (padding a script past a size cap is a known evasion)
+   and findings in the tail carry their real line numbers, prefixed
+   `[tail of oversized file]`.
 2. Runs the eight phases, the decode worklist (decoded payloads reach every phase),
    the correlation rules, the typosquat check on direct dependencies, and the
    publish-hygiene checks.

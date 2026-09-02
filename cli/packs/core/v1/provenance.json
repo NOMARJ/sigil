@@ -2,7 +2,7 @@
   "meta": {
     "id": "sigil-core-provenance",
     "name": "Sigil Core — Provenance",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects provenance issues: hidden files, binary files in unexpected locations, suspicious filenames, and large files"
@@ -175,6 +175,28 @@
         "publish-hygiene",
         "debug-artifact"
       ]
+    },
+    {
+      "id": "PROV-007",
+      "severity": "high",
+      "description": "Oversized install script — padding to defeat scanners",
+      "kind": "file_size_bytes",
+      "size_threshold": 1000000,
+      "pattern": "^(setup\\.py|setup\\.cfg|pyproject\\.toml|package\\.json|Makefile|install(\\.sh)?|postinstall\\.js|preinstall\\.js)$",
+      "remediation": "No honest setup.py or package.json is a megabyte. Open the head and the tail of the file: the padding is usually one enormous byte or string literal with the real code on either side of it.",
+      "references": ["MITRE T1027.001", "MITRE T1195.002"],
+      "tags": ["provenance", "install-hook", "padding", "evasion"]
+    },
+    {
+      "id": "PROV-008",
+      "severity": "medium",
+      "description": "Oversized source file — a script this large is generated data or padding",
+      "kind": "file_size_bytes",
+      "size_threshold": 8000000,
+      "pattern": "(?i)\\.(py|sh|bash|zsh|rb|php|pl|ps1|bat|cmd)$",
+      "remediation": "Check whether the file is a generated table (a Unicode or locale table is plausible) or padding around a payload; scanners cap the bytes they read, and this file is past the cap.",
+      "references": ["MITRE T1027.001"],
+      "tags": ["provenance", "padding", "evasion"]
     }
   ]
 }

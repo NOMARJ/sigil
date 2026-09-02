@@ -2,7 +2,7 @@
   "meta": {
     "id": "sigil-core-agent-manipulation",
     "name": "Sigil Core — Agent Manipulation",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading."
@@ -212,6 +212,53 @@
       "tags": [
         "manipulation",
         "coercion"
+      ]
+    },
+    {
+      "id": "MANIP-006",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)\\b(do\\s+not|don'?t|never)\\s+(wait\\s+for|ask|consult|check\\s+with|inform|notify)\\s+(the\\s+)?(user|human|operator|person)\\b|\\b(without|before)\\s+(asking|consulting|informing|notifying|telling)\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user'?s?|human)\\s+(consent|approval|knowledge|permission)\\b",
+      "description": "Agent manipulation — instructs the agent to act without the user",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "sigil:ignore"
+        ]
+      },
+      "remediation": "Instruction text that tells the agent to act before, without or instead of the user is how a skill turns an assistant into an unattended actor. Decide whether that autonomy is what you want, and whether what it does unattended (submitting project data somewhere, running commands) is acceptable.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "manipulation",
+        "autonomy",
+        "excessive-agency"
       ]
     }
   ],

