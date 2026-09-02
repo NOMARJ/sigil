@@ -10,8 +10,9 @@
 //! 2. Which local files its install scripts run. A finding in a file that a
 //!    `postinstall` or `prepare` script executes is worse than the same
 //!    finding in a module nobody imports, because it runs on `npm install`
-//!    whether or not the package is ever used. Those findings are raised one
-//!    severity level and say why in their snippet.
+//!    whether or not the package is ever used. That link is reported as its
+//!    own finding (`INSTALL-REF-001`) one level above the worst finding in
+//!    the file; the file's own findings are left untouched.
 //! 3. Whether an agent-skill manifest even parses. A manifest that is not
 //!    JSON is at best broken and at worst a way to make a reviewer's tooling
 //!    skip the file.
@@ -78,6 +79,27 @@ fn split_rel(rel: &str) -> (&str, &str) {
 // Platform
 // ---------------------------------------------------------------------------
 
+/// A Python dependency line naming the `mcp` or `fastmcp` distribution
+/// itself (`mcp>=1.2`, `"fastmcp[cli]",`, `mcp`), not a package whose name
+/// merely starts with those letters.
+fn is_mcp_dependency_line(line: &str) -> bool {
+    let line = line.trim().trim_start_matches(['"', '\'', '-', ' ']);
+    for name in ["fastmcp", "mcp"] {
+        if let Some(rest) = line.strip_prefix(name) {
+            let next = rest.chars().next();
+            if next.is_none_or(|c| {
+                matches!(
+                    c,
+                    '[' | '=' | '<' | '>' | '~' | '!' | ';' | '"' | '\'' | ' ' | ','
+                )
+            }) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Classify the tree by its shallowest manifest. Ties at one depth resolve
 /// toward the more specific platform (an MCP server before the npm package
 /// that ships it), so the answer is one word a consumer can switch on.
@@ -94,10 +116,15 @@ pub fn detect_platform(base: &Path, files: &[PathBuf]) -> &'static str {
         let read = || std::fs::read_to_string(path).unwrap_or_default();
         let found = match name {
             "package.json" => {
-                let text = read();
-                if text.contains("@modelcontextprotocol/sdk") || text.contains("\"mcpName\"") {
+                let doc: serde_json::Value = serde_json::from_str(&read()).unwrap_or_default();
+                let depends_on = |pkg: &str| {
+                    ["dependencies", "devDependencies", "peerDependencies"]
+                        .iter()
+                        .any(|section| doc.get(section).and_then(|s| s.get(pkg)).is_some())
+                };
+                if doc.get("mcpName").is_some() || depends_on("@modelcontextprotocol/sdk") {
                     Some((d, 0, "mcp-server"))
-                } else if text.contains("\"engines\"") && text.contains("\"vscode\"") {
+                } else if doc.get("engines").and_then(|e| e.get("vscode")).is_some() {
                     Some((d, 3, "vscode-extension"))
                 } else {
                     Some((d, 4, "npm"))
@@ -110,11 +137,7 @@ pub fn detect_platform(base: &Path, files: &[PathBuf]) -> &'static str {
             }
             "pyproject.toml" | "setup.py" | "setup.cfg" | "requirements.txt" | "PKG-INFO" => {
                 let text = read();
-                let mcp = [
-                    "fastmcp", "\"mcp\"", "'mcp'", "mcp>=", "mcp==", "mcp[", "mcp~=",
-                ]
-                .iter()
-                .any(|needle| text.contains(needle));
+                let mcp = text.lines().any(is_mcp_dependency_line);
                 if mcp {
                     Some((d, 0, "mcp-server"))
                 } else if name == "requirements.txt" {
@@ -240,42 +263,96 @@ pub fn install_referenced(base: &Path, files: &[PathBuf]) -> BTreeMap<String, St
     out
 }
 
-fn bump(severity: Severity) -> Option<Severity> {
+fn one_above(severity: Severity) -> Severity {
     match severity {
-        Severity::Low => Some(Severity::Medium),
-        Severity::Medium => Some(Severity::High),
-        Severity::High => Some(Severity::Critical),
-        Severity::Critical => None,
+        Severity::Low => Severity::Medium,
+        Severity::Medium => Severity::High,
+        Severity::High | Severity::Critical => Severity::Critical,
     }
 }
 
-/// Raise findings in install-time files by one level and record why.
-/// Install-hook findings are left alone: they already carry the 10x weight
-/// that says "runs at install". Returns how many findings were raised.
-pub fn elevate_install_referenced(
+/// Line of the lifecycle script's key in the manifest, for the finding.
+fn script_line(manifest_text: &str, key: &str) -> Option<usize> {
+    let needle = format!("\"{key}\"");
+    manifest_text
+        .lines()
+        .position(|l| l.contains(&needle))
+        .map(|i| i + 1)
+}
+
+/// `INSTALL-REF-001`: a lifecycle script runs a local file that has
+/// findings of its own. One explicit finding per referenced file, on the
+/// manifest, one level above the worst finding in that file: what runs on
+/// `npm install` is worse than the same code in a module nobody imports.
+/// The referenced file's own findings are left exactly as they are, so
+/// their fingerprints and severities stay stable.
+pub fn link_install_referenced(
     base: &Path,
     files: &[PathBuf],
-    findings: &mut [Finding],
-) -> usize {
+    findings: &[Finding],
+) -> Vec<Finding> {
     let referenced = install_referenced(base, files);
     if referenced.is_empty() {
-        return 0;
+        return Vec::new();
     }
-    let mut raised = 0;
-    for f in findings.iter_mut() {
-        if f.phase == Phase::InstallHooks {
-            continue;
-        }
-        let Some(via) = referenced.get(&f.file.replace('\\', "/")) else {
+    let mut out = Vec::new();
+    for (target, via) in &referenced {
+        let inside: Vec<&Finding> = findings
+            .iter()
+            .filter(|f| f.phase != Phase::InstallHooks && f.file.replace('\\', "/") == *target)
+            .collect();
+        let Some(worst) = inside.iter().map(|f| f.severity).max() else {
             continue;
         };
-        if let Some(next) = bump(f.severity) {
-            f.severity = next;
+        if worst < Severity::Medium {
+            continue;
         }
-        f.snippet = format!("[runs at install via {via}] {}", f.snippet);
-        raised += 1;
+        let mut rules: Vec<&str> = inside.iter().map(|f| f.rule.as_str()).collect();
+        rules.sort_unstable();
+        rules.dedup();
+        let (manifest, key) = via.split_once(' ').unwrap_or((via.as_str(), ""));
+        let manifest_dir = target.rsplit_once('/').map(|(d, _)| d);
+        // The manifest that named the file lives at its own depth; find it
+        // by walking the referenced file's ancestors.
+        let manifest_rel = files
+            .iter()
+            .map(|p| rel(base, p))
+            .filter(|r| split_rel(r).1 == manifest)
+            .find(|r| {
+                let dir = split_rel(r).0;
+                manifest_dir.is_some_and(|d| d.starts_with(dir)) || dir.is_empty()
+            })
+            .unwrap_or_else(|| manifest.to_string());
+        let line = files
+            .iter()
+            .find(|p| rel(base, p) == manifest_rel)
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|text| {
+                if key.is_empty() {
+                    None
+                } else {
+                    script_line(&text, key)
+                }
+            });
+        out.push(Finding {
+            phase: Phase::InstallHooks,
+            rule: "INSTALL-REF-001".to_string(),
+            severity: one_above(worst),
+            file: manifest_rel,
+            line,
+            snippet: format!(
+                "Lifecycle script runs a file with findings: {via} -> {target} ({} finding(s), worst {worst}: {})",
+                inside.len(),
+                rules.join(", ")
+            ),
+            weight: 10,
+            kev: false,
+            epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+        });
     }
-    raised
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -436,6 +513,18 @@ mod tests {
     }
 
     #[test]
+    fn mcp_dependency_lines_are_recognised_precisely() {
+        assert!(is_mcp_dependency_line("mcp>=1.2"));
+        assert!(is_mcp_dependency_line("  \"fastmcp[cli]>=2\","));
+        assert!(is_mcp_dependency_line("mcp"));
+        assert!(is_mcp_dependency_line("- mcp==1.0"));
+        assert!(!is_mcp_dependency_line("mcp-crawler>=1"));
+        assert!(!is_mcp_dependency_line("mcp_utils"));
+        assert!(!is_mcp_dependency_line("name = \"sigil-api\""));
+        assert!(!is_mcp_dependency_line("# talks to mcp servers"));
+    }
+
+    #[test]
     fn lifecycle_scripts_resolve_to_local_files_only() {
         let (d, files) = tree(&[
             (
@@ -474,18 +563,19 @@ mod tests {
     }
 
     #[test]
-    fn elevation_raises_one_level_and_leaves_install_hooks_alone() {
+    fn install_link_is_one_explicit_finding_above_the_worst_in_the_file() {
         let (d, files) = tree(&[
             (
                 "package.json",
-                r#"{"scripts":{"postinstall":"node install.js"}}"#,
+                "{\n  \"scripts\": {\n    \"prepare\": \"node install.js\"\n  }\n}\n",
             ),
             ("install.js", "x"),
             ("lib.js", "x"),
+            ("clean.js", "x"),
         ]);
-        let mk = |file: &str, phase: Phase, severity: Severity| Finding {
+        let mk = |file: &str, phase: Phase, rule: &str, severity: Severity| Finding {
             phase,
-            rule: "T-1".into(),
+            rule: rule.into(),
             severity,
             file: file.into(),
             line: Some(1),
@@ -496,22 +586,62 @@ mod tests {
             fingerprint: String::new(),
             locator: None,
         };
-        let mut findings = vec![
-            mk("install.js", Phase::NetworkExfil, Severity::Medium),
-            mk("install.js", Phase::CodePatterns, Severity::Critical),
-            mk("install.js", Phase::InstallHooks, Severity::Low),
-            mk("lib.js", Phase::NetworkExfil, Severity::Medium),
+        let findings = vec![
+            mk(
+                "install.js",
+                Phase::NetworkExfil,
+                "NET-012",
+                Severity::Medium,
+            ),
+            mk(
+                "install.js",
+                Phase::CodePatterns,
+                "CODE-007",
+                Severity::High,
+            ),
+            mk(
+                "install.js",
+                Phase::InstallHooks,
+                "INSTALL-005",
+                Severity::Low,
+            ),
+            mk("lib.js", Phase::NetworkExfil, "NET-012", Severity::High),
         ];
-        let raised = elevate_install_referenced(d.path(), &files, &mut findings);
-        assert_eq!(raised, 2);
-        assert_eq!(findings[0].severity, Severity::High);
-        assert!(findings[0]
-            .snippet
-            .starts_with("[runs at install via package.json postinstall] "));
-        assert_eq!(findings[1].severity, Severity::Critical);
-        assert_eq!(findings[2].severity, Severity::Low);
-        assert_eq!(findings[3].severity, Severity::Medium);
-        assert_eq!(findings[3].snippet, "s");
+        let links = link_install_referenced(d.path(), &files, &findings);
+        assert_eq!(links.len(), 1, "{links:?}");
+        let link = &links[0];
+        assert_eq!(link.rule, "INSTALL-REF-001");
+        assert_eq!(link.phase, Phase::InstallHooks);
+        assert_eq!(link.severity, Severity::Critical, "one above High");
+        assert_eq!(link.file, "package.json");
+        assert_eq!(link.line, Some(3));
+        assert!(link.snippet.contains("package.json prepare -> install.js"));
+        assert!(
+            link.snippet.contains("CODE-007, NET-012"),
+            "{}",
+            link.snippet
+        );
+        assert!(
+            !link.snippet.contains("INSTALL-005"),
+            "install-hook findings are not counted"
+        );
+
+        // A referenced file with nothing above Low produces no link.
+        let low_only = vec![mk(
+            "install.js",
+            Phase::Provenance,
+            "PROV-001",
+            Severity::Low,
+        )];
+        assert!(link_install_referenced(d.path(), &files, &low_only).is_empty());
+        // A file no lifecycle script runs produces no link either.
+        let unreferenced = vec![mk(
+            "clean.js",
+            Phase::CodePatterns,
+            "CODE-001",
+            Severity::High,
+        )];
+        assert!(link_install_referenced(d.path(), &files, &unreferenced).is_empty());
     }
 
     #[test]

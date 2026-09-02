@@ -696,9 +696,11 @@ pub fn run_scan(
         }
     }
 
-    // Findings in files a lifecycle script runs are raised one level: they
-    // execute on install, whether or not the package is ever imported.
-    manifests::elevate_install_referenced(strip_base, &files, &mut findings);
+    // A lifecycle script that runs a file with findings is its own finding,
+    // one level above the worst of them: that code executes on install,
+    // whether or not the package is ever imported.
+    let links = manifests::link_install_referenced(strip_base, &files, &findings);
+    findings.extend(links);
 
     if let Some(min) = min_sev {
         findings.retain(|f| f.severity >= min);

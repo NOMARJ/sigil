@@ -311,7 +311,7 @@
       "id": "NET-015",
       "phase": "network_exfil",
       "severity": "low",
-      "pattern": "(?i)https?://[^\\s'\"<>)\\]]*\\.(tk|ml|ga|cf|gq|xyz|top|buzz|click|loan|work|racing|download)([:/\\s'\"<>)\\]]|$)",
+      "pattern": "(?i)https?://[^\\s'\"<>)\\]/?#]*\\.(tk|ml|ga|cf|gq|xyz|top|buzz|click|loan|work|racing|download)([:/?#\\s'\"<>)\\]]|$)",
       "description": "URL on a TLD frequently abused for malware and phishing",
       "suppress": {
         "safe_domains": [

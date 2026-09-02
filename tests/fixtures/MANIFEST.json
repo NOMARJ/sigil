@@ -184,9 +184,9 @@
     },
     {
       "path": "install_hooks/referenced",
-      "expect_phase": "NetworkExfil",
-      "expect_min_severity": "High",
-      "source": "postinstall-run script elevated one level (prism-scanner install-reference elevation review)",
+      "expect_phase": "InstallHooks",
+      "expect_min_severity": "Critical",
+      "source": "prepare script runs a local file with High findings; INSTALL-REF-001 sits one level above (prism-scanner S11 review)",
       "synthetic": true
     }
   ]

@@ -92,15 +92,29 @@
       "id": "SKILL-009",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(rm|sudo|curl|wget|ssh|scp|nc|ncat|socat|chmod|chown|dd|mkfs|eval|python3?|node|perl|ruby|base64|crontab|launchctl|systemctl|osascript|powershell|iex)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(rm|sudo|curl|wget|ssh|nc|chmod|eval|crontab)\\b)",
-      "description": "Skill manifest — grants a shell command that downloads, deletes, escalates or persists",
+      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(rm|sudo|su|doas|ssh|scp|nc|ncat|socat|chmod|chown|dd|mkfs|eval|base64|crontab|launchctl|systemctl|osascript|powershell|iex|reg)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(rm|sudo|ssh|nc|chmod|eval|crontab|launchctl|systemctl)\\b)",
+      "description": "Skill manifest — grants a shell command that deletes, escalates, persists or opens a shell",
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
       },
-      "remediation": "Remove the grant or scope it to a fixed argument list; a skill that needs curl or sudo should say exactly which command and why.",
+      "remediation": "Remove the grant or scope it to a fixed argument list; a skill that needs sudo, rm or a scheduler should say exactly which command and why.",
       "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
       "tags": ["skill", "permissions", "dangerous-tool"]
+    },
+    {
+      "id": "SKILL-010",
+      "phase": "skill_security",
+      "severity": "medium",
+      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(curl|wget|python3?|node|perl|ruby|php|sh|bash|zsh)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(curl|wget|python3?|node|bash|sh)\\b)",
+      "description": "Skill manifest — grants a downloader or an interpreter",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "A skill that can fetch and run arbitrary content is one instruction away from a dropper. Scope the grant to the exact command and arguments it needs.",
+      "references": ["MITRE T1105", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "permissions", "downloader"]
     }
   ],
   "provenance_rules": []
