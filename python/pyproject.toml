@@ -3,11 +3,11 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# Publication to PyPI is pending (owner action). Preferred name: "sigil-cli".
-# If that name turns out to be taken at registration time, the fallback is
-# "sigilsec" — change ONLY this field; the import package stays `sigil_cli`
-# and the console script stays `sigil`.
-name = "sigil-cli"
+# Publication to PyPI is pending (owner action). The name "sigil-cli" is
+# already taken on PyPI by an unrelated project (checked 2026-09-02), so the
+# distribution is "sigilsec"; the import package stays `sigil_cli` and the
+# console script stays `sigil`.
+name = "sigilsec"
 dynamic = ["version"]
 description = "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers"
 readme = "README.md"

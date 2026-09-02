@@ -61,7 +61,7 @@ _Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library
 > commands below will work once the first release is pushed to PyPI.
 
 ```bash
-pip install sigil-cli        # fallback name if sigil-cli is taken: sigilsec
+pip install sigilsec         # the name sigil-cli is taken on PyPI by an unrelated project
 sigil scan .
 ```
 
@@ -73,7 +73,7 @@ against the release's `SHA256SUMS.txt`, caches it under
 
 - `SIGIL_VERSION=v1.3.6 sigil ...` — fetch a specific release (same as `install.sh`)
 - `SIGIL_BINARY=/path/to/sigil sigil ...` — use an existing binary, no download
-- Upgrade with `pip install --upgrade sigil-cli`; remove with `pip uninstall sigil-cli`
+- Upgrade with `pip install --upgrade sigilsec`; remove with `pip uninstall sigilsec`
   (the cached binaries in `~/.sigil/bin/` can be deleted by hand)
 
 ### Quick Install Script

@@ -1,4 +1,4 @@
-# sigil-cli (PyPI wrapper)
+# sigilsec (PyPI wrapper)
 
 > **Status: not yet published to PyPI.** This directory is the source of the
 > package; the `pip install` commands below will work once the repository
@@ -15,14 +15,13 @@ binary. It is the Python counterpart of the npm package
 the same mechanics.
 
 ```bash
-pip install sigil-cli
+pip install sigilsec
 sigil scan .
 ```
 
-The intended PyPI name is **`sigil-cli`** (matching the crates.io name). If
-that name is unavailable at registration time the fallback is **`sigilsec`**;
-in either case the import package is `sigil_cli` and the installed command is
-`sigil`.
+The PyPI name is **`sigilsec`**: `sigil-cli` (the crates.io name) is already
+taken on PyPI by an unrelated project, checked 2026-09-02. The import package
+is `sigil_cli` and the installed command is `sigil`.
 
 ## What it does
 
@@ -88,7 +87,7 @@ wrapper downloads exactly that release tag.
 Publishing is intentionally **not** automated in this repository yet. To
 publish, the repository owner needs to:
 
-1. Register the `sigil-cli` project on PyPI (or `sigilsec` if taken) and
+1. Register the `sigilsec` project on PyPI and
    update `name` in `pyproject.toml` if the fallback is used.
 2. Configure PyPI trusted publishing for `NOMARJ/sigil` and the release
    workflow.
