@@ -1,6 +1,6 @@
 ---
 name: scan-file
-description: Scan a specific file or code selection for security threats
+description: "Scan a specific file or code selection for security threats using Sigil. Use when reviewing a single script, config, skill manifest, or MCP server file before running or installing it. Trigger phrases (English): 'is this safe to install', 'scan this skill', 'vet this MCP server', 'check this package before installing', 'is this file safe', 'scan this file'. Trigger phrases (Chinese): '安全扫描', '这个插件安全吗', '这个技能安全吗', '扫描一下', '安装前检查'."
 allowed-tools: Bash(sigil *)
 ---
 

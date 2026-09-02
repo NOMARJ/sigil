@@ -1,0 +1,31 @@
+{
+  "name": "sigil-scan",
+  "version": "1.1.0",
+  "description": "Automated security auditing for AI agent code. Scans repos, packages, MCP servers, and installed skills for install hooks, dangerous code patterns, network exfiltration, credential access, obfuscation, provenance issues, prompt injection, and skill security threats — locally and offline. Use before cloning a repo, installing a package, or enabling a skill or MCP server; triggers on 'is this safe to install', 'scan this skill', 'vet this MCP server', 'check this package before installing', '安全扫描', '这个插件安全吗', '这个技能安全吗', '扫描一下', '安装前检查'.",
+  "author": "NOMARK",
+  "license": "Apache-2.0",
+  "homepage": "https://sigilsec.ai",
+  "repository": "https://github.com/NOMARJ/sigil",
+  "skill": "sigil-scan/SKILL.md",
+  "tags": [
+    "security",
+    "scanner",
+    "skill-vetting",
+    "mcp-security",
+    "supply-chain",
+    "quarantine"
+  ],
+  "requires": {
+    "bins": ["sigil"],
+    "optionalBins": ["git"]
+  },
+  "install": [
+    {
+      "id": "sigil",
+      "kind": "npm",
+      "package": "@nomarj/sigil",
+      "bins": ["sigil"]
+    }
+  ],
+  "platforms": ["linux", "macos", "wsl2"]
+}
