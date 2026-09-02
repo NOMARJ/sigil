@@ -196,6 +196,21 @@ pub struct PackRule {
     /// Optional suppression predicates.
     #[serde(default)]
     pub suppress: SuppressionPredicates,
+
+    /// What to change or verify when this rule fires. Declarative text only;
+    /// surfaced next to the finding in JSON, SARIF (`help`) and HTML output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+
+    /// External references that justify the rule — CWE, MITRE ATT&CK
+    /// technique, advisory, or the campaign it was derived from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
+
+    /// Behaviour tags (e.g. `"exfiltration"`, `"persistence"`) carried onto
+    /// each finding the rule produces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +256,18 @@ pub struct ProvenanceRule {
     /// safe dotfiles like `.gitignore`).
     #[serde(default)]
     pub excluded_filenames: Vec<String>,
+
+    /// See [`PackRule::remediation`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+
+    /// See [`PackRule::references`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
+
+    /// See [`PackRule::tags`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------

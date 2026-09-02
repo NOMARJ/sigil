@@ -3,6 +3,7 @@ pub mod context;
 pub mod derive;
 pub mod normalize;
 pub mod phases;
+pub mod profile;
 pub mod scoring;
 
 use ignore::WalkBuilder;

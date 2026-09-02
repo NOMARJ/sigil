@@ -1331,6 +1331,7 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
     }
     output::print_scan_summary(result);
     output::print_findings(&result.findings);
+    output::print_profile(result);
     if let Some(by) = &result.suppressed_by {
         println!(
             "  {} {} finding{} suppressed by ledger approval ({})",
@@ -1344,7 +1345,10 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
             by
         );
     }
-    output::print_verdict(&result.verdict);
+    output::print_verdict(
+        &result.verdict,
+        scanner::profile::grade(result.verdict, result.score),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
