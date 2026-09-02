@@ -7,16 +7,21 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that e
 | Tool | Description | Requires Sigil CLI |
 |------|-------------|--------------------|
 | `sigil_scan` | Scan a file or directory for security issues | Yes |
+| `sigil_grade` | Letter grade (A-F), recommendation, behaviour profile and key risks for a path | Yes |
 | `sigil_scan_package` | Download and scan an npm/pip package in quarantine | Yes |
 | `sigil_clone` | Clone a git repo into quarantine and scan it | Yes |
 | `sigil_quarantine` | List all quarantined items | Yes |
 | `sigil_approve` | Approve a quarantined item | Yes |
 | `sigil_reject` | Reject and delete a quarantined item | Yes |
+| `sigil_residue_scan` | Read-only scan of this machine for what installed agent tooling left behind (shell rc edits, cron/launchd/systemd persistence, git hooks, credential file permissions, leftover tool directories, /etc/hosts redirects, global agent packages) | Yes |
+| `sigil_residue_plan` | Show the reversible host-residue fixes Sigil would make, without applying them | Yes |
 | `sigil_check_package` | Look up a package's risk assessment in the Sigil public scan database | No (API) |
 | `sigil_search_database` | Search the Sigil public scan database by name or keyword | No (API) |
 | `sigil_report_threat` | Report a malicious file (by SHA256) to the threat intelligence database | Yes (+ `sigil login`) |
 
 If the Sigil CLI binary is not found, CLI-backed tools return install instructions instead of failing, and the server logs a warning to stderr at startup. Database-backed tools work without the CLI.
+
+`sigil residue apply` and `sigil residue rollback` are deliberately not exposed as tools: the residue tools only read and report, and a human applies or undoes fixes in a terminal.
 
 ## Resources
 

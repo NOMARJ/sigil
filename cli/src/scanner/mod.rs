@@ -2,6 +2,7 @@ pub mod cloud_sigs;
 pub mod context;
 pub mod correlate;
 pub mod derive;
+pub mod manifests;
 pub mod normalize;
 pub mod phases;
 pub mod profile;
@@ -425,6 +426,12 @@ pub struct ScanResult {
     /// `file:line RULE-ID — reason`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inline_suppressions: Vec<String>,
+    /// What the tree is, judged from its shallowest manifest: `npm`, `pypi`,
+    /// `agent-skill`, `mcp-server`, `claude-plugin`, `vscode-extension`,
+    /// `agent-instructions`, `cargo`, `go`, `maven`, `rubygems` or
+    /// `generic`. Empty on results written by an older binary.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub platform: String,
 }
 
 /// Provenance of a scan: which engine and which detection corpus ran.
@@ -465,12 +472,15 @@ fn severity_from_name(name: &str) -> Option<Severity> {
 /// Directories that are never content-scanned: vendored/generated trees whose
 /// contents produce noise without manifest context (ADR-0008). Dependency
 /// *manifests* (package.json, lockfiles) at the project root are still scanned.
+///
+/// `dist/` and `build/` are deliberately absent. In a published npm package
+/// they *are* the shipped code (230 of the 844 malicious packages in the
+/// evaluation set carry files under `dist/`), and in a git checkout the
+/// project's own `.gitignore` already keeps build output out of the walk.
 const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
     ".git",
     "target",
-    "dist",
-    "build",
     ".next",
     "__pycache__",
     ".venv",
@@ -565,6 +575,7 @@ pub fn run_scan(
     } else {
         path
     };
+    let platform = manifests::detect_platform(strip_base, &files).to_string();
 
     if should_run_phase(Phase::Provenance) {
         findings.extend(phases::scan_provenance(strip_base, &files));
@@ -601,6 +612,11 @@ pub fn run_scan(
                 .to_string();
 
             let mut file_findings: Vec<Finding> = Vec::new();
+
+            // SKILL-007: a skill or MCP manifest that does not parse.
+            if should_run_phase(Phase::SkillSecurity) {
+                file_findings.extend(manifests::malformed_manifest(&rel_path, &contents));
+            }
 
             // Invisible-Unicode inspection runs on the RAW contents, then all
             // pattern phases match against the de-cloaked form so zero-width
@@ -679,6 +695,10 @@ pub fn run_scan(
             inline_suppressions.push(note);
         }
     }
+
+    // Findings in files a lifecycle script runs are raised one level: they
+    // execute on install, whether or not the package is ever imported.
+    manifests::elevate_install_referenced(strip_base, &files, &mut findings);
 
     if let Some(min) = min_sev {
         findings.retain(|f| f.severity >= min);
@@ -767,6 +787,7 @@ pub fn run_scan(
         }),
         inline_suppressed,
         inline_suppressions,
+        platform,
     }
 }
 
@@ -870,6 +891,8 @@ mod walker_tests {
         touch(&root.join("node_modules/evil/index.js"));
         touch(&root.join("target/debug/x.rs"));
         touch(&root.join(".next/server/page.js"));
+        // Build output is shipped code in a published package, so it is
+        // walked; only a real git checkout's .gitignore keeps it out.
         touch(&root.join("dist/bundle.js"));
 
         let files = collect_files(root);
@@ -877,7 +900,7 @@ mod walker_tests {
             .iter()
             .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().to_string())
             .collect();
-        assert_eq!(rels, vec!["src/main.js"]);
+        assert_eq!(rels, vec!["dist/bundle.js", "src/main.js"]);
     }
 
     #[test]

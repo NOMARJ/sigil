@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-skill-security",
     "name": "Sigil Core — Skill Security",
-    "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "version": "1.1.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive permissions, eval/exec in manifests, and credential embedding"
+    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive or wildcard permissions, dangerous tool grants, eval/exec in manifests, credential embedding, and (engine check SKILL-007) manifests that do not parse"
   },
   "rules": [
     {
@@ -73,6 +73,34 @@
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
       }
+    },
+    {
+      "id": "SKILL-008",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(\"(permissions|tools|allowed[_-]?tools|capabilities|allow)\"\\s*:\\s*(\\[\\s*\"\\*\"|\\{\\s*\"\\*\"|\"\\*\")|^allowed-tools:.*\\bBash(\\s*(,|$)|\\(\\s*(\\*|\\*:\\*|bash:\\*|sh:\\*|zsh:\\*)\\s*\\)))",
+      "description": "Skill manifest — unrestricted (wildcard) tool or permission grant",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "Grant the narrowest tool set the skill needs: name each command (`Bash(git status:*)`) instead of `Bash` or `*`.",
+      "references": ["CWE-250", "OWASP Agentic Top 10 — Excessive Agency"],
+      "tags": ["skill", "permissions", "excessive-agency"]
+    },
+    {
+      "id": "SKILL-009",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(rm|sudo|curl|wget|ssh|scp|nc|ncat|socat|chmod|chown|dd|mkfs|eval|python3?|node|perl|ruby|base64|crontab|launchctl|systemctl|osascript|powershell|iex)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(rm|sudo|curl|wget|ssh|nc|chmod|eval|crontab)\\b)",
+      "description": "Skill manifest — grants a shell command that downloads, deletes, escalates or persists",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "Remove the grant or scope it to a fixed argument list; a skill that needs curl or sudo should say exactly which command and why.",
+      "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "permissions", "dangerous-tool"]
     }
   ],
   "provenance_rules": []

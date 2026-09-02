@@ -3203,6 +3203,7 @@ mod exit_code_tests {
             inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         };
         let report = super::ExtractionReport {
             bytes: u64::MAX,
@@ -3229,6 +3230,7 @@ mod exit_code_tests {
             inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         };
         super::apply_extraction_report(
             &mut result,

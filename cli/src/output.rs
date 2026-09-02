@@ -342,6 +342,7 @@ pub fn scan_result_document(result: &ScanResult) -> serde_json::Value {
             "grade": p.grade,
             "recommendation": p.recommendation,
             "duration_ms": result.duration_ms,
+            "platform": result.platform,
         },
     });
     if let Some(by) = &result.suppressed_by {
@@ -388,6 +389,9 @@ pub fn print_scan_summary(result: &ScanResult) {
         result.duration_ms
     );
     println!("  {} files scanned", result.files_scanned);
+    if !result.platform.is_empty() {
+        println!("  Platform: {}", result.platform);
+    }
     println!("  {} findings", result.findings.len());
     println!("  Risk score: {}", format_score(result.score));
     println!(
@@ -708,6 +712,7 @@ mod json_contract_tests {
                 corpus_rule_count: 1,
                 rule_ids: vec!["CODE-001".to_string()],
             }),
+            platform: String::new(),
         }
     }
 

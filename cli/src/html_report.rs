@@ -353,6 +353,7 @@ mod tests {
             }),
             inline_suppressed: vec![],
             inline_suppressions: vec![],
+            platform: String::new(),
         };
         let html = render(&result, "evil <pkg>");
         assert!(
@@ -387,6 +388,7 @@ mod tests {
             scanner: None,
             inline_suppressed: vec![],
             inline_suppressions: vec![],
+            platform: String::new(),
         };
         let html = render(&result, ".");
         assert!(html.contains("aria-label=\"Grade A\""));

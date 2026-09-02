@@ -516,6 +516,7 @@ mod knowngood_interaction_tests {
                 "known-good: 2 file(s) matched 1 published release(s) unmodified".to_string(),
             ),
             scanner: None,
+            platform: String::new(),
         }
     }
 
@@ -568,6 +569,7 @@ mod knowngood_interaction_tests {
             inline_suppressions: Vec::new(),
             suppressed_by: Some("ledger:pkg@1.0.0#abc approved 2026-01-01".to_string()),
             scanner: None,
+            platform: String::new(),
         };
 
         let suppressed = apply_suppression_in(dir.path(), &mut result, root.path(), false);
@@ -908,6 +910,7 @@ mod tests {
             inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         }
     }
 

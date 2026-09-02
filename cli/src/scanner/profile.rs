@@ -372,6 +372,7 @@ mod tests {
             inline_suppressions: Vec::new(),
             suppressed_by: Some("ledger".to_string()),
             scanner: None,
+            platform: String::new(),
         };
         let p = build(&result);
         assert_eq!(p.grade, "C");

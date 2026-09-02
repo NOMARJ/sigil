@@ -192,6 +192,11 @@ pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
         scanner,
+        platform: summary
+            .and_then(|s| s.get("platform"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     })
 }
 
@@ -264,6 +269,7 @@ mod tests {
             inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner,
+            platform: String::new(),
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 23,
+  "sample_size": 27,
   "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
@@ -159,6 +159,34 @@
       "expect_phase": "Provenance",
       "expect_min_severity": "High",
       "source": "one-edit npm dependency names (prism-scanner M4 shape; ua-parser-js/crossenv squat campaigns)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/wildcard/SKILL.md",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "High",
+      "source": "Unscoped Bash grant in Claude Code skill front matter (prism-scanner S-rules review)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/dangerous/SKILL.md",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "High",
+      "source": "curl/rm tool grants in skill front matter (prism-scanner S-rules review)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/malformed/manifest.json",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "Low",
+      "source": "Truncated skill manifest (prism-scanner S7 review)",
+      "synthetic": true
+    },
+    {
+      "path": "install_hooks/referenced",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "postinstall-run script elevated one level (prism-scanner install-reference elevation review)",
       "synthetic": true
     }
   ]
