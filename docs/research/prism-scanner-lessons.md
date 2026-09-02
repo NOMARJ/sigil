@@ -325,10 +325,10 @@ Limitations: the dataset has selection bias (mostly GuardDog-identified, per Dat
 
 | Threshold | Sigil main recall | Sigil branch recall | prism 0.2.2 recall | Sigil main FP | Sigil branch FP | prism FP |
 |---|---|---|---|---|---|---|
-| ≥ any | ⟨B60_ANY⟩ | ⟨A60_ANY⟩ | ⟨P_ANY⟩ | ⟨B60F_ANY⟩ | ⟨A60F_ANY⟩ | ⟨PF_ANY⟩ |
-| ≥ Medium | ⟨B60_MED⟩ | ⟨A60_MED⟩ | ⟨P_MED⟩ | ⟨B60F_MED⟩ | ⟨A60F_MED⟩ | ⟨PF_MED⟩ |
-| ≥ High | ⟨B60_HIGH⟩ | ⟨A60_HIGH⟩ | ⟨P_HIGH⟩ | ⟨B60F_HIGH⟩ | ⟨A60F_HIGH⟩ | ⟨PF_HIGH⟩ |
-| ≥ Critical | ⟨B60_CRIT⟩ | ⟨A60_CRIT⟩ | ⟨P_CRIT⟩ | ⟨B60F_CRIT⟩ | ⟨A60F_CRIT⟩ | ⟨PF_CRIT⟩ |
+| ≥ any | 88.06% (236) | 89.18% (239) | ⟨P_ANY⟩ | 90% (18/20) | 90% (18/20) | ⟨PF_ANY⟩ |
+| ≥ Medium | 87.69% (235) | 88.81% (238) | ⟨P_MED⟩ | 85% (17/20) | 85% (17/20) | ⟨PF_MED⟩ |
+| ≥ High | 76.49% (205) | 79.48% (213) | ⟨P_HIGH⟩ | 75% (15/20) | 75% (15/20) | ⟨PF_HIGH⟩ |
+| ≥ Critical | 51.12% (137) | 54.85% (147) | ⟨P_CRIT⟩ | 25% (5/20) | 25% (5/20) | ⟨PF_CRIT⟩ |
 
 Per bucket (recall at ≥ High):
 
