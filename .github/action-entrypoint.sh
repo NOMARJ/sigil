@@ -28,6 +28,8 @@ THRESHOLD="${INPUT_THRESHOLD:-medium}"
 API_KEY="${INPUT_API_KEY:-}"
 FAIL_ON_FINDINGS="${INPUT_FAIL_ON_FINDINGS:-true}"
 PHASES="${INPUT_PHASES:-all}"
+UPLOAD_SARIF="${INPUT_UPLOAD_SARIF:-false}"
+SARIF_FILE="${INPUT_SARIF_FILE:-sigil-results.sarif}"
 ACTION_PATH="${SIGIL_ACTION_PATH:-$(dirname "$(dirname "$0")")}"
 
 # ── Validate inputs ──────────────────────────────────────────────────────────
@@ -50,7 +52,60 @@ log "  Path:      $SCAN_PATH"
 log "  Threshold: $THRESHOLD"
 log "  Phases:    $PHASES"
 log "  Fail:      $FAIL_ON_FINDINGS"
+log "  SARIF:     $UPLOAD_SARIF"
 [ -n "$API_KEY" ] && log "  API key:   (provided)"
+
+# ── SARIF pass (opt-in, best effort) ─────────────────────────────────────────
+# When upload-sarif is enabled, run a second scan in SARIF format so the
+# github/codeql-action/upload-sarif step in action.yml can publish it. This
+# pass never fails the job: a scanner exit code here is informational only,
+# and if no valid SARIF document is produced we write an empty one so the
+# upload step still has a well-formed file to consume.
+write_empty_sarif() {
+    cat > "$1" <<'EOF'
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "Sigil", "informationUri": "https://github.com/NOMARJ/sigil" } },
+      "results": []
+    }
+  ]
+}
+EOF
+}
+
+run_sarif_pass() {
+    [ "$UPLOAD_SARIF" = "true" ] || return 0
+
+    local sarif_cmd=(sigil scan "$SCAN_PATH" --format sarif)
+    if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
+        sarif_cmd+=(--phases "$PHASES")
+    fi
+
+    local sarif_dir
+    sarif_dir=$(dirname "$SARIF_FILE")
+    mkdir -p "$sarif_dir" 2>/dev/null || true
+
+    log "Running SARIF pass -> '$SARIF_FILE'..."
+    local sarif_exit=0
+    set +e
+    "${sarif_cmd[@]}" > "$SARIF_FILE"
+    sarif_exit=$?
+    set -e
+
+    if ! jq -e '.runs' "$SARIF_FILE" >/dev/null 2>&1; then
+        warn "SARIF pass did not produce a valid SARIF document (exit $sarif_exit); writing an empty report."
+        write_empty_sarif "$SARIF_FILE"
+    elif [ "$sarif_exit" -ne 0 ]; then
+        # Non-zero exit is the scanner's verdict signalling (see docs/cicd.md);
+        # the threshold check on the JSON pass decides whether the job fails.
+        log "SARIF pass finished with scanner exit code $sarif_exit (not fatal)."
+    fi
+
+    echo "sarif-file=$SARIF_FILE" >> "$GITHUB_OUTPUT"
+}
 
 # ── Set up temporary report directory ────────────────────────────────────────
 SIGIL_REPORT_DIR=$(mktemp -d)
@@ -94,12 +149,19 @@ echo ""
 RISK_SCORE=0
 VERDICT="clean"
 FINDINGS_COUNT=0
+GRADE=""
+RECOMMENDATION=""
+BADGE=""
 JSON_OK=false
 
 if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
     JSON_OK=true
     RISK_SCORE=$(jq -r '(.summary.score // 0) | (tonumber? // 0) | floor' "$SCAN_OUTPUT")
     FINDINGS_COUNT=$(jq -r '.summary.findings_count // ((.findings // []) | length)' "$SCAN_OUTPUT")
+    # Grade (A-F) and recommendation are emitted by sigil >= 1.3.6; older
+    # binaries simply leave them empty and the badge is skipped.
+    GRADE=$(jq -r '.summary.grade // empty' "$SCAN_OUTPUT" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-F' | cut -c1)
+    RECOMMENDATION=$(jq -r '.summary.recommendation // empty' "$SCAN_OUTPUT" | tr -d '\r' | head -n1)
     VERDICT=$(jq -r '.summary.verdict // empty' "$SCAN_OUTPUT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
     case "$VERDICT" in
         low-risk) VERDICT="low" ;;
@@ -138,6 +200,12 @@ if [ "$SCAN_EXIT" -ne 0 ] && [ "$JSON_OK" != "true" ] && [ "$VERDICT" = "clean" 
     echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
     echo "risk-score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
     echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
+    echo "grade=" >> "$GITHUB_OUTPUT"
+    echo "badge=" >> "$GITHUB_OUTPUT"
+
+    # Still hand the upload step a well-formed (possibly empty) SARIF file so
+    # a guarded `always()` upload does not fail on a missing path.
+    run_sarif_pass
 
     {
         echo "## Sigil Security Scan Failed"
@@ -156,11 +224,36 @@ log "Scan complete."
 log "  Verdict:  $VERDICT"
 log "  Score:    $RISK_SCORE"
 log "  Findings: $FINDINGS_COUNT"
+[ -n "$GRADE" ] && log "  Grade:    $GRADE"
+
+# ── Grade badge (shields.io) ─────────────────────────────────────────────────
+# Grade is derived from the verdict by the CLI: A = no findings, B = low-
+# severity observations only, C = MEDIUM RISK, D = HIGH RISK, F = CRITICAL RISK.
+grade_to_colour() {
+    case "$1" in
+        A) echo "brightgreen" ;;
+        B) echo "green" ;;
+        C) echo "yellow" ;;
+        D) echo "orange" ;;
+        F) echo "red" ;;
+        *) echo "lightgrey" ;;
+    esac
+}
+
+if [ -n "$GRADE" ]; then
+    BADGE_COLOUR=$(grade_to_colour "$GRADE")
+    BADGE="[![Sigil grade $GRADE](https://img.shields.io/badge/Sigil-Grade%20$GRADE-$BADGE_COLOUR?style=flat-square)](https://github.com/NOMARJ/sigil)"
+fi
 
 # ── Set GitHub Actions outputs ───────────────────────────────────────────────
 echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
 echo "risk-score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
 echo "findings-count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
+echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
+echo "badge=$BADGE" >> "$GITHUB_OUTPUT"
+
+# ── Optional SARIF pass for GitHub Code Scanning ────────────────────────────
+run_sarif_pass
 
 # ── Write job summary ────────────────────────────────────────────────────────
 VERDICT_EMOJI=""
@@ -176,14 +269,39 @@ esac
 {
     echo "## Sigil Security Scan Results"
     echo ""
+    if [ -n "$BADGE" ]; then
+        echo "$BADGE"
+        echo ""
+    fi
     echo "| Property | Value |"
     echo "|----------|-------|"
     echo "| **Verdict** | \`$VERDICT_EMOJI\` |"
+    if [ -n "$GRADE" ]; then
+        echo "| **Grade** | \`$GRADE\` |"
+    fi
     echo "| **Risk Score** | \`$RISK_SCORE\` |"
     echo "| **Findings** | \`$FINDINGS_COUNT\` |"
     echo "| **Threshold** | \`$THRESHOLD\` |"
     echo "| **Scan Path** | \`$SCAN_PATH\` |"
+    if [ "$UPLOAD_SARIF" = "true" ]; then
+        echo "| **SARIF** | \`$SARIF_FILE\` |"
+    fi
     echo ""
+    if [ -n "$RECOMMENDATION" ]; then
+        echo "**Recommendation:** $RECOMMENDATION"
+        echo ""
+    fi
+    if [ -n "$BADGE" ]; then
+        echo "<details>"
+        echo "<summary>Badge markdown</summary>"
+        echo ""
+        echo '```markdown'
+        echo "$BADGE"
+        echo '```'
+        echo ""
+        echo "</details>"
+        echo ""
+    fi
 
     if [ "$FINDINGS_COUNT" -gt 0 ] && [ "$JSON_OK" = "true" ]; then
         echo "### Findings"

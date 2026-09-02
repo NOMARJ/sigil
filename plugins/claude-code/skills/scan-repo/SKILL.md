@@ -1,6 +1,6 @@
 ---
 name: scan-repo
-description: Scan a repository or directory for security threats using Sigil. Use when auditing AI agent code, reviewing cloned repositories, checking dependencies, or analyzing suspicious packages. Auto-invoke when users clone repos or install packages from untrusted sources.
+description: "Scan a repository or directory for security threats using Sigil. Use when auditing AI agent code, reviewing cloned repositories, checking dependencies, or analyzing suspicious packages. Auto-invoke when users clone repos or install packages from untrusted sources. Trigger phrases (English): 'is this safe to install', 'scan this skill', 'vet this MCP server', 'check this package before installing', 'is this repo safe', 'audit this code'. Trigger phrases (Chinese): '安全扫描', '这个插件安全吗', '这个技能安全吗', '扫描一下', '安装前检查'."
 allowed-tools: Bash(sigil *)
 ---
 
