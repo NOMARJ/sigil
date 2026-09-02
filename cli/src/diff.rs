@@ -139,6 +139,9 @@ pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
 
     let doc: serde_json::Value =
         serde_json::from_str(data).map_err(|e| format!("not valid JSON: {e}"))?;
+    if doc.get("kind").and_then(|k| k.as_str()) == Some("residue") {
+        return Err("this is a `sigil residue` document, not a scan result".to_string());
+    }
 
     let findings: Vec<Finding> = serde_json::from_value(
         doc.get("findings")
