@@ -5,6 +5,7 @@ pub mod normalize;
 pub mod phases;
 pub mod profile;
 pub mod scoring;
+pub mod suppress;
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
@@ -412,6 +413,16 @@ pub struct ScanResult {
     /// degrades gracefully rather than assuming it is present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scanner: Option<ScannerInfo>,
+    /// Findings silenced by an inline `sigil:ignore` marker (see
+    /// `scanner::suppress`). Kept separate from the ledger's all-or-nothing
+    /// `suppressed_findings` because they are per-finding decisions with
+    /// their own attribution, and must survive ledger re-evaluation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inline_suppressed: Vec<Finding>,
+    /// One attribution per inline-suppressed finding:
+    /// `file:line RULE-ID — reason`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inline_suppressions: Vec<String>,
 }
 
 /// Provenance of a scan: which engine and which detection corpus ran.
@@ -558,23 +569,26 @@ pub fn run_scan(
     }
 
     // Content phases run per-file in parallel; collect() preserves file order
-    // so results stay deterministic.
-    let per_file: Vec<Vec<Finding>> = files
+    // so results stay deterministic. Each file yields its active findings and
+    // the ones an inline `sigil:ignore` marker set aside, with attribution.
+    type FileOutcome = (Vec<Finding>, Vec<(Finding, String)>);
+    let per_file: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
+            let none: FileOutcome = (Vec::new(), Vec::new());
             let contents = match std::fs::metadata(file_path) {
-                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => return Vec::new(),
+                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => return none,
                 Ok(_) => match std::fs::read(file_path) {
                     Ok(bytes) => {
                         // Skip binary files (contains null bytes) and use lossy UTF-8
                         if bytes.contains(&0) {
-                            return Vec::new();
+                            return none;
                         }
                         String::from_utf8_lossy(&bytes).into_owned()
                     }
-                    Err(_) => return Vec::new(),
+                    Err(_) => return none,
                 },
-                Err(_) => return Vec::new(),
+                Err(_) => return none,
             };
 
             let rel_path = file_path
@@ -592,6 +606,7 @@ pub fn run_scan(
                 file_findings.extend(normalize::inspect_invisible(&rel_path, &contents));
             }
             let contents = normalize::normalize_for_matching(&contents);
+            let markers = suppress::parse_markers(&contents);
 
             // Analysis is a bounded worklist, not a single pass. A phase that
             // decodes something enqueues the decoded content, and every phase
@@ -630,11 +645,22 @@ pub fn run_scan(
                 }
             }
 
-            file_findings
+            // A marker on the line that carried an encoded blob also covers
+            // findings decoded out of it, because those are re-anchored to
+            // that line above.
+            suppress::apply(&markers, file_findings)
         })
         .collect();
 
-    findings.extend(per_file.into_iter().flatten());
+    let mut inline_suppressed: Vec<Finding> = Vec::new();
+    let mut inline_suppressions: Vec<String> = Vec::new();
+    for (kept, silenced) in per_file {
+        findings.extend(kept);
+        for (f, note) in silenced {
+            inline_suppressed.push(f);
+            inline_suppressions.push(note);
+        }
+    }
 
     if let Some(min) = min_sev {
         findings.retain(|f| f.severity >= min);
@@ -643,6 +669,7 @@ pub fn run_scan(
     let duration_ms = start.elapsed().as_millis() as u64;
 
     assign_fingerprints(&mut findings);
+    assign_fingerprints(&mut inline_suppressed);
 
     // Known-good recognition (ADR-0011). Findings in files that are
     // byte-identical to published releases move to `suppressed_findings` with
@@ -720,6 +747,8 @@ pub fn run_scan(
             corpus_rule_count: compiled.rule_count(),
             rule_ids: compiled.rule_ids(),
         }),
+        inline_suppressed,
+        inline_suppressions,
     }
 }
 
@@ -880,6 +909,44 @@ mod walker_tests {
             .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().to_string())
             .collect();
         assert!(rels.contains(&"payload.js".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod inline_suppression_tests {
+    use super::*;
+    use std::fs;
+
+    /// The marker on a flagged line moves that finding — and only that
+    /// finding — out of the active set, with attribution.
+    #[test]
+    fn marker_moves_finding_to_inline_suppressed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(
+            root.join("app.py"),
+            "import os\n\
+             os.system(cmd)  # sigil:ignore CODE-014 -- argv is validated above\n\
+             eval(expr)\n",
+        )
+        .unwrap();
+
+        let result = run_scan(root, None, None);
+        assert!(
+            !result.findings.iter().any(|f| f.rule == "CODE-014"),
+            "CODE-014 should be suppressed: {:?}",
+            result.findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+        assert!(result.findings.iter().any(|f| f.rule == "CODE-001"));
+        assert_eq!(result.inline_suppressed.len(), 1);
+        assert_eq!(result.inline_suppressed[0].rule, "CODE-014");
+        assert_eq!(
+            result.inline_suppressions[0],
+            "app.py:2 CODE-014 — argv is validated above"
+        );
+        assert!(!result.inline_suppressed[0].fingerprint.is_empty());
+        // Score and verdict are computed over the active set only.
+        assert_eq!(result.score, scoring::calculate_score(&result.findings));
     }
 }
 

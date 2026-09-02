@@ -336,6 +336,7 @@ pub fn scan_result_document(result: &ScanResult) -> serde_json::Value {
             "files_scanned": result.files_scanned,
             "findings_count": result.findings.len(),
             "suppressed_count": result.suppressed_findings.len(),
+            "inline_suppressed_count": result.inline_suppressed.len(),
             "score": result.score,
             "verdict": format!("{}", result.verdict),
             "grade": p.grade,
@@ -351,6 +352,20 @@ pub fn scan_result_document(result: &ScanResult) -> serde_json::Value {
             .collect();
         doc["suppressed_by"] = serde_json::json!(by);
         doc["suppressed_findings"] = serde_json::json!(suppressed);
+    }
+    if !result.inline_suppressed.is_empty() {
+        // "inline_suppressed" also sorts after "findings".
+        let silenced: Vec<serde_json::Value> = result
+            .inline_suppressed
+            .iter()
+            .zip(result.inline_suppressions.iter())
+            .map(|(f, note)| {
+                let mut v = finding_json(f);
+                v["suppressed_by"] = serde_json::json!(format!("inline: {note}"));
+                v
+            })
+            .collect();
+        doc["inline_suppressed"] = serde_json::json!(silenced);
     }
     // Corpus provenance, so `sigil diff` can separate a code change from a
     // rules change. The key must sort *after* "findings": serde_json orders
@@ -500,6 +515,26 @@ pub fn print_quarantine_list(entries: &[QuarantineEntry], detailed: bool, format
 /// is consumed by GitHub Code Scanning, VS Code SARIF Viewer, and other
 /// security tooling.
 pub fn print_scan_sarif(result: &ScanResult, target: &str) {
+    // Rule descriptors cover suppressed findings too: a result that names a
+    // rule the driver never declared is invalid SARIF.
+    let all_findings: Vec<Finding> = result
+        .findings
+        .iter()
+        .chain(result.inline_suppressed.iter())
+        .cloned()
+        .collect();
+    let results: Vec<serde_json::Value> = result
+        .findings
+        .iter()
+        .map(|f| sarif_result(f, None))
+        .chain(
+            result
+                .inline_suppressed
+                .iter()
+                .zip(result.inline_suppressions.iter())
+                .map(|(f, note)| sarif_result(f, Some(note.as_str()))),
+        )
+        .collect();
     let sarif = serde_json::json!({
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
         "version": "2.1.0",
@@ -509,43 +544,10 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
                     "name": "Sigil",
                     "version": env!("CARGO_PKG_VERSION"),
                     "informationUri": "https://github.com/nomark/sigil",
-                    "rules": generate_rules(&result.findings)
+                    "rules": generate_rules(&all_findings)
                 }
             },
-            "results": result.findings.iter().map(|f| {
-                serde_json::json!({
-                    "ruleId": f.rule,
-                    "level": severity_to_sarif_level(f.severity),
-                    "message": {
-                        "text": f.snippet.clone()
-                    },
-                    "locations": [{
-                        "physicalLocation": {
-                            "artifactLocation": {
-                                "uri": f.file.clone(),
-                                "uriBaseId": "%SRCROOT%"
-                            },
-                            "region": {
-                                "startLine": f.line.unwrap_or(1),
-                                "startColumn": 1
-                            }
-                        }
-                    }],
-                    // GitHub Code Scanning tracks an alert across commits by
-                    // its partialFingerprints. Without them it re-raises every
-                    // alert whenever a line number drifts, which is how a
-                    // scanner earns a reputation for noise.
-                    "partialFingerprints": {
-                        "sigilFingerprint/v1": f.fingerprint.clone()
-                    },
-                    "properties": {
-                        "phase": format!("{:?}", f.phase),
-                        "weight": f.weight,
-                        "locator": f.locator.clone(),
-                        "behavior": profile::behavior_for(&f.rule)
-                    }
-                })
-            }).collect::<Vec<_>>(),
+            "results": results,
             "invocations": [{
                 "executionSuccessful": true,
                 "properties": {
@@ -567,6 +569,54 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
     });
 
     println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+}
+
+/// One SARIF result.
+///
+/// A finding silenced by an inline marker is still reported, with a
+/// `suppressions` entry of kind `inSource` carrying the reviewer's reason —
+/// that is how GitHub Code Scanning learns an alert was dismissed in the
+/// code rather than silently missing from the run.
+fn sarif_result(f: &Finding, suppressed_note: Option<&str>) -> serde_json::Value {
+    let mut r = serde_json::json!({
+        "ruleId": f.rule,
+        "level": severity_to_sarif_level(f.severity),
+        "message": {
+            "text": f.snippet.clone()
+        },
+        "locations": [{
+            "physicalLocation": {
+                "artifactLocation": {
+                    "uri": f.file.clone(),
+                    "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                    "startLine": f.line.unwrap_or(1),
+                    "startColumn": 1
+                }
+            }
+        }],
+        // GitHub Code Scanning tracks an alert across commits by
+        // its partialFingerprints. Without them it re-raises every
+        // alert whenever a line number drifts, which is how a
+        // scanner earns a reputation for noise.
+        "partialFingerprints": {
+            "sigilFingerprint/v1": f.fingerprint.clone()
+        },
+        "properties": {
+            "phase": format!("{:?}", f.phase),
+            "weight": f.weight,
+            "locator": f.locator.clone(),
+            "behavior": profile::behavior_for(&f.rule)
+        }
+    });
+    if let Some(note) = suppressed_note {
+        r["suppressions"] = serde_json::json!([{
+            "kind": "inSource",
+            "justification": note
+        }]);
+    }
+    r
 }
 
 /// Map a Severity to the SARIF level string.
@@ -649,6 +699,8 @@ mod json_contract_tests {
             files_scanned: 1,
             duration_ms: 3,
             suppressed_findings: vec![finding("NET-001", Severity::Medium)],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: Some("ledger:x@1#abc approved 2026-01-01".to_string()),
             scanner: Some(ScannerInfo {
                 engine_version: "0.0.0".to_string(),
@@ -700,7 +752,7 @@ mod json_contract_tests {
         let doc = scan_result_document(&result());
         let f = &doc["findings"][0];
         assert_eq!(f["rule"], "CODE-001");
-        assert_eq!(f["title"], "eval() call — arbitrary code execution");
+        assert_eq!(f["title"], "eval() call — arbitrary code execution"); // sigil:ignore CODE-001 -- rule title in a test expectation
         assert_eq!(f["behavior"], "dynamic_execution");
         // The original fields are untouched.
         assert_eq!(f["snippet"], "x: y");

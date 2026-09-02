@@ -5,6 +5,7 @@ mod diff;
 mod explain;
 mod feeds;
 mod hook;
+mod html_report;
 mod knowngood;
 mod ledger;
 mod output;
@@ -33,7 +34,7 @@ struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Output format (text, json)
+    /// Output format (text, json, sarif, html)
     #[arg(short, long, global = true, default_value = "text")]
     format: String,
 
@@ -488,20 +489,28 @@ async fn main() {
             fail_on,
             ignore_ledger,
         } => {
-            cmd_scan(
-                &path,
-                &phases,
-                &severity,
-                submit,
-                no_cache,
-                enrich,
-                enhanced,
-                &fail_on,
-                ignore_ledger,
-                &cli.format,
-                cli.verbose,
-            )
-            .await
+            // `sigil scan <git url>` is the clone workflow: quarantine, then
+            // scan. Routing it here means the obvious command does the right
+            // thing instead of failing with "path does not exist".
+            let target = path.to_string_lossy().to_string();
+            if looks_like_git_url(&target) {
+                cmd_clone(&target, None, false, &cli.format, cli.verbose).await
+            } else {
+                cmd_scan(
+                    &path,
+                    &phases,
+                    &severity,
+                    submit,
+                    no_cache,
+                    enrich,
+                    enhanced,
+                    &fail_on,
+                    ignore_ledger,
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            }
         }
 
         Commands::Corpus => cmd_corpus(&cli.format),
@@ -1293,6 +1302,16 @@ fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severit
     }
 }
 
+/// Is this scan target a git URL rather than a local path?
+fn looks_like_git_url(target: &str) -> bool {
+    let t = target.trim();
+    t.starts_with("http://")
+        || t.starts_with("https://")
+        || t.starts_with("git@")
+        || t.starts_with("ssh://")
+        || t.starts_with("git://")
+}
+
 /// Exit-code contract for the acquisition commands (`clone`, `pip`, `npm`).
 ///
 /// These previously returned `2` for a High-or-Critical verdict, colliding
@@ -1325,6 +1344,10 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
         output::print_scan_sarif(result, &path.to_string_lossy());
         return;
     }
+    if format == "html" {
+        print!("{}", html_report::render(result, &path.to_string_lossy()));
+        return;
+    }
     if format == "json" {
         output::print_scan_result_json(result);
         return;
@@ -1332,6 +1355,21 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
     output::print_scan_summary(result);
     output::print_findings(&result.findings);
     output::print_profile(result);
+    if !result.inline_suppressed.is_empty() {
+        println!(
+            "  {} {} finding{} suppressed by sigil:ignore markers:",
+            "[*]".green(),
+            result.inline_suppressed.len(),
+            if result.inline_suppressed.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+        );
+        for note in &result.inline_suppressions {
+            println!("       {}", note.dimmed());
+        }
+    }
     if let Some(by) = &result.suppressed_by {
         println!(
             "  {} {} finding{} suppressed by ledger approval ({})",
@@ -2741,6 +2779,21 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 }
 
 #[cfg(test)]
+mod scan_target_tests {
+    use super::looks_like_git_url;
+
+    #[test]
+    fn urls_route_to_clone_and_paths_do_not() {
+        assert!(looks_like_git_url("https://github.com/x/y"));
+        assert!(looks_like_git_url("git@github.com:x/y.git"));
+        assert!(looks_like_git_url("ssh://git@host/x.git"));
+        assert!(!looks_like_git_url("./vendor"));
+        assert!(!looks_like_git_url("/tmp/https"));
+        assert!(!looks_like_git_url("http-client/"));
+    }
+}
+
+#[cfg(test)]
 mod exit_code_tests {
     use super::{approve_with_ledger, exit_code_for};
     use std::fs;
@@ -2885,6 +2938,8 @@ mod exit_code_tests {
             files_scanned: 1,
             duration_ms: 0,
             suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
         };
@@ -2909,6 +2964,8 @@ mod exit_code_tests {
             files_scanned: 1,
             duration_ms: 0,
             suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
         };

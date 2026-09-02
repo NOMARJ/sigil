@@ -182,6 +182,8 @@ pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
             .get("suppressed_findings")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default(),
+        inline_suppressed: Vec::new(),
+        inline_suppressions: Vec::new(),
         suppressed_by: doc
             .get("suppressed_by")
             .and_then(|v| v.as_str())
@@ -255,6 +257,8 @@ mod tests {
             files_scanned: 1,
             duration_ms: 1,
             suppressed_findings: Vec::new(),
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner,
         }

@@ -326,7 +326,7 @@ mod tests {
         let fnd = f("GHSA-zzzz", Severity::High, 1);
         assert_eq!(title_of(&fnd), fnd.snippet);
         let known = f("CODE-001", Severity::High, 5);
-        assert_eq!(title_of(&known), "eval() call — arbitrary code execution");
+        assert_eq!(title_of(&known), "eval() call — arbitrary code execution"); // sigil:ignore CODE-001 -- rule title in a test expectation
     }
 
     #[test]
@@ -338,6 +338,8 @@ mod tests {
             files_scanned: 1,
             duration_ms: 1,
             suppressed_findings: vec![f("NET-001", Severity::Medium, 3)],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: Some("ledger".to_string()),
             scanner: None,
         };
