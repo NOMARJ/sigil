@@ -54,6 +54,28 @@ cargo install sigil-cli
 
 _Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library — the Rust CLI is published as `sigil-cli`._
 
+### pip (Python) — _pending first PyPI publication_
+
+> **Not yet on PyPI.** The package source lives in [`python/`](../python/) and
+> is ready, but the project has not been registered or published yet. The
+> commands below will work once the first release is pushed to PyPI.
+
+```bash
+pip install sigil-cli        # fallback name if sigil-cli is taken: sigilsec
+sigil scan .
+```
+
+The wrapper is pure standard library (Python 3.9+) and mirrors the npm
+package: on first run it downloads the prebuilt binary for your platform
+(macOS/Linux x64 and arm64, Windows x64) from GitHub Releases, verifies it
+against the release's `SHA256SUMS.txt`, caches it under
+`~/.sigil/bin/sigil-<version>`, and then forwards every invocation to it.
+
+- `SIGIL_VERSION=v1.3.6 sigil ...` — fetch a specific release (same as `install.sh`)
+- `SIGIL_BINARY=/path/to/sigil sigil ...` — use an existing binary, no download
+- Upgrade with `pip install --upgrade sigil-cli`; remove with `pip uninstall sigil-cli`
+  (the cached binaries in `~/.sigil/bin/` can be deleted by hand)
+
 ### Quick Install Script
 
 ```bash
