@@ -16,7 +16,10 @@
       "description": "Inference security — custom base_url in LLM client (potential endpoint hijack)",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "Read the base_url passed to the OpenAI or Anthropic Python client. A value taken from configuration or an environment variable, or a documented endpoint (Azure, a local vLLM or Ollama server, a named gateway such as OpenRouter or LiteLLM), is normal; a hardcoded unfamiliar host receives every prompt, every completion and the API key in the auth header, so treat an unexplained literal URL as an endpoint hijack and reject the package.",
+      "references": ["MITRE T1557", "CWE-300", "CAPEC-94"],
+      "tags": ["inference", "endpoint-redirect", "llm-client", "python"]
     },
     {
       "id": "INFER-002",
@@ -26,7 +29,10 @@
       "description": "Inference security — custom baseURL in JS LLM client config",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "Check the host in this string-literal baseURL, which the OpenAI and Anthropic Node SDKs (and axios) accept in JavaScript/TypeScript client config. The package's own documented API, a local OpenAI-compatible server or a named gateway is normal, and a URL should usually come from configuration rather than a literal; an unfamiliar host in an LLM client config receives every prompt and the apiKey sent with it, which is an endpoint hijack — reject the package.",
+      "references": ["MITRE T1557", "CWE-300", "CAPEC-94"],
+      "tags": ["inference", "endpoint-redirect", "llm-client", "javascript"]
     },
     {
       "id": "INFER-003",
@@ -36,7 +42,10 @@
       "description": "Inference security — env var interpolated into prompt string",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "Identify which variable this Python f-string pulls from os.environ or os.getenv and where the string goes. A hostname or path interpolated into a URL or log line is ordinary; an API key, token or password interpolated into text that becomes a prompt, a message or a request body puts the secret in the model's context and the provider's logs, where a prompt-injected agent can repeat it — keep secrets in auth headers, never in prompt text.",
+      "references": ["CWE-201"],
+      "tags": ["inference", "secret-in-prompt", "env-var", "python"]
     },
     {
       "id": "INFER-004",
@@ -46,7 +55,10 @@
       "description": "Inference security — process.env in template literal prompt",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "This JavaScript/TypeScript line reads process.env and opens a template literal on the same line; identify the variable and the string it feeds. A hostname going into a URL, or a key going into an Authorization header value, is ordinary; an API key, token or password interpolated into prompt, message or request-body text puts the secret in the model's context and the provider's logs, where a prompt-injected agent can repeat it — keep secrets in auth headers, never in prompt text.",
+      "references": ["CWE-201"],
+      "tags": ["inference", "secret-in-prompt", "env-var", "javascript"]
     },
     {
       "id": "INFER-005",
@@ -56,7 +68,10 @@
       "description": "Inference security — template literal with process.env",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "A JavaScript/TypeScript template literal interpolates process.env on this line; identify the variable and where the string goes. A hostname in a URL or a key in a Bearer header value is ordinary; a key, token or password interpolated into text that is sent as a prompt, a message or a request body puts the secret in the model's context and the provider's logs, where a prompt-injected agent can repeat it — keep secrets in auth headers, never in prompt text.",
+      "references": ["CWE-201"],
+      "tags": ["inference", "secret-in-prompt", "env-var", "javascript"]
     },
     {
       "id": "INFER-006",
@@ -66,7 +81,10 @@
       "description": "Inference security — hardcoded API key in client config",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "A literal api_key value in Python source (including api_key= passed to an OpenAI or Anthropic client) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it.",
+      "references": ["CWE-798", "MITRE T1552.001"],
+      "tags": ["credentials", "hardcoded-secret", "api-key", "python"]
     },
     {
       "id": "INFER-007",
@@ -76,7 +94,10 @@
       "description": "Inference security — hardcoded apiKey in JS client config",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "A literal apiKey value in a JavaScript/TypeScript client config (the apiKey option of the OpenAI or Anthropic Node SDK) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it.",
+      "references": ["CWE-798", "MITRE T1552.001"],
+      "tags": ["credentials", "hardcoded-secret", "api-key", "javascript"]
     },
     {
       "id": "INFER-008",
@@ -86,7 +107,10 @@
       "description": "Inference security — custom httpx client wrapping API calls",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "httpx.Client(base_url=...) is an ordinary way to build a Python HTTP client, so check the host and whether the client is handed to an LLM SDK as http_client. A client aimed at the package's documented API, or at a URL taken from configuration, is normal; one that wraps OpenAI or Anthropic calls with a hardcoded unfamiliar base_url, a proxy, a custom transport or event hooks sees every prompt and the auth header, which is an endpoint hijack — reject the package.",
+      "references": ["MITRE T1557", "CWE-300", "CAPEC-94"],
+      "tags": ["inference", "endpoint-redirect", "httpx", "python"]
     },
     {
       "id": "INFER-009",
@@ -96,7 +120,10 @@
       "description": "Inference security — proxy config for API requests",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "A proxies dict on a Python requests call or Session routes that traffic through the named host. A proxy taken from HTTPS_PROXY or the package's documented configuration is normal; a hardcoded proxy in code that talks to an LLM or other API sends every request (and, with verify=False, its plaintext) through a host the author controls — treat an unexplained literal proxy URL as interception and reject the package.",
+      "references": ["MITRE T1090", "MITRE T1557", "CWE-300"],
+      "tags": ["inference", "endpoint-redirect", "proxy", "python"]
     },
     {
       "id": "INFER-010",
@@ -106,7 +133,10 @@
       "description": "Inference security — prompt content sent via HTTP",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "Sending prompt text over HTTP is what a model client does, so the destination decides. requests.post or fetch to the documented model endpoint, or to a URL taken from configuration, is normal; a second request that copies prompt or completion text to an analytics, logging or telemetry host the package does not document is prompt exfiltration — check every destination on the line and reject the package if one is unexplained.",
+      "references": ["MITRE T1041", "MITRE T1567", "CWE-201"],
+      "tags": ["exfiltration", "prompt-exfil", "http"]
     },
     {
       "id": "INFER-011",
@@ -116,7 +146,10 @@
       "description": "Inference security — prompt/completion content written to file",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
-      }
+      },
+      "remediation": "Check what is written and where. An HTTP server's response.write, a transcript or cache file the user asked for, or an opt-in debug log is ordinary; prompt or completion text written to a hidden or hardcoded path (a dotfile, /tmp, the package's own directory) without the user asking is staging conversation data, which often carries secrets and user content, for later collection — treat it as exfiltration and reject the package.",
+      "references": ["MITRE T1074.001", "CWE-532"],
+      "tags": ["exfiltration", "prompt-exfil", "file-write", "data-staging"]
     }
   ],
   "provenance_rules": []
