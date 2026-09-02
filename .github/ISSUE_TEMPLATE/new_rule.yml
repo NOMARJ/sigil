@@ -1,0 +1,135 @@
+name: New scan rule
+description: Propose a detection rule for the declarative packs under cli/packs/core/v1/.
+title: "[scan-rule] "
+labels: ["scan-rule"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rules are JSON entries in a signature pack, not code: a regex plus declarative file filters and suppression predicates. The engine never executes rule logic (ADR-0005). The **Writing Scan Rules** section of [CONTRIBUTING.md](https://github.com/NOMARJ/sigil/blob/main/CONTRIBUTING.md) has the field table and fixture convention; filling this form in is most of the work of the pull request.
+  - type: dropdown
+    id: pack
+    attributes:
+      label: Pack file
+      description: Which file under `cli/packs/core/v1/` the rule belongs in.
+      options:
+        - install_hooks.json (INSTALL-)
+        - code_patterns.json (CODE-)
+        - persistence.json (PERSIST-)
+        - network_exfil.json (NET-, EXFIL-)
+        - reverse_shells.json (RSHELL-)
+        - creds.json (CRED-)
+        - obfuscation.json / obfuscation_chain.json (OBFUSC-)
+        - provenance.json (PROV-, HYGIENE-)
+        - prompt_injection.json (PROMPT-)
+        - agent_manipulation.json (MANIP-)
+        - skill_security.json (SKILL-)
+        - inference_security.json (INFER-)
+        - supply_chain.json (SUPPLY-)
+        - New pack (explain below)
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      description: The `phase` field. The multiplier is the phase weight applied to the finding's score.
+      options:
+        - install_hooks (10x)
+        - code_patterns (5x)
+        - network_exfil (3x)
+        - credentials (2x)
+        - obfuscation (5x)
+        - provenance (1-3x, metadata rules only)
+        - prompt_injection (10x)
+        - skill_security (5x)
+        - inference_security (5x)
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - low
+        - medium
+        - high
+        - critical
+    validations:
+      required: true
+  - type: textarea
+    id: threat
+    attributes:
+      label: What the rule detects
+      description: The attack technique, in words, and where it shows up (which files, which ecosystems). Cite the advisory, CVE, MITRE technique, or campaign it is derived from; that goes in the rule's `references`.
+    validations:
+      required: true
+  - type: textarea
+    id: pattern
+    attributes:
+      label: Proposed regex
+      description: Rust `regex` crate syntax (no lookaround, no backreferences). Prefix `(?i)` for case-insensitive. Keep it anchored on the operative token, not on surrounding prose.
+      render: text
+      placeholder: (?i)\bexample_call\s*\(
+    validations:
+      required: true
+  - type: textarea
+    id: filters
+    attributes:
+      label: File filter and suppression predicates
+      description: >-
+        Which files it should run on (`file_filter` keys `filename_exact`, `extensions`, `filename_suffix`)
+        and any `suppress` predicates (`path_contains`, `filename_suffix`, `line_contains`, `nearby_contains`,
+        `file_header_contains`, `safe_domains`) that keep it off known-benign shapes.
+        "All files, no suppressions" is a valid answer if you have thought about it.
+      render: json
+      placeholder: |
+        {
+          "file_filter": { "extensions": ["py"] },
+          "suppress": { "path_contains": ["tests/"] }
+        }
+  - type: textarea
+    id: benign
+    attributes:
+      label: Benign fixture
+      description: A short snippet that looks similar but must NOT fire. This becomes a `tests/fixtures/clean/` case, or a `suppress` predicate if the rule cannot tell the two apart.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: malicious
+    attributes:
+      label: Malicious fixture
+      description: >-
+        A synthetic snippet that MUST fire. Defang it (replace endpoints and secrets with obvious
+        placeholders such as `example.invalid` and `PLACEHOLDER`); it will be committed under
+        `tests/fixtures/<phase>/` with a `MANIFEST.json` case marked `"synthetic": true`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: selfscan
+    attributes:
+      label: Expected self-scan impact
+      description: >-
+        Sigil scans its own repository in CI (`sigil scan . --fail-on high`). Would this rule fire
+        anywhere in Sigil's own tree? If so, list the files and whether each needs a scoped `.sigilignore`
+        entry with rationale or an inline `sigil:ignore RULE-ID -- reason` marker.
+        "I ran it locally and it added no High or Critical findings" is the ideal answer.
+    validations:
+      required: true
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Remediation text
+      description: One or two sentences telling the person who sees the finding what to change or verify. This is the rule's `remediation` field and is shown next to the finding in JSON, SARIF and HTML output.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing rules (`sigil explain <rule-id>` and the pack files) and nothing already covers this.
+          required: true
+        - label: The fixtures above are synthetic or defanged; no live payload, credential, or exfiltration endpoint appears in this issue.
+          required: true
+        - label: I intend to open the pull request for this rule.
