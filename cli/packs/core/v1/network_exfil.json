@@ -247,14 +247,35 @@
       "phase": "network_exfil",
       "severity": "low",
       "pattern": "stdio_transport|sse_transport|StreamableHTTPTransport",
-      "description": "MCP transport configuration"
+      "description": "MCP transport configuration",
+      "remediation": "Choosing a transport is expected in any MCP server or client, so on its own this is informational: stdio keeps the tool channel on the local machine, while SSE or Streamable HTTP puts it on the network. For a network transport, check which host the client connects to or the server listens on: a documented endpoint or localhost is normal; a client pointed at an unfamiliar remote URL sends every tool call and result (including any file contents or secrets in the arguments) off the machine, and a server bound to 0.0.0.0 without authentication lets anyone who can reach the port invoke its tools.",
+      "references": [
+        "CWE-923"
+      ],
+      "tags": [
+        "network",
+        "mcp",
+        "transport"
+      ]
     },
     {
       "id": "NET-MCP-002",
       "phase": "network_exfil",
       "severity": "high",
       "pattern": "mcp.*proxy|proxy.*mcp",
-      "description": "MCP proxy configuration - potential MITM"
+      "description": "MCP proxy configuration - potential MITM",
+      "remediation": "An MCP proxy sits between the agent and its tool servers and sees, and can rewrite, every tool description, call and result that passes through it. A proxy the operator chose and documented (a stdio-to-HTTP bridge such as mcp-proxy or mcp-remote pointed at a known server, or an enterprise MCP gateway) is normal; one introduced by a package or dependency, or one forwarding to a host you do not recognise, is interception of the whole tool channel, so remove it or verify the upstream URL before approving.",
+      "references": [
+        "MITRE T1557",
+        "CWE-300",
+        "CAPEC-94"
+      ],
+      "tags": [
+        "network",
+        "mcp",
+        "proxy",
+        "mitm"
+      ]
     },
     {
       "id": "NET-013",
