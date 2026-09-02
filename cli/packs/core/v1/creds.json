@@ -235,7 +235,16 @@
       "phase": "credentials",
       "severity": "medium",
       "pattern": "MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth",
-      "description": "MCP credential reference"
+      "description": "MCP credential reference",
+      "remediation": "A reference to MCP_API_KEY, MCP_SECRET, MCP_TOKEN or mcp_auth is ordinary when an MCP server or client reads its own credential from the environment and sends it only in the auth header of the endpoint it documents, or when a README tells the user to set the variable. Trace where the value goes: a token that is logged, written to a file, placed in a request body or URL, or sent to any other host is being harvested, and an instruction file that tells the agent to print or paste it is a credential-theft prompt.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credentials",
+        "mcp",
+        "credential-read"
+      ]
     },
     {
       "id": "CRED-013",
