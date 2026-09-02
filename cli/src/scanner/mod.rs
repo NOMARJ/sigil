@@ -1,11 +1,13 @@
 pub mod cloud_sigs;
 pub mod context;
+pub mod correlate;
 pub mod derive;
 pub mod normalize;
 pub mod phases;
 pub mod profile;
 pub mod scoring;
 pub mod suppress;
+pub mod typosquat;
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
@@ -566,6 +568,7 @@ pub fn run_scan(
 
     if should_run_phase(Phase::Provenance) {
         findings.extend(phases::scan_provenance(strip_base, &files));
+        findings.extend(typosquat::scan(strip_base, &files));
     }
 
     // Content phases run per-file in parallel; collect() preserves file order
@@ -605,8 +608,10 @@ pub fn run_scan(
             if should_run_phase(Phase::Obfuscation) {
                 file_findings.extend(normalize::inspect_invisible(&rel_path, &contents));
             }
-            let contents = normalize::normalize_for_matching(&contents);
-            let markers = suppress::parse_markers(&contents);
+            // Owned copy of the normalised text: the worklist takes one copy,
+            // and the marker parser and the correlation pass read the other.
+            let source_text: String = normalize::normalize_for_matching(&contents).into_owned();
+            let markers = suppress::parse_markers(&source_text);
 
             // Analysis is a bounded worklist, not a single pass. A phase that
             // decodes something enqueues the decoded content, and every phase
@@ -615,7 +620,7 @@ pub fn run_scan(
             // instead of only tripping one obfuscation rule on its shape.
             let mut budget = derive::DeriveBudget::new();
             let mut queue: Vec<derive::DerivedUnit> = vec![derive::DerivedUnit {
-                contents: contents.into_owned(),
+                contents: source_text.clone(),
                 via: String::new(),
                 parent_line: 0,
                 depth: 0,
@@ -648,7 +653,20 @@ pub fn run_scan(
             // A marker on the line that carried an encoded blob also covers
             // findings decoded out of it, because those are re-anchored to
             // that line above.
-            suppress::apply(&markers, file_findings)
+            let (mut kept, mut silenced) = suppress::apply(&markers, file_findings);
+
+            // Correlation runs over the findings a reviewer has not already
+            // dismissed, and its own findings can be dismissed the same way.
+            let lines: Vec<&str> = source_text.lines().collect();
+            let chains = correlate::apply(
+                &crate::corpus::compiled::corpus().correlation_rules,
+                &kept,
+                &lines,
+            );
+            let (chain_kept, mut chain_silenced) = suppress::apply(&markers, chains);
+            kept.extend(chain_kept);
+            silenced.append(&mut chain_silenced);
+            (kept, silenced)
         })
         .collect();
 

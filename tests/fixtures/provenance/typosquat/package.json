@@ -1,0 +1,8 @@
+{
+  "name": "helper",
+  "version": "1.0.0",
+  "dependencies": {
+    "lodahs": "^4.17.0",
+    "expres": "^4.18.0"
+  }
+}

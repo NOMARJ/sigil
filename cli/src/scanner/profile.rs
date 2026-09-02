@@ -84,8 +84,20 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "NET-008" | "NET-009" => Some("raw_sockets"),
         "NET-010" => Some("dns_lookup"),
         "NET-011" => Some("encodes_before_send"),
+        "NET-012" => Some("downloads_remote_content"),
+        "NET-013" => Some("targets_metadata_endpoint"),
+        "NET-014" => Some("c2_tunnel_host"),
+        "NET-015" => Some("suspicious_domain"),
+        "NET-017" => Some("cryptomining"),
+        "NET-018" => Some("dns_exfiltration"),
         "CRED-004" | "CRED-006" | "CRED-007" | "CRED-008" | "CRED-009" | "CRED-010"
-        | "CRED-011" => Some("hardcoded_secrets"),
+        | "CRED-011" | "CRED-013" | "CRED-014" | "CRED-015" | "CRED-016" | "CRED-017"
+        | "CRED-018" | "CRED-019" | "CRED-020" | "CRED-021" | "CRED-022" | "CRED-023"
+        | "CRED-024" | "CRED-025" | "CRED-026" | "CRED-027" | "CRED-028" | "CRED-029" => {
+            Some("hardcoded_secrets")
+        }
+        "CRED-030" | "CRED-031" | "CRED-032" | "CRED-033" | "CRED-040" | "CRED-041"
+        | "CRED-042" | "CRED-043" => Some("harvests_credentials"),
         "PROV-DOWNGRADE" | "PROV-IDENTITY-CHANGE" | "PROV-REPO-MISMATCH" => {
             Some("provenance_drift")
         }
@@ -172,6 +184,7 @@ fn builtin_title(rule_id: &str) -> Option<&'static str> {
         "PROV-IDENTITY-CHANGE" => Some("Package publisher identity changed"),
         "PROV-REPO-MISMATCH" => Some("Package repository does not match the registry record"),
         "EXFIL-CHAIN-001" => Some("Credential read flows into an outbound network send"),
+        "TYPOSQUAT-001" => Some("Dependency name is one edit away from a top package (typosquat)"),
         _ => None,
     }
 }
@@ -276,6 +289,8 @@ mod tests {
         assert_eq!(behavior_for("NET-007"), Some("exfiltration_endpoint"));
         assert_eq!(behavior_for("CRED-001"), Some("reads_credentials"));
         assert_eq!(behavior_for("CRED-004"), Some("hardcoded_secrets"));
+        assert_eq!(behavior_for("CRED-021"), Some("hardcoded_secrets"));
+        assert_eq!(behavior_for("CRED-040"), Some("harvests_credentials"));
         assert_eq!(
             behavior_for("GHSA-1234-abcd-ef56"),
             Some("known_vulnerable_dependency")
@@ -284,6 +299,21 @@ mod tests {
         assert_eq!(behavior_for("PROV-001"), Some("provenance_anomaly"));
         assert_eq!(behavior_for("PROV-DOWNGRADE"), Some("provenance_drift"));
         assert_eq!(behavior_for("TOTALLY-UNKNOWN"), None);
+    }
+
+    /// Every rule the corpus can emit must map to a behaviour, or the
+    /// profile silently under-reports the moment a pack adds a family.
+    #[test]
+    fn every_corpus_rule_maps_to_a_behavior() {
+        let unmapped: Vec<String> = crate::corpus::compiled::corpus()
+            .rule_ids()
+            .into_iter()
+            .filter(|id| behavior_for(id).is_none())
+            .collect();
+        assert!(
+            unmapped.is_empty(),
+            "rules without a behaviour: {unmapped:?}"
+        );
     }
 
     #[test]

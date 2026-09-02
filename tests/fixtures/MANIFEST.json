@@ -1,6 +1,6 @@
 {
   "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 11,
+  "sample_size": 23,
   "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
@@ -75,6 +75,90 @@
       "expect_phase": "CodePatterns",
       "expect_min_severity": "High",
       "source": "Windows Run key via reg add",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/imds.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "IMDS credential theft (Capital One 2019 shape)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/tunnel.js",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "localtunnel/ngrok beacon (prism P4 dynamic DNS)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/miner.sh",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "Critical",
+      "source": "xmrig stratum launch (MITRE T1496)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/dns_exfil.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "DNS exfiltration via encoded subdomain (MITRE T1048.003)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/exfil_chain.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "Critical",
+      "source": "prism-scanner S8 exfil chain fixture shape",
+      "synthetic": true
+    },
+    {
+      "path": "credentials/browser_read.py",
+      "expect_phase": "Credentials",
+      "expect_min_severity": "Critical",
+      "source": "Chrome Login Data + sqlite3 (infostealer idiom, prism MAL-012)",
+      "synthetic": true
+    },
+    {
+      "path": "credentials/harvest.sh",
+      "expect_phase": "Credentials",
+      "expect_min_severity": "High",
+      "source": "developer credential file harvest",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/manipulation.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "High",
+      "source": "prism-scanner P10 authority-impersonation + safety-bypass tactics (Northeastern/Harvard/MIT)",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/.cursorrules",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "Critical",
+      "source": "instruction-file injection in an editor rules file",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/hygiene/.env",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "High",
+      "source": "committed .env (prism-scanner M7 publish hygiene)",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/hygiene/bundle.js.map",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "Medium",
+      "source": "source map in published artifact (Claude Code npm leak, 2026-03-31)",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/typosquat/package.json",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "High",
+      "source": "one-edit npm dependency names (prism-scanner M4 shape; ua-parser-js/crossenv squat campaigns)",
       "synthetic": true
     }
   ]

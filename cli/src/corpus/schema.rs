@@ -271,6 +271,69 @@ pub struct ProvenanceRule {
 }
 
 // ---------------------------------------------------------------------------
+// Correlation rules (post-pass over findings, not over content)
+// ---------------------------------------------------------------------------
+
+/// Which findings a correlation rule accepts as a source or a sink.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FindingSelector {
+    /// Rule-id prefixes, e.g. `["CRED-"]`.
+    #[serde(default)]
+    pub rule_prefixes: Vec<String>,
+    /// Exact rule ids, e.g. `["NET-001", "NET-004"]`.
+    #[serde(default)]
+    pub rule_ids: Vec<String>,
+}
+
+impl FindingSelector {
+    /// Does this selector accept a finding with this rule id?
+    pub fn accepts(&self, rule_id: &str) -> bool {
+        self.rule_ids.iter().any(|r| r == rule_id)
+            || self
+                .rule_prefixes
+                .iter()
+                .any(|p| rule_id.starts_with(p.as_str()))
+    }
+}
+
+/// A rule over *findings* rather than over file content: fires when a source
+/// finding and a sink finding occur in the same file within a window and
+/// the value the source produced reaches the sink's arguments.
+///
+/// This is the declarative shape of the one thing a line regex cannot say —
+/// "a credential read on line 9 is what line 10 sends" — without the engine
+/// executing anything: the link is a text identity check between an
+/// assignment on the source line and the sink call's argument window.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorrelationRule {
+    pub id: String,
+    pub phase: String,
+    pub severity: String,
+    pub description: String,
+    #[serde(default)]
+    pub weight: Option<u32>,
+    pub source: FindingSelector,
+    pub sink: FindingSelector,
+    /// Maximum lines from source to sink (source first, or the same line).
+    #[serde(default = "default_window")]
+    pub window_lines: usize,
+    /// Substrings whose presence in the sink's argument window disqualifies
+    /// the link — an auth header is where a key legitimately goes.
+    #[serde(default)]
+    pub sink_excludes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+fn default_window() -> usize {
+    20
+}
+
+// ---------------------------------------------------------------------------
 // Pack metadata
 // ---------------------------------------------------------------------------
 
@@ -307,4 +370,8 @@ pub struct SignaturePack {
     /// Filesystem-metadata rules (phase 6 provenance).
     #[serde(default)]
     pub provenance_rules: Vec<ProvenanceRule>,
+
+    /// Finding-correlation rules (post-pass; see [`CorrelationRule`]).
+    #[serde(default)]
+    pub correlation_rules: Vec<CorrelationRule>,
 }

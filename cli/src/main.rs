@@ -88,7 +88,7 @@ enum Commands {
 
     /// Scan an existing directory or file
     Scan {
-        /// Path to scan
+        /// Path to scan, or a git URL (cloned into quarantine first)
         path: PathBuf,
 
         /// Phases to run (comma-separated, or "all")

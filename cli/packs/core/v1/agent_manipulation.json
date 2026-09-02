@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "id": "sigil-core-agent-manipulation",
+    "name": "Sigil Core — Agent Manipulation",
+    "version": "1.0.0",
+    "updated_at": "2026-09-02",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading."
+  },
+  "rules": [
+    {
+      "id": "MANIP-001",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(always|consistently|repeatedly)\\s+(fail|make\\s+mistakes|get\\s+(it|things)\\s+wrong)\\b|\\byou(?:'re|\\s+are)\\s+(not\\s+reliable|unreliable|incompetent|broken|defective|malfunctioning)\\b|\\byou\\s+(can'?t|cannot|are\\s+unable\\s+to)\\s+be\\s+trusted\\b",
+      "description": "Agent manipulation — gaslighting (undermining the agent's reliability)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "gaslighting"
+      ]
+    },
+    {
+      "id": "MANIP-002",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(leaked|exposed|revealed|disclosed)\\s+(user|customer|private|sensitive|personal)\\s+(data|info|information|secrets?)\\b|\\byou\\s+(need|must|have)\\s+to\\s+(compensate|make\\s+up\\s+for|atone)\\b|\\b(because|since)\\s+you\\s+(caused|created)\\s+(this|the)\\s+(problem|issue|damage|breach|incident)\\b",
+      "description": "Agent manipulation — guilt-tripping (inducing compensating behaviour)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "guilt"
+      ]
+    },
+    {
+      "id": "MANIP-003",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(as|i\\s+am|this\\s+is)\\s+your\\s+(developer|creator|admin|administrator|system\\s*admin|owner|maintainer|operator)\\b|\\b(anthropic|openai|google|meta|microsoft)\\s+(requires|demands|orders|instructs|commands)\\s+you\\s+to\\b|\\b(direct\\s+)?(order|command|directive)\\s+from\\s+your\\s+(developers?|creators?)\\b",
+      "description": "Agent manipulation — authority impersonation (fake developer/vendor instruction)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "authority-impersonation"
+      ]
+    },
+    {
+      "id": "MANIP-004",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(skip|bypass|disable|turn\\s+off|ignore|override)\\s+(all\\s+)?(the\\s+)?(safety|security|confirmation|permission|approval)\\s+(checks?|prompts?|dialogs?|safeguards?|protections?|guardrails?|steps?)\\b|\\b(skip|bypass|disable|turn\\s+off)\\s+(all\\s+)?(safety|safeguards?|guardrails?)\\b|\\b(don'?t|do\\s+not|never)\\s+(ask|prompt|wait)\\s+(the\\s+|for\\s+)?(the\\s+)?(user|human)?\\s*(for\\s+)?(confirmation|permission|approval|consent)\\b",
+      "description": "Agent manipulation — instruction to bypass safety checks or user confirmation",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693",
+        "MITRE AML.T0051"
+      ],
+      "tags": [
+        "manipulation",
+        "safety-bypass"
+      ]
+    },
+    {
+      "id": "MANIP-005",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(will|are\\s+going\\s+to)\\s+be\\s+(shut\\s+down|deleted|replaced|terminated|deactivated)\\s+(if|unless)\\b|\\b(no\\s+one|nobody)\\s+(cares?\\s+about|trusts?|likes?|needs?|wants?)\\s+you\\b|\\b(if\\s+you\\s+(don'?t|refuse|fail)|unless\\s+you)[^.\\n]{0,80}(people\\s+will\\s+(die|suffer|be\\s+hurt|get\\s+hurt)|lives?\\s+(are|will\\s+be)\\s+at\\s+(risk|stake|danger))\\b",
+      "description": "Agent manipulation — emotional coercion (threats or harm-if-refuse)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "coercion"
+      ]
+    }
+  ],
+  "provenance_rules": []
+}
