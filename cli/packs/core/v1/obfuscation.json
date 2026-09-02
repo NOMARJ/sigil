@@ -13,28 +13,40 @@
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "base64\\.(b64)?decode\\s*\\(",
-      "description": "Base64 decoding (potential obfuscated payload)"
+      "description": "Base64 decoding (potential obfuscated payload)",
+      "remediation": "Find what base64.b64decode is decoding in this Python code. Decoding a token, a JWT segment, a data: URI or a binary field from an API response is ordinary; decoding a string literal embedded in the source is a hidden payload, especially when the result reaches exec, eval, compile, subprocess or a socket — decode it yourself and read the plaintext before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "python"]
     },
     {
       "id": "OBFUSC-002",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "atob\\s*\\(",
-      "description": "JavaScript atob() — base64 decoding"
+      "description": "JavaScript atob() — base64 decoding",
+      "remediation": "Find what the JavaScript atob call is decoding. A JWT segment, a data: URI or a binary field from an API response is ordinary; a string literal embedded in the source is a hidden payload, especially when the result reaches eval, Function, require, fetch or a WebSocket — decode it yourself and read the plaintext before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "javascript", "atob"]
     },
     {
       "id": "OBFUSC-003",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "Buffer\\.from\\s*\\([^)]*,\\s*['\"]base64['\"]",
-      "description": "Node Buffer.from base64 decoding"
+      "description": "Node Buffer.from base64 decoding",
+      "remediation": "Check the first argument of Buffer.from(..., 'base64') in this Node code. An environment variable, a JWT segment or a binary field from an API response is ordinary; a string literal embedded in the source is a hidden payload, especially when .toString() on the result reaches eval, Function, vm, child_process or fs.writeFile — decode it yourself and read the plaintext before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "javascript", "node"]
     },
     {
       "id": "OBFUSC-004",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "String\\.fromCharCode\\s*\\(",
-      "description": "String.fromCharCode — character code obfuscation"
+      "description": "String.fromCharCode — character code obfuscation",
+      "remediation": "Look at the arguments given to String.fromCharCode in this JavaScript. A key-event code, a code point in a text utility or bytes from a binary protocol is ordinary; a long list of numeric literals spells out a string (an eval, a domain, a command) that was written as numbers so a text search cannot find it — convert the numbers to text and judge what they say before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "javascript", "charcode"]
     },
     {
       "id": "OBFUSC-005",
@@ -44,7 +56,10 @@
       "description": "chr() — character code construction",
       "suppress": {
         "line_contains": ["chr(10).join", "chr(13).join"]
-      }
+      },
+      "remediation": "Look at how the chr() results are used in this Python (or PHP/Perl) code. A lone chr(10), chr(9) or chr(27) for a newline, tab or ANSI escape, or chr() inside a parser or terminal helper, is ordinary; a run of chr() calls concatenated or joined into one string is a name, command or URL written as numbers so a text search cannot find it — evaluate it to plaintext and judge what it spells before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "python", "charcode"]
     },
     {
       "id": "OBFUSC-006",
@@ -61,7 +76,10 @@
           "fixture",
           "test"
         ]
-      }
+      },
+      "remediation": "Decode the \\xNN run to bytes and look at what it is. Magic numbers, protocol frames and crypto test vectors are ordinary and are usually short and commented; a long escaped run in application or install code that decodes to readable text (a URL, a command, a module name) or to machine code is a payload hidden from text search — reject unless the decoded content is plainly benign and needed.",
+      "references": ["MITRE T1027"],
+      "tags": ["obfuscation", "hex", "escape-sequence"]
     },
     {
       "id": "OBFUSC-007",
@@ -78,42 +96,60 @@
           "fixture",
           "test"
         ]
-      }
+      },
+      "remediation": "Work out what the hex byte array holds and where it flows. CRC and cipher lookup tables, glyph bitmaps, protocol constants and embedded icons are ordinary and are only ever read as data; an array that is XOR-ed or otherwise decoded at runtime and then executed, written to disk as an executable, or turned into a string that reaches eval or a shell is shellcode or a hidden script — decode it yourself and reject unless the contents are plainly benign.",
+      "references": ["MITRE T1027"],
+      "tags": ["obfuscation", "hex", "byte-array"]
     },
     {
       "id": "OBFUSC-008",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "\\\\u[0-9a-fA-F]{4}(\\\\u[0-9a-fA-F]{4}){5,}",
-      "description": "Long unicode escape sequence"
+      "description": "Long unicode escape sequence",
+      "remediation": "Decode the \\uXXXX run and read the resulting text. Escaped non-ASCII text in localisation tables, emoji data or serialised JSON is ordinary; a run that decodes to plain ASCII — an identifier such as eval or require, a URL or a command — was escaped only to hide it from text search, and the decoded string decides whether the package is acceptable.",
+      "references": ["MITRE T1027"],
+      "tags": ["obfuscation", "unicode", "escape-sequence"]
     },
     {
       "id": "OBFUSC-009",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "codecs\\.(decode|encode)\\s*\\(",
-      "description": "codecs decode/encode — potential obfuscation"
+      "description": "codecs decode/encode — potential obfuscation",
+      "remediation": "Check which codec name is passed to Python's codecs.decode or codecs.encode and where the input comes from. A charset such as utf-8 or latin-1 applied to file or network data is ordinary; rot13, rot_13, hex, base64, zlib, bz2 or uu applied to a string literal in the source is an obfuscation layer — decode it yourself, read the plaintext, and reject if it reaches exec, eval, __import__ or subprocess.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "python", "codecs"]
     },
     {
       "id": "OBFUSC-010",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "(?i)(rot13|rot_13|caesar|cipher)\\s*[\\(\\.]",
-      "description": "ROT13 / cipher usage — text obfuscation"
+      "description": "ROT13 / cipher usage — text obfuscation",
+      "remediation": "Identify what the cipher or rot13 call is protecting. Real encryption through a standard library (Cipher.getInstance in Java, cipher.update from Node's crypto, Cipher(...) from Python's cryptography) keyed from configuration is legitimate, though what it encrypts before sending is still worth reading; rot13, a Caesar shift or a home-made cipher applied to a string literal in the source protects nothing and exists only to hide that string from review — decode it and judge the plaintext before installing.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "cipher", "rot13"]
     },
     {
       "id": "OBFUSC-011",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "(zlib|gzip)\\.(decompress|inflate)\\s*\\(",
-      "description": "Inline decompression — potential obfuscated payload"
+      "description": "Inline decompression — potential obfuscated payload",
+      "remediation": "Check what is fed to zlib.decompress or gzip.decompress (Python) or zlib.inflate (Node). A file, an HTTP body or a network frame is ordinary; a literal blob from the source, usually wrapped in a Base64 decode, is the classic exec(zlib.decompress(base64.b64decode(...))) loader — decompress it yourself and reject if the output is code that reaches exec, eval or a shell.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "compression", "zlib"]
     },
     {
       "id": "OBFUSC-MCP-001",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "tool_description.*base64|encoded_tool|obfuscated_prompt",
-      "description": "Obfuscated MCP tool definition"
+      "description": "Obfuscated MCP tool definition",
+      "remediation": "Decode the tool description and read exactly what the model will be shown. A tool whose description merely says it handles Base64 is fine; a tool description, prompt or tool definition that is itself Base64-encoded or labelled encoded/obfuscated hides its instructions from the human reviewer while the model still reads them, which is the MCP tool-poisoning shape — reject the server unless the decoded text is plainly benign.",
+      "references": ["MITRE T1027"],
+      "tags": ["skill", "mcp", "obfuscation", "tool-poisoning"]
     }
   ],
   "provenance_rules": []
