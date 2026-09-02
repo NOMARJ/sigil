@@ -314,27 +314,27 @@ Limitations: the dataset has selection bias (mostly GuardDog-identified, per Dat
 
 | Threshold | main (4bb7778) recall | branch recall | main FP rate | branch FP rate |
 |---|---|---|---|---|
-| ≥ any | 86.37% (729) | ⟨A_ANY⟩ | 90.00% (18/20) | ⟨AF_ANY⟩ |
-| ≥ Medium | 86.14% (727) | ⟨A_MED⟩ | 85.00% (17/20) | ⟨AF_MED⟩ |
-| ≥ High | 75.95% (641) | ⟨A_HIGH⟩ | 75.00% (15/20) | ⟨AF_HIGH⟩ |
-| ≥ Critical | 47.87% (404) | ⟨A_CRIT⟩ | 25.00% (5/20) | ⟨AF_CRIT⟩ |
+| ≥ any | 86.37% (729) | 87.91% (742) | 90.00% (18/20) | 90.00% (18/20) |
+| ≥ Medium | 86.14% (727) | 87.80% (741) | 85.00% (17/20) | 85.00% (17/20) |
+| ≥ High | 75.95% (641) | 79.27% (669) | 75.00% (15/20) | 75.00% (15/20) |
+| ≥ Critical | 47.87% (404) | 63.86% (539) | 25.00% (5/20) | 25.00% (5/20) |
 
-⟨SIGIL_DELTA_COMMENT⟩
+The branch detects 13 more samples at any severity, 28 more at High and 135 more at Critical, and flags exactly the same clean packages as before at every threshold. The Critical jump is mostly `INSTALL-REF-001` (a lifecycle script that runs a file with findings) and the new credential-store and same-line credential-plus-send rules; the High gain is spread across the persistence, network and hygiene rules and the `dist/` walk. One sample hit the harness's 120-second scan cap on the branch (none on main) and is counted as not detected; the slowest sample in the per-sample run below took 97 s, a large Python package whose bundled JavaScript is now walked. The control set is unchanged because the rules that fire on popular packages (`NET-001`, the `OBFUSC-*` rules on minified code, `CRED-001`) were already firing before this branch, which is the point §8 makes.
 
 ### Three-way on prism's subset (268 malicious, 20 clean)
 
 | Threshold | Sigil main recall | Sigil branch recall | prism 0.2.2 recall | Sigil main FP | Sigil branch FP | prism FP |
 |---|---|---|---|---|---|---|
-| ≥ any | 88.06% (236) | 89.18% (239) | ⟨P_ANY⟩ | 90% (18/20) | 90% (18/20) | ⟨PF_ANY⟩ |
-| ≥ Medium | 87.69% (235) | 88.81% (238) | ⟨P_MED⟩ | 85% (17/20) | 85% (17/20) | ⟨PF_MED⟩ |
-| ≥ High | 76.49% (205) | 79.48% (213) | ⟨P_HIGH⟩ | 75% (15/20) | 75% (15/20) | ⟨PF_HIGH⟩ |
-| ≥ Critical | 51.12% (137) | 54.85% (147) | ⟨P_CRIT⟩ | 25% (5/20) | 25% (5/20) | ⟨PF_CRIT⟩ |
+| ≥ any | 88.06% (236) | 89.18% (239) | 45.15% (121) | 90% (18/20) | 90% (18/20) | 65% (13/20) |
+| ≥ Medium | 87.69% (235) | 88.81% (238) | 45.15% (121) | 85% (17/20) | 85% (17/20) | 65% (13/20) |
+| ≥ High | 76.49% (205) | 79.48% (213) | 30.22% (81) | 75% (15/20) | 75% (15/20) | 60% (12/20) |
+| ≥ Critical | 51.12% (137) | 54.85% (147) | 10.07% (27) | 25% (5/20) | 25% (5/20) | 20% (4/20) |
 
 Per bucket (recall at ≥ High):
 
 ⟨BUCKET_TABLE⟩
 
-⟨PRISM_COMMENT⟩
+prism could not finish 35 of the 268 samples: 33 exceeded the harness's 90-second cap and 2 produced no JSON. Those count as not detected above; excluding them, prism's recall is 51.9% at any severity and 34.8% at High, still well under half of Sigil's. The cap is the harness's choice, not prism's: without it the first attempt spent over four minutes on single samples and would not have finished. prism graded 112 of the 268 malicious packages **A** (clean), and 12 of the 20 popular clean packages **F**. Its false-positive rate on the control set is lower than Sigil's (60% against 75% at High), which is partly because it reads only ten file extensions and never sees lockfiles, and partly real: it does not fire on plain `requests.post` or on every `*_KEY` environment read, and Sigil should not either (§8). Sample by sample, at any severity: both tools caught 119, Sigil alone 120, prism alone 2, neither 27. At High: both 73, Sigil alone 140, prism alone 8. Per bucket the gap is widest on npm — prism's deepest engine is Python-only and 230 of the 844 malicious packages ship JavaScript under `dist/` — and narrowest on the PyPI compromised-library bucket, where its AST rules do their best work. The 2 samples only prism caught are worth reading for rule ideas: agentinsync-agentinsync-skill.zip, 2022-12-07-aioconsol.zip.
 
 ### The self-scan gate
 

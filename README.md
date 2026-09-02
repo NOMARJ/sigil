@@ -285,16 +285,20 @@ aren't flattering. Full method and results:
 Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
              malicious npm/PyPI packages) + a 20-package clean control set of
              popular npm/PyPI packages fetched from the live registries.
-Sample Size: 351 malicious samples; 20 clean control packages.
+Sample Size: 844 malicious samples (204 per ecosystem/category bucket, including
+             the dataset's AI-skills bucket); 20 clean control packages.
 Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
-             Offline static phases only. Small clean control set.
+             Offline static phases only. Small clean control set. The AI-skills
+             bucket is the weakest (65% detected at any severity on a 60-sample
+             subset) and pulls the averages below the earlier 351-sample run.
 ```
 
 | Metric | Measured |
 | --- | --- |
-| Recall (malicious detected, any severity) | 96.87% |
-| Recall at ≥ High | 90.31% |
-| False-positive rate at ≥ High, clean packages, first scan | **70%** |
+| Recall (malicious detected, any severity) | 87.91% |
+| Recall at ≥ High | 79.27% |
+| Recall at ≥ Critical | 63.86% |
+| False-positive rate at ≥ High, clean packages, first scan | **75%** (15 of 20) |
 | FP rate after trust-ledger approval (`sigil approve`) | 0% |
 | FP rate at ≥ High with Pro AI adjudication | 30% |
 

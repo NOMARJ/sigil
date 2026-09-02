@@ -1,117 +1,66 @@
 {
-  "generated_at": "2026-06-11T08:20:18.951390+00:00",
-  "binary": "/Users/reecefrazier/CascadeProjects/sigil/cli/target/release/sigil",
+  "generated_at": "2026-09-02T23:39:33.857240+00:00",
+  "binary": "/tmp/claude-0/-home-user-sigil/a564528b-cc52-54e2-877a-4ee2e50aa976/scratchpad/bin/sigil-after",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
-  "dataset_commit": "605a7318822117b3b29466747e65db1d582f290c",
-  "dataset_fingerprint": "5f7ebb09543449f01fff5216fe610f545a7abb78dba4b1eb3080ad6599a050bb",
-  "malicious_total": 351,
+  "dataset_commit": "unknown",
+  "dataset_fingerprint": "587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b",
+  "malicious_total": 844,
   "malicious_extract_failures": 0,
-  "malicious_scan_errors": 0,
+  "malicious_scan_errors": 1,
   "recall": {
     "any": {
-      "detected": 340,
-      "scanned": 351,
-      "rate": 0.9687
+      "detected": 742,
+      "scanned": 844,
+      "rate": 0.8791
     },
     "Medium": {
-      "detected": 339,
-      "scanned": 351,
-      "rate": 0.9658
+      "detected": 741,
+      "scanned": 844,
+      "rate": 0.878
     },
     "High": {
-      "detected": 317,
-      "scanned": 351,
-      "rate": 0.9031
+      "detected": 669,
+      "scanned": 844,
+      "rate": 0.7927
     },
     "Critical": {
-      "detected": 209,
-      "scanned": 351,
-      "rate": 0.5954
+      "detected": 539,
+      "scanned": 844,
+      "rate": 0.6386
     }
   },
   "control_total": 20,
   "control_flagged": {
     "any": {
+      "flagged": 18,
+      "total": 20,
+      "fp_rate": 0.9
+    },
+    "Medium": {
       "flagged": 17,
       "total": 20,
       "fp_rate": 0.85
     },
-    "Medium": {
-      "flagged": 16,
-      "total": 20,
-      "fp_rate": 0.8
-    },
     "High": {
-      "flagged": 14,
+      "flagged": 15,
       "total": 20,
-      "fp_rate": 0.7
+      "fp_rate": 0.75
     },
     "Critical": {
-      "flagged": 4,
+      "flagged": 5,
       "total": 20,
-      "fp_rate": 0.2
+      "fp_rate": 0.25
     }
   },
   "precision": {
-    "any": 0.9524,
-    "Medium": 0.9549,
-    "High": 0.9577,
-    "Critical": 0.9812
+    "any": 0.9763,
+    "Medium": 0.9776,
+    "High": 0.9781,
+    "Critical": 0.9908
   },
   "notes": [
-    "PRECISION IS IMBALANCE-DISTORTED: it was computed on 351 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.",
-    "HIGH FALSE-POSITIVE RATE: 80% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.",
-    "LEDGER-WARM FP IS TRUE BY CONSTRUCTION: the warm pass approves the clean control set into a hermetic trust ledger (20 packages pinned via the real `sigil approve`) and re-scans. Exact-digest suppression of operator-approved content then suppresses their findings by definition. The warm FP rate measures the F-010 allowlisting WORKFLOW, not detector precision \u2014 the cold FP rate remains the headline detector metric.",
-    "Recall integrity: all malicious samples produced per-sample identical (max_severity, finding_count) results in cold and warm passes \u2014 ledger suppression did not leak to non-approved content (recall_delta: 0)."
+    "PRECISION IS IMBALANCE-DISTORTED: it was computed on 844 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.",
+    "HIGH FALSE-POSITIVE RATE: 85% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise."
   ],
-  "ledger_warm": {
-    "control_approved_into_ledger": 20,
-    "control_flagged_cold": {
-      "any": {
-        "flagged": 17,
-        "total": 20,
-        "fp_rate": 0.85
-      },
-      "Medium": {
-        "flagged": 16,
-        "total": 20,
-        "fp_rate": 0.8
-      },
-      "High": {
-        "flagged": 14,
-        "total": 20,
-        "fp_rate": 0.7
-      },
-      "Critical": {
-        "flagged": 4,
-        "total": 20,
-        "fp_rate": 0.2
-      }
-    },
-    "control_flagged_warm": {
-      "any": {
-        "flagged": 0,
-        "total": 20,
-        "fp_rate": 0.0
-      },
-      "Medium": {
-        "flagged": 0,
-        "total": 20,
-        "fp_rate": 0.0
-      },
-      "High": {
-        "flagged": 0,
-        "total": 20,
-        "fp_rate": 0.0
-      },
-      "Critical": {
-        "flagged": 0,
-        "total": 20,
-        "fp_rate": 0.0
-      }
-    },
-    "recall_delta": 0,
-    "recall_drift_samples": [],
-    "control_outcome_changes": 17
-  }
+  "ledger_warm": {}
 }
