@@ -1,0 +1,73 @@
+name: Threat report
+description: Report a malicious package, MCP server, agent skill, or repository.
+title: "[threat-report] "
+labels: ["threat-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you have Sigil installed, `sigil report <package>` files this directly against the scan record and is faster. Use this form when you cannot, or when the item is not something Sigil can fetch. Do not paste live payloads, working exfiltration endpoints, or harvested credentials into a public issue; describe them and a maintainer will arrange a private hand-off if a sample is needed. Vulnerabilities in Sigil itself go to [SECURITY.md](https://github.com/NOMARJ/sigil/blob/main/SECURITY.md).
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options:
+        - npm
+        - PyPI
+        - crates.io
+        - MCP server
+        - Agent skill / plugin (Claude Code, Cursor, Windsurf, other)
+        - Git repository
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: identifier
+    attributes:
+      label: Package name or repository URL
+      description: Exact name as published, or the full URL. Include the version if a specific release is affected.
+      placeholder: example-package@1.2.3
+    validations:
+      required: true
+  - type: input
+    id: sha256
+    attributes:
+      label: SHA-256 of the artifact (optional)
+      description: If you have the tarball or wheel, its hash lets others confirm they are looking at the same thing.
+      placeholder: 64 hex characters
+  - type: dropdown
+    id: status
+    attributes:
+      label: Is it still live?
+      options:
+        - Yes, still available at the time of filing
+        - Removed by the registry or host
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: What it does
+      description: The malicious behaviour in words. Which phase it maps to (install hook, prompt injection in a tool description, credential read, outbound send, obfuscated loader, and so on) and how you noticed. Defanged excerpts with the operative parts replaced by `<...>` are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: sigil-output
+    attributes:
+      label: Sigil scan output (if you ran one)
+      description: Verdict, score, grade and the rule IDs that fired, or a note that nothing fired. If nothing fired, consider also opening a **False negative** issue so the detection gap is tracked separately.
+      render: text
+  - type: input
+    id: reference
+    attributes:
+      label: Public reference (optional)
+      description: Advisory, vendor write-up, or registry takedown notice if one exists.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This issue contains no live payload, working endpoint, or credential.
+          required: true
+        - label: I have reported this to the registry or host as well, or explain above why not.

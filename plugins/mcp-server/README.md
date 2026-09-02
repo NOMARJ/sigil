@@ -140,8 +140,49 @@ Once configured, AI agents can use Sigil tools naturally:
 
 ## Publishing
 
+### npm (owner action)
+
 Publishing to npm is automated by `.github/workflows/publish-mcp.yml`: push a
 tag `mcp-vX.Y.Z` matching the version in `package.json` (or run the workflow
 manually with a version input), and it builds and runs `npm publish --access
 public` using the repository's `NPM_TOKEN` secret. The version-match check
 fails the run if the tag and `package.json` disagree.
+
+### MCP Registry (owner action)
+
+The server is described for the [official MCP Registry](https://registry.modelcontextprotocol.io)
+by `server.json` in this directory, written against the
+`2025-12-11` server schema. Its `name` is `io.github.nomarj/sigil`; the
+`io.github.*` namespace is granted to whoever authenticates with the matching
+GitHub account or organisation, so publishing needs the NOMARJ GitHub identity.
+
+**npm publication is a prerequisite.** The registry does not host packages; it
+validates that the npm package named in `server.json` exists and that its
+`package.json` carries an `mcpName` field equal to the `server.json` name
+(`"mcpName": "io.github.nomarj/sigil"` is already set). Until
+`@nomark/sigil-mcp-server@<version>` is on npm, `mcp-publisher publish` is
+rejected.
+
+Steps, once the npm release is live:
+
+```bash
+# 1. Install the publisher CLI (see the registry releases page for other install paths)
+brew install mcp-publisher
+
+# 2. Publish from the directory that holds server.json
+cd plugins/mcp-server
+
+# 3. Authenticate with the GitHub account that owns the io.github.nomarj namespace
+mcp-publisher login github
+
+# 4. Validate and publish server.json
+mcp-publisher publish
+
+# 5. Confirm the listing
+curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.nomarj/sigil"
+```
+
+Keep the two `version` fields in `server.json` (top-level and the npm package
+entry) in lockstep with `package.json`: the registry rejects a re-publish of a
+version it already holds, and a package entry whose version is not on npm
+fails validation. Bump all three in the same commit as the release.

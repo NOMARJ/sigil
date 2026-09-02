@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability in Sigil
+    url: https://github.com/NOMARJ/sigil/blob/main/SECURITY.md
+    about: Do not open a public issue for vulnerabilities in Sigil itself. SECURITY.md has the private reporting address and what to expect.
+  - name: Feature ideas and questions
+    url: https://github.com/NOMARJ/sigil/discussions
+    about: Propose a feature or ask how something works in Discussions. Confirmed feature work is tracked as an issue by a maintainer.

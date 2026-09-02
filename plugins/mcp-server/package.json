@@ -1,5 +1,6 @@
 {
   "name": "@nomark/sigil-mcp-server",
+  "mcpName": "io.github.nomarj/sigil",
   "version": "1.3.0",
   "description": "Sigil MCP server — security scanning tools for AI agent code, packages, and repositories",
   "license": "MIT",
