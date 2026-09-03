@@ -325,27 +325,33 @@ Limitations: the dataset has selection bias (mostly GuardDog-identified, per Dat
 
 | Threshold | main (4bb7778) recall | branch recall | main FP rate | branch FP rate |
 |---|---|---|---|---|
-| ≥ any | 86.37% (729) | 87.91% (742) | 90.00% (18/20) | 90.00% (18/20) |
-| ≥ Medium | 86.14% (727) | 87.80% (741) | 85.00% (17/20) | 85.00% (17/20) |
-| ≥ High | 75.95% (641) | 79.27% (669) | 75.00% (15/20) | 75.00% (15/20) |
-| ≥ Critical | 47.87% (404) | 63.86% (539) | 25.00% (5/20) | 25.00% (5/20) |
+| ≥ any | 86.37% (729) | 88.86% (750) | 90.00% (18/20) | 90.00% (18/20) |
+| ≥ Medium | 86.14% (727) | 88.15% (744) | 85.00% (17/20) | 85.00% (17/20) |
+| ≥ High | 75.95% (641) | 79.62% (672) | 75.00% (15/20) | 75.00% (15/20) |
+| ≥ Critical | 47.87% (404) | 63.98% (540) | 25.00% (5/20) | 25.00% (5/20) |
 
-The branch detects 13 more samples at any severity, 28 more at High and 135 more at Critical, and flags exactly the same clean packages as before at every threshold. The Critical jump is mostly `INSTALL-REF-001` (a lifecycle script that runs a file with findings) and the new credential-store and same-line credential-plus-send rules; the High gain is spread across the persistence, network and hygiene rules and the `dist/` walk. One sample hit the harness's 120-second scan cap on the branch (none on main) and is counted as not detected; the slowest sample in the per-sample run below took 97 s, a large Python package whose bundled JavaScript is now walked. The control set is unchanged because the rules that fire on popular packages (`NET-001`, the `OBFUSC-*` rules on minified code, `CRED-001`) were already firing before this branch, which is the point §8 makes.
+The branch detects 21 more samples at any severity, 31 more at High and 136 more at Critical, and flags exactly the same clean packages as before at every threshold. The Critical jump is mostly `INSTALL-REF-001` (a lifecycle script that runs a file with findings) and the new credential-store and same-line credential-plus-send rules; the High gain is spread across the persistence, network and hygiene rules, the `dist/` walk, and the oversized-file excerpts. No sample hit the harness's 120-second cap in the final run (one did in an earlier run under heavier machine load); the slowest sample in the per-sample run below took 46 s, a large Python package whose bundled JavaScript is now walked, and the 268-sample per-sample run took 1040 s of scanner time against 180 s for main, so the `dist/` walk is not free. The control set is unchanged because the rules that fire on popular packages (`NET-001`, the `OBFUSC-*` rules on minified code, `CRED-001`) were already firing before this branch, which is the point §8 makes.
 
 ### Three-way on prism's subset (268 malicious, 20 clean)
 
 | Threshold | Sigil main recall | Sigil branch recall | prism 0.2.2 recall | Sigil main FP | Sigil branch FP | prism FP |
 |---|---|---|---|---|---|---|
-| ≥ any | 88.06% (236) | 89.18% (239) | 45.15% (121) | 90% (18/20) | 90% (18/20) | 65% (13/20) |
-| ≥ Medium | 87.69% (235) | 88.81% (238) | 45.15% (121) | 85% (17/20) | 85% (17/20) | 65% (13/20) |
-| ≥ High | 76.49% (205) | 79.48% (213) | 30.22% (81) | 75% (15/20) | 75% (15/20) | 60% (12/20) |
+| ≥ any | 88.06% (236) | 90.30% (242) | 45.15% (121) | 90% (18/20) | 90% (18/20) | 65% (13/20) |
+| ≥ Medium | 87.69% (235) | 89.55% (240) | 45.15% (121) | 85% (17/20) | 85% (17/20) | 65% (13/20) |
+| ≥ High | 76.49% (205) | 80.22% (215) | 30.22% (81) | 75% (15/20) | 75% (15/20) | 60% (12/20) |
 | ≥ Critical | 51.12% (137) | 54.85% (147) | 10.07% (27) | 25% (5/20) | 25% (5/20) | 20% (4/20) |
 
 Per bucket (recall at ≥ High):
 
-⟨BUCKET_TABLE⟩
+| Bucket | n | Sigil main | Sigil branch | prism 0.2.2 |
+|---|---|---|---|---|
+| `ai-skills/malicious_intent` | 60 | 38.3% | 48.3% | 33.3% |
+| `npm/compromised_lib` | 60 | 100.0% | 100.0% | 46.7% |
+| `npm/malicious_intent` | 60 | 93.3% | 95.0% | 3.3% |
+| `pypi/compromised_lib` | 28 | 75.0% | 78.6% | 64.3% |
+| `pypi/malicious_intent` | 60 | 75.0% | 78.3% | 21.7% |
 
-prism could not finish 35 of the 268 samples: 33 exceeded the harness's 90-second cap and 2 produced no JSON. Those count as not detected above; excluding them, prism's recall is 51.9% at any severity and 34.8% at High, still well under half of Sigil's. The cap is the harness's choice, not prism's: without it the first attempt spent over four minutes on single samples and would not have finished. prism graded 112 of the 268 malicious packages **A** (clean), and 12 of the 20 popular clean packages **F**. Its false-positive rate on the control set is lower than Sigil's (60% against 75% at High), which is partly because it reads only ten file extensions and never sees lockfiles, and partly real: it does not fire on plain `requests.post` or on every `*_KEY` environment read, and Sigil should not either (§8). Sample by sample, at any severity: both tools caught 119, Sigil alone 120, prism alone 2, neither 27. At High: both 73, Sigil alone 140, prism alone 8. Per bucket the gap is widest on npm — prism's deepest engine is Python-only and 230 of the 844 malicious packages ship JavaScript under `dist/` — and narrowest on the PyPI compromised-library bucket, where its AST rules do their best work. The 2 samples only prism caught are worth reading for rule ideas: agentinsync-agentinsync-skill.zip, 2022-12-07-aioconsol.zip.
+prism could not finish 35 of the 268 samples: 33 exceeded the harness's 90-second cap and 2 produced no JSON. Those count as not detected above; excluding them, prism's recall is 51.9% at any severity and 34.8% at High, still well under half of Sigil's. The cap is the harness's choice, not prism's: without it the first attempt spent over four minutes on single samples and would not have finished. prism graded 112 of the 268 malicious packages **A** (clean), and 12 of the 20 popular clean packages **F**. Its false-positive rate on the control set is lower than Sigil's (60% against 75% at High), which is partly because it reads only ten file extensions and never sees lockfiles, and partly real: it does not fire on plain `requests.post` or on every `*_KEY` environment read, and Sigil should not either (§8). Sample by sample, at any severity: both tools caught 121, Sigil alone 121, prism alone 0, neither 26. At High: both 75, Sigil alone 140, prism alone 6. Per bucket the gap is widest on npm — prism's deepest engine is Python-only and 230 of the 844 malicious packages ship JavaScript under `dist/` — and narrowest on the PyPI compromised-library bucket, where its AST rules do their best work. The two samples only prism caught on the earlier binary — a 22 MB padded `setup.py` and a skill telling the agent not to wait for the user — became `PROV-007`, `SUPPLY-020`, `MANIP-006` and the oversized-file excerpt (§6); on the final binary prism alone catches none at any severity.zip, 2022-12-07-aioconsol.zip.
 
 ### The self-scan gate
 

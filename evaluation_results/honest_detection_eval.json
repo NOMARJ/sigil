@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-09-02T23:39:33.857240+00:00",
-  "binary": "/tmp/claude-0/-home-user-sigil/a564528b-cc52-54e2-877a-4ee2e50aa976/scratchpad/bin/sigil-after",
+  "generated_at": "2026-09-03T00:47:33.357661+00:00",
+  "binary": "/tmp/claude-0/-home-user-sigil/a564528b-cc52-54e2-877a-4ee2e50aa976/scratchpad/bin/sigil-final",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
   "dataset_commit": "unknown",
   "dataset_fingerprint": "587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b",
   "malicious_total": 844,
   "malicious_extract_failures": 0,
-  "malicious_scan_errors": 1,
+  "malicious_scan_errors": 0,
   "recall": {
     "any": {
-      "detected": 742,
+      "detected": 750,
       "scanned": 844,
-      "rate": 0.8791
+      "rate": 0.8886
     },
     "Medium": {
-      "detected": 741,
+      "detected": 744,
       "scanned": 844,
-      "rate": 0.878
+      "rate": 0.8815
     },
     "High": {
-      "detected": 669,
+      "detected": 672,
       "scanned": 844,
-      "rate": 0.7927
+      "rate": 0.7962
     },
     "Critical": {
-      "detected": 539,
+      "detected": 540,
       "scanned": 844,
-      "rate": 0.6386
+      "rate": 0.6398
     }
   },
   "control_total": 20,
@@ -53,9 +53,9 @@
     }
   },
   "precision": {
-    "any": 0.9763,
-    "Medium": 0.9776,
-    "High": 0.9781,
+    "any": 0.9766,
+    "Medium": 0.9777,
+    "High": 0.9782,
     "Critical": 0.9908
   },
   "notes": [

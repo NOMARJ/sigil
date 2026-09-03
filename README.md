@@ -295,9 +295,9 @@ Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
 
 | Metric | Measured |
 | --- | --- |
-| Recall (malicious detected, any severity) | 87.91% |
-| Recall at ≥ High | 79.27% |
-| Recall at ≥ Critical | 63.86% |
+| Recall (malicious detected, any severity) | 88.86% |
+| Recall at ≥ High | 79.62% |
+| Recall at ≥ Critical | 63.98% |
 | False-positive rate at ≥ High, clean packages, first scan | **75%** (15 of 20) |
 | FP rate after trust-ledger approval (`sigil approve`) | 0% |
 | FP rate at ≥ High with Pro AI adjudication | 30% |
