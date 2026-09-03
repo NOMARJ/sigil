@@ -176,7 +176,6 @@ PLANS: list[PlanInfo] = [
             "Slack/webhook alerts",
             "Custom policies",
             "Priority support",
-            "SSO (SAML)",
         ],
     ),
     PlanInfo(
@@ -199,7 +198,6 @@ PLANS: list[PlanInfo] = [
             "SLA guarantee",
             "On-premise deployment option",
             "Advanced audit & compliance",
-            "SSO (SAML/OIDC)",
             "Custom contract",
         ],
     ),
