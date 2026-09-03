@@ -72,7 +72,7 @@ real run, with the run described in §7 or in the row.
 | Inline suppression (§3) | `sigil:ignore RULE[,RULE] -- reason`, `-next-line`, `-file`; reported under `inline_suppressed` and as SARIF `suppressions` | 21 self-scan findings carry a marker and are listed, not dropped |
 | `sigil scan <git-url>` (§3) | routes to the quarantine clone path | unit test on URL detection |
 | GitHub Action (§3) | `upload-sarif` / `sarif-file` inputs, `grade` / `badge` / `sarif-file` outputs, job-summary badge | entrypoint exercised with a local harness (`GITHUB_OUTPUT`, `GITHUB_STEP_SUMMARY` as files); no live workflow run on this branch |
-| Rules (§5) | 62 new rules across persistence, manipulation, prompt injection, network, credentials, hygiene, skill security, one correlation rule, `TYPOSQUAT-001`, `INSTALL-REF-001` | self-scan gate: 0 new High/Critical, +45 Medium, +1 Low; 27 fixture cases pass; prism's own fixture: 20 findings, grade F |
+| Rules (§5) | 66 new rules across persistence, manipulation, prompt injection, network, credentials, hygiene, skill security, oversized scripts, embedded executables, one correlation rule, `TYPOSQUAT-001`, `INSTALL-REF-001` | self-scan gate: 0 new High/Critical, +45 Medium, +1 Low; 27 fixture cases pass; prism's own fixture: 20 findings, grade F |
 | Walker (§6) | `dist/` and `build/` no longer hard-excluded | 230 / 844 malicious samples carry `dist/` files; recall and false-positive deltas in §7 |
 | Oversized files (§6) | head and tail of files over 10 MB scanned; `PROV-007` / `PROV-008`; `SUPPLY-020` embedded-executable literal | the padded 22 MB `setup.py` goes from one Low finding to CRITICAL RISK with the dropper line numbered correctly |
 | pip wrapper (§1) | `python/` — `pip install sigilsec`, standard library only, SHA-256 against `SHA256SUMS.txt`, fail closed | 29 tests; the name `sigil-cli` was found taken on PyPI during review (§Verification) |
@@ -318,7 +318,7 @@ same inputs.
 ```
 Data Source: Datadog malicious-software-packages-dataset (real, human-triaged malicious npm and PyPI packages, plus its ai-skills bucket), commit 0f6b305b; clean control set of 20 popular npm and PyPI packages fetched from the registries
 Sample Size: 844 malicious samples (204 per ecosystem/category bucket, deterministic selection) and 20 clean packages for the Sigil-vs-Sigil comparison; 268 malicious samples (60 per bucket) and the same 20 clean packages for the three-way comparison with prism, which scans at ~16 s per sample
-Limitations: the dataset has selection bias (mostly GuardDog-identified, per Datadog's disclaimer); Sigil runs its offline phases only (no OSV/provenance feeds) for reproducibility; prism runs with --offline; the control set is small, so one package moves the false-positive rate by 5 points; precision is imbalance-distorted by 844:20 and is not reported; "detected" for prism means at least one non-info finding at the threshold, for Sigil at least one finding at the threshold, so the two are comparable but not identical
+Limitations: the dataset has selection bias (mostly GuardDog-identified, per Datadog's disclaimer); Sigil runs its offline phases only (no OSV/provenance feeds) for reproducibility; prism runs with --offline under a 90-second per-sample cap that 33 of 268 samples exceeded (counted as not detected); the control set is small, so one package moves the false-positive rate by 5 points; precision is imbalance-distorted by 844:20 and is not reported; "detected" for prism means at least one non-info finding at the threshold, for Sigil at least one finding at the threshold, so the two are comparable but not identical
 ```
 
 ### Sigil main vs this branch (844 malicious, 20 clean)
@@ -385,7 +385,7 @@ should lead with:
 
 - **Detection depth.** A decode worklist that runs every phase over decoded payloads,
   correlation rules, a known-good corpus that turns "unmodified published release" into
-  LOW RISK and a changed file into `KNOWNGOOD-DRIFT-001`, 276 declarative rules in a
+  LOW RISK and a changed file into `KNOWNGOOD-DRIFT-001`, 280 declarative rules in a
   signed corpus, and a residue scanner that judges commands rather than keywords.
 - **Multi-ecosystem.** prism's deepest engine is Python-only and produced nothing on a
   JavaScript target; 230 of 844 malicious packages ship JavaScript under `dist/`.
