@@ -59,7 +59,7 @@ def get(url: str, timeout: int = 60) -> bytes:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.read()
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except (urllib.error.URLError, TimeoutError):
             if attempt == 2:
                 raise
             time.sleep(2 * (attempt + 1))
