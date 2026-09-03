@@ -210,6 +210,24 @@ in `cli/src/output.rs` enforces this; if you need a new top-level key, pick a
 name that sorts after `findings` (`profile`, `scanner` and `summary` already
 do).
 
+## Releasing
+
+Maintainers cutting a release follow [`docs/RELEASING.md`](docs/RELEASING.md):
+version bump points, tag formats for each channel (CLI, MCP server, npm and PyPI
+wrappers, VS Code, JetBrains, Claude Code plugin), which workflow publishes what,
+the one-time trusted-publisher setup, and post-release verification.
+
+Two things are worth knowing even if you never cut a release:
+
+- Three versions move as one unit — `cli/Cargo.toml`,
+  `python/src/sigil_cli/__init__.py` and `python/pyproject.toml` — because the
+  PyPI wrapper downloads the GitHub release binary named by its own version.
+  `make check-versions` verifies that and prints every other channel's version.
+- Published detection numbers come from `make benchmark`
+  ([`docs/benchmarks.md`](docs/benchmarks.md)), and every run is recorded in
+  [`evaluation_results/HISTORY.md`](evaluation_results/HISTORY.md). Never write a
+  number into a document that a real run did not produce.
+
 ## Code Style
 
 - Rust code follows standard `rustfmt` formatting. Run `cargo fmt` before committing.
