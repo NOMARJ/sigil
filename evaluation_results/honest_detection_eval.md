@@ -1,6 +1,6 @@
 # Sigil Detection Evaluation — Honest Measurement
 
-_Generated: 2026-09-03T00:47:33.357661+00:00_
+_Generated: 2026-09-03T16:07:08.321581+00:00_
 
 ## Disclosure (mandatory, per CLAUDE.md)
 
@@ -12,26 +12,26 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 
 - Dataset commit: `unknown`
 - Reproducibility fingerprint: `587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b`
-- Scanner: `/tmp/claude-0/-home-user-sigil/a564528b-cc52-54e2-877a-4ee2e50aa976/scratchpad/bin/sigil-final`
+- Scanner: `release build of this branch`
 - Extract failures: 0 | scan errors: 0
 
 ## Recall (malicious samples detected)
 
 | Threshold | Detected | Scanned | Recall |
 |-----------|----------|---------|--------|
-| >= any | 750 | 844 | 88.86% |
-| >= Medium | 744 | 844 | 88.15% |
-| >= High | 672 | 844 | 79.62% |
-| >= Critical | 540 | 844 | 63.98% |
+| >= any | 772 | 844 | 91.47% |
+| >= Medium | 764 | 844 | 90.52% |
+| >= High | 718 | 844 | 85.07% |
+| >= Critical | 553 | 844 | 65.52% |
 
 ## False-positive rate (clean control flagged) & precision
 
 | Threshold | Flagged | Control | FP rate | Precision |
 |-----------|---------|---------|---------|-----------|
-| >= any | 18 | 20 | 90.00% | 97.66% |
-| >= Medium | 17 | 20 | 85.00% | 97.77% |
-| >= High | 15 | 20 | 75.00% | 97.82% |
-| >= Critical | 5 | 20 | 25.00% | 99.08% |
+| >= any | 17 | 20 | 85.00% | 97.85% |
+| >= Medium | 17 | 20 | 85.00% | 97.82% |
+| >= High | 13 | 20 | 65.00% | 98.22% |
+| >= Critical | 5 | 20 | 25.00% | 99.10% |
 
 ## Notes
 
@@ -41,3 +41,20 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 ## Supersedes
 
 This report replaces `production_d1_d4_scorecard_80k_scans.json` (moved to `archive/` with a provenance note). That artifact claimed 80k-scan / 99%+ figures that could not be reproduced and shared the fabricated 82,415 figure from the March 14 2026 fake-eval incident. Whatever the numbers above are, they are real.
+
+## Verdicts on the clean control set
+
+The `>= Critical` row above counts control packages containing a Critical-severity
+*finding*. The verdict is a separate question, and it is the one a CI gate reads:
+
+| | c7771d2 (main) | this branch |
+|---|---:|---:|
+| clean packages returning CRITICAL RISK | 6 of 20 | **0 of 20** |
+| clean packages returning HIGH RISK or worse | 18 of 20 | 16 of 20 |
+
+`CRED-006`, `CRED-030` and `INSTALL-001` are marked as corroborating evidence, so a
+single one of them no longer drives a CRITICAL RISK verdict. They keep their severity
+and their full score contribution.
+
+Measured with `sigil scan <package> --no-cache` on the same 20 control packages, all
+phases, isolated HOME.

@@ -288,19 +288,36 @@ Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
 Sample Size: 844 malicious samples (204 per ecosystem/category bucket, including
              the dataset's AI-skills bucket); 20 clean control packages.
 Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
-             Offline static phases only. Small clean control set. The AI-skills
-             bucket is the weakest (65% detected at any severity on a 60-sample
-             subset) and pulls the averages below the earlier 351-sample run.
+             Offline static phases only. Small clean control set. The clean-set
+             row counts a package as flagged if it contains one finding at that
+             severity, which is a stricter reading than the verdict a CI gate
+             sees — both are given below.
 ```
 
-| Metric | Measured |
-| --- | --- |
-| Recall (malicious detected, any severity) | 88.86% |
-| Recall at ≥ High | 79.62% |
-| Recall at ≥ Critical | 63.98% |
-| False-positive rate at ≥ High, clean packages, first scan | **75%** (15 of 20) |
-| FP rate after trust-ledger approval (`sigil approve`) | 0% |
-| FP rate at ≥ High with Pro AI adjudication | 30% |
+| Metric | Measured | Previous release |
+| --- | --- | --- |
+| Recall (malicious detected, any severity) | **91.47%** | 88.86% |
+| Recall at ≥ High | **85.07%** | 79.62% |
+| Recall at ≥ Critical | **65.52%** | 63.98% |
+| Clean packages with a ≥ High finding, first scan | **65%** (13 of 20) | 75% (15 of 20) |
+| Clean packages returning a CRITICAL RISK verdict | **0** (0 of 20) | 6 of 20 |
+| Clean packages returning HIGH RISK or worse | 16 of 20 | 18 of 20 |
+| FP rate after trust-ledger approval (`sigil approve`) | 0% | 0% |
+| FP rate at ≥ High with Pro AI adjudication | not re-measured | 30% |
+
+Both columns are the same 844 samples at the same dataset fingerprint
+(`587e09d2…`), so they are directly comparable. Recall rose at every threshold
+while false positives fell, rather than one being traded for the other. The
+Pro adjudication row is carried forward from the previous release and was not
+re-measured for this one.
+
+The AI-skills bucket was the weakest by a wide margin and is no longer: on the
+60-sample subset the harness reports it at 95.0% detected at any severity and
+90.0% at ≥ High, against 68.3% and 48.3% before. Some of that gap was never
+real — a rule was matching the word "exec" in English prose, so it scored
+markdown headings like `### Code Execution` as Critical. Removing it lowers the
+old number and raises the new one; see
+[docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md).
 
 **What this means in practice:** the static phases deliberately over-trigger —
 network calls, base64, and env access are dangerous in malware and routine in
