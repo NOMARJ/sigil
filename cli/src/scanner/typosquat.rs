@@ -626,6 +626,7 @@ pub fn scan(strip_base: &Path, files: &[std::path::PathBuf]) -> Vec<Finding> {
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: None,
+                    evidence: Default::default(),
                 });
             }
         }

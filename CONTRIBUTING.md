@@ -100,9 +100,61 @@ Reading it top to bottom:
 | `weight` | no | Integer override of the phase weight. Leave it out unless you can justify the exception. |
 | `file_filter` | no | Restricts which files the rule runs on. Any of `filename_exact` (basenames), `extensions` (no leading dot), `filename_suffix`. Absent or empty means every file. |
 | `suppress` | no | Predicates that discard a match after it fires. Any of `path_contains`, `filename_suffix`, `line_contains`, `nearby_contains` (matched line plus a small following window), `file_header_contains` (first 1 KB of the file), `safe_domains` (domain strings on the matched line). |
+| `evidence` | no | `standalone` (default) or `corroborate`. Only meaningful on a `critical` rule: see [Evidence-gated Critical](#evidence-gated-critical). |
 | `remediation` | no, expected | What to change or verify when the rule fires. One or two sentences. |
 | `references` | no, expected | CWE, MITRE ATT&CK technique, OWASP entry, advisory, or campaign the rule was derived from. |
 | `tags` | no, expected | Behaviour tags such as `exfiltration`, `persistence`, `manipulation`; they feed `profile.behaviors` in JSON output. |
+
+### Evidence-gated Critical
+
+A `critical` severity is a claim: *this is what a compromised package looks
+like*. Some patterns earn it alone — an `INSTALL-003` postinstall that pipes a
+download into a shell is not something a legitimate package does by accident.
+Others are Critical because of the company they usually keep. A PEM
+`PRIVATE KEY` armour header is Critical in a published tarball and completely
+ordinary in `tests/certs/`, and one regex on one line cannot tell the two
+apart.
+
+`"evidence": "corroborate"` marks the second kind:
+
+```json
+{
+  "id": "CRED-006",
+  "phase": "credentials",
+  "severity": "critical",
+  "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
+  "description": "Embedded private key",
+  "evidence": "corroborate"
+}
+```
+
+A corroborating rule still reports at Critical, still carries its full weight
+into the score, and still fails `--fail-on critical`. What it cannot do is
+drive the **verdict** to `CRITICAL RISK` on its own:
+`determine_verdict` returns `CRITICAL RISK` only when there is at least one
+`standalone` Critical finding, or Critical findings from **two different**
+corroborating rules. Two hits of the *same* corroborating rule are one
+observation repeated, not two independent ones, so they do not gate. Anything
+that does not gate falls through to the ordinary score thresholds.
+
+Omitting the field means `standalone`, so every rule written before this
+existed keeps its behaviour. Findings carry the value as an additive
+`evidence` key in `--format json`, emitted only when it is not the default.
+
+Choose `corroborate` when the clean-package evidence says the pattern has a
+routine benign shape the regex cannot exclude — measure it with
+`scripts/rule_precision.py` before deciding, not from the rule's name.
+
+### Score saturation
+
+`calculate_score` counts at most `PER_RULE_FILE_SCORE_CAP` (3, in
+`cli/src/scanner/scoring.rs`) findings per `(rule, file)` pair. Every finding
+is still reported and still counted in `findings_count`; only its contribution
+to the aggregate score saturates. This exists because the score is a sum: one
+Unicode data table in `idna` matched `OBFUSC-CHAIN-008` 1,723 times and by
+itself produced a 19,140-point HIGH RISK verdict. When you write a rule that
+can match many times in one file, you do not need to defend against volume in
+the pattern — the cap already does it.
 
 **Provenance rules** (`provenance_rules` array, phase 6) match filesystem
 metadata rather than content: `kind` is one of `filename_regex`, `hidden_file`,
@@ -168,6 +220,40 @@ cargo fmt
 All three must be clean. The pack loader validates every rule at test time, so a
 malformed regex or an unknown phase name fails `cargo test` with the rule id in
 the message.
+
+### Measuring a rule change
+
+A rule change is a claim about two populations, and both need a number.
+
+**Recall** — `scripts/run_eval.py` scans the Datadog malicious-package dataset
+and reports detection at each severity threshold:
+
+```bash
+SIGIL_BIN=cli/target/release/sigil python3 scripts/run_eval.py \
+    --dataset datadog --dataset-path /path/to/dataset \
+    --control-path /path/to/control --out evaluation_results/ [--limit N]
+```
+
+**Precision** — `scripts/rule_precision.py` scans a directory of clean,
+popular packages and reports, per rule, how many of them it fired on:
+
+```bash
+scripts/rule_precision.py cli/target/release/sigil /path/to/control \
+    --samples /path/to/sigil_samples.json --out rule_precision.json
+```
+
+The table is sorted by clean packages hit. A rule near the top with few
+malicious hits is over-broad: look at the actual matched lines before deciding
+what to do about it, because the fix differs by what you find. A pattern that
+matched documentation prose wants a narrower pattern; a pattern that matched
+the real thing in a benign context wants a lower `severity` or
+`"evidence": "corroborate"`; a pattern that matched the same data file a
+thousand times is already handled by the score cap and wants nothing.
+
+Both scripts run real scans and nothing else — no sampling, no estimation, no
+`random`. Per CLAUDE.md, any number that reaches a document must come from a
+run you actually executed, with its data source, sample size and limitations
+stated alongside it.
 
 ### The self-scan gate
 

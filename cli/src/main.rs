@@ -719,6 +719,7 @@ impl ExtractionReport {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         })
     }
 }
@@ -3089,6 +3090,7 @@ mod exit_code_tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 

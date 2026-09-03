@@ -122,6 +122,7 @@ pub fn scan_file_with_packs(
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: None,
+                    evidence: rule.evidence,
                 });
             }
         }
@@ -194,6 +195,7 @@ pub fn scan_provenance_with_packs(
                                     epss: 0.0,
                                     fingerprint: String::new(),
                                     locator: None,
+                                    evidence: Default::default(),
                                 });
                             }
                         }
@@ -215,6 +217,7 @@ pub fn scan_provenance_with_packs(
                                 epss: 0.0,
                                 fingerprint: String::new(),
                                 locator: None,
+                                evidence: Default::default(),
                             });
                         }
                     }
@@ -246,6 +249,7 @@ pub fn scan_provenance_with_packs(
                                     epss: 0.0,
                                     fingerprint: String::new(),
                                     locator: None,
+                                    evidence: Default::default(),
                                 });
                             }
                         }
@@ -267,6 +271,7 @@ pub fn scan_provenance_with_packs(
                                     epss: 0.0,
                                     fingerprint: String::new(),
                                     locator: None,
+                                    evidence: Default::default(),
                                 });
                             }
                         }

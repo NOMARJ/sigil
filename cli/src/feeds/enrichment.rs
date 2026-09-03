@@ -271,6 +271,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 
@@ -366,6 +367,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }];
         enrich_findings_with_kev_epss(
             &mut findings,

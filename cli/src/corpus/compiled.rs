@@ -32,7 +32,7 @@ use regex::{Regex, RegexSet};
 use crate::scanner::{Finding, Phase, Severity};
 
 use super::loader::load_all_packs;
-use super::schema::{CorrelationRule, FileFilter, SignaturePack, SuppressionPredicates};
+use super::schema::{CorrelationRule, Evidence, FileFilter, SignaturePack, SuppressionPredicates};
 
 /// A single rule with its phase, severity and weight already resolved.
 pub struct CompiledRule {
@@ -43,6 +43,8 @@ pub struct CompiledRule {
     pub weight: u32,
     pub file_filter: FileFilter,
     pub suppress: SuppressionPredicates,
+    /// Whether a Critical finding from this rule gates `CRITICAL RISK` alone.
+    pub evidence: Evidence,
     /// The rule's own compiled regex, used to confirm a `RegexSet` candidate.
     pub regex: Regex,
 }
@@ -137,6 +139,7 @@ impl CompiledCorpus {
                     weight: rule.weight.unwrap_or_else(|| phase.default_weight()),
                     file_filter: rule.file_filter.clone(),
                     suppress: rule.suppress.clone(),
+                    evidence: rule.evidence,
                     regex,
                 });
             }
@@ -325,6 +328,7 @@ impl CompiledCorpus {
                         epss: 0.0,
                         fingerprint: String::new(),
                         locator: None,
+                        evidence: rule.evidence,
                     },
                 ));
             }
@@ -452,6 +456,7 @@ mod tests {
                     assert_eq!(e.severity, a.severity, "{path} / {phase}: severity differs");
                     assert_eq!(e.weight, a.weight, "{path} / {phase}: weight differs");
                     assert_eq!(e.snippet, a.snippet, "{path} / {phase}: snippet differs");
+                    assert_eq!(e.evidence, a.evidence, "{path} / {phase}: evidence differs");
                 }
             }
         }
@@ -491,6 +496,33 @@ mod tests {
         assert!(
             gated.len() < ungated.len(),
             "file_filter did not gate: {gated:?} vs {ungated:?}"
+        );
+    }
+
+    /// A rule's `evidence` must reach the findings it produces, or
+    /// `determine_verdict` has nothing to gate on.
+    #[test]
+    fn evidence_reaches_the_finding() {
+        use crate::corpus::schema::Evidence;
+        let compiled = CompiledCorpus::from_packs(&all_packs());
+        // CRED-006 is declared `corroborate` in creds.json.
+        let findings = compiled.scan_phase(
+            Phase::Credentials,
+            "tests/certs/server.key",
+            "server.key",
+            "-----BEGIN PRIVATE KEY-----\n",
+        );
+        let cred006: Vec<&Finding> = findings.iter().filter(|f| f.rule == "CRED-006").collect();
+        assert!(!cred006.is_empty(), "CRED-006 did not fire: {findings:?}");
+        assert!(
+            cred006.iter().all(|f| f.evidence == Evidence::Corroborate),
+            "CRED-006 findings lost the rule's evidence marking: {cred006:?}"
+        );
+        // A rule that says nothing keeps the default.
+        let js = compiled.scan_phase(Phase::CodePatterns, "a.js", "a.js", "eval(x)\n");
+        assert!(
+            js.iter().all(|f| f.evidence == Evidence::Standalone),
+            "a rule without an evidence field must produce standalone findings: {js:?}"
         );
     }
 

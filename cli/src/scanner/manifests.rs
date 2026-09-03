@@ -350,6 +350,7 @@ pub fn link_install_referenced(
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         });
     }
     out
@@ -450,6 +451,7 @@ pub fn malformed_manifest(rel_path: &str, contents: &str) -> Option<Finding> {
         epss: 0.0,
         fingerprint: String::new(),
         locator: None,
+        evidence: Default::default(),
     })
 }
 
@@ -585,6 +587,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         };
         let findings = vec![
             mk(

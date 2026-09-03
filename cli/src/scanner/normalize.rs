@@ -98,6 +98,7 @@ pub fn inspect_invisible(rel_path: &str, contents: &str) -> Vec<Finding> {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         });
     };
 
