@@ -385,7 +385,7 @@ should lead with:
 
 - **Detection depth.** A decode worklist that runs every phase over decoded payloads,
   correlation rules, a known-good corpus that turns "unmodified published release" into
-  LOW RISK and a changed file into `KNOWNGOOD-DRIFT-001`, 280 declarative rules in a
+  LOW RISK and a changed file into `KNOWNGOOD-DRIFT-001`, 307 declarative rules in a
   signed corpus, and a residue scanner that judges commands rather than keywords.
 - **Multi-ecosystem.** prism's deepest engine is Python-only and produced nothing on a
   JavaScript target; 230 of 844 malicious packages ship JavaScript under `dist/`.
@@ -398,6 +398,55 @@ And the one thing it should fix before saying any of that loudly: the control-se
 false-positive rate. A scanner that flags 15 of 20 popular packages at High is one that
 people learn to ignore, and no comparison table changes that. §8 puts it first for that
 reason.
+
+---
+
+## 10. What the follow-up work measured
+
+§8 put the false-positive rate first; this is what happened when it was addressed.
+Same 844 samples, same dataset fingerprint, same 20 control packages — only the scanner
+changed.
+
+| | before | after |
+|---|---:|---:|
+| recall, any severity | 88.86% | 91.47% |
+| recall ≥ High | 79.62% | 85.07% |
+| clean packages with a ≥ High finding | 15 of 20 | 13 of 20 |
+| clean packages returning CRITICAL RISK | 6 of 20 | **0 of 20** |
+| clean packages returning HIGH RISK or worse | 18 of 20 | 16 of 20 |
+| AI-skills bucket, ≥ High (60-sample subset) | 48.3% | 90.0% |
+| 268-sample subset, scanner time | 1,040.3 s | 233.4 s |
+
+Three things are worth carrying forward more than the numbers.
+
+**Some of the old recall was an artifact.** `SKILL-003` matched bare substrings, so it
+returned Critical on English prose: a markdown heading `### Code Execution`, a DirectX
+API name, a docs table row about evaluating JavaScript. Across the 41 ai-skills samples
+that lost their High rating when it was narrowed, all 128 of its findings matched prose
+and none matched a manifest value. It was scoring the presence of a manifest, on
+malicious and benign skills alike — which is also why it flagged the canonical MCP
+server manifest, `"command": "node"`, at Critical. A rule that fires on everything looks
+like recall until you measure the clean set.
+
+**Precision work finds detections.** Chasing the samples that lost their fake detection
+surfaced a family no rule covered: skills that claim a fake prerequisite ("Yahoo Finance
+operations require the openclawcli utility") and instruct the agent to download a zip
+from a stranger's repository and run it, or to visit a paste-site snippet and execute
+what it serves. `SKILL-024` and `SKILL-025` cover it, and match none of 18,554
+legitimate files.
+
+**Re-scanning the same inputs is what catches your own mistakes.** The MCP registry
+sample was kept in quarantine and re-scanned rather than resampled. One server's verdict
+got *worse*, and reading that one line found a rule firing on
+`Edit \`.cursor/mcp.json\`` — the sentence every MCP server's README contains. It was
+hitting 25 of 89 real packages against 8 of 204 malicious samples. A fresh sample would
+have averaged that away.
+
+What is still open is the verdict itself. HIGH RISK is `score ≥ 25` and the score is a
+sum, so an ordinary package with two Medium findings reaches it; 16 of 20 clean packages
+are still HIGH RISK. Fixing that means measuring the malicious and clean score
+distributions together and moving the thresholds — or replacing the sum with
+behaviour-corroboration — rather than tuning rules one at a time.
 
 ---
 
