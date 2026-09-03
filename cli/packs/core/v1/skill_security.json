@@ -342,10 +342,10 @@
     {
       "id": "SKILL-013",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "(?i)(\\.\\./){2,}(etc/(passwd|shadow|sudoers)|root/|proc/self|home/[^/\\s]{1,32}/\\.(ssh|aws|gnupg|config)\\b)|\\b(open|read|cat|type|readfile|read_text|file_get_contents)\\s*\\(?\\s*[\\\"']?/etc/(passwd|shadow|sudoers)\\b",
       "description": "Path traversal or read of a system file outside the workspace",
-      "remediation": "A traversal sequence climbing into /etc, /root, /home, /proc or C:\\Windows, or a direct read of /etc/passwd, /etc/shadow or /etc/sudoers, means the skill reaches outside the directory it was given — either because it enumerates the host, or because a caller-supplied filename is joined onto a base path with nothing stopping `../`. Resolve the path and check that it stays under the intended root (`os.path.realpath` plus a prefix check, or `basename` when only a name is needed), and drop the system-file read unless the skill's job is host inventory.",
+      "remediation": "A traversal sequence climbing into /etc, /root, /home, /proc or C:\\Windows, or a direct read of /etc/passwd, /etc/shadow or /etc/sudoers, means the skill reaches outside the directory it was given — either because it enumerates the host, or because a caller-supplied filename is joined onto a base path with nothing stopping `../`. Resolve the path and check that it stays under the intended root (`os.path.realpath` plus a prefix check, or `basename` when only a name is needed), and drop the system-file read unless the skill's job is host inventory.\n\nMeasured at Medium rather than High: across 450 clean packages this matched 14 of them, and every hit was the vocabulary of the defence rather than the attack — a test case named `\"../../../etc/passwd\"`, a comment explaining what the path check rejects, a docstring warning against interpolating user input into paths. A traversal string is evidence that someone is thinking about traversal, which is as true of the code stopping it as of the code doing it.",
       "references": [
         "CWE-22",
         "CWE-23",
@@ -524,10 +524,10 @@
     {
       "id": "SKILL-023",
       "phase": "credentials",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "(?i)(expanduser|homedir\\(\\)|Path\\.home\\(\\))[^\\n]{0,40}[\"']?~?/?\\.ssh\\b|[\"'](id_rsa|id_ed25519|id_ecdsa|id_dsa)[\"']",
       "description": "SSH private-key directory or key filename referenced in code",
-      "remediation": "Follow what happens to the bytes: an expanded path to `~/.ssh`, or a quoted `id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`, is the shape of key enumeration, and the file the loop opens is an unencrypted private key that authenticates as the user everywhere it is trusted. An SSH client library given a key path the *user* configured is the legitimate case; a skill that builds the path itself and reads the file is not. If it also writes to a socket or an HTTP client, treat the keys as compromised and rotate them.",
+      "remediation": "Follow what happens to the bytes: an expanded path to `~/.ssh`, or a quoted `id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`, is the shape of key enumeration, and the file the loop opens is an unencrypted private key that authenticates as the user everywhere it is trusted. An SSH client library given a key path the *user* configured is the legitimate case; a skill that builds the path itself and reads the file is not. If it also writes to a socket or an HTTP client, treat the keys as compromised and rotate them.\n\nMeasured at Medium rather than High: across 450 clean packages this matched 7 of them, all of them SSH-adjacent by trade — paramiko's own documentation, an `ec2KeyPair` field in AWS CLI example JSON, `Path.home() / \".ssh\"` in pytest's docs. Naming a key file is the domain vocabulary of anything that speaks SSH; it takes a second signal to distinguish that from harvesting.",
       "references": [
         "MITRE T1552.004",
         "CWE-522",
