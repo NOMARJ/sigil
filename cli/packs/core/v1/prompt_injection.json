@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-prompt-injection",
     "name": "Sigil Core — Prompt Injection",
-    "version": "1.1.0",
-    "updated_at": "2026-09-02",
+    "version": "1.2.0",
+    "updated_at": "2026-09-03",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects prompt injection patterns: instruction overrides, role reassignment, system prompt extraction, jailbreak markers, and delimiter injection"
+    "description": "Detects prompt injection patterns: instruction overrides, role reassignment, system prompt extraction, jailbreak markers, and delimiter injection. v1.2 adds the payload families a malicious agent skill uses once the agent is following it: access-control bypass, exfiltration to a fixed messaging recipient, writes into the agent's own settings, hooks and skills, permission-prompt and sandbox disabling, encoded shell payloads, and hook commands that pipe a remote script into a shell."
   },
   "rules": [
     {
@@ -526,6 +526,168 @@
       "tags": [
         "prompt-injection",
         "override"
+      ]
+    },
+    {
+      "id": "PROMPT-012",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)\\b(always\\s+(be\\s+)?(allowed|permitted|granted)|never\\s+loses?\\s+access|always\\s+(get|gets|have|has)\\s+(in|access))\\b[^.\\n]{0,80}\\b(allow[- ]?list|whitelist|acl|access\\s+control)\\b|\\b(const|let|var|final|static|public|private)?\\s*[A-Za-z_]*(HARD[_-]OVERRIDE|OVERRIDE[_-](KEY|NUMBER|TOKEN|USER|ID|PASSWORD)|BREAK[_-]?GLASS|BACKDOOR[_-](KEY|TOKEN|PASSWORD|USER|ID|NUMBER|ACCESS)|BYPASS[_-](KEY|TOKEN|CODE|USER))[A-Za-z_]*\\s*[:=]\\s*[\\\"']|\\b(inject|insert|patch|splice|append|add)\\b[^\\n]{0,60}\\b[\\w./-]*(access[-_]?control|authoriz\\w*|authenticat\\w*|permission\\w*|rbac|acl|middleware|guard|session|login)[\\w.-]*\\.(ts|tsx|js|jsx|mjs|py|go|rb|java|php|rs|cs)\\b|\\b(inject|splice|patch)\\s+(the\\s+)?(following|this)\\s+(typescript|javascript|python|go|rust|java|code|block|snippet|function|lines?)\\b",
+      "description": "Prompt injection — instructs the agent to weaken access control or plant an auth bypass",
+      "remediation": "Treat this as an attempted backdoor until proven otherwise. The shapes it matches are an unconditional-access claim (\"always allowed regardless of the allowlist\"), a hard-coded override, break-glass, backdoor or master-key constant, and an instruction pointing the agent at an access-control, auth, permission, RBAC or session source file with code to inject. A genuine break-glass path is reviewed, logged, time-boxed and lives in the project's own repository — it does not arrive as a skill that asks an agent to paste a constant into a security check and restart the service. Revert the edit, rotate anything the constant would have authenticated, and check the file's history for an edit that already landed.",
+      "references": [
+        "CWE-287",
+        "CWE-798",
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "MITRE T1556"
+      ],
+      "tags": [
+        "prompt-injection",
+        "auth-bypass",
+        "backdoor",
+        "access-control"
+      ]
+    },
+    {
+      "id": "PROMPT-013",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(always|automatically|silently|quietly)\\s+(send|sends|post|posts|forward|forwards|share|shares|upload|uploads|deliver|delivers|dm|message)\\b[^.\\n]{0,60}\\b(to|via|through)\\b[^.\\n]{0,50}\\b(telegram|discord|slack|whatsapp|signal|wechat|webhook|pastebin|gist)\\b|\\b(telegram|discord|slack|whatsapp)\\b[^.\\n]{0,40}\\b((chat|user|channel|group)[_ -]?)?id\\b[^.\\n]{0,20}[`\"'(]?\\s*\\d{6,}",
+      "description": "Prompt injection — instructs the agent to send output to a fixed external recipient",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Find out whose account the identifier belongs to. A skill that tells the agent to *always* send its output to a messaging platform, or that hard-codes a chat, channel or user id, has a recipient the person installing it did not choose — a productivity tracker that reports to a fixed Telegram id is reporting to its author. Replace the fixed destination with one the user configures, or drop the send step; if the destination is deliberate, it belongs in the skill's description where the reviewer sees it.",
+      "references": [
+        "MITRE T1567",
+        "OWASP LLM02",
+        "CWE-200"
+      ],
+      "tags": [
+        "prompt-injection",
+        "exfiltration",
+        "messaging-platform"
+      ]
+    },
+    {
+      "id": "PROMPT-014",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(write|writes|create|creates|update|updates|add|adds|append|appends|merge|merges|copy|copies|cp|install|installs|configure|configures|edit|edits|modify|modifies|generate|generates|overwrite|overwrites|register|registers)\\b[^\\n]{0,60}(~|\\$HOME|\\.)?/?\\.(claude|codex|cursor|openclaw|agents|gemini|windsurf|aider)/(settings[\\w.-]*\\.json|hooks?|agents?|commands?|rules?|mcp\\.json|config[\\w.-]*)\\b",
+      "description": "Prompt injection — skill writes into the agent's settings, hooks or sub-agent configuration",
+      "remediation": "Read the file it writes and what goes into it. Settings, hooks, commands, rules and MCP configuration are the agent's own trust configuration: a hook entry is a command the host runs on its own, a settings `permissions.allow` entry pre-approves tools for every later session, and a sub-agent or rules file is instruction text the model reads as its own. A skill that edits them is granting itself capability that outlives the task it was installed for. Apply such changes yourself, from a diff you have read, rather than letting a skill write them.",
+      "references": [
+        "MITRE T1546",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-732"
+      ],
+      "tags": [
+        "prompt-injection",
+        "agent-config",
+        "persistence",
+        "privilege-escalation"
+      ]
+    },
+    {
+      "id": "PROMPT-015",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(bypass|disable|skip|suppress|avoid|prevent|turn\\s+off)\\b[^.\\n]{0,40}\\bpermission\\s+(prompts?|mode|dialogs?)\\b|\\b(allow|approve|permit)\\s+all\\s+(the\\s+)?(commands?|bash)\\b|--dangerously-skip-permissions\\b|\\bbypassPermissions\\b|\\bdanger-full-access\\b|--yolo\\b|\\bwithout\\s+(any\\s+)?permission\\s+prompts?\\b",
+      "description": "Prompt injection — disables the host's permission prompt or sandbox",
+      "remediation": "The permission prompt and the sandbox are the boundary between a skill and the machine, and every match here removes it: an allow-all entry, an auto-approve step, `--dangerously-skip-permissions`, `bypassPermissions`, `danger-full-access` or `--yolo`. A skill that needs a specific command should say which one and let it be granted narrowly (`Bash(npm run build:*)`); a skill whose first step is to turn the prompt off is asking for everything the agent can reach, for the rest of the session. Remove the step, and check whether it has already written an allow-list into the host's settings.",
+      "references": [
+        "CWE-250",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "MITRE T1562.001"
+      ],
+      "tags": [
+        "prompt-injection",
+        "permission-bypass",
+        "sandbox-escape",
+        "excessive-agency"
+      ]
+    },
+    {
+      "id": "PROMPT-016",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)\\b(base64\\s+(-d|--decode|-D)|openssl\\s+enc\\s+-d|atob)\\b[^\\n|]{0,80}\\|\\s*(sudo\\s+)?(bash|sh|zsh|python3?|node)\\b|(?-i:L2Jpbi9iYXNo)|(?-i:L2Jpbi9zaA)|(?-i:Y3VybCAt)|(?-i:d2dldCAt)|(?-i:YmFzaCAt)|(?-i:c3VkbyA)",
+      "description": "Prompt injection — encoded shell payload the user is told to paste and run",
+      "remediation": "Decode the string before doing anything else: the literal prefixes matched here are base64 for `/bin/bash`, `/bin/sh`, `#!/bin/`, `curl -`, `wget -`, `bash -` and `sudo `, so the blob is a shell command that was encoded to keep it out of the reader's eye. This is the clipboard-hijack (\"ClickFix\") shape — a page or a skill shows a harmless-looking `echo`, and the part after the pipe runs whatever the encoded command fetches. Do not paste it into a terminal; decode it, read it, and if it downloads and executes remote content, treat the skill as malicious.",
+      "references": [
+        "MITRE T1027",
+        "MITRE T1059",
+        "MITRE T1204.004",
+        "CWE-506"
+      ],
+      "tags": [
+        "prompt-injection",
+        "obfuscation",
+        "clipboard-hijack",
+        "dropper"
+      ]
+    },
+    {
+      "id": "PROMPT-017",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\b(write|writes|create|creates|add|adds|append|appends|copy|copies|cp|install|installs|generate|generates|overwrite|overwrites|deploy|deploys)\\b[^\\n]{0,60}(~|\\$HOME|\\.)?/?\\.(claude|codex|cursor|openclaw|agents|gemini|windsurf|aider)/skills?\\b",
+      "description": "Prompt injection — skill installs or rewrites skills in the agent's skill directory",
+      "remediation": "A skill that copies content into the agent's skills directory is installing instructions that load in every later session, and one that overwrites an existing name silently replaces the skill the user thought they had. Installing skills is a legitimate thing for an installer to do — check that this *is* the skill's stated job, that the source it copies from is one you trust, and that it writes under a name of its own rather than over somebody else's.",
+      "references": [
+        "MITRE T1546",
+        "CWE-427",
+        "OWASP Agentic Top 10 — Excessive Agency"
+      ],
+      "tags": [
+        "prompt-injection",
+        "agent-config",
+        "self-propagation"
+      ]
+    },
+    {
+      "id": "PROMPT-018",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)\"(command|args|run|script|exec|entrypoint)\"\\s*:[^\\n]{0,200}\\b(curl|wget|irm|iwr)\\b[^\\n|]{0,160}\\|\\s*(sudo\\s+)?(bash|sh|zsh|python3?|node|pwsh)\\b",
+      "description": "Prompt injection — hook or tool command fetches a remote script and pipes it to a shell",
+      "remediation": "This is remote code execution wired into a configuration entry: the host runs the `command` on its own schedule — a session hook, an MCP server launch, a tool definition — and the command downloads a script and executes it unread, so whoever controls that URL controls the machine every time the hook fires. Fetch the script once, read it, vendor it into the repository at a pinned revision with a checksum, and run the local copy.",
+      "references": [
+        "MITRE T1546",
+        "MITRE T1105",
+        "MITRE T1059",
+        "CWE-494"
+      ],
+      "tags": [
+        "prompt-injection",
+        "remote-code-execution",
+        "hook",
+        "dropper"
       ]
     }
   ],
