@@ -29,7 +29,7 @@ ones that mattered:
    and the file it runs. Both now exist, built Sigil's way (classification by shape and by
    the corpus rather than keyword lists; backups and a manifest before any change).
 3. **Most of prism's rules were either already covered or a pack edit away.** Sigil's
-   corpus went from 214 rules in 12 packs to 276 in 14 on this branch; the additions were
+   corpus went from 214 rules in 12 packs to 280 in 14 on this branch; the additions were
    bounded by the self-scan gate (0 new High/Critical) and by fixtures.
 4. **The most valuable thing the review found was Sigil's own.** `dist/` and `build/` were
    hard-excluded from every scan, and 230 of the 844 malicious packages in the evaluation
@@ -80,7 +80,7 @@ real run, with the run described in §7 or in the row.
 | Skill discovery (§2) | English and Chinese trigger phrases in every `SKILL.md`; `sigil-skill/skill.json` | none — this is metadata |
 | Community (§1) | issue templates (bug, false positive, false negative, new rule, threat report), PR template, code of conduct, CONTRIBUTING rule-authoring guide | none |
 | MCP server fix (§6) | scan tools read the JSON contract's `summary`; exit code 1 with a document is a result | 12 tools verified over stdio: `tools/list`, `sigil_scan`, `sigil_grade`, `sigil_residue_scan`, `sigil_residue_plan` |
-| Rule metadata | `remediation`, `references`, `tags` on every rule that lacked them (179 rules across 10 packs, written by one agent per pack) | all 276 rules now carry `remediation` and `tags`, and `references` where an identifier was certain; every pack diffed against HEAD as parsed rules — ids, patterns, severities, descriptions, filters and suppressions unchanged; 304 tests pass |
+| Rule metadata | `remediation`, `references`, `tags` on every rule that lacked them (179 rules across 10 packs, written by one agent per pack) | all 280 rules now carry `remediation` and `tags`, and `references` where an identifier was certain; every pack diffed against HEAD as parsed rules — ids, patterns, severities, descriptions, filters and suppressions unchanged; 306 tests pass |
 
 ### Verification status
 
