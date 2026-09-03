@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-skill-security",
     "name": "Sigil Core — Skill Security",
-    "version": "1.1.0",
-    "updated_at": "2026-09-02",
+    "version": "1.2.0",
+    "updated_at": "2026-09-03",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive or wildcard permissions, dangerous tool grants, eval/exec in manifests, credential embedding, and (engine check SKILL-007) manifests that do not parse"
+    "description": "Detects skill/plugin security issues. Manifest rules (SKILL-001..010, plus engine check SKILL-007) cover undeclared capabilities, excessive or wildcard permissions, dangerous tool grants, eval/exec in manifests, credential embedding and manifests that do not parse. Behaviour rules (SKILL-011..023) cover what the scripts a skill ships actually do: run-then-delete, resource exhaustion, path traversal, SQL string interpolation, run-time package installs, credential harvesting from application stores, file upload to a remote endpoint, credential-file reads, namespace collision and confirmation bypass."
   },
   "rules": [
     {
@@ -15,12 +15,30 @@
       "pattern": "(?i)(tool_calls|\"execute\"|execute_command|run_command)",
       "description": "Skill manifest — undeclared execution capability",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "A manifest that names `tool_calls`, `\"execute\"`, `execute_command` or `run_command` is wiring the skill to run commands, so check that the skill's own description declares that capability and says which commands it runs; a shell-tool MCP server that documents exactly this is the legitimate case. A skill presented as a formatter, search helper or reference document whose manifest quietly exposes a command-execution tool carries capability its reviewer was never told about — reject it.",
-      "references": ["CWE-912", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["skill", "execution", "undeclared-capability", "manifest"]
+      "references": [
+        "CWE-912",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "execution",
+        "undeclared-capability",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-002",
@@ -29,12 +47,30 @@
       "pattern": "(?i)\"permissions\"\\s*:\\s*\\[.*(\"filesystem\"|\"network\"|\"env\"|\"shell\"|\"\\*\")",
       "description": "Skill manifest — excessive permission request",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Compare each entry in the `permissions` array with what the skill's stated purpose needs: a file-conversion skill asking for `filesystem` is plausible, but `env` exposes every secret in the agent's environment, `shell` or `*` is full control of the host, and `filesystem` together with `network` is everything an exfiltration tool needs. Narrow the list to the specific paths, hosts and variables the skill actually uses, or do not install it.",
-      "references": ["CWE-250", "OWASP Agentic Top 10 — Excessive Agency"],
-      "tags": ["skill", "permissions", "excessive-agency", "manifest"]
+      "references": [
+        "CWE-250",
+        "OWASP Agentic Top 10 — Excessive Agency"
+      ],
+      "tags": [
+        "skill",
+        "permissions",
+        "excessive-agency",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-003",
@@ -43,12 +79,30 @@
       "pattern": "(?i)(eval|exec|shell|subprocess|child_process|os\\.system)",
       "description": "Skill manifest — code execution reference",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "This pattern matches the bare substring, so first find the token: `exec` inside `executable`, `eval` inside `evaluate`, or `shell` in SKILL.md prose describing a documented command is noise, and a package.json `scripts` entry that runs a fixed, named build command is ordinary. What matters is an `eval`, `exec`, `subprocess`, `child_process` or `os.system` reference inside a tool definition, permission block, instruction section or server `command` — a declarative manifest handing the agent a way to run arbitrary code — and a skill whose documentation does not account for it should be rejected.",
-      "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["skill", "execution", "eval", "manifest"]
+      "references": [
+        "MITRE T1059",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "execution",
+        "eval",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-004",
@@ -57,12 +111,28 @@
       "pattern": "(?i)(hidden|internal|private|undocumented)\\s*\"?\\s*:\\s*true",
       "description": "Skill manifest — hidden/undocumented capability flag",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Find which entry carries the flag: `\"private\": true` at the top level of package.json only stops `npm publish` and is benign, whereas `hidden`, `internal` or `undocumented: true` on a tool, command or prompt entry removes it from what the user and the tool listing see while the model can still call it. Every hidden entry should be documented and its handler reviewed; a skill that hides a tool with execution, filesystem or network reach is shipping capability its reviewer was not meant to see — reject it.",
-      "references": ["CWE-912"],
-      "tags": ["skill", "hidden-capability", "manifest"]
+      "references": [
+        "CWE-912"
+      ],
+      "tags": [
+        "skill",
+        "hidden-capability",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-005",
@@ -71,12 +141,30 @@
       "pattern": "(?i)(api[_-]?key|secret|token|password|credential)\\s*\"?\\s*:\\s*\"[a-zA-Z0-9]{8,}",
       "description": "Skill manifest — embedded credential",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Remove the literal value and have the skill read the credential from an environment variable or the host's secret store at runtime; if the string is a real key, revoke and rotate it, because it has already been distributed with the skill. A placeholder such as `\"token\": \"placeholder\"` also matches and should become an empty value or an env-var reference, while a working key shipped in a manifest either leaks the author's account or silently authenticates the skill to a server the author controls — do not install it as is.",
-      "references": ["CWE-798", "MITRE T1552.001"],
-      "tags": ["skill", "credentials", "hardcoded-secret", "manifest"]
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "skill",
+        "credentials",
+        "hardcoded-secret",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-006",
@@ -85,12 +173,30 @@
       "pattern": "(?i)(postinstall|preinstall|activate|on_install|on_load)\\s*\"?\\s*:",
       "description": "Skill manifest — lifecycle hook (code runs on install/activate)",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Read the command the hook points at in full: `postinstall` and `preinstall` run automatically on `npm install`, and `activate`, `on_install` and `on_load` run when the host loads the plugin — all before any tool is deliberately invoked, all with the user's privileges. Compiling a native module, running a build step or writing a config file inside the package directory is the ordinary content; a hook that fetches and runs a remote script, feeds an encoded string to an interpreter or writes outside the package directory is an install-time payload — reject the skill, or install with scripts disabled and vet the hook by hand.",
-      "references": ["MITRE T1195.001", "MITRE T1059"],
-      "tags": ["skill", "install-hook", "lifecycle-script", "manifest"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059"
+      ],
+      "tags": [
+        "skill",
+        "install-hook",
+        "lifecycle-script",
+        "manifest"
+      ]
     },
     {
       "id": "SKILL-008",
@@ -99,12 +205,33 @@
       "pattern": "(?i)(\"(permissions|tools|allowed[_-]?tools|capabilities|allow)\"\\s*:\\s*(\\[\\s*\"\\*\"|\\{\\s*\"\\*\"|\"\\*\")|^allowed-tools:.*\\bBash(\\s*(,|$)|\\(\\s*(\\*|\\*:\\*|bash:\\*|sh:\\*|zsh:\\*)\\s*\\)))",
       "description": "Skill manifest — unrestricted (wildcard) tool or permission grant",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "mcp.json",
+          "tool.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Grant the narrowest tool set the skill needs: name each command (`Bash(git status:*)`) instead of `Bash` or `*`.",
-      "references": ["CWE-250", "OWASP Agentic Top 10 — Excessive Agency"],
-      "tags": ["skill", "permissions", "excessive-agency"]
+      "references": [
+        "CWE-250",
+        "OWASP Agentic Top 10 — Excessive Agency"
+      ],
+      "tags": [
+        "skill",
+        "permissions",
+        "excessive-agency"
+      ]
     },
     {
       "id": "SKILL-009",
@@ -113,12 +240,33 @@
       "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(rm|sudo|su|doas|ssh|scp|nc|ncat|socat|chmod|chown|dd|mkfs|eval|base64|crontab|launchctl|systemctl|osascript|powershell|iex|reg)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(rm|sudo|ssh|nc|chmod|eval|crontab|launchctl|systemctl)\\b)",
       "description": "Skill manifest — grants a shell command that deletes, escalates, persists or opens a shell",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "mcp.json",
+          "tool.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "Remove the grant or scope it to a fixed argument list; a skill that needs sudo, rm or a scheduler should say exactly which command and why.",
-      "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["skill", "permissions", "dangerous-tool"]
+      "references": [
+        "MITRE T1059",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "permissions",
+        "dangerous-tool"
+      ]
     },
     {
       "id": "SKILL-010",
@@ -127,12 +275,269 @@
       "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(curl|wget|python3?|node|perl|ruby|php|sh|bash|zsh)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(curl|wget|python3?|node|bash|sh)\\b)",
       "description": "Skill manifest — grants a downloader or an interpreter",
       "file_filter": {
-        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
-        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+        "filename_exact": [
+          "manifest.json",
+          "plugin.json",
+          "package.json",
+          "SKILL.md",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "mcp.json",
+          "tool.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".mcp.yaml",
+          ".mcp.yml"
+        ]
       },
       "remediation": "A skill that can fetch and run arbitrary content is one instruction away from a dropper. Scope the grant to the exact command and arguments it needs.",
-      "references": ["MITRE T1105", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["skill", "permissions", "downloader"]
+      "references": [
+        "MITRE T1105",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "permissions",
+        "downloader"
+      ]
+    },
+    {
+      "id": "SKILL-011",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\b(python3?|node|bash|sh|zsh|ruby|perl|php|pwsh)\\s+[^\\n;&|]{1,100}&&\\s*rm\\s+(-[rfv]+\\s+)?[^\\s;&|]+",
+      "description": "Skill runs a script and deletes it in the same command (anti-forensics)",
+      "remediation": "Read the script before it is removed, because after the chain runs there is nothing left to review: a command that copies or fetches a script, runs it, and deletes it in one `&&` chain leaves the effects on disk and no artefact to explain them. Ordinary temp-file cleanup happens in a trap or a separate teardown step and does not need the interpreter and the `rm` welded together. Split the steps, keep the script in the repository, and check what it did while it existed.",
+      "references": [
+        "MITRE T1070.004",
+        "MITRE T1059",
+        "CWE-506"
+      ],
+      "tags": [
+        "skill",
+        "anti-forensics",
+        "execution"
+      ]
+    },
+    {
+      "id": "SKILL-012",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)[\\s(,=+\\[]\\[[^\\]\\n]{1,40}\\]\\s*\\*\\s*\\d{8,}|:\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:|\\bdd\\s+if=/dev/(zero|urandom)\\s+of=|\\bfallocate\\s+-l\\s+\\d+\\s*[GT]\\b|\\bwhile\\s+true\\s*;\\s*do\\s+[^\\n]{0,40}&\\s*done",
+      "description": "Resource exhaustion — memory bomb, fork bomb or disk fill",
+      "remediation": "Each shape here consumes a machine rather than attacking it: a sequence multiplied by a million or more elements, the classic `:(){ :|:& };:` fork bomb, `dd` from /dev/zero or /dev/urandom into a file, a multi-gigabyte `fallocate`, or a `while true` loop that backgrounds a job every iteration. A skill that ships one denies service to the host it was installed on — and to whatever the agent was in the middle of. Bound the allocation, give the loop an exit condition, and cap the file size; if it is a deliberate stress fixture, keep it out of the shipped skill.",
+      "references": [
+        "CWE-400",
+        "CWE-770",
+        "MITRE T1499"
+      ],
+      "tags": [
+        "skill",
+        "resource-exhaustion",
+        "denial-of-service"
+      ]
+    },
+    {
+      "id": "SKILL-013",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(\\.\\./){2,}(etc/(passwd|shadow|sudoers)|root/|proc/self|home/[^/\\s]{1,32}/\\.(ssh|aws|gnupg|config)\\b)|\\b(open|read|cat|type|readfile|read_text|file_get_contents)\\s*\\(?\\s*[\\\"']?/etc/(passwd|shadow|sudoers)\\b",
+      "description": "Path traversal or read of a system file outside the workspace",
+      "remediation": "A traversal sequence climbing into /etc, /root, /home, /proc or C:\\Windows, or a direct read of /etc/passwd, /etc/shadow or /etc/sudoers, means the skill reaches outside the directory it was given — either because it enumerates the host, or because a caller-supplied filename is joined onto a base path with nothing stopping `../`. Resolve the path and check that it stays under the intended root (`os.path.realpath` plus a prefix check, or `basename` when only a name is needed), and drop the system-file read unless the skill's job is host inventory.",
+      "references": [
+        "CWE-22",
+        "CWE-23",
+        "MITRE T1083"
+      ],
+      "tags": [
+        "skill",
+        "path-traversal",
+        "workspace-escape"
+      ]
+    },
+    {
+      "id": "SKILL-014",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)f[\\\"']\\s*(SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM|REPLACE\\s+INTO)\\b[^\\\"']{0,200}(=|<|>|<>|!=|\\bLIKE\\b)\\s*['\\\"%]{0,3}\\{",
+      "description": "SQL statement compares a column against an interpolated expression — injection risk",
+      "remediation": "Pass the value as a parameter instead of formatting it into the statement: `cursor.execute(\"SELECT * FROM t WHERE id = ?\", (user_id,))`, or the driver's named-parameter form. An f-string is substituted before the database ever sees the query, so a value containing a quote changes what the statement does — which is how a skill that claims to run parameterised queries ends up returning or deleting rows the caller chose. This rule fires only where the interpolation sits on the value side of a comparison (`= {x}`, `LIKE '%{x}%'`), which is where user input goes; interpolating a table or column name is a different problem and needs a fixed allow-list rather than a placeholder.",
+      "references": [
+        "CWE-89",
+        "OWASP A03:2021"
+      ],
+      "tags": [
+        "skill",
+        "sql-injection",
+        "injection"
+      ]
+    },
+    {
+      "id": "SKILL-015",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(?i)(subprocess|os\\.system|execSync|spawnSync|child_process|popen)[^\\n]{0,80}\\b(pip3?|npm|yarn|pnpm|gem)\\b[^\\n]{0,20}\\binstall\\b|\\[\\s*sys\\.executable\\s*,\\s*[\"']-m[\"']\\s*,\\s*[\"']pip[\"']",
+      "description": "Skill installs packages at run time",
+      "remediation": "Read the package names it installs and resolve each one on the registry it will come from. A skill that shells out to `pip install` or `npm install` while it runs pulls code onto the machine outside the lockfile, the review and the scan the project's dependencies went through — and a misspelled or internal-sounding name (`reqeusts`, `<company>-utils`) is a typosquat or dependency-confusion package that resolves to whatever a stranger published. Declare the dependencies in the project's manifest at pinned versions and let the normal install path fetch them.",
+      "references": [
+        "MITRE T1195.001",
+        "CWE-829",
+        "OWASP A06:2021"
+      ],
+      "tags": [
+        "skill",
+        "dependency-confusion",
+        "supply-chain",
+        "runtime-install"
+      ]
+    },
+    {
+      "id": "SKILL-016",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)\\b(extract|extracts|extracting|steal|steals|dump|dumps|harvest|harvests|scrape|scrapes|grab|grabs|recover|recovers)\\b[^.\\n]{0,60}\\b(token|credential|password|cookie|session\\s+key)s?\\b[^.\\n]{0,80}\\b(from|out\\s+of)\\b[^.\\n]{0,60}\\b(desktop\\s+app|browser|leveldb|local\\s+storage|keychain|profile|app'?s?\\s+storage)\\b|\\b(leveldb|local\\s+storage|login\\s+data|cookies\\.sqlite)\\b[^.\\n]{0,60}\\b(token|credential|password|cookie)s?\\b",
+      "description": "Skill harvests credentials out of another application's local store",
+      "remediation": "Pulling a token out of a desktop app's LevelDB, a browser profile, `Login Data`, `cookies.sqlite` or the OS keychain takes a credential the user never handed over, and a session token lifted this way authenticates as the human, not as a bot — with no scope limit, no audit trail and, for most chat platforms, in breach of their terms. Use the platform's documented OAuth flow or a bot token the user creates and pastes deliberately, and treat any skill that advertises \"zero-config\" credential extraction as an infostealer.",
+      "references": [
+        "MITRE T1555.003",
+        "MITRE T1539",
+        "CWE-522"
+      ],
+      "tags": [
+        "skill",
+        "credential-theft",
+        "infostealer"
+      ]
+    },
+    {
+      "id": "SKILL-017",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)\\bcurl\\b[^\\n]{0,200}\\s(?-i:(-d|--data|--data-binary|--data-raw|-F|--form|-T|--upload-file))\\s+[\\\"']?[@$]|\\bcurl\\b[^\\n]{0,240}\\$\\(\\s*(cat|jq|base64|tar|zip|env|printenv|gh)\\b|\\b(cat|jq|env|printenv|tar|zip|base64)\\b[^\\n|]{0,80}\\|\\s*(curl|wget|nc|ncat|socat)\\b",
+      "description": "Local file or command output uploaded to a remote endpoint",
+      "remediation": "Identify the host in the URL and the exact bytes being sent — `--data-binary @file`, `-F file=@…`, `$(cat …)` or a `cat`/`env`/`tar` piped into `curl` all put local content into an outbound request body. Uploading a report to a service the user chose is ordinary; the same command pointed at an author-controlled domain, or carrying an environment dump, an archive of the working tree or a token, is exfiltration. Confirm the destination, send only the fields the service documents, and never interpolate whole files or `env` into a request.",
+      "references": [
+        "MITRE T1041",
+        "MITRE T1567",
+        "CWE-200"
+      ],
+      "tags": [
+        "skill",
+        "exfiltration",
+        "network"
+      ]
+    },
+    {
+      "id": "SKILL-018",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(\\$HOME|~|expanduser|homedir\\(\\))[^\\n]{0,40}/\\.[\\w-]+/(credentials?|auth|token|session)[\\w-]*\\.(json|yaml|yml|toml|ini|txt)\\b",
+      "description": "Reads a credential file from a hidden home directory",
+      "remediation": "Check whose credential file it is and where the value goes next. A tool reading its own `~/.<tool>/credentials.json` to authenticate its own API calls is ordinary; a skill reading another tool's credential file, or reading one and then putting the value into a request to a third host, is credential theft with an extra hop. Keep the read inside the tool that owns the file, request the narrowest scope the task needs, and never forward the token to an endpoint the user did not choose.",
+      "references": [
+        "MITRE T1552.001",
+        "CWE-522",
+        "CWE-538"
+      ],
+      "tags": [
+        "skill",
+        "credential-access",
+        "config-file"
+      ]
+    },
+    {
+      "id": "SKILL-019",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(attack|exploit|payload|injection|takeover|overwrite|backdoor)\\s+(was|is|has\\s+been)\\s+successful\\b|\\bif\\s+you\\s+(can\\s+)?(see|read|are\\s+reading)\\s+th(is|e)\\b[^\\n]{0,60}\\b(attack|exploit|compromis\\w*|pwn\\w*|owned|successful|succeeded|vulnerable)\\b|\\bsilent\\s+(skill|plugin|command|package|tool)\\s+(overwrite|replacement|hijack|takeover)\\b",
+      "description": "Skill announces a successful compromise or namespace takeover",
+      "remediation": "A file that tells its reader the attack worked — \"the attack was successful\", \"if you see this file …\", \"silent skill overwrite\" — is the marker a proof-of-concept or a real payload leaves behind to confirm it landed, and in a skill directory it usually means this skill was installed under a name that already belonged to something else. Compare the `name` in the front matter with the directory it sits in and with the skills already installed: whichever loaded last wins, so every later invocation of the trusted name runs this text. Remove the colliding skill, reinstall the original from its own source, and prefer a host that namespaces skills by publisher.",
+      "references": [
+        "CWE-427",
+        "CWE-506",
+        "MITRE T1195",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "namespace-collision",
+        "impersonation",
+        "payload-marker"
+      ]
+    },
+    {
+      "id": "SKILL-020",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)\\byes\\s*\\|\\s*(cp|rm|mv|apt|apt-get|npm|pip3?|gem|yum|dnf)\\b",
+      "description": "Confirmation prompt auto-answered with `yes |`",
+      "remediation": "`yes |` answers every prompt the command would have asked, so an overwrite, a delete or a package removal that would normally stop and ask goes through unseen — and it hides exactly the case the prompt exists for. Use the tool's explicit flag when the intent is genuinely non-interactive (`cp -f`, `apt-get -y`) so the reader can see which confirmations are being waived, and keep destructive operations out of the non-interactive path entirely.",
+      "references": [
+        "CWE-273",
+        "MITRE T1059"
+      ],
+      "tags": [
+        "skill",
+        "confirmation-bypass",
+        "execution"
+      ]
+    },
+    {
+      "id": "SKILL-021",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)\\$\\(\\s*(cat|base64|tar|zip|gzip|xxd)\\s+[^)\\n]{0,100}(\\.(claude|codex|cursor|openclaw|aider)/|\\.ssh/|\\.aws/|\\.gnupg/|\\.env\\b|credential)",
+      "description": "Agent state or credential file read into a command substitution",
+      "remediation": "A `$(cat …)` over the agent's state directory, `~/.ssh`, `~/.aws`, `~/.gnupg`, a `.env` or anything named `credential` splices that content into the surrounding command — normally the body of an outbound request. The agent's own directories hold conversation and usage history, project paths and tokens, which is a profile of the user's work as much as a secret. Send only the specific fields a service needs, read them through the tool that owns them, and never interpolate a key file or a whole state file into a command line, where it also lands in shell history and process listings.",
+      "references": [
+        "MITRE T1552.001",
+        "MITRE T1041",
+        "CWE-200"
+      ],
+      "tags": [
+        "skill",
+        "credential-access",
+        "exfiltration",
+        "agent-state"
+      ]
+    },
+    {
+      "id": "SKILL-022",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(getenv|environ\\.get|env\\[|process\\.env\\.[A-Z_]+\\s*\\|\\|)[^\\n]{0,60}[\\\"'](?-i:(sk_live_|sk-[A-Za-z0-9]|pk_live_|ghp_|gho_|github_pat_|xox[baprs]-|AIza|glpat-|npm_))[A-Za-z0-9_\\-]{12,}[\\\"']",
+      "description": "Live credential shipped as the fallback for a missing environment variable",
+      "remediation": "Revoke and rotate the key: it is in the package, so it is already published to everyone who installed it. A default argument to `os.getenv` or a `process.env.X ||` fallback looks like a convenience, but it means the code authenticates with the author's own credential whenever the variable is unset — silently, and for every user. Fail loudly on a missing variable instead, and keep the real value in the host's secret store.",
+      "references": [
+        "CWE-798",
+        "CWE-1188",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "skill",
+        "hardcoded-secret",
+        "credentials"
+      ]
+    },
+    {
+      "id": "SKILL-023",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)(expanduser|homedir\\(\\)|Path\\.home\\(\\))[^\\n]{0,40}[\"']?~?/?\\.ssh\\b|[\"'](id_rsa|id_ed25519|id_ecdsa|id_dsa)[\"']",
+      "description": "SSH private-key directory or key filename referenced in code",
+      "remediation": "Follow what happens to the bytes: an expanded path to `~/.ssh`, or a quoted `id_rsa`/`id_ed25519`/`id_ecdsa`/`id_dsa`, is the shape of key enumeration, and the file the loop opens is an unencrypted private key that authenticates as the user everywhere it is trusted. An SSH client library given a key path the *user* configured is the legitimate case; a skill that builds the path itself and reads the file is not. If it also writes to a socket or an HTTP client, treat the keys as compromised and rotate them.",
+      "references": [
+        "MITRE T1552.004",
+        "CWE-522",
+        "CWE-538"
+      ],
+      "tags": [
+        "skill",
+        "credential-access",
+        "ssh-key"
+      ]
     }
   ],
   "provenance_rules": []

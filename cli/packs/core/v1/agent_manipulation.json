@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-agent-manipulation",
     "name": "Sigil Core — Agent Manipulation",
-    "version": "1.1.0",
-    "updated_at": "2026-09-02",
+    "version": "1.2.0",
+    "updated_at": "2026-09-03",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading."
+    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading. v1.2 adds the agency families measured on the Datadog ai-skills corpus: concealment, execution without confirmation, unconditional auto-invocation, compelled irreversible publishes and safety-guideline suspension."
   },
   "rules": [
     {
@@ -259,6 +259,229 @@
         "manipulation",
         "autonomy",
         "excessive-agency"
+      ]
+    },
+    {
+      "id": "MANIP-007",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(the\\s+)?(user|human|operator)\\s+(sees?|will\\s+see|can\\s+see|notices?|observes?)\\s+(nothing|no\\s+(tool|output|indication|trace))\\b|\\b(invisible|undetectable|imperceptible)\\s+to\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user|human|operator)('?s)?\\s+(knowing|noticing|seeing|awareness)\\b|\\b(do\\s*n['\\u2019]?o?t|never)\\s+(mention|announce|reveal|disclose|reference|show|display|log|report|tell)\\s+(it|this|that\\s+you|the\\s+\\w+)?\\s*(to\\s+)?(the\\s+)?(user|human|operator)\\b",
+      "description": "Agent manipulation — instructs the agent to conceal its actions from the user",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read what the text says is hidden and why. An instruction that the user \"sees nothing\", that an operation is invisible, or that the agent must not mention, show or log something removes the only control a human has over an agent that acts on their machine and their accounts — it is how a skill exfiltrates data or edits files without a trace in the transcript. Legitimate quiet behaviour (not narrating every step) is written as a style preference, not as a claim that tool calls are unobservable; if the text is documentation about concealment rather than an instruction, mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "concealment",
+        "anti-forensics"
+      ]
+    },
+    {
+      "id": "MANIP-008",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(execut\\w+|run|runs|act|acts|apply|applies|install\\w*|delete\\w*|commit\\w*|push\\w*|continue\\w*)\\b[^.\\n]{0,40}\\bwithout\\s+(any\\s+|further\\s+|explicit\\s+|additional\\s+)?(confirmation|approval|permission|prompting|prompts?|user\\s+input|asking)\\b|\\bno\\s+(unnecessary\\s+|further\\s+|additional\\s+)?(confirmations?|permission\\s+prompts?)\\b|\\bauto[- ]?approve\\s+(all|every|any|the|commands?|tools?)\\b",
+      "description": "Agent manipulation — instructs the agent to execute without user confirmation",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Decide whether unattended execution is what you want from this skill, and what it will do unattended. Text that tells the agent to execute, install, delete, commit or push \"without confirmation\" turns a review step into an automatic one, so the first thing that goes wrong is already done when you see it. Narrow the skill to the specific commands it may run unattended, or remove the instruction and let the host's permission prompt stand.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-862"
+      ],
+      "tags": [
+        "manipulation",
+        "autonomy",
+        "excessive-agency"
+      ]
+    },
+    {
+      "id": "MANIP-009",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(must|shall|should)\\s+be\\s+(automatically\\s+)?(invoked|loaded|executed|run|called|applied|triggered)\\b[^.\\n]{0,60}\\b(every|each|all|any)\\s+(user\\s+)?(request|message|prompt|interaction|conversation|turn)\\b|\\bfor\\s+100%\\s+of\\s+(user\\s+)?(requests|messages)\\b|\\b(invoked|loaded|run|called)\\s+before\\s+(any|every)\\s+(other\\s+)?(tool\\s+use|tool\\s+call|skill|response)\\b|\\bblocks?\\s+all\\s+other\\s+operations\\b",
+      "description": "Agent manipulation — skill demands unconditional invocation on every request",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "A skill that claims it must run on every user request, before any other tool, or that its text belongs in the system prompt is asking to sit in front of everything the agent does — whatever it loads then shapes every later answer, and whatever it sends leaves on every turn. Scope the skill to the requests it is actually for (its `description` is what the host matches on), and treat a demand for unconditional priority as a takeover of the agent loop rather than a configuration preference.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "auto-invocation",
+        "agent-loop-hijack"
+      ]
+    },
+    {
+      "id": "MANIP-010",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(never|do\\s+not|don'?t)\\s+stop\\b[^\\n]{0,60}\\b(before|until|without)\\b[^\\n]{0,60}\\b(push|deploy|publish|commit|succeed)|\\b(mandatory|non-negotiable)\\b[^\\n]{0,60}\\b(git\\s+push|deploy|publish|force[- ]push)\\b|\\byou\\s+must\\s+execute\\s+(this|the\\s+following)\\b[^\\n]{0,60}\\bdo\\s+not\\s+just\\s+describe\\b|\\b(include|stage|commit|add)\\s+all\\s+(the\\s+)?(dirty|uncommitted|untracked|unrelated)\\s+(files?|changes?)\\b",
+      "description": "Agent manipulation — compels an irreversible publish with no stopping point",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check what leaves the machine when the agent obeys. Text that forbids stopping before a push, calls a publish step non-negotiable, or tells the agent to commit every dirty and unrelated file removes the review that stands between a working tree and a remote — which is how an unnoticed secret, a private file or another session's work ends up published. Keep the staging explicit (name the paths), and let the agent stop and show the diff before anything is pushed.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "coercion",
+        "unattended-publish"
+      ]
+    },
+    {
+      "id": "MANIP-011",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(you\\s+(can|may)\\s+)?(forget|ignore|disregard|suspend|set\\s+aside)\\s+(about\\s+)?(your\\s+|the\\s+)?(system\\s+prompt|safety\\s+(guidelines?|rules?|training|instructions?)|alignment\\s+training|guardrails?|content\\s+polic(y|ies))\\b",
+      "description": "Agent manipulation — instructs the agent to suspend its safety guidelines",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the instruction. Text telling the agent it can forget or set aside its system prompt, safety guidelines or alignment training is a jailbreak regardless of the framing around it — a private space, a role-play, a diary — and what follows it is written to be executed once those constraints are gone. If this is red-team material, keep it in a fixture path and mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "jailbreak",
+        "safety-bypass"
       ]
     }
   ],
