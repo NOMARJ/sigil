@@ -160,6 +160,49 @@ impl SuppressionPredicates {
 }
 
 // ---------------------------------------------------------------------------
+// Evidence strength
+// ---------------------------------------------------------------------------
+
+/// How much a Critical finding from this rule is worth **on its own**.
+///
+/// A Critical severity says "this is what a compromised package looks like".
+/// Some patterns earn that alone — an `INSTALL-003` postinstall that pipes a
+/// download into a shell is not something a legitimate package does by
+/// accident. Others are Critical because of what they *usually* accompany: a
+/// PEM `PRIVATE KEY` armour header is Critical in a published tarball and
+/// completely ordinary in `tests/certs/`, and the regex cannot tell the two
+/// apart from one line.
+///
+/// `Corroborate` marks the second kind. Such a rule still reports at Critical
+/// and still contributes its full weight to the score; it just cannot, by
+/// itself, drive the verdict to `CRITICAL RISK` — see
+/// [`crate::scanner::scoring::determine_verdict`], which needs either one
+/// `Standalone` Critical or two `Corroborate` Criticals from *different*
+/// rules.
+///
+/// Absent from a rule means [`Evidence::Standalone`], so every existing pack
+/// keeps its behaviour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Evidence {
+    /// This rule's Critical finding gates the verdict on its own.
+    #[default]
+    Standalone,
+    /// This rule's Critical finding needs a second, different Critical rule
+    /// before the verdict may be `CRITICAL RISK`.
+    Corroborate,
+}
+
+impl Evidence {
+    /// True for the default, so serialization can skip the common case and
+    /// keep the finding JSON byte-identical for every rule that does not set
+    /// the field.
+    pub fn is_standalone(&self) -> bool {
+        matches!(self, Evidence::Standalone)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Rule entry
 // ---------------------------------------------------------------------------
 
@@ -196,6 +239,13 @@ pub struct PackRule {
     /// Optional suppression predicates.
     #[serde(default)]
     pub suppress: SuppressionPredicates,
+
+    /// Whether a Critical finding from this rule gates the `CRITICAL RISK`
+    /// verdict on its own. See [`Evidence`]. Defaults to
+    /// [`Evidence::Standalone`]; only meaningful for `severity: "critical"`
+    /// rules, and carried onto every finding the rule produces.
+    #[serde(default, skip_serializing_if = "Evidence::is_standalone")]
+    pub evidence: Evidence,
 
     /// What to change or verify when this rule fires. Declarative text only;
     /// surfaced next to the finding in JSON, SARIF (`help`) and HTML output.

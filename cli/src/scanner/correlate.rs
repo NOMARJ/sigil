@@ -166,6 +166,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: sink.locator.clone(),
+                    evidence: Default::default(),
                 });
             }
         }
@@ -250,6 +251,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 

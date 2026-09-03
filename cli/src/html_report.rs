@@ -328,6 +328,7 @@ mod tests {
             epss: 0.0,
             fingerprint: "deadbeef".to_string(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 

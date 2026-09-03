@@ -38,6 +38,14 @@ moved or was renamed.
   `scripts/run_eval.py` and `sigil explain` locate it. Any future top-level key must keep
   sorting after `findings`.
 - Each finding may carry `title`, `remediation`, `references`, `tags` and `behavior`.
+- A finding may carry `evidence` (`"corroborate"`), from the rule field of the same
+  name. It is emitted **only** when it is not the default `standalone`, so a finding
+  from a rule that says nothing about evidence serializes exactly as before and a
+  cached or baseline document written without the key still deserializes. It changes
+  no existing key and it does not change `severity`: a corroborating Critical is still
+  reported as Critical and still fails `--fail-on critical`. What it changes is
+  `summary.verdict`, which reaches `CRITICAL RISK` only on a standalone Critical or on
+  Critical findings from two different corroborating rules.
 - SARIF: rules carry `fullDescription`, `help` and `properties.tags`; suppressed findings
   are emitted with `suppressions` (`kind: inSource`) rather than dropped.
 - `sigil residue` documents are a different kind and are not scan results: they carry

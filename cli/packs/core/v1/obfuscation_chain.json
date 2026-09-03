@@ -96,8 +96,8 @@
       "id": "OBFUSC-CHAIN-008",
       "phase": "obfuscation",
       "severity": "medium",
-      "pattern": "[\\u0300-\\u036F\\u1AB0-\\u1AFF\\u1DC0-\\u1DFF\\u20D0-\\u20FF\\uFE20-\\uFE2F]",
-      "description": "Invisible combining characters detected — potential payload hiding",
+      "pattern": "[A-Za-z0-9_][\\u0300-\\u036F\\u1AB0-\\u1AFF\\u1DC0-\\u1DFF\\u20D0-\\u20FF\\uFE20-\\uFE2F]",
+      "description": "Combining characters stacked on ASCII identifiers — potential payload hiding",
       "remediation": "Normalise the file to NFC or hex-dump the flagged line to see what the combining marks attach to. Decomposed accents in comments, docs or translation strings are ordinary text; marks stacked on identifiers or on ASCII code, or characters that are later stripped and decoded, are hiding data or forging look-alike names, so read the decoded result before installing.",
       "references": ["MITRE T1027"],
       "tags": ["obfuscation", "unicode", "combining-marks"]
@@ -152,8 +152,8 @@
       "id": "OBFUSC-CHAIN-012",
       "phase": "obfuscation",
       "severity": "medium",
-      "pattern": "\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}",
-      "description": "Multiple Unicode escape sequences — potential payload encoding",
+      "pattern": "(\\\\u00[0-7][0-9a-fA-F]){3,}",
+      "description": "Run of ASCII Unicode escapes — text hidden from a plain-text search",
       "remediation": "Unescape the sequence and see what text it spells. Escaped non-ASCII in JSON, localisation files, regex character classes and minified bundles is routine; a run of \\u escapes that spells plain ASCII — an identifier, 'eval', a URL or a shell command — was escaped only to avoid being seen and should be judged as the plain text it decodes to.",
       "references": ["MITRE T1027", "CAPEC-267"],
       "tags": ["obfuscation", "unicode-escape", "encoding"]

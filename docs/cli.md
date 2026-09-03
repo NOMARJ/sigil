@@ -475,16 +475,35 @@ Every audit command runs these eight phases. Each phase has a severity weight th
 
 ## Verdicts and Scoring
 
-The risk score is the sum of `(finding_count * phase_weight)` across all phases.
+The risk score is the sum of `(severity_score * phase_weight)` over the findings,
+with **at most three findings per (rule, file) pair** counted. Every finding is
+still reported and still counted in `summary.findings_count`; only its
+contribution to the score saturates. Without that cap, one Unicode conformance
+table that matches a single rule 1,680 times outscores a genuine backdoor, and
+the verdict measures file size rather than risk.
 
 | Score / Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
 | 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
 | 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention | Manual review of each finding |
 | 25+ | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
-| Any single Critical-severity finding | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+| Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
 
-CRITICAL is evidence-gated, not score-based: it requires at least one Critical-severity finding, and one such finding forces a CRITICAL verdict at any score.
+CRITICAL is evidence-gated, not score-based. It requires either:
+
+- one Critical finding from a rule whose evidence stands alone — an install hook
+  that pipes a download into a shell, say; or
+- Critical findings from **two different** rules that are individually
+  inconclusive. These rules carry `"evidence": "corroborate"` in the signature
+  pack: their pattern has a routine benign shape one line cannot exclude, such as
+  a PEM `PRIVATE KEY` armour header, which is a compromise in a published
+  tarball and a fixture in `tests/certs/`. Two hits of the *same* corroborating
+  rule are one observation repeated, and do not gate.
+
+A corroborating Critical is still reported as Critical, still contributes its full
+weight to the score, and still fails `--fail-on critical`; findings that do not gate
+simply leave the verdict to the score thresholds. In `--format json` such a finding
+carries `"evidence": "corroborate"`; the key is absent on everything else.
 
 ---
 

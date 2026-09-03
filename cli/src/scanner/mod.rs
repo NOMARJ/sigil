@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+pub use crate::corpus::schema::Evidence;
+
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
@@ -190,6 +192,17 @@ pub struct Finding {
     /// about which artifact the finding came from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locator: Option<String>,
+    /// Whether a Critical finding here gates `CRITICAL RISK` on its own, or
+    /// needs a second Critical rule to corroborate it. Copied from the rule
+    /// that produced the finding; see [`crate::corpus::schema::Evidence`] and
+    /// [`scoring::determine_verdict`].
+    ///
+    /// Serialized only when it is not the default, so a finding from a rule
+    /// that says nothing about evidence keeps exactly the JSON it had before
+    /// this field existed, and a cached result written without the key still
+    /// deserializes.
+    #[serde(default, skip_serializing_if = "Evidence::is_standalone")]
+    pub evidence: Evidence,
 }
 
 /// Detect a package that partly matches a published release.
@@ -275,6 +288,7 @@ fn detect_knowngood_drift(
                 epss: 0.0,
                 fingerprint: String::new(),
                 locator: Some(format!("{coordinate}|file://{expected}")),
+                evidence: Default::default(),
             });
         }
     }
@@ -868,6 +882,10 @@ pub fn run_scan(
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: None,
+                    // Irrelevant either way at Medium — only Critical findings
+                    // are gated — so it takes the default rather than making a
+                    // claim about evidence it does not carry.
+                    evidence: crate::corpus::schema::Evidence::default(),
                 });
             }
 
@@ -1526,6 +1544,7 @@ mod fingerprint_tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 

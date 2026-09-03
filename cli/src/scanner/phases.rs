@@ -45,6 +45,7 @@ fn make_finding(
         epss: 0.0,
         fingerprint: String::new(),
         locator: None,
+        evidence: Default::default(),
     }
 }
 

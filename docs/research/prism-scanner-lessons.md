@@ -409,4 +409,4 @@ reason.
 - [DataDog/malicious-software-packages-dataset](https://github.com/DataDog/malicious-software-packages-dataset) — evaluation samples, commit `0f6b305b`
 - [Official MCP registry](https://registry.modelcontextprotocol.io) and the `2025-12-11` server schema
 - [ADR-0005](../adr/ADR-0005-signed-declarative-signature-packs.md), [ADR-0008](../adr/ADR-0008-scanner-walker-normalization-context.md), [ADR-0010](../adr/ADR-0010-output-contract-sarif-exit-codes.md), [ADR-0011](../adr/ADR-0011-known-good-corpus.md)
-- `scripts/run_eval.py` — the measurement harness; `evaluation_results/honest_detection_eval.md` — the published baseline
+- `scripts/run_eval.py` — the recall harness; `scripts/rule_precision.py` — the per-rule clean-set precision table that says which rules cause the control-set false positives §8 puts first; `evaluation_results/honest_detection_eval.md` — the published baseline

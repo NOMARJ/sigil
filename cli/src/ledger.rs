@@ -477,6 +477,7 @@ pub fn detect_rugpull(current_dir: &Path, baseline: &LedgerRecord) -> Vec<Findin
         epss: 0.0,
         fingerprint: String::new(),
         locator: None,
+        evidence: Default::default(),
     }]
 }
 
@@ -499,6 +500,7 @@ mod knowngood_interaction_tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 
@@ -893,6 +895,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 

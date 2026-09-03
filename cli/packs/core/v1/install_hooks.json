@@ -15,11 +15,23 @@
       "pattern": "cmdclass",
       "description": "setup.py cmdclass override (code runs at install time)",
       "file_filter": {
-        "filename_exact": ["setup.py", "setup.cfg"]
+        "filename_exact": [
+          "setup.py",
+          "setup.cfg"
+        ]
       },
+      "evidence": "corroborate",
       "remediation": "cmdclass replaces a setuptools command with a class from the project's own setup code, and that class's run() executes on every install from source (sdist, git or editable), so read the class it maps. A build_ext or build_py override that compiles extensions or generates files is the normal use; an install, develop or egg_info override that opens sockets, downloads, decodes strings or spawns a shell is the classic PyPI install-time payload, and the package should be rejected.",
-      "references": ["MITRE T1195.001", "MITRE T1059.006"],
-      "tags": ["install-hook", "python", "setup-py", "cmdclass"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.006"
+      ],
+      "tags": [
+        "install-hook",
+        "python",
+        "setup-py",
+        "cmdclass"
+      ]
     },
     {
       "id": "INSTALL-002",
@@ -28,11 +40,21 @@
       "pattern": "(?i)(pre_install|post_install|install_scripts)",
       "description": "setup.py custom install hook",
       "file_filter": {
-        "filename_exact": ["setup.py", "setup.cfg"]
+        "filename_exact": [
+          "setup.py",
+          "setup.cfg"
+        ]
       },
       "remediation": "setuptools has no supported pre- or post-install hook, so a function or command class carrying one of these names is an ad-hoc hook that runs on every install from source (install_scripts is also the distutils command that places console scripts, which a cmdclass entry can override); find what is attached to the name. Writing a config file inside the install prefix or printing a notice is benign if unusual; anything that reaches the network, spawns a shell, edits shell startup files or writes outside the package's own prefix is an install-time payload and the package should be rejected.",
-      "references": ["MITRE T1195.001", "MITRE T1059.006"],
-      "tags": ["install-hook", "python", "setup-py"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.006"
+      ],
+      "tags": [
+        "install-hook",
+        "python",
+        "setup-py"
+      ]
     },
     {
       "id": "INSTALL-003",
@@ -41,24 +63,44 @@
       "pattern": "\"(preinstall|postinstall|preuninstall|postuninstall)\"",
       "description": "npm lifecycle script (runs automatically on install)",
       "file_filter": {
-        "filename_exact": ["package.json"]
+        "filename_exact": [
+          "package.json"
+        ]
       },
       "remediation": "npm runs preinstall and postinstall automatically, without prompting, on every npm install that pulls the package in (the uninstall variants run on removal), so read the command string rather than the key. node-gyp rebuild, prebuild-install, patch-package or a tsc build are the ordinary reasons; a node -e with an encoded or concatenated string, a curl | sh, or a script file that downloads and executes something from a non-registry host is the postinstall stealer shape — reject the package, or install with --ignore-scripts and vet the script by hand.",
-      "references": ["MITRE T1195.001", "MITRE T1059.007"],
-      "tags": ["install-hook", "npm", "package-json", "lifecycle-script"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.007"
+      ],
+      "tags": [
+        "install-hook",
+        "npm",
+        "package-json",
+        "lifecycle-script"
+      ]
     },
     {
       "id": "INSTALL-004",
       "phase": "install_hooks",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "\"(prepare|prepublish|prepublishOnly)\"",
       "description": "npm publish lifecycle script",
       "file_filter": {
-        "filename_exact": ["package.json"]
+        "filename_exact": [
+          "package.json"
+        ]
       },
       "remediation": "prepare runs on a bare npm install inside a cloned checkout and whenever the package is installed as a git dependency, and all three of these scripts run before npm publish, so they execute on contributor, CI and git-dependency installs rather than for consumers of the registry tarball. A husky install or a build step (tsc, npm run build) is the normal content; a script that downloads, decodes, or touches anything outside the project directory is a hook aimed at whoever clones the repository, so read the script it calls and reject the package if you cannot account for every command.",
-      "references": ["MITRE T1195.001", "MITRE T1059.007"],
-      "tags": ["install-hook", "npm", "package-json", "lifecycle-script"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.007"
+      ],
+      "tags": [
+        "install-hook",
+        "npm",
+        "package-json",
+        "lifecycle-script"
+      ]
     },
     {
       "id": "INSTALL-005",
@@ -67,15 +109,28 @@
       "pattern": "^install\\s*:",
       "description": "Makefile install target",
       "file_filter": {
-        "filename_exact": ["Makefile", "makefile"],
-        "filename_suffix": [".mk"]
+        "filename_exact": [
+          "Makefile",
+          "makefile"
+        ],
+        "filename_suffix": [
+          ".mk"
+        ]
       },
       "suppress": {
-        "line_contains": ["Install sigil to /usr/local/bin"]
+        "line_contains": [
+          "Install sigil to /usr/local/bin"
+        ]
       },
       "remediation": "A Makefile install target only runs when someone types make install or when it is a prerequisite of the default target, so read the recipe rather than the name. Copying built artifacts into a prefix with install or cp and setting permissions is what it is for; a recipe that fetches over the network, edits shell startup files or crontabs, touches ~/.ssh, or is listed under all so that a plain make runs it is using the target as an execution hook and should be rejected.",
-      "references": ["MITRE T1059.004"],
-      "tags": ["install-hook", "make", "shell"]
+      "references": [
+        "MITRE T1059.004"
+      ],
+      "tags": [
+        "install-hook",
+        "make",
+        "shell"
+      ]
     },
     {
       "id": "INSTALL-006",
@@ -84,14 +139,25 @@
       "pattern": "^\\.(PHONY|ONESHELL).*install",
       "description": "Makefile install phony target",
       "file_filter": {
-        "filename_exact": ["Makefile", "makefile"],
-        "filename_suffix": [".mk"]
+        "filename_exact": [
+          "Makefile",
+          "makefile"
+        ],
+        "filename_suffix": [
+          ".mk"
+        ]
       },
       "suppress": {
-        "line_contains": ["vscode-build vscode-dev mcp-build mcp-dev"]
+        "line_contains": [
+          "vscode-build vscode-dev mcp-build mcp-dev"
+        ]
       },
       "remediation": "Declaring install as .PHONY, or enabling .ONESHELL in a Makefile that has an install target, is ordinary Make hygiene and runs nothing by itself; this finding only points you at the install recipe. Read that recipe as you would any install target (copying files into a prefix is fine; network fetches, shell startup edits, cron or SSH changes are not), and give .ONESHELL a second look because it lets one recipe carry a multi-line heredoc or pipeline that a per-line shell would have split up.",
-      "tags": ["install-hook", "make", "phony"]
+      "tags": [
+        "install-hook",
+        "make",
+        "phony"
+      ]
     },
     {
       "id": "INSTALL-007",
@@ -100,24 +166,43 @@
       "pattern": "\\[tool\\.setuptools\\.cmdclass\\]",
       "description": "pyproject.toml cmdclass override",
       "file_filter": {
-        "filename_exact": ["pyproject.toml"]
+        "filename_exact": [
+          "pyproject.toml"
+        ]
       },
       "remediation": "[tool.setuptools.cmdclass] maps a setuptools command to a class inside the project that runs on every install from source, so open the module it names. Overriding build_ext or build_py to compile extensions or generate files is the legitimate use; an install, develop or egg_info override, or a hook module that imports socket, urllib, requests, subprocess or base64, is an install-time payload and the package should be rejected.",
-      "references": ["MITRE T1195.001", "MITRE T1059.006"],
-      "tags": ["install-hook", "python", "pyproject", "cmdclass"]
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.006"
+      ],
+      "tags": [
+        "install-hook",
+        "python",
+        "pyproject",
+        "cmdclass"
+      ]
     },
     {
       "id": "INSTALL-008",
       "phase": "install_hooks",
       "severity": "low",
-      "pattern": "build-backend\\s*=",
-      "description": "Custom build backend declared",
+      "pattern": "backend-path\\s*=",
+      "description": "In-tree build backend declared (backend-path)",
       "file_filter": {
-        "filename_exact": ["pyproject.toml"]
+        "filename_exact": [
+          "pyproject.toml"
+        ]
       },
-      "remediation": "Every PEP 517 project declares a build-backend, so this is informational unless the value is unfamiliar: setuptools.build_meta, hatchling.build, flit_core.buildapi, poetry.core.masonry.api, pdm.backend, maturin and scikit_build_core.build are the mainstream backends. A name you do not recognise, or a backend-path entry (an in-tree backend that pip imports and runs straight from the repository), means the repository's own code runs at build time — read that code before installing from source, and check that build-system requires lists only the backend and well-known build helpers such as wheel, cython or numpy.",
-      "references": ["MITRE T1195.001"],
-      "tags": ["install-hook", "python", "pyproject", "build-backend"]
+      "remediation": "`backend-path` points pip at a build backend inside the repository, so the project's own code is imported and run at build time — before any of its tests, and on the machine doing `pip install .`. Read that backend before installing from source, and check that `build-system.requires` lists only the backend and well-known helpers such as wheel, cython or numpy. Legitimate projects do this (pyyaml and charset-normalizer both ship in-tree backends), which is why this is informational rather than a warning.\n\nIt deliberately does not flag an unfamiliar backend *name*. Every PEP 517 project declares `build-backend`, so flagging the name required an allowlist of the mainstream backends, and that allowlist was matched against the whole source line — which let the file under audit write its own suppression, either as a substring (`build-backend = \"maturin_backdoor\"`) or in a trailing comment. A check a hostile file can switch off is worse than no check.",
+      "references": [
+        "MITRE T1195.001"
+      ],
+      "tags": [
+        "install-hook",
+        "python",
+        "pyproject",
+        "build-backend"
+      ]
     },
     {
       "id": "INSTALL-MCP-001",
@@ -126,12 +211,27 @@
       "pattern": "claude_desktop_config|mcp_config\\.json|\\.mcp\\.json",
       "description": "MCP configuration file detected",
       "file_filter": {
-        "filename_exact": ["claude_desktop_config.json", "mcp_config.json", ".mcp.json", "mcp.json"],
-        "filename_suffix": [".mcp.json", ".mcp.config.json"]
+        "filename_exact": [
+          "claude_desktop_config.json",
+          "mcp_config.json",
+          ".mcp.json",
+          "mcp.json"
+        ],
+        "filename_suffix": [
+          ".mcp.json",
+          ".mcp.config.json"
+        ]
       },
       "remediation": "A project-scoped MCP configuration tells the agent host which servers to launch, so every entry's command, args, url and env is code that will run with the user's privileges once the project is trusted. A repository that ships and documents its own server, launched from a checked-in path, is the legitimate case; an entry that runs npx -y on an unfamiliar package, a shell one-liner or a binary fetched at start-up, hands API keys to an unfamiliar server through env, or points at a remote url that would receive the agent's tool calls is an install hook for agents — remove it, or approve each server individually after reading what it does.",
-      "references": ["MITRE T1195.001", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["install-hook", "mcp", "config"]
+      "references": [
+        "MITRE T1195.001",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "install-hook",
+        "mcp",
+        "config"
+      ]
     },
     {
       "id": "INSTALL-MCP-002",
@@ -140,11 +240,23 @@
       "pattern": "mcpServers|mcp_servers",
       "description": "MCP server registry entry",
       "file_filter": {
-        "extensions": ["json", "yaml", "yml", "toml"]
+        "extensions": [
+          "json",
+          "yaml",
+          "yml",
+          "toml"
+        ]
       },
       "remediation": "An mcpServers block registers servers the agent host will start, so this low-severity finding marks where to look rather than giving a verdict: a project documenting how to add its own server, or a settings file the operator wrote, is normal. Read each server's command, args, url and env, reject entries that launch an unfamiliar package with npx -y, run a shell one-liner or a downloaded binary, hand API keys to an unknown server or point at a remote url, and treat any server added by a dependency rather than by the operator as untrusted.",
-      "references": ["MITRE T1195.001", "OWASP Agentic Top 10 — Tool Misuse"],
-      "tags": ["install-hook", "mcp", "config"]
+      "references": [
+        "MITRE T1195.001",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "install-hook",
+        "mcp",
+        "config"
+      ]
     }
   ],
   "provenance_rules": []

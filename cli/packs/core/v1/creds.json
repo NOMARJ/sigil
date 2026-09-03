@@ -102,7 +102,8 @@
       "severity": "critical",
       "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
       "description": "Embedded private key",
-      "remediation": "Remove the private key from the package and rotate it; it has been distributed.",
+      "evidence": "corroborate",
+      "remediation": "Remove the private key from the package and rotate it; it has been distributed. A PEM block in tests/certs, dummyserver fixtures or a README example is the common benign shape — the key was generated for the test suite or is a documentation placeholder — so read the surrounding file before treating it as a compromise.",
       "references": [
         "CWE-321"
       ],
