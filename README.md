@@ -95,7 +95,7 @@ Each finding is weighted and scored. You get a clear verdict:
 | ------------------------------------- | ----------------- | --------------------------------------------------- |
 | 0–9                                   | **LOW RISK**      | No known malicious patterns detected                |
 | 10–24                                 | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
-| 25+                                   | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
+| HIGH gate ([details](docs/cli.md))    | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
 | Any single Critical-severity finding  | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
 
 CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.

@@ -485,9 +485,54 @@ the verdict measures file size rather than risk.
 | Score / Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
 | 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
-| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention | Manual review of each finding |
-| 25+ | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
+| 10+, below the HIGH gate | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
+| HIGH gate (see below) | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
 | Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+
+HIGH is not a score threshold. It was one — `score >= 25` — and a sum does not
+separate the two populations: measured over 844 malicious samples and 450 clean
+packages, the clean packages sit at median 70 and p75 295 against a malicious
+median of 148. A large clean package accumulates score by being large, which is
+why 16 of the 20 most-downloaded packages on npm and PyPI came back HIGH RISK.
+
+HIGH now asks three questions, and one "yes" is enough:
+
+- **first-party score >= 200** — enough weighted evidence in the code the package
+  actually ships. Findings under a package's own `tests/`, `docs/`, `examples/`,
+  a vendored tree, or a `.min.js`/`.map` build product still appear in the
+  report, but do not count toward this number. Markdown is deliberately
+  first-party: for an agent skill, `SKILL.md` *is* the payload.
+- **score >= 4 x files scanned** — concentration. A malicious package is usually
+  small and mostly payload; this is what catches it when the absolute score is
+  low because there is barely any code to score.
+- **an action behaviour, corroborated by a first-party score >= 50** — the
+  package runs at install time, ships an exfiltration endpoint, installs
+  persistence, or builds code at runtime, *and* there is other evidence in its
+  own code. Any one of those alone is ordinary: 111 of 450 clean packages
+  execute something at install time.
+
+```text
+Data Source: Datadog malicious-software-packages-dataset (fingerprint
+             587e09d2...) and clean control sets of 20 and 450 package
+             directories fetched from the live registries
+Sample Size: 844 malicious samples, 20 + 450 clean packages
+Limitations: The thresholds were selected on one half of each population and
+             the effect measured on the other half, which had no part in
+             choosing them; the numbers quoted here are from the full set.
+             "Popular" is a proxy for "clean" — those packages are widely
+             used, not audited.
+```
+
+Measured effect on the verdict, against the previous `score >= 25` gate:
+
+| | before | after |
+|---|---:|---:|
+| malicious samples at HIGH RISK or worse | 83.8% | **85.1%** |
+| the 20-package clean control set | 16 of 20 | **12 of 20** |
+| the 450-directory clean control set | 66.4% | **44.4%** |
+
+Detection is untouched: the recalibration changes which verdict a set of
+findings produces, not which findings are produced.
 
 CRITICAL is evidence-gated, not score-based. It requires either:
 
