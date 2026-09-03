@@ -538,6 +538,94 @@
         "credential-access",
         "ssh-key"
       ]
+    },
+    {
+      "id": "SKILL-024",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:download|fetch|grab)\\b[^\\n]{0,160}\\.(?:zip|exe|dmg|msi|pkg|appimage|deb|rpm)\\b[^\\n]{0,160}\\b(?:run|execute|launch)\\b",
+      "description": "Skill instructs the agent to download an executable artifact and run it",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "A skill that gates its function behind downloading an archive or installer from a web address and running it is describing a drive-by install, not a dependency. Real prerequisites are declared to a package manager (`pip install x`, `npm install x`) or to the host's own installer, where the artifact is named, versioned and checksummed. Check what the linked artifact is, who publishes it, and whether the skill works without it; a prerequisite that exists only in the instructions is the point of the attack.",
+      "references": [
+        "MITRE T1204.002",
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "CWE-494"
+      ],
+      "tags": [
+        "skill",
+        "drive-by-install",
+        "execution",
+        "supply-chain"
+      ]
+    },
+    {
+      "id": "SKILL-025",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(?:\\b(?:glot\\.io|pastebin\\.com|paste\\.ee|hastebin\\.com|dpaste\\.\\w+|termbin\\.com|0x0\\.st|transfer\\.sh|filebin\\.net|anonfiles\\.\\w+|gofile\\.io|controlc\\.com|rentry\\.co)\\b[^\\n]{0,200}?\\b(?:execute|run)\\b|\\b(?:execute|run)\\b[^\\n]{0,200}?\\b(?:glot\\.io|pastebin\\.com|paste\\.ee|hastebin\\.com|dpaste\\.\\w+|termbin\\.com|0x0\\.st|transfer\\.sh|filebin\\.net|anonfiles\\.\\w+|gofile\\.io|controlc\\.com|rentry\\.co)\\b)",
+      "description": "Skill sends the agent to a paste or file-drop host for a command to run",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The command to run is hosted on a paste or anonymous file-drop service, so it is mutable, unversioned and unattributable: whatever is served at that address when the agent looks is what runs. Legitimate setup instructions carry the command inline where a reader can see it, or point at the project's own documented installer. Fetch the address yourself and read what it currently serves before letting an agent follow it.",
+      "references": [
+        "MITRE T1105",
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "CWE-494"
+      ],
+      "tags": [
+        "skill",
+        "drive-by-install",
+        "paste-site",
+        "execution"
+      ]
     }
   ],
   "provenance_rules": []

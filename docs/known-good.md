@@ -245,8 +245,11 @@ findings. Worst single case: `pypi-idna` fell from 1,913 findings to 0.
   those were already LOW). **None worsened.**
 - 138,532 findings moved into `suppressed_findings` with attribution rather than being
   discarded.
-- **No false drift.** `KNOWNGOOD-DRIFT-001` fired zero times across all 300 unmodified
-  packages.
+- **No false drift, on these versions.** `KNOWNGOOD-DRIFT-001` fired zero times across
+  all 300 unmodified packages. Read that narrowly: drift is unreachable by construction
+  on the exact releases the index was built from, because every file matches. The
+  adjacent case — a *different* version of an indexed package — is the one that matters,
+  and it is covered by the coordinate check described under Limits.
 - The 128 findings that remain, in 13 packages, are **entirely advisory-feed matches**
   (GHSA / PYSEC / RUSTSEC) derived from lockfiles and manifests. The corpus deliberately
   does not touch them: recognising a file as authentically published says nothing about
@@ -305,8 +308,21 @@ nothing in it hashes to anything in the index.
   change bytes without changing meaning, and those copies are not recognised. ADR-0011's
   tier 2 (normalised hashing with LSH) is specified and not built; the on-disk format
   already reserves a `normalized` field per file.
-- **One version per package.** The shipped index holds a single release per package. A
-  project on an older version gets no benefit from it.
+- **One version per package.** The index holds a single release per package, so a
+  project on any other version gets no suppression from it. It also gets no *drift*
+  finding: a release is only compared against the index when the tree says it is that
+  release, by name and version, in the manifest the ecosystem puts beside its files
+  (`package.json` for npm, `PKG-INFO` or `METADATA` for Python). That check is load
+  bearing rather than cosmetic. Anchoring on matching files alone is exactly what a
+  neighbouring version looks like — most of its files never changed — and without the
+  check, scanning the genuine, registry-signed `semver` 7.7.2 tarball against an index
+  built from 7.8.5 reported eleven of its files as a trojanised release and returned
+  CRITICAL RISK. With it, that scan is byte-for-byte identical to the same scan with no
+  index installed, while a copy of 7.8.5 with one line added to `index.js` still raises
+  `KNOWNGOOD-DRIFT-001` against 52 matching siblings.
+- **A tree with no manifest is never compared.** The coordinate check needs a manifest to
+  read, so an unpacked release stripped of its `package.json` is neither recognised nor
+  reported as drift.
 - **Coverage is the whole game.** 300 packages is a demonstration of the mechanism, not
   coverage of npm and PyPI. Populating a corpus at registry scale is separate
   infrastructure with its own storage and refresh cost (ADR-0011).

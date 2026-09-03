@@ -153,7 +153,14 @@ from lockfiles — correctly untouched, since authenticity is not the same claim
 **Drift — the detection that justified building this.** A copy of `npm:minimist@1.2.8`
 with one line changed in `package/index.js` raises `KNOWNGOOD-DRIFT-001` (Critical) and
 moves the package from HIGH RISK to CRITICAL RISK. Without the index that edit is
-invisible. Across the 300 unmodified packages the rule fired zero times.
+invisible. Across the 300 unmodified packages the rule fired zero times — which is only
+meaningful once read narrowly, because those are the releases the index was built from
+and drift is unreachable on them. Drift is therefore gated on the tree declaring the
+indexed coordinate in its own manifest: without that gate the genuine, registry-signed
+`semver` 7.7.2 tarball came back CRITICAL RISK with eleven files reported as a
+trojanised release, purely because it shares most of its bytes with the indexed 7.8.5.
+With the gate, a different version is indistinguishable from an unindexed scan, and a
+one-line edit to the indexed version still fires.
 
 **The corpus explains, it does not excuse.** On the 30 malicious samples, verdicts,
 finding counts and scores are identical with and without the index, and nothing was

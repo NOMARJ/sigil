@@ -216,6 +216,72 @@ pub struct Finding {
 ///
 /// Reported as Critical, because the whole point of the known-good corpus is
 /// that drift is a finding rather than a suppression.
+/// Does the tree rooted at `root` declare itself to be `coordinate`?
+///
+/// `coordinate` is `"<ecosystem>:<name>@<version>"`. The manifest an ecosystem
+/// puts beside its files is the only place a tree states its own identity, so
+/// that is what is read: `package.json` for npm, and `PKG-INFO` or `METADATA`
+/// for Python. A tree that ships no manifest cannot claim anything, and drift
+/// is not reported against it.
+fn tree_claims_release(strip_base: &Path, root: &str, coordinate: &str) -> bool {
+    let Some((ecosystem, rest)) = coordinate.split_once(':') else {
+        return false;
+    };
+    let Some((name, version)) = rest.rsplit_once('@') else {
+        return false;
+    };
+    let base = strip_base.join(root);
+
+    match ecosystem {
+        "npm" => {
+            let Ok(text) = std::fs::read_to_string(base.join("package.json")) else {
+                return false;
+            };
+            let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text) else {
+                return false;
+            };
+            doc.get("name").and_then(|v| v.as_str()) == Some(name)
+                && doc.get("version").and_then(|v| v.as_str()) == Some(version)
+        }
+        "pypi" => {
+            // sdists carry PKG-INFO at the root; wheels carry METADATA inside
+            // `<name>-<version>.dist-info/`.
+            let mut candidates = vec![base.join("PKG-INFO")];
+            if let Ok(entries) = std::fs::read_dir(&base) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_dir()
+                        && p.file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| n.ends_with(".dist-info") || n.ends_with(".egg-info"))
+                    {
+                        candidates.push(p.join("METADATA"));
+                        candidates.push(p.join("PKG-INFO"));
+                    }
+                }
+            }
+            candidates.iter().any(|path| {
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    return false;
+                };
+                let mut has_name = false;
+                let mut has_version = false;
+                for line in text.lines().take(64) {
+                    if let Some(v) = line.strip_prefix("Name: ") {
+                        // PyPI normalises `_`, `.` and `-` to the same name.
+                        let norm = |s: &str| s.trim().to_ascii_lowercase().replace(['_', '.'], "-");
+                        has_name = norm(v) == norm(name);
+                    } else if let Some(v) = line.strip_prefix("Version: ") {
+                        has_version = v.trim() == version;
+                    }
+                }
+                has_name && has_version
+            })
+        }
+        _ => false,
+    }
+}
+
 fn detect_knowngood_drift(
     files: &[PathBuf],
     strip_base: &Path,
@@ -257,6 +323,19 @@ fn detect_knowngood_drift(
         // Require more than one anchor: a single coincidental match (an empty
         // file, a common LICENSE) is not evidence that a tree is that release.
         if *anchors < 2 {
+            continue;
+        }
+
+        // And require the tree to say it *is* this release. Anchors alone only
+        // establish that some files are byte-identical to it, which is exactly
+        // what a neighbouring version of the same package looks like: most of
+        // its files never changed. Without this check, installing an index and
+        // scanning any other version of an indexed package reports every file
+        // that legitimately changed between the two as a trojanised release —
+        // measured on the genuine, registry-signed semver 7.7.2 tarball, which
+        // produced eleven Critical findings against an index built from a
+        // different 7.x.
+        if !tree_claims_release(strip_base, root, coordinate) {
             continue;
         }
 
@@ -1461,6 +1540,82 @@ mod budget_tests {
             "an explicit 0 must disable the budget"
         );
         std::env::remove_var(budget::BUDGET_ENV);
+    }
+}
+
+#[cfg(test)]
+mod knowngood_coordinate_tests {
+    use super::*;
+    use std::fs;
+
+    fn npm_tree(dir: &Path, name: &str, version: &str) {
+        fs::create_dir_all(dir.join("package")).unwrap();
+        fs::write(
+            dir.join("package/package.json"),
+            format!("{{\n  \"name\": \"{name}\",\n  \"version\": \"{version}\"\n}}\n"),
+        )
+        .unwrap();
+    }
+
+    /// Matching files alone do not make a tree a release. A neighbouring
+    /// version of the same package shares most of its bytes, so anchoring on
+    /// that shared majority reported every file that legitimately changed as a
+    /// trojanised release.
+    #[test]
+    fn drift_needs_the_tree_to_claim_the_indexed_coordinate() {
+        let dir = tempfile::tempdir().unwrap();
+        npm_tree(dir.path(), "semver", "7.7.2");
+
+        assert!(
+            tree_claims_release(dir.path(), "package/", "npm:semver@7.7.2"),
+            "the version it declares"
+        );
+        assert!(
+            !tree_claims_release(dir.path(), "package/", "npm:semver@7.8.5"),
+            "a different version of the same package"
+        );
+        assert!(
+            !tree_claims_release(dir.path(), "package/", "npm:semverish@7.7.2"),
+            "a different package at the same version"
+        );
+    }
+
+    /// A tree that ships no manifest states no identity, so nothing is
+    /// compared against it in either direction.
+    #[test]
+    fn a_tree_without_a_manifest_claims_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("package")).unwrap();
+        fs::write(dir.path().join("package/index.js"), "module.exports = 1;\n").unwrap();
+        assert!(!tree_claims_release(
+            dir.path(),
+            "package/",
+            "npm:semver@7.7.2"
+        ));
+    }
+
+    /// PyPI normalises `_`, `.` and `-` in distribution names, so a PKG-INFO
+    /// that spells the name differently is still the same release.
+    #[test]
+    fn pypi_metadata_name_is_compared_normalised() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("pkg");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("PKG-INFO"),
+            "Metadata-Version: 2.1\nName: typing_extensions\nVersion: 4.12.2\n",
+        )
+        .unwrap();
+        assert!(tree_claims_release(
+            dir.path(),
+            "pkg/",
+            "pypi:typing-extensions@4.12.2"
+        ));
+        assert!(!tree_claims_release(
+            dir.path(),
+            "pkg/",
+            "pypi:typing-extensions@4.11.0"
+        ));
     }
 }
 
