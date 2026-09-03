@@ -62,11 +62,7 @@ impl LineShape {
 
     /// Mean line length, 0 for an empty file.
     pub fn mean_line(&self) -> usize {
-        if self.lines == 0 {
-            0
-        } else {
-            self.bytes / self.lines
-        }
+        self.bytes.checked_div(self.lines).unwrap_or(0)
     }
 
     /// Does this file look like tool output rather than something a person
