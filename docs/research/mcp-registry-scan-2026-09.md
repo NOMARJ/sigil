@@ -172,13 +172,45 @@ why this note leads with the behaviour counts and the §2 integrity check: those
 measurements of the registry. The verdict distribution is mostly a measurement of Sigil's
 own threshold.
 
-The same 90 packages are kept in quarantine so they can be re-scanned with a later binary
-and the two runs compared on identical inputs (`scripts/registry_scan.py --rescan`). When
-the precision work on this branch lands, that comparison — not a fresh sample — is what
-belongs here.
+### The same packages, after the precision work
 
-<!-- The post-change rescan table is added here once the final binary is measured. Do not
-     fill it in from a different sample: the point is that the inputs are identical. -->
+The packages were kept in quarantine and re-scanned with the branch binary, so both
+columns below are the same bytes judged by two versions of the same scanner. 89 of the 90
+are included: one quarantine directory did not survive to be re-scanned, and the 10
+unfetchable servers of §2 are excluded from both columns because there was never anything
+to scan.
+
+```
+Data Source: the identical quarantined packages from the run above, re-scanned with the
+             branch binary (all phases, --no-cache, isolated HOME)
+Sample Size: 89 servers, 3,826 files
+Limitations: same sample and same date as the run above, so this measures the change in
+             the scanner and nothing about the registry. One package's directory was lost
+             between runs; it is excluded from both columns rather than counted as clean.
+```
+
+| verdict | before | after |
+|---|---:|---:|
+| CRITICAL RISK | 27 | **17** |
+| HIGH RISK | 43 | 46 |
+| MEDIUM RISK | 2 | 9 |
+| LOW RISK | 17 | 17 |
+
+Fifteen verdicts moved. Ten of the CRITICAL verdicts were withdrawn by the evidence gate:
+a single Critical finding from a rule marked `corroborate` — an embedded key shape, a
+`setup.py cmdclass` — no longer speaks for a whole package on its own.
+
+One server got *worse*, and it was worth chasing: `@chronary/mcp` gained a High finding
+for writing into an agent's configuration directory. The line was
+`Edit \`.cursor/mcp.json\` (project-level) or \`~/.cursor/mcp.json\` (user-level):` — the
+package's own README, telling a human how to install it, which is what every MCP server's
+README says. That rule now stays out of README and INSTALL files, which took it from 25
+of these 89 servers to 2 while costing one detection across 204 malicious skill samples.
+Re-scanning the same sample is what surfaced it; a fresh sample would have hidden it in
+the noise.
+
+17 of 89 still comes back CRITICAL. That is better than 27 and still too high to publish
+per-server verdicts from, which is why this note does not.
 
 ---
 
