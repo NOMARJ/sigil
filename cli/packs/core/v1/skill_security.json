@@ -471,9 +471,9 @@
       "id": "SKILL-020",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?i)\\byes\\s*\\|\\s*(cp|rm|mv|apt|apt-get|npm|pip3?|gem|yum|dnf)\\b",
+      "pattern": "(?i)\\byes\\s*\\|\\s*(cp|rm|mv|install|tee)\\b",
       "description": "Confirmation prompt auto-answered with `yes |`",
-      "remediation": "`yes |` answers every prompt the command would have asked, so an overwrite, a delete or a package removal that would normally stop and ask goes through unseen — and it hides exactly the case the prompt exists for. Use the tool's explicit flag when the intent is genuinely non-interactive (`cp -f`, `apt-get -y`) so the reader can see which confirmations are being waived, and keep destructive operations out of the non-interactive path entirely.",
+      "remediation": "`yes |` answers every prompt the command would have asked, so an overwrite, a delete or a package removal that would normally stop and ask goes through unseen — and it hides exactly the case the prompt exists for. Use the tool's explicit flag when the intent is genuinely non-interactive (`cp -f`, `apt-get -y`) so the reader can see which confirmations are being waived, and keep destructive operations out of the non-interactive path entirely.\n\nPackage managers are not included. `yes | apt-get install` and `yes | npm cache clean` are ordinary CI idioms, and across 240 malicious samples not one used that form; the shape that matters is auto-answering a prompt that overwrites files, which is how a skill installs itself over an existing one.",
       "references": [
         "CWE-273",
         "MITRE T1059"

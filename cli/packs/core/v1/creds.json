@@ -542,14 +542,15 @@
       "severity": "critical",
       "pattern": "(~|\\$HOME|HOME\\b|USERPROFILE|expanduser|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(gnupg/(secring|private-keys|pubring)|config/gcloud/(credentials\\.db|access_tokens\\.db|application_default_credentials\\.json|legacy_credentials)|azure/(accessTokens\\.json|msal_token_cache|azureProfile\\.json)|git-credentials)|/etc/shadow\\b",
       "description": "Reads an OS or cloud credential store",
-      "remediation": "Nothing a package installs should read GPG keyrings, gcloud/Azure token caches, git credentials or /etc/shadow. Remove the access.",
+      "remediation": "Nothing a package installs should read GPG keyrings, gcloud/Azure token caches, git credentials or /etc/shadow. Remove the access.\n\nMarked as corroborating evidence: naming a credential path is what documentation, test fixtures and defensive code do. Across 450 clean packages this fired Critical on five, every one of them writing about the file rather than reading it — numpy's `malicious_files` test list, litellm's own prompt-injection ruleset, gcsfs and pygments documentation. It keeps its severity and its score; it no longer drives a CRITICAL RISK verdict without a second, different Critical signal.",
       "references": [
         "MITRE T1552.001",
         "MITRE T1555"
       ],
       "tags": [
         "credential-theft"
-      ]
+      ],
+      "evidence": "corroborate"
     },
     {
       "id": "CRED-031",
