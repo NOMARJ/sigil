@@ -774,7 +774,8 @@ enum KnownGoodAction {
     Status,
     /// Build an index by hashing a directory of published files
     Build {
-        /// Directory to hash (the unpacked release)
+        /// Directory to hash (the archive root: the parent of `package/` for
+        /// an npm tarball, of `<name>-<version>/` for a PyPI sdist)
         path: String,
         /// Ecosystem, e.g. npm or pypi
         #[arg(long, default_value = "npm")]
@@ -785,9 +786,42 @@ enum KnownGoodAction {
         /// Package version
         #[arg(long)]
         version: String,
+        /// Registry URL the archive was downloaded from (recorded so the
+        /// provenance of every hash is auditable)
+        #[arg(long)]
+        source_url: Option<String>,
+        /// SHA-256 of that archive, as the registry published it
+        #[arg(long)]
+        archive_sha256: Option<String>,
         /// Write the index here (default: stdout)
         #[arg(long)]
         out: Option<String>,
+    },
+    /// Merge per-release indexes into one index file
+    Merge {
+        /// Index files to merge
+        #[arg(required = true)]
+        inputs: Vec<String>,
+        /// Name of the merged corpus, e.g. top-packages-2026-09
+        #[arg(long)]
+        name: Option<String>,
+        /// Build date recorded in the index (supplied, not read from the
+        /// clock, so the same inputs always produce the same bytes)
+        #[arg(long)]
+        generated: Option<String>,
+        /// Write the merged index here (default: stdout)
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Install an index into ~/.sigil/known-good/
+    Install {
+        /// Index file to install
+        path: String,
+    },
+    /// Remove an installed index by file name
+    Remove {
+        /// File name inside ~/.sigil/known-good/, e.g. top-packages-2026-09.json
+        name: String,
     },
 }
 
@@ -806,13 +840,30 @@ fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| "~/.sigil/known-good/".to_string());
 
+            let installed = knowngood::list_installed();
+
             if format == "json" {
+                let indexes: Vec<serde_json::Value> = installed
+                    .iter()
+                    .map(|i| {
+                        serde_json::json!({
+                            "file": i.path.file_name().map(|n| n.to_string_lossy().to_string()),
+                            "bytes": i.bytes,
+                            "name": i.name,
+                            "generated": i.generated,
+                            "releases": i.stats.as_ref().map(|s| s.releases).ok(),
+                            "files": i.stats.as_ref().map(|s| s.files).ok(),
+                            "error": i.stats.as_ref().err(),
+                        })
+                    })
+                    .collect();
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&serde_json::json!({
                         "directory": dir,
                         "releases": kg.release_count(),
                         "files": kg.file_count(),
+                        "indexes": indexes,
                     }))
                     .unwrap_or_default()
                 );
@@ -827,6 +878,24 @@ fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
                 kg.release_count(),
                 kg.file_count()
             );
+            for i in &installed {
+                let file = i.path.file_name().unwrap_or_default().to_string_lossy();
+                match &i.stats {
+                    Ok(stats) => println!(
+                        "    {} — {} release(s), {} file(s), {} [{}]{}",
+                        file,
+                        stats.releases,
+                        stats.files,
+                        human_bytes(i.bytes),
+                        stats.ecosystems.join(", "),
+                        i.generated
+                            .as_ref()
+                            .map(|g| format!(" built {g}"))
+                            .unwrap_or_default(),
+                    ),
+                    Err(e) => println!("    {} — {} {}", file, "unusable:".bold().red(), e),
+                }
+            }
             if kg.is_empty() {
                 println!();
                 println!("  No index installed. Files are scanned and reported normally —");
@@ -844,10 +913,21 @@ fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
             ecosystem,
             name,
             version,
+            source_url,
+            archive_sha256,
             out,
         } => {
-            let index = match knowngood::build_index(Path::new(&path), &ecosystem, &name, &version)
-            {
+            let source = knowngood::ReleaseSource {
+                url: source_url,
+                archive_sha256,
+            };
+            let index = match knowngood::build_index(
+                Path::new(&path),
+                &ecosystem,
+                &name,
+                &version,
+                &source,
+            ) {
                 Ok(i) => i,
                 Err(e) => {
                     eprintln!("{} {}", "error:".bold().red(), e);
@@ -876,6 +956,122 @@ fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
             }
             EXIT_CLEAN
         }
+
+        KnownGoodAction::Merge {
+            inputs,
+            name,
+            generated,
+            out,
+        } => {
+            let mut indexes = Vec::with_capacity(inputs.len());
+            for input in &inputs {
+                let raw = match std::fs::read_to_string(input) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("{} {input}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                };
+                match serde_json::from_str::<knowngood::KnownGoodIndex>(&raw) {
+                    Ok(i) => indexes.push(i),
+                    Err(e) => {
+                        eprintln!(
+                            "{} {input}: not a known-good index: {e}",
+                            "error:".bold().red()
+                        );
+                        return EXIT_ERROR;
+                    }
+                }
+            }
+
+            let merged = match knowngood::merge_indexes(indexes, name, generated) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let stats = match merged.validate() {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("{} merged index is invalid: {e}", "error:".bold().red());
+                    return EXIT_ERROR;
+                }
+            };
+
+            // Compact, not pretty: an index of this size is data, not prose,
+            // and the pretty form is roughly three times the bytes.
+            let json = serde_json::to_string(&merged).unwrap_or_default();
+            match out {
+                Some(dest) => {
+                    if let Err(e) = std::fs::write(&dest, &json) {
+                        eprintln!("{} failed to write {dest}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                    eprintln!(
+                        "{} merged {} index file(s) -> {} release(s), {} file(s), {} -> {}",
+                        "sigil:".bold().green(),
+                        inputs.len(),
+                        stats.releases,
+                        stats.files,
+                        human_bytes(json.len() as u64),
+                        dest
+                    );
+                }
+                None => println!("{json}"),
+            }
+            EXIT_CLEAN
+        }
+
+        KnownGoodAction::Install { path } => match knowngood::install_index(Path::new(&path)) {
+            Ok((dest, stats)) => {
+                println!();
+                println!("  {} installed known-good index", "sigil".bold().cyan());
+                println!("  {}", dest.display());
+                println!(
+                    "  {} release(s), {} file(s) [{}]",
+                    stats.releases,
+                    stats.files,
+                    stats.ecosystems.join(", ")
+                );
+                println!();
+                println!("  Matching files are moved to suppressed_findings with attribution,");
+                println!("  never dropped; a modified sibling raises KNOWNGOOD-DRIFT-001.");
+                println!();
+                EXIT_CLEAN
+            }
+            Err(e) => {
+                eprintln!("{} {}", "error:".bold().red(), e);
+                EXIT_ERROR
+            }
+        },
+
+        KnownGoodAction::Remove { name } => match knowngood::remove_index(&name) {
+            Ok(path) => {
+                eprintln!("{} removed {}", "sigil:".bold().green(), path.display());
+                EXIT_CLEAN
+            }
+            Err(e) => {
+                eprintln!("{} {}", "error:".bold().red(), e);
+                EXIT_ERROR
+            }
+        },
+    }
+}
+
+/// Bytes as a short human-readable size.
+fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
     }
 }
 
