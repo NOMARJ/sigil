@@ -42,6 +42,90 @@ set before it was kept; the numbers are in the note.
 - Issue templates (bug, false positive, false negative, new rule, threat report), pull request template, code of conduct, and a CONTRIBUTING rewrite with the rule-authoring guide
 - English and Chinese trigger phrases in the skill descriptions; `sigil-skill/skill.json`
 
+### 🎯 Precision
+
+The verdict is what a CI gate reads, and it fired on `requests` and `urllib3`. These
+changes are about that; each was measured on the clean control set and the malicious set
+before it was kept, and the numbers below are from those runs.
+
+- **Evidence-gated CRITICAL.** New optional rule field `evidence: standalone | corroborate`
+  (default `standalone`, additive per ADR-0010). A CRITICAL RISK verdict now needs a
+  standalone Critical finding, or two corroborating Criticals from different rules. Marked
+  corroborating: `CRED-006` (an embedded private key), `INSTALL-001` (`setup.py cmdclass`),
+  `CRED-030` (a credential path named near a home directory) — each one a shape that
+  documentation, test fixtures and defensive code produce as readily as malware. Clean
+  control packages returning CRITICAL: 6 of 20 → **0 of 20**
+- **Score saturation.** At most three findings per `(rule, file)` pair contribute to the
+  score; every finding is still reported. One conformance table in `idna` matched a single
+  rule 1,680 times, which was 16,800 of the 19,140 points that made the package HIGH RISK
+- **`TYPOSQUAT-001` judges the dependency a manifest actually declares.**
+  `[project.optional-dependencies]` and `[dependency-groups]` were read as `name = version`
+  tables, so a group name became a package (`xml = ['lxml>=5.3.0']` declared "xml") and
+  each list item was split on the `=` inside its version specifier, reporting `pytest>` as
+  a typosquat of `pytest`. Environment markers supplied stray quotes (`'PyPy'`), and npm
+  aliases (`"prettier-2": "npm:prettier@^2"`) were judged by the local label rather than
+  the aliased package. On the 300-package clean control set: 82 findings across 35
+  packages → **0**
+- **`SKILL-003` no longer fires on a manifest that names an interpreter.**
+  `"command": "node"` with the script in `args` is how every MCP server is declared,
+  including the one this repository ships; a hello-world MCPB manifest was Critical. It now
+  requires the value to hand over execution — a shell, inline code (`-c`, `-e`), a pipe or
+  chain, or a URL
+- **`INSTALL-008` detects `backend-path`** — an in-tree build backend, the shape that runs
+  repository code at build time — instead of allowlisting backend names on the matched
+  line, which let the audited file silence the rule with a substring or a comment
+- **`PROMPT-014` stays out of README and INSTALL files.** `Edit \`.cursor/mcp.json\`` is
+  how an MCP server documents its own installation: 25 of 89 real registry packages hit it,
+  against 8 of 204 malicious skill samples
+- **`SKILL-013` (traversal string) and `SKILL-023` (SSH key name) are Medium.** Across 450
+  clean packages they fired on 21, every hit the vocabulary of the domain — paramiko's own
+  docs, `"../../../etc/passwd"` inside the test that rejects it
+- Typosquat allowlist entries must name a published package. Removed `jquery3`, `eslint4`,
+  `reduxs`, `vue3`, `pillow2`, `toml2`, `cffi2` — an entry for a name nobody has published
+  pre-authorises whoever registers it next. Added the near-names measured against the clean
+  control set: `pathe`, `upath`, `tsd`, `http-proxy-3`, `eclint`, `fake`, `authlib`,
+  `psycopg`, `psycopg-binary`, `tomli-w`
+- `scripts/rule_precision.py` — the per-rule clean-set precision table, on demand
+
+### ⚡ Performance
+
+- **Two-tier rule matching.** `RegexSet::matches` has to run the NFA simulation to report
+  *which* patterns matched, and it ran once per line. Each rule is now searched once
+  against the whole file, and only the survivors walk the lines. The 268-sample evaluation
+  subset went from 1,040 s to 117 s of scanner time on an unloaded box — **8.9×** — with
+  findings identical position-for-position, fingerprints included
+- **Per-file scan budget** (`SIGIL_FILE_BUDGET_SECS`, default 30 s) so one pathological
+  file cannot hold a scan hostage. Truncation is reported as a Medium finding whatever
+  `--phases` selects: a scan that analysed nothing must not read as a scan that found
+  nothing
+- `SIGIL_TIMING=1` prints per-phase and slowest-file timings to stderr
+
+### 🔍 Skills
+
+- 27 rules for the behaviours the missed samples actually use: weakening access control,
+  injecting an override into an auth file, exfiltrating project context to a fixed
+  recipient, acting without user confirmation, persisting instructions into agent config
+  directories, harvesting application credentials, and — `SKILL-024`/`SKILL-025` — the
+  fake-prerequisite install ("download this zip and run the executable", "visit this
+  glot.io snippet and execute the command in Terminal"), which no rule covered and which
+  0 of 18,554 legitimate files match
+- ai-skills bucket on the 268-sample harness, at ≥ High: **48.3% → 90.0%**
+
+### 📦 Distribution
+
+- `.github/workflows/publish-pypi.yml` — PyPI trusted publishing for `sigilsec`, on a
+  release tag, no token and no secret. It refuses to publish unless that tag already has a
+  published release with assets, since the wrapper's whole job is to download one
+- `scripts/check_versions.py` and `make check-versions`: the Cargo, wrapper and plugin
+  versions cannot drift apart silently
+- `sigil known-good build | merge | install | remove | status`, `scripts/build_known_good.py`,
+  and a manifest of the 300-package index (coordinates, sizes, hashes) so it can be rebuilt
+  and verified rather than vendored. Drift is only reported when the scanned tree declares
+  the indexed coordinate in its own manifest — without that check, the genuine
+  registry-signed `semver` 7.7.2 tarball came back CRITICAL RISK against an index built
+  from 7.8.5
+- `make benchmark`, `evaluation_results/HISTORY.md`, `docs/RELEASING.md`, `docs/benchmarks.md`
+
 ### 🐛 Fixed
 - MCP server scan tools printed `undefined` for verdict and score: they read the top level while the JSON contract puts the scalars under `summary`
 - `NET-015` matched URL *paths* that end in an abused TLD (`/assets/file.download`)
@@ -50,6 +134,7 @@ set before it was kept; the numbers are in the note.
 
 ### 📝 Documentation
 - CLI reference: scan options, host residue, inline suppression, walker policy; ADR-0010 addendum listing the additive keys; research note on prism-scanner with measured comparisons
+- Research note on the MCP registry: 99 of 8,127 npm-packaged servers name a package that cannot be installed as listed, and every one of the 44 withdrawn names is unscoped — the kind anyone can claim once it is gone. `scripts/registry_integrity.py` and `scripts/registry_scan.py` reproduce both halves
 
 ## [1.3.6] - 2026-08-30
 

@@ -111,3 +111,65 @@ Implementation status at time of writing: tier 1, drift detection, the on-disk f
 `sigil known-good` (build an index from a local tree, inspect an installed one) are
 implemented. Tier 2's normalisation is specified here and not yet built; nothing in the
 format prevents adding it, as entries carry an optional normalised hash field.
+
+## Outcome
+
+The corpus is populated. `scripts/build_known_good.py` builds an index from a corpus
+manifest, `sigil known-good merge` combines per-release indexes into one file,
+`sigil known-good install` / `remove` manage `~/.sigil/known-good/`, and each release
+records the registry URL and archive SHA-256 its hashes were taken from, so the
+provenance of every hash in a trust input is auditable. Usage and rebuild instructions
+are in [docs/known-good.md](../known-good.md).
+
+The first index — `top-packages-2026-09`, the 300 top-download npm and PyPI releases,
+75,905 files, 11,243,329 bytes minified — is release payload, not source: what this
+repository holds is the index manifest at
+`cli/packs/known-good/v1/top-packages-2026-09.manifest.json` (digest, size, counts, the
+rebuild command, and per-release provenance) plus the builder that reproduces the index
+byte-for-byte.
+
+```
+Data Source:  Real runs of the release binary built for this change, --no-cache,
+              each target scanned twice (index installed / not installed). Clean
+              sets: 20 popular packages, and the 300 top-download packages the index
+              was built from. Malicious set: the first 30 npm samples of the Datadog
+              malicious-software-packages dataset (npm/malicious_intent).
+Sample Size:  300 clean packages, 20 clean packages, 30 malicious samples, 1 tampered
+              package.
+Limitations:  The index was built FROM the 300 packages it is measured on, so the
+              clean-set result demonstrates the mechanism, not generalisation to
+              unseen packages or versions. Single sequential run on a shared 4-CPU
+              machine; timings indicative.
+```
+
+**False positives — what the ADR was written to attack.** Across the 300 clean packages,
+findings fell from 138,660 to 128 (−99.9%) and 239 of 300 verdicts dropped (100/150 npm,
+139/150 PyPI, none worsened); on the 20-package control set, 2,910 findings fell to 0 and
+19 of 20 verdicts dropped. Every suppressed finding is in `suppressed_findings` with
+attribution. The 128 that survive are entirely OSV advisory matches (GHSA/PYSEC/RUSTSEC)
+from lockfiles — correctly untouched, since authenticity is not the same claim as
+"no known vulnerability".
+
+**Drift — the detection that justified building this.** A copy of `npm:minimist@1.2.8`
+with one line changed in `package/index.js` raises `KNOWNGOOD-DRIFT-001` (Critical) and
+moves the package from HIGH RISK to CRITICAL RISK. Without the index that edit is
+invisible. Across the 300 unmodified packages the rule fired zero times — which is only
+meaningful once read narrowly, because those are the releases the index was built from
+and drift is unreachable on them. Drift is therefore gated on the tree declaring the
+indexed coordinate in its own manifest: without that gate the genuine, registry-signed
+`semver` 7.7.2 tarball came back CRITICAL RISK with eleven files reported as a
+trojanised release, purely because it shares most of its bytes with the indexed 7.8.5.
+With the gate, a different version is indistinguishable from an unindexed scan, and a
+one-line edit to the indexed version still fires.
+
+**The corpus explains, it does not excuse.** On the 30 malicious samples, verdicts,
+finding counts and scores are identical with and without the index, and nothing was
+suppressed.
+
+**Cost.** Parsing an 11 MB index adds roughly 5% to scan wall time on the 300-package set
+(2.85 s → 3.00 s per package) and about 15% on the smaller 20-package set (1.10 s → 1.26 s
+per package), where the fixed load cost is a larger share of a shorter scan.
+
+Tier 2 (normalised hashing, LSH) remains unbuilt, so minified, bundled or transpiled
+copies are still not recognised. Registry-scale population remains separate
+infrastructure; 300 releases is a demonstration, not coverage.

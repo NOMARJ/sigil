@@ -592,6 +592,93 @@ mod tests {
         assert!(!f.matches("server.yaml"));
     }
 
+    /// `evidence` is optional and additive: a rule that omits it must parse
+    /// and mean `standalone`, or every pack written before the field existed
+    /// silently changes meaning.
+    #[test]
+    fn corpus_loader_evidence_defaults_to_standalone() {
+        use crate::corpus::schema::{Evidence, PackRule};
+        let without: PackRule = serde_json::from_value(serde_json::json!({
+            "id": "TEST-001",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test"
+        }))
+        .expect("rule without evidence parses");
+        assert_eq!(without.evidence, Evidence::Standalone);
+        assert!(without.evidence.is_standalone());
+    }
+
+    #[test]
+    fn corpus_loader_evidence_parses_both_values() {
+        use crate::corpus::schema::{Evidence, PackRule};
+        let mut doc = serde_json::json!({
+            "id": "TEST-002",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test",
+            "evidence": "corroborate"
+        });
+        let corroborate: PackRule =
+            serde_json::from_value(doc.clone()).expect("corroborate parses");
+        assert_eq!(corroborate.evidence, Evidence::Corroborate);
+        assert!(!corroborate.evidence.is_standalone());
+
+        doc["evidence"] = serde_json::json!("standalone");
+        let standalone: PackRule = serde_json::from_value(doc).expect("standalone parses");
+        assert_eq!(standalone.evidence, Evidence::Standalone);
+    }
+
+    /// An unknown value must be a loud parse error, not a silent downgrade to
+    /// the default: a typo'd `"corroborrate"` that quietly meant `standalone`
+    /// would re-arm the verdict the pack author was trying to disarm.
+    #[test]
+    fn corpus_loader_unknown_evidence_value_is_rejected() {
+        use crate::corpus::schema::PackRule;
+        let bad = serde_json::from_value::<PackRule>(serde_json::json!({
+            "id": "TEST-003",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test",
+            "evidence": "corroborrate"
+        }));
+        assert!(bad.is_err(), "a misspelled evidence value must not parse");
+    }
+
+    /// The shipped corpus must round-trip the field: whatever rules declare
+    /// `corroborate` today, they must still declare it after a load.
+    #[test]
+    fn corpus_loader_shipped_packs_carry_declared_evidence() {
+        use crate::corpus::schema::Evidence;
+        let packs = load_all_packs().expect("embedded packs load");
+        let corroborating: Vec<&str> = packs
+            .iter()
+            .flat_map(|p| p.rules.iter())
+            .filter(|r| r.evidence == Evidence::Corroborate)
+            .map(|r| r.id.as_str())
+            .collect();
+        assert!(
+            !corroborating.is_empty(),
+            "the shipped corpus is expected to mark at least one Critical rule \
+             as corroborating evidence"
+        );
+        for id in &corroborating {
+            let rule = packs
+                .iter()
+                .flat_map(|p| p.rules.iter())
+                .find(|r| r.id == *id)
+                .expect("rule found");
+            assert_eq!(
+                rule.severity.to_lowercase(),
+                "critical",
+                "{id}: evidence only means anything on a critical rule"
+            );
+        }
+    }
+
     #[test]
     fn corpus_loader_suppression_path_contains() {
         use crate::corpus::schema::SuppressionPredicates;

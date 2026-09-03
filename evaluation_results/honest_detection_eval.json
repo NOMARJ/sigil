@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-03T00:47:33.357661+00:00",
-  "binary": "/tmp/claude-0/-home-user-sigil/a564528b-cc52-54e2-877a-4ee2e50aa976/scratchpad/bin/sigil-final",
+  "generated_at": "2026-09-03T16:07:08.321581+00:00",
+  "binary": "release build of this branch (see notes)",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
   "dataset_commit": "unknown",
   "dataset_fingerprint": "587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b",
@@ -9,32 +9,32 @@
   "malicious_scan_errors": 0,
   "recall": {
     "any": {
-      "detected": 750,
+      "detected": 772,
       "scanned": 844,
-      "rate": 0.8886
+      "rate": 0.9147
     },
     "Medium": {
-      "detected": 744,
+      "detected": 764,
       "scanned": 844,
-      "rate": 0.8815
+      "rate": 0.9052
     },
     "High": {
-      "detected": 672,
+      "detected": 718,
       "scanned": 844,
-      "rate": 0.7962
+      "rate": 0.8507
     },
     "Critical": {
-      "detected": 540,
+      "detected": 553,
       "scanned": 844,
-      "rate": 0.6398
+      "rate": 0.6552
     }
   },
   "control_total": 20,
   "control_flagged": {
     "any": {
-      "flagged": 18,
+      "flagged": 17,
       "total": 20,
-      "fp_rate": 0.9
+      "fp_rate": 0.85
     },
     "Medium": {
       "flagged": 17,
@@ -42,9 +42,9 @@
       "fp_rate": 0.85
     },
     "High": {
-      "flagged": 15,
+      "flagged": 13,
       "total": 20,
-      "fp_rate": 0.75
+      "fp_rate": 0.65
     },
     "Critical": {
       "flagged": 5,
@@ -53,14 +53,16 @@
     }
   },
   "precision": {
-    "any": 0.9766,
-    "Medium": 0.9777,
-    "High": 0.9782,
-    "Critical": 0.9908
+    "any": 0.9785,
+    "Medium": 0.9782,
+    "High": 0.9822,
+    "Critical": 0.991
   },
   "notes": [
     "PRECISION IS IMBALANCE-DISTORTED: it was computed on 844 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.",
-    "HIGH FALSE-POSITIVE RATE: 85% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise."
+    "HIGH FALSE-POSITIVE RATE: 85% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.",
+    "BINARY: built from this branch's HEAD at measurement time; the scratch path it was run from is not recorded here because it is not reproducible for a reader.",
+    "CLEAN-SET 'Critical' COUNTS FINDINGS, NOT VERDICTS: 5 of 20 control packages still contain a Critical-severity finding, but 0 of 20 return a CRITICAL RISK verdict \u2014 CRED-006, CRED-030 and INSTALL-001 are marked as corroborating evidence, so one of them alone no longer gates the verdict. Measured separately with `sigil scan <pkg> --no-cache` on the same 20 packages."
   ],
   "ledger_warm": {}
 }

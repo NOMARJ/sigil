@@ -692,6 +692,7 @@ mod json_contract_tests {
             epss: 0.0,
             fingerprint: "abc".to_string(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 
@@ -768,6 +769,47 @@ mod json_contract_tests {
             doc["suppressed_findings"][0]["behavior"],
             "network_outbound"
         );
+    }
+
+    /// `evidence` is additive: absent for the default, present only when a
+    /// rule declared `corroborate`, and never displacing an existing key.
+    #[test]
+    fn evidence_key_is_additive_and_omitted_by_default() {
+        let doc = scan_result_document(&result());
+        let f = &doc["findings"][0];
+        assert!(
+            f.get("evidence").is_none(),
+            "a standalone finding must serialize exactly as before: {f}"
+        );
+
+        let mut with_evidence = result();
+        with_evidence.findings[0].evidence = crate::scanner::Evidence::Corroborate;
+        let doc = scan_result_document(&with_evidence);
+        let f = &doc["findings"][0];
+        assert_eq!(f["evidence"], "corroborate");
+        // Every pre-existing key is still there and unchanged.
+        for key in [
+            "rule",
+            "severity",
+            "file",
+            "line",
+            "snippet",
+            "weight",
+            "fingerprint",
+            "phase",
+        ] {
+            assert!(f.get(key).is_some(), "{key} disappeared: {f}");
+        }
+    }
+
+    /// A cached or baseline document written before the field existed must
+    /// still load, and mean `standalone`.
+    #[test]
+    fn a_finding_without_the_evidence_key_deserializes() {
+        let text = serde_json::to_string(&scan_result_document(&result())).unwrap();
+        assert!(!text.contains("evidence"));
+        let parsed = crate::diff::parse_baseline(&text).expect("parses");
+        assert!(parsed.findings[0].evidence.is_standalone());
     }
 
     /// The enriched document must still deserialize as a `ScanResult` so

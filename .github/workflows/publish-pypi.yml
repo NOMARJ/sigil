@@ -1,0 +1,166 @@
+name: Publish PyPI Package
+
+# Publish the `sigilsec` pip wrapper (python/) for an existing release tag.
+#
+# The wrapper carries no scanner logic: it downloads the GitHub release binary
+# named by its own __version__, verifies it against that release's
+# SHA256SUMS.txt, and execs it. So the tag MUST already have a published
+# release with assets before this runs — otherwise `pip install sigilsec==X`
+# installs a package that 404s on first use.
+#
+# Manual dispatch on purpose, mirroring publish-npm.yml: release.yml owns the
+# GitHub release and the binaries, and the wrapper is published once those
+# assets exist.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.3.6)"
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Publishes via PyPI Trusted Publishing (OIDC): no API token, no secret.
+# pypi.org > sigilsec > Manage > Publishing must name THIS workflow file
+# (owner NOMARJ, repo sigil, workflow publish-pypi.yml, no environment).
+# See docs/RELEASING.md for the one-time owner setup.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish sigilsec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve version and distribution name
+        id: meta
+        # The tag reaches the shell through the environment, never through
+        # ${{ }} interpolation into the script: an expression is substituted
+        # before bash parses the line, so a tag containing shell syntax would
+        # be executed rather than read.
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          # Read the distribution name from pyproject rather than hardcoding it:
+          # "sigil-cli" was already taken on PyPI, so the name is load-bearing
+          # and must stay in one place.
+          # Validate the shape once, here, so every later step can use these
+          # two values through ${{ }} without re-examining where they came from.
+          case "${VERSION}" in
+            *[!0-9.abrcpost-]*|"")
+              echo "::error::tag ${TAG} does not yield a plain version (got '${VERSION}')" >&2
+              exit 1 ;;
+          esac
+          DIST="$(python -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("python/pyproject.toml").read_text())["project"]["name"])')"
+          case "${DIST}" in
+            *[!0-9A-Za-z._-]*|"")
+              echo "::error::distribution name from pyproject is not a plain name: '${DIST}'" >&2
+              exit 1 ;;
+          esac
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "dist=${DIST}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${DIST} ${VERSION} from tag ${TAG}"
+
+      # The wrapper execs a binary from this tag's GitHub release, so the
+      # release and its assets must exist BEFORE the wrapper is published —
+      # otherwise `pip install sigilsec==X` installs something that 404s the
+      # first time it runs. The header states this precondition; this step is
+      # what enforces it.
+      - name: Require a published release with assets for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          API="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
+          BODY="$(curl -sS --fail-with-body --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" "$API")" || {
+              echo "::error::no published release found for tag ${TAG} — run release.yml first" >&2
+              exit 1
+            }
+          python - "$BODY" <<'PY'
+          import json, sys
+          rel = json.loads(sys.argv[1])
+          if rel.get("draft"):
+              sys.exit("::error::release for this tag is still a draft")
+          assets = [a["name"] for a in rel.get("assets", [])]
+          if not assets:
+              sys.exit("::error::release for this tag has no assets to download")
+          print(f"release {rel.get('tag_name')} has {len(assets)} asset(s): {', '.join(assets[:6])}")
+          PY
+
+      # Single source of truth for the alignment rule: the same check runs
+      # locally via `make check-versions`. It fails if cli/Cargo.toml,
+      # python/src/sigil_cli/__init__.py, python/pyproject.toml and the tag
+      # do not all agree.
+      - name: Check version alignment
+        run: python scripts/check_versions.py --expect "${{ steps.meta.outputs.version }}"
+
+      - name: Skip if this version is already on PyPI
+        id: pypi
+        run: |
+          set -euo pipefail
+          URL="https://pypi.org/pypi/${{ steps.meta.outputs.dist }}/${{ steps.meta.outputs.version }}/json"
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 2 "$URL")"
+          case "$CODE" in
+            200)
+              echo "${{ steps.meta.outputs.dist }} ${{ steps.meta.outputs.version }} is already on PyPI — nothing to do"
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unexpected HTTP $CODE from $URL — refusing to publish blind"
+              exit 1
+              ;;
+          esac
+
+      - name: Install build backend
+        if: steps.pypi.outputs.published != 'true'
+        run: python -m pip install --upgrade build
+
+      - name: Build sdist and wheel
+        if: steps.pypi.outputs.published != 'true'
+        working-directory: python
+        run: python -m build
+
+      - name: Verify the built artifacts carry the expected version
+        if: steps.pypi.outputs.published != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          matched=0
+          for artifact in python/dist/*; do
+            name="$(basename "$artifact")"
+            echo "built: $name"
+            case "$name" in
+              *-"${VERSION}"-*.whl|*-"${VERSION}".tar.gz) matched=$((matched + 1)) ;;
+              *) echo "::error::$name does not carry version ${VERSION}"; exit 1 ;;
+            esac
+          done
+          if [ "$matched" -lt 2 ]; then
+            echo "::error::expected an sdist and a wheel for ${VERSION}, found ${matched} artifact(s)"
+            exit 1
+          fi
+
+      - name: Publish to PyPI
+        if: steps.pypi.outputs.published != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist

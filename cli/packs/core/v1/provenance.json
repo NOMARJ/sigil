@@ -118,11 +118,11 @@
     },
     {
       "id": "HYGIENE-004",
-      "severity": "high",
+      "severity": "medium",
       "description": "Publish hygiene — private key or keystore file shipped in the package",
       "kind": "filename_regex",
       "pattern": "\\.(key|p12|pfx|keystore|jks|ppk)$|^id_(rsa|dsa|ecdsa|ed25519)$",
-      "remediation": "Private key material must never be distributed. Remove the file and rotate the key.",
+      "remediation": "Private key material must never be distributed. Remove the file and rotate the key. Test suites that generate their own certificates (tests/certs, dummyserver/certs) are the common benign case and the reason this is a hygiene signal rather than a compromise signal; the Credentials phase reports the PEM contents separately.",
       "references": [
         "CWE-321",
         "CWE-540"

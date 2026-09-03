@@ -192,6 +192,7 @@ pub fn scan_with_cloud_signatures(
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: None,
+                    evidence: Default::default(),
                 });
             }
         }

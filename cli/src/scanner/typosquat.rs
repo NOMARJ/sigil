@@ -311,27 +311,37 @@ const PYPI_TOP: &[&str] = &[
 
 /// Legitimate names that sit one edit from a top package and must not be
 /// flagged. Keep this list short and justified.
+///
+/// Every entry must name a package that is actually published and in real use,
+/// and say so. An entry for a name nobody has published is not "harmless
+/// symmetry": it pre-authorises that exact name, so whoever registers it later
+/// inherits a rule that has been told to stay quiet. Entries removed on those
+/// grounds (2026-09-03, each checked against the registry): npm `jquery3`,
+/// `eslint4` and PyPI `pillow2`, `toml2`, `cffi2` all returned 404, and npm
+/// `reduxs`, `vue3` had no published version.
 const ALLOWLIST: &[(&str, &str)] = &[
     // npm: genuine, widely used packages that happen to be near-names.
     ("npm", "requests"), // near `request`; scoped differently on PyPI
-    ("npm", "reduxs"),   // placeholder-safe: no such package, kept for symmetry (never matches)
-    ("npm", "vue3"),
-    ("npm", "jquery3"),
     ("npm", "nodemailer"),
     ("npm", "pg-native"),
     ("npm", "mysql2"),
     ("npm", "ioredis-mock"),
-    ("npm", "eslint4"),
+    // Near-names measured against a 150-package clean npm control set, where
+    // each was a dependency of a top-download package. Downloads are npm's own
+    // last-month counts on 2026-09-03.
+    ("npm", "pathe"),        // path utilities, ~575M/month, one edit from `path`
+    ("npm", "upath"),        // path utilities, ~85M/month, one edit from `path`
+    ("npm", "tsd"),          // type-definition tester, ~1.9M/month, one edit from `tsx`
+    ("npm", "http-proxy-3"), // maintained http-proxy fork, ~780K/month
+    ("npm", "eclint"),       // EditorConfig linter, ~103K/month, one edit from `eslint`
+    ("npm", "fake"),         // published 2011, ~27K/month, one edit from `faker`
     // PyPI: real packages adjacent to popular ones.
     ("pypi", "pyasn1-modules"),
     ("pypi", "pytest-xdist"),
-    ("pypi", "boto"),    // the legacy AWS SDK, one edit from boto3
-    ("pypi", "pillow2"), // never existed; symmetry placeholder
-    ("pypi", "toml2"),
+    ("pypi", "boto"), // the legacy AWS SDK, one edit from boto3
     ("pypi", "tomlkit"),
     ("pypi", "attr"), // real, distinct package adjacent to attrs
-    ("pypi", "cffi2"),
-    ("pypi", "h2"), // real HTTP/2 package, one edit from h11
+    ("pypi", "h2"),   // real HTTP/2 package, one edit from h11
     ("pypi", "h5py"),
     ("pypi", "py"),
     ("pypi", "mypy-extensions"),
@@ -339,6 +349,12 @@ const ALLOWLIST: &[(&str, &str)] = &[
     // pydantic's next-generation HTTP client (pypi.org/project/httpx2), one
     // edit from httpx and a real dependency of Sigil's own API.
     ("pypi", "httpx2"),
+    // Near-names measured against a 150-package clean PyPI control set, each
+    // an established project on PyPI (release counts read 2026-09-03).
+    ("pypi", "authlib"), // OAuth/OpenID library, 64 releases, one edit from oauthlib
+    ("pypi", "psycopg"), // psycopg 3, 62 releases, one edit from psycopg2
+    ("pypi", "psycopg-binary"), // the psycopg 3 binary wheel, 57 releases
+    ("pypi", "tomli-w"), // the TOML writer companion to tomli, 9 releases
 ];
 
 /// Which registry a manifest belongs to.
@@ -447,15 +463,42 @@ pub fn parse_package_json(contents: &str) -> Vec<Declared> {
         "optionalDependencies",
     ] {
         if let Some(map) = doc.get(key).and_then(|v| v.as_object()) {
-            for name in map.keys() {
+            for (name, spec) in map {
+                // An npm alias (`"prettier-2": "npm:prettier@^2"`) installs the
+                // aliased package under a local key, which is how a project
+                // depends on two majors at once. The key is the caller's own
+                // label, so the name that must be judged is the alias target.
+                let declared = spec
+                    .as_str()
+                    .and_then(alias_target)
+                    .unwrap_or_else(|| name.clone());
                 out.push(Declared {
-                    name: name.clone(),
+                    name: declared,
                     line: find_line(contents, &format!("\"{name}\"")),
                 });
             }
         }
     }
     out
+}
+
+/// The package an `npm:` alias specifier points at.
+///
+/// `npm:prettier@^2` -> `prettier`, `npm:@scope/pkg@1` -> `@scope/pkg`.
+/// Returns `None` for anything that is not an alias specifier.
+fn alias_target(spec: &str) -> Option<String> {
+    let rest = spec.trim().strip_prefix("npm:")?;
+    // A scoped name keeps its leading `@`; the version separator is the `@`
+    // that follows the name.
+    let name = match rest.strip_prefix('@') {
+        Some(scoped) => match scoped.find('@') {
+            Some(at) => &rest[..at + 1],
+            None => rest,
+        },
+        None => rest.split('@').next().unwrap_or(rest),
+    };
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// Dependencies declared in a `requirements*.txt`.
@@ -488,6 +531,7 @@ pub fn parse_pyproject_like(contents: &str) -> Vec<Declared> {
     let mut out = Vec::new();
     let mut in_dep_list = false;
     let mut in_dep_table = false;
+    let mut in_group_table = false;
     for (idx, raw) in contents.lines().enumerate() {
         let line = raw.trim();
         if line.starts_with('[') {
@@ -498,11 +542,19 @@ pub fn parse_pyproject_like(contents: &str) -> Vec<Declared> {
                     | "[tool.poetry.group.dev.dependencies]"
                     | "[packages]"
                     | "[dev-packages]"
-            ) || line.starts_with("[project.optional-dependencies");
+            );
+            // `[project.optional-dependencies]` (PEP 621) and
+            // `[dependency-groups]` (PEP 735) map a *group* name to a list of
+            // requirements. Reading them as `name = version` tables would take
+            // the group name for a dependency ("xml = ['lxml>=5.3.0']" declares
+            // lxml, not a package called xml) and would split each list item on
+            // the `=` inside its version specifier.
+            in_group_table = line.starts_with("[project.optional-dependencies")
+                || line.starts_with("[dependency-groups");
             in_dep_list = false;
             continue;
         }
-        if line.starts_with("dependencies") && line.contains('[') {
+        if (line.starts_with("dependencies") || in_group_table) && line.contains('[') {
             in_dep_list = !line.contains(']');
             for item in quoted_items(line) {
                 push_requirement(&mut out, &item, idx + 1);
@@ -521,10 +573,18 @@ pub fn parse_pyproject_like(contents: &str) -> Vec<Declared> {
         }
         if in_dep_table {
             if let Some((key, _)) = line.split_once('=') {
-                let name = key.trim().trim_matches('"');
-                if name != "python" && !name.is_empty() && !name.starts_with('#') {
+                // Truncate at the first character a package name cannot
+                // contain, so a line the caller misclassified (or an inline
+                // `>=` in the key half) yields "pytest", never "pytest>".
+                let name: String = key
+                    .trim()
+                    .trim_matches('"')
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+                    .collect();
+                if name != "python" && !name.is_empty() {
                     out.push(Declared {
-                        name: name.to_string(),
+                        name,
                         line: Some(idx + 1),
                     });
                 }
@@ -548,15 +608,45 @@ fn push_requirement(out: &mut Vec<Declared>, item: &str, line: usize) {
     }
 }
 
+/// The TOML strings of an array line, in the positions where a requirement can
+/// appear: at the start of the array or straight after a comma.
+///
+/// Anchoring on position rather than searching for quote characters is what
+/// keeps two shapes out of the results. A quote *inside* a requirement belongs
+/// to its environment marker (`"pytest; implementation == 'PyPy'"` declares
+/// pytest, not PyPy), and an entry that does not open with a quote is not a
+/// requirement at all — `{ include-group = "fix" }` (PEP 735) references
+/// another dependency group.
 fn quoted_items(line: &str) -> Vec<String> {
     let mut items = Vec::new();
-    let mut rest = line;
-    while let Some(start) = rest.find(['"', '\'']) {
-        let quote = rest.as_bytes()[start] as char;
-        let after = &rest[start + 1..];
-        let Some(end) = after.find(quote) else { break };
-        items.push(after[..end].to_string());
-        rest = &after[end + 1..];
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    // Skip anything before the array actually opens, so a key such as
+    // `dev = [` never contributes its own name.
+    if let Some(open) = line.find('[') {
+        i = open + 1;
+    }
+    while i < bytes.len() {
+        while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let c = bytes[i] as char;
+        if c == '"' || c == '\'' {
+            let after = &line[i + 1..];
+            let Some(end) = after.find(c) else { break };
+            items.push(after[..end].to_string());
+            i += 1 + end + 1;
+        } else if c == ']' {
+            break;
+        }
+        // Whatever this entry was, resume at the next separator.
+        match line[i..].find(',') {
+            Some(comma) => i += comma + 1,
+            None => break,
+        }
     }
     items
 }
@@ -626,6 +716,7 @@ pub fn scan(strip_base: &Path, files: &[std::path::PathBuf]) -> Vec<Finding> {
                     epss: 0.0,
                     fingerprint: String::new(),
                     locator: None,
+                    evidence: Default::default(),
                 });
             }
         }
@@ -636,6 +727,112 @@ pub fn scan(strip_base: &Path, files: &[std::path::PathBuf]) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optional_dependency_groups_declare_their_items_not_their_group_name() {
+        // PEP 621: `[project.optional-dependencies]` maps a group name to a
+        // list. Reading it as `name = version` took the group name for a
+        // package and split each item on the `=` of its version specifier.
+        let names: Vec<String> = parse_pyproject_like(
+            r#"
+[project]
+dependencies = ["idna>=3.18"]
+
+[project.optional-dependencies]
+xml = ['lxml>=5.3.0']
+dev = [
+    "pytest>=8.4",
+    "pytest-cov>=6.2.0",
+]
+"#,
+        )
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+        assert_eq!(names, vec!["idna", "lxml", "pytest", "pytest-cov"]);
+        assert!(!names.iter().any(|n| n.ends_with('>')), "{names:?}");
+        assert!(
+            !names.iter().any(|n| n == "xml" || n == "dev"),
+            "group names are not dependencies: {names:?}"
+        );
+    }
+
+    #[test]
+    fn dependency_groups_skip_include_group_references() {
+        // PEP 735: `{ include-group = "fix" }` references another group, and
+        // an environment marker's own quotes are not a second item.
+        let names: Vec<String> = parse_pyproject_like(
+            r#"
+[dependency-groups]
+fix = ["pre-commit>=4"]
+test = [
+  { include-group = "fix" },
+  "pytest>=8; platform_python_implementation=='PyPy'",
+]
+"#,
+        )
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+        assert_eq!(names, vec!["pre-commit", "pytest"]);
+        assert!(
+            !names.iter().any(|n| n == "fix" || n == "PyPy"),
+            "{names:?}"
+        );
+    }
+
+    #[test]
+    fn poetry_table_key_never_carries_a_version_specifier() {
+        let names: Vec<String> = parse_pyproject_like(
+            "[tool.poetry.dependencies]\npython = \"^3.11\"\nrequests = \"^2.31\"\n",
+        )
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+        assert_eq!(names, vec!["requests"], "python itself is not a dependency");
+    }
+
+    #[test]
+    fn npm_alias_resolves_to_the_aliased_package() {
+        // `"prettier-2": "npm:prettier@^2"` installs prettier, not a package
+        // called prettier-2; the key is the caller's own label.
+        assert_eq!(alias_target("npm:prettier@^2").as_deref(), Some("prettier"));
+        assert_eq!(
+            alias_target("npm:@scope/pkg@1.2.3").as_deref(),
+            Some("@scope/pkg")
+        );
+        assert_eq!(alias_target("npm:lodash").as_deref(), Some("lodash"));
+        assert_eq!(alias_target("^2.0.0"), None);
+
+        let names: Vec<String> = parse_package_json(
+            r#"{"devDependencies": {"prettier": "^3.5.3", "prettier-2": "npm:prettier@^2"}}"#,
+        )
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+        assert_eq!(names, vec!["prettier", "prettier"]);
+    }
+
+    #[test]
+    fn allowlisted_near_names_are_real_published_packages() {
+        // Each of these was measured firing on a top-download package that
+        // depends on it. An allowlist entry for an *unpublished* name would
+        // pre-authorise whoever registers it later, so there are none.
+        for (eco, name) in [
+            (Ecosystem::Npm, "pathe"),
+            (Ecosystem::Npm, "upath"),
+            (Ecosystem::Npm, "tsd"),
+            (Ecosystem::Npm, "eclint"),
+            (Ecosystem::Pypi, "authlib"),
+            (Ecosystem::Pypi, "psycopg"),
+            (Ecosystem::Pypi, "tomli-w"),
+        ] {
+            assert_eq!(squats(eco, name), None, "{name} is allowlisted");
+        }
+        // The narrowing must not cost real detections.
+        assert_eq!(squats(Ecosystem::Pypi, "reqeusts"), Some("requests"));
+        assert_eq!(squats(Ecosystem::Npm, "lodahs"), Some("lodash"));
+    }
 
     #[test]
     fn distance_counts_one_edit_and_transposition() {

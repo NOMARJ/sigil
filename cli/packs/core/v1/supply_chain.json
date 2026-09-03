@@ -220,7 +220,7 @@
       "id": "SUPPLY-017",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "PythonShell|python-shell|pyodide|Pyodide",
+      "pattern": "(require|import)\\s*\\(?\\s*['\"]python-shell|from\\s+['\"]python-shell|\\bnew\\s+PythonShell\\b|\\bPythonShell\\.(run|runString|defaultOptions)|loadPyodide\\s*\\(|pyodide\\.(runPython|runPythonAsync|globals)|from\\s+['\"]pyodide",
       "description": "Python-JavaScript bridge with code execution",
       "remediation": "python-shell and Pyodide let JavaScript run Python, giving the package a second interpreter that a JavaScript-focused review does not cover. Check that the Python it runs is a file shipped in the package (and scan that too) rather than a string assembled at runtime or fetched from the network, and question any package that has no obvious reason to execute Python at all.",
       "references": ["MITRE T1059.006"],

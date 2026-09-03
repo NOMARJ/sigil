@@ -107,6 +107,15 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         return specific;
     }
 
+    // The scan budget finding says the analyser ran out of time on a file.
+    // That is a fact about the scan, not a behaviour of the package, and the
+    // behaviour profile is read as a description of the package — so it
+    // contributes none. Returning early matters: the "PROV-" family below
+    // would otherwise assert a provenance anomaly nobody observed.
+    if rule_id == crate::scanner::budget::BUDGET_RULE_ID {
+        return None;
+    }
+
     let families: &[(&str, &str)] = &[
         ("CODE-MCP-", "mcp_tooling"),
         ("CODE-", "dynamic_execution"),
@@ -259,6 +268,7 @@ mod tests {
             epss: 0.0,
             fingerprint: String::new(),
             locator: None,
+            evidence: Default::default(),
         }
     }
 
@@ -297,6 +307,9 @@ mod tests {
         );
         assert_eq!(behavior_for("MAL-2024-1"), Some("known_malicious_package"));
         assert_eq!(behavior_for("PROV-001"), Some("provenance_anomaly"));
+        // A truncated scan is a fact about the scan, not a behaviour of the
+        // package: it must not be reported as a provenance anomaly.
+        assert_eq!(behavior_for(crate::scanner::budget::BUDGET_RULE_ID), None);
         assert_eq!(behavior_for("PROV-DOWNGRADE"), Some("provenance_drift"));
         assert_eq!(behavior_for("TOTALLY-UNKNOWN"), None);
     }
