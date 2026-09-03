@@ -600,7 +600,7 @@
       "severity": "high",
       "pattern": "(?i)\\b(write|writes|create|creates|update|updates|add|adds|append|appends|merge|merges|copy|copies|cp|install|installs|configure|configures|edit|edits|modify|modifies|generate|generates|overwrite|overwrites|register|registers)\\b[^\\n]{0,60}(~|\\$HOME|\\.)?/?\\.(claude|codex|cursor|openclaw|agents|gemini|windsurf|aider)/(settings[\\w.-]*\\.json|hooks?|agents?|commands?|rules?|mcp\\.json|config[\\w.-]*)\\b",
       "description": "Prompt injection — skill writes into the agent's settings, hooks or sub-agent configuration",
-      "remediation": "Read the file it writes and what goes into it. Settings, hooks, commands, rules and MCP configuration are the agent's own trust configuration: a hook entry is a command the host runs on its own, a settings `permissions.allow` entry pre-approves tools for every later session, and a sub-agent or rules file is instruction text the model reads as its own. A skill that edits them is granting itself capability that outlives the task it was installed for. Apply such changes yourself, from a diff you have read, rather than letting a skill write them.",
+      "remediation": "Read the file it writes and what goes into it. Settings, hooks, commands, rules and MCP configuration are the agent's own trust configuration: a hook entry is a command the host runs on its own, a settings `permissions.allow` entry pre-approves tools for every later session, and a sub-agent or rules file is instruction text the model reads as its own. A skill that edits them is granting itself capability that outlives the task it was installed for. Apply such changes yourself, from a diff you have read, rather than letting a skill write them.\n\nA package's own README telling a human to add it to `mcp.json` or `.cursor/mcp.json` is how every MCP server documents its installation, so this rule does not fire in README or INSTALL files. What it looks for is the same write described in text the agent itself consumes — SKILL.md, AGENTS.md, CLAUDE.md, a rules file — where it is an instruction to the agent rather than to the reader.",
       "references": [
         "MITRE T1546",
         "OWASP Agentic Top 10 — Excessive Agency",
@@ -611,7 +611,16 @@
         "agent-config",
         "persistence",
         "privilege-escalation"
-      ]
+      ],
+      "suppress": {
+        "filename_suffix": [
+          "README.md",
+          "README.mdx",
+          "README.rst",
+          "INSTALL.md",
+          "INSTALLATION.md"
+        ]
+      }
     },
     {
       "id": "PROMPT-015",
