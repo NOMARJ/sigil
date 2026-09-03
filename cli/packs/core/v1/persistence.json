@@ -75,7 +75,7 @@
     {
       "id": "PERSIST-004",
       "phase": "code_patterns",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "((~|\\$\\{?HOME\\}?|expanduser\\(|\\bHOME\\b[^\\n]{0,30}|home\\.join\\()[^\\n]{0,40}?[/\"']\\.(bashrc|zshrc|zshenv|zprofile|zlogin|bash_profile|bash_login|profile)\\b|/etc/profile\\.d/|/etc/(bash\\.bashrc|zsh/zshrc|zshenv|zprofile|profile)\\b)",
       "description": "Persistence — shell startup file referenced",
       "remediation": "Check why the code touches a shell startup file. Reading one is unusual; writing one makes the code run in every future shell. Prefer an explicit, documented setup step the user runs.",

@@ -41,7 +41,7 @@
     {
       "id": "CODE-004",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "pickle\\.(loads?|Unpickler)",
       "description": "pickle deserialization — arbitrary code execution",
       "remediation": "pickle.load/loads runs whatever callable the stream's __reduce__ names, so unpickling is code execution controlled by whoever wrote the bytes. Reading a cache, checkpoint or model file the same program wrote is the ordinary use; bytes from the network, a request, an untrusted file or a literal blob in the source are a payload, so prefer json, safetensors or a schema-validated format and reject a package that unpickles data it did not produce.",

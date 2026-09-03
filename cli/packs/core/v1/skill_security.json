@@ -40,13 +40,14 @@
       "id": "SKILL-003",
       "phase": "skill_security",
       "severity": "critical",
-      "pattern": "(?i)(eval|exec|shell|subprocess|child_process|os\\.system)",
+      "pattern": "(?i)\"(command|cmd|run|exec|entry_?point|script|shell|interpreter)\"\\s*:\\s*\"[^\"]*(\\beval\\b|\\bexec\\b|\\bsh\\b|\\bbash\\b|\\bzsh\\b|\\bpython[0-9.]*\\b|\\bnode\\b|\\bsubprocess\\b|\\bchild_process\\b|os\\.system)|(^|[^\\w.$])(eval|exec|execSync|execFileSync|spawnSync|os\\.system|subprocess\\.(run|call|Popen|check_output))\\s*\\(|['\"](node:)?child_process['\"]",
       "description": "Skill manifest — code execution reference",
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
       },
-      "remediation": "This pattern matches the bare substring, so first find the token: `exec` inside `executable`, `eval` inside `evaluate`, or `shell` in SKILL.md prose describing a documented command is noise, and a package.json `scripts` entry that runs a fixed, named build command is ordinary. What matters is an `eval`, `exec`, `subprocess`, `child_process` or `os.system` reference inside a tool definition, permission block, instruction section or server `command` — a declarative manifest handing the agent a way to run arbitrary code — and a skill whose documentation does not account for it should be rejected.",
+      "evidence": "corroborate",
+      "remediation": "The match is either an execution-shaped manifest value — a `command`, `run`, `script` or `interpreter` key whose value names a shell or interpreter — or an actual `eval`/`exec`/`subprocess` call inside the manifest. Both are ways a declarative manifest hands the agent arbitrary code execution, and a skill whose documentation does not account for one should be rejected. A `keywords` entry, a dependency called `execa`, or SKILL.md prose that merely mentions executing something no longer fires this rule; because a manifest value alone is still weak evidence of intent, it is marked `corroborate` and needs a second Critical signal before it can drive a CRITICAL RISK verdict.",
       "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
       "tags": ["skill", "execution", "eval", "manifest"]
     },

@@ -17,6 +17,7 @@
       "file_filter": {
         "filename_exact": ["setup.py", "setup.cfg"]
       },
+      "evidence": "corroborate",
       "remediation": "cmdclass replaces a setuptools command with a class from the project's own setup code, and that class's run() executes on every install from source (sdist, git or editable), so read the class it maps. A build_ext or build_py override that compiles extensions or generates files is the normal use; an install, develop or egg_info override that opens sockets, downloads, decodes strings or spawns a shell is the classic PyPI install-time payload, and the package should be rejected.",
       "references": ["MITRE T1195.001", "MITRE T1059.006"],
       "tags": ["install-hook", "python", "setup-py", "cmdclass"]
@@ -50,7 +51,7 @@
     {
       "id": "INSTALL-004",
       "phase": "install_hooks",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "\"(prepare|prepublish|prepublishOnly)\"",
       "description": "npm publish lifecycle script",
       "file_filter": {
@@ -114,6 +115,22 @@
       "description": "Custom build backend declared",
       "file_filter": {
         "filename_exact": ["pyproject.toml"]
+      },
+      "suppress": {
+        "line_contains": [
+          "setuptools.build_meta",
+          "hatchling.build",
+          "flit_core.buildapi",
+          "poetry.core.masonry.api",
+          "poetry.masonry.api",
+          "pdm.backend",
+          "pdm.pep517.api",
+          "maturin",
+          "scikit_build_core.build",
+          "mesonpy",
+          "hatchling.ouroboros",
+          "setuptools.__legacy__.build_meta"
+        ]
       },
       "remediation": "Every PEP 517 project declares a build-backend, so this is informational unless the value is unfamiliar: setuptools.build_meta, hatchling.build, flit_core.buildapi, poetry.core.masonry.api, pdm.backend, maturin and scikit_build_core.build are the mainstream backends. A name you do not recognise, or a backend-path entry (an in-tree backend that pip imports and runs straight from the repository), means the repository's own code runs at build time — read that code before installing from source, and check that build-system requires lists only the backend and well-known build helpers such as wheel, cython or numpy.",
       "references": ["MITRE T1195.001"],
