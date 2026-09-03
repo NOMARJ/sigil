@@ -33,6 +33,13 @@ Usage:
     python -m api.services.change_monitor --due 25
 """
 
+# sigil:ignore-file NET-013 -- this module is the SSRF guard, so it names the
+# cloud instance-metadata endpoint (169.254.169.254) in the docstrings that
+# explain what it blocks and why redirects are re-validated per hop. Same case
+# as cli/src/residue/checks.rs naming the crontab and credential files it
+# inspects. The guard is asserted against the real address in
+# api/tests/test_change_monitor.py; no code here ever fetches it.
+
 from __future__ import annotations
 
 import asyncio
