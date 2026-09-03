@@ -21,83 +21,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Validate plugin structure
-        run: |
-          # Check required files
-          if [ ! -f "plugins/claude-code/.claude-plugin/plugin.json" ]; then
-            echo "❌ Missing plugin.json"
-            exit 1
-          fi
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
 
-          if [ ! -f ".claude-plugin/marketplace.json" ]; then
-            echo "❌ Missing root .claude-plugin/marketplace.json"
-            exit 1
-          fi
-
-          if [ ! -d "plugins/claude-code/skills" ]; then
-            echo "❌ Missing skills directory"
-            exit 1
-          fi
-
-          if [ ! -d "plugins/claude-code/agents" ]; then
-            echo "❌ Missing agents directory"
-            exit 1
-          fi
-
-          if [ ! -f "plugins/claude-code/hooks/hooks.json" ]; then
-            echo "❌ Missing hooks.json"
-            exit 1
-          fi
-
-          echo "✅ Plugin structure is valid"
-
-      - name: Validate JSON files
-        run: |
-          # Validate plugin.json
-          jq empty plugins/claude-code/.claude-plugin/plugin.json || {
-            echo "❌ Invalid plugin.json"
-            exit 1
-          }
-
-          # Validate marketplace.json (repo root, so `claude plugin marketplace add NOMARJ/sigil` works)
-          jq empty .claude-plugin/marketplace.json || {
-            echo "❌ Invalid marketplace.json"
-            exit 1
-          }
-
-          # Validate hooks.json
-          jq empty plugins/claude-code/hooks/hooks.json || {
-            echo "❌ Invalid hooks.json"
-            exit 1
-          }
-
-          echo "✅ All JSON files are valid"
-
-      - name: Validate skills
-        run: |
-          # Check each skill has SKILL.md
-          for skill_dir in plugins/claude-code/skills/*/; do
-            if [ ! -f "${skill_dir}SKILL.md" ]; then
-              echo "❌ Missing SKILL.md in ${skill_dir}"
-              exit 1
-            fi
-            echo "✅ Found SKILL.md in ${skill_dir}"
-          done
-
-      - name: Validate agents
-        run: |
-          # Check agent markdown files exist
-          if [ ! -f "plugins/claude-code/agents/security-auditor.md" ]; then
-            echo "❌ Missing security-auditor.md"
-            exit 1
-          fi
-
-          if [ ! -f "plugins/claude-code/agents/quarantine-manager.md" ]; then
-            echo "❌ Missing quarantine-manager.md"
-            exit 1
-          fi
-
-          echo "✅ All agents are valid"
+      - name: Validate plugin and marketplace manifests
+        # Single source of truth. This replaces the former hand-rolled checks
+        # (file/directory existence, `jq empty` parse-only JSON checks, the
+        # skills/*/SKILL.md loop and the two hardcoded agent filenames), which
+        # had no schema awareness and silently ignored any third agent.
+        # The same script gates every pull request in ci.yml.
+        #
+        # One behavioural difference worth knowing: the old bash asserted the
+        # skills/ directory and hooks/hooks.json existed unconditionally. The
+        # validator reaches them through plugin.json's `skills`/`hooks` keys,
+        # falling back to the conventional directories when a key is absent, so
+        # coverage is equivalent for this plugin — but a manifest that declared
+        # neither key and shipped neither directory would now pass here.
+        run: python3 scripts/validate_marketplace.py
 
   publish-github-release:
     name: Publish GitHub Release

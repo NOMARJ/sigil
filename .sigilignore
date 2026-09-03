@@ -82,6 +82,11 @@ api/tests/
 tests/fixtures/
 tests/regression/
 test-repo/
+# tests/marketplace/: same category. The marketplace validator parses SKILL.md
+# and agent YAML frontmatter, so its tests must write real "---" delimited
+# documents as fixture INPUT — that is the thing under test, not an injected
+# instruction. Every tree here is built under tmp_path and labelled synthetic.
+tests/marketplace/
 
 # ─────────────────────────────────────────────────────────────────────────────
 # (a7) The legacy bash scanner and its wrapper. bin/sigil's source IS the pattern

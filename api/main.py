@@ -141,9 +141,41 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(run_alert_evaluation_loop())
         logger.info("Monitoring and alerting started")
 
+    # Start the watched-URL change monitor. Started the same way as the alert
+    # evaluation loop above (asyncio.create_task behind a settings flag), but
+    # the flag defaults to FALSE rather than True: this loop issues outbound
+    # requests to third-party URLs that were supplied through the API, so it is
+    # opt-in per environment (SIGIL_CHANGE_MONITOR_ENABLED=true) instead of
+    # switching itself on in every process that starts the app.
+    change_monitor_worker = None
+    if settings.change_monitor_enabled:
+        logger.info("Starting change monitor worker")
+        from api.workers.change_monitor_worker import ChangeMonitorWorker
+
+        change_monitor_worker = ChangeMonitorWorker(
+            batch_size=settings.change_monitor_batch_size
+        )
+        asyncio.create_task(
+            change_monitor_worker.run_continuous(
+                check_interval=settings.change_monitor_interval_seconds
+            )
+        )
+        logger.info(
+            "Change monitor worker started (batch size: %d, interval: %ds)",
+            settings.change_monitor_batch_size,
+            settings.change_monitor_interval_seconds,
+        )
+    else:
+        logger.info(
+            "Change monitor worker disabled (set SIGIL_CHANGE_MONITOR_ENABLED=true "
+            "to enable outbound polling of watched URLs)"
+        )
+
     yield
 
     logger.info("Shutting down Sigil API")
+    if change_monitor_worker is not None:
+        change_monitor_worker.stop()
     await forge_stats_updater.stop_updater()
     await registry_stats_updater.stop_updater()
     await cache.disconnect()
@@ -194,6 +226,10 @@ app = FastAPI(
         {
             "name": "metrics",
             "description": "Scanner performance metrics and false positive tracking",
+        },
+        {
+            "name": "change-monitor",
+            "description": "Watched-URL change detection and the rescan queue",
         },
         {"name": "threat", "description": "Threat intelligence and management"},
         {"name": "auth", "description": "Authentication and user management"},
@@ -345,6 +381,7 @@ try:
         github_app,
         interactive,
         metrics,
+        monitor,
         permissions,
         policies,
         publisher,
@@ -389,6 +426,7 @@ app.include_router(
 app.include_router(
     metrics.router
 )  # /api/metrics/* — Scanner metrics and false positive tracking
+app.include_router(monitor.router)  # /api/monitor/* — Watched-URL change monitoring
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(forge.router)  # /forge/*    — Forge classification & matching
