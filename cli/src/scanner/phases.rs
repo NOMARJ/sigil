@@ -140,11 +140,15 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
         .iter()
         .flat_map(|p| p.provenance_rules.iter())
         .filter_map(|rule| {
+            // A filename regex is required for FilenameRegex rules and
+            // optional for FileSizeBytes rules, where it narrows the size
+            // check to particular files (an oversized setup.py is a signal;
+            // an oversized model file is not).
             let pattern_re = if rule.kind == ProvenanceKind::FilenameRegex {
                 let re = rule.pattern.as_deref().and_then(|p| Regex::new(p).ok())?;
                 Some(re)
             } else {
-                None
+                rule.pattern.as_deref().and_then(|p| Regex::new(p).ok())
             };
             Some(CompiledProv {
                 id: &rule.id,
@@ -238,8 +242,12 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
                 }
 
                 ProvenanceKind::FileSizeBytes => {
+                    let name_matches = rule
+                        .pattern_re
+                        .as_ref()
+                        .is_none_or(|re| re.is_match(&fname));
                     if let Ok(meta) = std::fs::metadata(file_path) {
-                        if meta.len() > rule.size_threshold {
+                        if name_matches && meta.len() > rule.size_threshold {
                             findings.push(make_finding(
                                 Phase::Provenance,
                                 rule.id,

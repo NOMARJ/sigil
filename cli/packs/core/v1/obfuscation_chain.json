@@ -22,7 +22,10 @@
           "typeof define===\"function\"&&define.amd",
           "typeof module===\"object\"&&module.exports"
         ]
-      }
+      },
+      "remediation": "Decode the nested layers yourself and read what comes out. One Base64 layer is all any honest Python (base64.b64decode) or JavaScript (atob) transport needs; a second layer exists only to keep the payload out of text search, so if the decoded result reaches exec, eval, Function, a shell or a socket, reject the package.",
+      "references": ["MITRE T1027", "MITRE T1140", "CWE-506"],
+      "tags": ["obfuscation", "base64", "nested-encoding"]
     },
     {
       "id": "OBFUSC-CHAIN-002",
@@ -34,56 +37,80 @@
         "path_contains": [
           "node_modules/"
         ]
-      }
+      },
+      "remediation": "Reconstruct the value being handed to base64.b64decode or atob from its parts and read it. Repairing padding on a JWT or URL-safe segment (segment + padding) is the one common honest shape; a blob assembled from several literals or scattered variables was split so that no single string looks suspicious, and the joined result must be reviewed before install.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "string-splitting"]
     },
     {
       "id": "OBFUSC-CHAIN-003",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "urllib\\.parse\\.unquote\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)\\s*\\(|base64\\.(b64decode|decodebytes)\\s*\\(\\s*urllib\\.parse\\.unquote",
-      "description": "Mixed Base64 and URL encoding chain"
+      "description": "Mixed Base64 and URL encoding chain",
+      "remediation": "In Python, unquoting a percent-encoded request parameter and then Base64-decoding it is a normal web-handler shape when the input comes from a request. The reverse order, or a hard-coded literal as the input, means the author encoded their own string twice to hide it — decode it and read the plaintext before deciding.",
+      "references": ["MITRE T1027", "MITRE T1140", "CAPEC-267"],
+      "tags": ["obfuscation", "base64", "url-encoding", "python"]
     },
     {
       "id": "OBFUSC-CHAIN-004",
       "phase": "obfuscation",
       "severity": "critical",
       "pattern": "pickle\\.(loads?|Unpickler)\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)\\s*\\(",
-      "description": "Pickle deserialization with Base64 decoding — dangerous combination"
+      "description": "Pickle deserialization with Base64 decoding — dangerous combination",
+      "remediation": "Python's pickle.loads runs whatever __reduce__ callable the payload names, so a Base64 blob fed straight into it is an arbitrary-code loader. Round-tripping the program's own runtime cache or session data is the only defensible form; a literal blob in the source, or bytes that arrived over the network, is a payload — reject the package.",
+      "references": ["CWE-502", "MITRE T1059.006", "MITRE T1027"],
+      "tags": ["execution", "pickle", "base64", "python"]
     },
     {
       "id": "OBFUSC-CHAIN-005",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "(base64\\.(b64decode|decodebytes)|atob)\\s*\\(\\s*bytes\\.fromhex\\s*\\(",
-      "description": "Hex to Base64 decoding chain"
+      "description": "Hex to Base64 decoding chain",
+      "remediation": "Run the same two Python decodes (bytes.fromhex, then base64.b64decode) yourself and read the plaintext. No format or protocol needs a Base64 string that is itself hex-encoded; the extra layer only keeps the payload out of grep, so judge the decoded bytes as you would a shell script and reject if they reach exec, subprocess or a socket.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "hex", "python"]
     },
     {
       "id": "OBFUSC-CHAIN-006",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "[\\u200B-\\u200D\\uFEFF]",
-      "description": "Zero-width Unicode characters detected — potential steganography"
+      "description": "Zero-width Unicode characters detected — potential steganography",
+      "remediation": "Hex-dump the flagged line to see where the zero-width characters sit and what they are hiding. A UTF-8 byte-order mark at the very start of a file, ZWJ inside emoji sequences and ZWNJ in Persian, Arabic or Indic text are legitimate; zero-width characters inside code, identifiers or string literals that are later decoded are steganography or look-alike identifiers, and the file should be rejected.",
+      "references": ["MITRE T1027"],
+      "tags": ["obfuscation", "unicode", "zero-width", "steganography"]
     },
     {
       "id": "OBFUSC-CHAIN-007",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "[\\u202E\\u202D\\u2066-\\u2069]",
-      "description": "Unicode directional override characters — text direction attack"
+      "description": "Unicode directional override characters — text direction attack",
+      "remediation": "Open the file in an editor that shows control characters, or hex-dump the line, and compare what the compiler will parse with what the screen shows. Bidi controls belong only inside user-facing right-to-left strings in localisation files; in code, comments or identifiers they are the Trojan Source technique for making malicious logic read as benign — reject the file.",
+      "references": ["https://trojansource.codes/", "MITRE T1027"],
+      "tags": ["obfuscation", "unicode", "bidi", "trojan-source"]
     },
     {
       "id": "OBFUSC-CHAIN-008",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "[\\u0300-\\u036F\\u1AB0-\\u1AFF\\u1DC0-\\u1DFF\\u20D0-\\u20FF\\uFE20-\\uFE2F]",
-      "description": "Invisible combining characters detected — potential payload hiding"
+      "description": "Invisible combining characters detected — potential payload hiding",
+      "remediation": "Normalise the file to NFC or hex-dump the flagged line to see what the combining marks attach to. Decomposed accents in comments, docs or translation strings are ordinary text; marks stacked on identifiers or on ASCII code, or characters that are later stripped and decoded, are hiding data or forging look-alike names, so read the decoded result before installing.",
+      "references": ["MITRE T1027"],
+      "tags": ["obfuscation", "unicode", "combining-marks"]
     },
     {
       "id": "OBFUSC-CHAIN-009",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "[\\u0430-\\u044F\\u0451].*\\.(com|org|net|gov|edu)",
-      "description": "Potential Unicode homograph attack in domain — Cyrillic characters"
+      "description": "Potential Unicode homograph attack in domain — Cyrillic characters",
+      "remediation": "Copy the domain out of the flagged line and run it through a punycode converter — an IDN that becomes xn-- is not the ASCII domain it resembles. Russian-language comments or translations that mention a site are harmless; a Cyrillic letter inside a host name the code connects to sends traffic somewhere other than where the reviewer thinks, which is an exfiltration or C2 destination.",
+      "references": ["CWE-1007", "MITRE T1583.001"],
+      "tags": ["obfuscation", "homograph", "cyrillic", "domain"]
     },
     {
       "id": "OBFUSC-CHAIN-010",
@@ -98,7 +125,10 @@
         "file_header_contains": [
           "typeof define===\"function\"&&define.amd"
         ]
-      }
+      },
+      "remediation": "Work out what the bracketed JavaScript expression resolves to. this[name](...) dispatching to a method chosen by a variable is ordinary class and plugin-registry code; window['ev'+'al'] or global[parts joined at runtime] that lands on eval, Function, require, fetch or process is the same call spelled so a text search cannot see it, and the reassembled name decides whether the package is acceptable.",
+      "references": ["MITRE T1027", "MITRE T1059.007"],
+      "tags": ["obfuscation", "javascript", "dynamic-property", "string-splitting"]
     },
     {
       "id": "OBFUSC-CHAIN-011",
@@ -113,63 +143,90 @@
         "file_header_contains": [
           "Function('return this')()"
         ]
-      }
+      },
+      "remediation": "new Function over a string built with join or + is JavaScript code generation. Template engines (lodash.template, Handlebars precompile, Vue's runtime compiler) and some bundler runtimes do this deliberately and are recognisable by name; in any other package, print the assembled source and read it, because code built this way never exists as plain text until it runs — reject if it touches the network, the filesystem or child processes.",
+      "references": ["CWE-95", "MITRE T1059.007", "MITRE T1027"],
+      "tags": ["execution", "javascript", "function-constructor", "string-building"]
     },
     {
       "id": "OBFUSC-CHAIN-012",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}.*\\\\u[0-9a-fA-F]{4}",
-      "description": "Multiple Unicode escape sequences — potential payload encoding"
+      "description": "Multiple Unicode escape sequences — potential payload encoding",
+      "remediation": "Unescape the sequence and see what text it spells. Escaped non-ASCII in JSON, localisation files, regex character classes and minified bundles is routine; a run of \\u escapes that spells plain ASCII — an identifier, 'eval', a URL or a shell command — was escaped only to avoid being seen and should be judged as the plain text it decodes to.",
+      "references": ["MITRE T1027", "CAPEC-267"],
+      "tags": ["obfuscation", "unicode-escape", "encoding"]
     },
     {
       "id": "OBFUSC-CHAIN-013",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "[\\u0100-\\u017F\\u0180-\\u024F\\u1E00-\\u1EFF].*[a-zA-Z].*[\\u0400-\\u04FF]",
-      "description": "Mixed script characters in identifiers — potential homograph attack"
+      "description": "Mixed script characters in identifiers — potential homograph attack",
+      "remediation": "Hex-dump the identifiers on the flagged line and check that each is written in a single script. Translation tables and multilingual comments legitimately mix Latin-Extended and Cyrillic text; an identifier that mixes them is a homoglyph — two names that render identically but are different variables or functions — which is the Trojan Source technique for making reviewed code do something other than what it reads as, so reject on any mixed-script identifier.",
+      "references": ["https://trojansource.codes/", "CWE-1007", "MITRE T1027"],
+      "tags": ["obfuscation", "homograph", "mixed-script", "unicode"]
     },
     {
       "id": "OBFUSC-CHAIN-014",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "String\\.fromCharCode\\s*\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+",
-      "description": "JavaScript String.fromCharCode chain — character-based obfuscation"
+      "description": "JavaScript String.fromCharCode chain — character-based obfuscation",
+      "remediation": "Convert the JavaScript code points back to text (each number is one character) and read the string. A handful of control or surrogate characters built this way is normal in protocol and polyfill code; a long list that spells 'eval', a URL, 'child_process' or a shell command is a string hidden from text search, and the decoded string decides whether the package is acceptable.",
+      "references": ["MITRE T1027", "MITRE T1059.007"],
+      "tags": ["obfuscation", "javascript", "charcode", "encoding"]
     },
     {
       "id": "OBFUSC-CHAIN-015",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "decodeURIComponent\\s*\\(\\s*(base64\\.(b64decode|decodebytes)|atob)",
-      "description": "Base64 with URL decoding — double encoding obfuscation"
+      "description": "Base64 with URL decoding — double encoding obfuscation",
+      "remediation": "decodeURIComponent(atob(x).split('').map(...).join('')) is the standard browser idiom for reading UTF-8 out of Base64 — JWT payload readers use it everywhere — and is harmless when x is a token or a response. Check what x is: a literal in the source, or a result that then reaches eval, Function, document.write or a script tag, means the double decoding exists to hide the payload, so decode and read it.",
+      "references": ["MITRE T1027", "CAPEC-267"],
+      "tags": ["obfuscation", "base64", "url-encoding", "javascript"]
     },
     {
       "id": "OBFUSC-CHAIN-016",
       "phase": "obfuscation",
       "severity": "critical",
       "pattern": "exec\\s*\\(\\s*compile\\s*\\(\\s*[\\w\\.]+\\s*\\+\\s*[\\w\\.]+",
-      "description": "Python compile+exec with string concatenation — advanced code execution"
+      "description": "Python compile+exec with string concatenation — advanced code execution",
+      "remediation": "Print the concatenated string that Python's compile receives and read it as the program it is. Code generators such as attrs or dataclasses compile a fully-built source held in one variable; two operands joined at the call site are usually a decoded blob plus a trailer or key, meaning the executed code was designed never to appear in plain text — reject unless the generated source is fully visible and benign.",
+      "references": ["CWE-95", "MITRE T1059.006", "MITRE T1027"],
+      "tags": ["execution", "python", "exec", "string-building"]
     },
     {
       "id": "OBFUSC-CHAIN-017",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "__import__\\s*\\(\\s*[\"'][\\w\\.]+[\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
-      "description": "Dynamic import with immediate method execution — import-time side effect"
+      "description": "Dynamic import with immediate method execution — import-time side effect",
+      "remediation": "__import__('pkg_resources').declare_namespace(__name__) and __import__('setuptools').setup(...) are common legacy Python packaging idioms. Anything else called in the same expression — os.system, subprocess.Popen, urllib.request.urlopen, socket.socket, ctypes — is an ordinary import written so 'import os' never appears in the file and runs at import time; judge it by the module and method named and reject if they touch the shell, the network or files outside the package.",
+      "references": ["MITRE T1059.006", "MITRE T1027"],
+      "tags": ["execution", "python", "dynamic-import", "import-time"]
     },
     {
       "id": "OBFUSC-CHAIN-018",
       "phase": "obfuscation",
       "severity": "medium",
       "pattern": "__import__\\s*\\(\\s*(chr\\s*\\(|String\\.fromCharCode|base64\\.|atob)",
-      "description": "Dynamic import with encoded module names — import obfuscation"
+      "description": "Dynamic import with encoded module names — import obfuscation",
+      "remediation": "Decode the module name — the chr() sequence, Base64 blob or fromCharCode call — and see which Python module it resolves to. There is no legitimate reason to encode the name of a module you import; it is done only so that 'os', 'subprocess', 'socket' or 'ctypes' never appear in the source, and the decoded name tells you exactly which capability is being hidden.",
+      "references": ["MITRE T1027", "MITRE T1059.006"],
+      "tags": ["obfuscation", "python", "dynamic-import", "encoded-name"]
     },
     {
       "id": "OBFUSC-CHAIN-019",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "getattr\\s*\\(\\s*\\w+\\s*,\\s*[\"'][\\w]+[\"']?\\s*\\+\\s*[\"'][\\w]+[\"']?\\s*\\)",
-      "description": "Python getattr with concatenated attribute names — reflection-based obfuscation"
+      "description": "Python getattr with concatenated attribute names — reflection-based obfuscation",
+      "remediation": "Join the two quoted fragments and read the Python attribute name they form. A real dynamic getattr takes a variable, not two halves of a literal; splitting the name at the call site exists only to keep 'system', 'Popen', 'urlopen' or 'loads' out of a text search, so treat the joined name as if written plainly and reject if it names a shell, network or deserialisation function.",
+      "references": ["MITRE T1027", "MITRE T1059.006"],
+      "tags": ["obfuscation", "python", "getattr", "string-splitting"]
     }
   ],
   "provenance_rules": []

@@ -1,6 +1,6 @@
 ---
 name: scan-package
-description: Scan a pip or npm package before installation using Sigil. Use when installing dependencies, adding new packages, or when package behavior seems suspicious. Auto-invoke before pip install or npm install commands.
+description: "Scan a pip or npm package before installation using Sigil. Use when installing dependencies, adding new packages, or when package behavior seems suspicious. Auto-invoke before pip install or npm install commands. Trigger phrases (English): 'is this safe to install', 'check this package before installing', 'scan this skill', 'vet this MCP server', 'is this npm package safe', 'is this pip package safe'. Trigger phrases (Chinese): '安全扫描', '这个插件安全吗', '这个技能安全吗', '扫描一下', '安装前检查'."
 allowed-tools: Bash(sigil *)
 ---
 

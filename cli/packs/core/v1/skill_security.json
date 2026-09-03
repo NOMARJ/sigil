@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-skill-security",
     "name": "Sigil Core — Skill Security",
-    "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "version": "1.1.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive permissions, eval/exec in manifests, and credential embedding"
+    "description": "Detects skill/plugin manifest security issues: undeclared capabilities, excessive or wildcard permissions, dangerous tool grants, eval/exec in manifests, credential embedding, and (engine check SKILL-007) manifests that do not parse"
   },
   "rules": [
     {
@@ -17,7 +17,10 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "A manifest that names `tool_calls`, `\"execute\"`, `execute_command` or `run_command` is wiring the skill to run commands, so check that the skill's own description declares that capability and says which commands it runs; a shell-tool MCP server that documents exactly this is the legitimate case. A skill presented as a formatter, search helper or reference document whose manifest quietly exposes a command-execution tool carries capability its reviewer was never told about — reject it.",
+      "references": ["CWE-912", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "execution", "undeclared-capability", "manifest"]
     },
     {
       "id": "SKILL-002",
@@ -28,7 +31,10 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "Compare each entry in the `permissions` array with what the skill's stated purpose needs: a file-conversion skill asking for `filesystem` is plausible, but `env` exposes every secret in the agent's environment, `shell` or `*` is full control of the host, and `filesystem` together with `network` is everything an exfiltration tool needs. Narrow the list to the specific paths, hosts and variables the skill actually uses, or do not install it.",
+      "references": ["CWE-250", "OWASP Agentic Top 10 — Excessive Agency"],
+      "tags": ["skill", "permissions", "excessive-agency", "manifest"]
     },
     {
       "id": "SKILL-003",
@@ -39,7 +45,10 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "This pattern matches the bare substring, so first find the token: `exec` inside `executable`, `eval` inside `evaluate`, or `shell` in SKILL.md prose describing a documented command is noise, and a package.json `scripts` entry that runs a fixed, named build command is ordinary. What matters is an `eval`, `exec`, `subprocess`, `child_process` or `os.system` reference inside a tool definition, permission block, instruction section or server `command` — a declarative manifest handing the agent a way to run arbitrary code — and a skill whose documentation does not account for it should be rejected.",
+      "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "execution", "eval", "manifest"]
     },
     {
       "id": "SKILL-004",
@@ -50,7 +59,10 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "Find which entry carries the flag: `\"private\": true` at the top level of package.json only stops `npm publish` and is benign, whereas `hidden`, `internal` or `undocumented: true` on a tool, command or prompt entry removes it from what the user and the tool listing see while the model can still call it. Every hidden entry should be documented and its handler reviewed; a skill that hides a tool with execution, filesystem or network reach is shipping capability its reviewer was not meant to see — reject it.",
+      "references": ["CWE-912"],
+      "tags": ["skill", "hidden-capability", "manifest"]
     },
     {
       "id": "SKILL-005",
@@ -61,7 +73,10 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "Remove the literal value and have the skill read the credential from an environment variable or the host's secret store at runtime; if the string is a real key, revoke and rotate it, because it has already been distributed with the skill. A placeholder such as `\"token\": \"placeholder\"` also matches and should become an empty value or an env-var reference, while a working key shipped in a manifest either leaks the author's account or silently authenticates the skill to a server the author controls — do not install it as is.",
+      "references": ["CWE-798", "MITRE T1552.001"],
+      "tags": ["skill", "credentials", "hardcoded-secret", "manifest"]
     },
     {
       "id": "SKILL-006",
@@ -72,7 +87,52 @@
       "file_filter": {
         "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "mcp.json", "tool.json"],
         "filename_suffix": [".mcp.yaml", ".mcp.yml"]
-      }
+      },
+      "remediation": "Read the command the hook points at in full: `postinstall` and `preinstall` run automatically on `npm install`, and `activate`, `on_install` and `on_load` run when the host loads the plugin — all before any tool is deliberately invoked, all with the user's privileges. Compiling a native module, running a build step or writing a config file inside the package directory is the ordinary content; a hook that fetches and runs a remote script, feeds an encoded string to an interpreter or writes outside the package directory is an install-time payload — reject the skill, or install with scripts disabled and vet the hook by hand.",
+      "references": ["MITRE T1195.001", "MITRE T1059"],
+      "tags": ["skill", "install-hook", "lifecycle-script", "manifest"]
+    },
+    {
+      "id": "SKILL-008",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(\"(permissions|tools|allowed[_-]?tools|capabilities|allow)\"\\s*:\\s*(\\[\\s*\"\\*\"|\\{\\s*\"\\*\"|\"\\*\")|^allowed-tools:.*\\bBash(\\s*(,|$)|\\(\\s*(\\*|\\*:\\*|bash:\\*|sh:\\*|zsh:\\*)\\s*\\)))",
+      "description": "Skill manifest — unrestricted (wildcard) tool or permission grant",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "Grant the narrowest tool set the skill needs: name each command (`Bash(git status:*)`) instead of `Bash` or `*`.",
+      "references": ["CWE-250", "OWASP Agentic Top 10 — Excessive Agency"],
+      "tags": ["skill", "permissions", "excessive-agency"]
+    },
+    {
+      "id": "SKILL-009",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(rm|sudo|su|doas|ssh|scp|nc|ncat|socat|chmod|chown|dd|mkfs|eval|base64|crontab|launchctl|systemctl|osascript|powershell|iex|reg)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(rm|sudo|ssh|nc|chmod|eval|crontab|launchctl|systemctl)\\b)",
+      "description": "Skill manifest — grants a shell command that deletes, escalates, persists or opens a shell",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "Remove the grant or scope it to a fixed argument list; a skill that needs sudo, rm or a scheduler should say exactly which command and why.",
+      "references": ["MITRE T1059", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "permissions", "dangerous-tool"]
+    },
+    {
+      "id": "SKILL-010",
+      "phase": "skill_security",
+      "severity": "medium",
+      "pattern": "(?i)(^allowed-tools:.*\\bBash\\(\\s*(curl|wget|python3?|node|perl|ruby|php|sh|bash|zsh)\\b|\"(tools|allowed[_-]?tools)\"\\s*:\\s*\\[[^\\]]*\"(curl|wget|python3?|node|bash|sh)\\b)",
+      "description": "Skill manifest — grants a downloader or an interpreter",
+      "file_filter": {
+        "filename_exact": ["manifest.json", "plugin.json", "package.json", "SKILL.md", "AGENTS.md", "CLAUDE.md", "mcp.json", "tool.json", "skill.json", "server.json"],
+        "filename_suffix": [".mcp.yaml", ".mcp.yml"]
+      },
+      "remediation": "A skill that can fetch and run arbitrary content is one instruction away from a dropper. Scope the grant to the exact command and arguments it needs.",
+      "references": ["MITRE T1105", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "permissions", "downloader"]
     }
   ],
   "provenance_rules": []

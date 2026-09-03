@@ -48,6 +48,8 @@
 | [**Prompt Injection Patterns**](./prompt-injection-patterns.md) | Detection and prevention of prompt injection attacks |
 | [**Prompt Injection Extension**](./PROMPT-INJECTION-EXTENSION.md) | Advanced prompt injection detection techniques |
 | [**Case Study: OpenClaw Attack**](./CASE-STUDY-OPENCLAW-ATTACK.md) | Analysis of a real-world AI agent supply chain attack |
+| [**What Sigil can adopt from prism-scanner**](./research/prism-scanner-lessons.md) | Verified gap analysis against a faster-growing competitor, with measured head-to-head results |
+| [**What Sigil can adopt from Ghidra**](./research/ghidra-architecture-lessons.md) | Architecture lessons from a binary-analysis framework, all since implemented |
 
 ### Support
 

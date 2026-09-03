@@ -2,8 +2,8 @@
   "meta": {
     "id": "sigil-core-credentials",
     "name": "Sigil Core — Credentials",
-    "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "version": "1.2.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects credential access patterns: ENV variable reads, AWS/GCP/Azure credentials, SSH keys, API key patterns, and hardcoded secrets"
   },
@@ -11,51 +11,133 @@
     {
       "id": "CRED-001",
       "phase": "credentials",
-      "severity": "high",
-      "pattern": "os\\.(environ|getenv)\\s*[\\[\\(]\\s*['\"]?(AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)",
-      "description": "Environment variable access for sensitive key"
+      "severity": "medium",
+      "pattern": "os\\.(environ(\\.get)?|getenv)\\s*[\\[\\(]\\s*['\"][A-Za-z0-9_]*(_KEY\\b|SECRET|_TOKEN\\b|PASSWORD|PASSWD|CREDENTIAL|DATABASE_URL|AWS_|OPENAI_|ANTHROPIC_|GITHUB_TOKEN|NPM_TOKEN|PRIVATE_KEY)",
+      "description": "Sensitive environment variable read (Python)",
+      "remediation": "Reading a secret from the environment is normal for a client. What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credential-read"
+      ],
+      "suppress": {
+        "line_contains": [
+          "NEXT_PUBLIC_",
+          "REACT_APP_",
+          "VITE_"
+        ]
+      }
     },
     {
       "id": "CRED-002",
       "phase": "credentials",
-      "severity": "high",
-      "pattern": "process\\.env\\.(AWS_|SECRET_|API_KEY|TOKEN|PASSWORD|DATABASE_URL|PRIVATE)",
-      "description": "Node process.env access for sensitive key"
+      "severity": "medium",
+      "pattern": "(process\\.env(\\.|\\[\\s*['\"])|Deno\\.env\\.get\\(\\s*['\"])[A-Za-z0-9_]*(_KEY\\b|SECRET|_TOKEN\\b|PASSWORD|PASSWD|CREDENTIAL|DATABASE_URL|AWS_|OPENAI_|ANTHROPIC_|GITHUB_TOKEN|NPM_TOKEN|PRIVATE_KEY)",
+      "description": "Sensitive environment variable read (JavaScript/TypeScript)",
+      "remediation": "Reading a secret from the environment is normal for a client. What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credential-read"
+      ],
+      "suppress": {
+        "line_contains": [
+          "NEXT_PUBLIC_",
+          "REACT_APP_",
+          "VITE_"
+        ]
+      }
     },
     {
       "id": "CRED-003",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "\\.aws/(credentials|config)",
-      "description": "AWS credentials file access"
+      "description": "AWS credentials file access",
+      "remediation": "Nothing a package installs should read ~/.aws. Remove the access; use the AWS SDK's own credential chain if cloud access is genuinely needed.",
+      "references": [
+        "MITRE T1552.001",
+        "MITRE T1552.004"
+      ],
+      "tags": [
+        "credential-read",
+        "aws"
+      ]
     },
     {
       "id": "CRED-004",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "AKIA[0-9A-Z]{16}",
-      "description": "Hardcoded AWS access key ID"
+      "description": "Hardcoded AWS access key ID",
+      "remediation": "Revoke this key immediately — it is public now. Then load keys from the environment or a secrets manager.",
+      "references": [
+        "CWE-798"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "aws"
+      ]
     },
     {
       "id": "CRED-005",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "\\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys)",
-      "description": "SSH key file access"
+      "description": "SSH key file access",
+      "remediation": "Nothing a package installs should touch SSH keys. Remove the access.",
+      "references": [
+        "MITRE T1552.004"
+      ],
+      "tags": [
+        "credential-read",
+        "ssh"
+      ]
     },
     {
       "id": "CRED-006",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
-      "description": "Embedded private key"
+      "description": "Embedded private key",
+      "remediation": "Remove the private key from the package and rotate it; it has been distributed.",
+      "references": [
+        "CWE-321"
+      ],
+      "tags": [
+        "hardcoded-secret"
+      ]
     },
     {
       "id": "CRED-007",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)(api[_-]?key|api[_-]?secret|access[_-]?token)\\s*[:=]\\s*['\"][a-zA-Z0-9]{16,}",
-      "description": "Hardcoded API key or secret"
+      "pattern": "(?i)[\"']?(api[_-]?key|api[_-]?secret|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)[\"']?\\s*[:=]\\s*['\"][A-Za-z0-9+/=_\\-]{16,}['\"]",
+      "description": "Hardcoded API key or secret",
+      "remediation": "Move the secret to the environment or a secrets manager and rotate it.",
+      "references": [
+        "CWE-798"
+      ],
+      "tags": [
+        "hardcoded-secret"
+      ],
+      "suppress": {
+        "line_contains": [
+          "placeholder",
+          "example",
+          "changeme",
+          "your-",
+          "your_",
+          "xxxx",
+          "<your",
+          "dummy",
+          "REPLACE",
+          "insert_",
+          "INSERT_"
+        ]
+      }
     },
     {
       "id": "CRED-008",
@@ -80,35 +162,509 @@
           "spec",
           "test"
         ]
-      }
+      },
+      "remediation": "Move the password out of source and rotate it.",
+      "references": [
+        "CWE-259"
+      ],
+      "tags": [
+        "hardcoded-secret"
+      ]
     },
     {
       "id": "CRED-009",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "\"type\"\\s*:\\s*\"service_account\"",
-      "description": "GCP service account JSON key"
+      "description": "GCP service account JSON key",
+      "remediation": "A service-account key file grants cloud access to whoever holds it. Remove it from the package and rotate the key.",
+      "references": [
+        "CWE-798"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "gcp"
+      ]
     },
     {
       "id": "CRED-010",
       "phase": "credentials",
       "severity": "critical",
       "pattern": "gh[pousr]_[A-Za-z0-9_]{36,}",
-      "description": "GitHub personal access token"
+      "description": "GitHub personal access token",
+      "remediation": "Revoke the token now; GitHub will also revoke it once the leak is indexed. Load tokens from the environment.",
+      "references": [
+        "CWE-798"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "github"
+      ]
     },
     {
       "id": "CRED-011",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)(bearer|authorization)\\s*[:=]\\s*['\"][a-zA-Z0-9._\\-]{20,}",
-      "description": "Authorization / bearer token"
+      "pattern": "(?i)[\"']?(bearer|authorization)[\"']?\\s*[:=]\\s*['\"][a-zA-Z0-9._\\-]{20,}",
+      "description": "Authorization / bearer token",
+      "remediation": "Move the token out of source and rotate it.",
+      "references": [
+        "CWE-798"
+      ],
+      "tags": [
+        "hardcoded-secret"
+      ],
+      "suppress": {
+        "line_contains": [
+          "placeholder",
+          "example",
+          "changeme",
+          "your-",
+          "your_",
+          "xxxx",
+          "<your",
+          "dummy",
+          "REPLACE",
+          "insert_",
+          "INSERT_"
+        ]
+      }
     },
     {
       "id": "CRED-MCP-001",
       "phase": "credentials",
       "severity": "medium",
       "pattern": "MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth",
-      "description": "MCP credential reference"
+      "description": "MCP credential reference",
+      "remediation": "A reference to MCP_API_KEY, MCP_SECRET, MCP_TOKEN or mcp_auth is ordinary when an MCP server or client reads its own credential from the environment and sends it only in the auth header of the endpoint it documents, or when a README tells the user to set the variable. Trace where the value goes: a token that is logged, written to a file, placed in a request body or URL, or sent to any other host is being harvested, and an instruction file that tells the agent to print or paste it is a credential-theft prompt.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credentials",
+        "mcp",
+        "credential-read"
+      ]
+    },
+    {
+      "id": "CRED-013",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "xox[baprs]-[0-9A-Za-z-]{10,}",
+      "description": "Hardcoded Slack token",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "slack"
+      ]
+    },
+    {
+      "id": "CRED-014",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+",
+      "description": "Hardcoded Slack incoming-webhook URL",
+      "remediation": "Rotate the webhook. A webhook URL in shipped code lets anyone post to that channel, and is a common exfiltration sink.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "slack",
+        "webhook"
+      ]
+    },
+    {
+      "id": "CRED-015",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\b[sr]k_live_[0-9A-Za-z]{20,}",
+      "description": "Hardcoded Stripe live secret/restricted key",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "stripe"
+      ]
+    },
+    {
+      "id": "CRED-016",
+      "phase": "credentials",
+      "severity": "low",
+      "pattern": "\\bpk_live_[0-9A-Za-z]{20,}",
+      "description": "Stripe publishable key",
+      "remediation": "Publishable keys are public by design; confirm it belongs to this package's own account.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "stripe"
+      ]
+    },
+    {
+      "id": "CRED-017",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "\\bwhsec_[0-9A-Za-z]{24,}",
+      "description": "Hardcoded Stripe webhook signing secret",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "stripe"
+      ]
+    },
+    {
+      "id": "CRED-018",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "\\bAIza[0-9A-Za-z_-]{35}\\b",
+      "description": "Hardcoded Google API key",
+      "remediation": "Restrict the key (referrer/IP/API limits) and rotate it if it grants anything beyond public quota.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "google"
+      ]
+    },
+    {
+      "id": "CRED-019",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bglpat-[0-9A-Za-z_-]{20}\\b",
+      "description": "Hardcoded GitLab personal access token",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "gitlab"
+      ]
+    },
+    {
+      "id": "CRED-020",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bsk-(proj|svcacct|admin)-[A-Za-z0-9_-]{20,}|\\bsk-[A-Za-z0-9]{48}\\b",
+      "description": "Hardcoded OpenAI API key",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "openai"
+      ]
+    },
+    {
+      "id": "CRED-021",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bsk-ant-(api|admin)[0-9]{2}-[A-Za-z0-9_-]{20,}",
+      "description": "Hardcoded Anthropic API key",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "anthropic"
+      ]
+    },
+    {
+      "id": "CRED-022",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bnpm_[A-Za-z0-9]{36}\\b",
+      "description": "Hardcoded npm access token",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "npm"
+      ]
+    },
+    {
+      "id": "CRED-023",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "_authToken\\s*=\\s*[^$\\s{][^\\s]{10,}",
+      "description": "npm registry auth token committed in .npmrc",
+      "remediation": "Remove the token line; use ${NPM_TOKEN} interpolation from the environment in CI.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "npm"
+      ]
+    },
+    {
+      "id": "CRED-024",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bpypi-AgEI[A-Za-z0-9_-]{50,}",
+      "description": "Hardcoded PyPI API token",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "pypi"
+      ]
+    },
+    {
+      "id": "CRED-025",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "\\b[MN][A-Za-z0-9]{23,}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27,}",
+      "description": "Hardcoded Discord bot token",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "fixture"
+        ]
+      },
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "discord"
+      ]
+    },
+    {
+      "id": "CRED-026",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "\\b[0-9]{8,10}:AA[0-9A-Za-z_-]{33}\\b",
+      "description": "Hardcoded Telegram bot token",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "telegram"
+      ]
+    },
+    {
+      "id": "CRED-027",
+      "phase": "credentials",
+      "severity": "medium",
+      "pattern": "\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
+      "description": "JWT literal in source",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "fixture",
+          "example",
+          "spec"
+        ]
+      },
+      "remediation": "A committed JWT is a session or API credential until it expires. Remove it and invalidate it if it is still valid.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "jwt"
+      ]
+    },
+    {
+      "id": "CRED-028",
+      "phase": "credentials",
+      "severity": "medium",
+      "pattern": "(?i)heroku[_-]?api[_-]?key\\s*[:=]\\s*['\"]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+      "description": "Hardcoded Heroku API key",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "heroku"
+      ]
+    },
+    {
+      "id": "CRED-029",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "(?i)aws[_-]?secret[_-]?access[_-]?key\\s*[:=]\\s*['\"]?[A-Za-z0-9/+=]{40}\\b",
+      "description": "Hardcoded AWS secret access key",
+      "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
+      "references": [
+        "CWE-798",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "aws"
+      ]
+    },
+    {
+      "id": "CRED-030",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "(~|\\$HOME|HOME\\b|USERPROFILE|expanduser|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(gnupg/(secring|private-keys|pubring)|config/gcloud/(credentials\\.db|access_tokens\\.db|application_default_credentials\\.json|legacy_credentials)|azure/(accessTokens\\.json|msal_token_cache|azureProfile\\.json)|git-credentials)|/etc/shadow\\b",
+      "description": "Reads an OS or cloud credential store",
+      "remediation": "Nothing a package installs should read GPG keyrings, gcloud/Azure token caches, git credentials or /etc/shadow. Remove the access.",
+      "references": [
+        "MITRE T1552.001",
+        "MITRE T1555"
+      ],
+      "tags": [
+        "credential-theft"
+      ]
+    },
+    {
+      "id": "CRED-031",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(~|\\$HOME|HOME\\b|USERPROFILE|expanduser|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(kube/config|docker/config\\.json|netrc|pypirc|npmrc)",
+      "description": "Reads a developer credential file",
+      "suppress": {
+        "line_contains": [
+          "NPM_TOKEN",
+          "${"
+        ]
+      },
+      "remediation": "Check why the package needs kube/docker/npm/PyPI credentials. Publishing tooling reads its own config; anything else is harvesting.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credential-theft"
+      ]
+    },
+    {
+      "id": "CRED-032",
+      "phase": "credentials",
+      "severity": "medium",
+      "pattern": "\\.(bash|zsh|python|psql|mysql)_history\\b",
+      "description": "Reads shell or REPL history",
+      "remediation": "Shell history routinely contains pasted secrets. A package has no reason to read it.",
+      "references": [
+        "MITRE T1552.003"
+      ],
+      "tags": [
+        "credential-theft"
+      ]
+    },
+    {
+      "id": "CRED-033",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(dict|json\\.dumps|str|list)\\s*\\(\\s*os\\.environ\\s*\\)|os\\.environ\\.(items|copy)\\s*\\(|JSON\\.stringify\\s*\\(\\s*process\\.env\\s*\\)",
+      "description": "Dumps the entire process environment",
+      "remediation": "Serialising the whole environment captures every secret the process can see. Read the specific variables the package documents instead.",
+      "references": [
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "credential-theft",
+        "exfiltration"
+      ]
+    },
+    {
+      "id": "CRED-040",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "(Login Data|Local State|Web Data|Cookies|Local Storage[\\\\/]+leveldb)['\"]?[^\\n]{0,120}(sqlite3|leveldb|decrypt|os_crypt|encrypted_key|CryptUnprotectData)|(sqlite3|leveldb|decrypt|os_crypt|CryptUnprotectData)[^\\n]{0,120}['\"/\\\\](Login Data|Local State|Web Data|Cookies)['\"]?",
+      "description": "Browser credential store access (infostealer shape)",
+      "suppress": {
+        "path_contains": [
+          "node_modules/",
+          "playwright",
+          "puppeteer"
+        ]
+      },
+      "remediation": "Do not install. Opening a browser's Login Data / Cookies database next to a decrypt routine is the infostealer idiom.",
+      "references": [
+        "MITRE T1555.003"
+      ],
+      "tags": [
+        "credential-theft",
+        "infostealer"
+      ]
+    },
+    {
+      "id": "CRED-041",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "security\\s+(find-(generic|internet)-password|dump-keychain)\\b|\\bdump-keychain\\b",
+      "description": "macOS keychain credential dump",
+      "remediation": "Do not install. Reading keychain items from a package is credential theft.",
+      "references": [
+        "MITRE T1555.001"
+      ],
+      "tags": [
+        "credential-theft",
+        "macos"
+      ]
+    },
+    {
+      "id": "CRED-042",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\\bCryptUnprotectData\\b|\\bwin32crypt\\b|vaultcmd\\s+/list|\\bCredEnumerate[AW]?\\b",
+      "description": "Windows DPAPI / Credential Manager access",
+      "remediation": "Do not install. DPAPI decryption and Credential Manager enumeration from a package is credential theft.",
+      "references": [
+        "MITRE T1555.004"
+      ],
+      "tags": [
+        "credential-theft",
+        "windows"
+      ]
+    },
+    {
+      "id": "CRED-043",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "(\\.ssh/|id_rsa|id_ed25519|\\.aws/credentials|\\.kube/config)[^\\n]{0,120}(requests\\.(post|put)|urllib\\.request|httpx\\.(post|put)|fetch\\(|axios\\.(post|put)|curl\\s)|(requests\\.(post|put)|httpx\\.(post|put)|fetch\\(|axios\\.(post|put)|curl\\s)[^\\n]{0,120}(\\.ssh/|id_rsa|id_ed25519|\\.aws/credentials|\\.kube/config)",
+      "description": "Credential file sent over the network on one line",
+      "remediation": "Do not install and report the package: a key file is uploaded in the same statement that reads it.",
+      "references": [
+        "MITRE T1041"
+      ],
+      "tags": [
+        "exfiltration",
+        "credential-theft"
+      ]
     }
   ],
   "provenance_rules": []

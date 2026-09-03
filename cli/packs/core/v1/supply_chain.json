@@ -2,7 +2,7 @@
   "meta": {
     "id": "sigil-core-supply-chain",
     "name": "Sigil Core — Supply Chain Attack Patterns",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "updated_at": "2026-06-11",
     "author": "NOMARK <hello@sigilsec.ai>",
     "description": "Novel supply chain attack vectors: dependency polymorphism, build-time code generation, cross-language bridge exploits, and registry hijacking. Ported from Python NOVEL_VECTOR_RULES."
@@ -13,7 +13,10 @@
       "phase": "code_patterns",
       "severity": "critical",
       "pattern": "fs\\.(write|writeFile).*package\\.json|dependencies.*fs\\.(write|writeFile)",
-      "description": "Self-modifying package.json dependencies detected"
+      "description": "Self-modifying package.json dependencies detected",
+      "remediation": "Check whose package.json is being written. A generator or release script editing its own project's manifest is normal; a library that rewrites the consuming project's dependencies at install or run time is adding a dependency nobody reviewed, so reject it unless the write is clearly local project tooling.",
+      "references": ["MITRE T1195.001", "CAPEC-538"],
+      "tags": ["supply-chain", "dependency-tampering", "package-json", "javascript"]
     },
     {
       "id": "SUPPLY-002",
@@ -25,7 +28,10 @@
         "filename_exact": [
           "package.json"
         ]
-      }
+      },
+      "remediation": "Read the second arm of the range. A peer range like \"^16.0.0 || ^17.0.0\" is ordinary, but a range whose alternative accepts a far-off major (\"^1.2.3 || ^99.0.0\") lets any future publish under that name, including a hijacked one, satisfy the constraint; pin to versions that exist today and commit a lockfile.",
+      "references": ["MITRE T1195.001", "CAPEC-538"],
+      "tags": ["supply-chain", "version-range", "npm", "package-json"]
     },
     {
       "id": "SUPPLY-003",
@@ -46,14 +52,19 @@
           "#master",
           "#v"
         ]
-      }
+      },
+      "remediation": "A git dependency pinned to a branch name installs whatever that branch points at on the day of install, so the code can change after you review it. Pin to a full commit SHA or a signed tag, check that the repository owner is the upstream project and not a fork, and prefer a published registry release.",
+      "references": ["MITRE T1195.001", "CWE-494"],
+      "tags": ["supply-chain", "git-dependency", "unpinned"]
     },
     {
       "id": "SUPPLY-004",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "require\\(['\"][\\./]*node_modules/[^/]+/node_modules/",
-      "description": "Direct access to transitive dependencies"
+      "description": "Direct access to transitive dependencies",
+      "remediation": "Reaching into another package's nested node_modules bypasses dependency resolution: the code loads a transitive package it never declared, at whatever version happens to be nested there, and the target changes silently with any hoisting or lockfile change. Declare the package as a direct dependency and require it by name; if it is deliberately undeclared, ask why.",
+      "tags": ["supply-chain", "transitive-dependency", "javascript"]
     },
     {
       "id": "SUPPLY-005",
@@ -74,14 +85,20 @@
           "pypi.org",
           "files.pythonhosted.org"
         ]
-      }
+      },
+      "remediation": "Confirm the registry host is a mirror or private registry your organisation runs. An .npmrc, publishConfig or pyproject registry entry pointing at an unfamiliar host lets that host serve any package under any name, which compromises every dependency at once; scope private registries to your own namespace and keep the public defaults for everything else.",
+      "references": ["MITRE T1195.001", "CAPEC-437"],
+      "tags": ["supply-chain", "registry", "npm", "pypi"]
     },
     {
       "id": "SUPPLY-006",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "require\\.resolve\\([^)]+\\)[\\s\\S]*catch[\\s\\S]*require\\([^)]+\\)",
-      "description": "Phantom dependency pattern with fallback"
+      "description": "Phantom dependency pattern with fallback",
+      "remediation": "Read what the catch branch loads. Falling back from an optional native module to a bundled pure-JS implementation is a normal shape; falling back to a package missing from the manifest, to a path outside the package, or to an install command means the dependency graph you reviewed is not the one that runs.",
+      "references": ["MITRE T1195.001", "CWE-829"],
+      "tags": ["supply-chain", "phantom-dependency", "javascript", "dynamic-require"]
     },
     {
       "id": "SUPPLY-007",
@@ -96,7 +113,10 @@
         "file_header_contains": [
           "typeof define===\"function\"&&define.amd"
         ]
-      }
+      },
+      "remediation": "Overriding Module._load, writing into require.cache, or re-exporting a require() whose argument is a variable lets this code substitute any module the rest of the process loads. That is expected inside a test-mocking or APM instrumentation library and nowhere else; if the package is not one of those, treat it as a require() hijack and reject it.",
+      "references": ["MITRE T1574", "CAPEC-159"],
+      "tags": ["supply-chain", "require-hijack", "monkey-patch", "javascript"]
     },
     {
       "id": "SUPPLY-008",
@@ -111,84 +131,145 @@
         "file_header_contains": [
           "typeof define===\"function\"&&define.amd"
         ]
-      }
+      },
+      "remediation": "Code built from a template literal and handed to new Function or eval runs without ever appearing as reviewable source. A template engine compiling its own templates is the one legitimate case; anywhere else, check whether the interpolated values can come from a file, a response or user input, and reject the package if the generated code cannot be written out and read.",
+      "references": ["MITRE T1059.007", "CWE-94", "CWE-95"],
+      "tags": ["execution", "function-constructor", "template-literal", "javascript"]
     },
     {
       "id": "SUPPLY-009",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "define\\s*\\([^)]*\\)[\\s\\S]*exec\\s*\\(|macro\\s*\\([\\s\\S]*Function\\s*\\(|__macro__\\s*\\([^)]*eval",
-      "description": "Macro expansion with code execution"
+      "description": "Macro expansion with code execution",
+      "remediation": "Look at what the expansion executes. An AMD define() module followed by a RegExp .exec() is noise, but a macro(), __macro__() or define() body whose output is fed to Function(), eval or a process exec generates code at build time that the source you reviewed never shows; expand it by hand and review the result, or reject the package.",
+      "references": ["CWE-94", "CAPEC-242"],
+      "tags": ["execution", "macro", "eval", "build-time"]
     },
     {
       "id": "SUPPLY-010",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "sourceMappingURL\\s*=.*data:.*base64|sourceMap\\s*:.*atob\\(",
-      "description": "Inline source map with base64 payload"
+      "description": "Inline source map with base64 payload",
+      "remediation": "Decode the base64 blob and confirm it is a JSON source map (version, sources, mappings) that matches this file. Inline source maps are normal in development bundles, but reviewers rarely read a data: URL, so a payload parked there and decoded with atob() at runtime passes casual review; strip source maps from published packages.",
+      "references": ["MITRE T1027.009", "MITRE T1140"],
+      "tags": ["obfuscation", "source-map", "base64", "javascript"]
     },
     {
       "id": "SUPPLY-011",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "(esprima|acorn|babel)\\.parse[\\s\\S]*(node\\.type|node\\.body|eval|Function\\()|AST[\\s\\S]*node\\.type[\\s\\S]*=|transform[\\s\\S]*CallExpression[\\s\\S]*eval",
-      "description": "AST manipulation with code generation"
+      "description": "AST manipulation with code generation",
+      "remediation": "Parsing and rewriting an AST is what linters, codemods, bundlers and minifiers do, so first decide whether this package is a build tool with a reason to. If it is not, or if the rewritten output is passed to eval or Function, it is injecting logic into other files at build time; diff the emitted code against the input before trusting it.",
+      "references": ["MITRE T1195.001", "CWE-94"],
+      "tags": ["supply-chain", "build-time", "ast", "javascript"]
     },
     {
       "id": "SUPPLY-012",
       "phase": "code_patterns",
       "severity": "critical",
       "pattern": "class\\s+\\w*Plugin[\\s\\S]*apply\\s*\\(compiler\\)[\\s\\S]*(eval|Function\\()|compiler\\.(plugin|hooks)[\\s\\S]*(eval|Function\\()|webpack[\\s\\S]*plugin[\\s\\S]*exec\\(",
-      "description": "Webpack plugin with dynamic code execution"
+      "description": "Webpack plugin with dynamic code execution",
+      "remediation": "A webpack plugin runs inside every build with access to all bundled source, so one that reaches for eval, Function or exec can rewrite or exfiltrate the output silently. A few well-known plugins evaluate child compilations this way; for anything else, verify the plugin is the published package you expect and that what it executes is derived from the build, not decoded or downloaded.",
+      "references": ["MITRE T1195.001", "CWE-94"],
+      "tags": ["supply-chain", "build-plugin", "webpack", "eval"]
     },
     {
       "id": "SUPPLY-013",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "babel[\\s\\S]*visitor[\\s\\S]*(eval|Function\\()|transformSync[\\s\\S]*plugins[\\s\\S]*eval|preset[\\s\\S]*visitor[\\s\\S]*exec",
-      "description": "Babel transformer with code injection"
+      "description": "Babel transformer with code injection",
+      "remediation": "A Babel plugin or preset visits every source file in the build, so a visitor that calls eval or Function, or a preset that shells out with exec, can inject code into every module it touches. Legitimate transforms build AST nodes with @babel/types rather than executing strings; review the visitor and drop the plugin if its output cannot be explained.",
+      "references": ["MITRE T1195.001", "CWE-94"],
+      "tags": ["supply-chain", "build-plugin", "babel", "eval"]
     },
     {
       "id": "SUPPLY-014",
       "phase": "obfuscation",
       "severity": "high",
       "pattern": "WebAssembly\\.(instantiate|compile)|Uint8Array\\s*\\(\\s*\\[[\\d\\s,]{50,}",
-      "description": "Large WASM binary payload detected"
+      "description": "Large WASM binary payload detected",
+      "remediation": "WebAssembly compiled from an inline byte array is executable code that static review cannot read. Legitimate WASM ships as a .wasm file that the included source rebuilds to, and a byte table in JS should be data (codec constants, lookup tables); if the blob cannot be reproduced from source, treat it as an unreviewed payload.",
+      "references": ["MITRE T1027.009"],
+      "tags": ["obfuscation", "wasm", "embedded-payload", "javascript"]
     },
     {
       "id": "SUPPLY-015",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "require\\(['\"]\\.\\.?/build/.*\\.node|bindings\\([^)]+\\).*exec|napi.*dlopen.*system",
-      "description": "Native binding with suspicious behavior"
+      "description": "Native binding with suspicious behavior",
+      "remediation": "A .node addon is compiled machine code the scanner cannot read. Native modules are normal for performance libraries (sqlite3, sharp, bcrypt) but should be built from source in the package or fetched from the project's releases with a checksum; a prebuilt binary checked into the package, or a binding that goes on to call exec or system, deserves a rebuild from source before you install it.",
+      "references": ["MITRE T1195.001"],
+      "tags": ["supply-chain", "native-binding", "javascript", "exec"]
     },
     {
       "id": "SUPPLY-016",
       "phase": "code_patterns",
       "severity": "critical",
       "pattern": "ffi\\.(Library|Function)[\\s\\S]*\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]*Library[\\s\\S]*\\bsystem\\b|Foreign[\\s\\S]*invoke[\\s\\S]*exec|ctypes[\\s\\S]*CDLL[\\s\\S]*os\\.system",
-      "description": "FFI boundary violation with command execution"
+      "description": "FFI boundary violation with command execution",
+      "remediation": "Calling system() or exec through an FFI layer (node-ffi Library, Python ctypes CDLL, a Foreign invoke) does what child_process or subprocess would do while avoiding the APIs scanners look for. Binding to a C library is fine; binding to libc's system is not, because there is no legitimate reason to run shell commands through FFI, so reject the package or have the author use the standard process API.",
+      "references": ["MITRE T1106", "MITRE T1059"],
+      "tags": ["execution", "ffi", "ctypes", "system"]
     },
     {
       "id": "SUPPLY-017",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "PythonShell|python-shell|pyodide|Pyodide",
-      "description": "Python-JavaScript bridge with code execution"
+      "description": "Python-JavaScript bridge with code execution",
+      "remediation": "python-shell and Pyodide let JavaScript run Python, giving the package a second interpreter that a JavaScript-focused review does not cover. Check that the Python it runs is a file shipped in the package (and scan that too) rather than a string assembled at runtime or fetched from the network, and question any package that has no obvious reason to execute Python at all.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["execution", "cross-language", "python", "javascript"]
     },
     {
       "id": "SUPPLY-018",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "wasm_bindgen.*#\\[wasm_bindgen\\].*unsafe|wasm-pack.*--target.*eval|rustwasm.*Memory.*grow",
-      "description": "Rust-WASM bridge with unsafe operations"
+      "description": "Rust-WASM bridge with unsafe operations",
+      "remediation": "Unsafe blocks at a wasm_bindgen export, or JS glue that grows WebAssembly memory and evaluates code, move behaviour into a compiled module that JavaScript review does not see. Some unsafe is unavoidable for passing raw pointers across the boundary; confirm the Rust source is included and reproducibly builds the shipped .wasm, and that nothing on the JS side hands module memory to eval.",
+      "tags": ["supply-chain", "wasm", "rust", "unsafe"]
     },
     {
       "id": "SUPPLY-019",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "Java\\.type.*Runtime.*exec|jni.*CallStaticMethod.*system|JNI.*GetMethodID.*ProcessBuilder",
-      "description": "JNI exploitation pattern detected"
+      "description": "JNI exploitation pattern detected",
+      "remediation": "Reaching Java's Runtime.exec or ProcessBuilder through JNI or a Java.type bridge runs shell commands from a layer that neither the JavaScript nor the Java side of a review naturally covers. A package that embeds Java should not need to spawn processes from it; treat this as command execution and require a documented reason before installing.",
+      "references": ["MITRE T1059"],
+      "tags": ["execution", "jni", "java", "exec"]
+    },
+    {
+      "id": "SUPPLY-020",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "b?['\"]MZ(\\\\x90|\\\\u0090|\\x90)|TVqQAAMAAAAEAAAA|\\\\x4[dD]\\\\x5[aA]\\\\x90\\\\x00",
+      "description": "Embedded Windows executable (MZ header) in a source literal",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__",
+          "/fixtures/"
+        ]
+      },
+      "remediation": "A DOS/PE header inside a string or bytes literal means an executable is being carried in source, usually written to a temp path and run. There is no packaging reason to do this; treat the file as a dropper and reject the package.",
+      "references": [
+        "MITRE T1027.009",
+        "MITRE T1105",
+        "CWE-506"
+      ],
+      "tags": [
+        "supply-chain",
+        "dropper",
+        "embedded-executable",
+        "windows"
+      ]
     }
   ],
   "provenance_rules": []

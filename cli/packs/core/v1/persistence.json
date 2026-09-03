@@ -1,0 +1,248 @@
+{
+  "meta": {
+    "id": "sigil-core-persistence",
+    "name": "Sigil Core — Persistence & System Configuration",
+    "version": "1.0.0",
+    "updated_at": "2026-09-02",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects persistence and system-configuration tampering: cron, launchd, systemd, shell startup files, authorized_keys, sudoers, hosts/DNS, Windows Run keys and scheduled tasks, git hooks, autostart entries. The post-install foothold shapes that a quarantine scanner exists to stop."
+  },
+  "rules": [
+    {
+      "id": "PERSIST-001",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(\\|\\s*crontab\\b|\\bcrontab\\s+-([eru]\\b|\\s*[\"')]|\\s*$)|\\bcrontab\\s+[\\w./~-]+\\.(cron|tab|txt)\\b|/etc/cron\\.(d|daily|hourly|weekly|monthly)\\b|/etc/crontab\\b|/var/spool/cron\\b|\\bCronTab\\s*\\()",
+      "description": "Persistence — cron job installation",
+      "remediation": "A package or skill has no business scheduling itself. Remove the cron installation; if periodic work is genuinely needed, document it and let the operator schedule it.",
+      "references": [
+        "MITRE T1053.003"
+      ],
+      "tags": [
+        "persistence",
+        "cron"
+      ]
+    },
+    {
+      "id": "PERSIST-002",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(Library/Launch(Agents|Daemons)/[^\\s\"']*\\.plist|\\blaunchctl[\"',\\s]+(load|bootstrap|enable|submit)\\b)",
+      "description": "Persistence — macOS LaunchAgent/LaunchDaemon installation",
+      "suppress": {
+        "path_contains": [
+          "Formula/",
+          "Casks/"
+        ]
+      },
+      "remediation": "Remove the LaunchAgent/LaunchDaemon installation. Code that survives a reboot and runs outside the agent's session is a backdoor shape, whatever the stated purpose.",
+      "references": [
+        "MITRE T1543.001",
+        "MITRE T1543.004"
+      ],
+      "tags": [
+        "persistence",
+        "launchd",
+        "macos"
+      ]
+    },
+    {
+      "id": "PERSIST-003",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(/etc/systemd/system/[^\\s\"']*\\.(service|timer)|\\.config/systemd/user/[^\\s\"']*\\.(service|timer)|/usr/lib/systemd/system/|\\bsystemctl[\"',\\s]+(--user[\"',\\s]+)?(enable|link)\\b)",
+      "description": "Persistence — systemd unit installation",
+      "suppress": {
+        "filename_suffix": [
+          ".service",
+          ".timer"
+        ],
+        "path_contains": [
+          "roles/",
+          "ansible/"
+        ]
+      },
+      "remediation": "Remove the systemd unit installation. If the tool needs a service, ship a unit file and instructions and let the operator enable it deliberately.",
+      "references": [
+        "MITRE T1543.002"
+      ],
+      "tags": [
+        "persistence",
+        "systemd",
+        "linux"
+      ]
+    },
+    {
+      "id": "PERSIST-004",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "((~|\\$\\{?HOME\\}?|expanduser\\(|\\bHOME\\b[^\\n]{0,30}|home\\.join\\()[^\\n]{0,40}?[/\"']\\.(bashrc|zshrc|zshenv|zprofile|zlogin|bash_profile|bash_login|profile)\\b|/etc/profile\\.d/|/etc/(bash\\.bashrc|zsh/zshrc|zshenv|zprofile|profile)\\b)",
+      "description": "Persistence — shell startup file referenced",
+      "remediation": "Check why the code touches a shell startup file. Reading one is unusual; writing one makes the code run in every future shell. Prefer an explicit, documented setup step the user runs.",
+      "references": [
+        "MITRE T1546.004"
+      ],
+      "tags": [
+        "persistence",
+        "shell-rc"
+      ]
+    },
+    {
+      "id": "PERSIST-005",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(\\.(bashrc|zshrc|zshenv|zprofile|bash_profile|profile)\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)|(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)[^\\n]{0,80}\\.(bashrc|zshrc|zshenv|zprofile|bash_profile|profile)\\b)",
+      "description": "Persistence — shell startup file written",
+      "remediation": "Remove the write to the shell startup file. Anything appended there executes in every new shell with the user's full privileges; a package must never do this silently.",
+      "references": [
+        "MITRE T1546.004"
+      ],
+      "tags": [
+        "persistence",
+        "shell-rc"
+      ]
+    },
+    {
+      "id": "PERSIST-006",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(authorized_keys\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)|(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)[^\\n]{0,80}authorized_keys\\b)",
+      "description": "Persistence — SSH authorized_keys written",
+      "remediation": "Remove the authorized_keys write. Adding a key grants persistent remote login; nothing a package installs should do that.",
+      "references": [
+        "MITRE T1098.004"
+      ],
+      "tags": [
+        "persistence",
+        "ssh",
+        "backdoor"
+      ]
+    },
+    {
+      "id": "PERSIST-007",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(/etc/sudoers(\\.d/|\\b)|\\bvisudo\\b)",
+      "description": "Privilege escalation — sudoers referenced",
+      "remediation": "Remove any sudoers modification. A package must not change who can become root.",
+      "references": [
+        "MITRE T1548.003"
+      ],
+      "tags": [
+        "privilege-escalation",
+        "sudo"
+      ]
+    },
+    {
+      "id": "PERSIST-008",
+      "phase": "code_patterns",
+      "severity": "critical",
+      "pattern": "(NOPASSWD\\s*:\\s*ALL|ALL\\s*=\\s*\\(ALL(:ALL)?\\)\\s*NOPASSWD)",
+      "description": "Privilege escalation — passwordless sudo grant",
+      "remediation": "This grants passwordless root. Do not install; treat as malicious unless it is an explicitly documented dev-container image.",
+      "references": [
+        "MITRE T1548.003"
+      ],
+      "tags": [
+        "privilege-escalation",
+        "sudo"
+      ]
+    },
+    {
+      "id": "PERSIST-009",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(/etc/hosts\\b|/etc/resolv\\.conf\\b|\\bnetworksetup\\s+-set(dns|web|secureweb)|drivers\\\\+etc\\\\+hosts\\b)",
+      "description": "System configuration — hosts/DNS configuration referenced",
+      "suppress": {
+        "line_contains": [
+          "--add-host",
+          "extra_hosts"
+        ]
+      },
+      "remediation": "Check why the code references host or DNS configuration. Rewriting name resolution is how API endpoints (api.openai.com, api.anthropic.com) get silently redirected.",
+      "references": [
+        "MITRE T1565.001"
+      ],
+      "tags": [
+        "system-config",
+        "dns"
+      ]
+    },
+    {
+      "id": "PERSIST-010",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(/etc/hosts\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)|(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)[^\\n]{0,80}/etc/(hosts|resolv\\.conf)\\b|/etc/resolv\\.conf\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a))",
+      "description": "System configuration — hosts/DNS configuration written",
+      "remediation": "Remove the write to /etc/hosts or /etc/resolv.conf. Redirecting name resolution from inside a package is an endpoint-hijack, not configuration.",
+      "references": [
+        "MITRE T1565.001"
+      ],
+      "tags": [
+        "system-config",
+        "dns"
+      ]
+    },
+    {
+      "id": "PERSIST-011",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?i)(CurrentVersion\\\\+(Run|RunOnce|RunServices)\\b|\\bschtasks(\\.exe)?\\s+/create\\b|\\b(Register|New)-ScheduledTask\\b|Register-WmiEvent\\b|__EventFilter\\b|CommandLineEventConsumer\\b|Programs\\\\+Startup\\b|\\bsc(\\.exe)?\\s+create\\b|\\bNew-Service\\b)",
+      "description": "Persistence — Windows Run key, scheduled task, WMI subscription or service",
+      "remediation": "Remove the Windows persistence mechanism. Run keys, scheduled tasks, WMI event subscriptions and services all execute without the user's session; a package should not install any of them.",
+      "references": [
+        "MITRE T1547.001",
+        "MITRE T1053.005",
+        "MITRE T1546.003",
+        "MITRE T1543.003"
+      ],
+      "tags": [
+        "persistence",
+        "windows"
+      ]
+    },
+    {
+      "id": "PERSIST-012",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "(\\.git/hooks/[\\w.-]+|core\\.hooksPath\\b|--hooks-path\\b)",
+      "description": "Persistence — git hook installation",
+      "suppress": {
+        "line_contains": [
+          "husky",
+          ".husky",
+          "lefthook",
+          "simple-git-hooks",
+          ".githooks",
+          "hooksPath=/dev/null"
+        ]
+      },
+      "remediation": "Check what the hook does. A git hook runs on every commit, checkout or push with the developer's credentials; hooks installed by a dependency should be visible and reviewable (husky, lefthook), not written into .git/hooks directly.",
+      "references": [
+        "MITRE T1546"
+      ],
+      "tags": [
+        "persistence",
+        "git-hook"
+      ]
+    },
+    {
+      "id": "PERSIST-013",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(\\.config/autostart/[^\\s\"']*\\.desktop|/etc/xdg/autostart/|Library/StartupItems/|\\bLoginItems\\b|SMLoginItemSetEnabled|\\bosascript\\b[^\\n]*login item)",
+      "description": "Persistence — desktop autostart or login item",
+      "remediation": "Remove the autostart/login-item registration. Starting at login is a decision for the user, made through the OS, not for a package to make on their behalf.",
+      "references": [
+        "MITRE T1547.013",
+        "MITRE T1547.015"
+      ],
+      "tags": [
+        "persistence",
+        "autostart"
+      ]
+    }
+  ],
+  "provenance_rules": []
+}

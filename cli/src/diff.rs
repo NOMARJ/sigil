@@ -139,6 +139,9 @@ pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
 
     let doc: serde_json::Value =
         serde_json::from_str(data).map_err(|e| format!("not valid JSON: {e}"))?;
+    if doc.get("kind").and_then(|k| k.as_str()) == Some("residue") {
+        return Err("this is a `sigil residue` document, not a scan result".to_string());
+    }
 
     let findings: Vec<Finding> = serde_json::from_value(
         doc.get("findings")
@@ -182,11 +185,18 @@ pub fn parse_baseline(data: &str) -> Result<ScanResult, String> {
             .get("suppressed_findings")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default(),
+        inline_suppressed: Vec::new(),
+        inline_suppressions: Vec::new(),
         suppressed_by: doc
             .get("suppressed_by")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
         scanner,
+        platform: summary
+            .and_then(|s| s.get("platform"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     })
 }
 
@@ -255,8 +265,11 @@ mod tests {
             files_scanned: 1,
             duration_ms: 1,
             suppressed_findings: Vec::new(),
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner,
+            platform: String::new(),
         }
     }
 

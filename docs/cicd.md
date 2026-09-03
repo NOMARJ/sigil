@@ -34,38 +34,83 @@ jobs:
 
 ### Inputs
 
-| Input              | Default  | Description                                                     |
-| ------------------ | -------- | --------------------------------------------------------------- |
-| `path`             | `.`      | Directory or file to scan                                       |
-| `threshold`        | `medium` | Minimum severity to report: `low`, `medium`, `high`, `critical` |
-| `fail-on-findings` | `true`   | Fail the workflow if findings meet the threshold                |
-| `format`           | `text`   | Output format: `text`, `json`, `sarif`                          |
-| `phases`           | (all)    | Comma-separated phase filter                                    |
-| `upload-sarif`     | `false`  | Upload SARIF results to GitHub Code Scanning                    |
-| `api-key`          | —        | Sigil cloud API key for threat intelligence enrichment (key issuance is not yet available — leave unset) |
+These match `action.yml` exactly.
+
+| Input              | Default               | Description                                                                                                                 |
+| ------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `path`             | `.`                   | Path to scan, relative to the repository root (a single directory or file)                                                  |
+| `threshold`        | `medium`              | Minimum verdict level that fails the action: `low`, `medium`, `high`, `critical`                                            |
+| `fail-on-findings` | `true`                | Whether to fail the action when the risk score meets the threshold                                                          |
+| `phases`           | `all`                 | Comma-separated phase filter: `install-hooks`, `code-patterns`, `network-exfil`, `credentials`, `obfuscation`, `provenance`, `prompt-injection`, `skill-security` |
+| `upload-sarif`     | `false`               | Run a second pass in SARIF format and upload it to GitHub Code Scanning (needs `security-events: write`, see below)         |
+| `sarif-file`       | `sigil-results.sarif` | Where the SARIF report is written when `upload-sarif` is `true` (relative to the workspace)                                 |
+| `api-key`          | —                     | Sigil cloud API key for threat intelligence enrichment (key issuance is not yet available — leave unset)                     |
+
+The action always runs the scan with `--format json` internally; there is no `format` input. Use `upload-sarif` for SARIF output.
 
 ### Outputs
 
-| Output           | Description                                                               |
-| ---------------- | ------------------------------------------------------------------------- |
-| `verdict`        | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, `CRITICAL` |
-| `score`          | Numeric risk score                                                        |
-| `findings-count` | Number of findings                                                        |
-| `report-path`    | Path to the scan report file                                              |
+| Output           | Description                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `verdict`        | Scan verdict: `clean`, `low`, `medium`, `high`, `critical` (`error` if the scanner produced no parseable output)    |
+| `risk-score`     | Numeric risk score                                                                                                 |
+| `findings-count` | Number of findings                                                                                                 |
+| `grade`          | Letter grade `A`–`F` derived from the verdict (A no findings, B low-severity only, C medium, D high, F critical)    |
+| `badge`          | Ready-to-paste shields.io Markdown badge for the grade (empty when no grade was produced)                          |
+| `sarif-file`     | Path of the SARIF report (only set when `upload-sarif` is `true`)                                                  |
 
-### SARIF Upload
-
-Upload scan results to GitHub Code Scanning for inline annotations on pull requests:
+Example — use the grade in a later step:
 
 ```yaml
 - uses: NOMARJ/sigil@main
+  id: sigil
   with:
     path: .
-    format: sarif
-    upload-sarif: true
+
+- run: |
+    echo "Sigil grade: ${{ steps.sigil.outputs.grade }}"
+    echo "${{ steps.sigil.outputs.badge }}" >> "$GITHUB_STEP_SUMMARY"
 ```
 
-This adds Sigil findings as annotations directly on the files in your PR diff.
+### SARIF Upload
+
+Set `upload-sarif: true` to publish Sigil findings to GitHub Code Scanning, which annotates
+the affected lines directly in the pull request diff. The action runs a second `sigil scan
+--format sarif` pass, writes it to `sarif-file`, and uploads it with
+`github/codeql-action/upload-sarif` under the category `sigil`. The upload step is guarded
+with `always()`, so findings are published even when the threshold check fails the job.
+
+The calling job **must** grant `security-events: write` (Code Scanning rejects the upload
+otherwise). Private repositories also need `actions: read`:
+
+```yaml
+name: Sigil Security Scan
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # private repositories only
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: NOMARJ/sigil@main
+        with:
+          path: .
+          threshold: medium
+          upload-sarif: true
+          sarif-file: sigil-results.sarif
+```
+
+The SARIF pass never fails the job on its own — only the JSON pass and the `threshold` /
+`fail-on-findings` inputs decide the exit status. If the SARIF pass cannot produce a valid
+document, an empty SARIF file is written so the upload step still succeeds.
 
 ### Scan Only Changed Files
 

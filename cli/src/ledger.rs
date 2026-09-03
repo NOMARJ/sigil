@@ -510,10 +510,13 @@ mod knowngood_interaction_tests {
             files_scanned: 2,
             duration_ms: 1,
             suppressed_findings: vec![finding("CODE-002"), finding("CODE-007")],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: Some(
                 "known-good: 2 file(s) matched 1 published release(s) unmodified".to_string(),
             ),
             scanner: None,
+            platform: String::new(),
         }
     }
 
@@ -562,8 +565,11 @@ mod knowngood_interaction_tests {
             files_scanned: 1,
             duration_ms: 1,
             suppressed_findings: vec![finding("CODE-002")],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: Some("ledger:pkg@1.0.0#abc approved 2026-01-01".to_string()),
             scanner: None,
+            platform: String::new(),
         };
 
         let suppressed = apply_suppression_in(dir.path(), &mut result, root.path(), false);
@@ -900,8 +906,11 @@ mod tests {
             files_scanned: 1,
             duration_ms: 1,
             suppressed_findings: Vec::new(),
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         }
     }
 

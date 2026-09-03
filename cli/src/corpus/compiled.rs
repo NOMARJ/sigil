@@ -32,7 +32,7 @@ use regex::{Regex, RegexSet};
 use crate::scanner::{Finding, Phase, Severity};
 
 use super::loader::load_all_packs;
-use super::schema::{FileFilter, SignaturePack, SuppressionPredicates};
+use super::schema::{CorrelationRule, FileFilter, SignaturePack, SuppressionPredicates};
 
 /// A single rule with its phase, severity and weight already resolved.
 pub struct CompiledRule {
@@ -45,6 +45,22 @@ pub struct CompiledRule {
     pub suppress: SuppressionPredicates,
     /// The rule's own compiled regex, used to confirm a `RegexSet` candidate.
     pub regex: Regex,
+}
+
+/// Descriptive metadata for one rule, resolved from the corpus by id.
+///
+/// Findings deliberately carry only the rule id (the finding schema is part
+/// of the cache and output contracts); everything a reader wants to know
+/// about the rule — its title, how to fix it, what it is based on — is looked
+/// up here at output time, so adding a field to a rule never invalidates a
+/// cached result.
+#[derive(Debug, Clone)]
+pub struct RuleMeta {
+    /// The rule's description, used as the finding title.
+    pub title: String,
+    pub remediation: Option<String>,
+    pub references: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 /// All rules for one phase, plus a combined `RegexSet` over their patterns.
@@ -66,6 +82,12 @@ impl CompiledPhase {
 /// The whole content-rule corpus, compiled and partitioned by phase.
 pub struct CompiledCorpus {
     per_phase: HashMap<Phase, CompiledPhase>,
+    /// Every rule's descriptive metadata, content and provenance rules alike,
+    /// keyed by rule id.
+    meta_by_id: HashMap<String, RuleMeta>,
+    /// Finding-correlation rules, in pack order. Evaluated by
+    /// `scanner::correlate` after the content phases.
+    pub correlation_rules: Vec<CorrelationRule>,
     /// Rule IDs whose pattern failed to compile. Surfaced by a test so an
     /// invalid pattern is a loud failure, not a silent detection gap.
     #[allow(dead_code)]
@@ -81,6 +103,8 @@ impl CompiledCorpus {
     pub fn from_packs(packs: &[SignaturePack]) -> Self {
         let mut by_phase: HashMap<Phase, Vec<CompiledRule>> = HashMap::new();
         let mut invalid_patterns = Vec::new();
+        let mut meta_by_id: HashMap<String, RuleMeta> = HashMap::new();
+        let mut correlation_rules: Vec<CorrelationRule> = Vec::new();
 
         // Pack order then rule-within-pack order is preserved, because finding
         // output order is derived from it.
@@ -96,6 +120,15 @@ impl CompiledCorpus {
                         continue;
                     }
                 };
+                meta_by_id.insert(
+                    rule.id.clone(),
+                    RuleMeta {
+                        title: rule.description.clone(),
+                        remediation: rule.remediation.clone(),
+                        references: rule.references.clone(),
+                        tags: rule.tags.clone(),
+                    },
+                );
                 by_phase.entry(phase).or_default().push(CompiledRule {
                     id: rule.id.clone(),
                     description: rule.description.clone(),
@@ -106,6 +139,31 @@ impl CompiledCorpus {
                     suppress: rule.suppress.clone(),
                     regex,
                 });
+            }
+            for rule in &pack.correlation_rules {
+                meta_by_id.insert(
+                    rule.id.clone(),
+                    RuleMeta {
+                        title: rule.description.clone(),
+                        remediation: rule.remediation.clone(),
+                        references: rule.references.clone(),
+                        tags: rule.tags.clone(),
+                    },
+                );
+                correlation_rules.push(rule.clone());
+            }
+            // Provenance rules are not content rules and never enter a
+            // RegexSet, but their metadata is looked up the same way.
+            for rule in &pack.provenance_rules {
+                meta_by_id.insert(
+                    rule.id.clone(),
+                    RuleMeta {
+                        title: rule.description.clone(),
+                        remediation: rule.remediation.clone(),
+                        references: rule.references.clone(),
+                        tags: rule.tags.clone(),
+                    },
+                );
             }
         }
 
@@ -124,8 +182,18 @@ impl CompiledCorpus {
 
         CompiledCorpus {
             per_phase,
+            meta_by_id,
+            correlation_rules,
             invalid_patterns,
         }
+    }
+
+    /// Descriptive metadata for a rule id, if the active corpus defines it.
+    ///
+    /// `None` for findings the corpus did not produce — OSV advisories,
+    /// ledger and known-good drift, cloud signatures.
+    pub fn rule_meta(&self, id: &str) -> Option<&RuleMeta> {
+        self.meta_by_id.get(id)
     }
 
     #[allow(dead_code)]
@@ -145,6 +213,7 @@ impl CompiledCorpus {
             .per_phase
             .values()
             .flat_map(|p| p.rules.iter().map(|r| r.id.clone()))
+            .chain(self.correlation_rules.iter().map(|r| r.id.clone()))
             .collect();
         ids.sort_unstable();
         ids.dedup();
@@ -161,6 +230,11 @@ impl CompiledCorpus {
             .per_phase
             .values()
             .flat_map(|p| p.rules.iter().map(|r| (r.id.as_str(), r.regex.as_str())))
+            .chain(
+                self.correlation_rules
+                    .iter()
+                    .map(|r| (r.id.as_str(), r.description.as_str())),
+            )
             .collect();
         entries.sort_unstable();
         let mut hasher = Sha256::new();
@@ -173,10 +247,15 @@ impl CompiledCorpus {
         format!("sha256:{:x}", hasher.finalize())
     }
 
-    /// Total number of compiled content rules across all phases.
+    /// Total number of compiled content rules across all phases, plus the
+    /// correlation rules.
     #[allow(dead_code)]
     pub fn rule_count(&self) -> usize {
-        self.per_phase.values().map(|p| p.rule_count()).sum()
+        self.per_phase
+            .values()
+            .map(|p| p.rule_count())
+            .sum::<usize>()
+            + self.correlation_rules.len()
     }
 
     /// Run one phase's rules over a file's contents.

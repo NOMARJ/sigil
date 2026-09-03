@@ -5,6 +5,7 @@ mod diff;
 mod explain;
 mod feeds;
 mod hook;
+mod html_report;
 mod knowngood;
 mod ledger;
 mod output;
@@ -12,6 +13,7 @@ mod policy;
 mod provenance;
 mod provider;
 mod quarantine;
+mod residue;
 mod sandbox;
 mod sbom;
 mod scanner;
@@ -33,7 +35,7 @@ struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Output format (text, json)
+    /// Output format (text, json, sarif, html)
     #[arg(short, long, global = true, default_value = "text")]
     format: String,
 
@@ -87,7 +89,7 @@ enum Commands {
 
     /// Scan an existing directory or file
     Scan {
-        /// Path to scan
+        /// Path to scan, or a git URL (cloned into quarantine first)
         path: PathBuf,
 
         /// Phases to run (comma-separated, or "all")
@@ -325,10 +327,66 @@ enum Commands {
         event: String,
     },
 
+    /// Find, and reversibly clean up, what installed agent tooling left on
+    /// this machine: shell rc lines, cron/launchd/systemd entries, git
+    /// hooks, loose credential files, leftover tool directories
+    Residue {
+        #[command(subcommand)]
+        action: ResidueAction,
+    },
+
     /// Wire Sigil into AI agent and developer workflows
     Setup {
         /// What to set up: claude, shell, git, or all
         target: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ResidueAction {
+    /// Read-only scan of this machine for agent-tooling residue
+    Scan {
+        /// Repository whose git hooks to inspect (default: the current
+        /// directory when it is a git repository)
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Exit 1 when an item at or above this level is present
+        /// (info, low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
+    },
+    /// Show the reversible fixes a scan would make, without making them
+    Plan {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Write the plan document here instead of stdout
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Apply the plan, backing every target up under ~/.sigil/backups/<id>/
+    Apply {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Apply a previously written plan document instead of re-scanning
+        #[arg(long)]
+        plan: Option<PathBuf>,
+        /// Skip the per-action confirmation (required when stdin is not a terminal)
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Restore a backup made by `apply`
+    Rollback {
+        /// Backup id (see --list)
+        id: Option<String>,
+        /// Restore the most recent backup
+        #[arg(long)]
+        last: bool,
+        /// List backups
+        #[arg(long)]
+        list: bool,
+        /// Overwrite targets that changed since apply
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -488,20 +546,28 @@ async fn main() {
             fail_on,
             ignore_ledger,
         } => {
-            cmd_scan(
-                &path,
-                &phases,
-                &severity,
-                submit,
-                no_cache,
-                enrich,
-                enhanced,
-                &fail_on,
-                ignore_ledger,
-                &cli.format,
-                cli.verbose,
-            )
-            .await
+            // `sigil scan <git url>` is the clone workflow: quarantine, then
+            // scan. Routing it here means the obvious command does the right
+            // thing instead of failing with "path does not exist".
+            let target = path.to_string_lossy().to_string();
+            if looks_like_git_url(&target) {
+                cmd_clone(&target, None, false, &cli.format, cli.verbose).await
+            } else {
+                cmd_scan(
+                    &path,
+                    &phases,
+                    &severity,
+                    submit,
+                    no_cache,
+                    enrich,
+                    enhanced,
+                    &fail_on,
+                    ignore_ledger,
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            }
         }
 
         Commands::Corpus => cmd_corpus(&cli.format),
@@ -598,6 +664,8 @@ async fn main() {
         }
 
         Commands::Hook { event } => hook::cmd_hook(&event),
+
+        Commands::Residue { action } => cmd_residue(action, &cli.format),
 
         Commands::Setup { target } => setup::cmd_setup(&target),
     };
@@ -1293,6 +1361,218 @@ fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severit
     }
 }
 
+/// `sigil residue` — host-side residue scan, plan, apply, rollback.
+///
+/// Exit codes follow ADR-0010: scan 0/1 (an item at or above --fail-on)/2;
+/// apply 0 when everything ran, 1 when something was skipped or failed, 2
+/// when it refused.
+fn cmd_residue(action: ResidueAction, format: &str) -> i32 {
+    if format != "text" && format != "json" {
+        eprintln!(
+            "{} --format {} is not supported for residue (use text or json)",
+            "error:".bold().red(),
+            format
+        );
+        return 2;
+    }
+    let json = format == "json";
+    match action {
+        ResidueAction::Scan { repo, fail_on } => {
+            let Some(threshold) = residue::Level::parse(&fail_on) else {
+                eprintln!(
+                    "{} invalid --fail-on '{}' (use info, low, medium, high, critical)",
+                    "error:".bold().red(),
+                    fail_on
+                );
+                return 2;
+            };
+            let ctx = residue::Context::detect(repo.as_deref());
+            let report = residue::scan(&ctx);
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).unwrap_or_default()
+                );
+            } else {
+                print!("{}", residue::render_text(&report));
+            }
+            if report.items.iter().any(|i| i.severity >= threshold) {
+                EXIT_FINDINGS
+            } else {
+                EXIT_CLEAN
+            }
+        }
+        ResidueAction::Plan { repo, out } => {
+            let ctx = residue::Context::detect(repo.as_deref());
+            let plan = residue::plan::build(&residue::scan(&ctx));
+            let doc = serde_json::to_string_pretty(&plan).unwrap_or_default();
+            if let Some(path) = out {
+                if let Err(e) = std::fs::write(&path, &doc) {
+                    eprintln!(
+                        "{} cannot write {}: {e}",
+                        "error:".bold().red(),
+                        path.display()
+                    );
+                    return 2;
+                }
+                if !json {
+                    print!("{}", residue::plan::render_plan(&plan));
+                    println!("  Plan written to {}", path.display());
+                }
+            } else if json {
+                println!("{doc}");
+            } else {
+                print!("{}", residue::plan::render_plan(&plan));
+            }
+            EXIT_CLEAN
+        }
+        ResidueAction::Apply { repo, plan, yes } => {
+            let ctx = residue::Context::detect(repo.as_deref());
+            let plan = match plan {
+                Some(path) => match std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|t| {
+                        serde_json::from_str::<residue::plan::Plan>(&t).map_err(|e| e.to_string())
+                    }) {
+                    Ok(p) if p.kind == "residue-plan" => p,
+                    Ok(_) => {
+                        eprintln!(
+                            "{} {} is not a residue plan",
+                            "error:".bold().red(),
+                            path.display()
+                        );
+                        return 2;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "{} cannot read plan {}: {e}",
+                            "error:".bold().red(),
+                            path.display()
+                        );
+                        return 2;
+                    }
+                },
+                None => residue::plan::build(&residue::scan(&ctx)),
+            };
+            if !json {
+                print!("{}", residue::plan::render_plan(&plan));
+            }
+            match residue::plan::apply(&ctx, &plan, yes) {
+                Ok(report) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&report).unwrap_or_default()
+                        );
+                    } else if plan.actions.is_empty() {
+                        // render_plan already said there is nothing to do
+                    } else {
+                        println!(
+                            "\n  {} applied {}, skipped {}, failed {} — backup {} at {}",
+                            "sigil:".bold().cyan(),
+                            report.applied,
+                            report.skipped.len(),
+                            report.failed.len(),
+                            report.backup_id,
+                            report.backup_dir
+                        );
+                        for s in report.skipped.iter().chain(report.failed.iter()) {
+                            println!("       {}", s.dimmed());
+                        }
+                        println!("  Undo with: sigil residue rollback {}", report.backup_id);
+                    }
+                    if report.failed.is_empty() && report.skipped.is_empty() {
+                        EXIT_CLEAN
+                    } else {
+                        EXIT_FINDINGS
+                    }
+                }
+                Err(reason) => {
+                    eprintln!("{} {reason}", "error:".bold().red());
+                    2
+                }
+            }
+        }
+        ResidueAction::Rollback {
+            id,
+            last,
+            list,
+            force,
+        } => {
+            let ctx = residue::Context::detect(None);
+            let backups = residue::plan::list_backups(&ctx);
+            if list || (id.is_none() && !last) {
+                if json {
+                    let rows: Vec<serde_json::Value> = backups
+                        .iter()
+                        .map(|(id, created, n)| serde_json::json!({"id": id, "created": created, "actions": n}))
+                        .collect();
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&rows).unwrap_or_default()
+                    );
+                } else if backups.is_empty() {
+                    println!(
+                        "  No backups under {}",
+                        residue::plan::backups_dir(&ctx).display()
+                    );
+                } else {
+                    for (id, created, n) in &backups {
+                        println!("  {id}  {created}  {n} action(s)");
+                    }
+                }
+                return EXIT_CLEAN;
+            }
+            let target = match id.or_else(|| backups.first().map(|b| b.0.clone())) {
+                Some(t) => t,
+                None => {
+                    eprintln!("{} no backups to roll back", "error:".bold().red());
+                    return 2;
+                }
+            };
+            match residue::plan::rollback(&ctx, &target, force) {
+                Ok(report) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&report).unwrap_or_default()
+                        );
+                    } else {
+                        println!(
+                            "  {} restored {} from backup {}",
+                            "sigil:".bold().cyan(),
+                            report.restored,
+                            report.backup_id
+                        );
+                        for s in &report.skipped {
+                            println!("       skipped {}", s.dimmed());
+                        }
+                    }
+                    if report.skipped.is_empty() {
+                        EXIT_CLEAN
+                    } else {
+                        EXIT_FINDINGS
+                    }
+                }
+                Err(reason) => {
+                    eprintln!("{} {reason}", "error:".bold().red());
+                    2
+                }
+            }
+        }
+    }
+}
+
+/// Is this scan target a git URL rather than a local path?
+fn looks_like_git_url(target: &str) -> bool {
+    let t = target.trim();
+    t.starts_with("http://")
+        || t.starts_with("https://")
+        || t.starts_with("git@")
+        || t.starts_with("ssh://")
+        || t.starts_with("git://")
+}
+
 /// Exit-code contract for the acquisition commands (`clone`, `pip`, `npm`).
 ///
 /// These previously returned `2` for a High-or-Critical verdict, colliding
@@ -1325,12 +1605,32 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
         output::print_scan_sarif(result, &path.to_string_lossy());
         return;
     }
+    if format == "html" {
+        print!("{}", html_report::render(result, &path.to_string_lossy()));
+        return;
+    }
     if format == "json" {
         output::print_scan_result_json(result);
         return;
     }
     output::print_scan_summary(result);
     output::print_findings(&result.findings);
+    output::print_profile(result);
+    if !result.inline_suppressed.is_empty() {
+        println!(
+            "  {} {} finding{} suppressed by sigil:ignore markers:",
+            "[*]".green(),
+            result.inline_suppressed.len(),
+            if result.inline_suppressed.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+        );
+        for note in &result.inline_suppressions {
+            println!("       {}", note.dimmed());
+        }
+    }
     if let Some(by) = &result.suppressed_by {
         println!(
             "  {} {} finding{} suppressed by ledger approval ({})",
@@ -1344,7 +1644,10 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
             by
         );
     }
-    output::print_verdict(&result.verdict);
+    output::print_verdict(
+        &result.verdict,
+        scanner::profile::grade(result.verdict, result.score),
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2737,6 +3040,21 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 }
 
 #[cfg(test)]
+mod scan_target_tests {
+    use super::looks_like_git_url;
+
+    #[test]
+    fn urls_route_to_clone_and_paths_do_not() {
+        assert!(looks_like_git_url("https://github.com/x/y"));
+        assert!(looks_like_git_url("git@github.com:x/y.git"));
+        assert!(looks_like_git_url("ssh://git@host/x.git"));
+        assert!(!looks_like_git_url("./vendor"));
+        assert!(!looks_like_git_url("/tmp/https"));
+        assert!(!looks_like_git_url("http-client/"));
+    }
+}
+
+#[cfg(test)]
 mod exit_code_tests {
     use super::{approve_with_ledger, exit_code_for};
     use std::fs;
@@ -2881,8 +3199,11 @@ mod exit_code_tests {
             files_scanned: 1,
             duration_ms: 0,
             suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         };
         let report = super::ExtractionReport {
             bytes: u64::MAX,
@@ -2905,8 +3226,11 @@ mod exit_code_tests {
             files_scanned: 1,
             duration_ms: 0,
             suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
             suppressed_by: None,
             scanner: None,
+            platform: String::new(),
         };
         super::apply_extraction_report(
             &mut result,

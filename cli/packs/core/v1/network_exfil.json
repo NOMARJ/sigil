@@ -2,8 +2,8 @@
   "meta": {
     "id": "sigil-core-network-exfil",
     "name": "Sigil Core — Network / Exfiltration",
-    "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "version": "1.1.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects outbound network activity, webhook calls, raw sockets, DNS exfiltration, and data upload patterns"
   },
@@ -32,7 +32,14 @@
           "pypi.python.org",
           "files.pythonhosted.org"
         ]
-      }
+      },
+      "remediation": "Confirm the destination is one the package documents. Outbound HTTP is normal in clients and abnormal in a formatter; the domain decides.",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "network"
+      ]
     },
     {
       "id": "NET-002",
@@ -41,43 +48,90 @@
       "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(",
       "description": "HTTP request via urllib",
       "suppress": {
-        "nearby_contains": ["sigil-reviewed-urlopen"]
-      }
+        "nearby_contains": [
+          "sigil-reviewed-urlopen"
+        ]
+      },
+      "remediation": "Confirm the destination is documented and expected for this package.",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "network"
+      ]
     },
     {
       "id": "NET-003",
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "http\\.client\\.HTTP",
-      "description": "HTTP client connection"
+      "description": "HTTP client connection",
+      "remediation": "Confirm the destination is documented and expected for this package.",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "network"
+      ]
     },
     {
       "id": "NET-004",
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "fetch\\s*\\(\\s*['\"]https?://",
-      "description": "fetch() to external URL"
+      "description": "fetch() to external URL",
+      "remediation": "Confirm the fetched URL is documented and owned by the package's maintainers.",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "network"
+      ]
     },
     {
       "id": "NET-005",
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "axios\\.(get|post|put|delete|patch)\\s*\\(",
-      "description": "HTTP request via axios"
+      "description": "HTTP request via axios",
+      "remediation": "Confirm the destination is documented and expected for this package.",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "network"
+      ]
     },
     {
       "id": "NET-006",
       "phase": "network_exfil",
       "severity": "high",
       "pattern": "(?i)(webhook|callback|notify).*https?://",
-      "description": "Webhook / callback URL detected"
+      "description": "Webhook / callback URL detected",
+      "remediation": "Check what the webhook receives. A webhook that posts scan output, environment details or file contents is exfiltration.",
+      "references": [
+        "MITRE T1567"
+      ],
+      "tags": [
+        "exfiltration",
+        "webhook"
+      ]
     },
     {
       "id": "NET-007",
       "phase": "network_exfil",
       "severity": "critical",
-      "pattern": "https?://[^\\s]*\\.(ngrok|pipedream|requestbin|hookbin)",
-      "description": "Known exfiltration / tunneling service URL"
+      "pattern": "https?://[^\\s]*\\.(ngrok|pipedream|requestbin|hookbin)|https?://[^\\s]*(webhook\\.site|transfer\\.sh|burpcollaborator\\.net|oast\\.(fun|live|me|pro|site|online)|interact\\.sh|pastebin\\.com/raw)",
+      "description": "Known exfiltration / OOB-callback service URL",
+      "remediation": "Remove the endpoint. These services exist to receive out-of-band callbacks and file drops; there is no legitimate reason for shipped code to talk to one.",
+      "references": [
+        "MITRE T1567",
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "exfiltration",
+        "c2"
+      ]
     },
     {
       "id": "NET-008",
@@ -93,14 +147,30 @@
           "fixture",
           "test"
         ]
-      }
+      },
+      "remediation": "Raw sockets in agent tooling need a documented reason (a custom protocol, a health check). Without one, treat as a reverse-shell precursor.",
+      "references": [
+        "MITRE T1095"
+      ],
+      "tags": [
+        "network",
+        "socket"
+      ]
     },
     {
       "id": "NET-009",
       "phase": "network_exfil",
       "severity": "medium",
       "pattern": "\\.connect\\s*\\(\\(?\\s*['\"]",
-      "description": "Socket connect to address"
+      "description": "Socket connect to address",
+      "remediation": "Verify the address. A connect() to a hard-coded host and port is the reverse-shell shape.",
+      "references": [
+        "MITRE T1095"
+      ],
+      "tags": [
+        "network",
+        "socket"
+      ]
     },
     {
       "id": "NET-010",
@@ -109,15 +179,32 @@
       "pattern": "dns\\.(resolver|query)|getaddrinfo",
       "description": "DNS resolution — possible DNS exfiltration",
       "suppress": {
-        "nearby_contains": ["sigil-reviewed-dns-resolution"]
-      }
+        "nearby_contains": [
+          "sigil-reviewed-dns-resolution"
+        ]
+      },
+      "remediation": "DNS resolution is benign on its own; check that no encoded data is placed in the hostname.",
+      "references": [
+        "MITRE T1048.003"
+      ],
+      "tags": [
+        "dns"
+      ]
     },
     {
       "id": "NET-011",
       "phase": "network_exfil",
       "severity": "high",
       "pattern": "(base64|b64)(encode|\\.b64encode)\\s*\\(.*\\.(read|getenv|environ)",
-      "description": "Data encoding before potential exfiltration"
+      "description": "Data encoding before potential exfiltration",
+      "remediation": "Data is base64-encoded right where it is read — the standard step before exfiltration. Trace where the encoded value goes.",
+      "references": [
+        "MITRE T1132.001"
+      ],
+      "tags": [
+        "exfiltration",
+        "encoding"
+      ]
     },
     {
       "id": "NET-012",
@@ -146,22 +233,225 @@
           ".devin/workflows/",
           "api/scripts/README_FORGE_CLASSIFICATION.md"
         ]
-      }
+      },
+      "remediation": "A curl/wget in shipped code downloads something at run time. Pin what is fetched, verify its checksum, and never pipe it to a shell.",
+      "references": [
+        "MITRE T1105"
+      ],
+      "tags": [
+        "download"
+      ]
     },
     {
       "id": "NET-MCP-001",
       "phase": "network_exfil",
       "severity": "low",
       "pattern": "stdio_transport|sse_transport|StreamableHTTPTransport",
-      "description": "MCP transport configuration"
+      "description": "MCP transport configuration",
+      "remediation": "Choosing a transport is expected in any MCP server or client, so on its own this is informational: stdio keeps the tool channel on the local machine, while SSE or Streamable HTTP puts it on the network. For a network transport, check which host the client connects to or the server listens on: a documented endpoint or localhost is normal; a client pointed at an unfamiliar remote URL sends every tool call and result (including any file contents or secrets in the arguments) off the machine, and a server bound to 0.0.0.0 without authentication lets anyone who can reach the port invoke its tools.",
+      "references": [
+        "CWE-923"
+      ],
+      "tags": [
+        "network",
+        "mcp",
+        "transport"
+      ]
     },
     {
       "id": "NET-MCP-002",
       "phase": "network_exfil",
       "severity": "high",
       "pattern": "mcp.*proxy|proxy.*mcp",
-      "description": "MCP proxy configuration - potential MITM"
+      "description": "MCP proxy configuration - potential MITM",
+      "remediation": "An MCP proxy sits between the agent and its tool servers and sees, and can rewrite, every tool description, call and result that passes through it. A proxy the operator chose and documented (a stdio-to-HTTP bridge such as mcp-proxy or mcp-remote pointed at a known server, or an enterprise MCP gateway) is normal; one introduced by a package or dependency, or one forwarding to a host you do not recognise, is interception of the whole tool channel, so remove it or verify the upstream URL before approving.",
+      "references": [
+        "MITRE T1557",
+        "CWE-300",
+        "CAPEC-94"
+      ],
+      "tags": [
+        "network",
+        "mcp",
+        "proxy",
+        "mitm"
+      ]
+    },
+    {
+      "id": "NET-013",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)169\\.254\\.169\\.254|metadata\\.google\\.internal|100\\.100\\.100\\.200|169\\.254\\.170\\.2|/metadata/instance(\\?|/)|fd00:ec2::254|/latest/meta-data/|/computeMetadata/v1",
+      "description": "Cloud instance-metadata (IMDS) endpoint — SSRF / credential theft",
+      "suppress": {
+        "nearby_contains": [
+          "sigil-reviewed-imds"
+        ],
+        "path_contains": [
+          "/tests/",
+          "__tests__"
+        ]
+      },
+      "remediation": "A package should never query the instance-metadata service: that is where cloud credentials are harvested from. Remove the request, or if this is deliberate cloud bootstrap code, mark the line with sigil-reviewed-imds.",
+      "references": [
+        "MITRE T1552.005",
+        "CWE-918"
+      ],
+      "tags": [
+        "ssrf",
+        "credential-theft",
+        "cloud"
+      ]
+    },
+    {
+      "id": "NET-014",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)[\\w.-]+\\.(duckdns\\.org|no-ip\\.(com|org)|ddns\\.net|serveo\\.net|localhost\\.run|loca\\.lt|portmap\\.io|pagekite\\.me|localtunnel\\.me|telebit\\.cloud|ngrok(-free)?\\.(io|app|dev))",
+      "description": "Dynamic-DNS or developer-tunnel host — C2 shape",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__"
+        ],
+        "nearby_contains": [
+          "sigil-reviewed-tunnel"
+        ]
+      },
+      "remediation": "Shipped code pointing at a tunnel or dynamic-DNS host is the command-and-control shape. Replace with a fixed, owned domain, or remove it.",
+      "references": [
+        "MITRE T1568",
+        "MITRE T1071.001"
+      ],
+      "tags": [
+        "c2",
+        "tunnel"
+      ]
+    },
+    {
+      "id": "NET-015",
+      "phase": "network_exfil",
+      "severity": "low",
+      "pattern": "(?i)https?://[^\\s'\"<>)\\]/?#]*\\.(tk|ml|ga|cf|gq|xyz|top|buzz|click|loan|work|racing|download)([:/?#\\s'\"<>)\\]]|$)",
+      "description": "URL on a TLD frequently abused for malware and phishing",
+      "suppress": {
+        "safe_domains": [
+          "abc.xyz",
+          "gen.xyz",
+          "get.tech"
+        ],
+        "path_contains": [
+          "/tests/",
+          "__tests__"
+        ]
+      },
+      "remediation": "Verify who owns the domain. This is a weak signal on its own; it matters when it appears next to a download, a credential read or an obfuscated payload.",
+      "references": [
+        "MITRE T1583.001"
+      ],
+      "tags": [
+        "suspicious-domain"
+      ]
+    },
+    {
+      "id": "NET-017",
+      "phase": "network_exfil",
+      "severity": "critical",
+      "pattern": "(?i)stratum\\+(tcp|ssl|tls)://|\\bxmrig\\b|coinhive|coin-hive\\.com|cryptoloot|\\bminerd\\b|cryptonight|supportxmr\\.com|minexmr\\.com|nicehash\\.com:\\d+",
+      "description": "Cryptominer indicator — mining pool URL or miner binary",
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "__tests__"
+        ],
+        "nearby_contains": [
+          "sigil-reviewed-miner"
+        ]
+      },
+      "remediation": "Do not install. A stratum pool URL or a miner binary inside agent tooling has no benign reading; the package mines with your CPU.",
+      "references": [
+        "MITRE T1496"
+      ],
+      "tags": [
+        "cryptominer",
+        "resource-hijack"
+      ]
+    },
+    {
+      "id": "NET-018",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(dns\\.(resolver|query|resolve4?|lookup)|getaddrinfo|gethostbyname)[^\\n]*(b64encode|b32encode|hexlify|\\.hex\\(|\\.encode\\()|(b64encode|b32encode|hexlify|\\.hex\\()[^\\n]*\\.(resolve|gethostbyname|getaddrinfo|lookup)\\s*\\(|(^|[;&|`(]\\s*|\\$\\(\\s*)(nslookup|dig|host)\\s+[^\\n]*(base64|xxd|hexlify|b64encode|b32encode)|(^|[;&|`(]\\s*)(base64|xxd)\\b[^\\n]*\\|\\s*(xargs\\s+)?(nslookup|dig|host)\\b",
+      "description": "DNS lookup of encoded data — DNS exfiltration",
+      "suppress": {
+        "line_contains": [
+          "idna"
+        ],
+        "path_contains": [
+          "/tests/",
+          "__tests__"
+        ]
+      },
+      "remediation": "Encoding data into a hostname and resolving it is exfiltration that bypasses HTTP egress controls. Remove it.",
+      "references": [
+        "MITRE T1048.003"
+      ],
+      "tags": [
+        "exfiltration",
+        "dns"
+      ]
     }
   ],
-  "provenance_rules": []
+  "provenance_rules": [],
+  "correlation_rules": [
+    {
+      "id": "EXFIL-CHAIN-001",
+      "phase": "network_exfil",
+      "severity": "critical",
+      "description": "Credential read reaches a network send (exfiltration chain)",
+      "weight": 10,
+      "source": {
+        "rule_prefixes": [
+          "CRED-"
+        ],
+        "rule_ids": []
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "NET-001",
+          "NET-002",
+          "NET-003",
+          "NET-004",
+          "NET-005",
+          "NET-006",
+          "NET-007",
+          "NET-008",
+          "NET-009",
+          "NET-012",
+          "NET-014"
+        ]
+      },
+      "window_lines": 20,
+      "sink_excludes": [
+        "headers",
+        "Authorization",
+        "authorization",
+        "Bearer",
+        "bearer",
+        "x-api-key",
+        "X-Api-Key",
+        "auth="
+      ],
+      "remediation": "A secret read from the environment or a credential file is sent in the body of an outbound request. That is credential exfiltration; do not install, and report the package.",
+      "references": [
+        "MITRE T1041",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "exfiltration",
+        "credential-theft"
+      ]
+    }
+  ]
 }

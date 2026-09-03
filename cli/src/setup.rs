@@ -16,8 +16,11 @@ use colored::Colorize;
 use std::path::Path;
 use std::process::Command;
 
-const ALIAS_MARKER: &str = "# >>> sigil aliases >>>";
-const HOOK_MARKER: &str = "# sigil pre-commit hook";
+use crate::residue::checks::{
+    sigil_hook_body, ALIAS_BLOCK_BODY, ALIAS_BLOCK_END, ALIAS_BLOCK_START, HOOK_MARKER,
+};
+
+const ALIAS_MARKER: &str = ALIAS_BLOCK_START;
 
 fn info(msg: &str) {
     println!("{} {msg}", "sigil:".bold().cyan());
@@ -110,8 +113,11 @@ fn setup_shell() -> i32 {
         return 0;
     }
 
+    // The same block `sigil residue` recognises as its own (origin
+    // `sigil-setup`) — the two must not drift apart.
     let block = format!(
-        "\n{ALIAS_MARKER}\nalias gclone='sigil clone'\nalias safepip='sigil pip'\nalias safenpm='sigil npm'\n# <<< sigil aliases <<<\n"
+        "\n{ALIAS_MARKER}\n{}\n{ALIAS_BLOCK_END}\n",
+        ALIAS_BLOCK_BODY.join("\n")
     );
     match std::fs::OpenOptions::new()
         .create(true)
@@ -158,9 +164,7 @@ fn setup_git() -> i32 {
         return 0;
     }
 
-    let hook = format!(
-        "#!/bin/sh\n{HOOK_MARKER}\n# Scans the repository before each commit; blocks on HIGH/CRITICAL findings.\n# Bypass a single commit with: git commit --no-verify\nif ! command -v sigil >/dev/null 2>&1; then\n  echo \"sigil: binary not found on PATH — skipping pre-commit scan\" >&2\n  exit 0\nfi\nexec sigil scan . --fail-on high\n"
-    );
+    let hook = sigil_hook_body();
     if let Err(err) = std::fs::write(&hook_path, hook) {
         eprintln!(
             "{} could not write {}: {err}",

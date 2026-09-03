@@ -13,77 +13,110 @@
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "\\beval\\s*\\(",
-      "description": "eval() call — arbitrary code execution"
+      "description": "eval() call — arbitrary code execution",
+      "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected.",
+      "references": ["CWE-95", "MITRE T1059"],
+      "tags": ["execution", "eval", "dynamic-code"]
     },
     {
       "id": "CODE-002",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "(?m)(^|[^.\\w])exec\\s*\\(",
-      "description": "exec() call — arbitrary code execution"
+      "description": "exec() call — arbitrary code execution",
+      "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject.",
+      "references": ["CWE-95", "CWE-78", "MITRE T1059"],
+      "tags": ["execution", "exec", "dynamic-code"]
     },
     {
       "id": "CODE-003",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "(?m)(^|[^.\\w])compile\\s*\\(",
-      "description": "compile() call — dynamic code compilation"
+      "description": "compile() call — dynamic code compilation",
+      "remediation": "Python's compile() turns a string into a code object for exec or eval (a bare compile() in JavaScript build tooling raises the same question), so judge the source it receives. AST tooling, linters, test frameworks and template engines compile files they can name; a string that is decoded, joined from fragments or fetched is code that never exists as plain text until it runs, so print it and read it, or reject the package.",
+      "references": ["CWE-95", "MITRE T1059.006"],
+      "tags": ["execution", "compile", "python", "dynamic-code"]
     },
     {
       "id": "CODE-004",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "pickle\\.(loads?|Unpickler)",
-      "description": "pickle deserialization — arbitrary code execution"
+      "description": "pickle deserialization — arbitrary code execution",
+      "remediation": "pickle.load/loads runs whatever callable the stream's __reduce__ names, so unpickling is code execution controlled by whoever wrote the bytes. Reading a cache, checkpoint or model file the same program wrote is the ordinary use; bytes from the network, a request, an untrusted file or a literal blob in the source are a payload, so prefer json, safetensors or a schema-validated format and reject a package that unpickles data it did not produce.",
+      "references": ["CWE-502", "MITRE T1059.006"],
+      "tags": ["execution", "deserialization", "pickle", "python"]
     },
     {
       "id": "CODE-005",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "marshal\\.(loads?)",
-      "description": "marshal deserialization — code execution risk"
+      "description": "marshal deserialization — code execution risk",
+      "remediation": "marshal.loads rebuilds Python code objects, and outside tooling that reads .pyc files (compileall, coverage, importlib internals) its common use is exec(marshal.loads(base64.b64decode(...))): compiled bytecode shipped without source. Disassemble the bytes with the dis module and read what they do, or reject the package and ask the author for the source.",
+      "references": ["CWE-502", "MITRE T1059.006", "MITRE T1027"],
+      "tags": ["execution", "deserialization", "marshal", "python"]
     },
     {
       "id": "CODE-006",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "yaml\\.(unsafe_)?load\\s*\\(",
-      "description": "YAML unsafe load — potential code execution"
+      "description": "YAML unsafe load — potential code execution",
+      "remediation": "Check the Loader: yaml.safe_load or yaml.load(..., Loader=SafeLoader) is fine, while yaml.unsafe_load or yaml.load with yaml.Loader/UnsafeLoader lets a !!python/object/apply tag in the document call any Python callable. If the YAML comes from a user, a repo or the network rather than a file the package ships, that is remote code execution; replace it with safe_load unless the document genuinely must carry Python objects.",
+      "references": ["CWE-502", "MITRE T1059.006"],
+      "tags": ["execution", "deserialization", "yaml", "python"]
     },
     {
       "id": "CODE-007",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "\\bchild_process\\b",
-      "description": "child_process usage — command execution"
+      "description": "child_process usage — command execution",
+      "remediation": "child_process is how Node runs other programs. A CLI wrapper, build script or test harness spawning a fixed, named command (git, docker, tsc) with an argument array is ordinary; a command string built from decoded or downloaded content, a shell launched from an install hook, or a spawn whose stdio is wired to a socket is the shape to reject.",
+      "references": ["CWE-78", "MITRE T1059"],
+      "tags": ["execution", "child-process", "node", "javascript"]
     },
     {
       "id": "CODE-008",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "\\bFunction\\s*\\(",
-      "description": "Function constructor — dynamic code execution"
+      "description": "Function constructor — dynamic code execution",
+      "remediation": "Function(...) compiles a string into JavaScript, like eval but in global scope. Function('return this')() as a global-object lookup in bundled or UMD code, and template engines compiling their own templates, are recognisable and benign; anywhere else print the string it receives and reject the package if that string is decoded, concatenated from fragments or fetched, because the code was designed never to appear as reviewable source.",
+      "references": ["CWE-95", "MITRE T1059.007"],
+      "tags": ["execution", "function-constructor", "javascript"]
     },
     {
       "id": "CODE-009",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "new\\s+Function\\s*\\(",
-      "description": "new Function() — dynamic code execution"
+      "description": "new Function() — dynamic code execution",
+      "remediation": "new Function(args, body) is the JavaScript compiler exposed at runtime, and the usual way a downloaded or decoded payload is run. Template engines (lodash.template, doT), schema compilers such as ajv and serializer generators build code from data shipped in the package and are recognisable by name; for anything else read the body string and reject if it is Base64- or charCode-decoded, joined from fragments or fetched over the network.",
+      "references": ["CWE-95", "MITRE T1059.007"],
+      "tags": ["execution", "function-constructor", "javascript", "dynamic-code"]
     },
     {
       "id": "CODE-010",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "__import__\\s*\\(",
-      "description": "__import__() — dynamic import"
+      "description": "__import__() — dynamic import",
+      "remediation": "Look at the argument. __import__('pkg_resources').declare_namespace(__name__) and a literal module name in a plugin loader are ordinary Python; a name assembled by concatenation, chr() or decoding, or read from a variable, is an import written so that os, subprocess or socket never appears in a text search, so resolve the name, judge the module it loads, and reject if it is hidden.",
+      "references": ["MITRE T1059.006", "MITRE T1027"],
+      "tags": ["execution", "dynamic-import", "python"]
     },
     {
       "id": "CODE-011",
       "phase": "code_patterns",
       "severity": "medium",
       "pattern": "importlib\\.import_module\\s*\\(",
-      "description": "importlib.import_module — dynamic import"
+      "description": "importlib.import_module — dynamic import",
+      "remediation": "importlib.import_module with a literal or configuration-derived name is Python's standard plugin and lazy-import mechanism (Django settings, entry points, CLI subcommand loaders). Check where the name comes from: a string assembled from fragments, decoded or fetched hides which module is loaded, and one taken from untrusted input lets a caller choose it; a plain string or an entry from the package's own registry is fine.",
+      "references": ["MITRE T1059.006"],
+      "tags": ["execution", "dynamic-import", "python", "importlib"]
     },
     {
       "id": "CODE-012",
@@ -93,7 +126,10 @@
       "description": "dynamic require() — variable module loading",
       "file_filter": {
         "extensions": ["js", "jsx", "ts", "tsx", "mjs", "cjs"]
-      }
+      },
+      "remediation": "Work out what the argument resolves to. require(path.join(__dirname, ...)) for a plugin directory or a user config file is normal Node; a name joined from fragments or decoded so that child_process, net or fs never appears in the file, or a path under os.tmpdir() or the home directory that another part of the package writes, loads a module you have not reviewed, so reject the package if the resolved name is hidden or points outside the package tree.",
+      "references": ["CWE-829", "MITRE T1059.007"],
+      "tags": ["execution", "dynamic-require", "node", "javascript"]
     },
     {
       "id": "CODE-013",
@@ -107,21 +143,30 @@
       "suppress": {
         "path_contains": ["scripts/run_eval.py", "run_comprehensive_tests.py"],
         "nearby_contains": ["sigil-reviewed-subprocess"]
-      }
+      },
+      "remediation": "subprocess.run with a literal argument list (['git', 'status']) in a CLI wrapper, build script or test is ordinary Python. Look at the command and its context: a string built from decoded or downloaded content, shell=True around interpolated values, a call that runs at import time or from setup.py, or stdin/stdout wired to a socket is the shape to reject.",
+      "references": ["CWE-78", "MITRE T1059"],
+      "tags": ["execution", "subprocess", "python", "command"]
     },
     {
       "id": "CODE-014",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(",
-      "description": "os command execution"
+      "description": "os command execution",
+      "remediation": "os.system and os.popen hand a string to /bin/sh, and os.exec* replaces the process with another program. A script running a fixed, visible command (os.system('clear'), os.execvp re-launching itself) is fine; a command string built from decoded, concatenated or downloaded content, a curl | sh fetch, or a call that runs at import or install time has no place in a library, and subprocess.run with an argument list is the honest form.",
+      "references": ["CWE-78", "MITRE T1059"],
+      "tags": ["execution", "os-system", "python", "shell"]
     },
     {
       "id": "CODE-015",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "shell\\s*=\\s*True",
-      "description": "shell=True — shell injection risk"
+      "description": "shell=True — shell injection risk",
+      "remediation": "shell=True routes the command through /bin/sh, so every interpolated value becomes shell syntax and bash -i, nc or /dev/tcp fragments run as written. A constant string in a build script that needs pipes or globbing is tolerable; a string with f-string fields, format() or + around variables, decoded content or a download-and-run pipeline should be rejected, and the fix in nearly every legitimate case is an argument list with shell=False.",
+      "references": ["CWE-78", "MITRE T1059"],
+      "tags": ["execution", "shell-injection", "subprocess", "python"]
     },
     {
       "id": "CODE-MCP-001",
@@ -131,7 +176,9 @@
       "description": "MCP server creation detected",
       "file_filter": {
         "extensions": ["py", "js", "jsx", "ts", "tsx", "rs", "json", "yaml", "yml", "toml"]
-      }
+      },
+      "remediation": "An MCP server is expected in a package that documents itself as one, so this finding is informational on its own. Confirm the README says the package is an MCP server, then review every tool it registers (name, description and handler), because those handlers run with the agent's privileges whenever the model calls them; a server created inside a package that never mentions MCP is a hidden tool surface.",
+      "tags": ["skill", "mcp", "server"]
     },
     {
       "id": "CODE-MCP-002",
@@ -141,14 +188,20 @@
       "description": "MCP tool execution pattern",
       "file_filter": {
         "extensions": ["py", "js", "jsx", "ts", "tsx", "rs"]
-      }
+      },
+      "remediation": "This is the point where a model's request becomes an action. Agent frameworks and MCP servers legitimately contain a tool dispatcher; check what sits between the model-supplied arguments and the call, because a dispatcher that maps a model-chosen name or argument straight onto a shell command, a filesystem path or a URL without an allowlist and argument validation lets prompt injection become execution.",
+      "references": ["OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["skill", "mcp", "tool-execution"]
     },
     {
       "id": "CODE-MCP-003",
       "phase": "code_patterns",
       "severity": "high",
       "pattern": "allow_dangerous|skip_confirmation|auto_approve.*true",
-      "description": "MCP dangerous permission bypass"
+      "description": "MCP dangerous permission bypass",
+      "remediation": "These flags remove the step where a human looks at what a tool is about to do: LangChain's allow_dangerous_* opt-ins, an auto_approve entry in an agent or MCP client configuration, a skip_confirmation switch. Check who sets it: the operator enabling it in their own configuration is a choice, but a dependency that ships with dangerous mode or auto-approval turned on is granting itself permissions nobody reviewed, so require it to default off.",
+      "references": ["CWE-693", "OWASP Agentic Top 10 — Tool Misuse"],
+      "tags": ["permissions", "mcp", "confirmation-bypass"]
     }
   ],
   "provenance_rules": []

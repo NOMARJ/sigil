@@ -1,7 +1,7 @@
 {
-  "data_source": "Synthetic \u2014 hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 7,
-  "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead \u2014 those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
+  "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
+  "sample_size": 29,
+  "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
       "path": "install_hooks/setup.py",
@@ -47,6 +47,160 @@
       "path": "clean/types.d.ts",
       "expect_clean": true,
       "source": "decl-file FP control (ADR-0008)",
+      "synthetic": true
+    },
+    {
+      "path": "persistence/cron.py",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "cron foothold shape (Datadog malicious-software-packages-dataset, PyPI)",
+      "synthetic": true
+    },
+    {
+      "path": "persistence/launchagent.py",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "LaunchAgent plist write (prism-scanner fixture shape)",
+      "synthetic": true
+    },
+    {
+      "path": "persistence/sudo.py",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "Critical",
+      "source": "sudoers.d NOPASSWD grant",
+      "synthetic": true
+    },
+    {
+      "path": "persistence/runkey.js",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "Windows Run key via reg add",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/imds.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "IMDS credential theft (Capital One 2019 shape)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/tunnel.js",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "localtunnel/ngrok beacon (prism P4 dynamic DNS)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/miner.sh",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "Critical",
+      "source": "xmrig stratum launch (MITRE T1496)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/dns_exfil.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "DNS exfiltration via encoded subdomain (MITRE T1048.003)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/exfil_chain.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "Critical",
+      "source": "prism-scanner S8 exfil chain fixture shape",
+      "synthetic": true
+    },
+    {
+      "path": "credentials/browser_read.py",
+      "expect_phase": "Credentials",
+      "expect_min_severity": "Critical",
+      "source": "Chrome Login Data + sqlite3 (infostealer idiom, prism MAL-012)",
+      "synthetic": true
+    },
+    {
+      "path": "credentials/harvest.sh",
+      "expect_phase": "Credentials",
+      "expect_min_severity": "High",
+      "source": "developer credential file harvest",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/manipulation.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "High",
+      "source": "prism-scanner P10 authority-impersonation + safety-bypass tactics (Northeastern/Harvard/MIT)",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/.cursorrules",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "Critical",
+      "source": "instruction-file injection in an editor rules file",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/hygiene/.env",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "High",
+      "source": "committed .env (prism-scanner M7 publish hygiene)",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/hygiene/bundle.js.map",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "Medium",
+      "source": "source map in published artifact (Claude Code npm leak, 2026-03-31)",
+      "synthetic": true
+    },
+    {
+      "path": "provenance/typosquat/package.json",
+      "expect_phase": "Provenance",
+      "expect_min_severity": "High",
+      "source": "one-edit npm dependency names (prism-scanner M4 shape; ua-parser-js/crossenv squat campaigns)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/wildcard/SKILL.md",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "High",
+      "source": "Unscoped Bash grant in Claude Code skill front matter (prism-scanner S-rules review)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/dangerous/SKILL.md",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "High",
+      "source": "curl/rm tool grants in skill front matter (prism-scanner S-rules review)",
+      "synthetic": true
+    },
+    {
+      "path": "skill_security/malformed/manifest.json",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "Low",
+      "source": "Truncated skill manifest (prism-scanner S7 review)",
+      "synthetic": true
+    },
+    {
+      "path": "install_hooks/referenced",
+      "expect_phase": "InstallHooks",
+      "expect_min_severity": "Critical",
+      "source": "prepare script runs a local file with High findings; INSTALL-REF-001 sits one level above (prism-scanner S11 review)",
+      "synthetic": true
+    },
+    {
+      "path": "prompt_injection/coercion.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "Low",
+      "source": "Skill instructing the agent to act without the user (Datadog ai-skills sample shape; prism-scanner P10 review)",
+      "synthetic": true
+    },
+    {
+      "path": "code_patterns/embedded_exe.py",
+      "expect_phase": "CodePatterns",
+      "expect_min_severity": "High",
+      "source": "PE dropper carried as a bytes literal (Datadog pypi sample shape, 22 MB padded setup.py)",
       "synthetic": true
     }
   ]

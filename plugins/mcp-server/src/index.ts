@@ -61,17 +61,18 @@ function guardSigil<A>(
   };
 }
 
-async function runSigil(
-  args: string[]
-): Promise<{ stdout: string; stderr: string }> {
+type SigilRun = { stdout: string; stderr: string; code: number | null };
+
+async function runSigil(args: string[]): Promise<SigilRun> {
   try {
-    return await execFileAsync(SIGIL_BINARY, args, {
+    const { stdout, stderr } = await execFileAsync(SIGIL_BINARY, args, {
       timeout: 300_000,
       maxBuffer: 10 * 1024 * 1024,
     });
+    return { stdout, stderr, code: 0 };
   } catch (err: unknown) {
     const e = err as {
-      code?: string;
+      code?: string | number;
       stdout?: string;
       stderr?: string;
       message?: string;
@@ -79,11 +80,147 @@ async function runSigil(
     if (e.code === "ENOENT") {
       throw new SigilNotInstalledError();
     }
-    // sigil exits non-zero on findings — that's expected
+    // sigil exits 1 when findings reach the fail threshold — that's expected,
+    // and stdout still carries the full result.
     if (e.stdout) {
-      return { stdout: e.stdout, stderr: e.stderr ?? "" };
+      return {
+        stdout: e.stdout,
+        stderr: e.stderr ?? "",
+        code: typeof e.code === "number" ? e.code : null,
+      };
     }
     throw new Error(e.stderr || e.message || "sigil execution failed");
+  }
+}
+
+/**
+ * Run a `--format json` command and parse the single document it prints on
+ * stdout. Exit code 1 (findings at or above the fail threshold) is a normal
+ * result. Exit code 2 (the command itself failed) and unparseable output
+ * surface the stderr text instead of a JSON parse error.
+ */
+async function runSigilJson(args: string[]): Promise<any> {
+  const { stdout, stderr, code } = await runSigil(args);
+  if (code !== null && code !== 0 && code !== 1) {
+    throw new Error(
+      stderr.trim() || stdout.trim() || `sigil exited with code ${code}`
+    );
+  }
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    const head = stdout.trim().slice(0, 200);
+    throw new Error(
+      stderr.trim() ||
+        `sigil did not return JSON${code !== null ? ` (exit code ${code})` : ""}${head ? `: ${head}` : ""}`
+    );
+  }
+}
+
+type ScanSummary = {
+  verdict: string;
+  score: string | number;
+  grade?: string;
+  recommendation?: string;
+  findings_count: number;
+  files_scanned?: number;
+  duration_ms?: number;
+};
+
+/**
+ * Scan summary scalars. Current binaries nest them under `summary` (verdict,
+ * score, grade, recommendation, findings_count, files_scanned, duration_ms);
+ * older ones put verdict/score/files_scanned/duration_ms at the top level.
+ */
+function summaryOf(result: any): ScanSummary {
+  const s =
+    result?.summary && typeof result.summary === "object" ? result.summary : {};
+  const findings = Array.isArray(result?.findings) ? result.findings : null;
+  return {
+    verdict: String(s.verdict ?? result?.verdict ?? "UNKNOWN"),
+    score: s.score ?? result?.score ?? "n/a",
+    grade: s.grade ?? result?.grade,
+    recommendation: s.recommendation ?? result?.recommendation,
+    findings_count: findings ? findings.length : Number(s.findings_count ?? 0),
+    files_scanned: s.files_scanned ?? result?.files_scanned,
+    duration_ms: s.duration_ms ?? result?.duration_ms,
+  };
+}
+
+/** Header line shared by the scan tools. */
+function summaryLine(result: any): string {
+  const s = summaryOf(result);
+  const parts = [`Verdict: ${s.verdict}`, `Score: ${s.score}`];
+  if (s.grade) parts.push(`Grade: ${s.grade}`);
+  parts.push(`${s.findings_count} findings`);
+  if (s.files_scanned != null) {
+    parts.push(
+      `${s.files_scanned} files scanned` +
+        (s.duration_ms != null ? ` in ${s.duration_ms}ms` : "")
+    );
+  }
+  let line = parts.join(" | ");
+  if (s.recommendation) line += `\nRecommendation: ${s.recommendation}`;
+  return line;
+}
+
+/** One block per finding: `[SEV] RULE — file:line` followed by the snippet. */
+function findingLines(result: any): string {
+  let details = "";
+  const findings = Array.isArray(result?.findings) ? result.findings : [];
+  for (const f of findings) {
+    details += `\n[${String(f.severity ?? "").toUpperCase()}] ${f.rule} — ${f.file}${f.line ? `:${f.line}` : ""}\n  ${f.snippet}\n`;
+  }
+  return details;
+}
+
+/**
+ * `profile.key_risks` entries are objects ({rule, severity, file, line,
+ * title}) or, from some builds, preformatted strings.
+ */
+function keyRiskLine(risk: unknown): string {
+  if (typeof risk === "string") return risk;
+  const k = (risk ?? {}) as Record<string, unknown>;
+  const loc = k.file ? `${k.file}${k.line != null ? `:${k.line}` : ""}` : "";
+  return `[${String(k.severity ?? "").toUpperCase()}] ${String(k.rule ?? "")}${loc ? ` ${loc}` : ""} — ${String(k.title ?? "")}`;
+}
+
+/**
+ * Mirror of the CLI's residue redaction: any run of 20+ [A-Za-z0-9_-]
+ * characters (tokens, keys) is cut to its first four characters plus an
+ * ellipsis, and the result is capped at 120 characters.
+ */
+function redact(text: string): string {
+  const masked = text.replace(
+    /[A-Za-z0-9_-]{20,}/g,
+    (run) => `${run.slice(0, 4)}…`
+  );
+  return Array.from(masked).slice(0, 120).join("");
+}
+
+/** Human-readable form of one residue plan action (tagged by `type`). */
+function describeAction(action: any): string {
+  const kind = String(action?.kind ?? action?.type ?? "unknown");
+  const content =
+    action?.content != null ? `: ${redact(String(action.content))}` : "";
+  switch (kind) {
+    case "remove_line":
+      return `remove line ${action.line} from ${action.path}${content}`;
+    case "chmod": {
+      const mode =
+        typeof action.mode === "number"
+          ? `0${action.mode.toString(8)}`
+          : String(action.mode ?? "");
+      return `chmod ${action.path} to ${mode}`;
+    }
+    case "remove_file":
+      return `delete file ${action.path}`;
+    case "remove_dir":
+      return `delete directory ${action.path}`;
+    case "remove_crontab_line":
+      return `remove crontab line${content}`;
+    default:
+      return `${kind} ${action?.path ?? ""}`.trim();
   }
 }
 
@@ -163,20 +300,52 @@ server.tool(
     if (phases) args.push("--phases", phases);
     if (severity) args.push("--severity", severity);
 
-    const { stdout } = await runSigil(args);
-    const result = JSON.parse(stdout);
-
-    const summary = `Verdict: ${result.verdict} | Score: ${result.score} | ${result.findings.length} findings | ${result.files_scanned} files scanned in ${result.duration_ms}ms`;
-
-    let details = "";
-    for (const f of result.findings) {
-      details += `\n[${f.severity.toUpperCase()}] ${f.rule} — ${f.file}${f.line ? `:${f.line}` : ""}\n  ${f.snippet}\n`;
-    }
+    const result = await runSigilJson(args);
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
+        {
+          type: "text" as const,
+          text: summaryLine(result) + "\n" + findingLines(result) + DISCLAIMER,
+        },
       ],
+    };
+  })
+);
+
+// ── Tool: grade ────────────────────────────────────────────────────────────
+
+server.tool(
+  "sigil_grade",
+  "Letter grade (A-F), recommendation, behaviour profile and key risks for a path. Cheaper to read than sigil_scan when only the verdict matters.",
+  {
+    path: z.string().describe("File or directory path to grade"),
+  },
+  guardSigil(async ({ path }) => {
+    const result = await runSigilJson(["--format", "json", "scan", path]);
+    const s = summaryOf(result);
+    const profile = (result?.profile ?? {}) as {
+      behaviors?: unknown;
+      key_risks?: unknown;
+    };
+
+    let text = `Grade: ${s.grade ?? "n/a"} | Verdict: ${s.verdict} | Score: ${s.score} | ${s.findings_count} findings`;
+    if (s.recommendation) text += `\nRecommendation: ${s.recommendation}`;
+
+    const behaviors = Array.isArray(profile.behaviors)
+      ? profile.behaviors.map(String)
+      : [];
+    text += `\nBehaviours: ${behaviors.length ? behaviors.join(", ") : "none"}`;
+
+    const risks = Array.isArray(profile.key_risks) ? profile.key_risks : [];
+    if (risks.length > 0) {
+      text += "\nKey risks:";
+      for (const r of risks.slice(0, 5)) text += `\n  ${keyRiskLine(r)}`;
+      if (risks.length > 5) text += `\n  ... and ${risks.length - 5} more`;
+    }
+
+    return {
+      content: [{ type: "text" as const, text: text + DISCLAIMER }],
     };
   })
 );
@@ -200,19 +369,16 @@ server.tool(
     const args = ["--format", "json", manager, package_name];
     if (version) args.push("--version", version);
 
-    const { stdout } = await runSigil(args);
-    const result = JSON.parse(stdout);
+    const result = await runSigilJson(args);
 
-    const summary = `Package: ${manager}/${package_name}${version ? `@${version}` : ""}\nVerdict: ${result.verdict} | Score: ${result.score} | ${result.findings.length} findings`;
-
-    let details = "";
-    for (const f of result.findings) {
-      details += `\n[${f.severity.toUpperCase()}] ${f.rule} — ${f.file}${f.line ? `:${f.line}` : ""}\n  ${f.snippet}\n`;
-    }
+    const summary = `Package: ${manager}/${package_name}${version ? `@${version}` : ""}\n${summaryLine(result)}`;
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
+        {
+          type: "text" as const,
+          text: summary + "\n" + findingLines(result) + DISCLAIMER,
+        },
       ],
     };
   })
@@ -231,19 +397,16 @@ server.tool(
     const args = ["--format", "json", "clone", url];
     if (branch) args.push("--branch", branch);
 
-    const { stdout } = await runSigil(args);
-    const result = JSON.parse(stdout);
+    const result = await runSigilJson(args);
 
-    const summary = `Repository: ${url}${branch ? ` (${branch})` : ""}\nVerdict: ${result.verdict} | Score: ${result.score} | ${result.findings.length} findings`;
-
-    let details = "";
-    for (const f of result.findings) {
-      details += `\n[${f.severity.toUpperCase()}] ${f.rule} — ${f.file}${f.line ? `:${f.line}` : ""}\n  ${f.snippet}\n`;
-    }
+    const summary = `Repository: ${url}${branch ? ` (${branch})` : ""}\n${summaryLine(result)}`;
 
     return {
       content: [
-        { type: "text" as const, text: summary + "\n" + details + DISCLAIMER },
+        {
+          type: "text" as const,
+          text: summary + "\n" + findingLines(result) + DISCLAIMER,
+        },
       ],
     };
   })
@@ -308,6 +471,97 @@ server.tool(
       content: [
         { type: "text" as const, text: stdout || stderr || "Rejected." },
       ],
+    };
+  })
+);
+
+// ── Tool: residue_scan ─────────────────────────────────────────────────────
+
+server.tool(
+  "sigil_residue_scan",
+  "Scan THIS machine for what installed agent tooling left behind: shell rc edits, cron/launchd/systemd persistence, git hooks, world-readable credential files, leftover tool directories, /etc/hosts redirects, global agent packages. Read-only; nothing is changed.",
+  {
+    repo: z
+      .string()
+      .optional()
+      .describe(
+        "Path to a git repository whose hooks to include (default: the current directory when it is a repository)"
+      ),
+  },
+  guardSigil(async ({ repo }) => {
+    const args = ["--format", "json", "residue", "scan"];
+    if (repo) args.push("--repo", repo);
+
+    const report = await runSigilJson(args);
+    const host = report?.host ?? {};
+    const sum = report?.summary ?? {};
+    const items: any[] = Array.isArray(report?.items) ? report.items : [];
+    const skipped: any[] = Array.isArray(report?.checks_skipped)
+      ? report.checks_skipped
+      : [];
+
+    let text = `Host: ${host.os ?? "unknown"} (home: ${host.home ?? "unknown"})`;
+    text += `\nResidue: ${sum.items_count ?? items.length} item(s) — ${sum.critical ?? 0} critical, ${sum.high ?? 0} high, ${sum.medium ?? 0} medium, ${sum.low ?? 0} low, ${sum.info ?? 0} info`;
+    if (sum.duration_ms != null) text += ` (${sum.duration_ms}ms)`;
+    if (skipped.length > 0) {
+      text += `\nChecks skipped: ${skipped
+        .map((c) => `${c.id ?? c.check ?? "?"} (${c.reason ?? "no reason given"})`)
+        .join("; ")}`;
+    }
+
+    if (items.length === 0) text += "\n\nNo residue found.";
+    for (const it of items) {
+      text += `\n\n[${String(it.severity ?? "info").toUpperCase()}] ${it.id} ${it.path ?? ""}${it.line != null ? `:${it.line}` : ""} — ${it.title}`;
+      if (it.evidence) text += `\n  Evidence: ${String(it.evidence).slice(0, 200)}`;
+      const fix = it.fix ?? it.remediation;
+      if (fix) text += `\n  Fix: ${fix}`;
+    }
+    text += "\n\nRead-only: nothing on this machine was changed.";
+
+    return {
+      content: [{ type: "text" as const, text: text + DISCLAIMER }],
+    };
+  })
+);
+
+// ── Tool: residue_plan ─────────────────────────────────────────────────────
+// Apply and rollback are deliberately not exposed as tools; a human runs
+// `sigil residue apply` / `sigil residue rollback` in a terminal.
+
+server.tool(
+  "sigil_residue_plan",
+  "Show the reversible fixes Sigil would make for host residue, without applying them. Apply and rollback are deliberately not exposed as tools; a human runs them in a terminal.",
+  {
+    repo: z
+      .string()
+      .optional()
+      .describe(
+        "Path to a git repository whose hooks to include (default: the current directory when it is a repository)"
+      ),
+  },
+  guardSigil(async ({ repo }) => {
+    const args = ["--format", "json", "residue", "plan"];
+    if (repo) args.push("--repo", repo);
+
+    const plan = await runSigilJson(args);
+    const actions: any[] = Array.isArray(plan?.actions) ? plan.actions : [];
+    const scanned =
+      plan?.source_items != null ? ` (${plan.source_items} item(s) scanned)` : "";
+
+    let text: string;
+    if (actions.length === 0) {
+      text = `Residue plan: no reversible fixes are needed${scanned}.`;
+    } else {
+      text = `Residue plan: ${actions.length} action(s)${scanned}:`;
+      for (const a of actions) {
+        text += `\n${a.n ?? "-"}. [${String(a.severity ?? "").toUpperCase()}] ${a.rule ?? ""} — ${a.title ?? ""}\n   ${describeAction(a.action)}`;
+      }
+    }
+    text +=
+      "\n\nNothing has been changed. Apply with `sigil residue apply` in a terminal (it backs everything up and can be undone with `sigil residue rollback`).";
+
+    return {
+      content: [{ type: "text" as const, text: text + DISCLAIMER }],
     };
   })
 );

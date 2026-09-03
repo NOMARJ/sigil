@@ -2,8 +2,8 @@
   "meta": {
     "id": "sigil-core-provenance",
     "name": "Sigil Core — Provenance",
-    "version": "1.0.0",
-    "updated_at": "2026-06-15",
+    "version": "1.2.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects provenance issues: hidden files, binary files in unexpected locations, suspicious filenames, and large files"
   },
@@ -24,6 +24,10 @@
         ".vscodeignore",
         ".eslintrc.json",
         ".gitlab-ci-template.yml"
+      ],
+      "remediation": "A hidden file in a package is unusual; check what it does. Editor and VCS dotfiles are excluded already.",
+      "tags": [
+        "provenance"
       ]
     },
     {
@@ -38,6 +42,10 @@
         "node_modules/",
         "target/",
         "__pycache__/"
+      ],
+      "remediation": "Binaries cannot be reviewed as source. Confirm why the package ships one and where it came from.",
+      "tags": [
+        "provenance"
       ]
     },
     {
@@ -45,14 +53,150 @@
       "severity": "high",
       "description": "Suspicious filename",
       "kind": "filename_regex",
-      "pattern": "(?i)(backdoor|exploit|payload|reverse_shell|keylogger|stealer|trojan|rootkit|c2[_\\-]|rat[_\\-])"
+      "pattern": "(?i)(backdoor|exploit|payload|reverse_shell|keylogger|stealer|trojan|rootkit|c2[_\\-]|rat[_\\-])",
+      "remediation": "The filename says what the file is for. Review it before anything else in the package.",
+      "tags": [
+        "provenance"
+      ]
     },
     {
       "id": "PROV-004",
       "severity": "low",
       "description": "Large file (>5 MB)",
       "kind": "file_size_bytes",
-      "size_threshold": 5000000
+      "size_threshold": 5000000,
+      "remediation": "Large files are rarely source. Confirm what it is (model weights, a vendored binary, an archive).",
+      "tags": [
+        "provenance"
+      ]
+    },
+    {
+      "id": "HYGIENE-001",
+      "severity": "medium",
+      "description": "Publish hygiene — JavaScript source map shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "\\.(js|mjs|cjs|ts|tsx|jsx)\\.map$",
+      "remediation": "Source maps carry the original, unminified source. Exclude *.map from the published artifact (files allowlist in package.json, or .npmignore). This is how 512K lines of Claude Code internals leaked via npm in 2026.",
+      "references": [
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "source-map"
+      ]
+    },
+    {
+      "id": "HYGIENE-002",
+      "severity": "medium",
+      "description": "Publish hygiene — CSS source map shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "\\.css\\.map$",
+      "remediation": "Exclude *.css.map from the published artifact.",
+      "references": [
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "source-map"
+      ]
+    },
+    {
+      "id": "HYGIENE-003",
+      "severity": "high",
+      "description": "Publish hygiene — environment file shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "^\\.env(\\.(local|production|prod|development|dev|staging|secret|secrets|private))?$",
+      "remediation": "A committed .env almost always contains real secrets. Remove it, rotate anything in it, and add .env* to .gitignore and .npmignore. (.env.example and .env.template are deliberately not flagged.)",
+      "references": [
+        "CWE-540",
+        "CWE-312"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "secrets"
+      ]
+    },
+    {
+      "id": "HYGIENE-004",
+      "severity": "high",
+      "description": "Publish hygiene — private key or keystore file shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "\\.(key|p12|pfx|keystore|jks|ppk)$|^id_(rsa|dsa|ecdsa|ed25519)$",
+      "remediation": "Private key material must never be distributed. Remove the file and rotate the key.",
+      "references": [
+        "CWE-321",
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "private-key"
+      ]
+    },
+    {
+      "id": "HYGIENE-005",
+      "severity": "medium",
+      "description": "Publish hygiene — PEM file shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "\\.pem$",
+      "remediation": "A .pem may be a public CA bundle or a private key. Check its contents; the Credentials phase flags PRIVATE KEY blocks separately.",
+      "references": [
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene"
+      ]
+    },
+    {
+      "id": "HYGIENE-006",
+      "severity": "medium",
+      "description": "Publish hygiene — package-manager configuration shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "^\\.(npmrc|pypirc|netrc)$",
+      "remediation": "These files often carry registry tokens. Exclude them from the artifact; the Credentials phase flags any _authToken line.",
+      "references": [
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "registry-credentials"
+      ]
+    },
+    {
+      "id": "HYGIENE-007",
+      "severity": "medium",
+      "description": "Publish hygiene — memory or core dump shipped in the package",
+      "kind": "filename_regex",
+      "pattern": "\\.(heapsnapshot|dmp|hprof)$|^core(\\.\\d+)?$",
+      "remediation": "Memory dumps can contain secrets and session data. Remove them.",
+      "references": [
+        "CWE-540"
+      ],
+      "tags": [
+        "publish-hygiene",
+        "debug-artifact"
+      ]
+    },
+    {
+      "id": "PROV-007",
+      "severity": "high",
+      "description": "Oversized install script — padding to defeat scanners",
+      "kind": "file_size_bytes",
+      "size_threshold": 1000000,
+      "pattern": "^(setup\\.py|setup\\.cfg|pyproject\\.toml|package\\.json|Makefile|install(\\.sh)?|postinstall\\.js|preinstall\\.js)$",
+      "remediation": "No honest setup.py or package.json is a megabyte. Open the head and the tail of the file: the padding is usually one enormous byte or string literal with the real code on either side of it.",
+      "references": ["MITRE T1027.001", "MITRE T1195.002"],
+      "tags": ["provenance", "install-hook", "padding", "evasion"]
+    },
+    {
+      "id": "PROV-008",
+      "severity": "medium",
+      "description": "Oversized source file — a script this large is generated data or padding",
+      "kind": "file_size_bytes",
+      "size_threshold": 8000000,
+      "pattern": "(?i)\\.(py|sh|bash|zsh|rb|php|pl|ps1|bat|cmd)$",
+      "remediation": "Check whether the file is a generated table (a Unicode or locale table is plausible) or padding around a payload; scanners cap the bytes they read, and this file is past the cap.",
+      "references": ["MITRE T1027.001"],
+      "tags": ["provenance", "padding", "evasion"]
     }
   ]
 }

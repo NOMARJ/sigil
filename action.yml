@@ -27,6 +27,14 @@ inputs:
     description: 'Comma-separated list of scan phases to run (all, install-hooks, code-patterns, network-exfil, credentials, obfuscation, provenance, prompt-injection, skill-security)'
     required: false
     default: 'all'
+  upload-sarif:
+    description: 'Run a second pass in SARIF format and upload it to GitHub Code Scanning via github/codeql-action/upload-sarif. The calling workflow must grant "security-events: write" (and "actions: read" on private repos). The SARIF pass never fails the job on its own.'
+    required: false
+    default: 'false'
+  sarif-file:
+    description: 'Path (relative to the workspace) where the SARIF report is written when upload-sarif is true'
+    required: false
+    default: 'sigil-results.sarif'
 
 outputs:
   verdict:
@@ -38,6 +46,15 @@ outputs:
   findings-count:
     description: 'Total number of findings detected'
     value: ${{ steps.scan.outputs.findings-count }}
+  grade:
+    description: 'Letter grade A-F derived from the verdict (A no findings, B low-severity only, C medium, D high, F critical); empty on older CLI versions'
+    value: ${{ steps.scan.outputs.grade }}
+  badge:
+    description: 'Ready-to-paste shields.io Markdown badge for the grade; empty when no grade was produced'
+    value: ${{ steps.scan.outputs.badge }}
+  sarif-file:
+    description: 'Path of the SARIF report written by the scan (only set when upload-sarif is true)'
+    value: ${{ steps.scan.outputs.sarif-file }}
 
 runs:
   using: 'composite'
@@ -67,7 +84,20 @@ runs:
         INPUT_API_KEY: ${{ inputs.api-key }}
         INPUT_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         INPUT_PHASES: ${{ inputs.phases }}
+        INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
         SIGIL_ACTION_PATH: ${{ github.action_path }}
       run: |
         chmod +x "${{ github.action_path }}/.github/action-entrypoint.sh"
         "${{ github.action_path }}/.github/action-entrypoint.sh"
+
+    # Opt-in: publish the SARIF pass to GitHub Code Scanning. Guarded with
+    # always() so findings are uploaded even when the threshold check above
+    # fails the job. Requires `security-events: write` in the caller's
+    # permissions block.
+    - name: Upload SARIF to GitHub Code Scanning
+      if: inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: sigil

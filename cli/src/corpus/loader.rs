@@ -32,6 +32,8 @@ const EMBEDDED_PACKS: &[&str] = &[
     // bundle in packs/lolbin/v1/ (loaded at runtime from ~/.sigil/packs/). See
     // packs/lolbin/v1/NOTICE.md and tools/corpus-gen/README.md.
     include_str!("../../packs/core/v1/reverse_shells.json"),
+    include_str!("../../packs/core/v1/persistence.json"),
+    include_str!("../../packs/core/v1/agent_manipulation.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
@@ -648,6 +650,7 @@ mod precedence_tests {
             },
             rules: Vec::new(),
             provenance_rules: Vec::new(),
+            correlation_rules: Vec::new(),
         }
     }
 

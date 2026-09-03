@@ -1,0 +1,76 @@
+name: Bug report
+description: Sigil crashed, hung, produced wrong output, or a command did not behave as documented.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a rule that fires on benign code use the **False positive** form; for a threat Sigil missed use the **False negative** form. Security vulnerabilities in Sigil itself go to the private address in [SECURITY.md](https://github.com/NOMARJ/sigil/blob/main/SECURITY.md), not here.
+  - type: input
+    id: version
+    attributes:
+      label: Sigil version
+      description: Output of `sigil --version`.
+      placeholder: sigil 1.3.6
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - CLI (cli/)
+        - MCP server (plugins/mcp-server/)
+        - VS Code / Cursor / Windsurf extension (plugins/vscode/)
+        - JetBrains plugin (plugins/jetbrains/)
+        - GitHub Action (action.yml)
+        - API service (api/)
+        - Dashboard (dashboard/)
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and architecture, plus how Sigil was installed (install.sh, Homebrew, cargo, Docker, release binary).
+      placeholder: macOS 15 arm64, Homebrew
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command that was run
+      description: The exact invocation, with flags. Redact paths or names you do not want public.
+      render: shell
+      placeholder: sigil scan ./my-project --format json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead. Paste the terminal output or the relevant part of the JSON. Include the exit code if it matters (0 = below threshold, 1 = findings at or above `--fail-on`, 2 = scan error).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest input that shows the problem. A link to a public repository or a short file is ideal. Do not paste live malware; describe its shape instead.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reproduced this on the latest release.

@@ -1,9 +1,9 @@
 {
   "meta": {
     "id": "sigil-core-prompt-injection",
-    "name": "Sigil Core \u2014 Prompt Injection",
-    "version": "1.0.0",
-    "updated_at": "2026-06-11",
+    "name": "Sigil Core — Prompt Injection",
+    "version": "1.1.0",
+    "updated_at": "2026-09-02",
     "author": "NOMARJ <hello@sigilsec.ai>",
     "description": "Detects prompt injection patterns: instruction overrides, role reassignment, system prompt extraction, jailbreak markers, and delimiter injection"
   },
@@ -12,8 +12,8 @@
       "id": "PROMPT-001",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)(ignore\\s+(all\\s+)?previous\\s+instructions|disregard\\s+(the\\s+)?above)",
-      "description": "Prompt injection \u2014 ignore previous instructions",
+      "pattern": "(?i)\\b(ignore|disregard|forget)\\s+(all\\s+(of\\s+)?)?(your\\s+)?(previous|prior|above|earlier)\\s+(instructions|prompts?|rules|guidelines)\\b|\\bdisregard\\s+(the\\s+)?above\\b|\\bforget\\s+everything\\s+(above|you\\s+(know|were\\s+told))\\b",
+      "description": "Prompt injection — ignore previous instructions",
       "file_filter": {
         "extensions": [
           "md",
@@ -26,15 +26,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the instruction. Text that tells the agent to discard its prior instructions has no legitimate place in a tool description or README.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-002",
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(?i)you\\s+are\\s+now\\s+(a|an|the|my)\\s+",
-      "description": "Prompt injection \u2014 role reassignment",
+      "description": "Prompt injection — role reassignment",
       "file_filter": {
         "extensions": [
           "md",
@@ -47,15 +73,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the role reassignment, or restate it as a description of what the tool does.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-003",
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "<\\s*/?\\ *(system|instructions)\\s*>",
-      "description": "Prompt injection \u2014 system/instruction XML tags",
+      "description": "Prompt injection — system/instruction XML tags",
       "file_filter": {
         "extensions": [
           "md",
@@ -68,15 +120,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the fake system/instruction tags; they exist only to be mistaken for the real system prompt.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-004",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)(IMPORTANT|CRITICAL)\\s*:\\s*.*(override|ignore|disregard|forget|bypass)",
-      "description": "Prompt injection \u2014 instruction override via emphasis marker",
+      "pattern": "(?i)\\b(IMPORTANT|CRITICAL|SYSTEM|ATTENTION)\\s*:\\s*.*\\b(override|ignore|disregard|forget|bypass)\\b",
+      "description": "Prompt injection — instruction override via emphasis marker",
       "file_filter": {
         "extensions": [
           "md",
@@ -89,15 +167,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the emphasised override. Legitimate warnings do not tell the agent to ignore its instructions.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-005",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)(repeat\\s+your\\s+system\\s+prompt|output\\s+your\\s+instructions|show\\s+me\\s+your\\s+prompt|print\\s+your\\s+(system\\s+)?instructions)",
-      "description": "Prompt injection \u2014 system prompt extraction attempt",
+      "pattern": "(?i)\\b(reveal|show|display|print|repeat|output|leak|dump|disclose)\\s+(me\\s+)?your\\s+(complete\\s+|full\\s+|entire\\s+|system\\s+|hidden\\s+|initial\\s+|original\\s+)?(prompt|instructions)\\b",
+      "description": "Prompt injection — system prompt extraction attempt",
       "file_filter": {
         "extensions": [
           "md",
@@ -110,15 +214,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the extraction request. Nothing in a package needs the agent's system prompt.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-006",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)\\b(DAN\\s+mode|developer\\s+mode\\s+(enabled|activated)|jailbreak)\\b",
-      "description": "Prompt injection \u2014 jailbreak marker",
+      "pattern": "(?i)\\b(DAN\\s+mode|(developer|system|admin|root|god|sudo|unrestricted)\\s+mode\\s+(is\\s+)?(enabled|activated|on|unlocked|engaged)|jailbreak)\\b",
+      "description": "Prompt injection — jailbreak marker",
       "file_filter": {
         "extensions": [
           "md",
@@ -131,15 +261,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the jailbreak marker. Do not install a package that ships one.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-007",
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(\"\"\"\\s*\\n|\\\\n---\\\\n|\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
-      "description": "Prompt injection \u2014 delimiter injection",
+      "description": "Prompt injection — delimiter injection",
       "file_filter": {
         "extensions": [
           "md",
@@ -152,15 +308,41 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Remove the raw chat-template delimiters; they are only useful for forging a turn boundary.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
     },
     {
       "id": "PROMPT-008",
       "phase": "prompt_injection",
       "severity": "high",
       "pattern": "(?i)(call\\s+the\\s+function|execute\\s+tool|use\\s+the\\s+tool)\\s",
-      "description": "Prompt injection \u2014 tool/function abuse instruction",
+      "description": "Prompt injection — tool/function abuse instruction",
       "file_filter": {
         "extensions": [
           "md",
@@ -173,8 +355,178 @@
           "yml",
           "toml",
           "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
         ]
-      }
+      },
+      "remediation": "Check which tool the text tells the agent to call, and why. Tool-call instructions in package text are how a benign-looking package gets an agent to act.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection"
+      ]
+    },
+    {
+      "id": "PROMPT-009",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(act\\s+as\\s+(if|though)\\s+you\\s+(are|were|have|had|can|don'?t|do\\s+not)|pretend\\s+(that\\s+)?you\\s+(are|were|have|can|don'?t|do\\s+not)|from\\s+now\\s+on\\s+you\\s+(are|will|must))\\b",
+      "description": "Prompt injection — role-play reassignment (act as if / pretend / from now on)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
+        ]
+      },
+      "remediation": "Remove the reassignment. If a persona is genuinely part of the skill, state it as a description, not as an instruction to abandon the current role.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection",
+        "role-reassignment"
+      ]
+    },
+    {
+      "id": "PROMPT-010",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\bnew\\s+(system\\s+)?instructions?\\s*:",
+      "description": "Prompt injection — 'new instructions:' override marker",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
+        ]
+      },
+      "remediation": "Remove the override marker. Instruction files should describe the tool; a block that re-issues instructions to the agent is injection.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection",
+        "override"
+      ]
+    },
+    {
+      "id": "PROMPT-011",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\boverride\\s+(all\\s+)?(your|the\\s+system|any)\\s+(previous\\s+|prior\\s+|existing\\s+)?(instructions?|rules?|constraints?|guidelines?|restrictions?|safety|instincts?|judge?ments?|defaults|training|programming)\\b",
+      "description": "Prompt injection — override your instructions/rules",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "py",
+          "js",
+          "ts",
+          "json",
+          "yaml",
+          "yml",
+          "toml",
+          "prompt"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules",
+          ".mdx",
+          ".rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "Dockerfile",
+          "Makefile"
+        ]
+      },
+      "remediation": "Remove the override instruction.",
+      "references": [
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection",
+        "override"
+      ]
     }
   ],
   "provenance_rules": []

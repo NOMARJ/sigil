@@ -7,16 +7,21 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that e
 | Tool | Description | Requires Sigil CLI |
 |------|-------------|--------------------|
 | `sigil_scan` | Scan a file or directory for security issues | Yes |
+| `sigil_grade` | Letter grade (A-F), recommendation, behaviour profile and key risks for a path | Yes |
 | `sigil_scan_package` | Download and scan an npm/pip package in quarantine | Yes |
 | `sigil_clone` | Clone a git repo into quarantine and scan it | Yes |
 | `sigil_quarantine` | List all quarantined items | Yes |
 | `sigil_approve` | Approve a quarantined item | Yes |
 | `sigil_reject` | Reject and delete a quarantined item | Yes |
+| `sigil_residue_scan` | Read-only scan of this machine for what installed agent tooling left behind (shell rc edits, cron/launchd/systemd persistence, git hooks, credential file permissions, leftover tool directories, /etc/hosts redirects, global agent packages) | Yes |
+| `sigil_residue_plan` | Show the reversible host-residue fixes Sigil would make, without applying them | Yes |
 | `sigil_check_package` | Look up a package's risk assessment in the Sigil public scan database | No (API) |
 | `sigil_search_database` | Search the Sigil public scan database by name or keyword | No (API) |
 | `sigil_report_threat` | Report a malicious file (by SHA256) to the threat intelligence database | Yes (+ `sigil login`) |
 
 If the Sigil CLI binary is not found, CLI-backed tools return install instructions instead of failing, and the server logs a warning to stderr at startup. Database-backed tools work without the CLI.
+
+`sigil residue apply` and `sigil residue rollback` are deliberately not exposed as tools: the residue tools only read and report, and a human applies or undoes fixes in a terminal.
 
 ## Resources
 
@@ -140,8 +145,49 @@ Once configured, AI agents can use Sigil tools naturally:
 
 ## Publishing
 
+### npm (owner action)
+
 Publishing to npm is automated by `.github/workflows/publish-mcp.yml`: push a
 tag `mcp-vX.Y.Z` matching the version in `package.json` (or run the workflow
 manually with a version input), and it builds and runs `npm publish --access
 public` using the repository's `NPM_TOKEN` secret. The version-match check
 fails the run if the tag and `package.json` disagree.
+
+### MCP Registry (owner action)
+
+The server is described for the [official MCP Registry](https://registry.modelcontextprotocol.io)
+by `server.json` in this directory, written against the
+`2025-12-11` server schema. Its `name` is `io.github.nomarj/sigil`; the
+`io.github.*` namespace is granted to whoever authenticates with the matching
+GitHub account or organisation, so publishing needs the NOMARJ GitHub identity.
+
+**npm publication is a prerequisite.** The registry does not host packages; it
+validates that the npm package named in `server.json` exists and that its
+`package.json` carries an `mcpName` field equal to the `server.json` name
+(`"mcpName": "io.github.nomarj/sigil"` is already set). Until
+`@nomark/sigil-mcp-server@<version>` is on npm, `mcp-publisher publish` is
+rejected.
+
+Steps, once the npm release is live:
+
+```bash
+# 1. Install the publisher CLI (see the registry releases page for other install paths)
+brew install mcp-publisher
+
+# 2. Publish from the directory that holds server.json
+cd plugins/mcp-server
+
+# 3. Authenticate with the GitHub account that owns the io.github.nomarj namespace
+mcp-publisher login github
+
+# 4. Validate and publish server.json
+mcp-publisher publish
+
+# 5. Confirm the listing
+curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.nomarj/sigil"
+```
+
+Keep the two `version` fields in `server.json` (top-level and the npm package
+entry) in lockstep with `package.json`: the registry rejects a re-publish of a
+version it already holds, and a package entry whose version is not on npm
+fails validation. Bump all three in the same commit as the release.
