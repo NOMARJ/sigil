@@ -150,6 +150,15 @@ class Settings(BaseSettings):
     sentry_environment: str = "production"  # SIGIL_SENTRY_ENVIRONMENT
     sentry_traces_sample_rate: float = 0.05  # SIGIL_SENTRY_TRACES_SAMPLE_RATE
 
+    # --- Website change monitor (opt-in background poller) -------------------
+    # OFF by default, unlike the other background loops: this one makes outbound
+    # HTTP requests to third-party URLs supplied through the API, so it must be
+    # switched on deliberately per environment rather than start itself in every
+    # process that imports the app (local dev, CI, test runners included).
+    change_monitor_enabled: bool = False  # SIGIL_CHANGE_MONITOR_ENABLED
+    change_monitor_batch_size: int = 25  # SIGIL_CHANGE_MONITOR_BATCH_SIZE
+    change_monitor_interval_seconds: int = 300  # SIGIL_CHANGE_MONITOR_INTERVAL_SECONDS
+
     # --- PostHog (optional — for conversion funnel analytics) ----------------
     posthog_api_key: Union[str, None] = None  # SIGIL_POSTHOG_API_KEY
     posthog_host: str = "https://app.posthog.com"  # SIGIL_POSTHOG_HOST

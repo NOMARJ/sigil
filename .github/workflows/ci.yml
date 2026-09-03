@@ -170,6 +170,36 @@ jobs:
         working-directory: cli
         run: cargo test --release
 
+  # ── Claude Code Plugin ──────────────────────────────────────────────────────
+  validate-marketplace:
+    name: Validate Plugin Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        # The validator itself is stdlib-only and needs no install. pytest-asyncio
+        # is installed because the root pytest.ini sets
+        # asyncio_default_fixture_loop_scope; without it pytest emits a
+        # PytestConfigWarning about an unknown config option.
+        run: pip install pytest pytest-asyncio
+
+      - name: Validate plugin and marketplace manifests
+        run: python3 scripts/validate_marketplace.py
+
+      - name: Run validator tests
+        # `python -m` runs pytest under the interpreter set up above rather than
+        # whichever `pytest` happens to be first on PATH. The tests themselves
+        # load the script by path via importlib, so they do not depend on
+        # sys.path and would also pass under a bare `pytest`.
+        run: python -m pytest tests/marketplace -v --tb=short
+
   # ── VS Code Extension ──────────────────────────────────────────────────────
   lint-vscode:
     name: Lint VS Code Extension
