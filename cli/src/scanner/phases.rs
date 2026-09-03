@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::process;
 
+use super::budget::FileBudget;
 use super::{Finding, Phase, Severity};
 use crate::corpus::{
     compiled::corpus,
@@ -58,43 +59,43 @@ fn filename(file: &str) -> String {
 // Phase 1: Install Hooks (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::InstallHooks, file, &filename(file), contents)
+pub fn scan_install_hooks(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::InstallHooks, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 2: Code Patterns (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
+pub fn scan_code_patterns(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
     if super::context::is_declaration_file(file) {
         return Vec::new();
     }
-    corpus().scan_phase(Phase::CodePatterns, file, &filename(file), contents)
+    corpus().scan_phase_within(Phase::CodePatterns, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 3: Network / Exfiltration (High, 3x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::NetworkExfil, file, &filename(file), contents)
+pub fn scan_network_exfil(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::NetworkExfil, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 4: Credentials (Medium, 2x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::Credentials, file, &filename(file), contents)
+pub fn scan_credentials(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::Credentials, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 5: Obfuscation (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::Obfuscation, file, &filename(file), contents)
+pub fn scan_obfuscation(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::Obfuscation, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
@@ -321,24 +322,42 @@ fn is_quarantine_artifact(path: &Path) -> bool {
 // Phase 7: Prompt Injection (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::PromptInjection, file, &filename(file), contents)
+pub fn scan_prompt_injection(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::PromptInjection,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 // ---------------------------------------------------------------------------
 // Phase 8: Skill Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::SkillSecurity, file, &filename(file), contents)
+pub fn scan_skill_security(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::SkillSecurity,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 // ---------------------------------------------------------------------------
 // Phase 10: Inference Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
-    corpus().scan_phase(Phase::InferenceSecurity, file, &filename(file), contents)
+pub fn scan_inference_security(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::InferenceSecurity,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 #[cfg(test)]
