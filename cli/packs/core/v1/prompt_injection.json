@@ -620,6 +620,35 @@
           "INSTALL.md",
           "INSTALLATION.md"
         ]
+      },
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "SKILL.md",
+          "config.json",
+          "copilot-instructions.md",
+          "hooks.json",
+          "manifest.json",
+          "mcp.json",
+          "plugin.json",
+          "settings.json",
+          "settings.local.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
       }
     },
     {
@@ -639,7 +668,36 @@
         "permission-bypass",
         "sandbox-escape",
         "excessive-agency"
-      ]
+      ],
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "SKILL.md",
+          "config.json",
+          "copilot-instructions.md",
+          "hooks.json",
+          "manifest.json",
+          "mcp.json",
+          "plugin.json",
+          "settings.json",
+          "settings.local.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      }
     },
     {
       "id": "PROMPT-016",
@@ -659,7 +717,36 @@
         "obfuscation",
         "clipboard-hijack",
         "dropper"
-      ]
+      ],
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "SKILL.md",
+          "config.json",
+          "copilot-instructions.md",
+          "hooks.json",
+          "manifest.json",
+          "mcp.json",
+          "plugin.json",
+          "settings.json",
+          "settings.local.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      }
     },
     {
       "id": "PROMPT-017",
@@ -677,7 +764,36 @@
         "prompt-injection",
         "agent-config",
         "self-propagation"
-      ]
+      ],
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "SKILL.md",
+          "config.json",
+          "copilot-instructions.md",
+          "hooks.json",
+          "manifest.json",
+          "mcp.json",
+          "plugin.json",
+          "settings.json",
+          "settings.local.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      }
     },
     {
       "id": "PROMPT-018",
@@ -697,7 +813,36 @@
         "remote-code-execution",
         "hook",
         "dropper"
-      ]
+      ],
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "SKILL.md",
+          "config.json",
+          "copilot-instructions.md",
+          "hooks.json",
+          "manifest.json",
+          "mcp.json",
+          "plugin.json",
+          "settings.json",
+          "settings.local.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      }
     }
   ],
   "provenance_rules": []
