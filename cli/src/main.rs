@@ -1197,7 +1197,11 @@ fn apply_extraction_report(
     );
     result.findings.push(finding);
     result.score = scanner::scoring::calculate_score(&result.findings);
-    result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+    result.verdict = scanner::scoring::determine_verdict_with_size(
+        &result.findings,
+        result.score,
+        result.files_scanned,
+    );
 }
 
 /// Record one entry against the caps. Returns `false` once a cap is hit.
@@ -1999,7 +2003,11 @@ async fn cmd_scan(
         // Recompute score and verdict with the enriched finding set.
         if !result.findings.is_empty() {
             result.score = scanner::scoring::calculate_score(&result.findings);
-            result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+            result.verdict = scanner::scoring::determine_verdict_with_size(
+                &result.findings,
+                result.score,
+                result.files_scanned,
+            );
         }
     }
 

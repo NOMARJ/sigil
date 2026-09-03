@@ -1094,7 +1094,7 @@ pub fn run_scan(
     timing::report(files_scanned, start.elapsed(), TIMING_SLOWEST_FILES);
 
     let score = scoring::calculate_score(&findings);
-    let verdict = scoring::determine_verdict(&findings, score);
+    let verdict = scoring::determine_verdict_with_size(&findings, score, files_scanned);
 
     let compiled = crate::corpus::compiled::corpus();
     ScanResult {

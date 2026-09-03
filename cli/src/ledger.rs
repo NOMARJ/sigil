@@ -351,7 +351,11 @@ pub fn apply_suppression_in(
 
     if restored || matched_changed(&result.suppressed_by, &carried_note) {
         result.score = crate::scanner::scoring::calculate_score(&result.findings);
-        result.verdict = crate::scanner::scoring::determine_verdict(&result.findings, result.score);
+        result.verdict = crate::scanner::scoring::determine_verdict_with_size(
+            &result.findings,
+            result.score,
+            result.files_scanned,
+        );
     }
     result
         .suppressed_by

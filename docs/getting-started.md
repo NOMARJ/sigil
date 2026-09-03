@@ -196,7 +196,7 @@ After every scan, Sigil produces a risk score and verdict:
 | ------------------------------------ | ----------------- | ---------------------------------------------------------- | --------------------------------------------- |
 | 0-9                                  | **LOW RISK**      | No known malicious patterns detected                       | Review any flagged items, then approve        |
 | 10-24                                | **MEDIUM RISK**   | Multiple findings that warrant attention                   | Read the report, check each finding manually  |
-| 25+                                  | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
+| HIGH gate (see the CLI reference)    | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
 | Critical evidence                    | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report                             |
 
 CRITICAL is evidence-gated: it needs one Critical finding from a rule whose

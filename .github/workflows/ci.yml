@@ -108,6 +108,30 @@ jobs:
           SIGIL_JWT_SECRET: test-secret-for-ci
           SIGIL_DEBUG: "true"
 
+  # ── Ship-channel versions ───────────────────────────────────────────────────
+  check-versions:
+    name: Check versions agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # The wrapper downloads the release binary that matches its own version,
+      # so a drift between cli/Cargo.toml and python/ ships a wrapper that
+      # fetches the wrong release. Checked here rather than only at publish
+      # time, where the fix costs a re-tag.
+      - name: Versions agree across ship channels
+        run: python3 scripts/check_versions.py
+
+      - name: Wrapper tests
+        run: |
+          pip install pytest
+          python3 -m pytest python/tests -q
+
   # ── Rust CLI ────────────────────────────────────────────────────────────────
   lint-rust:
     name: Lint Rust (clippy)

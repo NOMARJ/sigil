@@ -104,7 +104,105 @@ pub fn calculate_score(findings: &[Finding]) -> u32 {
 /// certificates and `dotenv` documents a private key in its README, and one
 /// `CRED-006` line in either is not evidence that the package is malicious.
 /// Two independent corroborating Criticals is a different claim from one.
+/// Paths whose findings describe content a package ships *around* its code:
+/// its own tests, docs and examples, a vendored third-party tree, or a build
+/// product that is a copy of code counted elsewhere.
+///
+/// This is not a suppression — every finding is still reported, and a payload
+/// hidden in a test directory is still a payload. It only decides which
+/// findings count toward `first_party_score`, the "how much of this is in the
+/// code the package actually runs" half of the HIGH gate. Markdown is
+/// deliberately *not* secondary: for an agent skill, `SKILL.md` is the payload.
+fn is_secondary_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".map") || lower.ends_with(".min.js") || lower.ends_with(".min.css") {
+        return true;
+    }
+    const DIRS: &[&str] = &[
+        "test",
+        "tests",
+        "__tests__",
+        "spec",
+        "specs",
+        "doc",
+        "docs",
+        "example",
+        "examples",
+        "fixture",
+        "fixtures",
+        "benchmark",
+        "benchmarks",
+        "vendor",
+        "node_modules",
+        "third_party",
+        "site-packages",
+    ];
+    lower.split('/').any(|seg| DIRS.contains(&seg))
+}
+
+/// The part of the score that comes from code the package actually ships to run.
+///
+/// Same per-`(rule, file)` cap as [`calculate_score`]; the only difference is
+/// that findings under [`is_secondary_path`] do not contribute.
+pub fn first_party_score(findings: &[Finding]) -> u32 {
+    let mut counted: HashMap<(&str, &str), usize> = HashMap::new();
+    let mut score = 0u32;
+    for f in findings {
+        if is_secondary_path(&f.file) {
+            continue;
+        }
+        let seen = counted
+            .entry((f.rule.as_str(), f.file.as_str()))
+            .or_insert(0);
+        *seen += 1;
+        if *seen <= PER_RULE_FILE_SCORE_CAP {
+            score = score.saturating_add(severity_score(f.severity) * f.weight);
+        }
+    }
+    score
+}
+
+/// Behaviours that describe an action taken on the host or the network, as
+/// opposed to a capability a library legitimately has. Reading an environment
+/// variable or opening a socket is what an API client does for a living;
+/// running at install time, shipping an exfiltration endpoint, installing
+/// persistence or building code at runtime is a decision about what the
+/// package does to the machine it lands on.
+const ACTION_BEHAVIOURS: &[&str] = &[
+    "install_time_execution",
+    "exfiltration_endpoint",
+    "installs_persistence",
+    "dynamic_execution",
+];
+
+fn has_action_behaviour(findings: &[Finding]) -> bool {
+    findings.iter().any(|f| {
+        crate::scanner::profile::behavior_for(&f.rule)
+            .is_some_and(|b| ACTION_BEHAVIOURS.contains(&b))
+    })
+}
+
+/// First-party evidence that reaches HIGH on its own.
+const HIGH_FIRST_PARTY: u32 = 200;
+/// Score per scanned file that reaches HIGH on its own — the small-package
+/// case, where the absolute score is low because there is barely any code.
+const HIGH_DENSITY: u32 = 4;
+/// First-party evidence required to corroborate an action behaviour.
+const HIGH_ACTION_FIRST_PARTY: u32 = 50;
+
 pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
+    determine_verdict_with_size(findings, score, 0)
+}
+
+/// Verdict, given the number of files the scan actually walked.
+///
+/// `files_scanned` of 0 means "unknown"; the density term is then skipped
+/// rather than dividing by a guess.
+pub fn determine_verdict_with_size(
+    findings: &[Finding],
+    score: u32,
+    files_scanned: usize,
+) -> Verdict {
     let mut standalone_critical = false;
     let mut corroborating: HashSet<&str> = HashSet::new();
     for f in findings.iter().filter(|f| f.severity == Severity::Critical) {
@@ -120,7 +218,17 @@ pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
         return Verdict::CriticalRisk;
     }
 
-    if score >= 25 {
+    // HIGH is three questions, not one sum. The sum alone does not separate the
+    // populations: measured over 844 malicious samples and 450 clean packages,
+    // clean packages sit at median 70 and p75 295 while malicious sit at median
+    // 148 — overlapping almost entirely, because a large clean package
+    // accumulates score by being large.
+    let first_party = first_party_score(findings);
+    let dense = files_scanned > 0 && score >= HIGH_DENSITY * files_scanned as u32;
+    if first_party >= HIGH_FIRST_PARTY
+        || dense
+        || (first_party >= HIGH_ACTION_FIRST_PARTY && has_action_behaviour(findings))
+    {
         return Verdict::HighRisk;
     }
 
@@ -134,6 +242,152 @@ pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn at(rule: &str, file: &str, severity: Severity, weight: u32) -> Finding {
+        Finding {
+            phase: Phase::CodePatterns,
+            rule: rule.to_string(),
+            severity,
+            file: file.to_string(),
+            line: Some(1),
+            snippet: "x".to_string(),
+            weight,
+            kev: false,
+            epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+            evidence: Evidence::Standalone,
+        }
+    }
+
+    #[test]
+    fn secondary_paths_are_the_package_around_the_code() {
+        for p in [
+            "package/test/a.js",
+            "pkg/tests/b.py",
+            "src/__tests__/c.ts",
+            "docs/guide.rst",
+            "examples/demo.py",
+            "vendor/left-pad/index.js",
+            "node_modules/x/index.js",
+            "dist/bundle.min.js",
+            "dist/bundle.js.map",
+        ] {
+            assert!(is_secondary_path(p), "{p} should be secondary");
+        }
+        for p in [
+            "package/index.js",
+            "setup.py",
+            "SKILL.md",
+            "src/lib/auth.ts",
+            "latest.js",
+            "protester/main.py",
+        ] {
+            assert!(!is_secondary_path(p), "{p} should be first-party");
+        }
+    }
+
+    #[test]
+    fn markdown_is_first_party_because_a_skill_is_markdown() {
+        // The ai-skills bucket is 204 real malicious skills whose payload is
+        // the instruction text. Treating .md as secondary scored them at zero.
+        assert!(!is_secondary_path("SKILL.md"));
+        assert!(!is_secondary_path("skills/exfil/SKILL.md"));
+        // ...but a doc directory is still a doc directory.
+        assert!(is_secondary_path("docs/SKILL.md"));
+    }
+
+    #[test]
+    fn first_party_score_excludes_the_package_scaffolding() {
+        let findings = vec![
+            at("CODE-001", "src/index.js", Severity::High, 5),
+            at("CODE-001", "test/index.test.js", Severity::High, 5),
+            at("CODE-002", "docs/usage.md", Severity::High, 5),
+        ];
+        // 3 × 5 = 15 for the one first-party finding; the whole score counts all three.
+        assert_eq!(first_party_score(&findings), 15);
+        assert_eq!(calculate_score(&findings), 45);
+    }
+
+    #[test]
+    fn a_large_clean_package_does_not_reach_high_by_being_large() {
+        // 40 findings spread over 40 files of tests: high total score, no
+        // first-party evidence, low density.
+        let findings: Vec<Finding> = (0..40)
+            .map(|i| at("CODE-001", &format!("tests/t{i}.js"), Severity::High, 5))
+            .collect();
+        assert_eq!(calculate_score(&findings), 600);
+        assert_eq!(first_party_score(&findings), 0);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 600, 400),
+            Verdict::MediumRisk
+        );
+    }
+
+    #[test]
+    fn a_small_package_reaches_high_by_density() {
+        // Two findings in the only two files it ships: absolute score is low,
+        // but there is nothing else in the package.
+        let findings = vec![
+            at("CODE-001", "index.js", Severity::High, 5),
+            at("CODE-002", "install.js", Severity::High, 5),
+        ];
+        assert_eq!(calculate_score(&findings), 30);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 30, 2),
+            Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn unknown_file_count_skips_the_density_term() {
+        let findings = vec![at("CODE-001", "index.js", Severity::Medium, 2)];
+        // files_scanned = 0 means "unknown": density must not divide by a guess.
+        assert_eq!(
+            determine_verdict_with_size(&findings, 4, 0),
+            Verdict::LowRisk
+        );
+    }
+
+    #[test]
+    fn an_action_behaviour_needs_corroboration() {
+        // INSTALL- rules carry install_time_execution. One alone, with almost
+        // no other first-party evidence, is not HIGH; npm postinstall hooks are
+        // ordinary. 111 of 450 clean packages carry this behaviour.
+        let one = vec![at("INSTALL-004", "package.json", Severity::Medium, 2)];
+        assert_eq!(determine_verdict_with_size(&one, 4, 30), Verdict::LowRisk);
+
+        // Two install-hook findings in the code the package ships reach the
+        // corroboration threshold, and the install behaviour then gates HIGH
+        // in a package far too large for the density term to fire.
+        let corroborated = vec![
+            at("INSTALL-004", "package.json", Severity::High, 10),
+            at("INSTALL-003", "scripts/setup.js", Severity::High, 10),
+        ];
+        assert!(first_party_score(&corroborated) >= HIGH_ACTION_FIRST_PARTY);
+        assert_eq!(
+            determine_verdict_with_size(&corroborated, 60, 500),
+            Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn critical_gating_is_unchanged_by_the_recalibration() {
+        let mut f = at("CRED-006", "key.pem", Severity::Critical, 5);
+        f.evidence = Evidence::Corroborate;
+        // One corroborating Critical still does not gate CRITICAL...
+        assert_ne!(
+            determine_verdict_with_size(std::slice::from_ref(&f), 25, 100),
+            Verdict::CriticalRisk
+        );
+        // ...two different ones do.
+        let mut g = at("INSTALL-001", "setup.py", Severity::Critical, 10);
+        g.evidence = Evidence::Corroborate;
+        assert_eq!(
+            determine_verdict_with_size(&[f, g], 75, 100),
+            Verdict::CriticalRisk
+        );
+    }
 
     fn dummy_finding(phase: Phase, severity: Severity, weight: u32) -> Finding {
         finding_in(phase, severity, weight, "TEST-000", "test.py")
@@ -200,17 +454,39 @@ mod tests {
     }
 
     #[test]
-    fn test_high_risk_verdict() {
-        // Score needs to be in range 25-49 for HighRisk
+    fn a_score_of_25_from_scattered_dual_use_findings_is_no_longer_high() {
+        // This used to be the whole HIGH gate: score >= 25. Three unrelated
+        // dual-use findings — a code pattern, an outbound request, an
+        // environment read — reach 25 in any ordinary package, which is why
+        // 16 of 20 popular packages came back HIGH RISK.
         let findings = vec![
             dummy_finding(Phase::CodePatterns, Severity::High, 5),
             finding_in(Phase::NetworkExfil, Severity::Medium, 3, "NET-001", "n.py"),
             finding_in(Phase::Credentials, Severity::Medium, 2, "CRED-001", "c.py"),
         ];
         let score = calculate_score(&findings);
-        // 3*5 + 2*3 + 2*2 = 15+6+4 = 25
-        assert_eq!(score, 25);
-        assert_eq!(determine_verdict(&findings, score), Verdict::HighRisk);
+        assert_eq!(score, 25, "3*5 + 2*3 + 2*2");
+        // Spread over a package of any size, this is now MEDIUM: it is
+        // evidence worth reading, not a reason to fail a build.
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 200),
+            Verdict::MediumRisk
+        );
+    }
+
+    #[test]
+    fn the_same_findings_in_a_three_file_package_are_high() {
+        // ...and the same evidence in a package that ships almost nothing else
+        // still reaches HIGH, through the density term rather than the sum.
+        let findings = vec![
+            dummy_finding(Phase::CodePatterns, Severity::High, 5),
+            finding_in(Phase::NetworkExfil, Severity::Medium, 3, "NET-001", "n.py"),
+            finding_in(Phase::Credentials, Severity::Medium, 2, "CRED-001", "c.py"),
+        ];
+        assert_eq!(
+            determine_verdict_with_size(&findings, 25, 3),
+            Verdict::HighRisk
+        );
     }
 
     #[test]
@@ -274,7 +550,24 @@ mod tests {
             .collect();
         let score = calculate_score(&findings);
         assert_eq!(score, 140);
-        assert_eq!(determine_verdict(&findings, score), Verdict::HighRisk);
+        // The point of this test: volume alone never reaches CRITICAL.
+        assert_ne!(
+            determine_verdict_with_size(&findings, score, 20),
+            Verdict::CriticalRisk
+        );
+        // 140 points in a 20-file package is 7 per file — dense enough to be
+        // HIGH...
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 20),
+            Verdict::HighRisk
+        );
+        // ...and the same 140 points spread through a large package is not:
+        // that is the recalibration, and it is why 16 of 20 popular packages
+        // no longer come back HIGH RISK for being large.
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 400),
+            Verdict::MediumRisk
+        );
     }
 
     // -- per-(rule, file) contribution cap ---------------------------------
@@ -402,7 +695,12 @@ mod tests {
         mixed.push(corroborating("CRED-006", "a.key"));
         let score = calculate_score(&mixed);
         assert_eq!(score, 15 + 15 + 10);
-        assert_eq!(determine_verdict(&mixed, score), Verdict::HighRisk);
+        // Three findings in a three-file package: HIGH on density, and the
+        // corroborating Critical does not push it to CRITICAL.
+        assert_eq!(
+            determine_verdict_with_size(&mixed, score, 3),
+            Verdict::HighRisk
+        );
     }
 
     #[test]
