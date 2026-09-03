@@ -856,6 +856,7 @@ mod tests {
 
     #[test]
     fn validate_rejects_paths_that_escape_the_release_root() {
+        // sigil:ignore-next-line SKILL-013 -- the traversal strings are the input this test rejects
         for bad in ["../../etc/passwd", "/etc/passwd", ""] {
             let mut idx = index();
             idx.releases[0].files[0].path = bad.to_string();
