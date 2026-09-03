@@ -38,23 +38,69 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Resolve version and distribution name
         id: meta
+        # The tag reaches the shell through the environment, never through
+        # ${{ }} interpolation into the script: an expression is substituted
+        # before bash parses the line, so a tag containing shell syntax would
+        # be executed rather than read.
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          VERSION="${{ inputs.tag }}"
-          VERSION="${VERSION#v}"
+          VERSION="${TAG#v}"
           # Read the distribution name from pyproject rather than hardcoding it:
           # "sigil-cli" was already taken on PyPI, so the name is load-bearing
           # and must stay in one place.
+          # Validate the shape once, here, so every later step can use these
+          # two values through ${{ }} without re-examining where they came from.
+          case "${VERSION}" in
+            *[!0-9.abrcpost-]*|"")
+              echo "::error::tag ${TAG} does not yield a plain version (got '${VERSION}')" >&2
+              exit 1 ;;
+          esac
           DIST="$(python -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("python/pyproject.toml").read_text())["project"]["name"])')"
+          case "${DIST}" in
+            *[!0-9A-Za-z._-]*|"")
+              echo "::error::distribution name from pyproject is not a plain name: '${DIST}'" >&2
+              exit 1 ;;
+          esac
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "dist=${DIST}" >> "$GITHUB_OUTPUT"
-          echo "Publishing ${DIST} ${VERSION} from tag ${{ inputs.tag }}"
+          echo "Publishing ${DIST} ${VERSION} from tag ${TAG}"
+
+      # The wrapper execs a binary from this tag's GitHub release, so the
+      # release and its assets must exist BEFORE the wrapper is published —
+      # otherwise `pip install sigilsec==X` installs something that 404s the
+      # first time it runs. The header states this precondition; this step is
+      # what enforces it.
+      - name: Require a published release with assets for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          API="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
+          BODY="$(curl -sS --fail-with-body --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" "$API")" || {
+              echo "::error::no published release found for tag ${TAG} — run release.yml first" >&2
+              exit 1
+            }
+          python - "$BODY" <<'PY'
+          import json, sys
+          rel = json.loads(sys.argv[1])
+          if rel.get("draft"):
+              sys.exit("::error::release for this tag is still a draft")
+          assets = [a["name"] for a in rel.get("assets", [])]
+          if not assets:
+              sys.exit("::error::release for this tag has no assets to download")
+          print(f"release {rel.get('tag_name')} has {len(assets)} asset(s): {', '.join(assets[:6])}")
+          PY
 
       # Single source of truth for the alignment rule: the same check runs
       # locally via `make check-versions`. It fails if cli/Cargo.toml,

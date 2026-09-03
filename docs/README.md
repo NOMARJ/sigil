@@ -32,6 +32,8 @@
 | [**IDE Plugins**](./ide-plugins.md) | VS Code, Cursor, Windsurf, JetBrains integrations |
 | [**MCP Server Integration**](./mcp.md) | Use Sigil as an MCP server for AI agents |
 | [**Deployment Guide**](./deployment.md) | Self-hosting the API and dashboard |
+| [**Releasing**](./RELEASING.md) | Version bumps, tag formats, and which workflow publishes each channel |
+| [**Benchmarks**](./benchmarks.md) | How detection is measured, what is not measured, and the published history |
 
 ### API & Development
 
@@ -50,6 +52,7 @@
 | [**Case Study: OpenClaw Attack**](./CASE-STUDY-OPENCLAW-ATTACK.md) | Analysis of a real-world AI agent supply chain attack |
 | [**What Sigil can adopt from prism-scanner**](./research/prism-scanner-lessons.md) | Verified gap analysis against a faster-growing competitor, with measured head-to-head results |
 | [**What Sigil can adopt from Ghidra**](./research/ghidra-architecture-lessons.md) | Architecture lessons from a binary-analysis framework, all since implemented |
+| [**Scanning the MCP registry**](./research/mcp-registry-scan-2026-09.md) | Whether the registry points at software that exists, and what a scan of a 100-server sample finds |
 
 ### Support
 

@@ -838,15 +838,23 @@ pub fn run_scan(
 
             // Truncation is a finding, not a silent shortcut: without it a
             // file the analyser gave up on is indistinguishable from a file
-            // with nothing in it. Filed under Provenance because it describes
-            // the scan rather than the code, so `--phases` selecting only
-            // content phases does not add a finding they did not ask for.
+            // with nothing in it.
+            //
+            // Filed under Provenance because it describes the scan rather than
+            // the code, but emitted whatever `--phases` selects: a phase
+            // filter chooses which rules to run, and cannot be allowed to
+            // choose whether the caller is told that some of them did not
+            // finish. It is Medium, not Low, for the same reason — a file that
+            // defeats the analyser must not read as less suspicious than one
+            // that was analysed and found wanting. Truncation still loses the
+            // findings that file would have produced; the point of reporting
+            // it is that the loss is never silent.
             let budget_exhausted = file_budget.expired();
-            if budget_exhausted && should_run_phase(Phase::Provenance) {
+            if budget_exhausted {
                 file_findings.push(Finding {
                     phase: Phase::Provenance,
                     rule: budget::BUDGET_RULE_ID.to_string(),
-                    severity: Severity::Low,
+                    severity: Severity::Medium,
                     file: rel_path.clone(),
                     line: None,
                     snippet: format!(
@@ -1290,9 +1298,61 @@ mod budget_tests {
         assert!(!result.findings.is_empty());
     }
 
+    /// A phase filter chooses which rules run. It must not decide whether the
+    /// caller is told that the analyser gave up, because the project's own
+    /// evaluation harness selects exactly the content phases — so a truncated
+    /// scan under those phases used to come back empty and read as clean.
+    #[test]
+    fn truncation_is_reported_even_when_provenance_is_not_selected() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var(budget::BUDGET_ENV, "0.000000001");
+        let dir = two_flagged_files();
+        let phases: Vec<String> = [
+            "install_hooks",
+            "code_patterns",
+            "network_exfil",
+            "credentials",
+            "obfuscation",
+            "prompt_injection",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let result = run_scan(dir.path(), Some(&phases), None);
+        std::env::remove_var(budget::BUDGET_ENV);
+
+        let truncated: Vec<&str> = result
+            .findings
+            .iter()
+            .filter(|f| f.rule == budget::BUDGET_RULE_ID)
+            .map(|f| f.file.as_str())
+            .collect();
+        assert_eq!(
+            truncated.len(),
+            2,
+            "truncation must be visible under a content-only phase filter, got {:#?}",
+            result
+                .findings
+                .iter()
+                .map(|f| (&f.rule, &f.file))
+                .collect::<Vec<_>>()
+        );
+        // The truncation must carry weight of its own, so a file the analyser
+        // gave up on cannot read as a file with nothing in it. It does not
+        // promise a floor on the verdict: two Medium findings score 4, and on
+        // a two-file tree that is honestly still Low. What it promises is that
+        // the score and the findings are not zero.
+        assert!(result.score > 0, "truncation must contribute to the score");
+        assert!(result
+            .findings
+            .iter()
+            .all(|f| f.rule != budget::BUDGET_RULE_ID || f.severity == Severity::Medium));
+    }
+
     /// A budget of effectively zero trips on every file. Each file must
     /// report the truncation exactly once — not once per phase, not once per
-    /// derived unit — and the finding must be Low and filed under Provenance.
+    /// derived unit — and the finding must be Medium and filed under
+    /// Provenance.
     #[test]
     fn exhaustion_emits_exactly_one_visible_finding_per_file() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1323,7 +1383,7 @@ mod budget_tests {
             .iter()
             .filter(|f| f.rule == budget::BUDGET_RULE_ID)
         {
-            assert_eq!(f.severity, Severity::Low);
+            assert_eq!(f.severity, Severity::Medium);
             assert_eq!(f.phase, Phase::Provenance);
             assert!(f.snippet.contains(budget::BUDGET_ENV), "{}", f.snippet);
             assert!(!f.fingerprint.is_empty(), "truncation finding must diff");
