@@ -190,4 +190,34 @@ curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.nomar
 Keep the two `version` fields in `server.json` (top-level and the npm package
 entry) in lockstep with `package.json`: the registry rejects a re-publish of a
 version it already holds, and a package entry whose version is not on npm
-fails validation. Bump all three in the same commit as the release.
+fails validation. Bump all three in the same commit as the release, and run
+`make check-versions` from the repo root — it prints all three and warns when
+they drift.
+
+#### Checking `server.json` against the current schema
+
+The registry publishes a versioned schema and moves it forward. Before a
+publish, confirm the `$schema` this file declares is still the one the registry
+serves, and validate against it:
+
+```bash
+# What schema do live entries currently declare?
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=3" \
+  | python3 -c 'import json,sys; print({s["server"]["$schema"] for s in json.load(sys.stdin)["servers"]})'
+
+# Validate this manifest against it (pip install jsonschema)
+python3 - <<'PY'
+import json, urllib.request, jsonschema
+doc = json.load(open("server.json"))
+with urllib.request.urlopen(doc["$schema"]) as response:
+    schema = json.load(response)
+jsonschema.Draft7Validator(schema).validate(doc)
+print("server.json is valid against", schema["$id"])
+PY
+```
+
+`mcp-publisher publish` performs its own validation, but it only runs at the
+point where a failure is most expensive.
+
+See [`docs/RELEASING.md`](../../docs/RELEASING.md) for how this step fits into
+the wider release.
