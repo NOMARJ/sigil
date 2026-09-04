@@ -569,7 +569,7 @@ class TestBillingEdgeCases:
         assert response.status_code == 400
         error_data = response.json()
         assert "Enterprise plans require a custom contract" in error_data["detail"]
-        assert "sales@sigil.dev" in error_data["detail"]
+        assert "enterprise@sigilsec.ai" in error_data["detail"]
 
     @pytest.mark.asyncio
     async def test_webhook_orphaned_customer(
