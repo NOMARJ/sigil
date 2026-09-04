@@ -527,9 +527,13 @@ Measured effect on the verdict, against the previous `score >= 25` gate:
 
 | | before | after |
 |---|---:|---:|
-| malicious samples at HIGH RISK or worse | 83.8% | **85.1%** |
+| malicious samples at HIGH RISK or worse | 84.2% | **86.3%** |
 | the 20-package clean control set | 16 of 20 | **12 of 20** |
-| the 450-directory clean control set | 66.4% | **44.4%** |
+| the 450-directory clean control set | 66.4% | **45.8%** |
+
+Both columns are real scans of identical inputs. On the holdout half, which had
+no part in choosing the thresholds: malicious 85.3% -> 87.2%, clean 69.8% ->
+50.7%. CRITICAL verdicts are unchanged in every population.
 
 Detection is untouched: the recalibration changes which verdict a set of
 findings produces, not which findings are produced.

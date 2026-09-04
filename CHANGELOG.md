@@ -6,7 +6,44 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
-Everything here came out of the prism-scanner review
+### 🎯 Verdict
+
+- **HIGH RISK is no longer a score threshold.** It was `score >= 25`, and the score is a
+  sum, so it grew with the size of the package: measured over 844 malicious samples and
+  450 clean package directories the populations sit almost on top of each other, clean
+  median 70 / p75 295 against malicious median 148, with the clean maximum (18,435)
+  exceeding the malicious one. HIGH now asks three questions and takes one yes — a
+  **first-party score >= 200** (findings under the package's own `tests/`, `docs/`,
+  `examples/`, a vendored tree or a `.min.js`/`.map` build product are still reported but
+  no longer count; markdown is first-party, because for an agent skill `SKILL.md` is the
+  payload), a **score >= 4 x files scanned** (concentration, for the small package that is
+  mostly payload), or **an action behaviour** — install-time execution, an exfiltration
+  endpoint, installed persistence, runtime code building — **corroborated by a first-party
+  score >= 50**, since 111 of 450 clean packages execute something at install time.
+  Thresholds were fitted on one half of each population and measured on the other:
+
+  | | before | after |
+  |---|---:|---:|
+  | malicious at HIGH RISK or worse | 84.2% | **86.3%** |
+  | 20-package clean control set | 16 of 20 | **12 of 20** |
+  | 450-directory clean control set | 66.4% | **45.8%** |
+
+  On the holdout half: malicious 85.3% -> 87.2%, clean 69.8% -> 50.7%.
+
+  Both compromised-library buckets hold exactly (npm 100.0%, PyPI 85.7%). Detection is
+  untouched: the 844-sample harness reports identical recall at all four thresholds and
+  identical finding counts, because this changes which verdict a set of findings produces,
+  not which findings are produced.
+
+### 🔧 CI
+
+- `check-versions` runs `scripts/check_versions.py` and the `python/` wrapper tests on
+  every pull request. The wrapper downloads the release binary matching its own version,
+  so a drift between `cli/Cargo.toml` and `python/src/sigil_cli/__init__.py` shipped a
+  wrapper that fetched the wrong release; the check existed but nothing ran it outside a
+  developer's shell and the publish workflow, where a mismatch costs a re-tag.
+
+Everything below came out of the prism-scanner review
 ([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every
 detection change was measured on the Datadog malicious-package set and a clean control
 set before it was kept; the numbers are in the note.
