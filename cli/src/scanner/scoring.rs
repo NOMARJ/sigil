@@ -175,11 +175,21 @@ const ACTION_BEHAVIOURS: &[&str] = &[
     "dynamic_execution",
 ];
 
+/// Whether any finding in a *first-party* path carries an action behaviour.
+///
+/// The path test matches `first_party_score`, deliberately: both halves of the
+/// action term have to agree about what counts as this package's own code. A
+/// `postinstall` documented in `docs/` or exercised in `tests/` is the project
+/// describing itself, not the project doing it — `pypi-click` reached HIGH on
+/// four matches in `docs/shell-completion.md` and nothing else.
 fn has_action_behaviour(findings: &[Finding]) -> bool {
-    findings.iter().any(|f| {
-        crate::scanner::profile::behavior_for(&f.rule)
-            .is_some_and(|b| ACTION_BEHAVIOURS.contains(&b))
-    })
+    findings
+        .iter()
+        .filter(|f| !is_secondary_path(&f.file))
+        .any(|f| {
+            crate::scanner::profile::behavior_for(&f.rule)
+                .is_some_and(|b| ACTION_BEHAVIOURS.contains(&b))
+        })
 }
 
 /// First-party evidence that reaches HIGH on its own.
@@ -367,6 +377,42 @@ mod tests {
         assert!(first_party_score(&corroborated) >= HIGH_ACTION_FIRST_PARTY);
         assert_eq!(
             determine_verdict_with_size(&corroborated, 60, 500),
+            Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn an_action_behaviour_in_a_secondary_path_does_not_gate_high() {
+        // Both halves of the action term have to agree about what is this
+        // package's own code. `pypi-click` reached HIGH on four
+        // installs_persistence matches in `docs/shell-completion.md` — the
+        // project documenting its own install steps — while contributing
+        // nothing to first_party_score. Documentation is not an action.
+        let documented = vec![
+            at(
+                "PERSIST-004",
+                "click/docs/shell-completion.md",
+                Severity::High,
+                5,
+            ),
+            at("CODE-013", "click/core.py", Severity::High, 5),
+            at("CODE-011", "click/parser.py", Severity::High, 5),
+            at("CODE-004", "click/utils.py", Severity::High, 5),
+            at("CRED-002", "click/termui.py", Severity::High, 5),
+        ];
+        assert!(first_party_score(&documented) >= HIGH_ACTION_FIRST_PARTY);
+        assert!(!has_action_behaviour(&documented));
+        assert_ne!(
+            determine_verdict_with_size(&documented, 100, 112),
+            Verdict::HighRisk
+        );
+
+        // The same behaviour in the code the package actually ships still gates.
+        let mut shipped = documented.clone();
+        shipped[0].file = "click/_shell_completion.py".to_string();
+        assert!(has_action_behaviour(&shipped));
+        assert_eq!(
+            determine_verdict_with_size(&shipped, 100, 112),
             Verdict::HighRisk
         );
     }
