@@ -1,7 +1,8 @@
 use super::container;
+use crate::enforcement::{self, Gate};
 use crate::policy::generate::generate_from_scan;
 use crate::provider;
-use crate::scanner::{self, Verdict};
+use crate::scanner;
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::Path;
@@ -26,16 +27,24 @@ pub fn safe_run(
         scan.verdict
     );
 
-    // Step 2: Check verdict — block CRITICAL
-    match scan.verdict {
-        Verdict::CriticalRisk => {
+    // Step 2: may we run this at all?
+    //
+    // Keyed on `enforcement::level_for`, not on `scan.verdict`. The verdict is a
+    // report label that is cached, serialized and rewritten; the level is the max
+    // of that label and the verdict recomputed from `scan.findings`, so a demotion
+    // of the label alone cannot remove this prompt. See `crate::enforcement`.
+    match enforcement::gate(enforcement::level_for(&scan), auto_approve) {
+        Gate::Block => {
             eprintln!("CRITICAL RISK detected. Execution blocked.");
             eprintln!("Review findings with: sigil scan {}", path.display());
             return Ok(1);
         }
-        Verdict::HighRisk if !auto_approve => {
+        Gate::Confirm => {
             eprintln!("HIGH RISK detected. Proceed with sandboxed execution? [y/N]");
-            io::stdout().flush()?;
+            // Flush stderr, which is where the prompt went. Reading a
+            // non-terminal stdin yields an empty line, which is not "y", so this
+            // fails closed in a pipeline rather than hanging.
+            io::stderr().flush()?;
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;
             if !input.trim().eq_ignore_ascii_case("y") {
@@ -43,7 +52,7 @@ pub fn safe_run(
                 return Ok(1);
             }
         }
-        _ => {}
+        Gate::Proceed => {}
     }
 
     // Step 3: Generate policy from scan results

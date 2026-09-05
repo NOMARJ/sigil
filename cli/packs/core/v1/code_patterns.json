@@ -152,7 +152,7 @@
       "id": "CODE-014",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(",
+      "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(|from\\s+os\\s+import\\s+[^\\n#]*\\b(system|popen|exec[lv]?[pe]?)\\b",
       "description": "os command execution",
       "remediation": "os.system and os.popen hand a string to /bin/sh, and os.exec* replaces the process with another program. A script running a fixed, visible command (os.system('clear'), os.execvp re-launching itself) is fine; a command string built from decoded, concatenated or downloaded content, a curl | sh fetch, or a call that runs at import or install time has no place in a library, and subprocess.run with an argument list is the honest form.",
       "references": ["CWE-78", "MITRE T1059"],

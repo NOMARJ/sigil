@@ -1,4 +1,5 @@
 use super::schema::*;
+use crate::enforcement::{self, EnforcementLevel};
 use crate::scanner::{Finding, Phase, ScanResult, Verdict};
 use regex::Regex;
 use std::collections::BTreeSet;
@@ -6,12 +7,19 @@ use std::path::Path;
 
 /// Generate a SigilPolicy from scan results.
 pub fn generate_from_scan(scan: &ScanResult) -> SigilPolicy {
-    // Start from a base preset depending on verdict
-    let mut policy = match scan.verdict {
-        Verdict::LowRisk => SigilPolicy::preset("standard").unwrap(),
-        Verdict::MediumRisk => SigilPolicy::preset("standard").unwrap(),
-        Verdict::HighRisk => SigilPolicy::preset("strict").unwrap(),
-        Verdict::CriticalRisk => SigilPolicy::preset("strict").unwrap(),
+    // Start from a base preset depending on how much we may DO with this tree.
+    //
+    // Keyed on `enforcement::level_for`, not on `scan.verdict`. The verdict is a
+    // report label that is cached, serialized and rewritten; the level is the max
+    // of that label and the verdict recomputed from `scan.findings`, so demoting
+    // the label alone cannot pick a weaker preset. See `crate::enforcement`.
+    let mut policy = match enforcement::level_for(scan) {
+        EnforcementLevel::Open | EnforcementLevel::Restricted => {
+            SigilPolicy::preset("standard").unwrap()
+        }
+        EnforcementLevel::Confirm | EnforcementLevel::Blocked => {
+            SigilPolicy::preset("strict").unwrap()
+        }
     };
 
     // Rename to indicate this is auto-generated
@@ -33,8 +41,10 @@ pub fn generate_from_scan(scan: &ScanResult) -> SigilPolicy {
     if has_phase(Phase::NetworkExfil) {
         policy.network.default_action = "deny".into();
         policy.network.rules = vec![]; // block everything
-    } else if matches!(scan.verdict, Verdict::LowRisk) {
-        // No network findings on low risk: allow standard endpoints
+    } else if enforcement::level_for(scan) == EnforcementLevel::Open {
+        // No network findings and nothing to enforce: allow standard endpoints.
+        // Keyed on the enforcement level rather than the label, so demoting a
+        // result's verdict to LowRisk cannot hand it these endpoints.
         policy.network = NetworkPolicy {
             default_action: "deny".into(),
             rules: vec![
@@ -107,8 +117,11 @@ pub fn generate_from_scan(scan: &ScanResult) -> SigilPolicy {
         }
     }
 
-    // --- CriticalRisk: deny everything ---
-    if scan.verdict == Verdict::CriticalRisk {
+    // --- Blocked: deny everything ---
+    // Keyed on the enforcement level rather than the label, so demoting a result's
+    // verdict cannot strip these restrictions from something whose findings still
+    // compute CriticalRisk.
+    if enforcement::level_for(scan) == EnforcementLevel::Blocked {
         policy.network.default_action = "deny".into();
         policy.network.rules = vec![];
         policy.credentials.denied_env = vec!["*".into()];
