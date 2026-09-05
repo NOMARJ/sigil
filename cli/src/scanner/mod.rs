@@ -477,7 +477,7 @@ pub fn assign_fingerprints(findings: &mut [Finding]) {
 }
 
 /// Collapse whitespace so reindentation does not change a fingerprint.
-fn normalize_snippet(snippet: &str) -> String {
+pub(crate) fn normalize_snippet(snippet: &str) -> String {
     snippet.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
