@@ -12,7 +12,7 @@
       "id": "OBFUSC-001",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "base64\\.(b64)?decode\\s*\\(",
+      "pattern": "base64\\.(b64)?decode\\s*\\(|from\\s+base64\\s+import\\s+[^\\n#]*\\b(b64)?decode\\b",
       "description": "Base64 decoding (potential obfuscated payload)",
       "remediation": "Find what base64.b64decode is decoding in this Python code. Decoding a token, a JWT segment, a data: URI or a binary field from an API response is ordinary; decoding a string literal embedded in the source is a hidden payload, especially when the result reaches exec, eval, compile, subprocess or a socket — decode it yourself and read the plaintext before installing.",
       "references": ["MITRE T1027", "MITRE T1140"],

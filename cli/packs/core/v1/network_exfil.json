@@ -45,7 +45,7 @@
       "id": "NET-002",
       "phase": "network_exfil",
       "severity": "medium",
-      "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(",
+      "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(|from\\s+urllib\\.request\\s+import\\s+[^\\n#]*\\burlopen\\b",
       "description": "HTTP request via urllib",
       "suppress": {
         "nearby_contains": [
