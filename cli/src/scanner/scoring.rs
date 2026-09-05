@@ -440,7 +440,7 @@ mod tests {
             at(
                 "PERSIST-004",
                 "click/docs/shell-completion.md",
-                Severity::High,
+                Severity::Low,
                 5,
             ),
             at("CODE-013", "click/core.py", Severity::High, 5),
