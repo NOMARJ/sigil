@@ -1,14 +1,24 @@
 //! Scan profile: the letter grade, recommendation, behaviour profile and key
 //! risks derived from a finished result.
 //!
-//! Everything here is a *presentation* of the score and verdict that
-//! `scoring.rs` already computed. Nothing in this module changes a score,
-//! a verdict, or an exit code: the grade is a one-character rendering of the
-//! verdict thresholds documented in the README, the behaviour profile is a
-//! lookup from rule id to the capability the rule evidences, and the key
-//! risks are the top findings by severity. A reader who only sees the grade
-//! and the profile should be able to answer "what does this thing *do*?"
-//! without reading every finding — that is the whole point.
+//! Most of this module is a *presentation* of the score and verdict that
+//! `scoring.rs` already computed: the grade is a one-character rendering of
+//! the verdict thresholds documented in the README, and the key risks are the
+//! top findings by severity. A reader who only sees the grade and the profile
+//! should be able to answer "what does this thing *do*?" without reading every
+//! finding — that is the whole point.
+//!
+//! [`behavior_for`] is the exception, and it is load-bearing. Since the
+//! verdict recalibration in #160 it is read by
+//! `scoring.rs::has_action_behaviour`, which gates the HIGH verdict: one
+//! first-party finding whose behaviour is `install_time_execution`,
+//! `exfiltration_endpoint`, `installs_persistence` or `dynamic_execution`
+//! lets a first-party score of 50 reach HIGH, where 200 would otherwise be
+//! required — and the verdict becomes the process exit code. A rule with no
+//! specific arm inherits its family's behaviour from its id prefix alone, so
+//! editing the specific-id arms or the family-prefix table below changes
+//! verdicts and exit codes, not just display text. Re-measure against the
+//! corpus before changing either.
 
 use super::{Finding, ScanResult, Severity, Verdict};
 
@@ -101,6 +111,21 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "PROV-DOWNGRADE" | "PROV-IDENTITY-CHANGE" | "PROV-REPO-MISMATCH" => {
             Some("provenance_drift")
         }
+        // `^\.(PHONY|ONESHELL).*install` matches a Makefile *declaration*, and
+        // neither `pip install` nor `npm install` ever invokes make — a Make
+        // target runs only when a human types `make install`. The rule's own
+        // remediation says it "runs nothing by itself". Without this arm the
+        // "INSTALL-" family default below would call it install_time_execution,
+        // an ACTION behaviour that gates HIGH, which is simply not true of a
+        // declaration line. Measured over 844 malicious samples and 450 clean
+        // packages, correcting it flips no verdict in either population: this
+        // is a correctness fix, not a tuning change.
+        //
+        // Contrast INSTALL-008 (`backend-path =`), which stays an action: a
+        // PEP 517 in-tree backend really is executed by pip, and an attacker
+        // who publishes an sdist-only package forces that path on a plain
+        // `pip install <name>`.
+        "INSTALL-006" => Some("build_configuration"),
         _ => None,
     };
     if specific.is_some() {
@@ -252,6 +277,34 @@ pub fn build(result: &ScanResult) -> ScanProfile {
 
 #[cfg(test)]
 mod tests {
+    /// These two rules sit either side of the same question — does this rule
+    /// mean the package *runs something at install time*? — and the answer
+    /// decides whether one finding can carry a package to HIGH. Both are
+    /// pinned because neither is guarded by anything else: `behavior_for`
+    /// falls back to the "INSTALL-" family prefix, so deleting either arm
+    /// silently changes verdicts and exit codes rather than failing to build.
+    #[test]
+    fn backend_path_stays_an_action_behaviour() {
+        // INSTALL-008 (`backend-path =`) declares a PEP 517 in-tree build
+        // backend. pip really does import and run it — not from a wheel, but
+        // an attacker publishing an sdist-only package forces the build path
+        // on a plain `pip install <name>`, and the hooks run with the
+        // victim's environment in scope. A trojaned in-tree backend can also
+        // be written to evade the network and exfil-chain rules, leaving this
+        // as the only action evidence. It is a true action; it must stay one.
+        assert_eq!(behavior_for("INSTALL-008"), Some("install_time_execution"));
+    }
+
+    #[test]
+    fn a_makefile_install_declaration_is_not_an_action_behaviour() {
+        // INSTALL-006 matches `.PHONY:`/`.ONESHELL` lines in a Makefile.
+        // Neither `pip install` nor `npm install` invokes make, so nothing
+        // here runs at install time; the finding points a reader at the
+        // recipe, which is a build-configuration fact, not an action.
+        assert_eq!(behavior_for("INSTALL-006"), Some("build_configuration"));
+        assert_ne!(behavior_for("INSTALL-006"), Some("install_time_execution"));
+    }
+
     use super::*;
     use crate::scanner::Phase;
 

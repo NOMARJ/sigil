@@ -1,6 +1,6 @@
 //! Scan result diffing — compare two scan results to identify new and resolved findings.
 
-use crate::scanner::{Finding, ScanResult, Verdict};
+use crate::scanner::{normalize_snippet, Finding, ScanResult, Verdict};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -218,10 +218,57 @@ fn verdict_from_display(s: &str) -> Option<Verdict> {
 /// Falls back to `(rule, file, line)` when either side has no fingerprint —
 /// a baseline captured before fingerprints existed still diffs, exactly as
 /// it used to.
+/// A release archive unpacks into a version-bearing root directory: PyPI
+/// sdists root at `<name>-<version>/`, npm tarballs at `package/`. Two
+/// releases of one project therefore disagree about every path they contain,
+/// so a finding present in both was reported as simultaneously new *and*
+/// resolved. Measured on real archives before this existed: pyyaml 6.0.2
+/// against 6.0.3 gave 39 new, 39 resolved, 0 unchanged for a release that
+/// changed neither of them, at an identical score of 639.
+///
+/// Stripping that root is deliberately done here and not in
+/// `assign_fingerprints`: a fingerprint is a persisted identity — ledger
+/// suppressions and SARIF alert ids key off it — so changing how it is
+/// computed would silently invalidate every stored one.
+fn cross_version_path(path: &str) -> &str {
+    let Some((head, rest)) = path.split_once('/') else {
+        return path;
+    };
+    // npm tarballs always root at a literal `package/`.
+    if head == "package" {
+        return rest;
+    }
+    // A PyPI sdist roots at `<name>-<version>/`. Require the segment after the
+    // final `-` to begin with a digit, so an ordinary directory such as
+    // `my-utils/` is left alone.
+    if let Some((_, tail)) = head.rsplit_once('-') {
+        if tail.starts_with(|c: char| c.is_ascii_digit()) {
+            return rest;
+        }
+    }
+    path
+}
+
 fn same_finding_in(haystack: &[Finding], needle: &Finding) -> bool {
     haystack.iter().any(|f| {
         if !f.fingerprint.is_empty() && !needle.fingerprint.is_empty() {
-            f.fingerprint == needle.fingerprint
+            if f.fingerprint == needle.fingerprint {
+                return true;
+            }
+            // Same finding either side of a version bump. Only consider this
+            // when a release root was actually stripped from at least one
+            // side, so diffing two scans of the same tree stays exactly as it
+            // was. Occurrence is not compared: this is a membership test, so
+            // three copies in one release and one in the other read as
+            // unchanged rather than as two new findings.
+            let (a, b) = (
+                cross_version_path(&f.file),
+                cross_version_path(&needle.file),
+            );
+            (a != f.file || b != needle.file)
+                && a == b
+                && f.rule == needle.rule
+                && normalize_snippet(&f.snippet) == normalize_snippet(&needle.snippet)
         } else {
             f.rule == needle.rule && f.file == needle.file && f.line == needle.line
         }
@@ -236,6 +283,37 @@ fn short_digest(d: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_version_bump_is_not_thirty_nine_new_and_thirty_nine_resolved() {
+        // Regression for a shipped bug: `sigil diff --baseline` was useless
+        // for any PyPI sdist or npm tarball, because both unpack into a
+        // version-bearing root and `assign_fingerprints` hashes the path
+        // verbatim. Real measurement on pyyaml before the fix: 39 new, 39
+        // resolved, 0 unchanged, at an identical score of 639 — every finding
+        // reported as both added and removed by a release that touched
+        // neither. The same shape held for urllib3 (102/102),
+        // python-dateutil (28/28) and charset-normalizer (12/12).
+        assert_eq!(
+            super::cross_version_path("pyyaml-6.0.2/lib/yaml/x.py"),
+            "lib/yaml/x.py"
+        );
+        assert_eq!(
+            super::cross_version_path("pyyaml-6.0.3/lib/yaml/x.py"),
+            "lib/yaml/x.py"
+        );
+        // npm tarballs root at a literal `package/`.
+        assert_eq!(super::cross_version_path("package/index.js"), "index.js");
+        // An ordinary directory whose name merely contains a dash is not a
+        // release root and must survive untouched, or findings in unrelated
+        // trees would start collapsing into each other.
+        assert_eq!(
+            super::cross_version_path("my-utils/index.js"),
+            "my-utils/index.js"
+        );
+        assert_eq!(super::cross_version_path("src/main.rs"), "src/main.rs");
+        assert_eq!(super::cross_version_path("README.md"), "README.md");
+    }
+
     use super::*;
     use crate::scanner::{Phase, ScannerInfo, Severity};
 
