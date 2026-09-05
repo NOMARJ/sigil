@@ -486,6 +486,32 @@ fn is_zero_f32(v: &f32) -> bool {
 }
 
 /// Overall risk classification.
+///
+/// This is a **report label**. It is written to JSON, SARIF, HTML and the terminal,
+/// cached under `.sigil/cache`, read back from a diff baseline, and rewritten
+/// in-process at several sites. Before changing how a verdict is assigned, read
+/// this table — changing a value's verdict changes what the program *does*:
+///
+/// | site | effect |
+/// |---|---|
+/// | `main.rs::acquisition_exit_code` | LOW gives 0, everything else 1. CI contract, ADR-0010. |
+/// | `main.rs` `--auto-approve` gate | fires on LOW only; pins content to the ledger. |
+/// | `enforcement::level_for` into `sandbox::safe_run` | `Blocked` refuses to execute, and `--auto-approve` cannot override it. |
+/// | `enforcement::level_for` into `sandbox::safe_run` | `Confirm` prompts — the ONLY human confirmation in the run path. |
+/// | `enforcement::level_for` into `policy::generate` | which sandbox preset the container is built from. |
+///
+/// MEDIUM and LOW reach `Gate::Proceed` and run with **no prompt**.
+///
+/// The three execution consumers key on [`crate::enforcement::EnforcementLevel`],
+/// which is the max of this label and the same verdict recomputed from `findings`.
+/// A write to this field therefore cannot *lower* a gate — only raise one. It can
+/// still lower the acquisition exit code and re-enable `--auto-approve`, which stay
+/// on the label deliberately. It can also be bypassed by moving findings out of
+/// `findings` rather than rewriting this field; see [`crate::enforcement`].
+///
+/// Deliberately not `Ord`: no consumer should be able to write `>= HighRisk`.
+/// Pinned end to end by the enforcement table in `crate::enforcement` — do not add
+/// a consumer without adding a row there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum Verdict {

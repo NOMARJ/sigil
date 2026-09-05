@@ -2,6 +2,7 @@ mod api;
 mod cache;
 mod corpus;
 mod diff;
+mod enforcement;
 mod explain;
 mod feeds;
 mod hook;
