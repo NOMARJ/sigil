@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+mod cmdline;
 mod corpus;
 mod diff;
 mod enforcement;
@@ -8,6 +9,7 @@ mod feeds;
 mod hook;
 mod html_report;
 mod ingest;
+mod inventory;
 mod knowngood;
 mod ledger;
 mod output;
@@ -342,6 +344,38 @@ enum Commands {
     Setup {
         /// What to set up: claude, shell, git, or all
         target: String,
+    },
+
+    /// Inventory and posture-scan the agent skills, plugins, hooks and MCP
+    /// servers installed for Claude Code, Codex, Gemini CLI, Cursor,
+    /// Windsurf, VS Code, Cline/Roo, Continue, Goose, OpenCode, Zed and
+    /// OpenClaw — on this machine and in the current project
+    Skills {
+        /// scan (default): scan every item and inspect every config entry;
+        /// list: discovery only
+        #[arg(default_value = "scan", value_parser = ["scan", "list"])]
+        action: String,
+        /// Treat this directory as the home directory (fixtures, fleet
+        /// images); system-wide managed settings are then not read
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Project directory to inspect (default: current directory)
+        #[arg(long)]
+        project: Option<PathBuf>,
+        /// Skip project-scoped locations
+        #[arg(long)]
+        no_project: bool,
+        /// Skip user-level and system locations: inspect the project only
+        /// (deterministic across machines, for pre-commit and CI)
+        #[arg(long)]
+        no_user: bool,
+        /// Exit 1 when any finding is at or above this severity
+        /// (low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
+        /// Only these tools (comma-separated ids, e.g. claude-code,codex)
+        #[arg(long)]
+        tool: Option<String>,
     },
 }
 
@@ -694,6 +728,26 @@ async fn main() {
         Commands::Residue { action } => cmd_residue(action, &cli.format),
 
         Commands::Setup { target } => setup::cmd_setup(&target),
+
+        Commands::Skills {
+            action,
+            root,
+            project,
+            no_project,
+            no_user,
+            fail_on,
+            tool,
+        } => inventory::cmd_skills(
+            &action,
+            root,
+            project,
+            no_project,
+            no_user,
+            &fail_on,
+            tool.as_deref(),
+            &cli.format,
+            cli.verbose,
+        ),
     };
 
     process::exit(exit_code);
