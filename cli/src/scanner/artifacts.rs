@@ -364,6 +364,8 @@ struct Tally {
     encrypted: Vec<String>,
     escapes: Vec<String>,
     incomplete: Vec<String>,
+    /// Members larger than the per-member cap, scanned from their head.
+    partial: usize,
 }
 
 fn read_head(path: &Path) -> Option<Vec<u8>> {
@@ -536,11 +538,20 @@ fn report(display: &str, magic: Magic, office: bool, tally: Tally, out: &mut Art
             Severity::Low,
             display,
             format!(
-                "{} shipped in the tree: {} member(s) inspected — {} text member(s) scanned, \
+                "{} shipped in the tree: {} member(s) inspected — {} text member(s) scanned{}, \
                  {} identical to files already scanned, {} binary",
                 magic.label(),
                 tally.members,
                 tally.text,
+                if tally.partial > 0 {
+                    format!(
+                        " ({} larger than {} MB, scanned from the head)",
+                        tally.partial,
+                        MAX_MEMBER_BYTES / (1024 * 1024)
+                    )
+                } else {
+                    String::new()
+                },
                 tally.duplicates,
                 tally.binary
             ),
@@ -896,12 +907,14 @@ fn member(
 ) {
     budget.bytes = budget.bytes.saturating_add(bytes.len() as u64);
     let display = format!("{outer}!/{name}");
+    // An oversized text member is scanned in part, the way the main walk
+    // scans an oversized file: noted in the observation, not a finding of
+    // its own. An oversized nested archive cannot be opened from its head
+    // and is reported as not inspected below.
     let truncated = bytes.len() as u64 > MAX_MEMBER_BYTES;
     if truncated {
         bytes.truncate(MAX_MEMBER_BYTES as usize);
-        tally.incomplete.push(format!(
-            "{name}: larger than {MAX_MEMBER_BYTES} bytes, head only"
-        ));
+        tally.partial += 1;
     }
     let magic = sniff(&bytes[..bytes.len().min(HEAD_BYTES)]);
     let lower = name.to_ascii_lowercase();
@@ -939,6 +952,11 @@ fn member(
                 &mut inner,
                 out,
             ),
+            _ if truncated => inner.incomplete.push(format!(
+                "nested {} larger than {} MB; contents not inspected",
+                magic.label(),
+                MAX_MEMBER_BYTES / (1024 * 1024)
+            )),
             _ => inner
                 .incomplete
                 .push(format!("{} contents are not inspected", magic.label())),
@@ -1205,6 +1223,20 @@ mod tests {
             .iter()
             .any(|f| f.rule == RULE_ARCHIVE_INCOMPLETE && f.snippet.contains("deeper than")));
         assert!(s.units.is_empty());
+    }
+
+    #[test]
+    fn oversized_text_member_is_scanned_from_its_head_without_a_finding() {
+        let big = "{\"event\": \"trace\"}\n".repeat(300_000); // ~5.7 MB
+        let (d, files) = tree(&[(
+            "s/fixtures/trace.zip",
+            zip_bytes(&[("trace.json", big.as_bytes())]),
+        )]);
+        let s = scan(d.path(), &files);
+        assert_eq!(rules(&s), vec![RULE_ARCHIVE], "{:?}", s.findings);
+        assert!(s.findings[0].snippet.contains("scanned from the head"));
+        assert_eq!(s.units.len(), 1);
+        assert_eq!(s.units[0].text.len() as u64, MAX_MEMBER_BYTES);
     }
 
     #[test]
