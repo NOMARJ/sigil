@@ -94,7 +94,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "NET-008" | "NET-009" => Some("raw_sockets"),
         "NET-010" => Some("dns_lookup"),
         "NET-011" => Some("encodes_before_send"),
-        "NET-012" => Some("downloads_remote_content"),
+        "NET-012" | "NET-RCE-001" => Some("downloads_remote_content"),
         "NET-013" => Some("targets_metadata_endpoint"),
         "NET-014" => Some("c2_tunnel_host"),
         "NET-015" => Some("suspicious_domain"),

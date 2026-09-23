@@ -1661,6 +1661,16 @@ mod fp_calibration {
             "    value = eval(",
             "CODE-001"
         ));
+        // JavaScript identifiers may contain `$`; obfuscator output is full of
+        // them (the 1imit npm packages in the Datadog set).
+        assert!(fires(
+            "code_patterns",
+            "prepare-writer.js",
+            "try{eval(tgZaHqCeUosi$q_T[RKiWeUb$O(0x1d4)]);}catch(e){}",
+            "CODE-001"
+        ));
+        assert!(fires("code_patterns", "a.js", "eval(a$b)", "CODE-001"));
+        assert!(fires("code_patterns", "a.py", "exec(_x$y, g)", "CODE-002"));
         // PyTorch's model.eval() and prose naming eval() run nothing.
         assert!(!fires(
             "code_patterns",
@@ -2292,6 +2302,12 @@ mod fp_calibration {
                 "{benign}"
             );
         }
+        // The split must not change the behaviour profile of those lines:
+        // before it they were NET-012, a download.
+        assert_eq!(
+            crate::scanner::profile::behavior_for("NET-RCE-001"),
+            crate::scanner::profile::behavior_for("NET-012")
+        );
     }
 
     #[test]
