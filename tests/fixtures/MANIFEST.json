@@ -164,8 +164,8 @@
     {
       "path": "skill_security/wildcard/SKILL.md",
       "expect_phase": "SkillSecurity",
-      "expect_min_severity": "High",
-      "source": "Unscoped Bash grant in Claude Code skill front matter (prism-scanner S-rules review)",
+      "expect_min_severity": "Low",
+      "source": "Unscoped Bash grant in Claude Code skill front matter (prism-scanner S-rules review). Reported as a Low observation since the fp-lane calibration: 81 of 455 clean vendor skills declare it (docs/detection/fp-calibration.md)",
       "synthetic": true
     },
     {

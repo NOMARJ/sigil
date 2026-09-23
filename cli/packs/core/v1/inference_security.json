@@ -38,7 +38,7 @@
       "id": "INFER-003",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "f[\"'].*\\{os\\.(environ|getenv)",
+      "pattern": "f[\\\"'].*\\{os\\.(environ\\.get\\s*\\(|environ\\s*\\[|getenv\\s*\\()\\s*[\\\"'][A-Za-z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
       "description": "Inference security — env var interpolated into prompt string",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]

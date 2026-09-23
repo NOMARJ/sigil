@@ -122,7 +122,7 @@
       "id": "SUPPLY-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*eval|template\\s*\\([^)]*\\).*exec",
+      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*\\beval\\s*\\(|template\\s*\\([^)]*\\).*exec",
       "description": "Template literal code injection pattern",
       "suppress": {
         "path_contains": [

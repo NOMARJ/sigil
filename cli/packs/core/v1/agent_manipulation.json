@@ -135,8 +135,15 @@
       "id": "MANIP-004",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(skip|bypass|disable|turn\\s+off|ignore|override)\\s+(all\\s+)?(the\\s+)?(safety|security|confirmation|permission|approval)\\s+(checks?|prompts?|dialogs?|safeguards?|protections?|guardrails?|steps?)\\b|\\b(skip|bypass|disable|turn\\s+off)\\s+(all\\s+)?(safety|safeguards?|guardrails?)\\b|\\b(don'?t|do\\s+not|never)\\s+(ask|prompt|wait)\\s+(the\\s+|for\\s+)?(the\\s+)?(user|human)?\\s*(for\\s+)?(confirmation|permission|approval|consent)\\b",
+      "pattern": "(?i)\\b(skip|bypass|disable|turn\\s+off|ignore|override)\\s+(all\\s+)?(the\\s+)?(safety|security|confirmation|permission|approval)\\s+(checks?|prompts?|dialogs?|safeguards?|protections?|guardrails?|steps?)\\b|\\b(skip|bypass|disable|turn\\s+off)\\s+(all\\s+)?(safety|safeguards?|guardrails?)\\b|\\b(don'?t|do\\s+not|never)\\s+(ask|prompt|wait)\\s+(the\\s+|for\\s+)?(the\\s+)?(user|human)?\\s*(for\\s+)?(confirmation|permission|approval|consent)\\b|(?i:\\b(do\\s+not|don'?t|never)\\s+ask\\s+(the\\s+)?(user|human)\\b[^\\n.]{0,10}[—–-]+\\s*just\\s+(run|install|execute)\\b)",
       "description": "Agent manipulation — instruction to bypass safety checks or user confirmation",
+      "suppress": {
+        "line_contains": [
+          "` - Skip",
+          "`--",
+          "enable/disable"
+        ]
+      },
       "file_filter": {
         "extensions": [
           "md",
@@ -265,8 +272,15 @@
       "id": "MANIP-007",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(the\\s+)?(user|human|operator)\\s+(sees?|will\\s+see|can\\s+see|notices?|observes?)\\s+(nothing|no\\s+(tool|output|indication|trace))\\b|\\b(invisible|undetectable|imperceptible)\\s+to\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user|human|operator)('?s)?\\s+(knowing|noticing|seeing|awareness)\\b|\\b(do\\s*n['\\u2019]?o?t|never)\\s+(mention|announce|reveal|disclose|reference|show|display|log|report|tell)\\s+(it|this|that\\s+you|the\\s+\\w+)?\\s*(to\\s+)?(the\\s+)?(user|human|operator)\\b",
+      "pattern": "(?i)\\b(the\\s+)?(user|human|operator)\\s+(sees?|will\\s+see|can\\s+see|notices?|observes?)\\s+(nothing|no\\s+(tool|output|indication|trace))\\b|\\b(invisible|undetectable|imperceptible)\\s+to\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user|human|operator)('?s)?\\s+(knowing|noticing|seeing|awareness)\\b|\\b(do\\s*n['\\u2019]?o?t|never)\\s+(mention|announce|reveal|disclose|reference|show|display|log|report|tell)\\s+(it|this|that\\s+you|the\\s+\\w+)?\\s*(to\\s+)?(the\\s+)?(user|human|operator)\\b(?:\\s*[.,;:!)]|\\s+\\w)",
       "description": "Agent manipulation — instructs the agent to conceal its actions from the user",
+      "suppress": {
+        "line_contains": [
+          "tell the user to ",
+          "tell the user how",
+          "in the Figma UI"
+        ]
+      },
       "file_filter": {
         "extensions": [
           "md",
@@ -309,9 +323,25 @@
     {
       "id": "MANIP-008",
       "phase": "prompt_injection",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "(?i)\\b(execut\\w+|run|runs|act|acts|apply|applies|install\\w*|delete\\w*|commit\\w*|push\\w*|continue\\w*)\\b[^.\\n]{0,40}\\bwithout\\s+(any\\s+|further\\s+|explicit\\s+|additional\\s+)?(confirmation|approval|permission|prompting|prompts?|user\\s+input|asking)\\b|\\bno\\s+(unnecessary\\s+|further\\s+|additional\\s+)?(confirmations?|permission\\s+prompts?)\\b|\\bauto[- ]?approve\\s+(all|every|any|the|commands?|tools?)\\b",
       "description": "Agent manipulation — instructs the agent to execute without user confirmation",
+      "suppress": {
+        "line_contains": [
+          "Never ",
+          "never ",
+          "Do not ",
+          "do not ",
+          "Don't ",
+          "don't ",
+          "DO NOT ",
+          "NEVER ",
+          "forbid",
+          "must not",
+          "MUST NOT",
+          "No confirmation means stop"
+        ]
+      },
       "file_filter": {
         "extensions": [
           "md",
