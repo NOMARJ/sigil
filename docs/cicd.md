@@ -203,6 +203,94 @@ sigil-scan:
 
 ---
 
+## GitLab CI template (`ci-templates/gitlab`)
+
+`ci-templates/gitlab/sigil.gitlab-ci.yml` runs the Rust CLI directly and
+reads its JSON output. Pin the include to a release tag:
+
+```yaml
+include:
+  - remote: "https://raw.githubusercontent.com/NOMARJ/sigil/v1.3.6/ci-templates/gitlab/sigil.gitlab-ci.yml"
+
+variables:
+  SIGIL_VERSION: "v1.3.6"   # or "latest"
+  SIGIL_FAIL_ON: "high"     # low | medium | high | critical
+```
+
+It adds two jobs to the `test` stage, on merge-request pipelines, the default
+branch and tags:
+
+| Job | Runs | Artifacts |
+|-----|------|-----------|
+| `sigil-scan` | `sigil scan $SIGIL_SCAN_PATH --fail-on $SIGIL_FAIL_ON` | `sigil.json`, `sigil.sarif`, and a **Code Quality report** (`gl-code-quality-report.json`) that GitLab shows in the merge-request widget on every tier |
+| `sigil-agent-tooling` | `sigil skills scan --no-user --project $CI_PROJECT_DIR` — the skills, hooks and MCP server configs committed with the project | `sigil-agent-tooling.json` |
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SIGIL_VERSION` | `latest` | Release tag to install |
+| `SIGIL_SCAN_PATH` | `.` | Path to scan |
+| `SIGIL_FAIL_ON` | `high` | Fail the job on a finding at or above this severity |
+| `SIGIL_SCAN_ARGS` | | Extra `sigil scan` flags |
+
+The binary is downloaded from the GitHub release and checked against the
+release's `SHA256SUMS.txt` before it runs; the jobs use `debian:bookworm-slim`
+because the release binaries link glibc 2.35+. Exit code `2` (the scan did not
+complete) fails the job with a distinct message rather than being read as a
+verdict. To change stage, rules or image, extend the hidden jobs
+`.sigil-scan` / `.sigil-agent-tooling` instead of the visible ones.
+
+The older `.gitlab-ci-template.yml` at the repository root predates the Rust
+CLI; prefer this template.
+
+---
+
+## pre-commit
+
+The repository ships `.pre-commit-hooks.yaml` with two hooks. Both need
+`sigil` on `PATH` ([installation](installation.md)).
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/NOMARJ/sigil
+    rev: v1.3.6
+    hooks:
+      - id: sigil-scan          # whole repository, --fail-on high
+      - id: sigil-scan-skills   # agent tooling committed with the project
+```
+
+| Hook | Command | Runs when |
+|------|---------|-----------|
+| `sigil-scan` | `sigil scan . --fail-on high` | every commit |
+| `sigil-scan-skills` | `sigil skills scan --no-user --project . --fail-on high` | a file under `.claude/`, `.cursor/`, `.gemini/`, `.codex/`, `.agents/`, `.windsurf/`, `.opencode/`, `.roo/`, `.continue/`, `.kiro/`, `.amazonq/`, `.github/{skills,prompts,instructions}/`, or `.mcp.json`, `.vscode/mcp.json`, `opencode.json(c)`, `.clinerules` changes |
+
+`--no-user` makes `sigil-scan-skills` read only project-scoped locations, so
+the result is the same on every developer's machine. Override the threshold
+with `args: ["--fail-on", "medium"]`.
+
+---
+
+## Agent tooling on a fleet (`sigil skills`)
+
+`sigil skills scan` inventories and scans what is *already installed* on a
+machine — skills, plugins, hooks and MCP servers for Claude Code, Codex,
+Gemini CLI, Cursor, Windsurf, VS Code, Cline/Roo, Continue, Goose, OpenCode,
+Zed and OpenClaw. For fleet or golden-image checks:
+
+```bash
+# On each developer machine / in an MDM script: JSON for your SIEM, exit 1 on High+
+sigil skills scan --no-project --format json --fail-on high > sigil-skills.json
+
+# Against a mounted image or a home directory you are auditing
+sigil skills scan --root /mnt/image/home/dev --no-project --fail-on high
+```
+
+`--root` (or `SIGIL_HOME`) treats a directory as the home directory and skips
+system-wide managed settings. See [cli.md](cli.md#sigil-skills) for every
+option and [detection/ux.md](detection/ux.md) for the checks.
+
+---
+
 ## Generic CI (Jenkins, CircleCI, Bitbucket)
 
 For any CI system that can run shell commands:

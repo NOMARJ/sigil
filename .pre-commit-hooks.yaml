@@ -1,14 +1,18 @@
 # Pre-commit hook definitions for Sigil.
-# Consumer config (see SIGIL-DISTRIBUTION-ROADMAP.md §4.2.3):
+# Consumer config (see docs/cicd.md, "pre-commit"):
 #
 #   repos:
 #     - repo: https://github.com/NOMARJ/sigil
-#       rev: v0.1.0
+#       rev: v1.3.6
 #       hooks:
 #         - id: sigil-scan
-#           args: ["--fail-on", "high"]
+#         - id: sigil-scan-skills
 #
-# Requires the sigil binary on PATH (language: system).
+# Both hooks need the sigil binary on PATH (language: system); see
+# docs/installation.md for the one-line installers.
+
+# Whole-repository scan: exits 1 when a finding at or above --fail-on
+# (default here: high) is present.
 - id: sigil-scan
   name: Sigil security scan
   description: Scan the repository for malicious patterns with the Sigil CLI
@@ -16,3 +20,19 @@
   args: ["--fail-on", "high"]
   language: system
   pass_filenames: false
+
+# Agent tooling committed with the project: skills, agents/commands/rules,
+# hooks in .claude/settings.json and MCP server configs (.mcp.json,
+# .cursor/mcp.json, .vscode/mcp.json, .gemini/, .codex/, opencode.json...).
+# --no-user keeps the result independent of whose machine runs it: only
+# project-scoped locations are read. Runs only when such a file changes.
+# Skills kept elsewhere in the tree (a skills repository's skills/<name>/)
+# are covered by sigil-scan, which reports a per-skill breakdown.
+- id: sigil-scan-skills
+  name: Sigil agent-tooling scan
+  description: Scan the project's agent skills, hooks and MCP server configs with sigil skills scan
+  entry: sigil skills scan --no-user --project .
+  args: ["--fail-on", "high"]
+  language: system
+  pass_filenames: false
+  files: '^(\.mcp\.json|opencode\.jsonc?)$|^\.clinerules(/|$)|^\.(claude|cursor|gemini|codex|agents|windsurf|opencode|roo|continue|kiro|amazonq)/|^\.vscode/mcp\.json$|^\.github/(skills|prompts|instructions)/'
