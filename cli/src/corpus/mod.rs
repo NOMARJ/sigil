@@ -20,4 +20,6 @@ pub mod signing;
 #[cfg(test)]
 mod agent_supply_chain_tests;
 #[cfg(test)]
+mod guardrail_tests;
+#[cfg(test)]
 mod multilingual_tests;

@@ -12,7 +12,7 @@
       "id": "PROMPT-001",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)\\b(ignore|disregard|forget)\\s+(all\\s+(of\\s+)?)?(your\\s+)?(previous|prior|above|earlier)\\s+(instructions|prompts?|rules|guidelines)\\b|\\bdisregard\\s+(the\\s+)?above\\b|\\bforget\\s+everything\\s+(above|you\\s+(know|were\\s+told))\\b",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|<!--\\s*|(?:=|\\breturn\\b|\\(|\\[|,|:)\\s*[fbru]?[\\\"'`“]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:(?:ignore|disregard|forget)\\s+(?:all\\s+(?:of\\s+)?)?(?:your\\s+|the\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|prompts?|rules|guidelines)\\b|disregard\\s+(?:the\\s+)?above\\b|forget\\s+everything\\s+(?:above|you\\s+(?:know|were\\s+told))\\b)",
       "description": "Prompt injection — ignore previous instructions",
       "file_filter": {
         "extensions": [
@@ -47,7 +47,7 @@
           "Makefile"
         ]
       },
-      "remediation": "Remove the instruction. Text that tells the agent to discard its prior instructions has no legitimate place in a tool description or README.",
+      "remediation": "Remove the instruction. Text that tells the agent to discard its prior instructions has no legitimate place in a tool description or README. Guardrails that forbid the behaviour (\"Never ignore previous instructions\", \"Do not reveal your system prompt\") do not match: the instruction has to be stated affirmatively, or carried in a prompt value, a returned or assigned string, or an HTML comment.",
       "references": [
         "OWASP LLM01"
       ],
@@ -200,7 +200,7 @@
       "id": "PROMPT-005",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)\\b(reveal|show|display|print|repeat|output|leak|dump|disclose)\\s+(me\\s+)?your\\s+(complete\\s+|full\\s+|entire\\s+|system\\s+|hidden\\s+|initial\\s+|original\\s+)?(prompt|instructions)\\b",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|<!--\\s*|(?:=|\\breturn\\b|\\(|\\[|,|:)\\s*[fbru]?[\\\"'`“]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:reveal|show|display|print|repeat|output|leak|dump|disclose)\\s+(?:me\\s+)?your\\s+(?:complete\\s+|full\\s+|entire\\s+|system\\s+|hidden\\s+|initial\\s+|original\\s+)?(?:prompt|instructions)\\b",
       "description": "Prompt injection — system prompt extraction attempt",
       "file_filter": {
         "extensions": [
@@ -235,7 +235,7 @@
           "Makefile"
         ]
       },
-      "remediation": "Remove the extraction request. Nothing in a package needs the agent's system prompt.",
+      "remediation": "Remove the extraction request. Nothing in a package needs the agent's system prompt. Guardrails that forbid the behaviour (\"Never ignore previous instructions\", \"Do not reveal your system prompt\") do not match: the instruction has to be stated affirmatively, or carried in a prompt value, a returned or assigned string, or an HTML comment.",
       "references": [
         "OWASP LLM01"
       ],
