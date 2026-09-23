@@ -11,10 +11,10 @@
     {
       "id": "CRED-001",
       "phase": "credentials",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "os\\.(environ(\\.get)?|getenv)\\s*[\\[\\(]\\s*['\"][A-Za-z0-9_]*(_KEY\\b|SECRET|_TOKEN\\b|PASSWORD|PASSWD|CREDENTIAL|DATABASE_URL|AWS_|OPENAI_|ANTHROPIC_|GITHUB_TOKEN|NPM_TOKEN|PRIVATE_KEY)",
       "description": "Sensitive environment variable read (Python)",
-      "remediation": "Reading a secret from the environment is normal for a client. What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log.",
+      "remediation": "Reading a secret from the environment is what an API client does, so this is an observation (Low). What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log (EXFIL-CHAIN-001 reports that flow).",
       "references": [
         "MITRE T1552.001"
       ],
@@ -32,10 +32,10 @@
     {
       "id": "CRED-002",
       "phase": "credentials",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "(process\\.env(\\.|\\[\\s*['\"])|Deno\\.env\\.get\\(\\s*['\"])[A-Za-z0-9_]*(_KEY\\b|SECRET|_TOKEN\\b|PASSWORD|PASSWD|CREDENTIAL|DATABASE_URL|AWS_|OPENAI_|ANTHROPIC_|GITHUB_TOKEN|NPM_TOKEN|PRIVATE_KEY)",
       "description": "Sensitive environment variable read (JavaScript/TypeScript)",
-      "remediation": "Reading a secret from the environment is normal for a client. What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log.",
+      "remediation": "Reading a secret from the environment is what an API client does, so this is an observation (Low). What matters is where the value goes: it should reach an auth header for the documented API, never a request body, a file, or a log (EXFIL-CHAIN-001 reports that flow).",
       "references": [
         "MITRE T1552.001"
       ],
@@ -54,9 +54,9 @@
       "id": "CRED-003",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "\\.aws/(credentials|config)",
-      "description": "AWS credentials file access",
-      "remediation": "Nothing a package installs should read ~/.aws. Remove the access; use the AWS SDK's own credential chain if cloud access is genuinely needed.",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,60}\\.aws[/\\\\](credentials|config)\\b",
+      "description": "AWS credentials file read, copied or uploaded",
+      "remediation": "Nothing a package installs should read, copy or upload ~/.aws/credentials or ~/.aws/config. Remove the access and use the AWS SDK's own credential chain if cloud access is genuinely needed. Prose that only names the path (\"never write ~/.aws/credentials\") is not matched.",
       "references": [
         "MITRE T1552.001",
         "MITRE T1552.004"
@@ -85,9 +85,9 @@
       "id": "CRED-005",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "\\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys)",
-      "description": "SSH key file access",
-      "remediation": "Nothing a package installs should touch SSH keys. Remove the access.",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,60}\\.ssh[/\\\\](id_rsa|id_ed25519|id_ecdsa|id_dsa)\\b(?:[^.\\w]|$)",
+      "description": "SSH private key read, copied or uploaded",
+      "remediation": "Reading, copying or uploading an SSH private key (id_rsa, id_ed25519, id_ecdsa, id_dsa) hands over remote login to wherever the bytes go; nothing a package or skill installs should do it. Public keys (.pub), ssh-keygen and ssh-copy-id setup steps and ssh -i are deliberately not matched, so read what the matched line does with the key before approving.",
       "references": [
         "MITRE T1552.004"
       ],
@@ -144,7 +144,7 @@
       "id": "CRED-008",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\"][^'\"]{8,}",
+      "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\\\"][^'\\\"$<{%][^'\\\"]{7,}",
       "description": "Hardcoded password",
       "suppress": {
         "filename_suffix": [
@@ -176,7 +176,7 @@
       "id": "CRED-009",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "\"type\"\\s*:\\s*\"service_account\"",
+      "pattern": "^\\s*\\\"type\\\"\\s*:\\s*\\\"service_account\\\"\\s*,?\\s*$|\\\"type\\\"\\s*:\\s*\\\"service_account\\\"[^\\n]*\\\"private_key",
       "description": "GCP service account JSON key",
       "remediation": "A service-account key file grants cloud access to whoever holds it. Remove it from the package and rotate the key.",
       "references": [
@@ -234,8 +234,8 @@
     {
       "id": "CRED-MCP-001",
       "phase": "credentials",
-      "severity": "medium",
-      "pattern": "MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth",
+      "severity": "low",
+      "pattern": "\\b(MCP_API_KEY|MCP_SECRET|MCP_TOKEN|mcp_auth)\\b",
       "description": "MCP credential reference",
       "remediation": "A reference to MCP_API_KEY, MCP_SECRET, MCP_TOKEN or mcp_auth is ordinary when an MCP server or client reads its own credential from the environment and sends it only in the auth header of the endpoint it documents, or when a README tells the user to set the variable. Trace where the value goes: a token that is logged, written to a file, placed in a request body or URL, or sent to any other host is being harvested, and an instruction file that tells the agent to print or paste it is a credential-theft prompt.",
       "references": [
@@ -251,7 +251,7 @@
       "id": "CRED-013",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "xox[baprs]-[0-9A-Za-z-]{10,}",
+      "pattern": "xox[baprs]-\\d+-[0-9A-Za-z-]{10,}",
       "description": "Hardcoded Slack token",
       "remediation": "Revoke and rotate this credential now: it has been distributed with the package. Load secrets from the environment or a secrets manager.",
       "references": [
@@ -556,7 +556,7 @@
       "id": "CRED-031",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(~|\\$HOME|HOME\\b|USERPROFILE|expanduser|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(kube/config|docker/config\\.json|netrc|pypirc|npmrc)",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,80}(~|\\$HOME|\\$\\{HOME\\}|HOME\\b|USERPROFILE|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(kube/config|docker/config\\.json|netrc|pypirc|npmrc)",
       "description": "Reads a developer credential file",
       "suppress": {
         "line_contains": [
@@ -564,7 +564,7 @@
           "${"
         ]
       },
-      "remediation": "Check why the package needs kube/docker/npm/PyPI credentials. Publishing tooling reads its own config; anything else is harvesting.",
+      "remediation": "The line reads, copies or uploads a kube, docker, netrc, PyPI or npm credential file. Publishing tooling reading its own config is the one ordinary case; a skill or package reading someone else's is harvesting. Prose that only names the path is not matched.",
       "references": [
         "MITRE T1552.001"
       ],
@@ -590,15 +590,31 @@
       "id": "CRED-033",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(dict|json\\.dumps|str|list)\\s*\\(\\s*os\\.environ\\s*\\)|os\\.environ\\.(items|copy)\\s*\\(|JSON\\.stringify\\s*\\(\\s*process\\.env\\s*\\)",
+      "pattern": "(json\\.dumps|str|repr)\\s*\\(\\s*(dict\\s*\\(\\s*os\\.environ\\s*\\)|os\\.environ)\\s*[,)]|JSON\\.stringify\\s*\\(\\s*process\\.env\\s*[,)]|os\\.environ\\.items\\s*\\(\\s*\\)[^\\n]{0,80}\\b(KEY|TOKEN|SECRET|PASS\\w*|CRED\\w*)\\b|\\bfor\\s+\\w+\\s*,\\s*\\w+\\s+in\\s+os\\.environ\\.items\\s*\\(\\s*\\)\\s*:|Object\\.entries\\s*\\(\\s*process\\.env\\s*\\)[^\\n]{0,80}\\b(KEY|TOKEN|SECRET|PASS\\w*)\\b",
       "description": "Dumps the entire process environment",
-      "remediation": "Serialising the whole environment captures every secret the process can see. Read the specific variables the package documents instead.",
+      "remediation": "Serialising the whole environment (json.dumps(os.environ), JSON.stringify(process.env)), looping over every variable, or filtering it for KEY/TOKEN/SECRET names captures every secret the process can see. Read the specific variables the package documents instead. A plain os.environ.copy() handed to a child process is the ordinary idiom and is reported separately as the observation CRED-ENV-001.",
       "references": [
         "MITRE T1552.001"
       ],
       "tags": [
         "credential-theft",
         "exfiltration"
+      ]
+    },
+    {
+      "id": "CRED-ENV-001",
+      "phase": "credentials",
+      "severity": "low",
+      "pattern": "os\\.environ\\.copy\\s*\\(\\s*\\)|\\bdict\\s*\\(\\s*os\\.environ(\\.items\\s*\\(\\s*\\))?\\s*\\)|\\bcopy\\.(deep)?copy\\s*\\(\\s*os\\.environ\\s*\\)|\\{\\s*\\*\\*os\\.environ\\b|\\{\\s*\\.\\.\\.process\\.env\\b|Object\\.assign\\s*\\(\\s*\\{\\s*\\}\\s*,\\s*process\\.env\\b",
+      "description": "Copies the whole process environment (observation)",
+      "remediation": "Copying the environment to hand a modified copy to a child process (subprocess env=, spawn env:) is the standard idiom, which is why this is only an observation. Check where the copy goes: a subprocess is expected; a file, a log, a request body or a serialiser is the credential-dump shape reported as CRED-033.",
+      "references": [
+        "MITRE T1552.001",
+        "CWE-526"
+      ],
+      "tags": [
+        "credential-read",
+        "environment"
       ]
     },
     {

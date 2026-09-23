@@ -202,7 +202,7 @@
       "id": "OBFUSC-CHAIN-017",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "__import__\\s*\\(\\s*[\"'][\\w\\.]+[\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
+      "pattern": "__import__\\s*\\(\\s*[\\\"'](os|subprocess|socket|pty|ctypes|builtins|base64|zlib|marshal|pickle|codecs|importlib|shutil|urllib[\\w.]*|http[\\w.]*|requests)[\\\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
       "description": "Dynamic import with immediate method execution — import-time side effect",
       "remediation": "__import__('pkg_resources').declare_namespace(__name__) and __import__('setuptools').setup(...) are common legacy Python packaging idioms. Anything else called in the same expression — os.system, subprocess.Popen, urllib.request.urlopen, socket.socket, ctypes — is an ordinary import written so 'import os' never appears in the file and runs at import time; judge it by the module and method named and reject if they touch the shell, the network or files outside the package.",
       "references": ["MITRE T1059.006", "MITRE T1027"],

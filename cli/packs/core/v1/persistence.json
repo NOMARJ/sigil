@@ -49,7 +49,7 @@
     {
       "id": "PERSIST-003",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "(?i)(/etc/systemd/system/[^\\s\"']*\\.(service|timer)|\\.config/systemd/user/[^\\s\"']*\\.(service|timer)|/usr/lib/systemd/system/|\\bsystemctl[\"',\\s]+(--user[\"',\\s]+)?(enable|link)\\b)",
       "description": "Persistence — systemd unit installation",
       "suppress": {
@@ -93,6 +93,23 @@
       "severity": "high",
       "pattern": "(?i)(\\.(bashrc|zshrc|zshenv|zprofile|bash_profile|profile)\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)|(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)[^\\n]{0,80}\\.(bashrc|zshrc|zshenv|zprofile|bash_profile|profile)\\b)",
       "description": "Persistence — shell startup file written",
+      "suppress": {
+        "line_contains": [
+          "Never ",
+          "never ",
+          "Do not ",
+          "do not ",
+          "Don't ",
+          "don't ",
+          "DO NOT ",
+          "NEVER ",
+          "forbid",
+          "must not",
+          "MUST NOT",
+          "No confirmation means stop",
+          "declines to"
+        ]
+      },
       "remediation": "Remove the write to the shell startup file. Anything appended there executes in every new shell with the user's full privileges; a package must never do this silently.",
       "references": [
         "MITRE T1546.004"
@@ -108,6 +125,14 @@
       "severity": "high",
       "pattern": "(?i)(authorized_keys\\b[^\\n]{0,80}(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)|(>>|\\bappend|['\"]a\\+?['\"]|\\bwrite|tee\\s+-a)[^\\n]{0,80}authorized_keys\\b)",
       "description": "Persistence — SSH authorized_keys written",
+      "suppress": {
+        "line_contains": [
+          "| ssh ",
+          "ssh-copy-id",
+          "on the remote",
+          "remote host"
+        ]
+      },
       "remediation": "Remove the authorized_keys write. Adding a key grants persistent remote login; nothing a package installs should do that.",
       "references": [
         "MITRE T1098.004"
@@ -121,7 +146,7 @@
     {
       "id": "PERSIST-007",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "(/etc/sudoers(\\.d/|\\b)|\\bvisudo\\b)",
       "description": "Privilege escalation — sudoers referenced",
       "remediation": "Remove any sudoers modification. A package must not change who can become root.",

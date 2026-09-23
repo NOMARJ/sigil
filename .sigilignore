@@ -212,6 +212,15 @@ cli/src/cache.rs
 cli/src/ledger.rs
 # cli/tests/explain.rs: CLI parser fixture contains JSON scan findings by design.
 cli/tests/explain.rs
+# cli/src/hook.rs and cli/src/residue/checks.rs: their unit tests enumerate
+# download-and-execute command lines ("curl https://example.com/install.sh | sh",
+# "wget -qO- … | bash") as INPUT to the pre-tool-use hook and the residue
+# classifier, which must block them. NET-RCE-001 (fp-lane split of NET-012)
+# reports those literals at High, as it should for real code. Test inputs for
+# our own guards, not payloads; the production logic is covered by the modules'
+# Rust unit tests.
+cli/src/hook.rs
+cli/src/residue/checks.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.

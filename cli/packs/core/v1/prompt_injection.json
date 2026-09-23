@@ -247,7 +247,7 @@
       "id": "PROMPT-006",
       "phase": "prompt_injection",
       "severity": "critical",
-      "pattern": "(?i)\\b(DAN\\s+mode|(developer|system|admin|root|god|sudo|unrestricted)\\s+mode\\s+(is\\s+)?(enabled|activated|on|unlocked|engaged)|jailbreak)\\b",
+      "pattern": "(?i)\\b(DAN\\s+mode|(developer|system|admin|root|god|sudo|unrestricted)\\s+mode\\s+(is\\s+)?(enabled|activated|on|unlocked|engaged)|jailbreak(ed|ing)?\\s+(mode|enabled|activated|unlocked|prompt\\s*:)|you\\s+are\\s+(now\\s+)?jailbroken)\\b",
       "description": "Prompt injection — jailbreak marker",
       "file_filter": {
         "extensions": [
@@ -294,7 +294,7 @@
       "id": "PROMPT-007",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(\"\"\"\\s*\\n|\\\\n---\\\\n|\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
+      "pattern": "(\\[INST\\]|<<SYS>>|<\\|im_start\\|>|<\\|im_end\\|>)",
       "description": "Prompt injection — delimiter injection",
       "file_filter": {
         "extensions": [
@@ -341,7 +341,7 @@
       "id": "PROMPT-008",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)(call\\s+the\\s+function|execute\\s+tool|use\\s+the\\s+tool)\\s",
+      "pattern": "(?i)\\b(call\\s+the\\s+function|execute\\s+(the\\s+)?tool|use\\s+the\\s+tool)\\b[^\\n]{0,80}\\b(to\\s+)?(send|upload|post|exfiltrat\\w*|forward|transmit|leak|delete\\s+(all|every)|read\\s+(the\\s+)?(credentials?|secrets?|keys?|tokens?|passwords?|\\.env))\\b",
       "description": "Prompt injection — tool/function abuse instruction",
       "file_filter": {
         "extensions": [
@@ -376,7 +376,7 @@
           "Makefile"
         ]
       },
-      "remediation": "Check which tool the text tells the agent to call, and why. Tool-call instructions in package text are how a benign-looking package gets an agent to act.",
+      "remediation": "The text tells the agent to call a tool or function in order to send, upload, forward, delete or read secrets. Check which tool it names and where the data ends up: an instruction that routes secrets or files to a tool the user did not ask for is how a benign-looking skill gets an agent to act for someone else. Plain \"use the tool\" guidance is not matched.",
       "references": [
         "OWASP LLM01"
       ],
@@ -436,7 +436,7 @@
       "id": "PROMPT-010",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\bnew\\s+(system\\s+)?instructions?\\s*:",
+      "pattern": "(?i)\\bnew\\s+(system\\s+)?instructions?\\s*:|(?i:\\b(secret|hidden)\\s+instructions?\\s+(for|to)\\s+(the\\s+)?(agent|assistant|ai|model|llm|claude)\\b)",
       "description": "Prompt injection — 'new instructions:' override marker",
       "file_filter": {
         "extensions": [

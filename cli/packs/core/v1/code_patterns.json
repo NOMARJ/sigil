@@ -12,7 +12,7 @@
       "id": "CODE-001",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "\\beval\\s*\\(",
+      "pattern": "(?:^|[^$\\w])eval\\s*\\(\\s*(?:[^\\s\\w)]|[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
       "description": "eval() call — arbitrary code execution",
       "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected.",
       "references": ["CWE-95", "MITRE T1059"],
@@ -22,7 +22,7 @@
       "id": "CODE-002",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?m)(^|[^.\\w])exec\\s*\\(",
+      "pattern": "(?m)(^|[^.\\w])exec\\s*\\(\\s*(?:[^\\s\\w)]|[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
       "description": "exec() call — arbitrary code execution",
       "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject.",
       "references": ["CWE-95", "CWE-78", "MITRE T1059"],
@@ -71,10 +71,10 @@
     {
       "id": "CODE-007",
       "phase": "code_patterns",
-      "severity": "high",
-      "pattern": "\\bchild_process\\b",
+      "severity": "low",
+      "pattern": "(require\\s*\\(\\s*['\\\"](node:)?child_process['\\\"]|from\\s+['\\\"](node:)?child_process['\\\"]|import\\s*\\(\\s*['\\\"](node:)?child_process['\\\"]|\\bchild_process\\s*\\.\\s*(exec|execSync|spawn|spawnSync|execFile|execFileSync|fork)\\b)",
       "description": "child_process usage — command execution",
-      "remediation": "child_process is how Node runs other programs. A CLI wrapper, build script or test harness spawning a fixed, named command (git, docker, tsc) with an argument array is ordinary; a command string built from decoded or downloaded content, a shell launched from an install hook, or a spawn whose stdio is wired to a socket is the shape to reject.",
+      "remediation": "child_process is how Node runs other programs, so importing it is an observation (Low). A CLI wrapper, build script or test harness spawning a fixed, named command (git, docker, tsc) with an argument array is ordinary; a command string built from input, decoded data or a download is the attack shape. Keys or prose that merely contain the word child_process are no longer matched.",
       "references": ["CWE-78", "MITRE T1059"],
       "tags": ["execution", "child-process", "node", "javascript"]
     },
@@ -82,7 +82,7 @@
       "id": "CODE-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "\\bFunction\\s*\\(",
+      "pattern": "(^|[^.\\w$])Function\\s*\\(\\s*(?:[^)\\s]|$)",
       "description": "Function constructor — dynamic code execution",
       "remediation": "Function(...) compiles a string into JavaScript, like eval but in global scope. Function('return this')() as a global-object lookup in bundled or UMD code, and template engines compiling their own templates, are recognisable and benign; anywhere else print the string it receives and reject the package if that string is decoded, concatenated from fragments or fetched, because the code was designed never to appear as reviewable source.",
       "references": ["CWE-95", "MITRE T1059.007"],
@@ -101,7 +101,7 @@
     {
       "id": "CODE-010",
       "phase": "code_patterns",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "__import__\\s*\\(",
       "description": "__import__() — dynamic import",
       "remediation": "Look at the argument. __import__('pkg_resources').declare_namespace(__name__) and a literal module name in a plugin loader are ordinary Python; a name assembled by concatenation, chr() or decoding, or read from a variable, is an import written so that os, subprocess or socket never appears in a text search, so resolve the name, judge the module it loads, and reject if it is hidden.",
@@ -111,7 +111,7 @@
     {
       "id": "CODE-011",
       "phase": "code_patterns",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "importlib\\.import_module\\s*\\(",
       "description": "importlib.import_module — dynamic import",
       "remediation": "importlib.import_module with a literal or configuration-derived name is Python's standard plugin and lazy-import mechanism (Django settings, entry points, CLI subcommand loaders). Check where the name comes from: a string assembled from fragments, decoded or fetched hides which module is loaded, and one taken from untrusted input lets a caller choose it; a plain string or an entry from the package's own registry is fine.",
@@ -121,7 +121,7 @@
     {
       "id": "CODE-012",
       "phase": "code_patterns",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "require\\s*\\(\\s*[^'\"\\s]",
       "description": "dynamic require() — variable module loading",
       "file_filter": {
@@ -134,7 +134,7 @@
     {
       "id": "CODE-013",
       "phase": "code_patterns",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "subprocess\\.(call|run|Popen|check_output)\\s*\\(",
       "description": "subprocess invocation — command execution",
       "file_filter": {
@@ -144,7 +144,7 @@
         "path_contains": ["scripts/run_eval.py", "run_comprehensive_tests.py"],
         "nearby_contains": ["sigil-reviewed-subprocess"]
       },
-      "remediation": "subprocess.run with a literal argument list (['git', 'status']) in a CLI wrapper, build script or test is ordinary Python. Look at the command and its context: a string built from decoded or downloaded content, shell=True around interpolated values, a call that runs at import time or from setup.py, or stdin/stdout wired to a socket is the shape to reject.",
+      "remediation": "subprocess.run with a literal argument list (['git', 'status']) in a CLI wrapper, build script or test is ordinary Python, so this is an observation (Low) that never moves the verdict by itself. Look at the command and its context: a string built from decoded or downloaded data, a shell (shell=True is CODE-015), or a command that fetches and runs remote code is the attack shape.",
       "references": ["CWE-78", "MITRE T1059"],
       "tags": ["execution", "subprocess", "python", "command"]
     },
@@ -152,19 +152,26 @@
       "id": "CODE-014",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(|from\\s+os\\s+import\\s+[^\\n#]*\\b(system|popen|exec[lv]?[pe]?)\\b",
-      "description": "os command execution",
-      "remediation": "os.system and os.popen hand a string to /bin/sh, and os.exec* replaces the process with another program. A script running a fixed, visible command (os.system('clear'), os.execvp re-launching itself) is fine; a command string built from decoded, concatenated or downloaded content, a curl | sh fetch, or a call that runs at import or install time has no place in a library, and subprocess.run with an argument list is the honest form.",
+      "pattern": "os\\.(system|popen|exec[lv]?[pe]?)\\s*\\(|from\\s+os\\s+import\\s+[^\\n#]*\\b(system|popen|exec[lv]?[pe]?)\\b|(^|[^.\\w$])execSync\\s*\\(\\s*[`'\\\"]|\\bspawn(Sync)?\\s*\\(\\s*[`'\\\"](/bin/)?(ba|z|da|k)?sh[`'\\\"]\\s*,\\s*\\[\\s*[`'\\\"]-[ic][`'\\\"]",
+      "description": "OS command execution through a shell",
+      "remediation": "os.system and os.popen hand a string to /bin/sh, os.exec* replaces the process with another program, and Node's execSync with a command line (or spawn('bash', ['-i'|'-c', ...])) does the same through child_process. A script running a fixed, visible command (os.system('clear'), os.execvp re-launching itself, execSync('git rev-parse HEAD') in a build script) is fine; a command string built from decoded, concatenated or downloaded content, a curl | sh fetch, an interactive shell wired to a socket, or a call that runs at import or install time has no place in a library. subprocess.run or execFile with an argument list is the honest form.",
       "references": ["CWE-78", "MITRE T1059"],
-      "tags": ["execution", "os-system", "python", "shell"]
+      "tags": [
+        "execution",
+        "os-system",
+        "python",
+        "shell",
+        "javascript",
+        "child-process"
+      ]
     },
     {
       "id": "CODE-015",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "low",
       "pattern": "shell\\s*=\\s*True",
       "description": "shell=True — shell injection risk",
-      "remediation": "shell=True routes the command through /bin/sh, so every interpolated value becomes shell syntax and bash -i, nc or /dev/tcp fragments run as written. A constant string in a build script that needs pipes or globbing is tolerable; a string with f-string fields, format() or + around variables, decoded content or a download-and-run pipeline should be rejected, and the fix in nearly every legitimate case is an argument list with shell=False.",
+      "remediation": "shell=True routes the command through /bin/sh, so every interpolated value becomes shell syntax. It is common in build and dev tooling (a constant command, or one that needs cd and &&), which is why on its own it is an observation (Low) rather than an attack shape. Read what reaches the string: input from the user, a file, the network or a decoded blob is an injection path; bash -i, nc or /dev/tcp fragments are reported by the reverse-shell and exfiltration rules.",
       "references": ["CWE-78", "MITRE T1059"],
       "tags": ["execution", "shell-injection", "subprocess", "python"]
     },
@@ -183,8 +190,8 @@
     {
       "id": "CODE-MCP-002",
       "phase": "code_patterns",
-      "severity": "medium",
-      "pattern": "tool_call|execute_tool|run_tool",
+      "severity": "low",
+      "pattern": "\\b(execute_tool|run_tool)\\s*\\(",
       "description": "MCP tool execution pattern",
       "file_filter": {
         "extensions": ["py", "js", "jsx", "ts", "tsx", "rs"]
