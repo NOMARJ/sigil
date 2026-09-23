@@ -136,8 +136,8 @@ sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
 
-# Download and scan any URL
-sigil fetch https://example.com/agent-tool.tar.gz
+# Download and scan any URL: archives, single files, GitHub /tree/ links
+sigil scan https://example.com/agent-tool.tar.gz
 
 # Manage quarantine
 sigil list              # See all quarantined items

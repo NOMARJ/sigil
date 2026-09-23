@@ -199,7 +199,7 @@ winget install NOMARK.Sigil
 
 ## 🐳 Docker
 
-### CLI Only (Lightweight ~15MB)
+### CLI Only
 
 ```bash
 docker pull nomark/sigil:1.2.1
@@ -208,7 +208,7 @@ docker pull nomark/sigil:1.2.1
 docker run --rm -v $(pwd):/workspace nomark/sigil:1.2.1 scan .
 
 # Clone and scan a repo
-docker run --rm -v ~/.sigil:/root/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
+docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
 ```
 
 ### Full Stack (API + Dashboard + CLI)
@@ -263,7 +263,7 @@ a derived image).
 
 ### Prerequisites
 
-- **Rust 1.75+** — [Install Rust](https://rustup.rs)
+- **Rust 1.85+** (CI pins 1.90; current dependencies need edition 2024) — [Install Rust](https://rustup.rs)
 - **Git**
 
 ### Build the CLI

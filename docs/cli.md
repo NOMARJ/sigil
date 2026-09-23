@@ -373,30 +373,27 @@ findings. The overall verdict, score and exit code are not affected.
 
 ### sigil fetch
 
-Download a file or archive from a URL, extract if applicable, quarantine, and scan.
+Refresh the cached threat signatures from Sigil cloud (`~/.sigil/signatures.json`).
+It does not download or scan code: to scan something at a URL, pass the URL to
+`sigil scan` (git repositories, archives, single files and GitHub `/tree/` links
+are fetched into quarantine first).
 
 ```bash
-sigil fetch <url>
+sigil fetch            # refresh when the cache is stale
+sigil fetch --force    # re-download even if fresh
 ```
 
-**Arguments:**
+**Options:**
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `url` | Yes | URL to download from |
-
-**Behavior:**
-
-1. Downloads the file to quarantine
-2. Detects archive type (`.tar.gz`, `.tgz`, `.zip`, `.tar.bz2`)
-3. Extracts archives automatically
-4. Runs full scan on extracted contents
+| Option | Description |
+|--------|-------------|
+| `-f`, `--force` | Re-download even if the cached signatures are fresh |
 
 **Example:**
 
 ```bash
-sigil fetch https://example.com/agent-tool.tar.gz
-sigil fetch https://github.com/user/repo/archive/main.zip
+sigil fetch --force
+sigil scan https://example.com/agent-tool.tar.gz        # scan a URL (see sigil scan)
 ```
 
 ---
