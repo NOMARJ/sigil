@@ -466,7 +466,24 @@ pub enum Plan {
     Download(String),
     /// `https://github.com/<o>/<r>/tree/<ref>/<dir>`: clone, scan `<dir>`.
     GitHubTree { repo: String, segments: Vec<String> },
+    /// An extension-less URL on a host that is not a known git forge
+    /// (`https://get.example.com/`, `https://git.corp/team/repo`): a git
+    /// remote if `git ls-remote` says so, else a file to download.
+    Probe(String),
 }
+
+/// Hosts whose two-segment paths are repositories.
+const GIT_FORGES: &[&str] = &[
+    "github.com",
+    "www.github.com",
+    "gitlab.com",
+    "bitbucket.org",
+    "codeberg.org",
+    "git.sr.ht",
+    "gitea.com",
+    "dev.azure.com",
+    "huggingface.co",
+];
 
 /// URL path suffixes that name a single file or an archive rather than a
 /// repository. Anything else over http(s) keeps its existing meaning: a git
@@ -580,7 +597,32 @@ fn plan_url(url: &reqwest::Url) -> Plan {
     if DOWNLOAD_SUFFIXES.iter().any(|s| path.ends_with(s)) {
         return Plan::Download(url.to_string());
     }
-    Plan::Passthrough
+    if path.ends_with(".git") || GIT_FORGES.contains(&host.as_str()) {
+        return Plan::Passthrough;
+    }
+    Plan::Probe(url.to_string())
+}
+
+/// Is `url` a git remote? Bounded: an unreachable host must not hang the
+/// scan, and credentials are never prompted for. A remote must advertise
+/// at least one ref: a web server that answers every path with `200` makes
+/// `git ls-remote` "succeed" on an empty listing, and cloning that would
+/// scan nothing and report it clean.
+async fn is_git_remote(url: &str) -> bool {
+    let probe = tokio::process::Command::new("git")
+        .args(["ls-remote", "--quiet", url])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .output();
+    match tokio::time::timeout(Duration::from_secs(30), probe).await {
+        Ok(Ok(out)) => {
+            out.status.success()
+                && !parse_ls_remote(&String::from_utf8_lossy(&out.stdout)).is_empty()
+        }
+        _ => false,
+    }
 }
 
 fn percent_decode(s: &str) -> String {
@@ -836,13 +878,33 @@ fn downloaded_file_name(
         .and_then(|mut s| s.next_back().map(percent_decode))
         .unwrap_or_default();
     let name = sanitize_file_name(&last, "");
-    let has_ext = name.contains('.');
+    if name.contains('.') {
+        return name;
+    }
     let looks_md =
         body_head.starts_with(b"---") || content_type.is_some_and(|c| c.contains("markdown"));
-    if name.is_empty() || (!has_ext && looks_md) {
+    if looks_md {
         return "SKILL.md".to_string();
     }
-    name
+    // An install script behind a bare URL (`curl https://get.x.io | sh`):
+    // name it by its interpreter so script-scoped rules apply.
+    if body_head.starts_with(b"#!") {
+        let head = String::from_utf8_lossy(body_head);
+        let ext = if head.contains("python") {
+            "py"
+        } else if head.contains("node") {
+            "js"
+        } else {
+            "sh"
+        };
+        let stem = if name.is_empty() { "script" } else { &name };
+        return format!("{stem}.{ext}");
+    }
+    if name.is_empty() {
+        "SKILL.md".to_string()
+    } else {
+        name
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -974,6 +1036,14 @@ pub async fn prepare(
     verbose: bool,
 ) -> Result<Option<Prepared>, String> {
     let plan = plan(target)?;
+    if let Plan::Probe(url) = &plan {
+        if is_git_remote(url).await {
+            return Ok(None); // the existing clone path handles it
+        }
+        if verbose {
+            eprintln!("{url} is not a git remote; downloading it as a file");
+        }
+    }
     let (source, source_type) = match &plan {
         Plan::Passthrough => return Ok(None),
         Plan::LocalArchive(p) => (
@@ -983,7 +1053,7 @@ pub async fn prepare(
                 .to_string(),
             "archive",
         ),
-        Plan::Download(u) => (u.clone(), "url"),
+        Plan::Download(u) | Plan::Probe(u) => (u.clone(), "url"),
         Plan::GitHubTree { .. } => (target.trim().to_string(), "git"),
     };
     let entry = crate::quarantine::add(&source, source_type)
@@ -1033,7 +1103,8 @@ async fn materialise(
             report_stats(format, &stats);
             Ok(qdir.to_path_buf())
         }
-        Plan::Download(url) => {
+        Plan::Download(url) | Plan::Probe(url) => {
+            let probed = matches!(plan, Plan::Probe(_));
             progress(
                 format,
                 format!(
@@ -1055,7 +1126,7 @@ async fn materialise(
             let fmt = sniff(&partial).map_err(|e| format!("cannot read download: {e}"))?;
             match fmt {
                 Format::NotArchive => {
-                    let mut head = [0u8; 16];
+                    let mut head = [0u8; 64];
                     let n = File::open(&partial)
                         .and_then(|mut f| f.read(&mut head))
                         .unwrap_or(0);
@@ -1064,12 +1135,22 @@ async fn materialise(
                         got.content_type.as_deref(),
                         &head[..n],
                     );
-                    if got
+                    let html = got
                         .content_type
                         .as_deref()
                         .is_some_and(|c| c.starts_with("text/html"))
-                        && !name.ends_with(".html")
-                    {
+                        && !name.ends_with(".html");
+                    if html && probed {
+                        // A web page, not a file or a repository: scanning
+                        // its markup would report a verdict about the
+                        // wrong thing (a login page for a private repo).
+                        let _ = fs::remove_file(&partial);
+                        return Err(format!(
+                            "{url} is neither a git repository nor a file (the server returned an HTML page). \
+                             For a private repository use `sigil clone <url>` with credentials; for a file, pass its direct URL"
+                        ));
+                    }
+                    if html {
                         eprintln!(
                             "{} the server returned an HTML page, not the file itself; \
                              if this is a repository viewer, pass the raw-file URL",

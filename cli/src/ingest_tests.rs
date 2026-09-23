@@ -261,6 +261,22 @@ fn plan_routes_urls_and_keeps_existing_inputs() {
         }
     );
 
+    // Extension-less URLs off the known forges are probed with git first.
+    for u in [
+        "https://get.example.com/",
+        "https://git.corp.example/team/repo",
+    ] {
+        assert!(matches!(plan(u).unwrap(), Probe(_)), "{u}");
+    }
+    assert_eq!(
+        plan("https://git.corp.example/team/repo.git").unwrap(),
+        Passthrough
+    );
+    assert_eq!(
+        plan("https://huggingface.co/org/model").unwrap(),
+        Passthrough
+    );
+
     let t = tempfile::tempdir().unwrap();
     let md = write(t.path(), "SKILL.md", b"# plain file\n");
     assert_eq!(plan(md.to_str().unwrap()).unwrap(), Passthrough);
@@ -404,6 +420,18 @@ fn downloaded_names_keep_rules_keyed_on_file_names_working() {
     );
     assert_eq!(
         downloaded_file_name(&u("https://x.io/"), None, b"#!/bin/sh"),
+        "script.sh"
+    );
+    assert_eq!(
+        downloaded_file_name(
+            &u("https://get.x.io/install"),
+            None,
+            b"#!/usr/bin/env python3"
+        ),
+        "install.py"
+    );
+    assert_eq!(
+        downloaded_file_name(&u("https://x.io/"), None, b"hello"),
         "SKILL.md"
     );
     assert_eq!(
