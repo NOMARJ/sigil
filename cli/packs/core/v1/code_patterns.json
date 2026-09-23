@@ -224,9 +224,9 @@
       "id": "CODE-DESER-001",
       "phase": "code_patterns",
       "severity": "low",
-      "pattern": "torch\\.load\\s*\\([^\\n]*weights_only\\s*=\\s*False|\\b(?:joblib|dill|cloudpickle)\\.loads?\\s*\\(",
-      "description": "Pickle-backed model or object load (torch.load with weights_only=False, joblib, dill, cloudpickle)",
-      "remediation": "An observation: loading a checkpoint the user points at with `torch.load(..., weights_only=False)` or a scikit-learn model with `joblib.load` is routine ML code, and it executes whatever the pickle stream names. It matters for where the file comes from. DESER-CHAIN-001 reports it at High when the file is one the package ships inside itself; a file from a download or a user upload deserves the same scrutiny. Prefer safetensors or `weights_only=True` where the format allows.",
+      "pattern": "torch\\.load\\s*\\([^\\n]*weights_only\\s*=\\s*False",
+      "description": "torch.load with the safe loader turned off (weights_only=False)",
+      "remediation": "An observation: loading a checkpoint the user points at with `torch.load(..., weights_only=False)` is routine ML code, and it executes whatever the pickle stream names — `weights_only=False` is an explicit opt-out of PyTorch's safe loader. It matters for where the file comes from. DESER-CHAIN-001 reports it at High when the file is one the package ships inside itself; a file from a download or a user upload deserves the same scrutiny. Prefer safetensors or `weights_only=True` where the format allows. joblib, dill and cloudpickle loads are not reported here: they have no safe mode, so a package that ships a scikit-learn model and loads its own `model.joblib` is doing the only thing the format allows, and that is not evidence either way.",
       "references": ["CWE-502", "MITRE T1059.006"],
       "tags": ["deserialization", "pickle", "pytorch", "observation"]
     },
@@ -253,10 +253,10 @@
       "description": "Pickle file shipped inside the package is deserialized",
       "weight": 5,
       "source": {"rule_prefixes": [], "rule_ids": ["CODE-MODEL-001"]},
-      "sink": {"rule_prefixes": [], "rule_ids": ["CODE-DESER-001", "CODE-004", "CODE-005"]},
+      "sink": {"rule_prefixes": [], "rule_ids": ["CODE-DESER-001"]},
       "window_lines": 20,
       "sink_excludes": [],
-      "remediation": "The package builds a path to a pickle-format file it ships (`os.path.join(os.path.dirname(__file__), \"model.pt\")`) and a few lines later loads it with `torch.load(..., weights_only=False)`, pickle, joblib or marshal. Loading runs whatever code the file's pickle stream names, so the package's real behaviour lives in a binary blob no reviewer reads — in the measured samples at import time, from the package's __init__.py, disguised as a model. Disassemble the file (`python -m pickletools`, fickling) before installing; a package that needs a bundled model can ship weights as safetensors or load them with `weights_only=True`.",
+      "remediation": "The package builds a path to a pickle-format file it ships (`os.path.join(os.path.dirname(__file__), \"model.pt\")`) and a few lines later loads it with `torch.load(..., weights_only=False)` — the safe loader explicitly turned off for a file the package itself supplies. Loading runs whatever code the file's pickle stream names, so the package's real behaviour lives in a binary blob no reviewer reads — in the measured samples at import time, from the package's __init__.py, disguised as a model. Disassemble the file (`python -m pickletools`, fickling) before installing; a package that needs a bundled model can ship weights as safetensors or load them with `weights_only=True`. A bundled pickle loaded with `pickle`, `joblib` or `marshal` is not a sink of this chain: packages that ship a pickled lookup table or a scikit-learn model load it that way, and those formats have no safe mode to turn off.",
       "references": ["CWE-502", "CWE-506", "MITRE T1059.006"],
       "tags": ["deserialization", "bundled-model", "chain"]
     }

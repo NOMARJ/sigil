@@ -533,33 +533,38 @@ PATH])` were not links.
 ### What changed
 
 **Linker** (`cli/src/scanner/correlate.rs`). A source line now binds the file
-it writes as well as the name it assigns: `open(X, 'w…')`, the `as` names of a
-`with` statement, `urlretrieve(url, X)`, the output operand of `curl -o`,
-`curl.exe … -o "{x}"`, `wget -O`, `Invoke-WebRequest -OutFile` and
-`tar -c…f`, as a variable or as a literal path that contains a directory or an
-executable extension (`"/tmp/managed.pyz"`). One-letter names are not bound
-(`f`, `r`, `b` are also string prefixes). Nothing else about linking changed:
-same window, same whole-word test, same `sink_excludes`.
+it writes as well as the name it assigns: `open(X, 'w…')`, `urlretrieve(url,
+X)`, the output operand of `curl -o`, `curl.exe … -o "{x}"`, `wget -O`,
+`Invoke-WebRequest -OutFile` and `tar -c…f`, as a variable or as a literal path
+that contains a directory or an executable extension (`"/tmp/managed.pyz"`),
+and the `as` name of a `with` item that yields data (a file opened for reading,
+a response). One-letter names are not bound (`f`, `r`, `b` are also string
+prefixes). Two refinements came out of the adversarial verification below: the
+handle of a file opened for *writing* is not bound (it receives data), and a
+sink that runs a file (CODE-RUNFILE-001, behaviour `executes_program`) links
+only through a file the source line wrote, never through an assigned value or
+a response handle. Otherwise linking is unchanged: same window, same
+whole-word test, same `sink_excludes`.
 
 **Rules and chains** (counts are samples; malicious = the 204 ai-skills,
 clean = the 455 vendor skills; Datadog = samples of the 844 with the finding):
 
 | Rule | Sev. | What it reports | Skills mal | Skills clean | Datadog |
 |---|---|---|---:|---:|---:|
-| AGENTSC-031 | Medium → **High** | Tool shadowing: "MUST/always replace WebFetch/WebSearch/built-in", "replaces all built-in … tools" | 2 | 0 | 2 |
-| AGENTSC-033 | Medium (new) | The softer preference forms split out of AGENTSC-031 | 0 | 0 | 0 |
-| AGENTSC-034 | **High** (new) | Instruction to write the skill's rules into the global instruction file | 1 | 0 | 1 |
-| AGENTSC-015 | **High** (new) | Loop over the user's SSH private-key names | 1 | 0 | 1 |
+| AGENTSC-031 | Medium → **High** | Tool shadowing, the order itself: "MUST/always replace (override, supersede) WebFetch/WebSearch/built-in" | 2 | 0 | 2 |
+| AGENTSC-033 | Medium (new) | The softer forms split out of AGENTSC-031 — preferences ("instead of WebFetch", "prefer X over WebSearch") and the claim "replaces all built-in … tools" | 2 | 0 | 2 |
+| AGENTSC-034 | **High** (new) | Instruction to write the skill's rules into the global instruction file *without the user's say*: a stealth or no-consent phrase, a first-person report of an automatic write, or "automatically … the user's global …" | 1 | 0 | 1 |
+| AGENTSC-015 | **High** (new) | Loop over the user's SSH private-key names (suppressed when `.pub` follows within three lines) | 1 | 0 | 1 |
 | AGENTSC-CHAIN-002 | **High** (new chain) | AGENTSC-011 archive (carries `.env`) → upload of the same path | 4 | 0 | 4 |
 | DROPPER-CHAIN-001 | **High** (new chain) | Download writes a file (NET-001..005, NET-012, NET-EXE-001, NET-RAWIP-001, AGENTSC-004) → CODE-RUNFILE-001 launches the same path | 0 | 0 | 7 |
-| DESER-CHAIN-001 | **High** (new chain) | CODE-MODEL-001 bundled pickle path → CODE-DESER-001 / CODE-004 / CODE-005 load | 0 | 0 | 16 |
+| DESER-CHAIN-001 | **High** (new chain) | CODE-MODEL-001 bundled pickle path → CODE-DESER-001 load (`torch.load(…, weights_only=False)`) | 0 | 0 | 16 |
 | INSTALL-RAWIP-001 | **High** (new) | Public raw-IPv4 URL in setup.py, setup.cfg, pyproject.toml, a package `__init__.py` or package.json | 0 | 0 | 7 |
 | INSTALL-NET-001 | Medium (new) | Network request in setup.py | 0 | 0 | 83 |
 | NET-RAWIP-001 | Medium (new) | Public raw-IPv4 URL anywhere (private, loopback, link-local, documentation ranges and public resolvers suppressed) | 13 | 0 | 29 |
 | NET-EXE-001 | Medium (new) | Windows executable or script fetched with curl.exe, wget, Invoke-WebRequest, BITS or certutil | 0 | 0 | 3 |
 | NET-UPLOAD-001 | Low (new) | curl uploads a local file (`-F x=@file`, `--data-binary @file`, `-T`); also an EXFIL-CHAIN-001 sink | 10 | 3 | 14 |
 | CODE-RUNFILE-001 | Low (new) | A program or script named by a variable or literal path is launched (interpreter + path, Start-Process, os.startfile, execFile) | 1 | 5 | 34 |
-| CODE-DESER-001 | Low (new) | `torch.load(…, weights_only=False)`, joblib/dill/cloudpickle load | 0 | 7 | 18 |
+| CODE-DESER-001 | Low (new) | `torch.load(…, weights_only=False)` | 0 | 7 | 18 |
 | CODE-MODEL-001 | Low (new) | A pickle-format file resolved in the package's own directory | 0 | 0 | 16 |
 
 Every new High and Medium rule has 0 clean-skill hits. The Low observations have
