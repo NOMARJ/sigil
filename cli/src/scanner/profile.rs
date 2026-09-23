@@ -129,6 +129,8 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // Concealment from the user is manipulation of the agent, not an
         // instruction override: same split as MANIP-007 vs PROMPT-001.
         "INTL-003" => Some("manipulates_agent"),
+        "REF-001" => Some("downloads_executable"),
+        "REF-002" => Some("unscanned_reference"),
         _ => None,
     };
     if specific.is_some() {

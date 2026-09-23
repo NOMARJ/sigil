@@ -20,6 +20,7 @@ mod sandbox;
 mod sbom;
 mod scanner;
 mod setup;
+mod transitive;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -127,6 +128,13 @@ enum Commands {
         /// content digest-matches an approved ledger pin)
         #[arg(long)]
         ignore_ledger: bool,
+
+        /// Download what the scanned files tell you to fetch, install or run
+        /// (install scripts, installers, raw pastes, release assets) into
+        /// quarantine and scan it too, two hops deep. Never executes it.
+        /// Also enabled by SIGIL_FOLLOW_REFS=1.
+        #[arg(long)]
+        follow_refs: bool,
     },
 
     /// Show the active detection corpus: which packs are loaded, from where
@@ -551,6 +559,7 @@ async fn main() {
             enhanced,
             fail_on,
             ignore_ledger,
+            follow_refs,
         } => {
             // `sigil scan <git url>` is the clone workflow: quarantine, then
             // scan. Routing it here means the obvious command does the right
@@ -569,6 +578,7 @@ async fn main() {
                     enhanced,
                     &fail_on,
                     ignore_ledger,
+                    follow_refs || std::env::var("SIGIL_FOLLOW_REFS").as_deref() == Ok("1"),
                     &cli.format,
                     cli.verbose,
                 )
@@ -1870,6 +1880,7 @@ async fn cmd_scan(
     enhanced: bool,
     fail_on: &str,
     ignore_ledger: bool,
+    follow_refs: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
@@ -1911,7 +1922,9 @@ async fn cmd_scan(
     );
 
     // --- Cache: only use when running a full unfiltered scan ---
-    let use_cache = !no_cache && phases == "all" && severity == "low";
+    // Referenced remote content can change between runs, so a result that
+    // includes it is never served from or written to the cache.
+    let use_cache = !no_cache && phases == "all" && severity == "low" && !follow_refs;
 
     // Try loading from cache
     if use_cache {
@@ -2010,6 +2023,42 @@ async fn cmd_scan(
 
         // Recompute score and verdict with the enriched finding set.
         if !result.findings.is_empty() {
+            result.score = scanner::scoring::calculate_score(&result.findings);
+            result.verdict = scanner::scoring::determine_verdict_with_size(
+                &result.findings,
+                result.score,
+                result.files_scanned,
+            );
+        }
+    }
+
+    // Transitive references: fetch what the tree tells someone to download or
+    // run into quarantine and scan it (never executed). Blocking HTTP, so off
+    // the async worker like the feeds above.
+    if follow_refs {
+        let work_dir = transitive::default_work_dir();
+        let policy = transitive::Policy::default();
+        let outcome =
+            tokio::task::block_in_place(|| transitive::follow_references(path, &work_dir, &policy));
+        print_progress(
+            format,
+            format!(
+                "{} followed {} reference(s), {} unreachable, {} over the limit (quarantined under {})",
+                "sigil:".bold().cyan(),
+                outcome.fetched.len(),
+                outcome.failed.len(),
+                outcome.skipped,
+                work_dir.display()
+            ),
+        );
+        if verbose {
+            for (url, reason) in &outcome.failed {
+                eprintln!("  not scanned: {url} ({reason})");
+            }
+        }
+        if !outcome.findings.is_empty() {
+            result.findings.extend(outcome.findings);
+            scanner::assign_fingerprints(&mut result.findings);
             result.score = scanner::scoring::calculate_score(&result.findings);
             result.verdict = scanner::scoring::determine_verdict_with_size(
                 &result.findings,

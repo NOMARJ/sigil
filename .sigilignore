@@ -175,6 +175,10 @@ cli/src/corpus/engine.rs
 # engine.rs — each case is an injected instruction in another language beside a
 # benign sentence sharing its vocabulary. Detection-engine test inputs, not payloads.
 cli/src/corpus/multilingual_tests.rs
+# cli/src/transitive_tests.rs: --follow-refs tests. The injected fetcher returns
+# credential-exfiltration scripts and PE headers so the walk can be shown to
+# scan and flag them. Detection test inputs, never fetched or run.
+cli/src/transitive_tests.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
 # cli/src/corpus/compiled.rs: the compiled-corpus path. Same category as

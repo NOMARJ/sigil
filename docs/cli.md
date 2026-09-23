@@ -197,7 +197,8 @@ sigil scan <path-or-url> [--format text|json|sarif|html] [--fail-on <severity>] 
 | `--phases` | `all` | Comma-separated phase filter |
 | `--severity` | `low` | Minimum severity to report |
 | `--no-cache` | | Force a fresh scan even if the content is unchanged |
-| `--no-ledger` | | Report findings even when the content matches a trust-ledger approval |
+| `--ignore-ledger` | | Report findings even when the content matches a trust-ledger approval |
+| `--follow-refs` | off | Also download what the scanned files tell someone to fetch, install or run, into quarantine, and scan it (never executed). Also enabled by `SIGIL_FOLLOW_REFS=1`. See [Following references](#following-references) |
 
 **Behavior:**
 
@@ -235,7 +236,52 @@ sigil scan https://github.com/someone/mcp-tool  # Clone into quarantine, then sc
 sigil scan ./skill --format html > report.html  # Shareable report
 sigil scan ./pkg --format json | jq .summary    # verdict, score, grade, platform
 sigil scan ./pkg --format sarif > sigil.sarif   # GitHub Code Scanning upload
+sigil scan ./skill --follow-refs                # Also scan the installer it tells you to run
 ```
+
+#### Following references
+
+A skill does not have to ship its payload. It can ship a clean `SKILL.md` that
+says a helper "must be installed before using this skill", with a download
+link, or a `curl … | bash` one-liner. With `--follow-refs`, Sigil downloads
+those references into a fresh directory under the quarantine root and runs the
+same phases over them. Nothing it downloads is executed.
+
+- **What counts as a reference.** A URL qualifies when its path names something
+  runnable or unpackable (`.sh`, `.ps1`, `.py`, `.exe`, `.zip`, `.tar.gz`, a GitHub
+  `releases/download/` asset, and similar), when it is on a raw-content or
+  short-link host (`raw.githubusercontent.com`, `gist`, `pastebin`, `bit.ly`, and
+  similar), or when its line tells the reader to acquire it. Acquisition means
+  piping into an interpreter, saving with `curl -o`, or the words download,
+  install or prerequisite. These are not references: plain API calls
+  (`curl https://api…/v4/zones`), documentation and package-index pages,
+  repository home pages (use `sigil clone`), and placeholder hosts
+  (`example.com`, `*.test`, templated `$HOST`).
+- **Never contacted.** A URL on a line that *sends* data (`-X POST`, `-d`,
+  `--upload-file`, `.post(`, webhooks) is an exfiltration or API target. The
+  phases report it; Sigil never contacts it.
+- **Two hops, landing pages only.** When a reference returns an HTML page,
+  Sigil follows the download links on that page (installers, archives)
+  one more hop. URLs inside a fetched *script* are that script's own network
+  targets and are never followed.
+- **Bounds.** Only `http(s)` URLs are fetched. A host must resolve to a public
+  address: loopback, RFC 1918, link-local, CGNAT and cloud-metadata addresses
+  are refused. The connection is pinned to the address that was checked, and
+  every redirect hop is re-checked. The limits are at most 20 fetches per scan,
+  10 MiB per response and 15 seconds per request. Fetched archives are unpacked
+  with the same bounded extractor the package workflows use.
+
+Findings in fetched content keep their rule ids. They are attributed to the URL,
+with a `ref://<url>|file://<path>` locator and a snippet naming the file and line
+that referenced it. Two rules are specific to this mode:
+
+| Rule | Severity | Meaning |
+|------|----------|---------|
+| `REF-001` | High | A referenced download is a native executable (ELF, PE, Mach-O) that static analysis cannot vouch for |
+| `REF-002` | Low | A referenced artifact could not be fetched (taken down, 404, refused), so it was not scanned. A clean verdict does not cover it |
+
+A result that includes followed references is never cached, because the remote
+content can change between runs.
 
 ---
 
@@ -624,6 +670,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+| `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 
 ---
 
