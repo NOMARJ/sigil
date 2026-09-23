@@ -5,6 +5,11 @@ All notable changes to the Sigil Security plugin for Claude Code will be documen
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- The bundled MCP server is now the `sigil` binary's built-in server (`sigil mcp`) instead of `npx -y @nomark/sigil-mcp-server`. The npm package was never published, so the previous registration failed to start on every install; the built-in server needs nothing beyond the `sigil` binary the hooks already require.
+
 ## [1.1.0] - 2026-08-06
 
 ### Added
