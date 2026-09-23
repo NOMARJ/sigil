@@ -169,6 +169,10 @@ mostly droppers and credential stealers whose code other packs already catch;
 the pack's value there is the instruction-level evidence it adds, and its
 preemptive coverage of attack text the corpus does not yet contain.
 
+Cost: a `--no-cache` scan of the whole Sigil repository took 56.7 s before and
+58.9 s after (fastest of three interleaved runs each, shared 4-CPU host), about
+4% for 31 extra rules.
+
 Reproduce: `run_parity.py` (parity), `scripts/benchmark_skills.py --tools sigil`
 (benchmark) with `SIGIL_BIN` pointing at a release build.
 
