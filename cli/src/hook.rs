@@ -277,9 +277,7 @@ fn gated(gates: &[Vec<String>], targets: &[String]) -> bool {
 // Command patterns shared by the classifiers and `stage_targets`. Group 2
 // is the command word (see `find_at`).
 fn mcp_add_pat() -> String {
-    format!(
-        r"{WB}((\S*/)?(claude|codex|gemini)\s+mcp\s+(add|add-json|add-from-claude-desktop))(\s|$)"
-    )
+    format!(r"{WB}((\S*/)?[\w.-]+\s+mcp\s+(add|add-json|add-from-claude-desktop))(\s|$)")
 }
 fn marketplace_pat() -> String {
     format!(r"{WB}((\S*/)?claude\s+plugins?\s+marketplace\s+add)\s")
@@ -293,9 +291,10 @@ fn skills_cli_pat() -> String {
     )
 }
 /// Command position only: the start of the stage (after env assignments
-/// and wrappers like sudo/exec/xargs), or just inside a quote or paren
-/// (`bash -c 'npx …'`). `echo npx is a runner` is not a run.
-const RUNNER_PAT: &str = r#"(^\s*(?:\w+=\S*\s+)*(?:(?:sudo|exec|time|nohup|env|command|xargs)(?:\s+-\S+)*\s+)*|["'(])((\S*/)?(npx|bunx|uvx|pipx\s+run|pnpm\s+dlx|yarn\s+dlx|npm\s+(exec|x)|bun\s+x|uv\s+tool\s+run))(\s|$)"#;
+/// and wrappers like sudo/exec/xargs), just inside a quote or paren
+/// (`bash -c 'npx …'`), or after an argv separator (`some-cli add x --
+/// npx -y pkg`). `echo npx is a runner` is not a run.
+const RUNNER_PAT: &str = r#"(^\s*(?:\w+=\S*\s+)*(?:(?:sudo|exec|time|nohup|env|command|xargs)(?:\s+-\S+)*\s+)*|["'(]|\s--\s+)((\S*/)?(npx|bunx|uvx|pipx\s+run|pnpm\s+dlx|yarn\s+dlx|npm\s+(exec|x)|bun\s+x|uv\s+tool\s+run))(\s|$)"#;
 
 fn first_non_flag(toks: &[String], skip: usize) -> Option<String> {
     toks.iter()

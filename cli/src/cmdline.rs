@@ -82,9 +82,74 @@ fn re(cell: &'static OnceLock<Regex>, pattern: &str) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("static pattern compiles"))
 }
 
+/// Does an interpreter at the end of a pipe run what it reads on stdin?
+///
+/// `curl … | python3` does; `curl … | python3 -m json.tool`,
+/// `curl … | python3 -c '…'`, `curl … | node script.js` and
+/// `curl … | bash -c 'jq …'` read stdin as *data*. `rest` is the text after
+/// the interpreter word up to the end of its pipeline stage.
+fn executes_stdin(interp: &str, rest: &str) -> bool {
+    let interp = interp.to_ascii_lowercase();
+    if matches!(interp.as_str(), "iex" | "invoke-expression") {
+        return true;
+    }
+    let shell = matches!(
+        interp.as_str(),
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish"
+    );
+    let pwsh = matches!(interp.as_str(), "pwsh" | "powershell");
+    let toks = tokenize(rest);
+    let mut i = 0;
+    while i < toks.len() {
+        let t = toks[i].as_str();
+        let lower = t.to_ascii_lowercase();
+        if t == "--" || t == "-" {
+            // Options end; what follows is passed to the stdin program.
+            return true;
+        }
+        if pwsh {
+            if matches!(
+                lower.as_str(),
+                "-c" | "-command" | "-f" | "-file" | "-encodedcommand" | "-e" | "-ec"
+            ) {
+                return toks.get(i + 1).map(String::as_str) == Some("-");
+            }
+        } else if shell {
+            if t.starts_with('-') && !t.starts_with("--") && t.contains('c') {
+                return false; // -c 'string': stdin is data for that string
+            }
+            if t == "-o" || t == "+o" {
+                i += 2;
+                continue;
+            }
+        } else if t.starts_with('-') && !t.starts_with("--") {
+            // python -c/-m, node -e/-p, perl -e/-n/-p, ruby -e, php -r
+            if t[1..]
+                .chars()
+                .any(|c| matches!(c, 'c' | 'm' | 'e' | 'p' | 'n' | 'r' | 'E'))
+            {
+                return false;
+            }
+            if matches!(t, "-W" | "-X") {
+                i += 2;
+                continue;
+            }
+        } else if matches!(lower.as_str(), "--eval" | "--print" | "--module") {
+            return false;
+        }
+        if !t.starts_with('-') && !t.starts_with('+') {
+            return false; // a script file: stdin is its input
+        }
+        i += 1;
+    }
+    true
+}
+
 /// A download piped or substituted into an interpreter:
 /// `curl … | sh`, `wget -qO- … | python3`, `bash <(curl …)`,
 /// `sh -c "$(curl …)"`, `eval "$(wget …)"`, `iwr … | iex`, `iex (irm …)`.
+/// An interpreter that treats the download as data (`| python3 -m
+/// json.tool`, `| node script.js`) does not count.
 pub fn pipes_download_to_interpreter(s: &str) -> bool {
     static PIPE: OnceLock<Regex> = OnceLock::new();
     static SUBST: OnceLock<Regex> = OnceLock::new();
@@ -94,7 +159,7 @@ pub fn pipes_download_to_interpreter(s: &str) -> bool {
     let pipe = re(
         &PIPE,
         &format!(
-            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}(\s[^|;&]*)?\|\s*(sudo(\s+-\S+)*\s+)?(env(\s+\w+=\S*)*\s+)?(\S*/)?{INTERP}([\s"')]|$)"#
+            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}(\s[^|;&]*)?\|\s*(sudo(\s+-\S+)*\s+)?(env(\s+\w+=\S*)*\s+)?(\S*/)?(?P<interp>sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell)([\s"')]|$)"#
         ),
     );
     let subst = re(
@@ -107,7 +172,17 @@ pub fn pipes_download_to_interpreter(s: &str) -> bool {
         &PS,
         r#"(?i)(iex|invoke-expression)\s*\(?\s*(\(|\$\()?\s*(iwr|irm|invoke-webrequest|invoke-restmethod|\(?new-object\s+(system\.)?net\.webclient)"#,
     );
-    pipe.is_match(s) || subst.is_match(s) || ps.is_match(s)
+    let piped = pipe.captures_iter(s).any(|c| {
+        let Some(m) = c.name("interp") else {
+            return false;
+        };
+        let tail = &s[m.end()..];
+        let end = tail
+            .find(['|', ';', '&', ')', '\'', '"', '`', '\n'])
+            .unwrap_or(tail.len());
+        executes_stdin(m.as_str(), &tail[..end])
+    });
+    piped || subst.is_match(s) || ps.is_match(s)
 }
 
 /// The first http(s) URL in `s`, for quoting an exact `sigil scan <url>`.
