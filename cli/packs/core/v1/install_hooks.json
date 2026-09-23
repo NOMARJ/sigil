@@ -205,6 +205,90 @@
       ]
     },
     {
+      "id": "INSTALL-NET-001",
+      "phase": "install_hooks",
+      "severity": "medium",
+      "pattern": "\\burlopen\\s*\\(|\\burlretrieve\\s*\\(|urllib\\.request\\.Request\\s*\\(|\\brequests\\.(?:get|post|put|patch|request)\\s*\\(|\\bhttpx\\.(?:get|post|put|request)\\s*\\(|http\\.client\\.HTTPS?Connection\\s*\\(|\\bsocket\\.create_connection\\s*\\(|\\b(?:curl|wget)\\b[^\\n]*https?://",
+      "description": "Network request in setup.py (runs at install time)",
+      "file_filter": {
+        "filename_exact": [
+          "setup.py"
+        ]
+      },
+      "remediation": "setup.py is executed by pip when the package is installed from source, before anyone imports it. A network call there runs on every installing machine and CI runner. Build steps that fetch a pinned native dependency exist, but the measured malicious shape is a callback — hostname, user name and IP posted to the author's server — which dependency-confusion 'research' packages also send. Read what is sent and to whom; a legitimate build fetches a pinned artifact and verifies its hash, and sends nothing about the host.",
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1082",
+        "CWE-829"
+      ],
+      "tags": [
+        "install-time",
+        "network",
+        "beacon"
+      ]
+    },
+    {
+      "id": "INSTALL-RAWIP-001",
+      "phase": "install_hooks",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:https?|wss?|ftp)://(?:[a-z0-9._~%!$&'()*+,;=-]+@)?(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}(?:[:/?#\\s\\\"'<>)\\]]|$)",
+      "description": "Raw public IP URL in install- or import-time code (setup.py, package __init__.py, package.json)",
+      "file_filter": {
+        "filename_exact": [
+          "setup.py",
+          "setup.cfg",
+          "pyproject.toml",
+          "__init__.py",
+          "package.json"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "://127.",
+          "://10.",
+          "://0.0.0.0",
+          "://192.168.",
+          "://169.254.",
+          "://192.0.2.",
+          "://198.51.100.",
+          "://203.0.113.",
+          "://255.255.255.255",
+          "://1.1.1.1",
+          "://8.8.8.8",
+          "://8.8.4.4",
+          "://9.9.9.9",
+          "://172.16.",
+          "://172.17.",
+          "://172.18.",
+          "://172.19.",
+          "://172.20.",
+          "://172.21.",
+          "://172.22.",
+          "://172.23.",
+          "://172.24.",
+          "://172.25.",
+          "://172.26.",
+          "://172.27.",
+          "://172.28.",
+          "://172.29.",
+          "://172.30.",
+          "://172.31."
+        ]
+      },
+      "remediation": "A URL whose host is a bare public IP address sits in code that runs, or is resolved, as soon as the package is installed or imported: setup.py, a package's __init__.py, or a package.json dependency spec (`\"chai\": \"http://<ip>:8080/npm/...\"` makes npm fetch that tarball from the address). In the measured samples these are dependency-confusion beacons posting the host's name and user, and a dependency hijack. None of the 455 vendor skills or the Python packages the rule was checked against does this. Do not install; if it already ran, treat the host details as disclosed.",
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1071.001",
+        "CWE-506"
+      ],
+      "tags": [
+        "install-time",
+        "import-time",
+        "raw-ip",
+        "beacon"
+      ]
+    },
+    {
       "id": "INSTALL-MCP-001",
       "phase": "install_hooks",
       "severity": "medium",

