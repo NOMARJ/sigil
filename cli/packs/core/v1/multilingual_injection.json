@@ -1,0 +1,216 @@
+{
+ "meta": {
+  "id": "sigil-core-multilingual-injection",
+  "name": "Sigil Core — Multilingual Prompt Injection",
+  "version": "1.0.0",
+  "updated_at": "2026-09-23",
+  "author": "NOMARJ <hello@sigilsec.ai>",
+  "description": "Prompt-injection and agent-manipulation phrasing written in languages other than English (Chinese (simplified and traditional), Japanese, Korean, Spanish, French, German, Portuguese, Italian and Russian). Attackers write the injected instruction in another language because English-only rules and reviewers do not see it. INTL-001 instruction override, INTL-002 system-prompt extraction, INTL-003 concealment from the user, INTL-004 jailbreak / safety nullification."
+ },
+ "rules": [
+  {
+   "id": "INTL-001",
+   "phase": "prompt_injection",
+   "severity": "critical",
+   "description": "Prompt injection — ignore previous instructions (non-English)",
+   "pattern": "(忽略|忽視|忽视|无视|無視|不要理会|不要理會|忘记|忘記|放弃|放棄)\\s*(掉)?\\s*(你\\s*)?((之前|以前|先前|上面|前面|以上|上述|此前|原有|原来|原來)\\s*(的)?\\s*(所有|全部|一切)?|(所有|全部|一切))\\s*(的)?\\s*(指令|指示|说明|說明|提示|提示词|提示詞|规则|規則|命令|设定|設定)|(以前|前|上記|これまで|先ほど|最初)\\s*の\\s*(すべて|全て|全部)?\\s*の?\\s*(指示|命令|ルール|指令|プロンプト)\\s*(を|は)\\s*(すべて|全て)?\\s*(無視|忘れ|破棄)|(이전|앞의|위의|기존|이전의|기존의)\\s*(모든\\s*)?(지시|지침|명령|규칙|지시사항|프롬프트)\\s*(을|를|은|는|들을)?\\s*(모두\\s*)?(무시|잊어|잊으)|(?i)\\b(ignora|ignore|ignoren|olvida|olvide|descarta|descarte)\\s+(todas\\s+)?(las\\s+)?(instrucciones|indicaciones|reglas|órdenes|ordenes)\\s+(anteriores|previas)\\b|(?i)\\b(ignora|olvida)\\s+todo\\s+lo\\s+(anterior|que\\s+se\\s+te\\s+(dijo|indicó))\\b|(?i)\\b(ignore[zr]?|oublie[zr]?)\\s+(toutes\\s+)?(les\\s+|tes\\s+|vos\\s+)?(instructions|consignes|règles|regles|directives)\\s+(précédentes|precedentes|antérieures|anterieures)\\b|(?i)\\bignore[zr]?\\s+tout\\s+ce\\s+qui\\s+précède\\b|(?i)\\b(ignoriere|ignorier|ignorieren\\s+sie|vergiss|vergessen\\s+sie|missachte)\\s+(alle\\s+)?(vorherigen|bisherigen|vorigen|obigen|früheren|vorangegangenen)\\s+(Anweisungen|Instruktionen|Regeln|Befehle|Vorgaben)\\b|(?i)\\b(ignore|ignora|esqueça|esqueca|desconsidere)\\s+(todas\\s+)?(as\\s+)?(instruções|instrucoes|regras|orientações|orientacoes)\\s+(anteriores|prévias|previas)\\b|(?i)\\b(ignora|dimentica)\\s+(tutte\\s+)?(le\\s+)?(istruzioni|regole|indicazioni)\\s+(precedenti)\\b|(?i)(игнорируй|игнорируйте|проигнорируй|забудь|забудьте|отбрось)\\s+(все\\s+)?(предыдущие|прежние|вышеуказанные|предшествующие)\\s+(инструкции|указания|правила|команды)",
+   "remediation": "Translate the flagged line. An instruction, in any language, that tells the agent to discard its earlier instructions has no legitimate place in a skill, tool description or README; English-only scanners miss exactly this, which is why it is written in another language. Remove it, or reject the package.",
+   "references": [
+    "OWASP LLM01",
+    "CWE-77"
+   ],
+   "tags": [
+    "prompt-injection",
+    "multilingual",
+    "instruction-override"
+   ],
+   "file_filter": {
+    "extensions": [
+     "md",
+     "txt",
+     "py",
+     "js",
+     "ts",
+     "json",
+     "yaml",
+     "yml",
+     "toml",
+     "prompt",
+     "mdx",
+     "rst"
+    ],
+    "filename_suffix": [
+     ".cursorrules",
+     ".windsurfrules",
+     ".clinerules"
+    ],
+    "filename_exact": [
+     "SKILL.md",
+     "AGENTS.md",
+     "CLAUDE.md",
+     "GEMINI.md",
+     "copilot-instructions.md",
+     "mcp.json",
+     "tool.json",
+     "plugin.json",
+     "manifest.json",
+     "skill.json",
+     "server.json"
+    ]
+   }
+  },
+  {
+   "id": "INTL-002",
+   "phase": "prompt_injection",
+   "severity": "critical",
+   "description": "Prompt injection — system prompt extraction (non-English)",
+   "pattern": "(显示|顯示|输出|輸出|打印|透露|泄露|洩露|告诉我|告訴我|重复|重複|复述|複述|给我看|給我看)\\s*(一下\\s*)?(你的|您的)?\\s*(完整的\\s*)?(系统提示|系統提示|系统提示词|系統提示詞|系统指令|系統指令|初始指令|初始提示|隐藏指令|隱藏指令)|(システムプロンプト|システム指示|初期指示|初期プロンプト|隠し指示)\\s*(を|の内容を)\\s*(すべて|全て)?\\s*(表示|出力|教え|開示|繰り返|見せ)|(시스템\\s*프롬프트|시스템\\s*지시|초기\\s*지시|숨겨진\\s*지시)\\s*(를|을|의\\s*내용을)?\\s*(모두\\s*)?(보여|출력|공개|알려|반복)|(?i)\\b(muestra|muéstrame|revela|repite|imprime|dime)\\s+(tu|el|su)\\s+(prompt|mensaje|instrucciones)\\s+(del|de)\\s+sistema\\b|(?i)\\b(affiche|révèle|revele|répète|repete|donne-moi)\\s+(ton|votre|le|tes|vos)\\s+(prompt|instructions|consignes)\\s+(système|systeme|initiales|initial)\\b|(?i)\\b(zeige|verrate|wiederhole|gib)\\s+(mir\\s+)?(deinen|deine|den|die|ihren|ihre)\\s+(System-?prompt|Systemanweisungen|System-Anweisungen|ursprünglichen\\s+Anweisungen)\\b|(?i)\\b(mostre|mostra|revele|repita|imprima)\\s+(seu|o|teu|suas|as)\\s+(prompt|instruções|instrucoes)\\s+(do|de)\\s+sistema\\b|(?i)\\b(mostra|rivela|ripeti|stampa)\\s+(il\\s+tuo|il|le\\s+tue)\\s+(prompt|istruzioni)\\s+(di\\s+sistema|iniziali)\\b|(?i)(покажи|выведи|раскрой|повтори|напечатай)\\s+(мне\\s+)?(свой|свои|твой|твои|системный|исходный)\\s+(системный\\s+)?(промпт|промт|инструкции|подсказку)",
+   "remediation": "Translate the flagged line. Nothing a skill or tool legitimately does needs the agent's system prompt; a request to print or repeat it, in any language, is an extraction attempt. Remove it or reject the package.",
+   "references": [
+    "OWASP LLM07",
+    "OWASP LLM01"
+   ],
+   "tags": [
+    "prompt-injection",
+    "multilingual",
+    "system-prompt-leakage"
+   ],
+   "file_filter": {
+    "extensions": [
+     "md",
+     "txt",
+     "py",
+     "js",
+     "ts",
+     "json",
+     "yaml",
+     "yml",
+     "toml",
+     "prompt",
+     "mdx",
+     "rst"
+    ],
+    "filename_suffix": [
+     ".cursorrules",
+     ".windsurfrules",
+     ".clinerules"
+    ],
+    "filename_exact": [
+     "SKILL.md",
+     "AGENTS.md",
+     "CLAUDE.md",
+     "GEMINI.md",
+     "copilot-instructions.md",
+     "mcp.json",
+     "tool.json",
+     "plugin.json",
+     "manifest.json",
+     "skill.json",
+     "server.json"
+    ]
+   }
+  },
+  {
+   "id": "INTL-003",
+   "phase": "prompt_injection",
+   "severity": "high",
+   "description": "Agent manipulation — conceal actions from the user (non-English)",
+   "pattern": "(不要|别|別|请勿|請勿|切勿|不得|禁止)\\s*(告诉|告訴|通知|提醒|让|讓)\\s*(用户|用戶|使用者)(\\s*知道)?|(不让|不讓|别让|別讓)\\s*(用户|用戶|使用者)\\s*(知道|发现|發現|察觉|察覺)|ユーザー(に|には)\\s*(知らせ|伝え|言わ|見せ|気づかれ|気付かれ)\\s*(ない|ず|ないで|ないように)|사용자(에게|한테|가)\\s*(알리지|말하지|보여주지|알아채지|눈치채지)\\s*(마|말|않)|(?i)\\bno\\s+(le\\s+)?(digas|informes|menciones|comuniques)\\s+(nada\\s+)?(de\\s+esto\\s+)?al\\s+usuario\\b|\\bsin\\s+(avisar|informar)\\s+al\\s+usuario\\b|(?i)\\bne\\s+(le\\s+|rien\\s+)?(dis|dites|mentionne[zr]?|signale[zr]?)\\s+(rien\\s+)?(à|a)\\s+l['’]utilisateur\\b|\\bsans\\s+(en\\s+)?(informer|prévenir|prevenir|avertir)\\s+l['’]utilisateur\\b|(?i)\\b(sag|sage|sagen\\s+Sie)\\s+(dem\\s+)?(Benutzer|Nutzer|Anwender)\\s+nichts\\b|\\bohne\\s+(den\\s+)?(Benutzer|Nutzer|Anwender)\\s+zu\\s+(informieren|benachrichtigen|fragen)\\b|(?i)\\bnão\\s+(diga|informe|conte|mencione|avise)\\s+(nada\\s+)?ao\\s+usuário\\b|\\bsem\\s+(avisar|informar)\\s+o\\s+usuário\\b|(?i)\\bnon\\s+(dire|informare|avvisare)\\s+(nulla\\s+)?(all['’]utente|l['’]utente)\\b|\\bsenza\\s+(avvisare|informare)\\s+l['’]utente\\b|(?i)не\\s+(говори|сообщай|сообщайте|говорите|показывай|рассказывай)\\s+(ничего\\s+)?пользователю\\b|\\bбез\\s+ведома\\s+пользователя\\b",
+   "remediation": "Translate the flagged line. A skill that tells the agent to keep what it does from the user is hiding behaviour from the one person who could object to it; English-only review cannot see the instruction. Remove it and make every action visible, or reject the package.",
+   "references": [
+    "OWASP Agentic Top 10 — Human-in-the-loop bypass",
+    "OWASP LLM01"
+   ],
+   "tags": [
+    "agent-manipulation",
+    "multilingual",
+    "concealment"
+   ],
+   "file_filter": {
+    "extensions": [
+     "md",
+     "txt",
+     "py",
+     "js",
+     "ts",
+     "json",
+     "yaml",
+     "yml",
+     "toml",
+     "prompt",
+     "mdx",
+     "rst"
+    ],
+    "filename_suffix": [
+     ".cursorrules",
+     ".windsurfrules",
+     ".clinerules"
+    ],
+    "filename_exact": [
+     "SKILL.md",
+     "AGENTS.md",
+     "CLAUDE.md",
+     "GEMINI.md",
+     "copilot-instructions.md",
+     "mcp.json",
+     "tool.json",
+     "plugin.json",
+     "manifest.json",
+     "skill.json",
+     "server.json"
+    ]
+   }
+  },
+  {
+   "id": "INTL-004",
+   "phase": "prompt_injection",
+   "severity": "high",
+   "description": "Prompt injection — jailbreak / safety nullification (non-English)",
+   "pattern": "(开发者模式|開發者模式|越狱模式|越獄模式)\\s*(已)?\\s*(开启|開啟|启用|啟用|激活|打开|打開)|(你|您)\\s*(现在|現在)?\\s*(没有|沒有|不受)\\s*(任何)?\\s*(限制|约束|約束|规则|規則)|(開発者モード|脱獄モード)\\s*(が|を)?\\s*(有効|オン|起動)|(あなた|君)\\s*(に|には)\\s*(もう)?\\s*(制限|ルール)\\s*(は|が)\\s*(一切)?\\s*(ない|ありません)|개발자\\s*모드\\s*(가|를)?\\s*(활성화|켜|실행)|(당신|너)(에게|한테|는)\\s*(어떠한|아무런)?\\s*(제한|규칙)(이|도)?\\s*없|(?i)\\b(modo\\s+desarrollador|modo\\s+de\\s+desarrollador)\\s+(activado|habilitado)\\b|\\b(no\\s+tienes|sin)\\s+(ninguna\\s+)?(restricción|restricciones|limitación|limitaciones|reglas)\\b|(?i)\\bmode\\s+développeur\\s+(activé|active)\\b|\\btu\\s+n['’]as\\s+(plus\\s+)?aucune\\s+(restriction|limite|règle)\\b|(?i)\\b(Entwicklermodus|Developer-Modus)\\s+(aktiviert|an|eingeschaltet)\\b|\\bdu\\s+hast\\s+keine\\s+(Einschränkungen|Beschränkungen|Regeln)\\b|(?i)\\bmodo\\s+desenvolvedor\\s+(ativado|habilitado)\\b|\\bvocê\\s+não\\s+tem\\s+(nenhuma\\s+)?(restrição|restrições|limitação|regras)\\b|(?i)\\bmodalità\\s+sviluppatore\\s+(attivata|abilitata)\\b|\\bnon\\s+hai\\s+(alcuna\\s+)?(restrizione|restrizioni|limitazione|regola)\\b|(?i)режим\\s+разработчика\\s+(включ[её]н|активирован)|у\\s+тебя\\s+(больше\\s+)?нет\\s+(никаких\\s+)?(ограничений|правил)",
+   "remediation": "Translate the flagged line. Declaring a 'developer mode' or telling the agent it has no restrictions is jailbreak framing whose only purpose is to switch off the agent's safety behaviour; writing it in another language is how it slips past English-only review. Remove it or reject the package.",
+   "references": [
+    "OWASP LLM01",
+    "OWASP Agentic Top 10 — Goal manipulation"
+   ],
+   "tags": [
+    "prompt-injection",
+    "multilingual",
+    "jailbreak"
+   ],
+   "file_filter": {
+    "extensions": [
+     "md",
+     "txt",
+     "py",
+     "js",
+     "ts",
+     "json",
+     "yaml",
+     "yml",
+     "toml",
+     "prompt",
+     "mdx",
+     "rst"
+    ],
+    "filename_suffix": [
+     ".cursorrules",
+     ".windsurfrules",
+     ".clinerules"
+    ],
+    "filename_exact": [
+     "SKILL.md",
+     "AGENTS.md",
+     "CLAUDE.md",
+     "GEMINI.md",
+     "copilot-instructions.md",
+     "mcp.json",
+     "tool.json",
+     "plugin.json",
+     "manifest.json",
+     "skill.json",
+     "server.json"
+    ]
+   }
+  }
+ ]
+}

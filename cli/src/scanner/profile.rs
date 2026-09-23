@@ -126,6 +126,9 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // who publishes an sdist-only package forces that path on a plain
         // `pip install <name>`.
         "INSTALL-006" => Some("build_configuration"),
+        // Concealment from the user is manipulation of the agent, not an
+        // instruction override: same split as MANIP-007 vs PROMPT-001.
+        "INTL-003" => Some("manipulates_agent"),
         _ => None,
     };
     if specific.is_some() {
@@ -153,6 +156,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("INSTALL-MCP-", "mcp_registration"),
         ("INSTALL-", "install_time_execution"),
         ("PROMPT-", "prompt_injection"),
+        ("INTL-", "prompt_injection"),
         ("MANIP-", "manipulates_agent"),
         ("SKILL-", "manifest_risk"),
         ("INFER-", "inference_tampering"),

@@ -171,6 +171,10 @@ cli/src/scanner/context.rs
 # them, and signing.rs carries Ed25519 test-vector hex byte arrays (tripping the
 # hex-payload rule). Detection-engine test fixtures + crypto test vectors, not payloads.
 cli/src/corpus/engine.rs
+# cli/src/corpus/multilingual_tests.rs: INTL-001..004 pack tests. Same category as
+# engine.rs — each case is an injected instruction in another language beside a
+# benign sentence sharing its vocabulary. Detection-engine test inputs, not payloads.
+cli/src/corpus/multilingual_tests.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
 # cli/src/corpus/compiled.rs: the compiled-corpus path. Same category as
