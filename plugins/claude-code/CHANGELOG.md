@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The PreToolUse gate now also runs on Write, Edit and MultiEdit (matcher `Bash|Write|Edit|MultiEdit`). The native `sigil hook pretooluse` denies edits that plant a download-to-shell or an exfiltrating command in agent tooling (hooks, MCP configs, skills), and asks before hook or MCP-config edits.
+- The shell fallback (`hooks/sigil-guard.sh`, used when the binary is not on PATH) now denies remote runners (`npx`, `bunx`, `uvx`, `pipx run`, `pnpm dlx`, `yarn dlx`) instead of asking, matching the native hook.
 - The bundled MCP server is now the `sigil` binary's built-in server (`sigil mcp`) instead of `npx -y @nomark/sigil-mcp-server`. The npm package was never published, so the previous registration failed to start on every install; the built-in server needs nothing beyond the `sigil` binary the hooks already require.
 
 ## [1.1.0] - 2026-08-06

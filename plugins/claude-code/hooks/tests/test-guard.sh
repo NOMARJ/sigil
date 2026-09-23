@@ -89,12 +89,12 @@ check ask   "yarn install"                 "yarn install"
 check ask   "pnpm install"                 "pnpm install"
 check ask   "bundle install"               "bundle install"
 check ask   "pip install -r"               "pip install -r requirements.txt"
-check ask   "npx runner"                   "npx create-foo"
-check ask   "pnpm dlx"                     "pnpm dlx foo"
-check ask   "yarn dlx"                     "yarn dlx foo"
-check ask   "bunx runner"                  "bunx foo"
-check ask   "uvx runner"                   "uvx ruff check ."
-check ask   "pipx run"                     "pipx run foo"
+check deny  "npx runner"                   "npx create-foo"
+check deny  "pnpm dlx"                     "pnpm dlx foo"
+check deny  "yarn dlx"                     "yarn dlx foo"
+check deny  "bunx runner"                  "bunx foo"
+check deny  "uvx runner"                   "uvx ruff check ."
+check deny  "pipx run"                     "pipx run foo"
 
 # ── ALLOW: everything else, sigil itself, bypasses ─────────────────────────
 

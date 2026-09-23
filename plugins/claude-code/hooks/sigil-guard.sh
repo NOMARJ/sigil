@@ -9,8 +9,10 @@
 #   DENY  — commands that pull unscanned third-party code into the environment
 #           (git clone, npm/pip/cargo/gem/go installs with explicit packages,
 #           curl|sh pipelines). Redirected to sigil clone / sigil npm / sigil pip.
+#   DENY  — also npx/bunx/uvx/pipx run/dlx remote runners (native hook:
+#           `sigil hook pretooluse` allows npx of a project-local binary).
 #   ASK   — commands that are lower risk but still execute third-party code
-#           (bare lockfile restores, npx/dlx-style arbitrary-exec runners).
+#           (bare lockfile restores).
 #   ALLOW — everything else.
 #
 # Escape hatches:
@@ -136,7 +138,7 @@ has "${WB}(yarn|pnpm|bun)${MOD}([[:space:]]+global)?[[:space:]]+add${FLAGS}${PKG
 # Arbitrary-exec runners before bare installs: `pnpm dlx foo` must not fall
 # through to the pnpm install branch.
 has "${WB}(pnpm|yarn)${MOD}[[:space:]]+dlx[[:space:]]" \
-  && emit ask "dlx downloads and executes a package in one step with no scan. Prefer sigil npm <pkg> to vet it first."
+  && deny "dlx downloads and executes a package in one step with no scan. Use: sigil npm <pkg> && <this command>. Bypass: SIGIL_BYPASS=1"
 
 has "${WB}(yarn|pnpm)${MOD}[[:space:]]+install([[:space:]]|\$)" \
   && emit ask "Lockfile restore can still run install scripts from unreviewed dependencies. Confirm the lockfile is trusted."
@@ -173,11 +175,11 @@ has "${WB}go${MOD}[[:space:]]+(install|get)${FLAGS}${PKG}" \
 has "${WB}bundle[[:space:]]+install([[:space:]]|\$)" \
   && emit ask "bundle install restores the Gemfile.lock, which can run native extension code from unreviewed gems. Confirm the lockfile is trusted."
 
-has "${WB}(npx|bunx|uvx)[[:space:]]+" \
-  && emit ask "This runner downloads and executes a package in one step with no scan. Prefer vetting the package with sigil first."
+has "${WB}(npx|bunx)[[:space:]]+" \
+  && deny "This runner downloads and executes a package in one step with no scan. Use: sigil npm <pkg> && <this command>. Bypass: SIGIL_BYPASS=1"
 
-has "${WB}pipx[[:space:]]+run[[:space:]]" \
-  && emit ask "pipx run downloads and executes a package in one step with no scan. Prefer sigil pip <pkg> to vet it first."
+has "${WB}(uvx|pipx[[:space:]]+run)[[:space:]]" \
+  && deny "This runner downloads and executes a package in one step with no scan. Use: sigil pip <pkg> && <this command>. Bypass: SIGIL_BYPASS=1"
 
 # ── Default ────────────────────────────────────────────────────────────────
 
