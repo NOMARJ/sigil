@@ -200,11 +200,21 @@ fn has_attack_evidence(findings: &[Finding]) -> bool {
 /// running at install time, shipping an exfiltration endpoint, installing
 /// persistence or building code at runtime is a decision about what the
 /// package does to the machine it lands on.
+///
+/// `drive_by_install` (the AGENTSC-001..005 fake-prerequisite rules: "download
+/// and install <tool> from <throwaway origin>", a password-protected archive,
+/// an installer on a personal file-share) is the same decision made in an
+/// agent skill's instructions rather than in its code — the agent that loads
+/// the skill is the one told to fetch and run the installer. Adding it moved
+/// one malicious skill to HIGH (a 97-file skill whose file-share installer
+/// link and download-and-run lines were diluted below the point terms) and no
+/// clean skill; see docs/detection/fp-calibration.md, "Reconciliation".
 const ACTION_BEHAVIOURS: &[&str] = &[
     "install_time_execution",
     "exfiltration_endpoint",
     "installs_persistence",
     "dynamic_execution",
+    "drive_by_install",
 ];
 
 /// Whether any finding in a *first-party* path carries an action behaviour.
@@ -591,6 +601,42 @@ mod tests {
         assert!(has_action_behaviour(&shipped));
         assert_eq!(
             determine_verdict_with_size(&shipped, 100, 112),
+            Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn a_drive_by_install_instruction_is_an_action() {
+        // luoluoluo22 jianying-editor-skill: an installer on a personal
+        // file-share (AGENTSC-003) in a 97-file skill. Its attack evidence is
+        // real but diluted below the point and concentration terms; the
+        // fake-prerequisite instruction is what lets 50 first-party points
+        // reach HIGH, exactly as an install hook would.
+        // AGENTSC-003 is a skill_security rule: an instruction in README.md
+        // is first-party for a skill (only code-phase findings in reference
+        // docs are documentation examples).
+        let skill = |file: &str| Finding {
+            phase: Phase::SkillSecurity,
+            ..at("AGENTSC-003", file, Severity::High, 5)
+        };
+        let findings = vec![
+            skill("README.md"),
+            skill("index.html"),
+            at("OBFUSC-001", "scripts/jy_wrapper.py", Severity::High, 5),
+            at("NET-RCE-001", "index.html", Severity::High, 3),
+        ];
+        assert!(has_action_behaviour(&findings));
+        assert!(first_party_score(&findings) >= HIGH_ACTION_FIRST_PARTY);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 60, 97),
+            Verdict::HighRisk
+        );
+        // The same instruction alone, below the corroboration threshold, is
+        // not HIGH in a large skill.
+        let alone = vec![skill("README.md")];
+        assert!(first_party_score(&alone) < HIGH_ACTION_FIRST_PARTY);
+        assert_ne!(
+            determine_verdict_with_size(&alone, 15, 97),
             Verdict::HighRisk
         );
     }

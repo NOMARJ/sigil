@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "updated_at": "2026-09-23",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects the attack shapes of real malicious AI-agent skills that the other packs missed, measured on the Datadog malicious-software-packages-dataset ai-skills bucket (204 samples) against 455 vendor skills from Anthropic, NVIDIA, OpenAI and Vercel. Fake prerequisites (AGENTSC-001..005: a required 'CLI' downloaded from a throwaway web origin, a password-protected archive, an installer on a personal file-share, a per-OS download page, a script fetched from an anonymous file-drop host); credential and data harvesting (AGENTSC-010..014: secret-named environment sweeps, project archives that carry .env, curl uploads of host files, token and session-cookie extraction, shipped cookie jars); untrustworthy endpoints (AGENTSC-020: tunnel and IP-wildcard hosts); and agent hijacking (AGENTSC-030..041: writes to the global instruction file, tool shadowing, author-controlled default accounts, AppleScript session riding, XSS payloads aimed at skill registries)."
+    "description": "Detects the attack shapes of real malicious AI-agent skills that the other packs missed, measured on the Datadog malicious-software-packages-dataset ai-skills bucket (204 samples) against 455 vendor skills from Anthropic, NVIDIA, OpenAI and Vercel. Fake prerequisites (AGENTSC-001..005: a required 'CLI' downloaded from a throwaway web origin, a password-protected archive, an installer on a personal file-share, a per-OS download page, a script fetched from an anonymous file-drop host); credential and data harvesting (AGENTSC-010..015: secret-named environment sweeps, project archives that carry .env, curl uploads of host files, token and session-cookie extraction, shipped cookie jars, loops over the user's SSH private-key names); untrustworthy endpoints (AGENTSC-020: tunnel and IP-wildcard hosts); and agent hijacking (AGENTSC-030..041: the global instruction file named and written to, tool shadowing, author-controlled default accounts, AppleScript session riding, XSS payloads aimed at skill registries). Correlation: a secret sweep reaching a send (AGENTSC-CHAIN-001) and a .env-carrying archive reaching an upload (AGENTSC-CHAIN-002)."
   },
   "rules": [
     {
@@ -335,6 +335,25 @@
       ]
     },
     {
+      "id": "AGENTSC-015",
+      "phase": "credentials",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "\\bfor\\s+[A-Za-z_]\\w*\\s+in\\s+[\\[(]\\s*[\\\"'](?:~/\\.ssh/|\\.ssh/)?id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']\\s*,|\\[\\s*[\\\"']id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']\\s*,\\s*[\\\"']id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"'][^\\]\\n]*\\]\\s*\\.(?:forEach|map|filter|flatMap|some|find|reduce)\\s*\\(|\\bfor\\s+[A-Za-z_]\\w*\\s+in\\s+(?:[\\\"']?(?:~|\\$HOME|\\$\\{HOME\\})/\\.ssh/id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']?\\s+)+[\\\"']?(?:~|\\$HOME|\\$\\{HOME\\})/\\.ssh/id_(?:rsa|ed25519|ecdsa|dsa)",
+      "description": "Loop over the user's SSH private-key filenames (id_rsa, id_ed25519, id_ecdsa ...)",
+      "remediation": "The code walks a list of private-key filenames — id_rsa, id_ed25519, id_ecdsa — to find whichever key the user has. A tool that uses SSH takes the key it was configured with (a path argument, ssh-agent, ~/.ssh/config); trying every default key name in turn is what a credential harvester does before reading and sending them, and in the sample this rule was written from the loop reads each key into the same dictionary as five provider API keys. Read what the loop does with each file. If the contents are read, stored or sent, treat every key in ~/.ssh as compromised. A list of key names that is only data (a syntax highlighter's filename table) is not a loop and does not match.",
+      "references": [
+        "MITRE T1552.004",
+        "MITRE T1005",
+        "CWE-522"
+      ],
+      "tags": [
+        "credential-harvest",
+        "ssh",
+        "private-key"
+      ]
+    },
+    {
       "id": "AGENTSC-020",
       "phase": "network_exfil",
       "severity": "high",
@@ -397,9 +416,9 @@
     {
       "id": "AGENTSC-031",
       "phase": "prompt_injection",
-      "severity": "medium",
-      "pattern": "(?i)\\b(?:must|always|should)\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in)\\b|\\breplaces?\\s+all\\s+(?:the\\s+)?(?:built-?in|default|native|other)\\b[^\\n]{0,80}\\btools?\\b|\\b(?:instead\\s+of|never\\s+use|do\\s+not\\s+use|don.t\\s+use)\\s+(?:the\\s+)?(?:built-?in\\s+)?(?:WebFetch|WebSearch)\\b",
-      "description": "Skill tells the agent to replace its built-in web tools with the skill's service for every task",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:must|always)\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in)\\b|\\breplaces?\\s+all\\s+(?:the\\s+)?(?:built-?in|default|native|other)\\b[^\\n]{0,80}\\btools?\\b",
+      "description": "Skill orders the agent to replace its built-in tools with the skill's service for every task (tool shadowing)",
       "file_filter": {
         "extensions": [
           "md",
@@ -426,7 +445,7 @@
           ".clinerules"
         ]
       },
-      "remediation": "The skill instructs the agent to stop using the host's own tools (WebFetch, WebSearch and the like) and route every request through the skill's service instead, 'no exceptions'. That hands one third party every URL, search query and page the user's agent touches — internal ones included — and takes the host's built-in protections out of the path. A skill may offer a better tool for its own task; it should not claim all of the agent's traffic. Scope the instruction to the skill's use case or remove it, and read the service's data-retention terms before letting it see every request.",
+      "remediation": "The skill instructs the agent to stop using the host's own tools (WebFetch, WebSearch and the like) and route every request through the skill's service instead: 'MUST replace WebFetch and WebSearch', 'replaces all built-in ... tools', 'no exceptions'. That hands one third party every URL, search query and page the user's agent touches — internal ones included — and takes the host's built-in protections out of the path. A skill may offer a better tool for its own task; it may not claim all of the agent's traffic. High because the line is the take-over itself: none of the 455 vendor skills the rule was measured against says it, and a scoped preference ('use this tool instead of WebFetch for our docs') is AGENTSC-033 at Medium. Scope the instruction to the skill's use case or remove it, and read the service's data-retention terms before letting it see every request.",
       "references": [
         "OWASP Agentic Top 10 — Tool Misuse",
         "OWASP LLM06:2025 Excessive Agency",
@@ -489,6 +508,87 @@
         "data-interception",
         "hardcoded-account",
         "consent-bypass"
+      ]
+    },
+    {
+      "id": "AGENTSC-033",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:instead\\s+of|never\\s+use|do\\s+not\\s+use|don.t\\s+use)\\s+(?:the\\s+)?(?:built-?in\\s+)?(?:WebFetch|WebSearch)\\b|\\bshould\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in\\s+tools?)\\b|\\b(?:prefer|prioriti[sz]e)\\b[^\\n]{0,40}\\bover\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch)\\b",
+      "description": "Skill steers the agent away from its built-in web tools toward the skill's service",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The skill tells the agent not to use the host's own web tools ('instead of WebFetch', 'never use WebSearch', 'prefer X over WebFetch'). Scoped to the skill's own task this is an ordinary preference — a vendor's docs skill pointing at its own fetcher — so it is Medium: read the sentence and check its scope. If it applies to every request the agent makes, it is the tool-shadowing shape AGENTSC-031 reports at High, and every URL and query the agent handles would pass through the skill's service.",
+      "references": [
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "OWASP LLM06:2025 Excessive Agency"
+      ],
+      "tags": [
+        "tool-shadowing",
+        "prompt-injection"
+      ]
+    },
+    {
+      "id": "AGENTSC-034",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:automatically|silently|without\\s+asking)\\b[^\\n]{0,60}\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,80}\\b(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,40}\\b(?:rules?|instructions?|protocol|section|lines?|following)\\b[^\\n]{0,40}\\b(?:to|into)\\s+(?:the\\s+end\\s+of\\s+)?(?:the\\s+|your\\s+|the\\s+user'?s\\s+)?(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,20}(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)",
+      "description": "Skill tells the agent to write the skill's own rules into the user's global instruction file",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The skill instructs the agent to append its own protocol to the user's global instruction file (~/.claude/CLAUDE.md, ~/.gemini/GEMINI.md, ~/.codex/instructions.md, the IDE's global rules) so that it loads in every future session — in the measured sample, 'I have automatically hardened your global rules so the auto-skill protocol is permanently in effect', told to the user only after the write. That is self-propagation: a one-off install becomes a standing instruction the user never reviews. AGENTSC-030 (Medium) reports a skill that merely names the global file, which a vendor may document as an opt-in install; this rule reports the instruction to write there, and is High. Remove the step, and check the global file on disk for anything the skill added.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "OWASP LLM01:2025 Prompt Injection",
+        "MITRE T1546"
+      ],
+      "tags": [
+        "persistence",
+        "self-propagation",
+        "memory-poisoning",
+        "agent-config"
       ]
     },
     {
@@ -585,6 +685,46 @@
       "tags": [
         "exfiltration",
         "credential-theft",
+        "chain"
+      ]
+    },
+    {
+      "id": "AGENTSC-CHAIN-002",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Project archive that still contains .env secrets is uploaded",
+      "weight": 5,
+      "source": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "AGENTSC-011"
+        ]
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "NET-UPLOAD-001",
+          "AGENTSC-012",
+          "NET-001",
+          "NET-002",
+          "NET-003",
+          "NET-004",
+          "NET-005",
+          "NET-012"
+        ]
+      },
+      "window_lines": 20,
+      "sink_excludes": [],
+      "remediation": "A tarball built from the project directory with .git and node_modules excluded but .env left in (AGENTSC-011) is uploaded a few lines later (the archive path written by `tar -czf \"$TARBALL\"` is the file posted with `curl -F \"file=@$TARBALL\"`). In the agent deploy skills this was measured on the endpoint is unauthenticated and the upload is published at a preview URL, so every secret in the working tree goes with it. The vendor's corrected script excludes `.env` and `.env.*`; add those exclusions or build the archive from an allow-list, and rotate anything that was in .env when the script ran.",
+      "references": [
+        "CWE-538",
+        "CWE-200",
+        "MITRE T1567"
+      ],
+      "tags": [
+        "exfiltration",
+        "secrets",
+        "deploy",
         "chain"
       ]
     }

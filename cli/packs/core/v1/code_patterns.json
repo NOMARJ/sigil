@@ -209,7 +209,56 @@
       "remediation": "These flags remove the step where a human looks at what a tool is about to do: LangChain's allow_dangerous_* opt-ins, an auto_approve entry in an agent or MCP client configuration, a skip_confirmation switch. Check who sets it: the operator enabling it in their own configuration is a choice, but a dependency that ships with dangerous mode or auto-approval turned on is granting itself permissions nobody reviewed, so require it to default off.",
       "references": ["CWE-693", "OWASP Agentic Top 10 — Tool Misuse"],
       "tags": ["permissions", "mcp", "confirmation-bypass"]
+    },
+    {
+      "id": "CODE-RUNFILE-001",
+      "phase": "code_patterns",
+      "severity": "low",
+      "pattern": "subprocess\\.(?:run|call|Popen|check_call|check_output)\\s*\\(\\s*\\[\\s*(?:sys\\.executable|[\"'](?:python[0-9.]*|pythonw|py|bash|sh|zsh|node|pwsh|powershell(?:\\.exe)?|cmd(?:\\.exe)?|wscript|cscript|msiexec|rundll32|regsvr32|mshta|perl|ruby)[\"'])\\s*,\\s*(?:[\"'](?:-u|-B|-E|-I|-s|-S|-O|-File|-NoProfile|-NonInteractive|-ExecutionPolicy|Bypass|-WindowStyle|Hidden|-NoLogo|/i|/q|/qn)[\"']\\s*,\\s*)*(?:[A-Za-z_][\\w.]*|f[\"'][^\"'\\n]*\\{[A-Za-z_][\\w.]*\\}[^\"'\\n]*[\"']|[\"'][^\"'\\s]*\\.(?:py|pyz|pyc|sh|ps1|js|mjs|exe|bat|cmd|vbs|jar|msi)[\"'])\\s*[,\\]]|\\bos\\.startfile\\s*\\(|\\bStart-Process\\s+(?:-FilePath\\s+)?[\"']?(?:\\$\\{?|\\{)[A-Za-z_]\\w*|\\bexecFile(?:Sync)?\\s*\\(\\s*[A-Za-z_][\\w.]*\\s*[,)]|(?:^\\s*|[;&|(]\\s*|\\bthen\\s+|\\bdo\\s+)(?:sudo\\s+)?(?:bash|sh|zsh|python[0-9.]*|node|pwsh|powershell)\\s+[\"']?\\$\\{?[A-Za-z_]\\w*\\}?[\"']?\\s*(?:$|[;&|)])",
+      "description": "Program or script named by a variable is launched (interpreter on a path, Start-Process, os.startfile, execFile)",
+      "remediation": "An observation: running a script or program whose path is held in a variable is how build tools, test runners and launchers work. It matters for where the path came from. DROPPER-CHAIN-001 reports it at High when the same path was written by a download a few lines earlier; otherwise read the variable's origin and move on. Interpreter flags that take code (`-c`, `-Command`, `-e`) are not this rule's shape — those run a string, not a file.",
+      "references": ["MITRE T1059", "MITRE T1204.002"],
+      "tags": ["execution", "launch", "observation"]
+    },
+    {
+      "id": "CODE-DESER-001",
+      "phase": "code_patterns",
+      "severity": "low",
+      "pattern": "torch\\.load\\s*\\([^\\n]*weights_only\\s*=\\s*False|\\b(?:joblib|dill|cloudpickle)\\.loads?\\s*\\(",
+      "description": "Pickle-backed model or object load (torch.load with weights_only=False, joblib, dill, cloudpickle)",
+      "remediation": "An observation: loading a checkpoint the user points at with `torch.load(..., weights_only=False)` or a scikit-learn model with `joblib.load` is routine ML code, and it executes whatever the pickle stream names. It matters for where the file comes from. DESER-CHAIN-001 reports it at High when the file is one the package ships inside itself; a file from a download or a user upload deserves the same scrutiny. Prefer safetensors or `weights_only=True` where the format allows.",
+      "references": ["CWE-502", "MITRE T1059.006"],
+      "tags": ["deserialization", "pickle", "pytorch", "observation"]
+    },
+    {
+      "id": "CODE-MODEL-001",
+      "phase": "code_patterns",
+      "severity": "low",
+      "pattern": "(?:os\\.path\\.dirname\\s*\\(\\s*(?:os\\.path\\.(?:abspath|realpath)\\s*\\(\\s*)?__file__\\s*\\)?\\s*\\)|Path\\s*\\(\\s*__file__\\s*\\)(?:\\.resolve\\(\\))?\\.parent|importlib\\.resources\\.files\\s*\\([^)\\n]*\\)|pkg_resources\\.resource_filename\\s*\\()[^\\n]{0,120}[\"'][^\"'\\n]*\\.(?:pt|pth|pkl|pickle|ckpt|joblib|sav|dill)[\"']",
+      "description": "Pickle-format model or data file resolved inside the package's own directory",
+      "file_filter": {
+        "extensions": ["py"]
+      },
+      "remediation": "An observation: the package ships a pickle-format file (.pt, .pth, .pkl, .ckpt, .joblib) next to its code and builds a path to it. Pickle is executable: whatever the file's __reduce__ names runs when it is loaded, and it is invisible to a reader of the source. DESER-CHAIN-001 reports it at High when the path is loaded with pickle, joblib or `torch.load(weights_only=False)`. Inspect the file with a pickle disassembler (`python -m pickletools`, fickling) before trusting the package.",
+      "references": ["CWE-502", "CWE-506"],
+      "tags": ["deserialization", "bundled-model", "observation"]
     }
   ],
-  "provenance_rules": []
+  "provenance_rules": [],
+  "correlation_rules": [
+    {
+      "id": "DESER-CHAIN-001",
+      "phase": "code_patterns",
+      "severity": "high",
+      "description": "Pickle file shipped inside the package is deserialized",
+      "weight": 5,
+      "source": {"rule_prefixes": [], "rule_ids": ["CODE-MODEL-001"]},
+      "sink": {"rule_prefixes": [], "rule_ids": ["CODE-DESER-001", "CODE-004", "CODE-005"]},
+      "window_lines": 20,
+      "sink_excludes": [],
+      "remediation": "The package builds a path to a pickle-format file it ships (`os.path.join(os.path.dirname(__file__), \"model.pt\")`) and a few lines later loads it with `torch.load(..., weights_only=False)`, pickle, joblib or marshal. Loading runs whatever code the file's pickle stream names, so the package's real behaviour lives in a binary blob no reviewer reads — in the measured samples at import time, from the package's __init__.py, disguised as a model. Disassemble the file (`python -m pickletools`, fickling) before installing; a package that needs a bundled model can ship weights as safetensors or load them with `weights_only=True`.",
+      "references": ["CWE-502", "CWE-506", "MITRE T1059.006"],
+      "tags": ["deserialization", "bundled-model", "chain"]
+    }
+  ]
 }

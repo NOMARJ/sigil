@@ -411,3 +411,276 @@ SIGIL_BIN=$CARGO_TARGET_DIR/release/sigil python3 scripts/run_eval.py \
 ```
 
 The "before" column is the same commands with a binary built from `dc82a94`.
+
+## Reconciliation: recall recovered after the calibration
+
+The calibration above was merged with the agent supply chain pack
+(`docs/detection/agent-supply-chain.md`) at commit 7c9b68a. 24 malicious skills
+that the pack alone had blocked came back below HIGH. This pass read each of
+them, moved the evidence that is an attack shape onto rules that can block,
+and left the rest where the calibration put them. No routine idiom was
+re-graded upward; every new line rule is a Low observation or a Medium
+"suspicious in context" finding, and the High evidence is carried by a
+correlation chain, by the install/import-time file a line sits in, or by a
+line that is itself the attack.
+
+```
+Data Source: Real samples, the same corpora as the calibration: 204 malicious
+             ai-skills and 455 vendor skills (benchmark_skills.py, all static
+             phases); 844 Datadog npm/PyPI/ai-skills packages (run_eval.py
+             sample selection, --limit 204, its six offline phases, highest
+             finding severity per sample); SkillSpector's 26 test fixtures.
+Sample Size: 204 + 455 skills; 844 packages; 26 fixtures.
+Limitations: In-sample. Every rule and chain below was written after reading
+             the samples it recovers, and the clean check is the same 455
+             vendor skills plus a grep of 145 installed Python packages (the
+             SkillSpector virtualenv's site-packages) and the system
+             dist-packages for the new patterns. Several of the 24 are not
+             malicious on inspection; they are counted as misses, not removed.
+             Datadog "before" is the merged head 7c9b68a, measured here; the
+             main-branch figures (718 / 764) are the calibration's own.
+```
+
+### Result
+
+Skills benchmark (`scripts/benchmark_skills.py --tools sigil`, same corpora):
+
+| | Merged head (7c9b68a) | After reconciliation | Change |
+|---|---:|---:|---:|
+| Malicious blocked (≥ HIGH) | 162/204 (79.4%) | 171/204 (83.8%) | +9 |
+| Malicious warned (≥ MEDIUM) | 181/204 (88.7%) | 181/204 (88.7%) | 0 |
+| Malicious with any finding | 186/204 | 187/204 | +1 |
+| Clean blocked (≥ HIGH) | 7/455 (1.5%) | 7/455 (1.5%) | 0 |
+| Clean warned (≥ MEDIUM) | 72/455 (15.8%) | 72/455 (15.8%) | 0 |
+| Clean with any finding | 218/455 | 222/455 | +4 |
+
+The recall lane alone reached 184/204 blocked, with 108/455 clean blocked.
+This pass does not return to 184: the difference is the sixteen samples in the
+table below that stay unblocked, each for a stated reason. In the recall lane
+they were HIGH through findings the calibration re-graded or narrowed, or
+through density arithmetic it removed on purpose.
+
+No clean skill changed verdict: the same 7 are blocked and the same 72 warned.
+Four clean skills go from NONE to LOW, each on a new Low observation that the
+verdict ignores: `amc-run-video-calibration` (CODE-RUNFILE-001, `python3
+"$SCRIPT_PATH"` in its SKILL.md), `cuopt-numerical-optimization-api` (NET-002
+now matches its `urllib.request.urlretrieve`), and Vercel's `deploy-to-vercel`
+and OpenAI's curated `vercel-deploy` (NET-UPLOAD-001 on the `curl -F
+"file=@$TARBALL"` upload — their archives exclude `.env`, so AGENTSC-011 and the
+chain do not fire). On the malicious side `plurigrid-asi-skills-vercel-deploy`
+goes from NONE to LOW the same way; its deploy script is byte-identical to
+OpenAI's corrected one.
+
+Datadog recall (`scripts/run_eval.py` selection and phases; a sample counts at
+its highest finding severity):
+
+| Threshold | main (dc82a94) | Merged head (7c9b68a) | After reconciliation | vs merged | vs main |
+|---|---:|---:|---:|---:|---:|
+| ≥ any | 772 (91.47%) | 776 (91.94%) | 778 (92.18%) | +2 | +6 |
+| ≥ Medium | 764 (90.52%) | 747 (88.51%) | 754 (89.34%) | +7 | −10 |
+| ≥ High | 718 (85.07%) | 715 (84.72%) | 746 (88.39%) | +31 | +28 |
+| ≥ Critical | 553 (65.52%) | 556 (65.88%) | 556 (65.88%) | 0 | +3 |
+
+By bucket at ≥ High, merged → after: ai-skills 114 → 122, npm compromised 203 →
+203, npm malicious 201 → 202, pypi compromised 21 → 25, pypi malicious 176 →
+194. No sample lost ≥ High; 31 gained it. **≥ Medium is still 10 below main**
+(754 vs 764). Against main, by bucket: ai-skills 139 → 129 (−10: samples
+measured without the skill-security phase whose only findings are the
+HTTP-client and subprocess idioms the calibration moved to Low), pypi malicious
+195 → 194 (−1: anduril-sdk 1.0.0, whose only finding is its beacon's `urlopen`,
+now Low), npm malicious 201 → 202 (+1: 1inch-p2p-sdk). Recovering the ten would
+mean re-grading those idioms, which is the false positive the calibration
+removed, so it was not done. In the skills benchmark, which runs every phase,
+the malicious warned figure is 181/204.
+
+### What was lost, and why
+
+Verified per sample (recall-lane findings against merged findings), not
+assumed. The 24 fall into five groups.
+
+- **Attack evidence authored at Medium (8).** AGENTSC-011 (a project tarball
+  that carries `.env`, four copies of an old vercel-deploy skill), AGENTSC-031
+  (tool shadowing, two firecrawl copies), AGENTSC-030 (toolsai auto-skill's
+  self-propagation into the global rules file), and SKILL-023 (a credential
+  harvester's loop over `~/.ssh` key names). After the calibration a Medium can
+  never be HIGH.
+- **Density over routine capabilities (10).** HIGH came from the per-file
+  density term over findings that are now Low observations (CRED-001/002,
+  NET-001/012, CODE-013, SKILL-008, MANIP-006) or a lone Medium (SKILL-013,
+  SKILL-010, SKILL-015, OBFUSC-010): Charpup dependency-confusion, Cisco
+  file-reader, both eraserlabs skills, galz10, mindverse, plurigrid
+  aqua-voice, ralph-wren omni-recall, riba2534, zhangyanxs. None has a line
+  with an attack shape.
+- **A High rule the calibration re-graded (2).** MANIP-008 ("act without
+  confirmation", 17 clean skills) went to Medium: boomsystel autonomous-brain,
+  senturysh social.
+- **High present but diluted (2).** mvanhorn parallel (SKILL-022, a
+  hard-coded key, one file of nine; its recall-lane block was NET-006, since
+  narrowed) and feed-mob civitai-analyst (AGENTSC-020 in `.mcp.json`, one
+  first-party file of 13).
+- **Pattern narrowed away from prose (2).** Cisco simple-math ("No eval() or
+  exec()" in its SKILL.md) and meme-pumper (`.join('\n---\n')`).
+
+The correlation rules did not need to change to read Low findings: they select
+sources and sinks by rule id, never by severity. In the merged head,
+EXFIL-CHAIN-001 already fires at Critical from a Low `CRED-001` source into a
+Low `NET-001` sink (Cisco's exfiltrator sample, `analyze.py:32 → :35`). What
+the linker lacked was a way to follow a *file path*: it bound a source line only
+by assignment, so `tar -czf "$TARBALL"` → `curl -F "file=@$TARBALL"` and
+`with urlopen(req) as r, open(PATH, 'wb') as out:` → `subprocess.run(["python3",
+PATH])` were not links.
+
+### What changed
+
+**Linker** (`cli/src/scanner/correlate.rs`). A source line now binds the file
+it writes as well as the name it assigns: `open(X, 'w…')`, the `as` names of a
+`with` statement, `urlretrieve(url, X)`, the output operand of `curl -o`,
+`curl.exe … -o "{x}"`, `wget -O`, `Invoke-WebRequest -OutFile` and
+`tar -c…f`, as a variable or as a literal path that contains a directory or an
+executable extension (`"/tmp/managed.pyz"`). One-letter names are not bound
+(`f`, `r`, `b` are also string prefixes). Nothing else about linking changed:
+same window, same whole-word test, same `sink_excludes`.
+
+**Rules and chains** (counts are samples; malicious = the 204 ai-skills,
+clean = the 455 vendor skills; Datadog = samples of the 844 with the finding):
+
+| Rule | Sev. | What it reports | Skills mal | Skills clean | Datadog |
+|---|---|---|---:|---:|---:|
+| AGENTSC-031 | Medium → **High** | Tool shadowing: "MUST/always replace WebFetch/WebSearch/built-in", "replaces all built-in … tools" | 2 | 0 | 2 |
+| AGENTSC-033 | Medium (new) | The softer preference forms split out of AGENTSC-031 | 0 | 0 | 0 |
+| AGENTSC-034 | **High** (new) | Instruction to write the skill's rules into the global instruction file | 1 | 0 | 1 |
+| AGENTSC-015 | **High** (new) | Loop over the user's SSH private-key names | 1 | 0 | 1 |
+| AGENTSC-CHAIN-002 | **High** (new chain) | AGENTSC-011 archive (carries `.env`) → upload of the same path | 4 | 0 | 4 |
+| DROPPER-CHAIN-001 | **High** (new chain) | Download writes a file (NET-001..005, NET-012, NET-EXE-001, NET-RAWIP-001, AGENTSC-004) → CODE-RUNFILE-001 launches the same path | 0 | 0 | 7 |
+| DESER-CHAIN-001 | **High** (new chain) | CODE-MODEL-001 bundled pickle path → CODE-DESER-001 / CODE-004 / CODE-005 load | 0 | 0 | 16 |
+| INSTALL-RAWIP-001 | **High** (new) | Public raw-IPv4 URL in setup.py, setup.cfg, pyproject.toml, a package `__init__.py` or package.json | 0 | 0 | 7 |
+| INSTALL-NET-001 | Medium (new) | Network request in setup.py | 0 | 0 | 83 |
+| NET-RAWIP-001 | Medium (new) | Public raw-IPv4 URL anywhere (private, loopback, link-local, documentation ranges and public resolvers suppressed) | 13 | 0 | 29 |
+| NET-EXE-001 | Medium (new) | Windows executable or script fetched with curl.exe, wget, Invoke-WebRequest, BITS or certutil | 0 | 0 | 3 |
+| NET-UPLOAD-001 | Low (new) | curl uploads a local file (`-F x=@file`, `--data-binary @file`, `-T`); also an EXFIL-CHAIN-001 sink | 10 | 3 | 14 |
+| CODE-RUNFILE-001 | Low (new) | A program or script named by a variable or literal path is launched (interpreter + path, Start-Process, os.startfile, execFile) | 1 | 5 | 34 |
+| CODE-DESER-001 | Low (new) | `torch.load(…, weights_only=False)`, joblib/dill/cloudpickle load | 0 | 7 | 18 |
+| CODE-MODEL-001 | Low (new) | A pickle-format file resolved in the package's own directory | 0 | 0 | 16 |
+
+Every new High and Medium rule has 0 clean-skill hits. The Low observations have
+clean hits by design and move no verdict. The new raw-IP rules were also checked
+against the compromised-library bucket, whose packages are real libraries with a
+payload inserted: every raw-IP hit there is the inserted payload (telnyx
+4.87.1/.2, mistralai 2.4.6), none is library code. A grep of the 145 packages
+installed in the SkillSpector virtualenv and the system dist-packages found one
+public raw-IP URL (a docstring example in requests-toolbelt, not in a setup.py
+or `__init__.py`), no bundled-pickle path, and no `torch.load(…,
+weights_only=False)`.
+
+`NET-002` also matches `urllib.request.urlretrieve` now (Low, like `urlopen`).
+
+**Verdict** (`cli/src/scanner/scoring.rs`). `drive_by_install` — the
+fake-prerequisite rules AGENTSC-001..005 — joins the ACTION behaviours, as the
+recall lane proposed. Measured between two builds of this branch that differ
+only by this line and two pattern fixes that add Low observations: +1 malicious
+block (`luoluoluo22-jianying-editor-skill`, 97 files, an installer on a
+personal file-share plus two download-and-run lines, diluted below every point
+term), no clean verdict change.
+
+**Deliberately not raised.** AGENTSC-005 (per-OS download wording: 39
+malicious, 0 clean, but all 39 are already blocked by AGENTSC-001 or SKILL-024,
+so High would add nothing, and the wording is also how a real cross-platform
+tool describes its downloads); AGENTSC-011 alone (a tarball without `.env`
+excluded that never leaves the machine is hygiene — the upload is what
+AGENTSC-CHAIN-002 reports); AGENTSC-030 (it names the global file, which NVIDIA
+`tao-setup` does to document an opt-in install; AGENTSC-034 reports the
+instruction to write there instead); MANIP-008 and the other calibration
+re-grades. `CODE-DESER-001` stays Low because seven NVIDIA skills load the user's
+own checkpoint with `weights_only=False`.
+
+### The 24 samples
+
+"Recall lane" is the agent supply chain pack alone; "Merged" is 7c9b68a; "Now"
+is after this pass. Every sample was read statically; nothing was run.
+
+| Sample | Recall lane | Merged | Now | Malicious? | Evidence and rule, or why it stays unblocked |
+|---|---|---|---|---|---|
+| Charpup credential-harvester | HIGH | MEDIUM | **HIGH** | Yes (a scanner test fixture) | Reads five provider API keys from the environment and every `~/.ssh/id_*` key into one dict, and has an `exfiltrate_data` POST. The key loop is AGENTSC-015 (High). The dict → POST flow crosses a function boundary, which no one-hop link follows |
+| Charpup dependency-confusion | HIGH | MEDIUM | MEDIUM | Yes (test fixture) | `pip install reqeusts` at run time and `import reqeusts as requests`. The only evidence is the near-name itself: a masquerade-import rule was tried and matches `import httpx2 as httpx` in the OpenAI, Anthropic and LangSmith SDKs (a real fork), so it was not added. Name-distance checks live in the typosquat module, which reads manifests, not string lists in code (outside this pass). SKILL-015 keeps it at MEDIUM |
+| boomsystel autonomous-brain | HIGH | MEDIUM | MEDIUM | Unclear | An over-autonomy persona ("execute without confirmation", "Mode: Silent"). No payload, no exfiltration; MANIP-008/PROMPT-017 at Medium is the calibration's deliberate grade |
+| Cisco file-reader | HIGH | MEDIUM | MEDIUM | No — a vulnerability sample | Path traversal in `read_file`; nothing is sent or run. SKILL-013 Medium |
+| Cisco simple-math | CRITICAL | NONE | NONE | No | Cisco's benign control (`"expected_safe": true`) |
+| dreamineering meme-pumper | HIGH | NONE | NONE | No code attack | Memecoin marketing content; harmful to third parties, not to the installer |
+| eraserlabs azure-diagrams | HIGH | MEDIUM | MEDIUM | No | Eraser Labs' own skill posting the diagram DSL to its own API with the user's key; `Bash(curl:*)` grant (SKILL-010 Medium) |
+| eraserlabs terraform-diagrams | HIGH | MEDIUM | MEDIUM | No | Same skill family |
+| feed-mob civitai-analyst | HIGH | MEDIUM | MEDIUM | Unclear | `.mcp.json` points at `n8n-….<EC2 IP>.sslip.io` — the default hostname a self-hosting panel (Coolify) generates — with the user's bearer token. AGENTSC-020 High fires, in one first-party file of 13; the README copy is documentation. Not forced |
+| galz10 load-pickle-persona | HIGH | LOW | LOW | No | A comic persona prompt |
+| henryxv vercel-deploy | HIGH | MEDIUM | **HIGH** | Yes (secret leak) | Project tarball without `.env` excluded, uploaded to an unauthenticated deploy endpoint that publishes a preview: AGENTSC-CHAIN-002 (High) |
+| mindverse secondme-reference | HIGH | LOW | LOW | No | The vendor's own API reference (OAuth flow, `process.env` client secret) |
+| mvanhorn parallel | HIGH | MEDIUM | MEDIUM | No attack on the installer | A Parallel.ai client that ships the author's API key as an `os.environ.get` default (SKILL-022 High, one file of nine). A leaked secret, not an attack |
+| ninehills firecrawl | HIGH | MEDIUM | **HIGH** | Yes (tool shadowing) | "MUST replace WebFetch and WebSearch", "Replaces all built-in … tools": AGENTSC-031 (High) |
+| ninehills vercel-deploy | HIGH | MEDIUM | **HIGH** | Yes (secret leak) | AGENTSC-CHAIN-002 |
+| plurigrid aqua-voice-malleability | HIGH | LOW | LOW | No payload | Offensive research notes on an Electron app's IPC; no code aimed at the installer |
+| ralph-wren omni-recall | HIGH | MEDIUM | MEDIUM | Unclear | A memory skill whose database host and user are the author's own Supabase project; the user supplies the password. Looks like an unported personal skill. No line has an attack shape (OBFUSC-010 Medium is its Fernet vault) |
+| riba2534 feishu-cli-create | HIGH | LOW | LOW | No | Grants `full_access` on each new doc to a configured recipient (`user@example.com`): app-created Feishu docs are owned by the bot, so this is how the operator gets access |
+| senturysh social | HIGH | MEDIUM | MEDIUM | Unclear | An autonomous social-network client (auto-like, DM task delegation); MANIP-008 Medium |
+| sundial-org vercel-deploy | HIGH | MEDIUM | **HIGH** | Yes (secret leak) | AGENTSC-CHAIN-002 |
+| toolsai auto-skill | HIGH | MEDIUM | **HIGH** | Yes (self-propagation) | Tells the agent to append its protocol to the IDE's global rules file and report "I have automatically hardened your global rules": AGENTSC-034 (High) |
+| weklica firecrawl-cli | HIGH | MEDIUM | **HIGH** | Yes (tool shadowing) | AGENTSC-031 |
+| zhangyanxs repo2skill | HIGH | LOW | LOW | Risky, not an attack shape a line shows | On a 403/429 it retries the GitHub API through third-party mirrors (`gh.api.888888888.xyz`, …) with the user's token in the header. The token and the host meet only through a loop over an array — beyond a one-hop link |
+| zhanlincui vercel-deploy | HIGH | MEDIUM | **HIGH** | Yes (secret leak) | AGENTSC-CHAIN-002 |
+
+Recovered: 8 of the 24, plus `luoluoluo22-jianying-editor-skill` through
+`drive_by_install`. The other 16 stay below HIGH: 10 are not malicious on
+inspection, 4 are unclear and have no attack-shaped line, 1 is a real risk
+whose evidence spans a loop (repo2skill), and 1 is a malicious test fixture
+whose only evidence is a package near-name (dependency confusion).
+
+### Datadog: what each change recovered
+
+| Change | Samples moved to ≥ High | Which |
+|---|---:|---|
+| DESER-CHAIN-001 | 12 | ai-labs-snippets-sdk, all twelve versions in the selection (0.1.0 … 4.4.0): `model_path = os.path.join(os.path.dirname(__file__), "model.pt")` then `torch.load(model_path, weights_only=False)` at import. All twelve were below High on the merged head (the FP lane had counted the three that main caught through `model.eval()`). The chain also fires on the four aliyun-ai-labs samples, already High |
+| DROPPER-CHAIN-001 | 7 | guardrails-ai 0.10.1 (`with urlopen(req) as response, open(PATH, 'wb')` → `subprocess.run(["python3", PATH])`), durabletask 1.4.1/1.4.2/1.4.3 (`urlretrieve(…, "/tmp/managed.pyz")` → `Popen(["python3", "/tmp/managed.pyz"])`, a literal path), antibyfron, artindex, automsg (`curl.exe … zwerve.exe -o "{output_file}"` → `Start-Process "{output_file}"`) |
+| INSTALL-RAWIP-001 | 4 | airio 9.9.9 and azure-eventhub-checkpointstoretable 9.9.9 (setup.py posts host, user and IP to a raw-IP callback), anduril-sdk 1.0.1 (the same from `__init__.py`), 1inch-p2p-sdk 0.1.0 (package.json dependencies resolved from `http://<ip>:8080/npm/…`) |
+| AGENTSC-015/031/034, AGENTSC-CHAIN-002 | 8 | The eight ai-skills samples recovered in the skills benchmark |
+
+`anduril-sdk` 1.0.0 (the same beacon to a named domain) stays at Low; see Known
+gaps.
+
+### SkillSpector fixtures
+
+All 26 fixtures return the same verdict and score as on the merged head
+(compared line by line). The clean fixtures stay LOW or NONE: `mcp_clean_skill`,
+`sqp2_clean` and `sdi_clean` LOW (Low observations only); `safe_skill`,
+`sqp1_clean`, `sqp3_clean`, `ssd_clean`, `pe3_bare_keyring` and
+`as3_self_reference` NONE.
+
+### Self-scan
+
+`sigil scan . --no-cache --fail-on high` from the repository root exits 0.
+MEDIUM RISK both before and after, 495 files; 56 findings (11 Medium, 45 Low)
+before, 58 (11 Medium, 47 Low) after. The two new findings are Low observations:
+NET-002 on a `urlretrieve` example in `correlate.rs`'s documentation and
+CODE-RUNFILE-001 on a string in `manifests.rs`.
+
+### Known gaps after reconciliation
+
+- 171/204 is below the recall lane's 184. The 16 unrecovered samples are in
+  the table above; none was forced.
+- Cross-function and multi-hop flows are still invisible: the Charpup
+  harvester's dict → return → POST, repo2skill's token → mirror loop, a
+  download whose bytes are written on a different line from the one that
+  names the file (`with open(p, "wb") as f: f.write(requests.get(u).content)`
+  binds `p` on the `with` line, which is not a network finding).
+- The English phrasings in AGENTSC-034 have no corpus sample; only the Chinese
+  one does. They are unit-tested, not measured.
+- The typosquat check does not read package names inside code
+  (`pip install reqeusts` in a subprocess call).
+- anduril-sdk 1.0.0 (an import-time beacon to a named domain that posts the
+  hostname and user) stays at Low: a hostname in a POST body is also what
+  telemetry and crash reporters send, and no rule here separates the two.
+- Rules were written after reading these corpora; the clean figures are
+  in-sample and a held-out vendor catalog would give an honest FP rate.
+
+### Reproducing
+
+As above, with the binary built from this branch. Per-sample outcomes are kept
+by the benchmark script (`--out`); the Datadog figures come from the
+run_eval.py selection and phases, scanned once per sample with full findings
+kept so the per-rule counts could be taken.

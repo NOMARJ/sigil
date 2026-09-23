@@ -12,13 +12,13 @@
 //! verdict recalibration in #160 it is read by
 //! `scoring.rs::has_action_behaviour`, which gates the HIGH verdict: one
 //! first-party finding whose behaviour is `install_time_execution`,
-//! `exfiltration_endpoint`, `installs_persistence` or `dynamic_execution`
-//! lets a first-party score of 50 reach HIGH, where 200 would otherwise be
-//! required — and the verdict becomes the process exit code. A rule with no
-//! specific arm inherits its family's behaviour from its id prefix alone, so
-//! editing the specific-id arms or the family-prefix table below changes
-//! verdicts and exit codes, not just display text. Re-measure against the
-//! corpus before changing either.
+//! `exfiltration_endpoint`, `installs_persistence`, `dynamic_execution` or
+//! `drive_by_install` lets a first-party score of 50 reach HIGH, where 200
+//! would otherwise be required — and the verdict becomes the process exit
+//! code. A rule with no specific arm inherits its family's behaviour from its
+//! id prefix alone, so editing the specific-id arms or the family-prefix
+//! table below changes verdicts and exit codes, not just display text.
+//! Re-measure against the corpus before changing either.
 
 use super::{Finding, ScanResult, Severity, Verdict};
 
@@ -131,26 +131,40 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "INTL-003" => Some("manipulates_agent"),
         "REF-001" => Some("downloads_executable"),
         "REF-002" => Some("unscanned_reference"),
-        // Agent supply chain pack (agent_supply_chain.json). Only two arms
-        // here are ACTION behaviours, and each was chosen for what the rule
-        // proves, not for the verdict it buys: AGENTSC-004 is code that
-        // fetches a script from an anonymous file-drop host to run it
-        // (dynamic execution in the plainest sense), and AGENTSC-030 is a
-        // skill writing itself into the agent's global instruction file
-        // (persistence). The fake-prerequisite rules describe an instruction
-        // to a human, so they get their own non-action label.
+        // Agent supply chain pack (agent_supply_chain.json). The ACTION arms
+        // were chosen for what the rule proves, not for the verdict it buys:
+        // AGENTSC-004 is code that fetches a script from an anonymous
+        // file-drop host to run it (dynamic execution in the plainest sense),
+        // AGENTSC-030 and AGENTSC-034 are a skill naming, and telling the
+        // agent to write itself into, the agent's global instruction file
+        // (persistence), and the fake-prerequisite rules (AGENTSC-001..005)
+        // are an instruction to fetch and run an installer, labelled
+        // `drive_by_install` — an action since the reconciliation pass (see
+        // ACTION_BEHAVIOURS in scoring.rs for the measurement).
         "AGENTSC-001" | "AGENTSC-002" | "AGENTSC-003" | "AGENTSC-005" => Some("drive_by_install"),
         "AGENTSC-004" => Some("dynamic_execution"),
-        "AGENTSC-010" | "AGENTSC-013" => Some("harvests_credentials"),
-        "AGENTSC-011" | "AGENTSC-012" | "AGENTSC-032" | "AGENTSC-CHAIN-001" => {
-            Some("exfiltrates_data")
-        }
+        "AGENTSC-010" | "AGENTSC-013" | "AGENTSC-015" => Some("harvests_credentials"),
+        "AGENTSC-011" | "AGENTSC-012" | "AGENTSC-032" | "AGENTSC-CHAIN-001"
+        | "AGENTSC-CHAIN-002" => Some("exfiltrates_data"),
         "AGENTSC-014" => Some("hardcoded_secrets"),
         "AGENTSC-020" => Some("c2_tunnel_host"),
-        "AGENTSC-030" => Some("installs_persistence"),
-        "AGENTSC-031" => Some("manipulates_agent"),
+        "AGENTSC-030" | "AGENTSC-034" => Some("installs_persistence"),
+        "AGENTSC-031" | "AGENTSC-033" => Some("manipulates_agent"),
         "AGENTSC-040" => Some("hijacks_browser_session"),
         "AGENTSC-041" => Some("active_content_payload"),
+        // Reconciliation rules (docs/detection/fp-calibration.md,
+        // "Reconciliation"). The Low observations get specific, non-action
+        // labels so the CODE- family default (`dynamic_execution`, an action)
+        // cannot attach to a routine launch or model load; the chains carry
+        // what the link proves. A downloaded file that is then run is dynamic
+        // execution; a bundled pickle that is loaded is deserialization.
+        "CODE-RUNFILE-001" => Some("executes_program"),
+        "CODE-DESER-001" | "DESER-CHAIN-001" => Some("unsafe_deserialization"),
+        "CODE-MODEL-001" => Some("bundled_pickle_file"),
+        "DROPPER-CHAIN-001" => Some("dynamic_execution"),
+        "NET-EXE-001" => Some("downloads_executable"),
+        "NET-UPLOAD-001" => Some("uploads_local_file"),
+        "NET-RAWIP-001" => Some("raw_ip_endpoint"),
         _ => None,
     };
     if specific.is_some() {

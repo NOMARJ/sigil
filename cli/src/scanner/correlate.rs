@@ -14,15 +14,30 @@
 //! `window_lines` apart with the source first (or on the same line), the
 //! link is established when
 //!
-//! 1. the source line assigns to an identifier and that identifier appears
-//!    as a whole word in the sink's argument window (the sink line and the
-//!    few lines after it, where a multi-line call keeps its arguments), or
+//! 1. the source line *binds* a name and that name appears as a whole word
+//!    in the sink's argument window (the sink line and the few lines after
+//!    it, where a multi-line call keeps its arguments), or
 //! 2. source and sink are the same line (`requests.post(u, json={"k":
 //!    os.getenv("KEY")})`);
 //!
 //! and no `sink_excludes` substring appears in that window — `headers=` and
 //! `Authorization` are where a key legitimately goes, and excluding them is
 //! what keeps every ordinary API client from lighting up.
+//!
+//! A line binds a name by assigning to it (`key = os.getenv(...)`), or by
+//! naming the file it writes (see [`written_targets`]): `open(PATH, 'wb')`,
+//! the `as` names of a `with` statement, `urlretrieve(url, PATH)`, and the
+//! output operand of a download or archive command (`curl -o "$OUT"`,
+//! `curl.exe ... -o "{out}"`, `wget -O`, `Invoke-WebRequest -OutFile`,
+//! `tar -czf "$TARBALL"`) — a variable, or a literal path such as
+//! `"/tmp/managed.pyz"` that the sink repeats. The second kind is what connects a download to
+//! the later line that runs the downloaded file, and a project archive to the
+//! later line that uploads it: in both, what travels between the two lines is
+//! a path, not an assigned expression.
+//!
+//! Correlation reads rule ids, never severities: a Low observation (an HTTP
+//! client call, a subprocess launch, an environment read) is as good a source
+//! or sink as a High finding, and the chain carries its own severity.
 //!
 //! The result is a new finding at the sink line whose snippet names both
 //! ends of the chain, so the report explains itself: `Credential read
@@ -57,6 +72,131 @@ pub fn assigned_identifier(line: &str) -> Option<&str> {
         .captures(line)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str())
+}
+
+/// A file opened for writing: `open(PATH, 'wb')`, `open(self.path, "a")`,
+/// `open(path, mode="w")`. Captures the last segment of the path expression
+/// when it is a (possibly dotted) identifier; a literal path is not a name
+/// the sink could repeat as an identifier.
+fn open_for_write_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"\bopen\s*\(\s*(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*(?:mode\s*=\s*)?[rbtuf]*["'][rbt]*[wax][bt+]*["']"#,
+        )
+        .expect("open-for-write regex compiles")
+    })
+}
+
+/// `with a as x, b as y:` — the names a `with` statement binds.
+fn with_as_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"\bas\s+([A-Za-z_][A-Za-z0-9_]*)\s*[,:)]").expect("with-as regex compiles")
+    })
+}
+
+/// `urlretrieve(url, PATH)` / `urllib.request.urlretrieve(url, filename=PATH)`.
+fn urlretrieve_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"\burlretrieve\s*\([^,\n]+,\s*(?:filename\s*=\s*)?(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)\s*[,)]",
+        )
+        .expect("urlretrieve regex compiles")
+    })
+}
+
+/// The output operand of a download or archive command, in shell, in
+/// PowerShell, or inside a Python/JS string that builds one:
+/// `curl -o "$OUT"`, `curl.exe -L <url> -o "{output_file}"`,
+/// `wget -O "${dest}"`, `Invoke-WebRequest <url> -OutFile $path`,
+/// `tar -czf "$TARBALL" ...`. Only variable references are captured here
+/// (`$X`, `${X}`, `{X}`; `$env:X` is left alone); literal paths are
+/// [`literal_target_re`]'s, which takes only paths that cannot be mistaken
+/// for an ordinary word.
+fn output_operand_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?:\s(?:-o|-O|--output|--output-document|-OutFile|--file)|\btar\s+-?[A-Za-z]*c[A-Za-z]*f)(?:\s+|=)["']?(?:\$\{|\$|\{)([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .expect("output-operand regex compiles")
+    })
+}
+
+/// A literal file path a line writes: `open("/tmp/x.pyz", "wb")`,
+/// `urlretrieve(url, "/tmp/managed.pyz")`, `curl -o /tmp/install.sh`,
+/// `wget -O ./payload.exe`. Only a path with a directory separator, or a file
+/// name with an executable or archive extension, is captured — a bare word is
+/// too common to link on.
+fn literal_target_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?:\burlretrieve\s*\([^,\n]+,\s*(?:filename\s*=\s*)?["']|(?:\s(?:-o|-O|--output|--output-document|-OutFile)|\btar\s+-?[A-Za-z]*c[A-Za-z]*f)(?:\s+|=)["']?)((?:~|\.{1,2})?/[^\s"';|&)]+|[A-Za-z0-9_.-]+\.(?:sh|py|pyz|pyc|js|exe|ps1|bat|cmd|msi|jar|bin|run|AppImage|dll|so|dylib|tgz|zip))(?:["']?\s*[,)]|["']?\s|["']?$)"#,
+        )
+        .expect("literal-target regex compiles")
+    })
+}
+
+/// `open("/tmp/x.pyz", "wb")`: a literal path opened for writing.
+fn literal_open_for_write_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"\bopen\s*\(\s*["']((?:~|\.{1,2})?/[^"'\n]+|[A-Za-z0-9_.-]+\.(?:sh|py|pyz|pyc|js|exe|ps1|bat|cmd|msi|jar|bin|run|AppImage|dll|so|dylib))["']\s*,\s*(?:mode\s*=\s*)?[rbtuf]*["'][rbt]*[wax][bt+]*["']"#,
+        )
+        .expect("literal-open regex compiles")
+    })
+}
+
+/// The files a line writes, named the way a later line would name them
+/// again: see the module documentation.
+///
+/// One-character names (`with open(p, "wb") as f`) are dropped: `f`, `r` and
+/// `b` are also string prefixes, so `f"..."` in the sink window would read as
+/// a use of the file handle.
+pub fn written_targets(line: &str) -> Vec<&str> {
+    let trimmed = line.trim_start();
+    let is_with = trimmed.starts_with("with ") || trimmed.starts_with("async with ");
+    let mut res: Vec<&Regex> = vec![
+        open_for_write_re(),
+        urlretrieve_re(),
+        output_operand_re(),
+        literal_target_re(),
+        literal_open_for_write_re(),
+    ];
+    if is_with {
+        res.push(with_as_re());
+    }
+    let mut out: Vec<&str> = Vec::new();
+    for re in res {
+        for c in re.captures_iter(line) {
+            if let Some(m) = c.get(1) {
+                let s = m.as_str();
+                if s.len() > 1 && !out.contains(&s) {
+                    out.push(s);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every name a source line binds: its assignment target, then the files it
+/// writes.
+fn source_bindings(line: &str) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    if let Some(ident) = assigned_identifier(line) {
+        out.push(ident);
+    }
+    for t in written_targets(line) {
+        if !out.contains(&t) {
+            out.push(t);
+        }
+    }
+    out
 }
 
 /// Does `ident` appear as a whole word in `text`?
@@ -129,10 +269,11 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                 let linked = if source_line == sink_line {
                     true
                 } else {
-                    lines
-                        .get(source_line.wrapping_sub(1))
-                        .and_then(|l| assigned_identifier(l))
-                        .is_some_and(|ident| contains_word(&window, ident))
+                    lines.get(source_line.wrapping_sub(1)).is_some_and(|l| {
+                        source_bindings(l)
+                            .iter()
+                            .any(|ident| contains_word(&window, ident))
+                    })
                 };
                 if !linked {
                     continue;
@@ -352,6 +493,74 @@ mod tests {
             apply(&[rule()], &findings2, &lines2).is_empty(),
             "sink before source"
         );
+    }
+
+    /// The write-target binder: each form names the file the line writes.
+    /// (The end-to-end download→run and archive→upload chains are tested in
+    /// `corpus::engine::reconcile`, which is excluded from the self-scan; the
+    /// strings here are chosen so no content rule fires on this file.)
+    #[test]
+    fn written_targets_name_the_file_a_line_writes() {
+        assert_eq!(
+            written_targets("    with src as response, open(PATH, 'wb') as out_file:"),
+            vec!["PATH", "response", "out_file"]
+        );
+        assert_eq!(
+            written_targets("fh = open(self.dest, mode=\"ab\")"),
+            vec!["dest"]
+        );
+        assert_eq!(
+            written_targets("urlretrieve(url, filename=target_path)"),
+            vec!["target_path"]
+        );
+        assert_eq!(
+            written_targets(r#"cmd = f'fetch.exe -L {url} -o "{output_file}"'"#),
+            vec!["output_file"]
+        );
+        assert_eq!(
+            written_targets(r#"    tar -czf "$TARBALL" -C "$PROJECT_PATH" ."#),
+            vec!["TARBALL"]
+        );
+        assert_eq!(
+            written_targets("fetch-tool -OutFile $installer"),
+            vec!["installer"]
+        );
+        // Reads bind nothing; a literal output path is not an identifier.
+        assert!(written_targets("with open(path) as handle:").contains(&"handle"));
+        assert!(!written_targets("data = open(path, 'rb').read()").contains(&"path"));
+        assert!(written_targets("fetch-tool -o out").is_empty());
+        // A literal path with a directory, or an executable file name, is
+        // bound as written: `-o /tmp/x`, `urlretrieve(url, "/tmp/x.pyz")`.
+        assert_eq!(
+            written_targets("fetch-tool -o /tmp/out.bin"),
+            vec!["/tmp/out.bin"]
+        );
+        assert_eq!(
+            written_targets(r#"retrieve_it = open("/tmp/stage.pyz", "wb")"#),
+            vec!["/tmp/stage.pyz"]
+        );
+        // The assignment is bound too, by `source_bindings`.
+        assert_eq!(
+            source_bindings(r#"retrieve_it = open("/tmp/stage.pyz", "wb")"#),
+            vec!["retrieve_it", "/tmp/stage.pyz"]
+        );
+        assert!(written_targets(r#"text = open("/etc/hosts").read()"#).is_empty());
+        // One-letter handles collide with string prefixes (f"...", r"...").
+        assert!(written_targets("with open(dest, 'w') as f:") == vec!["dest"]);
+    }
+
+    /// A path written on one line and used on the next links through the
+    /// write binding, not only through an assignment.
+    #[test]
+    fn write_binding_links_like_an_assignment() {
+        let src = "with src as response, open(PATH, 'wb') as out_file:\n    out_file.write(response.read())\nrun([\"tool\", PATH])\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("NET-001", 3)];
+        assert_eq!(apply(&[rule()], &findings, &lines).len(), 1);
+        // The same shape with a different path does not link.
+        let src2 = "with src as response, open(PATH, 'wb') as out_file:\n    out_file.write(response.read())\nrun([\"tool\", OTHER])\n";
+        let lines2: Vec<&str> = src2.lines().collect();
+        assert!(apply(&[rule()], &findings, &lines2).is_empty());
     }
 
     #[test]
