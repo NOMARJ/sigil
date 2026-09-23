@@ -366,6 +366,71 @@ fn parse_declaration(rel: &str, text: &str) -> Option<Declaration> {
     Some(d)
 }
 
+/// Broad "is this capability touched anywhere" patterns, used only to keep
+/// LPRIV-003 quiet: over-matching here can only suppress a Low observation.
+fn usage_patterns() -> &'static [(&'static str, regex::Regex)] {
+    static P: std::sync::OnceLock<Vec<(&'static str, regex::Regex)>> = std::sync::OnceLock::new();
+    P.get_or_init(|| {
+        let re = |p: &str| regex::Regex::new(p).expect("static pattern");
+        vec![
+            (
+                SHELL,
+                re(r"(?m)subprocess|os\.system|os\.popen|Popen|child_process|execSync|execFile|spawnSync|\bspawn\(|shell=True|```(?:bash|sh|shell|console|zsh)\b|^\s*\$ \w"),
+            ),
+            (
+                NETWORK,
+                re(r"\brequests\b|\bhttpx\b|urllib|aiohttp|\bsocket\b|\bfetch\(|axios|http\.client|XMLHttpRequest|\bcurl\b|\bwget\b|WebSocket|grpc|(?i:download|git clone|pip install|npm install|huggingface|from_pretrained)"),
+            ),
+            (
+                ENV,
+                re(r"os\.environ|getenv|process\.env|dotenv|\$\{?[A-Z][A-Z0-9_]{2,}|\bexport [A-Z_]+=|ENV\["),
+            ),
+        ]
+    })
+}
+
+/// Capabilities touched by a skill's scripts or instructions, by broad
+/// pattern. Bounded: 300 files, 512 KB each.
+fn broad_usage(
+    strip_base: &Path,
+    files: &[PathBuf],
+    owned: &dyn Fn(&str) -> bool,
+) -> BTreeSet<&'static str> {
+    let mut out = BTreeSet::new();
+    let mut read = 0usize;
+    for f in files {
+        let rel = f
+            .strip_prefix(strip_base)
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let lower = rel.to_ascii_lowercase();
+        let markdown = lower.ends_with(".md") || lower.ends_with(".mdx");
+        if !(is_script(&rel) || markdown) || is_auxiliary(&rel) || !owned(&rel) {
+            continue;
+        }
+        if lower.ends_with(".sh") || lower.ends_with(".bash") || lower.ends_with(".ps1") {
+            out.insert(SHELL);
+        }
+        read += 1;
+        if read > 300 || std::fs::metadata(f).map(|m| m.len()).unwrap_or(u64::MAX) > 512 * 1024 {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        for (cap, re) in usage_patterns() {
+            if !out.contains(cap) && re.is_match(&text) {
+                out.insert(*cap);
+            }
+        }
+        if out.len() == usage_patterns().len() {
+            break;
+        }
+    }
+    out
+}
+
 /// Compare every declaration in the tree with what its scripts do.
 pub fn check(strip_base: &Path, files: &[PathBuf], findings: &[Finding]) -> Vec<Finding> {
     let mut decls: Vec<Declaration> = Vec::new();
@@ -481,23 +546,32 @@ pub fn check(strip_base: &Path, files: &[PathBuf], findings: &[Finding]) -> Vec<
             ));
         }
         if !d.wildcard && has_scripts[i] {
-            // Absence of evidence only means something for capabilities the
-            // phases reliably observe. Ordinary file reads and writes
-            // (`open(p, "w")`, `write_text`) are not findings, so a declared
-            // write permission is never called idle.
-            let idle: Vec<&str> = d
+            // Absence of evidence needs a broader inventory than findings:
+            // `os.environ.get("PORT")` is env access that no credential rule
+            // reports, and a `bash` fence in SKILL.md is shell use by the
+            // agent. Ordinary file reads and writes are never called idle.
+            let candidates: Vec<&'static str> = d
                 .explicit
                 .iter()
                 .filter(|c| OBSERVED.contains(*c) && !used[i].contains_key(*c))
                 .copied()
                 .collect();
+            let idle: Vec<&str> = if candidates.is_empty() {
+                Vec::new()
+            } else {
+                let touched = broad_usage(strip_base, files, &|rel: &str| owner(rel) == Some(i));
+                candidates
+                    .into_iter()
+                    .filter(|c| !touched.contains(c))
+                    .collect()
+            };
             if !idle.is_empty() {
                 out.push(mk(
                     RULE_OVERDECLARED,
                     Severity::Low,
                     format!(
-                        "Declares permission(s) no script was seen using: {} — remove them, \
-                         or they are pre-staged for code that is not here yet",
+                        "Declares permission(s) nothing in the skill appears to use: {} — \
+                         remove them, or they are pre-staged for code that is not here yet",
                         idle.join(", ")
                     ),
                 ));
@@ -643,6 +717,17 @@ mod tests {
             ("s/scripts/format.py", ""),
         ]);
         assert!(check(d.path(), &files, &[f("CODE-013", "s/scripts/format.py")]).is_empty());
+
+        // NVIDIA amc-run-* shape: env and network declared, used in ways no
+        // rule reports (a plain os.environ.get, a curl in the instructions).
+        let (d, files) = tree(&[
+            (
+                "s/SKILL.md",
+                "---\npermissions: [env, file_read, network]\n---\nCheck with `curl -sf http://localhost:8080/ready`.\n",
+            ),
+            ("s/scripts/run.py", "import os\nPORT = os.environ.get(\"PORT\")\n"),
+        ]);
+        assert!(check(d.path(), &files, &[]).is_empty());
     }
 
     #[test]
