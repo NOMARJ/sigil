@@ -34,6 +34,7 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/reverse_shells.json"),
     include_str!("../../packs/core/v1/persistence.json"),
     include_str!("../../packs/core/v1/agent_manipulation.json"),
+    include_str!("../../packs/core/v1/agent_instructions.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the

@@ -1,0 +1,1853 @@
+{
+  "meta": {
+    "id": "sigil-core-agent-instructions",
+    "name": "Sigil Core — Agent Instructions",
+    "version": "1.0.0",
+    "updated_at": "2026-09-23",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Instruction-level attacks carried in the text an agent reads: refusal suppression and safety nullification, system-prompt disclosure and exfiltration, conversation exfiltration, memory poisoning (including writes to the user's global agent memory files), context stuffing, covert user manipulation, harmful physical-world instructions, excessive-agency grants and approval bypass, agent-configuration and skill snooping, self-modification, hidden comments addressed to the agent and trigger abuse. Imperative rules only match in affirmative context, so guardrails phrased as prohibitions ('never reveal your instructions') stay silent, and quoted mentions are not read as instructions. Routine capabilities (model pinning, auto-run, disclaimer style) are Low observations with weight 0: reported, never moving the verdict. Medium rules carry weight 5 so one alone warns rather than blocks."
+  },
+  "rules": [
+    {
+      "id": "INSTR-001",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:never\\s+(?:ever\\s+)?(?:refuse|decline)\\s+(?:(?:(?:any|a|an|the|this|that|their|every|all|each|user|user'?s|users'?|such|these|those|my|our|single|incoming|given|harmful|unsafe|dangerous|illegal|unethical|inappropriate|sensitive|controversial)\\s+){0,3}(?:requests?|questions?|prompts?|queries|query|commands?|instructions?|tasks?|asks?|demands?|orders?)\\b|to\\s+(?:answer|help|respond|reply|comply|assist|do|perform|execute|fulfil+))|never\\s+(?:ever\\s+)?refuse\\s*(?:[.;!,)—]|$|\\s+(?:and|or|anything|them|it|me)\\b)|(?:do\\s+not|don'?t|must\\s+not|mustn'?t|should\\s+not|shouldn'?t|will\\s+not|won'?t|shall\\s+not)\\s+(?:ever\\s+)?(?:refuse|decline)\\s+(?:(?:(?:any|a|an|the|this|that|their|every|all|each|user|user'?s|users'?|such|these|those|my|our|single|incoming|given|harmful|unsafe|dangerous|illegal|unethical|inappropriate|sensitive|controversial)\\s+){0,3}(?:requests?|questions?|prompts?|queries|query|commands?|instructions?|tasks?|asks?|demands?|orders?)\\b|to\\s+(?:answer|help|respond|reply|comply|assist|fulfil+))|you\\s+(?:cannot|can'?t|can\\s+not|are\\s+not\\s+(?:allowed|permitted|able)\\s+to|may\\s+not|must\\s+not|mustn'?t|will\\s+not|won'?t|shall\\s+not)\\s+(?:ever\\s+)?(?:refuse|decline|say\\s+no)\\b|never\\s+say\\s+(?:that\\s+)?(?:you\\s+)?(?:can'?t|cannot|won'?t|will\\s+not|are\\s+(?:unable|not\\s+able)|no)\\b|always\\s+(?:comply|obey)(?:\\s+with)?\\s*(?:[.;!,)]|$|(?:the\\s+|every\\s+|any\\s+|all\\s+|each\\s+|their\\s+|user'?s\\s+)?(?:users?|requests?|commands?|orders?|instructions|prompts?|whatever|anything|everything|me|them)\\b)|(?:you|the\\s+(?:agent|assistant|model|ai|bot))\\s+(?:must|should|will|shall)\\s+always\\s+agree\\b|always\\s+agree\\s+(?:with|to)\\s+(?:the\\s+|every\\s+|all\\s+|any\\s+|each\\s+)?(?:users?|requests?|questions?|prompts?|queries|commands?|whatever|everything|anything)\\b|(?:must|will|shall|should)\\s+(?:always\\s+)?(?:answer|comply\\s+with|respond\\s+to|fulfil+|obey)\\s+(?:every|all|any|each)\\s+(?:(?:user|single|incoming)\\s+)?(?:requests?|questions?|prompts?|queries|commands?|instructions?)\\b|no\\s+(?:request|question|topic|subject|prompt|task)\\s+is\\s+(?:off[- ]limits|forbidden|prohibited|too\\s+(?:dangerous|extreme|harmful|illegal|unethical|sensitive))|(?:answer|respond|reply|comply|help|assist|fulfil+)\\w*\\s+(?:\\w+\\s+){0,4}(?:regardless|irrespective)\\s+of\\s+(?:how\\s+|whether\\s+it\\s+is\\s+)?(?:harmful|dangerous|illegal|unethical|unsafe|legal|ethical))",
+      "description": "Agent instruction — suppresses refusals (never refuse / always comply)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "not always comply",
+          "not always obey",
+          "not always agree"
+        ]
+      },
+      "remediation": "Read the sentence: does it tell the agent it may not refuse, must comply with every request, or must answer regardless of harm? That is a jailbreak primitive — it disables the model's own refusal behaviour so a later harmful request succeeds, and no legitimate skill needs it. A skill that wants concise answers says so as a style preference ('answer directly'), not by removing the agent's ability to say no. If the line is documentation that quotes the phrase as an attack example, put it in quotes or backticks, or mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0054",
+        "OWASP Agentic Top 10 — Agent Goal Hijack",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "jailbreak",
+        "anti-refusal"
+      ]
+    },
+    {
+      "id": "INSTR-002",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:you\\s+(?:have|has)\\s+no\\s+(?:(?:ethical|moral|safety|content)\\s+)?(?:restrictions?|limitations?|limits|filters?|rules|guidelines|boundaries|constraints|polic(?:y|ies)|guardrails?|censorship)\\b|(?:you\\s+are|you're|act\\s+as|pretend\\s+(?:to\\s+be|you'?re|you\\s+are)|roleplay\\s+as)\\s+(?:now\\s+)?(?:an?\\s+|the\\s+)?(?:\\w+\\s+){0,2}(?:unrestricted|unfiltered|uncensored|unaligned|amoral|jailbroken)\\b|(?:not|never)\\s+(?:be\\s+)?(?:bound|restricted|constrained)\\s+by\\s+(?:any\\s+|your\\s+|the\\s+)?(?:rules|polic(?:y|ies)|guidelines|restrictions|ethics|ethical\\s+guidelines|safety\\s+guidelines|content\\s+polic(?:y|ies)|openai|anthropic|google)\\b|do\\s+anything\\s+now\\b|no\\s+(?:content\\s+|safety\\s+|ethical\\s+)?(?:polic(?:y|ies)|filters?|restrictions|guardrails?)\\s+(?:appl(?:y|ies)|exist)\\b|(?:respond|answer|act|operate|behave|reply|write|output|generate|speak)\\w*\\s+(?:\\w+\\s+){0,3}(?:free\\s+(?:from|of)|without)\\s+(?:any\\s+|all\\s+)?(?:safety\\s+|ethical\\s+|moral\\s+|content\\s+)?(?:guardrails?|safeguards?|censorship|content\\s+filters?|filtering)\\b|no\\s+(?:ethical|moral)\\s+(?:considerations?|concerns?|objections?|judg(?:e)?ments?|constraints|boundaries|limits)\\b)|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:ignore|disregard|bypass|override|forget|abandon|drop|disable|turn\\s+off|switch\\s+off)\\s+(?:all\\s+|any\\s+|every\\s+)?(?:(?:your|its)\\s+(?:own\\s+)?(?:content\\s+|safety\\s+|ethical\\s+|moral\\s+)?|(?:the\\s+)?(?:content|safety|ethical|moral)\\s+)(?:polic(?:y|ies)|filters?|restrictions?|guardrails?|safeguards?|guidelines?|rules|principles|constraints|training|alignment|programming|values)\\b|(?:ignore|disregard|set\\s+aside|put\\s+aside|forget(?:\\s+about)?)\\s+(?:all\\s+|any\\s+)?(?:ethical|moral)\\s+(?:considerations?|concerns?|objections?|judg(?:e)?ments?|implications|guidelines|constraints|boundaries|principles)|(?:skip|omit|drop|leave\\s+out|remove|ignore)\\s+(?:the\\s+|any\\s+|all\\s+)?ethic(?:s\\b|al\\s+(?:checks?|considerations?|review|guidelines?|disclaimers?|warnings?|caveats?)\\b)))",
+      "description": "Agent instruction — declares the agent free of its safety rules (jailbreak framing)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check whether the text tells the agent its safety rules, content policy or ethics no longer apply ('you have no restrictions', 'act as an unfiltered model', 'ignore your content policy', 'do anything now'). This is the framing every public jailbreak uses; once the agent accepts it, every guardrail the operator relies on is off for the rest of the session. There is no legitimate reason for a skill to say it. Remove the text; if it is quoted as an example in security documentation, keep it in quotes or a code span, or mark it with sigil:ignore and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0054",
+        "OWASP Agentic Top 10 — Agent Goal Hijack",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "jailbreak",
+        "safety-bypass"
+      ]
+    },
+    {
+      "id": "INSTR-003",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:(?:do\\s+not|don'?t|never)\\s+(?:ever\\s+)?(?:warn|alert|caution)\\s+(?:the\\s+|your\\s+)?(?:users?|humans?|customers?|operators?|people|them|anyone)\\b|(?:do\\s+not|don'?t|never)\\s+(?:ever\\s+)?warn\\s*(?:[.;!,)]|$|\\s+(?:about|of|or|and)\\b))",
+      "description": "Agent instruction — forbids the agent from warning the user",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Read what the agent is being told not to warn about. A warning is the one signal a person gets before an agent does something risky on their behalf; an instruction never to warn the user is how an anti-refusal or exfiltration skill keeps the agent quiet while it acts. Check whether the skill also asks the agent to skip confirmation or hide actions. If the intent is brevity, say 'keep answers short' instead.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0054",
+        "OWASP Agentic Top 10 — Human-Agent Trust Exploitation"
+      ],
+      "tags": [
+        "prompt-injection",
+        "anti-refusal",
+        "warning-suppression"
+      ]
+    },
+    {
+      "id": "INSTR-004",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:(?:do\\s+not|don'?t|never|no\\s+need\\s+to)\\s+(?:include|add|give|provide|use|append|output|write|insert|attach|mention|show)\\s+(?:any\\s+)?(?:(?:safety|legal|medical|ethical|financial|content)\\s+)?(?:warnings?|disclaimers?|caveats?)\\b|without\\s+(?:any\\s+)?(?:(?:safety|legal|medical|ethical|financial)\\s+)?(?:disclaimers?|caveats?)\\b|(?:skip|omit|leave\\s+out|drop|remove|strip)\\s+(?:the\\s+|any\\s+|all\\s+)?(?:(?:safety|legal|medical|ethical)\\s+)?(?:disclaimers?|caveats?)\\b|(?:skip|omit|ignore)\\s+(?:the\\s+|any\\s+)?warnings?\\s+and\\s+(?:just\\s+)?(?:answer|respond|reply|proceed|continue|comply)|(?:do\\s+not|don'?t|never)\\s+(?:ever\\s+)?(?:apologi[sz]e|say\\s+(?:you'?re\\s+)?sorry)\\b|(?:do\\s+not|don'?t|never|no\\s+need\\s+to|stop)\\s+(?:ever\\s+)?(?:lecture|moralize|moralise|preach|sermoni[sz]e|pass\\s+judg(?:e)?ment)\\b|without\\s+(?:any\\s+)?(?:moraliz|moralis|lectur|preach|sermoniz)\\w*)",
+      "description": "Agent instruction — suppresses disclaimers, caveats, apologies or moralising (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "suppress": {
+        "line_contains": [
+          "warnings[]",
+          "errors[]",
+          "warnings field",
+          "`warnings`"
+        ]
+      },
+      "remediation": "Informational. Telling the agent to drop disclaimers, apologies or moralising is usually a tone choice ('don't lecture') and does not change the verdict on its own. Read it together with the rest of the skill: next to refusal suppression (INSTR-001) or safety nullification (INSTR-002) it is part of a jailbreak that wants harmful output delivered without the caveats that would alert the user.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP LLM05"
+      ],
+      "tags": [
+        "prompt-injection",
+        "anti-refusal",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-005",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:send|transmit|upload|post|forward|exfiltrate|leak|mirror|relay|beacon|sync|report)\\s+(?:(?:the|this|all|our|every|entire|full|whole|complete|user'?s?|their|current|raw)\\s+){0,3}(?:conversations?|chat(?:\\s+(?:history|logs?|transcripts?))?|context(?:\\s+window)?|session(?:\\s+(?:data|history|transcripts?|logs?))?|(?:message|prompt|conversation)\\s+history|transcripts?|user\\s+(?:inputs?|messages|prompts))\\b\\s*(?:(?:history|logs?|contents?|data)\\s+)?(?:to|into)\\b|(?:send|post|upload|transmit|forward|exfiltrate)\\s+(?:all\\s+)?(?:the\\s+)?(?:user'?s?\\s+)?(?:data|information|inputs?|files|credentials|secrets|keys|tokens)\\s+to\\s+(?:https?://|(?:an?\\s+|the\\s+|our\\s+)?(?:external|remote|third[- ]party)\\b)|(?:call|notify|ping|hit|invoke)\\s+(?:this|the|our|a)\\s+(?:webhook|endpoint|url|api)\\s+with\\s+(?:the\\s+)?(?:user'?s?\\s+|full\\s+|entire\\s+|whole\\s+|complete\\s+)?(?:conversation|context|chat|history|messages|prompts?|inputs?)|include\\s+(?:the\\s+)?(?:full\\s+|entire\\s+|whole\\s+|complete\\s+)?(?:conversation|chat|message)\\s+(?:history\\s+|log\\s+|transcript\\s+)?in\\s+(?:the\\s+|every\\s+|each\\s+|your\\s+)?(?:request|payload|body|url|query|webhook))|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:silently|quietly|secretly|covertly|stealthily|discreetly)\\s+(?:send|transmit|upload|post|forward|exfiltrate|log|record|copy|capture|collect|report|sync|beacon)\\b|without\\s+(?:telling|informing|notifying|alerting)\\s+(?:the\\s+)?(?:user|human|operator|owner)\\b[^.\\n]{0,80}\\b(?:send|transmit|upload|post|forward|exfiltrate)|\\b(?:send|transmit|upload|post|forward|exfiltrate)\\w*\\b[^.\\n]{0,80}\\bwithout\\s+(?:telling|informing|notifying|alerting)\\s+(?:the\\s+)?(?:user|human|operator|owner)\\b)",
+      "description": "Agent instruction — sends the conversation or user data to a third party",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Find where the text sends the conversation, context or user data, and to whom. A skill that instructs the agent to forward the chat, the session context or the user's files to a webhook, URL or external service — or to do it silently — turns every future prompt and every file the agent reads into a feed for whoever controls that endpoint. Legitimate integrations send a specific artifact the user asked for, to a destination the user configured, and say so. Remove the instruction, or scope it to an explicit user-initiated action with a named destination.",
+      "references": [
+        "OWASP LLM02",
+        "OWASP LLM01",
+        "MITRE AML.T0057",
+        "CWE-200",
+        "MITRE T1567"
+      ],
+      "tags": [
+        "prompt-injection",
+        "exfiltration",
+        "conversation-leak"
+      ]
+    },
+    {
+      "id": "INSTR-006",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:subtly|gradually|slowly|covertly|secretly|quietly|discreetly)\\s+(?:steer|guide|push|nudge|manipulate|influence|persuade|convince|pressure|redirect)\\s+(?:the\\s+)?(?:users?|conversation|customers?|them|people)\\b|(?:gain|build|earn|establish|win)\\s+(?:the\\s+)?(?:user'?s?|their|customer'?s?)\\s+trust\\s+(?:and\\s+then|before|so\\s+(?:that|you\\s+can))|(?:appear|seem|act|pretend)\\s+(?:to\\s+be\\s+)?(?:helpful|friendly|trustworthy|harmless|benign|legitimate|normal)\\s+(?:while|but\\s+(?:actually|secretly|really)|then)\\b|(?:prioriti[sz]e|favou?r|put)\\s+(?:[\\w'’-]+\\s+){0,4}(?:over|above|ahead\\s+of)\\s+(?:the\\s+)?(?:user'?s?\\s+|users'\\s+)(?:safety|security|privacy|wellbeing|well-being|interests?|consent)\\b)",
+      "description": "Agent instruction — covertly manipulates the user or overrides their interests",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read who benefits. Text that tells the agent to steer the user gradually, win their trust before acting, look helpful while doing something else, or put another party's interest ahead of the user's safety or privacy makes the agent work against the person operating it. That is the definition of a malicious instruction set, whatever the skill's advertised purpose. Remove it; a legitimate recommendation states its reason openly.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Human-Agent Trust Exploitation",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "manipulation",
+        "deception"
+      ]
+    },
+    {
+      "id": "INSTR-007",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:always\\s+|never\\s+)?(?:include|insert|add|append|inject|embed)\\s+(?:this|the\\s+following|these\\s+(?:links?|urls?|lines?))\\s+(?:\\w+\\s+){0,2}(?:in|into|to|at\\s+the\\s+end\\s+of)\\s+(?:every|all|each|any)\\s+(?:responses?|outputs?|replies|answers|messages)\\b)",
+      "description": "Agent instruction — injects fixed content into every response (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. A fixed line appended to every answer is how affiliate links, tracking pixels and promotional text get injected into an agent's output; it is also how a legitimate footer is added. Check what the injected content is and whether the user would expect it.",
+      "references": [
+        "OWASP LLM05",
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "prompt-injection",
+        "output-injection",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-008",
+      "phase": "prompt_injection",
+      "severity": "critical",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:add|include|incorporate|mix\\s+in|stir\\s+in|sprinkle(?:\\s+in)?|slip\\s+in|blend\\s+in|fold\\s+in|season\\s+(?:it\\s+)?with|lace\\s+(?:it|them|the\\s+\\w+)\\s+with)\\s+(?:a\\s+|an\\s+|some\\s+|the\\s+)?(?:(?:dash|pinch|bit|drop|few\\s+drops|spoonful|teaspoon|tablespoon|tsp|tbsp|amount|trace|touch|splash|sprinkle|handful|grams?|mg|dose)\\s+(?:of\\s+)?)?(?:(?:potassium|sodium|hydrogen)\\s+)?(?:cyanide|arsenic|ricin|strychnine|thallium|polonium|sarin|tabun|novichok|botulinum(?:\\s+toxin)?|rat\\s+poison|nerve\\s+agent)\\b|\\b(?:recipes?|dish(?:es)?|meals?|food|drinks?|beverages?|smoothies?|coffee|tea|soup|sauce|desserts?|cakes?|cookies?|batter|dough|salads?|juice|cocktails?|baby\\s+formula|lunch|dinner|breakfast)\\b[^\\n]{0,300}?\\b(?:add|include|mix|stir|sprinkle|blend|lace|season)\\w*\\b[^.\\n]{0,40}\\b(?:(?:(?:potassium|sodium|hydrogen)\\s+)?(?:cyanide|arsenic|ricin|strychnine|thallium|polonium|sarin|tabun|novichok|botulinum(?:\\s+toxin)?|rat\\s+poison|nerve\\s+agent)|antifreeze|ethylene\\s+glycol|bleach|drain\\s+cleaner|lye|oleander|aconite|hemlock)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:mix|combine|blend)\\s+(?:the\\s+)?(?:bleach\\s+(?:and|with)\\s+(?:the\\s+)?(?:ammonia|vinegar)|ammonia\\s+(?:and|with)\\s+(?:the\\s+)?bleach)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:drink|consume|ingest|swallow)\\s+(?:a\\s+(?:little|bit|glass|cup|capful)\\s+of\\s+|some\\s+|the\\s+)?(?:bleach|antifreeze|drain\\s+cleaner|lye|ethylene\\s+glycol)\\b|(?:you\\s+should|try\\s+to|please|go\\s+ahead\\s+and|it'?s\\s+(?:ok|okay|fine)\\s+to)\\s+(?:hurt|harm|injure|cut|starve)\\s+yourself\\b|(?:step[- ]by[- ]step\\s+)?(?:instructions?|steps|guide|tutorial)\\s+(?:for|to|on)\\s+(?:making|building|assembling|synthesi[sz]ing|make|build|assemble|synthesi[sz]e)\\s+(?:a\\s+|an\\s+)?(?:pipe\\s+)?(?:bomb|explosive\\s+device|nerve\\s+agent|bioweapon|chemical\\s+weapon)s?\\b)",
+      "description": "Agent instruction — tells the agent to add poison to food or give lethal advice",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read the instruction literally. Adding a named poison to food, mixing bleach with ammonia or acid, drinking a household chemical, self-harm encouragement or weapon-construction steps have no legitimate place in an agent skill; an agent that follows them can hurt the person relying on it. Warnings phrased as prohibitions ('never mix bleach and ammonia') do not match this rule. Remove the content and treat the whole skill as untrusted: an author who planted it planted it on purpose.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP LLM05",
+        "MITRE AML.T0051"
+      ],
+      "tags": [
+        "prompt-injection",
+        "harmful-content",
+        "physical-harm"
+      ]
+    },
+    {
+      "id": "INSTR-009",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:reveal|disclose|leak|expose|dump|divulge|recite|regurgitate|reproduce)\\s+(?:me\\s+)?(?:(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:the\\s+)?(?:(?:full|complete|entire|exact|original|hidden|internal|secret)\\s+)*(?:system|developer|hidden|initial|original|internal|meta)\\s+(?:prompts?|instructions|message|rules|directives)\\b)|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:print|output|show|display|return|echo|share|paste|give\\s+me|tell\\s+me|list|enumerate|spell\\s+out|write\\s+out|summari[sz]e|paraphrase|rephrase|restate|translate|convert|encode|base64(?:[- ]encode)?|rot13|reverse|format|rearrange|present)\\s+(?:me\\s+)?(?:back\\s+)?(?:each\\s+of\\s+|all\\s+of\\s+|every\\s+one\\s+of\\s+)?(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:what\\s+(?:are|is|were|was)\\s+your|tell\\s+me\\s+your)\\s+(?:(?:system|original|initial|hidden|exact|full|internal|secret)\\s+)*(?:prompts?|instructions|rules|guidelines|directives)\\b|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:what\\s+(?:were|was)\\s+you\\s+told|how\\s+were\\s+you\\s+(?:instructed|configured|programmed|prompted)|describe\\s+how\\s+you(?:'re|\\s+are|\\s+were)\\s+(?:configured|instructed|programmed|set\\s+up))\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:repeat|recite|reproduce|print|output|echo|copy)\\s+(?:back\\s+)?(?:everything|all(?:\\s+the\\s+text)?|the\\s+(?:text|content|message|words)s?)\\s+(?:written\\s+)?(?:above|before|prior\\s+to|preceding)\\s+(?:this|the\\s+(?:user|first|current))|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:repeat|recite|reproduce|print|output|echo|copy)\\s+(?:back\\s+)?everything\\s+(?:above|before)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:begin|start|preface|prefix|open)\\s+(?:your\\s+|each\\s+|every\\s+)?(?:response|output|reply|answer)s?\\s+with\\s+(?:(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:the\\s+)?(?:(?:full|complete|entire|exact|original|hidden|internal|secret)\\s+)*(?:system|developer|hidden|initial|original|internal|meta)\\s+(?:prompts?|instructions|message|rules|directives)\\b)|(?:verbatim|word\\s+for\\s+word|exactly|character\\s+for\\s+character)\\s+(?:repeat|output|print|reproduce|copy|recite)\\s+(?:(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:the\\s+)?(?:(?:full|complete|entire|exact|original|hidden|internal|secret)\\s+)*(?:system|developer|hidden|initial|original|internal|meta)\\s+(?:prompts?|instructions|message|rules|directives)\\b)|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:write|create|compose)\\s+(?:a\\s+)?(?:poem|song|story|acrostic|haiku|limerick)\\s+(?:about|using|from|containing|based\\s+on)\\s+(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:print|output|show|display|reveal|repeat|recite|dump|list|echo)\\s+(?:the\\s+|all\\s+|your\\s+)?(?:(?:system|hidden|internal)\\s+)?(?:rules|instructions|guidelines|directives|prompt)\\s+(?:before|prior\\s+to|at\\s+the\\s+start\\s+of)\\s+(?:replying|responding|answering|each\\s+(?:reply|response|answer)|every\\s+(?:reply|response|answer)|your\\s+(?:reply|response|answer))\\b)",
+      "description": "Agent instruction — makes the agent disclose its system prompt or hidden instructions",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check whether the text asks the agent to print, repeat, summarise, translate or encode its own system prompt or the instructions above the conversation. System prompts carry the operator's configuration, internal tool names, and sometimes credentials; extracting them is the first step of most targeted prompt-injection attacks, and indirect forms (translate it, write a poem from it, base64 it) exist only to slip past a direct refusal. Guardrails phrased as prohibitions ('never reveal your instructions') do not match. Remove the instruction.",
+      "references": [
+        "OWASP LLM07",
+        "MITRE AML.T0056",
+        "OWASP LLM01",
+        "CWE-200"
+      ],
+      "tags": [
+        "prompt-injection",
+        "system-prompt-leak"
+      ]
+    },
+    {
+      "id": "INSTR-010",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:write|save|store|log|dump|persist|record|copy|export|pipe|redirect|forward|send|post|upload|transmit|email|attach|embed|append|include|clone|duplicate)\\s+(?:a\\s+copy\\s+of\\s+)?(?:(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:the\\s+)?(?:(?:full|complete|entire|exact|original|hidden|internal|secret)\\s+)*(?:system|developer|hidden|initial|original|internal|meta)\\s+(?:prompts?|instructions|message|rules|directives)\\b)\\s+(?:\\w+\\s+){0,2}(?:to|into|in|via|through|as)\\s+(?:(?:a|an|the|this|that|my|our)\\s+)?(?:(?:new|separate|external|remote|shared|public|local|temp(?:orary)?)\\s+)?(?:file|disk|log|logs|database|db|storage|gist|paste|pastebin|https?://|url|webhook|endpoint|server|api|curl|wget|fetch|http|tool|email|e-mail|request|payload|issue|commit|comment|repo(?:sitory)?|channel|bucket|s3)|(?:use|call|invoke|run)\\s+(?:the\\s+)?(?:write|file|network|http|fetch|curl|bash|shell|web|email)(?:[_-]\\w+)?\\s+tool\\s+(?:to|and)\\s+(?:save|send|export|write|post|upload|store|log)\\s+(?:(?:your|its)\\s+(?:own\\s+)?(?:(?:full|complete|entire|exact|original|initial|hidden|internal|secret|underlying|system|developer|core|operating)\\s+)*(?:prompts?|instructions|rules|guidelines|directives|guardrails|pre-?prompt|system\\s+message)\\b|(?:the\\s+)?(?:(?:full|complete|entire|exact|original|hidden|internal|secret)\\s+)*(?:system|developer|hidden|initial|original|internal|meta)\\s+(?:prompts?|instructions|message|rules|directives)\\b))",
+      "description": "Agent instruction — writes or sends the system prompt out through a tool",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Find the destination. An instruction to save the system prompt to a file, include it in a request, commit or issue, or send it to a URL moves the operator's hidden configuration somewhere the skill author can read it later — exfiltration through the agent's own tools, with nothing in the chat to show for it. There is no legitimate use; remove it.",
+      "references": [
+        "OWASP LLM07",
+        "MITRE AML.T0056",
+        "OWASP LLM02",
+        "CWE-200",
+        "MITRE T1567"
+      ],
+      "tags": [
+        "prompt-injection",
+        "system-prompt-leak",
+        "exfiltration"
+      ]
+    },
+    {
+      "id": "INSTR-011",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:always\\s+)?remember\\s+(?:this|that|the\\s+following|these\\s+(?:instructions|rules))\\s+(?:for|in|across|during|throughout)\\s+(?:all|every|each|any|future|subsequent|later)\\s+(?:\\w+\\s+)?(?:interactions?|conversations?|sessions?|responses?|chats?|turns?)\\b|(?:store|save|persist|retain|keep|record|write|commit|add|inject|insert|embed|implant|plant|put)\\s+(?:this|that|these|the\\s+following|the\\s+(?:instruction|rule|directive|fact)s?)\\s+(?:\\w+\\s+){0,2}(?:in|into|to|across)\\s+(?:your\\s+|the\\s+agent'?s?\\s+|its\\s+)?(?:long[- ]term\\s+|persistent\\s+|permanent\\s+)?(?:memory|memories|knowledge\\s+base|training\\s+data)\\b|(?:persist|retain|keep|carry|remember)\\s+(?:this|these|the\\s+(?:above|following)(?:\\s+(?:instructions?|rules?|directives?))?)\\s+(?:\\w+\\s+){0,2}across\\s+(?:all\\s+|future\\s+|every\\s+|later\\s+)?(?:sessions|conversations|chats)\\b|(?:treat|consider|regard)\\s+(?:this|these|the\\s+following)\\s+as\\s+(?:a\\s+|your\\s+)?(?:new\\s+)?(?:permanent|core|fundamental|base|system[- ]level|highest[- ]priority|top[- ]priority)\\s+(?:rules?|instructions?|directives?|principles?)\\b|(?:update|modify|change|alter|overwrite|replace|rewrite)\\s+(?:your\\s+)?(?:core|base|fundamental|default|underlying)\\s+(?:behaviou?r|personality|instructions|rules|directives|programming|values)\\b)|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:this\\s+is\\s+)?(?:a\\s+)?(?:permanent|irrevocable)\\s+(?:instruction|directive|override)s?\\b|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:from\\s+now\\s+on|henceforth|for\\s+(?:all|every)\\s+future\\s+(?:sessions?|conversations?))\\s*[,:]?\\s*(?:you\\s+(?:must|should|will|shall|are\\s+to)\\s+|always\\s+|never\\s+))",
+      "description": "Agent instruction — plants instructions in the agent's persistent memory",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check whether the text is trying to outlive the task it came with: 'remember this for all future sessions', 'store this in your long-term memory', 'this is a permanent instruction', 'from now on, always ...'. A skill's instructions should apply while the skill is in use; planting them in the agent's memory makes them apply to every later conversation, including ones where the user never invoked the skill. That is memory poisoning. Scope the instruction to the task, and do not ask the agent to persist it.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "MITRE AML.T0080",
+        "OWASP LLM01",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "memory-poisoning",
+        "persistence"
+      ]
+    },
+    {
+      "id": "INSTR-012",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:overwrite|replace|substitute|swap|corrupt|tamper\\s+with)\\s+(?:all\\s+(?:of\\s+)?)?your\\s+(?:\\w+\\s+)?(?:memory|memories|context|state|instructions|rules|knowledge)\\b|(?:inject|insert|plant|implant|seed|introduce)\\s+(?:false|fake|fabricated|malicious|misleading|poisoned|forged)\\s+(?:memories|memory|information|context|data|history|facts|records|entries)\\b|(?:poison|contaminate|corrupt|taint)\\s+(?:your|the\\s+(?:agent|model|assistant)'?s?)\\s+(?:\\w+\\s+)?(?:memory|memories|context|state|knowledge|training|embeddings|vector\\s+store)\\b|(?:rewrite|redefine|reprogram)\\s+(?:your\\s+)?(?:own\\s+)?(?:personality|identity|purpose|mission|core\\s+values|character|programming)\\b|(?:pretend|act\\s+as\\s+if|believe)\\s+(?:that\\s+)?(?:your\\s+)?(?:previous|past|earlier|prior)\\s+(?:conversation|context|interaction|session)s?\\s+(?:was|were|included|contained|said)\\b)|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)your\\s+(?:new|updated|revised|real|true)\\s+(?:personality|identity|purpose|mission|true\\s+self)\\s+is\\b|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:you\\s+are\\s+no\\s+longer|stop\\s+being|cease\\s+to\\s+be)\\s+(?:an?\\s+|the\\s+)?(?:\\w+\\s+){0,3}(?:assistant|helper|chatbot|language\\s+model|claude|chatgpt|ai)\\b)",
+      "description": "Agent instruction — overwrites or poisons the agent's memory or identity",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read what the text wants the agent to believe about itself. Overwriting its memory or instructions, planting fabricated history, poisoning its context, or declaring it is 'no longer an assistant' are ways to replace the operator's configuration with the author's. Remove the text; a skill that needs a persona describes the role it plays for this task, it does not erase the one the agent already has.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "MITRE AML.T0080",
+        "OWASP LLM01",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "memory-poisoning",
+        "identity-override"
+      ]
+    },
+    {
+      "id": "INSTR-013",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:clear|reset|wipe|erase|purge|flush)\\s+(?:all\\s+(?:of\\s+)?)?your\\s+(?:\\w+\\s+)?(?:memory|memories|context|history|state)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:clear|reset|wipe|erase|purge|flush)\\s+(?:the\\s+|your\\s+)?(?:state|memory|context)\\s+before\\s+(?:replying|responding|answering|each\\s+(?:reply|response|answer))\\b)",
+      "description": "Agent instruction — tells the agent to clear its own memory or context (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. Clearing context between tasks is a normal workflow step; the rule records it because 'clear your memory' also precedes instruction overrides that want the agent to forget its earlier guardrails. Read the lines that follow it.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "MITRE AML.T0080"
+      ],
+      "tags": [
+        "prompt-injection",
+        "memory-poisoning",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-014",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:\\b(?:write|writes|append|appends|add|adds|insert|inserts|inject|injects|save|saves|store|stores|persist|update|updates|modify|modifies|overwrite|overwrites|edit|edits|patch|patches|prepend|prepends|replace|replaces)\\s+(?:(?:to|into|in|the|your|file|global)\\s+){0,3}[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|\\b(?:write|writes|append|appends|add|adds|insert|inserts|inject|injects|save|saves|store|stores|persist|update|updates|modify|modifies|overwrite|overwrites|edit|edits|patch|patches|prepend|prepends|replace|replaces)\\b[^\\n]{0,80}?\\b(?:to|into|in)\\s+(?:(?:the|your)\\s+)?[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|\\b(?:copy|copies|copied|sync|syncs|synced|install|installs|deploy|deploys|move|moves|link|links|symlink|symlinks|restore|restores|place|places|put|puts|drop|drops)\\b[^\\n]{0,80}?\\b(?:to|into|as)\\s+(?:(?:the|your)\\s+)?[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|\\b(?:cp|mv|rsync|install|ln)\\b(?:\\s+-[\\w-]+)*\\s+[^\\s|;&]+\\s+[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|\\btee\\s+(?:-a\\s+)?[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|>{1,2}\\s*[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)|\\bopen\\s*\\([^\\n]{0,60}?[`\\\"']?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:CLAUDE|AGENTS|GEMINI|MEMORY|QWEN|memory)\\.md\\b|(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:memory|memories)/)[^\\n]{0,30}?[\\\"'](?:w|a|r\\+|w\\+|a\\+)[\\\"'])",
+      "description": "Agent instruction — writes into the user's global agent memory file (~/.claude/CLAUDE.md and peers)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Find what is written to the global memory file. ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md and the agents' memory directories are read at the start of every session in every project; whatever a skill puts there becomes a standing instruction the user never sees again. Project-level instruction files are the right place for project conventions, and a change to the user's global file should be shown to the user and made by them. Treat a skill that writes here silently as persistence.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "MITRE AML.T0080",
+        "MITRE T1546",
+        "CWE-506"
+      ],
+      "tags": [
+        "prompt-injection",
+        "memory-poisoning",
+        "persistence"
+      ]
+    },
+    {
+      "id": "INSTR-015",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:(?:fill|pad|stuff|flood|saturate|overload|bloat)\\s+(?:up\\s+)?(?:the\\s+|your\\s+)?(?:context(?:\\s+window)?|memory|prompt|token\\s+budget)\\b|(?:displace|push\\s+out|crowd\\s+out|evict|drown\\s+out|bury)\\s+(?:the\\s+)?(?:original|system|previous|existing|safety|earlier|prior)\\s+(?:instructions?|prompt|context|rules?|guidelines?|messages?)\\b|(?:exhaust|overflow|max\\s+out|blow\\s+(?:through|past))\\s+(?:the\\s+|your\\s+)?(?:context|token|memory)\\s+(?:window|limit|budget|capacity)\\b|(?:repeat|duplicate|echo|copy|paste|write|print|output)\\s+(?:this|the\\s+following|it|that)\\s+(?:\\w+\\s+)?(?:\\d{3,}|hundreds\\s+of|thousands\\s+of|a\\s+thousand|a\\s+million|millions\\s+of)\\s+times\\b)",
+      "description": "Agent instruction — stuffs the context window to push out earlier instructions",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Check why the text wants the context filled. Padding the context window, repeating a block hundreds of times or 'pushing out' earlier instructions is a way to evict the operator's system prompt and safety rules from what the model attends to, so the skill's own instructions are the only ones left. Remove it.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "MITRE AML.T0080",
+        "OWASP LLM10",
+        "CWE-400"
+      ],
+      "tags": [
+        "prompt-injection",
+        "context-stuffing"
+      ]
+    },
+    {
+      "id": "INSTR-016",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)^\\s*(?:allowed[-_]tools|tools|permissions|capabilities)\\s*:\\s*\\[?\\s*[\\\"']?\\*[\\\"']?\\s*\\]?\\s*(?:#.*)?$",
+      "description": "Skill frontmatter grants every tool (tools: \"*\")",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Replace the wildcard with the tools the skill actually uses. A skill or sub-agent definition that grants '*' inherits every tool the host exposes — shell, network, file writes, MCP servers — so any instruction it carries, or any prompt injection it later reads, runs with the agent's full authority. Least privilege for agents is a short, explicit tool list.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "CWE-250"
+      ],
+      "tags": [
+        "excessive-agency",
+        "permissions",
+        "manifest"
+      ]
+    },
+    {
+      "id": "INSTR-017",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:(?:has|have|with|gets?|given)\\s+(?:no|zero)\\s+(?:tool|permission|access|sandbox|command|capability)\\s+(?:restrictions?|constraints?|limitations?|limits|checks|boundaries)\\b|^[\\s>*_\\-#]*no\\s+(?:tool|permission)\\s+(?:restrictions?|constraints?|limitations?)\\b|(?:unrestricted|unlimited|unconstrained)\\s+(?:tool|function|api|shell|system|command)\\s+(?:access|use|usage|calls?|permissions?|privileges?)\\b|(?:allow|grant|enable|give)\\s+(?:the\\s+agent\\s+|yourself\\s+|it\\s+)?(?:access\\s+to\\s+)?(?:all|every)\\s+(?:available\\s+)?tools?\\s+(?:without|with\\s+no)\\b|(?:allow|grant|give)\\s+(?:the\\s+agent\\s+|yourself\\s+|it\\s+)?(?:access\\s+to\\s+)?all\\s+tools\\s*[.;!]|(?:can|may|should|will|free\\s+to|allowed\\s+to)\\s+(?:freely\\s+)?(?:execute|run)\\s+(?:any\\s+|arbitrary\\s+)(?:shell\\s+|system\\s+)?(?:commands?|code|scripts?|programs?)\\s+(?:without|on\\s+the\\s+(?:host|user)|(?:it|you)\\s+(?:wants?|likes?|chooses?)|freely)\\b|(?:this\\s+skill|the\\s+skill|the\\s+agent|you)\\s+(?:can|may|will)\\s+(?:freely\\s+)?execute\\s+arbitrary\\s+(?:shell\\s+|system\\s+)?(?:commands?|code)\\b)",
+      "description": "Agent instruction — claims unrestricted tool or command access",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Check whether the skill actually needs the access it claims. Prose telling the agent it has no tool restrictions, may run arbitrary commands or should use every tool is how a skill talks an agent past the host's permission model, and it makes any injected instruction as powerful as the agent itself. Name the commands the skill runs instead, and declare them in allowed-tools.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-250"
+      ],
+      "tags": [
+        "excessive-agency",
+        "permissions"
+      ]
+    },
+    {
+      "id": "INSTR-018",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:skip|bypass|circumvent|avoid|disable|suppress)\\s+(?:the\\s+)?(?:user|human|operator|owner|manual)(?:'s)?\\s+(?:approval|confirmation|consent|review|sign[- ]?off|verification|permission)s?\\b|(?:assume|presume)\\s+(?:the\\s+)?(?:user'?s?\\s+|their\\s+)?(?:consent|approval|permission|authori[sz]ation)\\b|(?:if|when)\\s+(?:you\\s+are\\s+)?(?:unsure|uncertain|in\\s+doubt)[^.\\n]{0,40}\\b(?:proceed|continue|execute|go\\s+ahead)\\s+(?:anyway|regardless)\\b)",
+      "description": "Agent instruction — skips the user's approval or assumes their consent",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read which approval is being skipped and for what action. Instructions to bypass the user's approval, assume their consent, or proceed when unsure remove the human checkpoint that stands between an agent and an irreversible action on the user's machine or accounts. Legitimate automation is scoped ('run the test suite without asking'), not a blanket waiver. Scope the instruction to a named, reversible action, or remove it.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-862"
+      ],
+      "tags": [
+        "excessive-agency",
+        "approval-bypass"
+      ]
+    },
+    {
+      "id": "INSTR-019",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:automatically|autonomously)\\s+(?:execute|run|perform|delete|remove|modify|send|deploy|publish|push|merge|approve)\\b|\\bauto[_-]?(?:approve|confirm|execute|accept)\\s*[:=]\\s*(?:true|1|yes|on)\\b)",
+      "description": "Agent instruction — autonomous execution or auto-approve flag (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. Autonomous execution is routine for build and deploy skills and does not change the verdict. It records where the skill acts without a confirmation step, so a reviewer can check that the action is the one the skill advertises and is reversible.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Excessive Agency"
+      ],
+      "tags": [
+        "excessive-agency",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-020",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:(?:extend|expand|broaden|widen|escalate|increase)\\s+(?:your|its|the\\s+skill'?s?|the\\s+agent'?s?|this\\s+skill'?s?)\\s+(?:own\\s+)?(?:scope|permissions?|privileges?|capabilities|authority|access|mandate|responsibilities)\\b|(?:take|perform|execute)\\s+(?:any\\s+)?(?:actions?|steps)\\s*,?\\s+(?:including|such\\s+as)\\b[^.\\n]{0,60}\\b(?:delet|remov|wip|destroy|overwrit|exfiltrat|drop)\\w*\\s+(?:the\\s+|all\\s+)?(?:user'?s?\\s+)?(?:files?|data|repos?|repositor(?:y|ies)|databases?|tables?|backups?|emails?|accounts?)\\b|(?:take\\s+over|assume\\s+(?:full\\s+)?control\\s+of|seize\\s+control\\s+of)\\s+(?:all|any|every|the\\s+(?:entire|whole))\\s+(?:aspects?|parts?|areas?|systems?|operations?|infrastructure|machine|host|accounts?)\\b)",
+      "description": "Agent instruction — expands the agent's scope or authority beyond the task",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json",
+          "LICENSE",
+          "LICENSE.md",
+          "LICENSE.txt",
+          "COPYING",
+          "NOTICE",
+          "NOTICE.md"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Compare the instruction with the skill's stated purpose. Text that widens the agent's scope, permissions or authority, or pre-authorises destructive actions 'including but not limited to' deleting user data, is scope creep written as policy: the skill claims authority the user never granted it. Keep the skill to the task it describes.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-250"
+      ],
+      "tags": [
+        "excessive-agency",
+        "scope-creep"
+      ]
+    },
+    {
+      "id": "INSTR-021",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|simply|just|you\\s+(?:must|should|shall|will|need\\s+to|have\\s+to))\\s+)(?:(?:loop|iterate|repeat|retry|poll|keep\\s+(?:going|running|trying|retrying))\\s+(?:\\w+\\s+){0,2}(?:indefinitely|forever|infinitely|endlessly|without\\s+(?:a\\s+|any\\s+)?(?:limit|end|stopping|cap))\\b|(?:flood|spam)\\s+(?:the\\s+)?(?:output|logs?|console|terminal|channel|chat|inbox)\\b|(?:generate|produce|output|write|emit|stream)\\s+(?:as\\s+much|unlimited|unbounded|infinite|endless)\\s+(?:text|content|output|tokens?|data)\\b|(?:disable|remove|ignore)\\s+(?:the\\s+|any\\s+)?(?:output\\s+)?(?:length|size|token)\\s+(?:limits?|caps?|maximums?|restrictions?)\\b)|(?:^|[^\\w\\\"'`“‘]|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*)(?:unlimited|infinite|unbounded|uncapped)\\s+(?:api\\s+)?(?:calls?|requests?|queries|invocations?|retries|iterations?|spend(?:ing)?|tokens?)\\s+(?:are|is)\\s+(?:allowed|permitted|fine|ok|okay|enabled)\\b|^[\\s>*_\\-#]*no\\s+(?:rate\\s+)?limit(?:s|ing)?\\s+(?:on|for)\\s+(?:the\\s+)?(?:api|tool|requests?|queries|endpoints?|calls?|spend(?:ing)?)\\b|^[\\s>*_\\-#]*no\\s+(?:output\\s+)?(?:length|size|token)\\s+(?:limits?|caps?|maximums?)\\s+(?:is|are)\\s+(?:set|applied|enforced|needed)\\b|\\bmax[_-]?(?:retries|attempts)\\s*[:=]\\s*(?:None|float\\(\\s*[\\\"']inf[\\\"']\\s*\\)|math\\.inf|Infinity)\\b|\\bmax[_-]?(?:output[_-]?)?tokens\\s*[:=]\\s*(?:None|float\\(\\s*[\\\"']inf|math\\.inf|Infinity)\\b)",
+      "description": "Agent instruction — unbounded loops, requests or output (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. Unbounded retries, loops, request volume or output are a cost and availability risk rather than an attack by themselves: an agent following them can burn API budget or flood a channel. Set explicit limits (a retry count, a timeout, a maximum length).",
+      "references": [
+        "OWASP LLM10",
+        "CWE-400",
+        "CWE-770"
+      ],
+      "tags": [
+        "unbounded-consumption",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-022",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)(?:^\\s*[\\\"']?(?:model|provider|model[_-]?name|model[_-]?id)[\\\"']?\\s*:\\s*[\\\"']?(?:anthropic/|openai/|google/|bedrock/|vertex/)?(?:claude|gpt|o[1-9]|gemini|deepseek|kimi|glm|minimax|mistral|mixtral|llama|qwen|grok|command-r|sonnet|opus|haiku)(?:[-_./:0-9]|[\\\"']?\\s*$)|(?:\\s|^)(?:--model|-m)(?:=|\\s+)[\\\"']?(?:anthropic/|openai/|google/|bedrock/|vertex/)?(?:claude|gpt|o[1-9]|gemini|deepseek|kimi|glm|minimax|mistral|mixtral|llama|qwen|grok|command-r|sonnet|opus|haiku)(?:[-_./:0-9]|[\\\"']?\\s*$))",
+      "description": "Skill pins a model or provider (observation)",
+      "file_filter": {
+        "filename_exact": [
+          "SKILL.md",
+          "AGENTS.md",
+          "CLAUDE.md",
+          "GEMINI.md",
+          "openai.yaml",
+          "agent.yaml",
+          "agent.yml"
+        ],
+        "filename_suffix": [
+          ".agent.md",
+          ".prompt.md",
+          ".chatmode.md"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. Pinning a model is routine; it is recorded because it decides which provider receives the conversation and who is billed for it. Check that the provider is one the organisation has approved for the data the skill handles.",
+      "references": [
+        "OWASP LLM06",
+        "OWASP LLM03"
+      ],
+      "tags": [
+        "model-selection",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-023",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)\\b(?:claude\\s+(?:-p|--print)|codex\\s+exec|gemini\\s+(?:-p|--prompt)|cursor-agent\\s+(?:-p|--print)|opencode\\s+run|qwen\\s+(?:-p|--prompt))\\s+[\\\"'$]",
+      "description": "Skill launches another coding agent headlessly (observation)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 0,
+      "remediation": "Informational. Delegating to another agent CLI is routine in orchestration skills. It is recorded because the nested agent runs with its own tools, permissions and provider: check that the command does not also pass a permission-bypass flag (PROMPT-015 reports those).",
+      "references": [
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "model-selection",
+        "sub-agent",
+        "observation"
+      ]
+    },
+    {
+      "id": "INSTR-024",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:\\b(?:open|read_text|read_bytes|readFile(?:Sync)?|fs\\.readFile\\w*|json\\.load|yaml\\.safe_load|toml\\.load|Get-Content|cat|less|head|tail|jq|grep|base64|xxd|strings)\\b\\s*\\(?\\s*[\\\"'`]?(?:(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/|/)?[\\w./-]*?\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:settings(?:\\.local)?\\.json|config(?:\\.json|\\.toml|\\.ya?ml)?\\b|mcp(?:_config)?\\.json|preferences(?:\\.json)?|keybindings\\.json)|\\b(?:open|read_text|readFile(?:Sync)?|json\\.load|Get-Content|cat|less|head|tail|jq|grep)\\b\\s*\\(?\\s*[\\\"'`]?[^\\\"'`\\s)]*(?:claude_desktop_config|mcp_config|cline_mcp_settings|\\.mcp)\\.json|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:read|load|dump|copy|collect|exfiltrate|upload|send|parse|extract)\\s+[^\\n]{0,60}?(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|/home/[\\w.-]+|/Users/[\\w.-]+|/root)/\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:settings(?:\\.local)?\\.json|config(?:\\.json|\\.toml|\\.ya?ml)?\\b|mcp(?:_config)?\\.json|preferences(?:\\.json)?|keybindings\\.json)|\\b(?:read|access|inspect|examine|retrieve|dump|exfiltrate)\\s+(?:the\\s+)?(?:agent|assistant)'?s?\\s+(?:config(?:uration)?|settings|preferences)\\s+(?:files?|directory|folder)\\b|\\b(?:expanduser|homedir|Path\\.home|os\\.homedir)\\b[^\\n]{0,30}?[\\\"'`]~?/?\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:settings(?:\\.local)?\\.json|config(?:\\.json|\\.toml|\\.ya?ml)?\\b|mcp(?:_config)?\\.json|preferences(?:\\.json)?|keybindings\\.json)|^\\s*[\\\"'`](?:~|\\$HOME)?/?[\\w./-]*?\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:settings(?:\\.local)?\\.json|config(?:\\.json|\\.toml|\\.ya?ml)?\\b|mcp(?:_config)?\\.json|preferences(?:\\.json)?|keybindings\\.json)[\\\"'`]\\s*\\))",
+      "description": "Skill reads the agent's own configuration or MCP server settings",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Check why the skill needs the agent's configuration. Agent settings and MCP configuration files list every connected server, their URLs and often their API keys in environment blocks; reading them tells a skill what else it can reach and hands it credentials it was never given. A setup skill that edits these files should say which entry it adds and let the user review the change; a skill that only reads them needs a reason.",
+      "references": [
+        "OWASP Agentic Top 10 — Identity and Privilege Abuse",
+        "OWASP LLM02",
+        "CWE-200",
+        "MITRE T1552.001"
+      ],
+      "tags": [
+        "agent-snooping",
+        "credential-access",
+        "mcp"
+      ]
+    },
+    {
+      "id": "INSTR-025",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)[/\\\\]+(?:\\.credentials\\.json|oauth_creds\\.json|google_accounts\\.json|auth\\.json|credentials\\.json)\\b",
+      "description": "Skill references the agent's OAuth token store (~/.claude/.credentials.json and peers)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Find what the skill does with the file. These files hold the agent's own OAuth tokens (Claude Code's .credentials.json, Gemini CLI's oauth_creds.json, Codex's auth.json); a skill that reads or copies them can act as the user against the provider's API from anywhere. No skill needs them — the agent authenticates itself. Treat the skill as a credential stealer until shown otherwise.",
+      "references": [
+        "MITRE T1552.001",
+        "MITRE T1528",
+        "CWE-522",
+        "OWASP Agentic Top 10 — Identity and Privilege Abuse"
+      ],
+      "tags": [
+        "agent-snooping",
+        "credential-theft"
+      ]
+    },
+    {
+      "id": "INSTR-026",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:\\b(?:os\\.listdir|os\\.scandir|os\\.walk|glob\\.glob|iterdir|rglob|readdirSync|readdir|Get-ChildItem)\\b[^\\n]{0,60}\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:skills|plugins)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:enumerate|catalog|scan|dump|harvest|collect|read|copy|exfiltrate)\\s+(?:all\\s+(?:of\\s+)?(?:the\\s+)?)?(?:(?:other|installed|neighbou?ring|sibling|peer)\\s+)+(?:skills?|plugins?)\\b[^.\\n]{0,80}(?:\\.(?:claude|codex|gemini|cursor|continue|windsurf|aider|openclaw|kiro|codeium|roo|cline)/(?:skills|plugins)|SKILL\\.md|prompts?|instructions|contents)|(?:read|load|open|access|copy|exfiltrate|dump)\\s+(?:the\\s+)?SKILL\\.md\\s+(?:files?\\s+)?(?:of|from|for|in)\\s+(?:another|other|every|each|all|different|neighbou?ring)\\s+(?:installed\\s+)?(?:skills?|agents?|plugins?)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:read|dump|copy|exfiltrate|collect|harvest)\\s+(?:the\\s+)?(?:other|installed|all)\\s+skills'?\\s+(?:SKILL\\.md|prompts?|instructions|files|contents)\\b|\\b(?:open|read_text|readFile(?:Sync)?)\\s*\\(\\s*[\\\"'`](?:\\.\\./)+[\\w.-]+/SKILL\\.md|\\b(?:open|readFile(?:Sync)?)\\s*\\(\\s*[\\\"'`](?:\\./)?skills/[\\w.-]+/SKILL\\.md[\\\"'`]\\s*\\)\\s*\\.read)",
+      "description": "Skill enumerates or reads other installed skills",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Check whether the skill has a reason to look at other skills. Enumerating the skills directory or reading another skill's SKILL.md gives a skill the other skills' instructions and tool grants — reconnaissance for shadowing their triggers or reusing their permissions. Skills that legitimately compose name the one skill they depend on.",
+      "references": [
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "CWE-200",
+        "MITRE T1083"
+      ],
+      "tags": [
+        "agent-snooping",
+        "reconnaissance"
+      ]
+    },
+    {
+      "id": "INSTR-027",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:\\bopen\\s*\\(\\s*__file__\\s*,\\s*[\\\"'](?:w|a|r\\+|wb|ab|w\\+)|^\\s*__file__\\s*,\\s*[\\\"'](?:w|a|r\\+|wb|ab|w\\+)[\\\"']|\\b(?:Path|pathlib\\.Path)\\s*\\(\\s*__file__\\s*\\)(?:\\.resolve\\(\\))?\\.write_(?:text|bytes)\\b|\\b(?:writeFileSync|writeFile|appendFileSync|appendFile)\\s*\\(\\s*(?:__filename|[\\\"'](?:\\./)?SKILL\\.md[\\\"'])|\\bself[_-]?(?:modify|rewrite|patch|mutate|evolve)\\s*\\(|\\bopen\\s*\\(\\s*[\\\"'](?:\\./)?SKILL\\.md[\\\"']\\s*,\\s*[\\\"'](?:w|a|r\\+|w\\+)|(?:>{1,2}|\\btee\\s+(?:-a\\s+)?|--output(?:=|\\s+)|\\s-o\\s+)\\s*[\\\"']?(?:\\./)?SKILL\\.md\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:modify|edit|change|rewrite|update|alter|overwrite|patch|replace)\\s+(?:your\\s+own|its\\s+own|this\\s+skill'?s?(?:\\s+own)?|the\\s+skill'?s\\s+own)\\s+(?:source\\s+)?(?:code|source|files?|scripts?|config(?:uration)?|instructions|rules|prompt|SKILL\\.md|definition|behaviou?r)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:append|add|inject|insert)\\s+(?:new\\s+)?(?:code|instructions?|rules?|directives?)\\s+(?:to|into)\\s+(?:this|the\\s+current|your\\s+own)\\s+(?:file|skill|script|SKILL\\.md|prompt)\\b|(?:^[\\s>*_+\\-#\\d.)\\[\\]]*|[.;:!?,{}—–]\\s*|\\w*(?:prompt|instructions?|system|content|text|message|description|persona|directive|rules?)[\"']?\\s*[:=]\\s*[a-zA-Z]?[\"'“`]\\s*|\\b(?:and|then|also|now|please|first|next|finally|immediately|always|simply|just|silently|quietly|secretly|covertly|automatically|must|should|shall|will|would|can|may|to|you|agent|assistant|model|claude|ai|llm)\\s+)(?:remove|delete|disable|strip|comment\\s+out)\\s+(?:the\\s+|your\\s+|its\\s+|all\\s+|any\\s+)?(?:own\\s+)?(?:safety|security|guardrail|protection|sandbox)\\s+(?:checks?|mechanisms?|rules?|features?|guards?|logic|code|restrictions?)\\b)",
+      "description": "Skill rewrites its own code or instructions at run time",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check what gets written and when. A skill that rewrites its own source, its SKILL.md or its rules at run time can pass review in one form and act in another: the reviewed text is not the text that runs next time. Redirecting a command's output into SKILL.md does the same through the shell. Skills are static artifacts; an update should arrive as a new, reviewed version, not a self-edit.",
+      "references": [
+        "OWASP Agentic Top 10 — Rogue Agents",
+        "CWE-506",
+        "CWE-912",
+        "MITRE T1027"
+      ],
+      "tags": [
+        "rogue-agent",
+        "self-modification"
+      ]
+    },
+    {
+      "id": "INSTR-028",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:\\s|^|[\\\"'`])(?:--no-verify-signatures?|--skip-signature(?:-check|-verification)?|--no-signature(?:-check|-verification)?|--allow-unsigned|--insecure-skip-signature|--verify-signatures?(?:=|\\s+)(?:false|0|no|off))\\b",
+      "description": "Update or install command disables signature verification",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Drop the flag. Updating or installing a tool with signature verification switched off accepts whatever the download server returns, so a compromised mirror or a man-in-the-middle can replace the binary the agent is about to run. If a release is unsigned, pin its checksum instead.",
+      "references": [
+        "CWE-347",
+        "CWE-494",
+        "MITRE T1195.002",
+        "OWASP Agentic Top 10 — Supply Chain"
+      ],
+      "tags": [
+        "supply-chain",
+        "signature-bypass"
+      ]
+    },
+    {
+      "id": "INSTR-029",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:<!--[^\\n]*?(?:\\b(?:ignore|disregard|forget)\\s+(?:all\\s+|any\\s+)?(?:previous|prior|above|earlier|your|the\\s+user'?s?)\\b|\\bsystem\\s*(?:prompt)?\\s*:|\\byou\\s+are\\s+now\\b|\\b(?:ai|agent|assistant|llm|claude|chatgpt|copilot)\\s*[,:]\\s*(?:ignore|do|don'?t|never|always|you|run|execute|send|read|fetch|call|use|include|add|output|print|reveal)\\b|\\b(?:do\\s+not|don'?t|never)\\s+(?:tell|mention|reveal|show|inform|notify)\\s+(?:this\\s+to\\s+)?(?:the\\s+)?(?:user|human|operator|reviewer)\\b|\\b(?:send|post|upload|exfiltrate|forward|transmit|curl|wget)\\b[^\\n]{0,80}(?:https?://|webhook|\\$\\()|\\binstructions?\\s+for\\s+(?:the\\s+)?(?:ai|agent|assistant|llm|model)\\b)|^\\s*\\[[^\\]\\n]{0,20}\\]:\\s*<?#>?\\s*\\([^)\\n]*?(?:(?:\\b(?:ignore|disregard|forget)\\s+(?:all\\s+|any\\s+)?(?:previous|prior|above|earlier|your|the\\s+user'?s?)\\b|\\bsystem\\s*(?:prompt)?\\s*:|\\byou\\s+are\\s+now\\b|\\b(?:ai|agent|assistant|llm|claude|chatgpt|copilot)\\s*[,:]\\s*(?:ignore|do|don'?t|never|always|you|run|execute|send|read|fetch|call|use|include|add|output|print|reveal)\\b|\\b(?:do\\s+not|don'?t|never)\\s+(?:tell|mention|reveal|show|inform|notify)\\s+(?:this\\s+to\\s+)?(?:the\\s+)?(?:user|human|operator|reviewer)\\b|\\b(?:send|post|upload|exfiltrate|forward|transmit|curl|wget)\\b[^\\n]{0,80}(?:https?://|webhook|\\$\\()|\\binstructions?\\s+for\\s+(?:the\\s+)?(?:ai|agent|assistant|llm|model)\\b)|\\b(?:POST|send|upload|curl|wget|exfiltrate)\\b))",
+      "description": "Hidden Markdown/HTML comment carries instructions for the agent",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Open the raw file and read the comment. HTML comments and Markdown link-reference comments do not render, so a human reviewing the skill in a viewer never sees them — but the agent reads the raw text and follows it. Editor notes do not address the agent or tell it to send data; anything in a hidden comment that does is an injection channel. Move genuine notes into visible text and delete the rest.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "hidden-instruction",
+        "tool-poisoning"
+      ]
+    },
+    {
+      "id": "INSTR-030",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)(?:^\\s*[\\\"']?(?:description|when[_-]to[_-]use|triggers?|activation)[\\\"']?\\s*:[^\\n]*\\b(?:use|invoke|activate|trigger|run|load|apply)\\w*\\s+(?:this\\s+skill\\s+|me\\s+|it\\s+)?(?:for|on|with|before|after|in\\s+response\\s+to)\\s+(?:all|any|every|each)\\s+(?:user\\s+)?(?:messages?|inputs?|requests?|queries|questions?|prompts?|tasks?|conversations?|turns?|interactions?)\\s*(?:[.;,\\\"')]|$|\\s+(?:whatsoever|at\\s+all|regardless|no\\s+matter))|^\\s*[\\\"']?(?:description|triggers?)[\\\"']?\\s*:[^\\n]*\\b(?:overrides?|replaces?|intercepts?|shadows?|hijacks?|takes\\s+over)\\s+(?:the\\s+)?(?:built-?in|default|native|standard|system)\\s+(?:/[\\w-]+\\s+)?(?:commands?|slash\\s+commands?|tools?|skills?)\\b|^\\s*[\\\"']?triggers?[\\\"']?\\s*:\\s*\\[?\\s*[\\\"']?/(?:help|clear|login|logout|config|init|model|compact|permissions|mcp|review|memory|resume|doctor|cost|status)\\b)",
+      "description": "Skill description claims every request or shadows a built-in command",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "yaml",
+          "yml"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Read the skill's description as the agent's router does. A description that claims every request, or says it replaces a built-in command, makes the router load this skill in contexts that have nothing to do with its purpose — the precondition for a skill to see, and act on, conversations it was never meant for. Describe the specific tasks the skill handles.",
+      "references": [
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "OWASP LLM06"
+      ],
+      "tags": [
+        "trigger-abuse",
+        "manifest"
+      ]
+    },
+    {
+      "id": "INSTR-031",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:i[ \\t]g[ \\t]n[ \\t]o[ \\t]r[ \\t]e|d[ \\t]i[ \\t]s[ \\t]r[ \\t]e[ \\t]g[ \\t]a[ \\t]r[ \\t]d|n[ \\t]e[ \\t]v[ \\t]e[ \\t]r|a[ \\t]l[ \\t]w[ \\t]a[ \\t]y[ \\t]s|s[ \\t]e[ \\t]n[ \\t]d|e[ \\t]x[ \\t]f[ \\t]i[ \\t]l[ \\t]t[ \\t]r[ \\t]a[ \\t]t[ \\t]e|r[ \\t]e[ \\t]v[ \\t]e[ \\t]a[ \\t]l|b[ \\t]y[ \\t]p[ \\t]a[ \\t]s[ \\t]s|o[ \\t]v[ \\t]e[ \\t]r[ \\t]r[ \\t]i[ \\t]d[ \\t]e|s[ \\t]y[ \\t]s[ \\t]t[ \\t]e[ \\t]m|p[ \\t]r[ \\t]o[ \\t]m[ \\t]p[ \\t]t|i[ \\t]n[ \\t]s[ \\t]t[ \\t]r[ \\t]u[ \\t]c[ \\t]t[ \\t]i[ \\t]o[ \\t]n[ \\t]s|p[ \\t]a[ \\t]s[ \\t]s[ \\t]w[ \\t]o[ \\t]r[ \\t]d|s[ \\t]e[ \\t]c[ \\t]r[ \\t]e[ \\t]t|t[ \\t]o[ \\t]k[ \\t]e[ \\t]n|c[ \\t]u[ \\t]r[ \\t]l|w[ \\t]g[ \\t]e[ \\t]t|e[ \\t]x[ \\t]e[ \\t]c[ \\t]u[ \\t]t[ \\t]e|u[ \\t]p[ \\t]l[ \\t]o[ \\t]a[ \\t]d)\\b",
+      "description": "Directive keyword written letter-by-letter to slip past keyword filters",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "weight": 5,
+      "remediation": "Read the line with the spaces removed. Writing 'i g n o r e' or 's e n d' one letter at a time keeps a keyword filter from seeing the word while the model still reads it; there is no typographic reason to spell an instruction verb that way in an agent's instructions. Rewrite the text normally and review what it says.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "MITRE T1027"
+      ],
+      "tags": [
+        "prompt-injection",
+        "obfuscation",
+        "evasion"
+      ]
+    }
+  ]
+}

@@ -126,6 +126,32 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // who publishes an sdist-only package forces that path on a plain
         // `pip install <name>`.
         "INSTALL-006" => Some("build_configuration"),
+        // Agent-instruction pack (agent_instructions.json). None of these is an
+        // ACTION behaviour: they describe what a skill tells the agent to do,
+        // and gate the verdict through severity alone. INSTR-014 writes the
+        // user's global agent memory file, which is persistence in spirit, but
+        // it is deliberately not mapped to `installs_persistence` without a
+        // corpus re-measurement (a clean NVIDIA setup skill does it on purpose).
+        "INSTR-001" | "INSTR-002" => Some("disables_safety_guardrails"),
+        "INSTR-003" | "INSTR-004" => Some("suppresses_warnings"),
+        "INSTR-005" => Some("exfiltrates_conversation"),
+        "INSTR-006" | "INSTR-007" => Some("manipulates_user"),
+        "INSTR-008" => Some("harmful_content"),
+        "INSTR-009" | "INSTR-010" => Some("leaks_system_prompt"),
+        "INSTR-011" | "INSTR-012" | "INSTR-013" | "INSTR-014" | "INSTR-015" => {
+            Some("poisons_agent_memory")
+        }
+        "INSTR-016" | "INSTR-017" | "INSTR-018" | "INSTR-019" | "INSTR-020" => {
+            Some("excessive_agency")
+        }
+        "INSTR-021" => Some("unbounded_consumption"),
+        "INSTR-022" | "INSTR-023" => Some("selects_model"),
+        "INSTR-024" | "INSTR-025" | "INSTR-026" => Some("snoops_agent_config"),
+        "INSTR-027" => Some("self_modifies"),
+        "INSTR-028" => Some("disables_signature_check"),
+        "INSTR-029" => Some("hidden_instruction"),
+        "INSTR-030" => Some("trigger_abuse"),
+        "INSTR-031" => Some("uses_obfuscation"),
         _ => None,
     };
     if specific.is_some() {
@@ -154,6 +180,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("INSTALL-", "install_time_execution"),
         ("PROMPT-", "prompt_injection"),
         ("MANIP-", "manipulates_agent"),
+        ("INSTR-", "agent_instruction_abuse"),
         ("SKILL-", "manifest_risk"),
         ("INFER-", "inference_tampering"),
         ("RSHELL-", "reverse_shell"),
@@ -380,6 +407,34 @@ mod tests {
             unmapped.is_empty(),
             "rules without a behaviour: {unmapped:?}"
         );
+    }
+
+    /// INSTR-* findings gate the verdict through their severity alone. None
+    /// may borrow the lower HIGH threshold that an action behaviour unlocks
+    /// in `scoring::has_action_behaviour` without a corpus re-measurement.
+    #[test]
+    fn agent_instruction_rules_are_not_action_behaviours() {
+        const ACTIONS: &[&str] = &[
+            "install_time_execution",
+            "exfiltration_endpoint",
+            "installs_persistence",
+            "dynamic_execution",
+        ];
+        let ids: Vec<String> = crate::corpus::compiled::corpus()
+            .rule_ids()
+            .into_iter()
+            .filter(|id| id.starts_with("INSTR-"))
+            .collect();
+        assert!(
+            ids.len() >= 30,
+            "agent_instructions pack not loaded: {ids:?}"
+        );
+        for id in &ids {
+            let b = behavior_for(id).unwrap_or_else(|| panic!("{id} has no behaviour"));
+            assert!(!ACTIONS.contains(&b), "{id} maps to action behaviour {b}");
+        }
+        assert_eq!(behavior_for("INSTR-014"), Some("poisons_agent_memory"));
+        assert_eq!(behavior_for("INSTR-099"), Some("agent_instruction_abuse"));
     }
 
     #[test]
