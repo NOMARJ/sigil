@@ -9,6 +9,7 @@ mod hook;
 mod html_report;
 mod knowngood;
 mod ledger;
+mod mcp;
 mod output;
 mod policy;
 mod provenance;
@@ -335,6 +336,10 @@ enum Commands {
         #[command(subcommand)]
         action: ResidueAction,
     },
+
+    /// Run the built-in MCP server on stdio (for Claude Code, Cursor, Codex
+    /// and any MCP client): `claude mcp add sigil -- sigil mcp`
+    Mcp,
 
     /// Wire Sigil into AI agent and developer workflows
     Setup {
@@ -669,6 +674,8 @@ async fn main() {
         Commands::Residue { action } => cmd_residue(action, &cli.format),
 
         Commands::Setup { target } => setup::cmd_setup(&target),
+
+        Commands::Mcp => mcp::cmd_mcp(),
     };
 
     process::exit(exit_code);
