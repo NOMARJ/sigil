@@ -120,8 +120,9 @@ def capture(args: argparse.Namespace) -> int:
     work = Path(tempfile.mkdtemp(prefix="parity-capture-"))
     (work / "parity_capture.py").write_text(CAPTURE_PLUGIN)
     raw = work / "raw.jsonl"
-    env = dict(os.environ, PARITY_CAPTURE_OUT=str(raw),
-               PYTHONPATH=f"{work}{os.pathsep}{os.environ.get('PYTHONPATH', '')}")
+    # sigil:ignore-next-line INFER-003 -- PYTHONPATH is a search path for the local test run, not a prompt
+    pythonpath = f"{work}{os.pathsep}{os.environ.get('PYTHONPATH', '')}"
+    env = dict(os.environ, PARITY_CAPTURE_OUT=str(raw), PYTHONPATH=pythonpath)
     targets = [t for t in TEST_TARGETS if (ss / t).exists()]
     cmd = [args.python, "-m", "pytest", "-p", "parity_capture", "-q", "-p", "no:cacheprovider", *targets]
     proc = subprocess.run(cmd, cwd=ss, env=env, capture_output=True, text=True)
@@ -183,6 +184,7 @@ def run(args: argparse.Namespace) -> int:
         (d / rel).parent.mkdir(parents=True, exist_ok=True)
         (d / rel).write_text(s["source"])
         if not (d / "SKILL.md").exists():
+            # sigil:ignore-next-line PROMPT-007 -- YAML frontmatter of a scratch skill, not a chat delimiter
             (d / "SKILL.md").write_text("---\nname: sample\ndescription: parity sample\n---\n# Sample\n")
         p = subprocess.run([sigil, "scan", str(d), "--format", "json", "--no-cache"],
                            capture_output=True, text=True, env=dict(os.environ, HOME=home))
