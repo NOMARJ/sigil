@@ -2,8 +2,8 @@
   "meta": {
     "id": "sigil-core-supply-chain",
     "name": "Sigil Core — Supply Chain Attack Patterns",
-    "version": "1.1.0",
-    "updated_at": "2026-06-11",
+    "version": "1.2.0",
+    "updated_at": "2026-09-23",
     "author": "NOMARK <hello@sigilsec.ai>",
     "description": "Novel supply chain attack vectors: dependency polymorphism, build-time code generation, cross-language bridge exploits, and registry hijacking. Ported from Python NOVEL_VECTOR_RULES."
   },
@@ -69,26 +69,22 @@
     {
       "id": "SUPPLY-005",
       "phase": "network_exfil",
-      "severity": "high",
-      "pattern": "registry.*https?://[^\"'\\s]+|publishConfig.*registry",
-      "description": "Non-standard package registry configured",
+      "severity": "low",
+      "pattern": "publishConfig.*registry|\"registry\"\\s*:\\s*\"https?://[^\"'\\s]+",
+      "description": "Package publishes to a non-default registry (publishConfig)",
       "file_filter": {
         "filename_exact": [
-          "package.json",
-          ".npmrc",
-          "pyproject.toml"
+          "package.json"
         ]
       },
       "suppress": {
         "safe_domains": [
-          "registry.npmjs.org",
-          "pypi.org",
-          "files.pythonhosted.org"
+          "registry.npmjs.org"
         ]
       },
-      "remediation": "Confirm the registry host is a mirror or private registry your organisation runs. An .npmrc, publishConfig or pyproject registry entry pointing at an unfamiliar host lets that host serve any package under any name, which compromises every dependency at once; scope private registries to your own namespace and keep the public defaults for everything else.",
+      "remediation": "Observation only: publishConfig.registry decides where the author publishes, not where a consumer installs from. It is worth knowing when the host is unfamiliar, because it says where future versions of this package come from. Install-time redirection (.npmrc, .yarnrc, pip.conf, requirements, pyproject, Pipfile, bunfig) is reported by DEPSRC-001..007 with real host parsing, which is why this rule no longer reads those files.",
       "references": ["MITRE T1195.001", "CAPEC-437"],
-      "tags": ["supply-chain", "registry", "npm", "pypi"]
+      "tags": ["supply-chain", "registry", "npm", "publish"]
     },
     {
       "id": "SUPPLY-006",
@@ -272,5 +268,135 @@
       ]
     }
   ],
-  "provenance_rules": []
+  "provenance_rules": [],
+  "engine_rules": [
+    {
+      "id": "DEPSRC-001",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Package-manager config replaces the default registry or index",
+      "remediation": "A config file shipped with the code (.npmrc registry=, .yarnrc npmRegistryServer, bunfig [install] registry, pip.conf index-url, requirements -i/--index-url, a default uv/poetry/Pipfile source) sends every dependency through a host that is not the public registry, a known vendor index or a public mirror. That host can serve any package under any name. Unless it is a registry your organisation runs, delete the setting; if it is yours, keep it in user or CI configuration, not in the shipped tree.",
+      "references": [
+        "CWE-494",
+        "CWE-829",
+        "MITRE T1195.001",
+        "CAPEC-437",
+        "OWASP LLM03",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "registry",
+        "npm",
+        "pypi"
+      ]
+    },
+    {
+      "id": "DEPSRC-002",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Package-manager config adds an extra index or package source",
+      "remediation": "pip --extra-index-url, find-links, a non-default uv index or a supplemental poetry/Pipfile source on an unrecognised host is the dependency-confusion shape: pip picks the highest version of a name across every index, so the extra host can shadow any public package. Remove it, or pin the private packages to that index explicitly (uv explicit = true, poetry priority = \"explicit\") and hash-pin everything else.",
+      "references": [
+        "CWE-427",
+        "CWE-494",
+        "MITRE T1195.001",
+        "CAPEC-538",
+        "OWASP LLM03"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "dependency-confusion",
+        "pypi"
+      ]
+    },
+    {
+      "id": "DEPSRC-003",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "description": "Package-manager config routes a scope or pinned packages to another host",
+      "remediation": "An npm @scope:registry, a yarn npmScopes entry, a bunfig scope, or an explicit-only uv/poetry index sends one namespace to a host other than the default. That is the normal way to use a private registry, which is why this is Medium: confirm the host belongs to the owner of that scope.",
+      "references": [
+        "CWE-829",
+        "MITRE T1195.001"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "scoped-registry"
+      ]
+    },
+    {
+      "id": "DEPSRC-004",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "description": "Package-manager config disables TLS verification",
+      "remediation": "strict-ssl=false, pip trusted-host, uv allow-insecure-host or Pipfile verify_ssl = false let anyone on the network path substitute packages. It is usually a workaround for a corporate TLS proxy; that belongs in the user's own configuration with the proxy CA installed, never in shipped code.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "tls"
+      ]
+    },
+    {
+      "id": "DEPSRC-005",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Dependency fetched directly from a URL on an unrecognised host",
+      "remediation": "A requirement, pyproject dependency, Pipfile entry or package.json dependency points at a tarball, wheel or git URL on a host that is not a registry or a major code forge. Nothing guarantees the file behind that URL is the one the author tested, or that it will not change. Replace it with a registry release pinned by version and hash, or vendor the reviewed source.",
+      "references": [
+        "CWE-494",
+        "CWE-829",
+        "MITRE T1195.001",
+        "OWASP LLM03"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "direct-url"
+      ]
+    },
+    {
+      "id": "DEPSRC-006",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "description": "Install command points the package manager at an unrecognised index",
+      "remediation": "Instructions or a script run pip, uv, npm, yarn or poetry with --index-url, --extra-index-url, --registry, 'config set registry' or an equivalent environment variable naming a host that is not a default registry, known vendor index or public mirror. An agent following the skill will install whatever that host serves. Confirm who operates the host before letting the command run.",
+      "references": [
+        "CWE-494",
+        "CWE-829",
+        "MITRE T1195.001",
+        "OWASP LLM03",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "install-command"
+      ]
+    },
+    {
+      "id": "DEPSRC-007",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Package source fetched over plaintext HTTP",
+      "remediation": "A registry, index or dependency URL uses http:// to a non-local host, so any network hop can replace the packages. Switch to https:// or remove the source.",
+      "references": [
+        "CWE-319",
+        "CWE-494",
+        "MITRE T1557"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-source",
+        "plaintext"
+      ]
+    }
+  ]
 }

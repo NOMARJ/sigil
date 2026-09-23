@@ -157,6 +157,10 @@ pub struct CompiledCorpus {
     /// Finding-correlation rules, in pack order. Evaluated by
     /// `scanner::correlate` after the content phases.
     pub correlation_rules: Vec<CorrelationRule>,
+    /// Ids of rules the engine implements in Rust and a pack documents
+    /// (`engine_rules`). Listed in [`Self::rule_ids`] and the digest so a
+    /// scan records that they ran.
+    pub engine_rule_ids: Vec<String>,
     /// Rule IDs whose pattern failed to compile. Surfaced by a test so an
     /// invalid pattern is a loud failure, not a silent detection gap.
     #[allow(dead_code)]
@@ -174,6 +178,7 @@ impl CompiledCorpus {
         let mut invalid_patterns = Vec::new();
         let mut meta_by_id: HashMap<String, RuleMeta> = HashMap::new();
         let mut correlation_rules: Vec<CorrelationRule> = Vec::new();
+        let mut engine_rule_ids: Vec<String> = Vec::new();
 
         // Pack order then rule-within-pack order is preserved, because finding
         // output order is derived from it.
@@ -223,6 +228,18 @@ impl CompiledCorpus {
                 );
                 correlation_rules.push(rule.clone());
             }
+            for rule in &pack.engine_rules {
+                meta_by_id.insert(
+                    rule.id.clone(),
+                    RuleMeta {
+                        title: rule.description.clone(),
+                        remediation: rule.remediation.clone(),
+                        references: rule.references.clone(),
+                        tags: rule.tags.clone(),
+                    },
+                );
+                engine_rule_ids.push(rule.id.clone());
+            }
             // Provenance rules are not content rules and never enter a
             // RegexSet, but their metadata is looked up the same way.
             for rule in &pack.provenance_rules {
@@ -243,10 +260,13 @@ impl CompiledCorpus {
             .map(|(phase, rules)| (phase, CompiledPhase { rules }))
             .collect();
 
+        engine_rule_ids.sort_unstable();
+        engine_rule_ids.dedup();
         CompiledCorpus {
             per_phase,
             meta_by_id,
             correlation_rules,
+            engine_rule_ids,
             invalid_patterns,
         }
     }
@@ -277,6 +297,7 @@ impl CompiledCorpus {
             .values()
             .flat_map(|p| p.rules.iter().map(|r| r.id.clone()))
             .chain(self.correlation_rules.iter().map(|r| r.id.clone()))
+            .chain(self.engine_rule_ids.iter().cloned())
             .collect();
         ids.sort_unstable();
         ids.dedup();
@@ -297,6 +318,11 @@ impl CompiledCorpus {
                 self.correlation_rules
                     .iter()
                     .map(|r| (r.id.as_str(), r.description.as_str())),
+            )
+            .chain(
+                self.engine_rule_ids
+                    .iter()
+                    .map(|id| (id.as_str(), "engine")),
             )
             .collect();
         entries.sort_unstable();

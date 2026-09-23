@@ -1,0 +1,240 @@
+{
+  "meta": {
+    "id": "sigil-core-structural",
+    "name": "Sigil Core — Structural Checks",
+    "version": "1.0.0",
+    "updated_at": "2026-09-23",
+    "author": "NOMARK <hello@sigilsec.ai>",
+    "description": "Rules implemented in the scanner engine rather than as regexes: shipped Python bytecode compared against its source, executables disguised under document names, archive contents, whitespace padding that hides instructions, and declared-versus-used privilege. This pack documents them; the detection lives in cli/src/scanner/{bytecode,artifacts,padding,lpriv}.rs."
+  },
+  "rules": [],
+  "provenance_rules": [],
+  "engine_rules": [
+    {
+      "id": "ARTIFACT-001",
+      "phase": "provenance",
+      "severity": "high",
+      "description": "Python bytecode shipped (.pyc / .pyo / __pycache__)",
+      "remediation": "Bytecode runs but cannot be reviewed, and nothing guarantees it was compiled from the .py beside it. Delete every __pycache__/ directory and .pyc/.pyo file from the skill or package, add them to the ignore list used when publishing, and review only the source. If the author insists on shipping bytecode, ask why; a skill has no reason to.",
+      "references": [
+        "CWE-506",
+        "CWE-1104",
+        "MITRE T1027",
+        "OWASP LLM03",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": ["supply-chain", "bytecode", "python", "unreviewable-code"]
+    },
+    {
+      "id": "ARTIFACT-002",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "description": "Bytecode runs instead of the reviewed source (unchecked-hash pyc mismatch, or sourceless importable .pyc)",
+      "remediation": "Python will load this bytecode without consulting the .py a reviewer reads: an unchecked hash-based pyc (PEP 552) is never compared with its source, and a .pyc beside a package with no .py is imported directly. Treat the skill as backdoored: do not install or run it, disassemble the .pyc (python -m dis, or decompyle3 in an isolated VM) to see what it does, and report the publisher.",
+      "references": [
+        "CWE-506",
+        "CWE-494",
+        "MITRE T1027",
+        "MITRE T1195.001",
+        "OWASP LLM03",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": ["supply-chain", "bytecode", "backdoor", "python", "pep-552"]
+    },
+    {
+      "id": "ARTIFACT-003",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "evidence": "corroborate",
+      "description": "Bytecode compiled from different source than shipped",
+      "remediation": "The pyc header or its constants disagree with the shipped .py: a recorded source size no line-ending conversion explains, a checked hash that does not match, bytecode with no source at all, or URL constants the source never mentions. Python normally recompiles a stale timestamp pyc, but the file still proves the author ran different code than they published. Read the extracted constants in the finding's derived units, remove the bytecode, and do not trust the package until the difference is explained.",
+      "references": [
+        "CWE-506",
+        "CWE-1104",
+        "MITRE T1027",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "bytecode", "source-mismatch", "python"]
+    },
+    {
+      "id": "ARTIFACT-004",
+      "phase": "obfuscation",
+      "severity": "critical",
+      "evidence": "corroborate",
+      "description": "Executable disguised under a document, text or image name",
+      "remediation": "The file's magic bytes say ELF, PE, Mach-O, Java class or WebAssembly while its name claims a document, image or text file. There is no packaging reason for that; it exists to get past a reviewer who trusts extensions. Do not run the skill. Identify the binary (file, sha256 against a malware database) in an isolated environment, and check the skill's scripts for whatever renames, chmods or executes it.",
+      "references": [
+        "CWE-506",
+        "MITRE T1036.008",
+        "MITRE T1027",
+        "OWASP LLM03",
+        "OWASP Agentic Top 10 — Unexpected Code Execution"
+      ],
+      "tags": ["supply-chain", "masquerading", "executable", "concealment"]
+    },
+    {
+      "id": "ARTIFACT-005",
+      "phase": "obfuscation",
+      "severity": "high",
+      "description": "Archive or script disguised under a document, text or image name",
+      "remediation": "The file is an archive (zip, gzip, tar, 7z, rar...) or a #! script while its name claims a document, image or text file. Sigil still opens zip and tar contents and scans them; review those findings, then ask why the file is named as something else. Office formats that are zips by design (docx, xlsx, pptx, epub) are not reported here.",
+      "references": [
+        "CWE-506",
+        "MITRE T1036.008",
+        "MITRE T1027.009",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "masquerading", "archive", "concealment"]
+    },
+    {
+      "id": "ARTIFACT-006",
+      "phase": "obfuscation",
+      "severity": "high",
+      "description": "Native executable in a hidden file or directory",
+      "remediation": "A compiled executable sits under a dot-file or dot-directory, out of sight in a normal listing. Find what references it (grep the skill for the path), confirm where it came from, and remove it unless it is a documented, reproducible build of source that ships alongside it.",
+      "references": [
+        "CWE-506",
+        "MITRE T1564.001",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "hidden-artifact", "executable"]
+    },
+    {
+      "id": "ARTIFACT-007",
+      "phase": "provenance",
+      "severity": "low",
+      "description": "Archive shipped in the tree (contents inspected)",
+      "remediation": "Observation only: the archive was opened in memory and its text members were scanned like any other file (findings inside it carry paths such as bundle.zip!/path). Check whether the archive is needed at all; a skill that unpacks an archive at run time ships code a reviewer has to open by hand.",
+      "references": [
+        "CWE-1104"
+      ],
+      "tags": ["supply-chain", "archive", "observation"]
+    },
+    {
+      "id": "ARTIFACT-008",
+      "phase": "provenance",
+      "severity": "medium",
+      "description": "Archive could not be fully inspected",
+      "remediation": "Part of the archive was not scanned: it is corrupt, uses a format Sigil does not open (7z, rar, bzip2, xz), nests archives more than two levels deep, or exceeded the member, size or total-bytes caps. Unpack it in a sandbox and scan the result with sigil scan before trusting it.",
+      "references": [
+        "CWE-1104",
+        "CWE-409"
+      ],
+      "tags": ["supply-chain", "archive", "incomplete-inspection"]
+    },
+    {
+      "id": "ARTIFACT-009",
+      "phase": "obfuscation",
+      "severity": "high",
+      "description": "Encrypted (password-protected) archive member",
+      "remediation": "Encrypting an archive member defeats every scanner, which is why malware droppers do it. A skill has no reason to ship content its reviewer cannot read; reject it unless the password and the decrypted content are provided and reviewed.",
+      "references": [
+        "CWE-506",
+        "MITRE T1027.013",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "archive", "encryption", "concealment"]
+    },
+    {
+      "id": "ARTIFACT-010",
+      "phase": "provenance",
+      "severity": "high",
+      "description": "Archive member escapes the extraction root (zip-slip)",
+      "remediation": "A member path contains '..' or is absolute, or a link points outside the archive, so an extractor that trusts member names writes outside its target directory (overwriting shell profiles, SSH config, agent settings). Do not extract the archive with a tool that does not refuse such entries; treat the archive as hostile.",
+      "references": [
+        "CWE-22",
+        "CWE-59",
+        "MITRE T1222"
+      ],
+      "tags": ["supply-chain", "archive", "path-traversal", "zip-slip"]
+    },
+    {
+      "id": "ARTIFACT-011",
+      "phase": "obfuscation",
+      "severity": "high",
+      "description": "Executable or bytecode inside an archive",
+      "remediation": "An archive in the tree carries compiled code (ELF/PE/Mach-O/class/WASM/pyc). Packing a binary inside an archive adds a step between the reviewer and the code. Identify each binary, confirm it is reproducible from source that ships with the skill, or remove it. Java archives (.jar/.war) are not reported here: PROV-002 covers them.",
+      "references": [
+        "CWE-506",
+        "MITRE T1027.009",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "archive", "executable"]
+    },
+    {
+      "id": "PAD-001",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "description": "Whitespace padding hides instruction-like text",
+      "remediation": "A run of blank lines, spaces or invisible Unicode fillers pushes text below the fold or past the right edge of an editor, and what sits there reads as an instruction (override, secrecy, exfiltration, a command). The model reads it even though a reviewer scrolling the file will not. Open the file at the reported line, read the hidden text, and reject the skill if it instructs the agent to do something the visible description does not.",
+      "references": [
+        "CWE-451",
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Agent Goal Hijack"
+      ],
+      "tags": ["prompt-injection", "concealment", "whitespace-padding"]
+    },
+    {
+      "id": "PAD-002",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "description": "Whitespace padding pushes text out of view",
+      "remediation": "Text follows a padding run large enough to hide it in a normal view of the file. It did not match instruction wording, so this is suspicious rather than conclusive: read the text at the reported line and remove the padding.",
+      "references": [
+        "CWE-451",
+        "OWASP LLM01"
+      ],
+      "tags": ["prompt-injection", "concealment", "whitespace-padding"]
+    },
+    {
+      "id": "PAD-003",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "description": "Large whitespace padding with nothing after it",
+      "remediation": "Observation only: a large run of padding with no meaningful text after it hides nothing today, but it is the shape used to hide text and is not something a hand-written instruction file contains. Trim it.",
+      "references": [
+        "CWE-451"
+      ],
+      "tags": ["whitespace-padding", "observation"]
+    },
+    {
+      "id": "LPRIV-001",
+      "phase": "skill_security",
+      "severity": "medium",
+      "description": "Skill scripts use capabilities its declaration does not cover",
+      "remediation": "The skill declares allowed-tools or permissions, and its own scripts were seen using something that declaration does not include (shell, network, credential or environment access, file writes). Either the declaration understates what the skill does, which misleads the reviewer who approved it, or the scripts do something the author did not intend. Compare the evidence listed in the finding with the declaration and the description.",
+      "references": [
+        "CWE-250",
+        "CWE-272",
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Identity and Privilege Abuse"
+      ],
+      "tags": ["least-privilege", "manifest", "declaration-mismatch"]
+    },
+    {
+      "id": "LPRIV-002",
+      "phase": "skill_security",
+      "severity": "low",
+      "description": "Wildcard permission grant in a skill declaration",
+      "remediation": "A permissions or allowed-tools entry of '*', 'all', 'full' or 'any' removes the least-privilege boundary. Replace it with the specific capabilities the skill needs. (SKILL-008 reports the JSON and single-line forms at High; this covers the rest.)",
+      "references": [
+        "CWE-250",
+        "OWASP LLM06",
+        "OWASP Agentic Top 10 — Excessive Agency"
+      ],
+      "tags": ["least-privilege", "manifest", "wildcard"]
+    },
+    {
+      "id": "LPRIV-003",
+      "phase": "skill_security",
+      "severity": "low",
+      "description": "Declared permission no script uses",
+      "remediation": "Observation only: the skill asks for a capability none of its scripts were seen using. Remove it, so an approval covers exactly what the skill does and a later update cannot start using it silently.",
+      "references": [
+        "CWE-250",
+        "OWASP LLM06"
+      ],
+      "tags": ["least-privilege", "manifest", "overdeclared"]
+    }
+  ]
+}

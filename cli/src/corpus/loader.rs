@@ -34,6 +34,9 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/reverse_shells.json"),
     include_str!("../../packs/core/v1/persistence.json"),
     include_str!("../../packs/core/v1/agent_manipulation.json"),
+    // Metadata for the structural checks implemented in Rust
+    // (scanner::bytecode, artifacts, padding, lpriv); no regex rules.
+    include_str!("../../packs/core/v1/structural.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
@@ -738,6 +741,7 @@ mod precedence_tests {
             rules: Vec::new(),
             provenance_rules: Vec::new(),
             correlation_rules: Vec::new(),
+            engine_rules: Vec::new(),
         }
     }
 
