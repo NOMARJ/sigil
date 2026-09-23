@@ -262,17 +262,168 @@ fn vetting_targets(stage: &str) -> Option<Vec<String>> {
     Some(out)
 }
 
-/// A stage after `sigil … &&` that names one of the vetted targets.
-fn gated(gates: &[Vec<String>], stage: &str) -> bool {
-    let toks: Vec<String> = cmdline::tokenize(stage)
-        .iter()
-        .map(|t| norm(t))
-        .filter(|t| !t.is_empty())
-        .collect();
-    gates
-        .iter()
-        .flatten()
-        .any(|g| !g.is_empty() && toks.contains(g))
+/// A stage after `sigil … &&` is gated when *every* thing it acquires was
+/// vetted by the chain: `sigil npm a && npm install a b` still installs an
+/// unvetted `b`. A stage whose targets cannot be named is never gated.
+fn gated(gates: &[Vec<String>], targets: &[String]) -> bool {
+    let vetted: Vec<&String> = gates.iter().flatten().filter(|g| !g.is_empty()).collect();
+    !targets.is_empty()
+        && targets.iter().all(|t| {
+            let n = norm(t);
+            vetted.iter().any(|g| **g == n)
+        })
+}
+
+// Command patterns shared by the classifiers and `stage_targets`. Group 2
+// is the command word (see `find_at`).
+fn mcp_add_pat() -> String {
+    format!(
+        r"{WB}((\S*/)?(claude|codex|gemini)\s+mcp\s+(add|add-json|add-from-claude-desktop))(\s|$)"
+    )
+}
+fn marketplace_pat() -> String {
+    format!(r"{WB}((\S*/)?claude\s+plugins?\s+marketplace\s+add)\s")
+}
+fn extensions_pat() -> String {
+    format!(r"{WB}((\S*/)?gemini\s+extensions?\s+(install|link))\s")
+}
+fn skills_cli_pat() -> String {
+    format!(
+        r"{WB}((npx|bunx|pnpm\s+dlx|yarn\s+dlx)\s+(-\S+\s+)*(skills|add-skill|@vercel/skills)(@\S+)?\s+(add|install))\s"
+    )
+}
+/// Command position only: the start of the stage (after env assignments
+/// and wrappers like sudo/exec/xargs), or just inside a quote or paren
+/// (`bash -c 'npx …'`). `echo npx is a runner` is not a run.
+const RUNNER_PAT: &str = r#"(^\s*(?:\w+=\S*\s+)*(?:(?:sudo|exec|time|nohup|env|command|xargs)(?:\s+-\S+)*\s+)*|["'(])((\S*/)?(npx|bunx|uvx|pipx\s+run|pnpm\s+dlx|yarn\s+dlx|npm\s+(exec|x)|bun\s+x|uv\s+tool\s+run))(\s|$)"#;
+
+fn first_non_flag(toks: &[String], skip: usize) -> Option<String> {
+    toks.iter()
+        .skip(skip)
+        .find(|x| !x.starts_with('-'))
+        .cloned()
+}
+
+/// Everything a stage would acquire, as the strings a vetting `sigil`
+/// call names: packages, repository URLs, archives, copied sources, the
+/// package an MCP server runs. Empty when the stage acquires nothing the
+/// chain could have vetted (a download, a bare lockfile restore).
+fn stage_targets(stage: &str) -> Vec<String> {
+    let from = |pat: &str| find_at(stage, pat).map(|i| cmdline::tokenize(&stage[i..]));
+    if let Some(t) = from(&mcp_add_pat()) {
+        let m = parse_mcp_add(&t);
+        if let Some(r) = cmdline::parse_runner(&m.command) {
+            return vec![r.vet_target()];
+        }
+        return m
+            .command
+            .first()
+            .map(|_| m.command.clone())
+            .unwrap_or_default();
+    }
+    if let Some(t) = from(&marketplace_pat()) {
+        return first_non_flag(&t, 4).into_iter().collect();
+    }
+    if let Some(t) = from(&extensions_pat()) {
+        return first_non_flag(&t, 3).into_iter().collect();
+    }
+    if let Some(t) = from(&skills_cli_pat()) {
+        let pos = t
+            .iter()
+            .position(|x| x == "add" || x == "install")
+            .unwrap_or(t.len());
+        return first_non_flag(&t, pos + 1).into_iter().collect();
+    }
+    if let Some(r) = find_at(stage, RUNNER_PAT)
+        .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
+    {
+        return vec![r.vet_target()];
+    }
+    let mut toks = cmdline::tokenize(stage);
+    while toks
+        .first()
+        .is_some_and(|t| t == "sudo" || (t.contains('=') && !t.starts_with('-')))
+    {
+        toks.remove(0);
+    }
+    let Some(head) = toks
+        .first()
+        .map(|h| h.rsplit('/').next().unwrap_or(h).to_string())
+    else {
+        return vec![];
+    };
+    let positional = |skip_values: &[&str]| -> Vec<String> {
+        let mut out = Vec::new();
+        let mut skip = false;
+        for t in toks.iter().skip(1) {
+            if skip {
+                skip = false;
+            } else if skip_values.contains(&t.as_str()) {
+                skip = true;
+            } else if !t.starts_with('-') {
+                out.push(t.clone());
+            }
+        }
+        out
+    };
+    match head.as_str() {
+        "cp" | "mv" | "rsync" | "ln" | "install" | "scp" => {
+            let mut target_dir = None;
+            let mut it = toks.iter();
+            while let Some(t) = it.next() {
+                if t == "-t" || t == "--target-directory" {
+                    target_dir = it.next().cloned();
+                }
+            }
+            let mut args = positional(&[
+                "-t",
+                "--target-directory",
+                "-e",
+                "--exclude",
+                "-m",
+                "-o",
+                "-g",
+                "-S",
+            ]);
+            if target_dir.is_none() {
+                args.pop();
+            }
+            args
+        }
+        "unzip" => positional(&["-d", "-x"]).into_iter().take(1).collect(),
+        "7z" | "7za" => positional(&[]).into_iter().skip(1).take(1).collect(),
+        "tar" | "bsdtar" => {
+            let mut it = toks.iter().skip(1);
+            while let Some(t) = it.next() {
+                if let Some(v) = t.strip_prefix("--file=") {
+                    return vec![v.to_string()];
+                }
+                if t == "--file" || (t.starts_with('-') && !t.starts_with("--") && t.ends_with('f'))
+                {
+                    return it.next().cloned().into_iter().collect();
+                }
+            }
+            vec![]
+        }
+        "git" | "gh" => {
+            let i = toks.iter().position(|t| t == "clone").unwrap_or(toks.len());
+            first_non_flag(&toks, i + 1).into_iter().collect()
+        }
+        _ => {
+            // Package managers: every argument after the install verb.
+            match toks
+                .iter()
+                .position(|t| matches!(t.as_str(), "install" | "i" | "add" | "get"))
+            {
+                Some(i) => toks[i + 1..]
+                    .iter()
+                    .filter(|t| !t.starts_with('-'))
+                    .cloned()
+                    .collect(),
+                None => vec![],
+            }
+        }
+    }
 }
 
 fn expand(path: &str, ctx: &Context) -> PathBuf {
@@ -389,13 +540,15 @@ fn vet_source(src: &str) -> String {
     }
 }
 
-fn mcp_add(tool: &str, toks: &[String], original: &str) -> Decision {
+/// `<tool> mcp add …` as parsed: transport, URL and the server command.
+struct McpAdd {
+    transport: Option<String>,
+    url: Option<String>,
+    command: Vec<String>,
+}
+
+fn parse_mcp_add(toks: &[String]) -> McpAdd {
     let sub = toks.get(2).map(String::as_str).unwrap_or("");
-    if sub == "add-from-claude-desktop" {
-        return Decision::Ask(
-            "Imports every MCP server from Claude Desktop's config without review. Audit them first: sigil skills scan --tool claude-desktop".into(),
-        );
-    }
     const VALUED: &[&str] = &[
         "-s",
         "--scope",
@@ -478,6 +631,25 @@ fn mcp_add(tool: &str, toks: &[String], original: &str) -> Decision {
                 .or(url);
         }
     }
+    McpAdd {
+        transport,
+        url,
+        command,
+    }
+}
+
+fn mcp_add(tool: &str, toks: &[String], original: &str) -> Decision {
+    let sub = toks.get(2).map(String::as_str).unwrap_or("");
+    if sub == "add-from-claude-desktop" {
+        return Decision::Ask(
+            "Imports every MCP server from Claude Desktop's config without review. Audit them first: sigil skills scan --tool claude-desktop".into(),
+        );
+    }
+    let McpAdd {
+        transport,
+        url,
+        command,
+    } = parse_mcp_add(toks);
     let remote = url.clone().or_else(|| {
         let first = command.first()?;
         (first.starts_with("http://") || first.starts_with("https://")).then(|| first.clone())
@@ -549,15 +721,11 @@ fn agent_acquisition(stage: &str) -> Option<Decision> {
         find_at(stage, pat).map(|i| cmdline::tokenize(&stage[i..]))
     };
     let original = stage.trim();
-    if let Some(t) = from(&format!(
-        r"{WB}((\S*/)?(claude|codex|gemini)\s+mcp\s+(add|add-json|add-from-claude-desktop))(\s|$)"
-    )) {
+    if let Some(t) = from(&mcp_add_pat()) {
         let tool = t[0].rsplit('/').next().unwrap_or(&t[0]).to_string();
         return Some(mcp_add(&tool, &t, original));
     }
-    if let Some(t) = from(&format!(
-        r"{WB}((\S*/)?claude\s+plugins?\s+marketplace\s+add)\s"
-    )) {
+    if let Some(t) = from(&marketplace_pat()) {
         let src = t.iter().skip(4).find(|x| !x.starts_with('-'))?.clone();
         return Some(Decision::Deny(format!(
             "Adding a plugin marketplace trusts every plugin it lists (plugins run hooks and MCP servers with your privileges). Use: {} && {original}. {BYPASS_HINT}",
@@ -569,18 +737,14 @@ fn agent_acquisition(stage: &str) -> Option<Decision> {
             "Plugins bundle hooks, MCP servers and skills that run with your privileges. Vet the plugin's marketplace repository first: sigil clone <marketplace-repo> (claude plugin marketplace list shows it), then install with SIGIL_BYPASS=1 and audit with: sigil skills scan --tool claude-code. {BYPASS_HINT}"
         )));
     }
-    if let Some(t) = from(&format!(
-        r"{WB}((\S*/)?gemini\s+extensions?\s+(install|link))\s"
-    )) {
+    if let Some(t) = from(&extensions_pat()) {
         let src = t.iter().skip(3).find(|x| !x.starts_with('-'))?.clone();
         return Some(Decision::Deny(format!(
             "Gemini extensions add MCP servers and context the agent follows. Use: {} && {original}. {BYPASS_HINT}",
             vet_source(&src)
         )));
     }
-    if let Some(t) = from(&format!(
-        r"{WB}((npx|bunx|pnpm\s+dlx|yarn\s+dlx)\s+(-\S+\s+)*(skills|add-skill|@vercel/skills)(@\S+)?\s+(add|install))\s"
-    )) {
+    if let Some(t) = from(&skills_cli_pat()) {
         let pos = t.iter().position(|x| x == "add" || x == "install")?;
         let src = t
             .iter()
@@ -602,14 +766,7 @@ fn agent_acquisition(stage: &str) -> Option<Decision> {
 
 /// Remote package runners: fetch-and-execute in one step.
 fn runner(stage: &str, ctx: &Context) -> Option<Decision> {
-    // Command position only: the start of the stage (after env
-    // assignments and wrappers like sudo/exec/xargs), or just inside a
-    // quote or paren (`bash -c 'npx …'`). `echo npx is a runner` is not a
-    // run.
-    let at = find_at(
-        stage,
-        r#"(^\s*(?:\w+=\S*\s+)*(?:(?:sudo|exec|time|nohup|env|command|xargs)(?:\s+-\S+)*\s+)*|["'(])((\S*/)?(npx|bunx|uvx|pipx\s+run|pnpm\s+dlx|yarn\s+dlx|npm\s+(exec|x)|bun\s+x|uv\s+tool\s+run))(\s|$)"#,
-    )?;
+    let at = find_at(stage, RUNNER_PAT)?;
     let toks = cmdline::tokenize(&stage[at..]);
     let r = cmdline::parse_runner(&toks)?;
     // `npx tsc` in a project that has typescript installed runs the local
@@ -1016,7 +1173,7 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
                 continue;
             }
             let d = classify_stage(stage, &ctx);
-            let d = if d.rank() > 0 && gated(&gates, stage) {
+            let d = if d.rank() > 0 && gated(&gates, &stage_targets(stage)) {
                 Decision::Allow("Gated by a preceding sigil check on the same target".into())
             } else {
                 d

@@ -327,6 +327,24 @@ fn a_sigil_prefix_does_not_launder_the_rest_of_the_command() {
         decision("sigil npm express && npm install express@4"),
         "deny"
     );
+    // Every target must be vetted, not just one of them.
+    for cmd in [
+        "sigil npm express && npm install express evil-pkg",
+        "sigil scan ./a && cp -r ./a ./b ~/.claude/skills/",
+        "sigil scan skill.zip && unzip other.zip -d ~/.claude/skills",
+        "sigil npm foo && claude mcp add x -- npx -y bar",
+        // A download is never gated: the server picks what it serves.
+        "sigil scan https://x.io/s.zip && curl -o ~/.claude/skills/s.zip https://x.io/s.zip",
+    ] {
+        assert_eq!(decision(cmd), "deny", "expected deny: {cmd}");
+    }
+    for cmd in [
+        "sigil scan ./a && sigil scan ./b && cp -r ./a ./b ~/.claude/skills/",
+        "sigil pip ruff==0.4.0 && uvx ruff@0.4.0 check .",
+        "sigil scan ./skill.tgz && tar -xzf ./skill.tgz -C ~/.gemini/extensions",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
+    }
     // Redirections are not separators.
     assert_eq!(decision("sigil scan . 2>&1 | tee scan.log"), "allow");
 }

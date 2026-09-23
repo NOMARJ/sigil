@@ -175,11 +175,20 @@ pub struct Runner {
 }
 
 impl Runner {
+    /// The package spec as `sigil npm` / `sigil pip` takes it (`ruff@0.4.0`
+    /// in uvx syntax is `ruff==0.4.0` to pip).
+    pub fn vet_target(&self) -> String {
+        match self.ecosystem {
+            Ecosystem::Npm => self.spec.clone(),
+            Ecosystem::Pypi => self.spec.replace('@', "=="),
+        }
+    }
+
     /// The sigil command that vets this package before it runs.
     pub fn sigil_alternative(&self) -> String {
         match self.ecosystem {
-            Ecosystem::Npm => format!("sigil npm {}", self.spec),
-            Ecosystem::Pypi => format!("sigil pip {}", self.spec.replace('@', "==")),
+            Ecosystem::Npm => format!("sigil npm {}", self.vet_target()),
+            Ecosystem::Pypi => format!("sigil pip {}", self.vet_target()),
         }
     }
 }
