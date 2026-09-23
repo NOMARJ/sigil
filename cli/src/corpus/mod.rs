@@ -16,3 +16,6 @@ pub mod engine;
 pub mod loader;
 pub mod schema;
 pub mod signing;
+
+#[cfg(test)]
+mod agent_supply_chain_tests;
