@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+mod cmdline;
 mod corpus;
 mod diff;
 mod enforcement;
@@ -7,6 +8,8 @@ mod explain;
 mod feeds;
 mod hook;
 mod html_report;
+mod ingest;
+mod inventory;
 mod knowngood;
 mod ledger;
 mod mcp;
@@ -20,6 +23,7 @@ mod sandbox;
 mod sbom;
 mod scanner;
 mod setup;
+mod skillmap;
 mod transitive;
 
 use clap::{Parser, Subcommand};
@@ -354,6 +358,38 @@ enum Commands {
         /// What to set up: claude, shell, git, or all
         target: String,
     },
+
+    /// Inventory and posture-scan the agent skills, plugins, hooks and MCP
+    /// servers installed for Claude Code, Codex, Gemini CLI, Cursor,
+    /// Windsurf, VS Code, Cline/Roo, Continue, Goose, OpenCode, Zed and
+    /// OpenClaw — on this machine and in the current project
+    Skills {
+        /// scan (default): scan every item and inspect every config entry;
+        /// list: discovery only
+        #[arg(default_value = "scan", value_parser = ["scan", "list"])]
+        action: String,
+        /// Treat this directory as the home directory (fixtures, fleet
+        /// images); system-wide managed settings are then not read
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Project directory to inspect (default: current directory)
+        #[arg(long)]
+        project: Option<PathBuf>,
+        /// Skip project-scoped locations
+        #[arg(long)]
+        no_project: bool,
+        /// Skip user-level and system locations: inspect the project only
+        /// (deterministic across machines, for pre-commit and CI)
+        #[arg(long)]
+        no_user: bool,
+        /// Exit 1 when any finding is at or above this severity
+        /// (low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
+        /// Only these tools (comma-separated ids, e.g. claude-code,codex)
+        #[arg(long)]
+        tool: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -565,7 +601,31 @@ async fn main() {
             // scan. Routing it here means the obvious command does the right
             // thing instead of failing with "path does not exist".
             let target = path.to_string_lossy().to_string();
-            if looks_like_git_url(&target) {
+            // Archives (.zip/.skill/.tar.gz/...), file and archive URLs, and
+            // GitHub /tree/ links are unpacked into quarantine first (see
+            // ingest.rs); a directory, a plain file or a git URL is not
+            // touched here and keeps its existing handling.
+            let prepared = ingest::prepare(&target, &cli.format, cli.verbose).await;
+            if let Err(e) = &prepared {
+                eprintln!("{} {e}", "error:".bold().red());
+                EXIT_ERROR
+            } else if let Ok(Some(p)) = prepared {
+                cmd_scan(
+                    &p.root,
+                    &phases,
+                    &severity,
+                    submit,
+                    true,
+                    enrich,
+                    enhanced,
+                    &fail_on,
+                    ignore_ledger,
+                    follow_refs || std::env::var("SIGIL_FOLLOW_REFS").as_deref() == Ok("1"),
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            } else if looks_like_git_url(&target) {
                 cmd_clone(&target, None, false, &cli.format, cli.verbose).await
             } else {
                 cmd_scan(
@@ -686,6 +746,25 @@ async fn main() {
         Commands::Setup { target } => setup::cmd_setup(&target),
 
         Commands::Mcp => mcp::cmd_mcp(),
+        Commands::Skills {
+            action,
+            root,
+            project,
+            no_project,
+            no_user,
+            fail_on,
+            tool,
+        } => inventory::cmd_skills(
+            &action,
+            root,
+            project,
+            no_project,
+            no_user,
+            &fail_on,
+            tool.as_deref(),
+            &cli.format,
+            cli.verbose,
+        ),
     };
 
     process::exit(exit_code);
@@ -1828,13 +1907,23 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
         print!("{}", html_report::render(result, &path.to_string_lossy()));
         return;
     }
+    // Per-skill breakdown when the tree holds 2+ SKILL.md skills. Reporting
+    // only: the overall verdict and exit code are already decided.
+    let skills = skillmap::breakdown(result, path);
     if format == "json" {
-        output::print_scan_result_json(result);
+        if skills.skills.is_empty() {
+            output::print_scan_result_json(result);
+        } else {
+            let mut doc = output::scan_result_document(result);
+            doc["skills"] = skillmap::to_json(&skills);
+            println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        }
         return;
     }
     output::print_scan_summary(result);
     output::print_findings(&result.findings);
     output::print_profile(result);
+    skillmap::print_text(&skills);
     if !result.inline_suppressed.is_empty() {
         println!(
             "  {} {} finding{} suppressed by sigil:ignore markers:",

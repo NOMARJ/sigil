@@ -234,6 +234,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("KNOWNGOOD-DRIFT", "modified_known_release"),
         ("RUGPULL-", "post_approval_drift"),
         ("ARCHIVE-BOMB", "decompression_bomb"),
+        ("AGENTCFG-", "agent_config_risk"),
         // OSV advisory ids.
         ("MAL-", "known_malicious_package"),
         ("GHSA-", "known_vulnerable_dependency"),
@@ -287,6 +288,7 @@ fn builtin_title(rule_id: &str) -> Option<&'static str> {
         "PROV-REPO-MISMATCH" => Some("Package repository does not match the registry record"),
         "EXFIL-CHAIN-001" => Some("Credential read flows into an outbound network send"),
         "TYPOSQUAT-001" => Some("Dependency name is one edit away from a top package (typosquat)"),
+        id if id.starts_with("AGENTCFG-") => crate::inventory::title(id),
         _ => None,
     }
 }

@@ -1,78 +1,69 @@
-# Lightweight Dockerfile for Sigil CLI only
-# Produces a minimal Alpine-based image (~15MB)
+# syntax=docker/dockerfile:1
+#
+# Sigil CLI only: a static musl binary on Alpine.
+#
+#   docker build -f Dockerfile.cli -t sigil .            # from the repo root
+#   docker run --rm -v "$PWD:/workspace:ro" sigil scan /workspace
+#
+# Optional: --build-arg CARGO_BUILD_JOBS=2 to bound build parallelism.
 
-# Build stage
-# rust:1.75-alpine
-FROM rust:1.75-alpine@sha256:3e7eb3b035c0bae7aaa9e7c295e3cf5e4b8aa3d5 AS builder
+# ── Build stage ─────────────────────────────────────────────────────────────
+# The toolchain CI pins (.github/workflows/rust-cli.yml: RUST_TOOLCHAIN
+# 1.90.0). 1.75 could not build the current dependency tree: clap_builder
+# 4.6 and others need edition 2024 (Rust >= 1.85).
+# rust:1.90-alpine (Alpine 3.22), multi-arch index digest (amd64 + arm64).
+FROM rust:1.90-alpine@sha256:b4b54b176a74db7e5c68fdfe6029be39a02ccbcfe72b6e5a3e18e2c61b57ae26 AS builder
 
-# Install build dependencies
-RUN apk add --no-cache \
-    musl-dev \
-    openssl-dev \
-    pkgconfig \
-    git
+# musl-dev: C runtime for the static link.
+# perl, make, linux-headers: reqwest's `native-tls-vendored` feature builds
+# OpenSSL from source (openssl-src), which needs a perl and make toolchain.
+RUN apk add --no-cache musl-dev perl make linux-headers
 
 WORKDIR /build
 
-# Copy only Cargo files first for better layer caching
-COPY cli/Cargo.toml cli/Cargo.lock ./
-
-# Create dummy main.rs to build dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Copy actual source code
+# The crate embeds its detection packs with include_str!("../../packs/…")
+# relative to src/corpus/, so cli/packs must sit next to cli/src. Cargo.lock
+# is not committed (see .gitignore): the glob copies it when it exists and
+# the build is then --locked; without it the build resolves afresh.
+COPY cli/Cargo.toml cli/Cargo.lock* ./
 COPY cli/src ./src
+COPY cli/packs ./packs
 
-# Build the real binary
-RUN cargo build --release --locked && \
-    strip target/release/sigil
+ARG CARGO_BUILD_JOBS
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    LOCKED="$([ -f Cargo.lock ] && echo --locked)"; \
+    cargo build --release $LOCKED ${CARGO_BUILD_JOBS:+-j "$CARGO_BUILD_JOBS"} && \
+    cp target/release/sigil /usr/local/bin/sigil && \
+    strip /usr/local/bin/sigil && \
+    /usr/local/bin/sigil --version
 
-# Runtime stage
-# alpine:3.19
-FROM alpine:3.19@sha256:13b7e62e8df80264dbb747995705a986aa530415763a6c58f84a3ca8af9a5bcd
+# ── Runtime stage ───────────────────────────────────────────────────────────
+# alpine:3.22, multi-arch index digest.
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
-# Install runtime dependencies
-RUN apk add --no-cache \
-    ca-certificates \
-    libgcc \
-    git \
-    bash \
-    curl \
-    grep \
-    file \
-    python3
+# git: `sigil clone` and `sigil scan <git-url>` shell out to it.
+# ca-certificates: https downloads (`sigil scan https://…`, threat feeds).
+# `sigil pip` / `sigil npm` also need pip / npm; extend the image with
+# `apk add py3-pip npm` when you use them.
+RUN apk add --no-cache ca-certificates git
 
-# Create non-root user
-RUN addgroup -S sigil && adduser -S -G sigil sigil
+RUN addgroup -S sigil && adduser -S -G sigil -h /home/sigil sigil
 
-# Copy binary from builder
-COPY --from=builder /build/target/release/sigil /usr/local/bin/sigil
+COPY --from=builder /usr/local/bin/sigil /usr/local/bin/sigil
 
-# Create sigil directories
-RUN mkdir -p \
-    /home/sigil/.sigil/quarantine \
-    /home/sigil/.sigil/approved \
-    /home/sigil/.sigil/logs \
-    /home/sigil/.sigil/reports && \
-    chown -R sigil:sigil /home/sigil/.sigil
+USER sigil
+ENV HOME=/home/sigil
+RUN mkdir -p /home/sigil/.sigil/quarantine
 
-# Set working directory
 WORKDIR /workspace
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s CMD sigil help > /dev/null 2>&1 || exit 1
+# A one-shot CLI has no long-running process to probe.
+HEALTHCHECK NONE
 
-# Switch to non-root user
-USER sigil
-
-# Default command
 ENTRYPOINT ["sigil"]
 CMD ["--help"]
 
-# Labels
 LABEL org.opencontainers.image.title="Sigil CLI"
 LABEL org.opencontainers.image.description="Automated security auditing for AI agent code - CLI only"
 LABEL org.opencontainers.image.url="https://sigilsec.ai"

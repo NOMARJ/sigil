@@ -274,7 +274,13 @@ fn tool_scan_package(args: &Value, runner: &Runner) -> Result<Value, String> {
 
 fn tool_check_command(args: &Value) -> Result<Value, String> {
     let command = string_arg(args, "command")?;
-    let (decision, reason) = match hook::classify(command) {
+    // Judged in the server's own working directory and home, the same
+    // context the PreToolUse hook uses for a command run from here.
+    let ctx = hook::Context {
+        cwd: std::env::current_dir().ok(),
+        home: dirs::home_dir(),
+    };
+    let (decision, reason) = match hook::classify_in(command, &ctx) {
         hook::Decision::Allow(r) => ("allow", r),
         hook::Decision::Ask(r) => ("ask", r),
         hook::Decision::Deny(r) => ("deny", r),
