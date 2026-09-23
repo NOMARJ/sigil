@@ -1945,7 +1945,14 @@ fn script_targets(
             return None;
         };
         let meta = std::fs::metadata(&p).ok()?;
-        (meta.is_file() && meta.len() < 5 * 1024 * 1024).then_some(p)
+        if !meta.is_file() || meta.len() >= 5 * 1024 * 1024 {
+            return None;
+        }
+        // Scripts only: a compiled server binary is not something the
+        // content rules can judge, and would only earn provenance noise.
+        let mut head = [0u8; 1024];
+        let n = std::io::Read::read(&mut std::fs::File::open(&p).ok()?, &mut head).ok()?;
+        (!head[..n].contains(&0)).then_some(p)
     };
     let mut out = Vec::new();
     let mut i = 0;

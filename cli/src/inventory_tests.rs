@@ -404,6 +404,27 @@ fn no_user_limits_discovery_to_the_project() {
 }
 
 #[test]
+fn only_text_scripts_are_scanned() {
+    let d = tempfile::tempdir().unwrap();
+    put(d.path(), "srv/index.js", "console.log(1)\n");
+    std::fs::write(
+        d.path().join("srv/server-bin"),
+        b"\x7fELF\x02\x01\x01\x00\x00\x00",
+    )
+    .unwrap();
+    let parts = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let home = d.path();
+    let cwd = Some(d.path());
+    assert_eq!(
+        script_targets(&parts(&["node", "srv/index.js"]), cwd, home, None),
+        vec![d.path().join("srv/index.js")]
+    );
+    assert!(script_targets(&parts(&["./srv/server-bin", "--stdio"]), cwd, home, None).is_empty());
+    assert!(script_targets(&parts(&["npx", "-y", "pkg"]), cwd, home, None).is_empty());
+    assert!(script_targets(&parts(&["python", "-m", "server"]), cwd, home, None).is_empty());
+}
+
+#[test]
 fn symlinked_skills_are_followed_one_level() {
     let home = tempfile::tempdir().unwrap();
     let dev = tempfile::tempdir().unwrap();
