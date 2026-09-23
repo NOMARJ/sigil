@@ -516,7 +516,11 @@ mod tests {
                 "pack has empty id: {:?}",
                 pack.meta
             );
-            let has_rules = !pack.rules.is_empty() || !pack.provenance_rules.is_empty();
+            // A pack of engine_rules (metadata for checks implemented in
+            // Rust, e.g. structural.json) counts: it documents live rules.
+            let has_rules = !pack.rules.is_empty()
+                || !pack.provenance_rules.is_empty()
+                || !pack.engine_rules.is_empty();
             assert!(
                 has_rules,
                 "pack '{}' has no rules or provenance_rules",
