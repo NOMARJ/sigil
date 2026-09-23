@@ -20,6 +20,7 @@ mod sandbox;
 mod sbom;
 mod scanner;
 mod setup;
+mod skillmap;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -1835,13 +1836,23 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
         print!("{}", html_report::render(result, &path.to_string_lossy()));
         return;
     }
+    // Per-skill breakdown when the tree holds 2+ SKILL.md skills. Reporting
+    // only: the overall verdict and exit code are already decided.
+    let skills = skillmap::breakdown(result, path);
     if format == "json" {
-        output::print_scan_result_json(result);
+        if skills.skills.is_empty() {
+            output::print_scan_result_json(result);
+        } else {
+            let mut doc = output::scan_result_document(result);
+            doc["skills"] = skillmap::to_json(&skills);
+            println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        }
         return;
     }
     output::print_scan_summary(result);
     output::print_findings(&result.findings);
     output::print_profile(result);
+    skillmap::print_text(&skills);
     if !result.inline_suppressed.is_empty() {
         println!(
             "  {} {} finding{} suppressed by sigil:ignore markers:",
