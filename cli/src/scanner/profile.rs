@@ -131,6 +131,26 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "INTL-003" => Some("manipulates_agent"),
         "REF-001" => Some("downloads_executable"),
         "REF-002" => Some("unscanned_reference"),
+        // Agent supply chain pack (agent_supply_chain.json). Only two arms
+        // here are ACTION behaviours, and each was chosen for what the rule
+        // proves, not for the verdict it buys: AGENTSC-004 is code that
+        // fetches a script from an anonymous file-drop host to run it
+        // (dynamic execution in the plainest sense), and AGENTSC-030 is a
+        // skill writing itself into the agent's global instruction file
+        // (persistence). The fake-prerequisite rules describe an instruction
+        // to a human, so they get their own non-action label.
+        "AGENTSC-001" | "AGENTSC-002" | "AGENTSC-003" | "AGENTSC-005" => Some("drive_by_install"),
+        "AGENTSC-004" => Some("dynamic_execution"),
+        "AGENTSC-010" | "AGENTSC-013" => Some("harvests_credentials"),
+        "AGENTSC-011" | "AGENTSC-012" | "AGENTSC-032" | "AGENTSC-CHAIN-001" => {
+            Some("exfiltrates_data")
+        }
+        "AGENTSC-014" => Some("hardcoded_secrets"),
+        "AGENTSC-020" => Some("c2_tunnel_host"),
+        "AGENTSC-030" => Some("installs_persistence"),
+        "AGENTSC-031" => Some("manipulates_agent"),
+        "AGENTSC-040" => Some("hijacks_browser_session"),
+        "AGENTSC-041" => Some("active_content_payload"),
         _ => None,
     };
     if specific.is_some() {
@@ -165,6 +185,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("RSHELL-", "reverse_shell"),
         ("SUPPLY-", "supply_chain_manipulation"),
         ("PERSIST-", "installs_persistence"),
+        ("AGENTSC-", "agent_supply_chain"),
         ("EXFIL-", "exfiltrates_data"),
         ("TYPOSQUAT-", "typosquat_dependency"),
         ("HYGIENE-", "publish_hygiene"),

@@ -188,6 +188,12 @@ cli/src/corpus/signing.rs
 # uncompiled paths agree. Removing those fixtures would remove the guarantee
 # that the optimisation did not change detection behaviour.
 cli/src/corpus/compiled.rs
+# cli/src/corpus/agent_supply_chain_tests.rs: unit tests for the AGENTSC-* pack.
+# Same category as engine.rs — each test feeds the engine a line reduced from a
+# real malicious skill (a fake-prerequisite download link, a file-drop dropper
+# URL, an env sweep for TOKEN|SECRET, an XSS payload) to prove the rule fires,
+# next to the benign line it must leave alone. Test fixtures, not payloads.
+cli/src/corpus/agent_supply_chain_tests.rs
 # cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
 # signature patterns ("curl") and boundary-case match lines to pin the
 # multi-byte truncation fix and the phase-resolution contract.

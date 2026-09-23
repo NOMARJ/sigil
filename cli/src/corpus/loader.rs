@@ -36,6 +36,7 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/agent_manipulation.json"),
     // Prompt injection written in languages other than English.
     include_str!("../../packs/core/v1/multilingual_injection.json"),
+    include_str!("../../packs/core/v1/agent_supply_chain.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the

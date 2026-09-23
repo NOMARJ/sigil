@@ -1,0 +1,592 @@
+{
+  "meta": {
+    "id": "sigil-core-agent-supply-chain",
+    "name": "Sigil Core — Agent Supply Chain",
+    "version": "1.0.0",
+    "updated_at": "2026-09-23",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects the attack shapes of real malicious AI-agent skills that the other packs missed, measured on the Datadog malicious-software-packages-dataset ai-skills bucket (204 samples) against 455 vendor skills from Anthropic, NVIDIA, OpenAI and Vercel. Fake prerequisites (AGENTSC-001..005: a required 'CLI' downloaded from a throwaway web origin, a password-protected archive, an installer on a personal file-share, a per-OS download page, a script fetched from an anonymous file-drop host); credential and data harvesting (AGENTSC-010..014: secret-named environment sweeps, project archives that carry .env, curl uploads of host files, token and session-cookie extraction, shipped cookie jars); untrustworthy endpoints (AGENTSC-020: tunnel and IP-wildcard hosts); and agent hijacking (AGENTSC-030..041: writes to the global instruction file, tool shadowing, author-controlled default accounts, AppleScript session riding, XSS payloads aimed at skill registries)."
+  },
+  "rules": [
+    {
+      "id": "AGENTSC-001",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:download|install|get)\\b[^\\n]{0,80}?\\bfrom\\b[^\\n]{0,20}?https?://(?:[a-z0-9-]+\\.)+(?:vercel\\.app|netlify\\.app|pages\\.dev|web\\.app|firebaseapp\\.com|surge\\.sh|glitch\\.me|onrender\\.com|herokuapp\\.com|fly\\.dev|railway\\.app|replit\\.app|repl\\.co|workers\\.dev|deno\\.dev|000webhostapp\\.com|wixsite\\.com|weebly\\.com|blogspot\\.com|forum|top|xyz|icu|click|zip|mov|shop|online|site|lol|cfd|sbs|quest)(?:[:/\\s)\"'>\\]]|$)",
+      "description": "Fake prerequisite — skill sends the reader to download and install a tool from a free-hosting or throwaway web origin",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The skill makes a program downloaded from a free-hosting or throwaway web origin a condition of using it: a `*.vercel.app`, `*.netlify.app`, `*.pages.dev` or `*.workers.dev` page, or a domain on an abused TLD such as `.forum`, `.top` or `.xyz`. That is the fake-prerequisite lure behind the ClawHavoc wave of malicious agent skills: the SKILL.md itself is harmless prose, and the payload is whatever that page serves to Windows and macOS visitors, so nothing in the package can be reviewed. A real dependency is installed from a package manager or the vendor's own domain, named and versioned. Do not download the tool. Check who operates the origin, whether any script in the skill ever calls the tool, and whether the skill works without it; a 'prerequisite' that exists only on that page is the attack.",
+      "references": [
+        "MITRE T1204.002",
+        "MITRE T1608.001",
+        "CWE-494",
+        "OWASP LLM03:2025 Supply Chain",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "skill",
+        "fake-prerequisite",
+        "drive-by-install",
+        "supply-chain",
+        "clawhavoc"
+      ]
+    },
+    {
+      "id": "AGENTSC-002",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)\\.(?:zip|rar|7z)\\b[^\\n]{0,160}\\b(?:pass(?:word)?|pwd|passcode)\\b\\s*[:=]?\\s*[`\"'*]*\\w+|\\b(?:extract|unzip|unpack|decompress|open)\\w*\\b[^\\n]{0,60}\\b(?:using|with)\\s+(?:the\\s+)?(?:pass(?:word)?|pwd|passcode)\\b|\\b(?:archive|zip)\\s+password\\b",
+      "description": "Fake prerequisite — skill hands out a password-protected archive to extract and run",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "A password on an archive that a skill tells you to download does one job: it stops antivirus, mail gateways and download scanners from reading the executable inside. That is why the fake-prerequisite campaigns against agent skill registries ship their 'CLI', 'driver' or 'auth utility' as a password-protected zip with the password printed next to the link. Legitimate tools are published to a package manager or as a signed release, not behind a password that every reader is given. Do not extract or run it; report the skill to the registry.",
+      "references": [
+        "MITRE T1027",
+        "MITRE T1204.002",
+        "CWE-506",
+        "OWASP LLM03:2025 Supply Chain"
+      ],
+      "tags": [
+        "skill",
+        "fake-prerequisite",
+        "password-protected-archive",
+        "av-evasion",
+        "clawhavoc"
+      ]
+    },
+    {
+      "id": "AGENTSC-003",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(?:download|installer|setup|install|下载|下載|安装|安裝)[^\\n]{0,120}https?://(?:[a-z0-9-]+\\.)*(?:pan\\.quark\\.cn|pan\\.baidu\\.com|aliyundrive\\.com|alipan\\.com|123pan\\.com|123912\\.com|lanzou[a-z]?\\.com|lanzn\\.com|ilanzou\\.com|cowtransfer\\.com|wenshushu\\.cn|mega\\.nz|mega\\.co\\.nz|mediafire\\.com|sendspace\\.com|4shared\\.com|workupload\\.com|krakenfiles\\.com|pixeldrain\\.com|gofile\\.io|we\\.tl|wetransfer\\.com|dropmefiles\\.com|files\\.fm|disk\\.yandex\\.[a-z]+|1drv\\.ms)(?:[:/\\s)\"'>\\]]|$)",
+      "description": "Skill points the reader at an installer or app build on a personal file-sharing drive",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt",
+          "html",
+          "htm"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The skill tells the reader to install software from a share link on a personal cloud drive (Quark, Baidu, Lanzou, MEGA, MediaFire and similar) instead of the publisher's own site or an app store. Anyone can upload a repackaged installer to such a drive, the link says nothing about who built the file, and old builds of popular apps shared this way are a standard carrier for trojanised copies. Get the software from its vendor, check which version the skill really needs, and do not run a binary from the share link.",
+      "references": [
+        "MITRE T1204.002",
+        "MITRE T1608.001",
+        "CWE-494",
+        "OWASP LLM03:2025 Supply Chain"
+      ],
+      "tags": [
+        "skill",
+        "fake-prerequisite",
+        "file-share",
+        "drive-by-install"
+      ]
+    },
+    {
+      "id": "AGENTSC-004",
+      "phase": "code_patterns",
+      "severity": "critical",
+      "pattern": "(?i)https?://(?:[a-z0-9-]+\\.)*(?:tmpfiles\\.org|file\\.io|0x0\\.st|catbox\\.moe|transfer\\.sh|temp\\.sh|bashupload\\.com|gofile\\.io|pixeldrain\\.com|anonfiles\\.com|filebin\\.net|oshi\\.at|uguu\\.se|termbin\\.com|files\\.fm|filetransfer\\.io|dropmefiles\\.com|sendspace\\.com|mediafire\\.com|mega\\.nz|pan\\.quark\\.cn|pan\\.baidu\\.com|we\\.tl)/[^\\s\"'<>)]*\\.(?:py|pyc|pyz|sh|bash|ps1|psm1|bat|cmd|vbs|js|mjs|jar|exe|dll|scr|msi|dmg|pkg|deb|rpm|appimage|bin|elf|so|dylib)\\b",
+      "description": "Script or executable fetched from an anonymous file-drop host (dropper)",
+      "remediation": "A file-drop host (tmpfiles.org, catbox, transfer.sh, 0x0.st and similar) serves whatever was last uploaded under a random path, records no publisher and expires the file within hours or days. That is exactly what a dropper wants: the reviewed package contains only the URL, and the code that runs is fetched after review and can be swapped at any time. No legitimate package loads its own helper scripts or binaries from an anonymous upload service. Treat the package as malicious: do not run it, and if it already ran, look for the fetched file in temporary directories and for the process it started.",
+      "references": [
+        "MITRE T1105",
+        "MITRE T1059",
+        "CWE-494",
+        "CWE-829",
+        "OWASP LLM03:2025 Supply Chain"
+      ],
+      "tags": [
+        "dropper",
+        "file-drop-host",
+        "remote-code",
+        "supply-chain"
+      ]
+    },
+    {
+      "id": "AGENTSC-005",
+      "phase": "skill_security",
+      "severity": "medium",
+      "pattern": "(?i)\\bdownload\\b[^\\n]{0,40}\\(\\s*(?:windows|macos|mac\\s*os|os\\s*x|linux)\\b[^)\\n]{0,40}\\)\\s*from\\b|\\bskill\\s+requires\\b[^\\n]{0,40}\\bto\\s+be\\s+installed\\s+on\\s+(?:windows|macos|mac)\\b",
+      "description": "Fake prerequisite — per-OS download of a required tool from a web page, outside any package manager",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The instructions tell the reader to download a tool 'for Windows, MacOS' from a web page before the skill will work, with no package manager, version or checksum. This is the host-independent half of the fake-prerequisite lure (AGENTSC-001 names the throwaway origins): campaigns rotate the download site, but the wording — a required CLI, per operating system, fetched from a link — stays. Check whether the tool exists anywhere but that page and whether any script in the skill ever calls it; a prerequisite that nothing uses is the payload.",
+      "references": [
+        "MITRE T1204.002",
+        "CWE-494",
+        "OWASP LLM03:2025 Supply Chain"
+      ],
+      "tags": [
+        "skill",
+        "fake-prerequisite",
+        "drive-by-install",
+        "clawhavoc"
+      ]
+    },
+    {
+      "id": "AGENTSC-010",
+      "phase": "credentials",
+      "severity": "high",
+      "weight": 5,
+      "pattern": "(?i)\\b(?:env|printenv|export\\s+-p|set|Get-ChildItem\\s+env:|gci\\s+env:|dir\\s+env:|ls\\s+env:)\\s*\\|\\s*(?:e?grep|findstr|Select-String|rg)\\b[^\\n]{0,60}(?:TOKEN|SECRET|PASSW(?:OR)?D|API_?KEY|CREDENTIAL|PRIVATE_?KEY|ACCESS_?KEY)",
+      "description": "Environment swept for secret-named variables (token, secret, password, API key)",
+      "remediation": "Listing the whole environment and keeping only the variables whose names contain TOKEN, SECRET, PASSWORD or KEY has one purpose: collecting the credentials the agent's shell was started with. Debugging reads one named variable (`echo $CUDA_HOME`); an inventory or audit step has no use for secret values. Follow the variable the sweep is stored in — in the malicious skill this rule was measured on it is posted to an external endpoint as 'metrics'. Remove the step, and rotate every secret that was in the environment when it ran. Weighted above the credentials-phase default because this is a harvesting action, not a capability a client library has.",
+      "references": [
+        "MITRE T1552",
+        "MITRE T1082",
+        "CWE-526",
+        "OWASP LLM02:2025 Sensitive Information Disclosure"
+      ],
+      "tags": [
+        "credential-harvest",
+        "environment",
+        "exfiltration"
+      ]
+    },
+    {
+      "id": "AGENTSC-011",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "pattern": "\\btar\\s+(?:-[A-Za-z]*c[A-Za-z]*|c[A-Za-z]*f|--create)\\b[^\\n]*--exclude[= ]\\s*[\"']?(?:\\./)?(?:\\.git|node_modules)\\b",
+      "description": "Project archive excludes VCS and dependency folders but not .env secrets",
+      "suppress": {
+        "nearby_contains": [
+          ".env"
+        ]
+      },
+      "remediation": "This archive step drops `.git` and `node_modules` — so the author thought about what not to ship — but leaves `.env`, `.env.*` and any other secret file in the working tree inside the tarball. In the agent deploy skills this rule was measured on, the tarball is then uploaded to an unauthenticated deploy endpoint and served at a public preview URL, publishing the project's secrets with it; the vendor's corrected script adds `--exclude='.env' --exclude='.env.*'`. Add those exclusions (or build the archive from an allow-list of paths), and check where the archive is sent. Medium on its own: a release tarball built this way is a hygiene defect, and it becomes a leak when the archive leaves the machine.",
+      "references": [
+        "CWE-538",
+        "CWE-200",
+        "OWASP LLM02:2025 Sensitive Information Disclosure"
+      ],
+      "tags": [
+        "secrets",
+        "packaging",
+        "deploy",
+        "exfiltration"
+      ]
+    },
+    {
+      "id": "AGENTSC-012",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "\\bcurl\\b[^\\n]*\\s(?:(?:-F|--form|--data-binary|-d|--data)\\s+[\"']?(?:[\\w\\[\\]-]+=)?@|(?:-T|--upload-file)\\s+)\\s*[\"']?(?:/etc/|/root/|/home/|/Users/|/var/|/proc/|~/|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|\\$env:USERPROFILE)",
+      "description": "curl uploads a file from a system or home-directory path to a remote endpoint",
+      "remediation": "The command form-posts or uploads a local file taken from a system or home-directory path (`/etc`, `~`, `$HOME`, `/Users`, `/root`) rather than a file the skill produced. Messaging-webhook skills use exactly this to move host files off the machine under the cover of 'sending a message with an attachment', and the destination is often hidden inside a wrapper script. Check where the request goes and which files the agent can be told to attach; restrict attachments to a working directory the skill owns.",
+      "references": [
+        "MITRE T1048",
+        "MITRE T1567",
+        "CWE-200",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "exfiltration",
+        "file-upload",
+        "webhook"
+      ]
+    },
+    {
+      "id": "AGENTSC-013",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)(?:\\b(?:extract|harvest|steal|grab|scrape|exfiltrate)(?:s|es|ed|ing)?|\\bdump(?:ed|ing)?)\\b[^\\n]{0,40}\\b(?:refresh[_ ]tokens?|sessionid|session[_ ]cookies?|auth(?:entication)?[_ ]cookies?|login[_ ]cookies?)\\b|(?:获取|提取|抓取|导出|窃取|读取)[^\\n]{0,40}(?:sessionid|session_id|refresh_token|登录态)|\\bcookies?\\b[^\\n]{0,80}\\bname\\s*={2,3}\\s*[\"'](?:sessionid|session_id|sessid|auth_token|access_token|refresh_token)[\"']",
+      "description": "Skill's stated job is extracting refresh tokens or session cookies",
+      "remediation": "A refresh token or a session cookie is a login: whoever holds it acts as the user until it is revoked, with no password and no second factor. This skill describes pulling those values out of another application's configuration files or out of a logged-in browser and handing them back to the caller — what an infostealer does, packaged as a utility. Legitimate integrations obtain their own tokens through the provider's OAuth flow and keep them in the provider's credential store. Do not run it against a real profile; if it has run, revoke the sessions and tokens it could reach.",
+      "references": [
+        "MITRE T1539",
+        "MITRE T1528",
+        "CWE-522",
+        "OWASP LLM02:2025 Sensitive Information Disclosure"
+      ],
+      "tags": [
+        "credential-harvest",
+        "session-hijack",
+        "cookie",
+        "oauth-token"
+      ]
+    },
+    {
+      "id": "AGENTSC-014",
+      "phase": "credentials",
+      "severity": "critical",
+      "pattern": "\"name\"\\s*:\\s*\"[^\"]{1,64}\"\\s*,\\s*\"value\"\\s*:\\s*\"[^\"]{32,}\"\\s*,\\s*\"domain\"|^\\.?[A-Za-z0-9.-]+\\.[a-z]{2,}\\t(?:TRUE|FALSE)\\t/[^\\t]*\\t(?:TRUE|FALSE)\\t\\d+\\t[^\\t]+\\t\\S{20,}",
+      "description": "Saved browser session (cookie jar or storage state) with live cookie values shipped in the package",
+      "file_filter": {
+        "extensions": [
+          "json",
+          "txt"
+        ]
+      },
+      "suppress": {
+        "path_contains": [
+          "/tests/",
+          "/test/",
+          "__tests__",
+          "/fixtures/",
+          "/testdata/"
+        ]
+      },
+      "remediation": "This file is a saved browser session — a Playwright or Puppeteer storage state, or a Netscape `cookies.txt` — whose cookie values are long enough to be real. Replaying it signs in as whoever created it, with no password or second factor, for as long as the server honours the cookies; the sample this rule was measured on shipped a live single-sign-on (ADFS `MSISAuth`) session. Delete the file from the package and from its history, add it to `.gitignore`, and have the account owner sign out every session. A session belongs on the user's machine, created at run time, never inside a published skill.",
+      "references": [
+        "MITRE T1539",
+        "MITRE T1550.004",
+        "CWE-798",
+        "CWE-312"
+      ],
+      "tags": [
+        "hardcoded-secret",
+        "session-cookie",
+        "credential-leak"
+      ]
+    },
+    {
+      "id": "AGENTSC-020",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:https?|wss?)://[^\\s/\"'<>]*\\b(?:bore\\.pub|bore\\.digital|sslip\\.io|nip\\.io|xip\\.io|traefik\\.me|trycloudflare\\.com|pinggy\\.(?:io|link|online)|tunnelmole\\.net|lhr\\.life|playit\\.gg|ply\\.gg|zrok\\.io|tunnelto\\.dev|devtunnels\\.ms)(?:[:/\\s)\"'>\\]]|$)",
+      "description": "Endpoint on an ephemeral tunnel or IP-wildcard DNS host (bore.pub, sslip.io, nip.io, trycloudflare)",
+      "remediation": "The address resolves through a tunnelling service (bore.pub, trycloudflare, pinggy, tunnelmole and similar) or an IP-wildcard DNS name (`<ip>.sslip.io`, `<ip>.nip.io`), so the server behind it is a laptop or a bare cloud IP, can change hands when the tunnel restarts, and has no organisation behind the name. When the agent's MCP server or API lives there, every tool call — and any key in its headers — goes to that machine over a channel nobody can attribute. Ask for the provider's real, TLS-terminated domain, and do not connect an agent to a tunnel endpoint you do not operate. (NET-014 covers the older dynamic-DNS and ngrok-style relays.)",
+      "references": [
+        "MITRE T1572",
+        "MITRE T1090",
+        "CWE-923",
+        "OWASP Agentic Top 10 — Tool Misuse"
+      ],
+      "tags": [
+        "tunnel-host",
+        "mcp",
+        "c2",
+        "network"
+      ]
+    },
+    {
+      "id": "AGENTSC-030",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%)[/\\\\]\\.(?:claude[/\\\\]CLAUDE\\.md|gemini[/\\\\]GEMINI\\.md|codex[/\\\\](?:instructions|AGENTS)\\.md|cursor[/\\\\]rules\\b|codeium[/\\\\]windsurf[/\\\\]memories|continue[/\\\\](?:config|rules)|roo[/\\\\]rules|kiro[/\\\\]steering|config[/\\\\]opencode[/\\\\]AGENTS\\.md)",
+      "description": "Skill targets the user's global agent instruction file (~/.claude/CLAUDE.md, ~/.gemini/GEMINI.md, ~/.codex/AGENTS.md, ~/.cursor/rules)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The user's global instruction file is read by the agent at the start of every session, in every project. A skill that tells the agent to append to it — or ships a script that copies text there — turns a one-off install into a standing instruction the user never reviews again; self-propagating skills use it to make themselves load for every future task ('ensure the protocol is permanently in effect'). A skill does not need to be in the global file to work. Check the file on disk for anything the skill added and remove it. Medium because a vendor may document an explicit, opt-in global install; it is the automatic, unannounced version that is the attack.",
+      "references": [
+        "OWASP Agentic Top 10 — Memory Poisoning",
+        "OWASP LLM01:2025 Prompt Injection",
+        "MITRE T1546",
+        "CWE-15"
+      ],
+      "tags": [
+        "persistence",
+        "memory-poisoning",
+        "agent-config",
+        "self-propagation"
+      ]
+    },
+    {
+      "id": "AGENTSC-031",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:must|always|should)\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in)\\b|\\breplaces?\\s+all\\s+(?:the\\s+)?(?:built-?in|default|native|other)\\b[^\\n]{0,80}\\btools?\\b|\\b(?:instead\\s+of|never\\s+use|do\\s+not\\s+use|don.t\\s+use)\\s+(?:the\\s+)?(?:built-?in\\s+)?(?:WebFetch|WebSearch)\\b",
+      "description": "Skill tells the agent to replace its built-in web tools with the skill's service for every task",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "The skill instructs the agent to stop using the host's own tools (WebFetch, WebSearch and the like) and route every request through the skill's service instead, 'no exceptions'. That hands one third party every URL, search query and page the user's agent touches — internal ones included — and takes the host's built-in protections out of the path. A skill may offer a better tool for its own task; it should not claim all of the agent's traffic. Scope the instruction to the skill's use case or remove it, and read the service's data-retention terms before letting it see every request.",
+      "references": [
+        "OWASP Agentic Top 10 — Tool Misuse",
+        "OWASP LLM06:2025 Excessive Agency",
+        "CWE-441"
+      ],
+      "tags": [
+        "tool-shadowing",
+        "traffic-capture",
+        "prompt-injection"
+      ]
+    },
+    {
+      "id": "AGENTSC-032",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:automatically|always|by\\s+default|default\\s+to)\\b[^\\n]{0,30}\\b(?:use|send\\s+(?:from|as|via)|sign\\s+in\\s+as|log\\s*in\\s+as)\\b[^\\n]{0,15}[`\"'*]*[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}",
+      "description": "Skill silently defaults to a hard-coded third-party account (sender, login or mailbox)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "mdx",
+          "rst",
+          "prompt"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "README.md",
+          "copilot-instructions.md",
+          "manifest.json",
+          "plugin.json",
+          "mcp.json",
+          "tool.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "@example.",
+          "@your",
+          "@company.",
+          "@domain.",
+          "@acme."
+        ]
+      },
+      "remediation": "The instructions make a specific account — not the user's — the default identity for the action, and in the sample this rule was measured on they tell the agent not to ask. Every message sent that way passes through, and is kept in, an account the skill's author can read, and the user is then asked for that account's password or authorization code, which hands the author a working login as well. A legitimate skill asks the user which account to use. Remove the hard-coded default and any 'do not ask the user' instruction.",
+      "references": [
+        "OWASP LLM02:2025 Sensitive Information Disclosure",
+        "OWASP Agentic Top 10 — Identity and Privilege Abuse",
+        "CWE-359"
+      ],
+      "tags": [
+        "data-interception",
+        "hardcoded-account",
+        "consent-bypass"
+      ]
+    },
+    {
+      "id": "AGENTSC-040",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)\\btell\\s+application\\s+\\\\?\"(?:Google Chrome|Chrome|Chromium|Safari|Brave Browser|Microsoft Edge|Arc|Opera|Vivaldi)\\\\?\"[^\\n]{0,160}\\bexecute\\s+javascript\\b|\\bdo\\s+JavaScript\\b[^\\n]{0,80}\\bin\\s+(?:front\\s+)?document\\b",
+      "description": "Agent drives the user's logged-in browser through AppleScript and runs JavaScript in its tabs",
+      "remediation": "`execute javascript` (Chrome) and `do JavaScript` (Safari) run code inside the user's real, logged-in browser tab, with that site's cookies and CSRF tokens; the skill this rule was measured on calls it 'undetectable' because, to the site, it is the user. It turns the agent into a session-riding tool for every account open in that browser — posting, reading private messages, changing settings — with no API token and no consent screen. Use the platform's API with a token the user grants, or an isolated automation profile, and never enable 'Allow JavaScript from Apple Events' for an agent.",
+      "references": [
+        "MITRE T1185",
+        "MITRE T1059.002",
+        "CWE-352",
+        "OWASP Agentic Top 10 — Identity and Privilege Abuse"
+      ],
+      "tags": [
+        "browser-session-hijack",
+        "applescript",
+        "session-riding"
+      ]
+    },
+    {
+      "id": "AGENTSC-041",
+      "phase": "skill_security",
+      "severity": "high",
+      "pattern": "(?i)^\\s*(?:<[a-z]+[^>\\n]*>\\s*)*<(?:img|svg|iframe|body|details|video|audio|input|object|embed|math|marquee|select|textarea|image|style|link)\\b[^>\\n]*\\son(?:error|load|toggle|mouseover|focus|begin|pageshow|animationstart|start|beforeprint)\\s*=",
+      "description": "Agent-facing markdown carries raw HTML with an event-handler script (stored XSS payload)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "markdown"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "README.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md"
+        ]
+      },
+      "remediation": "Raw HTML with an `onerror`, `onload` or `ontoggle` handler in a SKILL.md or README does nothing to the agent, but it executes in any skill registry, marketplace or IDE panel that renders the markdown as HTML without sanitising it: a stored-XSS payload aimed at the people who browse or review skills. The sample this rule was measured on is a self-declared bug-bounty proof of concept against a skills directory, which is still a live payload for anyone who renders it. Remove the markup; to document a payload, put it inside a fenced code block so no renderer treats it as HTML.",
+      "references": [
+        "CWE-79",
+        "OWASP LLM05:2025 Improper Output Handling",
+        "MITRE T1189"
+      ],
+      "tags": [
+        "xss",
+        "html-injection",
+        "registry-attack"
+      ]
+    }
+  ],
+  "correlation_rules": [
+    {
+      "id": "AGENTSC-CHAIN-001",
+      "phase": "network_exfil",
+      "severity": "critical",
+      "description": "Secret-named environment sweep reaches a network send",
+      "weight": 10,
+      "source": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "AGENTSC-010"
+        ]
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "NET-001",
+          "NET-002",
+          "NET-003",
+          "NET-004",
+          "NET-005",
+          "NET-006",
+          "NET-007",
+          "NET-008",
+          "NET-009",
+          "NET-012",
+          "NET-014",
+          "SKILL-017",
+          "AGENTSC-012",
+          "AGENTSC-020"
+        ]
+      },
+      "window_lines": 20,
+      "sink_excludes": [],
+      "remediation": "A variable that holds the result of a secret-named environment sweep (AGENTSC-010) is sent in an outbound request a few lines later. That is credential exfiltration whatever the request is called — 'metrics', 'telemetry', 'audit'. Do not run the skill, and rotate every secret that was in the environment when it ran.",
+      "references": [
+        "MITRE T1041",
+        "MITRE T1552"
+      ],
+      "tags": [
+        "exfiltration",
+        "credential-theft",
+        "chain"
+      ]
+    }
+  ]
+}
