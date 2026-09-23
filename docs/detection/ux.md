@@ -212,3 +212,59 @@ ordinary files and ordinary skill edits are allowed.
 
 `SIGIL_BYPASS=1` (environment or command prefix) and `SIGIL_GUARD_MODE`
 (`enforce` / `advise` downgrades deny to ask / `off`) behave as before.
+
+---
+
+## 5. Measurements
+
+```
+Data Source: Real samples — 204 malicious skills (Datadog malicious-software-packages-dataset,
+             ai-skills), 455 clean vendor skills (anthropics, NVIDIA, openai, vercel-labs).
+Sample Size: as stated per row.
+Limitations: Static reading only. "Clean" means published by a vendor catalogue, not audited.
+             Single timing runs on a shared 4-CPU machine.
+```
+
+**Verdicts are unchanged.** `scripts/benchmark_skills.py --tools sigil` with the
+lane binary: malicious blocked 142/204 (69.6%), warned 149/204 (73.0%); clean
+blocked 108/455 (23.7%), warned 226/455 (49.7%); 0 errors. On the 615 samples
+also in the baseline run (dc82a94) the level differs for **0**; the 44 openai
+skills are new to this run (the baseline's discovery missed them) and account
+for the change in the clean denominator (baseline: 94/411 blocked).
+
+**The per-skill breakdown matches standalone scans.** One `sigil scan <root>`
+per vendor corpus (4 scans) produced a `skills` entry for all 455 skills; the
+level of every entry equals the level the benchmark recorded for a standalone
+`sigil scan <skill>` of the same directory: **455/455**.
+
+**Gate replay.** Every line in a shell (or untagged) fenced block of every
+`.md` file in each skill was sent to `sigil hook pretooluse` as a Bash call,
+with the old (dc82a94) and the new binary:
+
+| Corpus | Lines | Before: deny / ask / allow | After: deny / ask / allow | Skills with ≥1 deny, before → after |
+|---|---:|---|---|---|
+| malicious (160 of 204 have shell blocks) | 9,460 | 84 / 132 / 9,244 | 234 / 28 / 9,198 | 56 → 65 |
+| clean (344 of 455 have shell blocks) | 29,484 | 256 / 322 / 28,906 | 532 / 50 / 28,902 | 85 → 90 |
+
+Most of the change is the policy change for remote runners (`npx`, `uvx`, …
+moved from ask to deny with a `sigil npm|pip … &&` alternative: 103 malicious
+and 276 clean lines). Lines that were **allowed before and are stopped now**:
+47 in the malicious corpus (37 `clawhub install …`; 10 copies into
+`~/.claude/agents`, `~/.claude/skills`, `~/.openclaw/skills` and
+`~/.config/opencode/skills`) versus
+5 in the clean corpus (3 remote `claude|codex mcp add --transport http` asks,
+one `cp -R … .agents/skills/` deny, and one prose line containing
+`` `pip install` `` that is now asked). One clean line moved the other way: an
+`echo "… curl … | sh …"` message that is printed, not run.
+
+The replay found two defects in the first version of the gate, both fixed
+before this measurement: `curl … | python3 -m json.tool` was denied as
+download-to-interpreter (7 clean lines), and `amp mcp add … -- npx …` /
+`qodercli mcp add … -- npx …` slipped past the new command-position runner
+check (3 malicious lines).
+
+**Timing.** `sigil skills scan` on this machine (20 installed skills, 1 MCP
+server): 2.08 s. A tree scan of the 382-skill NVIDIA corpus took 55.2 / 55.8 s
+with the baseline binary and 45.4 / 44.0 s with the lane binary; the per-skill
+breakdown adds a second directory walk, so the difference is machine load, not
+a speed-up — read it as "no measurable overhead".
