@@ -7,6 +7,7 @@ mod explain;
 mod feeds;
 mod hook;
 mod html_report;
+mod ingest;
 mod knowngood;
 mod ledger;
 mod output;
@@ -551,7 +552,30 @@ async fn main() {
             // scan. Routing it here means the obvious command does the right
             // thing instead of failing with "path does not exist".
             let target = path.to_string_lossy().to_string();
-            if looks_like_git_url(&target) {
+            // Archives (.zip/.skill/.tar.gz/...), file and archive URLs, and
+            // GitHub /tree/ links are unpacked into quarantine first (see
+            // ingest.rs); a directory, a plain file or a git URL is not
+            // touched here and keeps its existing handling.
+            let prepared = ingest::prepare(&target, &cli.format, cli.verbose).await;
+            if let Err(e) = &prepared {
+                eprintln!("{} {e}", "error:".bold().red());
+                EXIT_ERROR
+            } else if let Ok(Some(p)) = prepared {
+                cmd_scan(
+                    &p.root,
+                    &phases,
+                    &severity,
+                    submit,
+                    true,
+                    enrich,
+                    enhanced,
+                    &fail_on,
+                    ignore_ledger,
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            } else if looks_like_git_url(&target) {
                 cmd_clone(&target, None, false, &cli.format, cli.verbose).await
             } else {
                 cmd_scan(
