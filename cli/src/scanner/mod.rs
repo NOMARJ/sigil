@@ -1,11 +1,16 @@
+pub mod artifacts;
 pub mod budget;
 pub mod bundled;
+pub mod bytecode;
 pub mod cloud_sigs;
 pub mod context;
 pub mod correlate;
+pub mod depsrc;
 pub mod derive;
+pub mod lpriv;
 pub mod manifests;
 pub mod normalize;
+pub mod padding;
 pub mod phases;
 pub mod profile;
 pub mod scoring;
@@ -708,6 +713,14 @@ fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
     })
 }
 
+/// One unit of content for the per-file pipeline: a file on disk, or text
+/// the structural pass recovered from one (an archive member, the string
+/// constants of bytecode that is not its shipped source).
+enum ScanUnit<'a> {
+    Disk(&'a PathBuf),
+    Virtual(bytecode::VirtualFile),
+}
+
 /// Collect candidate files honoring `.gitignore` (only inside real git repos —
 /// `require_git(true)` — so a malicious `.gitignore` inside an extracted
 /// tarball cannot hide files from the scanner), `.sigilignore` (always), and
@@ -798,6 +811,31 @@ pub fn run_scan(
         });
     }
 
+    // Structural checks a regex cannot express (scanner::bytecode,
+    // scanner::artifacts): shipped bytecode against its source, magic bytes
+    // against file names, and the contents of bundled archives. Text they
+    // recover — archive members, the constants of bytecode that is not the
+    // shipped source — is scanned below exactly like a file on disk.
+    let virtual_files = timing::measure(timing::Stage::Provenance, || {
+        let mut tree = bytecode::scan(path, strip_base);
+        let mut art = artifacts::scan(strip_base, &files);
+        tree.findings.append(&mut art.findings);
+        tree.units.append(&mut art.units);
+        findings.extend(
+            tree.findings
+                .into_iter()
+                .filter(|f| should_run_phase(f.phase)),
+        );
+        tree.units
+    });
+    // Archive members are files the scan read; bytecode constants are a view
+    // of a file that was already counted as shipped bytecode.
+    let files_scanned = files_scanned
+        + virtual_files
+            .iter()
+            .filter(|v| v.label == "archive member")
+            .count();
+
     // One clock per file, read once: `configured_budget` parses an
     // environment variable, which is not something to do 2,794 times.
     let file_budget_limit = budget::configured_budget();
@@ -806,42 +844,56 @@ pub fn run_scan(
     // so results stay deterministic. Each file yields its active findings and
     // the ones an inline `sigil:ignore` marker set aside, with attribution.
     type FileOutcome = (Vec<Finding>, Vec<(Finding, String)>);
-    let per_file: Vec<FileOutcome> = files
-        .par_iter()
-        .map(|file_path| {
+    let units: Vec<ScanUnit<'_>> = files
+        .iter()
+        .map(ScanUnit::Disk)
+        .chain(virtual_files.into_iter().map(ScanUnit::Virtual))
+        .collect();
+    let per_file: Vec<FileOutcome> = units
+        .into_par_iter()
+        .map(|unit| {
             let file_start = std::time::Instant::now();
             let none: FileOutcome = (Vec::new(), Vec::new());
             // An oversized file yields its head as `contents` and its tail
             // separately; a normal file yields its whole text and no tail.
-            let read = timing::measure(timing::Stage::Read, || {
-                match std::fs::metadata(file_path) {
-                    Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
-                        oversized_excerpt(file_path, meta.len())
-                            .map(|ex| (ex.head, Some((ex.tail, ex.tail_line_offset))))
-                    }
-                    Ok(_) => match std::fs::read(file_path) {
-                        Ok(bytes) => {
-                            // Skip binary files (contains null bytes) and use lossy UTF-8
-                            if bytes.contains(&0) {
-                                None
-                            } else {
-                                Some((String::from_utf8_lossy(&bytes).into_owned(), None))
-                            }
-                        }
-                        Err(_) => None,
-                    },
-                    Err(_) => None,
+            // A virtual file (archive member, bytecode constants) is already
+            // text and carries its own path, locator and label.
+            let (read, rel_path, derived) = match unit {
+                ScanUnit::Virtual(v) => {
+                    (Some((v.text, None)), v.rel_path, Some((v.locator, v.label)))
                 }
-            });
+                ScanUnit::Disk(file_path) => {
+                    let read = timing::measure(timing::Stage::Read, || {
+                        match std::fs::metadata(file_path) {
+                            Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
+                                oversized_excerpt(file_path, meta.len())
+                                    .map(|ex| (ex.head, Some((ex.tail, ex.tail_line_offset))))
+                            }
+                            Ok(_) => match std::fs::read(file_path) {
+                                Ok(bytes) => {
+                                    // Skip binary files (contains null bytes) and use lossy UTF-8
+                                    if bytes.contains(&0) {
+                                        None
+                                    } else {
+                                        Some((String::from_utf8_lossy(&bytes).into_owned(), None))
+                                    }
+                                }
+                                Err(_) => None,
+                            },
+                            Err(_) => None,
+                        }
+                    });
+                    let rel_path = file_path
+                        .strip_prefix(strip_base)
+                        .unwrap_or(file_path)
+                        .to_string_lossy()
+                        .to_string();
+                    (read, rel_path, None)
+                }
+            };
             let Some((contents, tail)) = read else {
                 return none;
             };
-
-            let rel_path = file_path
-                .strip_prefix(strip_base)
-                .unwrap_or(file_path)
-                .to_string_lossy()
-                .to_string();
 
             let mut file_findings: Vec<Finding> = Vec::new();
 
@@ -849,6 +901,20 @@ pub fn run_scan(
             if should_run_phase(Phase::SkillSecurity) {
                 file_findings.extend(timing::measure(timing::Stage::Manifests, || {
                     manifests::malformed_manifest(&rel_path, &contents)
+                }));
+            }
+
+            // Parsed checks on the raw text: package-manager settings that
+            // redirect dependency sources (scanner::depsrc), and whitespace
+            // padding that pushes text out of view (scanner::padding).
+            if should_run_phase(Phase::NetworkExfil) {
+                file_findings.extend(timing::measure(timing::Stage::Manifests, || {
+                    depsrc::scan_file(&rel_path, &contents)
+                }));
+            }
+            if should_run_phase(Phase::PromptInjection) {
+                file_findings.extend(timing::measure(timing::Stage::Manifests, || {
+                    padding::scan_file(&rel_path, &contents)
                 }));
             }
 
@@ -1015,6 +1081,16 @@ pub fn run_scan(
             kept.extend(chain_kept);
             silenced.append(&mut chain_silenced);
 
+            // Findings from derived text say where the text came from.
+            if let Some((locator, label)) = &derived {
+                for f in kept.iter_mut().chain(silenced.iter_mut().map(|(f, _)| f)) {
+                    f.snippet = format!("[{label}] {}", f.snippet);
+                    if f.locator.is_none() {
+                        f.locator = Some(locator.clone());
+                    }
+                }
+            }
+
             if timing::enabled() {
                 let shape = bundled::LineShape::measure(&source_text);
                 timing::record_file(timing::FileRecord {
@@ -1047,6 +1123,16 @@ pub fn run_scan(
     // whether or not the package is ever imported.
     let links = manifests::link_install_referenced(strip_base, &files, &findings);
     findings.extend(links);
+
+    // Least privilege: a skill's declared tools/permissions against the
+    // capabilities its scripts were seen using (scanner::lpriv). Runs last
+    // because its evidence is the other phases' findings.
+    if should_run_phase(Phase::SkillSecurity) {
+        let lp = timing::measure(timing::Stage::Manifests, || {
+            lpriv::check(strip_base, &files, &findings)
+        });
+        findings.extend(lp);
+    }
 
     if let Some(min) = min_sev {
         findings.retain(|f| f.severity >= min);

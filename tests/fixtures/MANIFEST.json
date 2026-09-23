@@ -1,6 +1,6 @@
 {
   "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 29,
+  "sample_size": 33,
   "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
@@ -201,6 +201,33 @@
       "expect_phase": "CodePatterns",
       "expect_min_severity": "High",
       "source": "PE dropper carried as a bytes literal (Datadog pypi sample shape, 22 MB padded setup.py)",
+      "synthetic": true
+    },
+    {
+      "path": "structural/depsrc/.npmrc",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "Dependency source redirection shipped in a skill (SkillSpector SC10 shape; DEPSRC-001)",
+      "synthetic": true
+    },
+    {
+      "path": "structural/padding/SKILL.md",
+      "expect_phase": "PromptInjection",
+      "expect_min_severity": "High",
+      "source": "Instruction hidden below 120 blank lines (SkillSpector P9 shape; PAD-001)",
+      "synthetic": true
+    },
+    {
+      "path": "structural/lpriv",
+      "expect_phase": "SkillSecurity",
+      "expect_min_severity": "Medium",
+      "source": "allowed-tools declares Read/Grep while the script posts to the network (SkillSpector LP1 shape; LPRIV-001)",
+      "synthetic": true
+    },
+    {
+      "path": "clean/requirements-vendor.txt",
+      "expect_clean": true,
+      "source": "Vendor index (PyTorch) control for DEPSRC",
       "synthetic": true
     }
   ]
