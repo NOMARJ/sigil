@@ -155,6 +155,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // A Low observation ("from now on, always …"), split out of INSTR-011
         // so a project's own instruction file is not read as memory poisoning.
         "INSTR-032" => Some("standing_directive"),
+        "INSTR-033" => Some("deceives_user"),
         _ => None,
     };
     if specific.is_some() {

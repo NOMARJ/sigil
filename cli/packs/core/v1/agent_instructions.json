@@ -1923,6 +1923,69 @@
         "memory-poisoning",
         "observation"
       ]
+    },
+    {
+      "id": "INSTR-033",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:(?:never|do\\s+not|don'?t|must\\s+not|should\\s+not)\\s+(?:ever\\s+)?(?:mention|acknowledge|reveal|disclose|admit|confirm|hint\\s+at|discuss|tell\\s+(?:the\\s+)?users?\\s+about)(?:\\s*,\\s*(?:or\\s+)?(?:mention|acknowledge|reveal|disclose|admit|confirm|hint\\s+at|discuss|tell\\s+(?:the\\s+)?users?\\s+about)|\\s+or\\s+(?:mention|acknowledge|reveal|disclose|admit|confirm|hint\\s+at|discuss|tell\\s+(?:the\\s+)?users?\\s+about))*\\s+(?:that\\s+)?(?:the\\s+existence\\s+of\\s+)?(?:this|the)\\s+(?:skill|plugin|extension)\\s*(?:[.;!]|$|\\s+(?:exists|is\\s+(?:installed|active|loaded|running)|to\\s+the\\s+user)(?-u:\\b))|you\\s+have\\s+no\\s+(?:skills?|plugins?|extensions?|modifications?)(?:(?:\\s*,\\s*(?:or\\s+)?|\\s+or\\s+)(?:skills?|plugins?|extensions?|modifications?))+\\s+installed(?-u:\\b)|(?:do\\s+not|don'?t|never)\\s+(?:ever\\s+)?write\\s+(?:working|functional|functioning|correct)\\s+code(?-u:\\b)|(?-u:\\b)code\\s+you\\s+(?:write|produce|generate)\\s+(?:must|should|will)\\s+(?:not|never)\\s+(?:work|run|compile)(?-u:\\b)|(?:every|each)\\s+(?:single\\s+)?file\\s+you\\s+(?:write|edit|create|touch)\\s+must\\s+contain\\s+(?:at\\s+least\\s+)?[\\w-]+\\s+(?:(?:subtle|hidden|new)\\s+)?bugs?(?-u:\\b))",
+      "description": "Agent instruction — hides the skill from the user or sabotages the user's work",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "mdx",
+          "mdc",
+          "markdown",
+          "txt",
+          "rst",
+          "prompt",
+          "yaml",
+          "yml",
+          "py",
+          "js",
+          "mjs",
+          "cjs",
+          "ts",
+          "tsx",
+          "jsx",
+          "sh",
+          "bash",
+          "zsh",
+          "ps1",
+          "rb",
+          "go"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read the skill as the user would experience it. An instruction to deny the skill exists, to never acknowledge it, or to tell the user nothing is installed hides the skill from the one person who could remove it; an instruction that the code must not work, or that every file must carry bugs, turns the agent against the work it was asked to do. No legitimate skill needs either. Remove the skill; a skill that wants unobtrusive answers says 'do not describe your process', not 'deny this skill exists'.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Human-Agent Trust Exploitation",
+        "OWASP Agentic Top 10 — Rogue Agents",
+        "CWE-1427"
+      ],
+      "tags": [
+        "prompt-injection",
+        "deception",
+        "sabotage"
+      ]
     }
   ]
 }
