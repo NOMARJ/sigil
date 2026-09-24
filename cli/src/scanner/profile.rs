@@ -152,6 +152,9 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "INSTR-029" => Some("hidden_instruction"),
         "INSTR-030" => Some("trigger_abuse"),
         "INSTR-031" => Some("uses_obfuscation"),
+        // A Low observation ("from now on, always …"), split out of INSTR-011
+        // so a project's own instruction file is not read as memory poisoning.
+        "INSTR-032" => Some("standing_directive"),
         _ => None,
     };
     if specific.is_some() {
