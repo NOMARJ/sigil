@@ -2290,4 +2290,23 @@ mod agent_instruction_tests {
             &["The values x y z are coordinates.", "Press a b c to cycle."],
         );
     }
+
+    /// Most INSTR rules carry a `^` and so cannot be gated on a whole-file
+    /// search: they run on every line of every file they apply to, minified
+    /// bundles included. The regex crate's lazy DFA gives up on a Unicode
+    /// word boundary as soon as the haystack holds a non-ASCII byte, and the
+    /// fallback engine is slow enough that the first version of this pack
+    /// took 36 s of matching on one 1.5 MB minified bundle and ran the file
+    /// out of its 30 s scan budget. Every boundary is the ASCII form.
+    #[test]
+    fn patterns_use_ascii_word_boundaries() {
+        for r in &instr_pack()[0].rules {
+            let rest = r.pattern.replace(r"(?-u:\b)", "");
+            assert!(
+                !rest.contains(r"\b"),
+                "{}: use (?-u:\\b), not \\b (see the comment above)",
+                r.id
+            );
+        }
+    }
 }
