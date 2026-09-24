@@ -1036,7 +1036,23 @@ pub async fn prepare(
     format: &str,
     verbose: bool,
 ) -> Result<Option<Prepared>, String> {
-    let plan = plan(target)?;
+    // `mcp:<server>[@<version>]`: resolve the registry entry to the package
+    // or repository it publishes, then fetch that like any other target.
+    let registry = target.trim().strip_prefix("mcp:");
+    let plan = match registry {
+        Some(name) => {
+            let r = crate::mcp_registry::resolve(name).await?;
+            progress(
+                format,
+                format!("{} MCP registry: {}", "sigil:".bold().cyan(), r.what.bold()),
+            );
+            for note in &r.notes {
+                progress(format, format!("       {note}"));
+            }
+            r.plan
+        }
+        None => plan(target)?,
+    };
     if let Plan::Probe(url) = &plan {
         if is_git_remote(url).await {
             return Ok(None); // the existing clone path handles it
@@ -1047,6 +1063,7 @@ pub async fn prepare(
     }
     let (source, source_type) = match &plan {
         Plan::Passthrough => return Ok(None),
+        _ if registry.is_some() => (target.trim().to_string(), "mcp-registry"),
         Plan::LocalArchive(p) => (
             fs::canonicalize(p)
                 .unwrap_or_else(|_| p.clone())

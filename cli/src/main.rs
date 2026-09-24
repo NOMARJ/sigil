@@ -13,6 +13,7 @@ mod inventory;
 mod knowngood;
 mod ledger;
 mod mcp;
+mod mcp_registry;
 mod output;
 mod policy;
 mod provenance;
@@ -96,7 +97,9 @@ enum Commands {
 
     /// Scan an existing directory or file
     Scan {
-        /// Path to scan, or a git URL (cloned into quarantine first)
+        /// Path to scan, a git URL, an archive or file URL, a GitHub /tree/
+        /// link, or mcp:<server-name>[@version] from the MCP registry
+        /// (fetched into quarantine first)
         path: PathBuf,
 
         /// Phases to run (comma-separated, or "all")

@@ -270,6 +270,33 @@ sigil scan ./pkg --format sarif > sigil.sarif   # GitHub Code Scanning upload
 sigil scan ./skill --follow-refs                # Also scan the installer it tells you to run
 ```
 
+#### Scanning an MCP server from the MCP registry
+
+```bash
+sigil scan mcp:io.github.owner/server-name          # latest version
+sigil scan mcp:io.github.owner/server-name@1.4.0    # a pinned version
+```
+
+Sigil looks the server up in the official MCP registry
+(`registry.modelcontextprotocol.io`). Set `SIGIL_MCP_REGISTRY_URL` to use a
+private sub-registry that implements the same `/v0/servers` API. Sigil then
+fetches the exact code the entry publishes into quarantine and scans it:
+
+1. an npm package: the tarball of the pinned `identifier@version` from
+   registry.npmjs.org;
+2. a PyPI package: that version's sdist, or its first wheel if there is no sdist;
+3. an `.mcpb` bundle served over https;
+4. otherwise, the GitHub source repository at its default branch, limited to
+   the entry's `subfolder` if it names one.
+
+Before the scan, it prints the transport, the secrets the server asks for
+(environment variables marked `isSecret`) and any remote endpoints.
+
+An npm package whose `registryBaseUrl` is not the public registry is not
+followed, because that URL comes from the registry entry and is untrusted
+input; Sigil falls back to the repository. A remote-only server has no code
+to scan, and Sigil exits 2 saying so rather than reporting a clean verdict.
+
 #### Following references
 
 A skill does not have to ship its payload. It can ship a clean `SKILL.md` that
@@ -816,6 +843,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+| `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 
 ---
