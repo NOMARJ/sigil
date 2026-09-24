@@ -211,7 +211,11 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
     // behaviour profile is read as a description of the package — so it
     // contributes none. Returning early matters: the "PROV-" family below
     // would otherwise assert a provenance anomaly nobody observed.
-    if rule_id == crate::scanner::budget::BUDGET_RULE_ID {
+    // The same holds for the partial-read finding (scanner::coverage): an
+    // unreadable or partly read file says nothing about what the package does.
+    if rule_id == crate::scanner::budget::BUDGET_RULE_ID
+        || rule_id == crate::scanner::coverage::RULE_PARTIAL
+    {
         return None;
     }
 
@@ -446,6 +450,7 @@ mod tests {
         // A truncated scan is a fact about the scan, not a behaviour of the
         // package: it must not be reported as a provenance anomaly.
         assert_eq!(behavior_for(crate::scanner::budget::BUDGET_RULE_ID), None);
+        assert_eq!(behavior_for(crate::scanner::coverage::RULE_PARTIAL), None);
         assert_eq!(behavior_for("PROV-DOWNGRADE"), Some("provenance_drift"));
         assert_eq!(behavior_for("TOTALLY-UNKNOWN"), None);
     }
@@ -454,10 +459,16 @@ mod tests {
     /// profile silently under-reports the moment a pack adds a family.
     #[test]
     fn every_corpus_rule_maps_to_a_behavior() {
+        // Coverage findings are facts about the scan, not behaviours of the
+        // package, and deliberately map to none.
         let unmapped: Vec<String> = crate::corpus::compiled::corpus()
             .rule_ids()
             .into_iter()
             .filter(|id| behavior_for(id).is_none())
+            .filter(|id| {
+                id != crate::scanner::budget::BUDGET_RULE_ID
+                    && id != crate::scanner::coverage::RULE_PARTIAL
+            })
             .collect();
         assert!(
             unmapped.is_empty(),

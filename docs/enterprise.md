@@ -51,12 +51,14 @@ runner:
 version: 1
 fail_on: high               # exit 1 on any finding at or above HIGH
 fail_on_verdict: HIGH       # ...or when the overall verdict is HIGH or CRITICAL
+fail_on_incomplete: true    # ...or when anything could not be fully inspected
 disable_rules: []           # nothing switched off centrally
 rule_packs:
   - /etc/sigil/packs/        # your signed packs (a directory or files)
 locked:                     # project files and flags can only tighten these
   - fail_on
   - fail_on_verdict
+  - fail_on_incomplete
   - disable_rules
   - ignore_paths
   - trusted_domains
@@ -86,7 +88,7 @@ Behaviour you can rely on:
   defaults silently.
 - **Locked keys.** For a locked key, a project file or a flag may only make the
   scan stricter: a lower `fail_on`/`fail_on_verdict`/`min_severity`, raised
-  severities. Additions to a locked list (`disable_rules`, `ignore_paths`,
+  severities, `fail_on_incomplete` switched on but never off. Additions to a locked list (`disable_rules`, `ignore_paths`,
   `trusted_domains`, `rule_packs`) and a locked `baseline` are refused. Each
   refusal is printed as a warning on stderr and listed in the JSON report under
   `policy.refused`. `locked: [all]` locks every lockable key.
@@ -94,6 +96,16 @@ Behaviour you can rely on:
   or passed with `--config`) tighten-only, whether or not keys are locked.
 - `locked` and `allow_project_policy` are only accepted in the organisation
   file; a project file that uses them is rejected with an error.
+- **Fail closed on coverage.** `fail_on_incomplete: true` fails a scan that
+  could not fully inspect the target: an unreadable file or directory, a text
+  file over 10 MB scanned only at its two ends, an instruction or markdown
+  file whose bytes are not decodable text, a file whose analysis ran out of
+  time, an archive that could not be opened or is encrypted, or a reference
+  `--follow-refs` could not fetch. The JSON report carries
+  `summary.complete` and `summary.incomplete_count`, and the findings name each
+  gap (`PROV-INCOMPLETE-001`, `PROV-BUDGET-001`, `ARTIFACT-008`,
+  `ARTIFACT-009`, `REF-002`). Lock `disable_rules` as well, so a project cannot
+  suppress those rules to get around the gate.
 
 ## Project policy and the scanned-tree guard
 
@@ -225,7 +237,7 @@ diff, rules and config) and the `exit_code_tests` in `cli/src/main.rs`
 
 | Command | 0 | 1 | 2 |
 |---|---|---|---|
-| `sigil scan` | no active finding at or above `fail_on` (default `high`) and verdict below `fail_on_verdict` | the gate failed | the scan could not run or produce its report: missing path, invalid policy/flag/format, unreadable baseline, unverifiable or invalid rule pack, report file not writable, `--enhanced` without login |
+| `sigil scan` | no active finding at or above `fail_on` (default `high`), verdict below `fail_on_verdict`, and, with `fail_on_incomplete`, nothing left uninspected | the gate failed | the scan could not run or produce its report: missing path, invalid policy/flag/format, unreadable baseline, unverifiable or invalid rule pack, report file not writable, `--enhanced` without login |
 | `sigil clone` / `pip` / `npm` | verdict LOW RISK | any other verdict | acquisition or scan failed |
 | `sigil diff` | no new findings | new findings | unreadable baseline or path |
 | `sigil baseline` | baseline written | — | scan or write failed |

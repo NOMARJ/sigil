@@ -153,6 +153,14 @@ enum Commands {
         #[arg(long, value_name = "VERDICT")]
         fail_on_verdict: Option<String>,
 
+        /// Also exit 1 when part of the target could not be fully inspected:
+        /// an unreadable file or directory, an oversized file scanned only at
+        /// its ends, a file that ran out of scan time, an archive that could
+        /// not be opened fully, or a reference --follow-refs could not fetch.
+        /// Also SIGIL_FAIL_ON_INCOMPLETE=1, or fail_on_incomplete in a policy
+        #[arg(long)]
+        fail_on_incomplete: bool,
+
         /// Accept the findings recorded in this baseline (see `sigil baseline`):
         /// they are reported as suppressed and do not fail the scan
         #[arg(long, value_name = "FILE")]
@@ -671,6 +679,7 @@ async fn main() {
             enhanced,
             fail_on,
             fail_on_verdict,
+            fail_on_incomplete,
             baseline,
             no_project_config,
             ignore_ledger,
@@ -682,9 +691,12 @@ async fn main() {
             let target = path.to_string_lossy().to_string();
             let follow_refs =
                 follow_refs || std::env::var("SIGIL_FOLLOW_REFS").as_deref() == Ok("1");
+            let fail_on_incomplete = fail_on_incomplete
+                || std::env::var("SIGIL_FAIL_ON_INCOMPLETE").as_deref() == Ok("1");
             let policy_args = ScanPolicyArgs {
                 fail_on,
                 fail_on_verdict,
+                fail_on_incomplete,
                 baseline,
                 no_project_config,
                 config: cli.config.clone(),
@@ -2069,6 +2081,7 @@ fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) ->
 struct ScanPolicyArgs {
     fail_on: Option<String>,
     fail_on_verdict: Option<String>,
+    fail_on_incomplete: bool,
     baseline: Option<PathBuf>,
     no_project_config: bool,
     config: Option<PathBuf>,
@@ -2095,6 +2108,7 @@ fn load_policy(
         cli: project_config::CliPolicy {
             fail_on: args.fail_on.clone(),
             fail_on_verdict: args.fail_on_verdict.clone(),
+            fail_on_incomplete: args.fail_on_incomplete,
             min_severity,
             baseline: args.baseline.clone(),
             rules: args.rules.clone(),
@@ -2539,10 +2553,12 @@ async fn cmd_scan(
 }
 
 /// Exit code for `sigil scan` under ADR-0010: 1 when an active finding is at
-/// or above `fail_on`, or the verdict is at or above `fail_on_verdict`.
+/// or above `fail_on`, the verdict is at or above `fail_on_verdict`, or
+/// `fail_on_incomplete` is set and part of the target was not fully inspected.
 fn scan_exit_code(policy: &project_config::EffectivePolicy, result: &scanner::ScanResult) -> i32 {
     match exit_code_for(&result.findings, policy.fail_on) {
         EXIT_CLEAN if policy.fails_on_verdict(result) => EXIT_FINDINGS,
+        EXIT_CLEAN if policy.fails_on_incomplete(result) => EXIT_FINDINGS,
         code => code,
     }
 }
@@ -2889,6 +2905,7 @@ fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 
             .map(|v| v.to_string())
             .unwrap_or_else(|| "(not set)".to_string()),
     );
+    show("fail_on_incomplete", policy.fail_on_incomplete.to_string());
     show(
         "min_severity",
         policy

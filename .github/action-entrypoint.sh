@@ -34,6 +34,7 @@ CONFIG_FILE="${INPUT_CONFIG:-}"
 BASELINE_FILE="${INPUT_BASELINE:-}"
 RULES_INPUT="${INPUT_RULES:-}"
 FOLLOW_REFS="${INPUT_FOLLOW_REFS:-false}"
+FAIL_ON_INCOMPLETE="${INPUT_FAIL_ON_INCOMPLETE:-false}"
 REPORT_FORMAT="${INPUT_REPORT_FORMAT:-}"
 REPORT_FILE="${INPUT_REPORT_FILE:-sigil-report}"
 AGENT_CONFIG="${INPUT_AGENT_CONFIG:-false}"
@@ -96,6 +97,7 @@ log "  SARIF:     $UPLOAD_SARIF"
 [ -n "$BASELINE_FILE" ] && log "  Baseline:  $BASELINE_FILE"
 [ -n "$RULES_INPUT" ] && log "  Rules:     $(echo "$RULES_INPUT" | tr '\n' ' ')"
 [ "$FOLLOW_REFS" = "true" ] && log "  Follow references: on"
+[ "$FAIL_ON_INCOMPLETE" = "true" ] && log "  Fail on incomplete coverage: on"
 [ -n "$API_KEY" ] && log "  API key:   (provided)"
 
 # ── SARIF pass (opt-in, best effort) ─────────────────────────────────────────
@@ -188,6 +190,7 @@ GRADE=""
 RECOMMENDATION=""
 BADGE=""
 POLICY_GATE=""
+INCOMPLETE_COUNT=0
 JSON_OK=false
 
 if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
@@ -200,6 +203,8 @@ if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
     RECOMMENDATION=$(jq -r '.summary.recommendation // empty' "$SCAN_OUTPUT" | tr -d '\r' | head -n1)
     # Present only when a scan policy is active; it then owns the pass/fail.
     POLICY_GATE=$(jq -r '.summary.gate // empty' "$SCAN_OUTPUT")
+    # Parts of the target Sigil could not fully inspect; absent (0) on older binaries.
+    INCOMPLETE_COUNT=$(jq -r '(.summary.incomplete_count // 0) | (tonumber? // 0) | floor' "$SCAN_OUTPUT")
     VERDICT=$(jq -r '.summary.verdict // empty' "$SCAN_OUTPUT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
     case "$VERDICT" in
         low-risk) VERDICT="low" ;;
@@ -470,6 +475,10 @@ if [ -n "$POLICY_GATE" ]; then
 elif [ "$(level_rank "$VERDICT")" -ge "$(level_rank "$THRESHOLD")" ]; then
     GATE="fail"
     GATE_WHY="verdict $VERDICT is at or above threshold $THRESHOLD"
+fi
+if [ "$FAIL_ON_INCOMPLETE" = "true" ] && [ "$INCOMPLETE_COUNT" -gt 0 ]; then
+    GATE="fail"
+    GATE_WHY="$GATE_WHY; $INCOMPLETE_COUNT part(s) of the target could not be fully inspected (fail-on-incomplete)"
 fi
 if [ "$AGENT_CONFIG" = "true" ] && [ "$AGENT_EXIT" -eq 1 ]; then
     GATE="fail"

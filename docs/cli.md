@@ -230,6 +230,7 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--output`, `-o` | stdout | Write the report to this file |
 | `--fail-on` | `high`, or the policy's `fail_on` | Exit 1 when an active finding at or above this severity is present |
 | `--fail-on-verdict` | | Also exit 1 when the verdict is at or above this level (`low`, `medium`, `high`, `critical`) |
+| `--fail-on-incomplete` | off | Also exit 1 when part of the target could not be fully inspected. Also `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete: true` in a policy. See [Incomplete coverage](#incomplete-coverage) |
 | `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
 | `--rules` | | Add a custom rule pack (JSON or YAML file, or a directory of packs). Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) |
 | `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
@@ -281,7 +282,29 @@ sigil scan . --format markdown -o sigil.md      # Pull-request comment / job sum
 sigil scan . --format junit -o sigil-junit.xml  # CI test-report view
 sigil scan . --baseline .sigil-baseline.json    # Fail only on findings added since the baseline
 sigil scan . --rules ./acme-rules.yaml          # Add your organisation's rules
+sigil scan ./vendor --fail-on-incomplete        # Fail closed if anything could not be inspected
 ```
+
+#### Incomplete coverage
+
+Sigil does not pass over content silently. Each of these leaves a finding, and
+`--fail-on-incomplete` turns any of them into exit 1:
+
+| Rule | What was not fully inspected |
+|------|------------------------------|
+| `PROV-INCOMPLETE-001` (Low) | A file that could not be read, a directory that could not be listed, a text file over 10 MB of which only the first and last 2 MB were scanned, a file over 512 MB that was not content-scanned, or an agent instruction or markdown file whose bytes are not decodable text |
+| `PROV-BUDGET-001` (Medium) | A file whose analysis ran out of its time budget (see [Per-file scan budget](#per-file-scan-budget)) |
+| `ARTIFACT-008` | An archive that could not be opened or walked fully |
+| `ARTIFACT-009` | An encrypted archive, whose members could not be read |
+| `REF-002` (Low) | A reference `--follow-refs` could not fetch |
+
+Binary files are not on the list: the content phases skip them by design, and
+the structural checks inspect executables, archives and bytecode instead.
+A severity floor (`--severity`, `min_severity`) never hides a coverage finding.
+Only active findings count, so a coverage finding suppressed with a written
+reason (inline marker, `.sigilignore`, baseline, `disable_rules`) does not fail
+the gate. An organisation that locks `fail_on_incomplete` should also lock
+`disable_rules` so a project cannot suppress the coverage rules.
 
 #### Scanning an MCP server from the MCP registry
 
@@ -932,6 +955,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
 | `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
+| `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |
 
 ---
 
@@ -982,29 +1006,40 @@ minified bundle at 2.3 s, so the budget is a stop against a worklist that will n
 terminate, not a throttle on ordinary scanning.
 
 When a file runs out of time, the work already done is kept and the truncation is
-**reported** rather than hidden, as one Low `PROV-BUDGET-001` finding in the
+**reported** rather than hidden, as one Medium `PROV-BUDGET-001` finding in the
 Provenance phase naming that file. A scan that quietly gave up on a file would
 otherwise be indistinguishable from a scan that found nothing in it.
 
-Because the finding belongs to the Provenance phase, a `--phases` filter that
-excludes Provenance also excludes it.
+The finding is reported even under a `--phases` filter that excludes
+Provenance, and `--fail-on-incomplete` fails the scan on it (see
+[Incomplete coverage](#incomplete-coverage)).
 
 ---
 
 ## File Types Scanned
 
-Sigil scans the following file types:
+Every file that is text is content-scanned, whatever its name or extension:
+source in any language, shell and PowerShell scripts, markdown and agent
+instruction files (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, …),
+manifests and configuration. Some checks are further scoped by file name
+(install hooks key on `setup.py` and `package.json`, for example). Binary
+files are left to the structural checks, which inspect executables, archives
+and Python bytecode.
 
-| Extension | Language |
-|-----------|----------|
-| `*.py` | Python |
-| `*.js`, `*.mjs` | JavaScript |
-| `*.ts`, `*.tsx` | TypeScript |
-| `*.jsx` | JSX |
-| `*.sh` | Shell |
-| `*.yaml`, `*.yml` | YAML |
-| `*.json` | JSON |
-| `*.toml` | TOML |
+Deciding what is text is itself a place to hide, so Sigil does not treat "contains
+a NUL byte" as "binary":
+
+- UTF-16 and UTF-32 files with a byte-order mark, and UTF-16 without one, are
+  decoded and scanned. Windows PowerShell 5.1 writes UTF-16 by default.
+- A file is binary when it opens with a known binary signature (image, font,
+  archive, executable, database, audio) or NULs are more than 1 in 1,000 of its
+  bytes.
+- Otherwise the NULs are removed, so they cannot split a token, the text is
+  scanned, and `OBFUSC-NUL-001` (Medium) reports them: bash drops NUL bytes and
+  runs the rest of a script, so a stray NUL is a cheap way to make a scanner
+  skip one.
+- An agent instruction file or markdown file whose bytes are not decodable text
+  is reported as `PROV-INCOMPLETE-001` (see [Incomplete coverage](#incomplete-coverage)).
 
 **Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them.
 

@@ -1359,6 +1359,9 @@ mod tests {
             ("DEPSRC-005", "network_exfil", "high", E::Standalone),
             ("DEPSRC-006", "network_exfil", "medium", E::Standalone),
             ("DEPSRC-007", "network_exfil", "high", E::Standalone),
+            ("PROV-INCOMPLETE-001", "provenance", "low", E::Standalone),
+            ("PROV-BUDGET-001", "provenance", "medium", E::Standalone),
+            ("OBFUSC-NUL-001", "obfuscation", "medium", E::Standalone),
         ];
         let packs = crate::corpus::loader::load_all_packs().unwrap();
         let documented: Vec<&crate::corpus::schema::EngineRule> =

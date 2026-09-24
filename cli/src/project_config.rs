@@ -54,6 +54,7 @@ const KNOWN_KEYS: &[&str] = &[
     "version",
     "fail_on",
     "fail_on_verdict",
+    "fail_on_incomplete",
     "min_severity",
     "disable_rules",
     "severity_overrides",
@@ -69,6 +70,7 @@ const KNOWN_KEYS: &[&str] = &[
 pub const LOCKABLE_KEYS: &[&str] = &[
     "fail_on",
     "fail_on_verdict",
+    "fail_on_incomplete",
     "min_severity",
     "disable_rules",
     "severity_overrides",
@@ -101,6 +103,7 @@ impl Origin {
 pub struct PolicyDoc {
     pub fail_on: Option<Severity>,
     pub fail_on_verdict: Option<Verdict>,
+    pub fail_on_incomplete: Option<bool>,
     pub min_severity: Option<Severity>,
     pub disable_rules: Vec<String>,
     /// In file order: later entries win for the same rule.
@@ -232,6 +235,14 @@ pub fn parse_policy(text: &str, base_dir: &Path, origin: Origin) -> Result<Polic
                     }
                 }
             }
+            "fail_on_incomplete" => match v {
+                serde_yaml::Value::Null => {}
+                serde_yaml::Value::Bool(b) => doc.fail_on_incomplete = Some(*b),
+                _ => errors.push(format!(
+                    "fail_on_incomplete: {} is not a boolean (use true or false)",
+                    show(v)
+                )),
+            },
             "disable_rules" => {
                 for id in string_list(key, v, &mut errors) {
                     match check_rule_glob(&id) {
@@ -578,6 +589,9 @@ pub struct AppliedSource {
 pub struct EffectivePolicy {
     pub fail_on: Severity,
     pub fail_on_verdict: Option<Verdict>,
+    /// Fail the gate when part of the target could not be fully inspected
+    /// (see [`crate::scanner::coverage`]).
+    pub fail_on_incomplete: bool,
     pub min_severity: Option<Severity>,
     pub disable_rules: Vec<Sourced<String>>,
     pub severity_overrides: Vec<SeverityOverride>,
@@ -604,6 +618,7 @@ impl Default for EffectivePolicy {
         EffectivePolicy {
             fail_on: Severity::High,
             fail_on_verdict: None,
+            fail_on_incomplete: false,
             min_severity: None,
             disable_rules: Vec::new(),
             severity_overrides: Vec::new(),
@@ -626,6 +641,8 @@ impl Default for EffectivePolicy {
 pub struct CliPolicy {
     pub fail_on: Option<String>,
     pub fail_on_verdict: Option<String>,
+    /// `--fail-on-incomplete`: can only switch the gate on.
+    pub fail_on_incomplete: bool,
     pub min_severity: Option<String>,
     pub baseline: Option<PathBuf>,
     pub rules: Vec<PathBuf>,
@@ -694,6 +711,17 @@ fn merge(eff: &mut EffectivePolicy, doc: PolicyDoc, rules: &LayerRules) {
                 why,
             ),
             _ => eff.fail_on_verdict = Some(v),
+        }
+    }
+    if let Some(v) = doc.fail_on_incomplete {
+        match rules.restricted("fail_on_incomplete") {
+            Some(why) if !v && eff.fail_on_incomplete => refuse(
+                eff,
+                "fail_on_incomplete",
+                "false (would pass a scan that could not inspect everything)".to_string(),
+                why,
+            ),
+            _ => eff.fail_on_incomplete = v,
         }
     }
     if let Some(v) = doc.min_severity {
@@ -904,6 +932,9 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             )),
         }
     }
+    if cli.fail_on_incomplete {
+        doc.fail_on_incomplete = Some(true);
+    }
     if let Some(s) = &cli.min_severity {
         match parse_severity(s) {
             Some(v) => doc.min_severity = Some(v),
@@ -1019,6 +1050,7 @@ impl EffectivePolicy {
             || !self.baselines.is_empty()
             || !self.refused.is_empty()
             || self.fail_on_verdict.is_some()
+            || self.fail_on_incomplete
             || self.min_severity.is_some()
             || !self.disable_rules.is_empty()
             || !self.severity_overrides.is_empty()
@@ -1028,10 +1060,20 @@ impl EffectivePolicy {
     }
 
     /// Would this result fail the gate (exit 1 under ADR-0010)? True when an
-    /// active finding is at or above `fail_on`, or the verdict is at or above
-    /// `fail_on_verdict`.
+    /// active finding is at or above `fail_on`, the verdict is at or above
+    /// `fail_on_verdict`, or `fail_on_incomplete` is set and part of the
+    /// target could not be fully inspected.
     pub fn fails(&self, result: &ScanResult) -> bool {
-        result.findings.iter().any(|f| f.severity >= self.fail_on) || self.fails_on_verdict(result)
+        result.findings.iter().any(|f| f.severity >= self.fail_on)
+            || self.fails_on_verdict(result)
+            || self.fails_on_incomplete(result)
+    }
+
+    /// Does incomplete coverage alone fail the gate? Only active findings
+    /// count: a coverage finding you suppressed with a written reason is a
+    /// decision, like any other suppression.
+    pub fn fails_on_incomplete(&self, result: &ScanResult) -> bool {
+        self.fail_on_incomplete && crate::scanner::coverage::is_incomplete(&result.findings)
     }
 
     /// Does the verdict alone fail the gate?
@@ -1072,9 +1114,13 @@ impl EffectivePolicy {
 
         // 2. Minimum severity: a report threshold, exactly as `--severity`
         // has always behaved. Counted, not listed.
+        // Coverage findings are exempt: a severity floor must not hide that
+        // part of the target was never inspected (see scanner::coverage).
         if let Some(min) = self.min_severity {
             let n = result.findings.len();
-            result.findings.retain(|f| f.severity >= min);
+            result.findings.retain(|f| {
+                f.severity >= min || crate::scanner::coverage::is_coverage_rule(&f.rule)
+            });
             outcome.hidden_below_min_severity = n - result.findings.len();
         }
 
@@ -1243,6 +1289,7 @@ impl EffectivePolicy {
             })).collect::<Vec<_>>(),
             "fail_on": self.fail_on.to_string(),
             "fail_on_verdict": self.fail_on_verdict.map(verdict_label),
+            "fail_on_incomplete": self.fail_on_incomplete,
             "min_severity": self.min_severity.map(|s| s.to_string()),
             "locked": self.locked,
             "refused": self.refused,
@@ -1773,6 +1820,82 @@ baseline: .sigil-baseline.json
         assert!(eff.fails(&r));
         eff.fail_on_verdict = Some(Verdict::HighRisk);
         assert!(!eff.fails(&r));
+    }
+
+    #[test]
+    fn fail_on_incomplete_gates_on_coverage_findings_only() {
+        let mut eff = EffectivePolicy::default();
+        let gap = crate::scanner::coverage::partial_finding("big.js", "only the ends".into());
+        let r = result(vec![gap]);
+        assert!(!eff.fails(&r), "off by default");
+        eff.fail_on_incomplete = true;
+        assert!(eff.fails(&r));
+        assert!(eff.fails_on_incomplete(&r));
+        let clean = result(vec![finding("CODE-007", "a.py", Severity::Low, "x")]);
+        assert!(
+            !eff.fails(&clean),
+            "a Low observation is not a coverage gap"
+        );
+    }
+
+    #[test]
+    fn fail_on_incomplete_parses_and_locks_tighten_only() {
+        let doc = parse_policy(
+            "fail_on_incomplete: true\n",
+            Path::new("."),
+            Origin::Project,
+        )
+        .unwrap();
+        assert_eq!(doc.fail_on_incomplete, Some(true));
+        let errs = parse_policy(
+            "fail_on_incomplete: sometimes\n",
+            Path::new("."),
+            Origin::Project,
+        )
+        .unwrap_err();
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("fail_on_incomplete") && e.contains("boolean")),
+            "{errs:?}"
+        );
+
+        let _g = ENV_LOCK.lock().unwrap();
+        let org_dir = tempfile::tempdir().unwrap();
+        let org = org_dir.path().join("org.yml");
+        std::fs::write(
+            &org,
+            "fail_on_incomplete: true\nlocked: [fail_on_incomplete]\n",
+        )
+        .unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "fail_on_incomplete: false\n",
+        )
+        .unwrap();
+        std::env::set_var(ORG_POLICY_ENV, &org);
+        let eff = resolve(&opts(root.path()));
+        std::env::remove_var(ORG_POLICY_ENV);
+        let eff = eff.unwrap();
+        assert!(
+            eff.fail_on_incomplete,
+            "a locked true cannot be switched off"
+        );
+        assert!(
+            eff.refused
+                .iter()
+                .any(|r| r.starts_with("fail_on_incomplete")),
+            "{:?}",
+            eff.refused
+        );
+
+        let mut o = opts(root.path());
+        o.cli.fail_on_incomplete = true;
+        let from_flag = resolve(&o).unwrap();
+        assert!(
+            from_flag.fail_on_incomplete,
+            "the flag wins over the project's false"
+        );
     }
 
     #[test]

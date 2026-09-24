@@ -343,6 +343,10 @@ pub fn scan_result_document(result: &ScanResult) -> serde_json::Value {
             "recommendation": p.recommendation,
             "duration_ms": result.duration_ms,
             "platform": result.platform,
+            // Coverage findings: parts of the target not fully inspected
+            // (scanner::coverage). 0 means everything was read.
+            "incomplete_count": crate::scanner::coverage::incomplete(&result.findings).count(),
+            "complete": !crate::scanner::coverage::is_incomplete(&result.findings),
         },
     });
     if let Some(by) = &result.suppressed_by {

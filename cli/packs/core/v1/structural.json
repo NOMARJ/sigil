@@ -235,6 +235,43 @@
         "OWASP LLM06"
       ],
       "tags": ["least-privilege", "manifest", "overdeclared"]
+    },
+    {
+      "id": "PROV-INCOMPLETE-001",
+      "phase": "provenance",
+      "severity": "low",
+      "description": "Part of the target was not fully inspected (unreadable file or directory, oversized file scanned only at its ends, file over the 512 MB limit)",
+      "remediation": "Nothing was found in what could not be read, which is not the same as nothing being there. Check the named file by hand, or make it readable and re-scan. In CI or an install gate, run with --fail-on-incomplete (or fail_on_incomplete: true in the scan policy) so an incomplete scan never passes.",
+      "references": [
+        "CWE-693",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": ["coverage", "fail-closed"]
+    },
+    {
+      "id": "PROV-BUDGET-001",
+      "phase": "provenance",
+      "severity": "medium",
+      "description": "Scan budget exhausted: the file was not fully analysed",
+      "remediation": "The decode worklist for this file did not finish within SIGIL_FILE_BUDGET_SECS (default 30 s). Content built to exhaust a scanner is itself suspicious: review the file by hand, or re-scan with a larger budget (SIGIL_FILE_BUDGET_SECS=0 disables the bound). Use --fail-on-incomplete to fail the scan on it.",
+      "references": [
+        "CWE-400",
+        "CWE-693"
+      ],
+      "tags": ["coverage", "fail-closed", "evasion"]
+    },
+    {
+      "id": "OBFUSC-NUL-001",
+      "phase": "obfuscation",
+      "severity": "medium",
+      "description": "NUL bytes inside an otherwise ordinary text file",
+      "remediation": "Text files do not contain NUL bytes. Many scanners treat any NUL as 'binary' and skip the whole file, while bash drops NULs and runs the rest, so a stray NUL is a cheap way to hide a script or an instruction file. Sigil removes them and scans the text; read the file at the reported line and reject it unless the NULs have an innocent explanation (a test fixture for a parser, say).",
+      "references": [
+        "CWE-116",
+        "MITRE T1027",
+        "OWASP Agentic Top 10 — Agentic Supply Chain"
+      ],
+      "tags": ["obfuscation", "evasion", "encoding"]
     }
   ]
 }

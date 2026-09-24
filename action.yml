@@ -51,6 +51,10 @@ inputs:
     description: 'Also download and scan (never run) the scripts and installers the scanned files tell someone to fetch or run (--follow-refs).'
     required: false
     default: 'false'
+  fail-on-incomplete:
+    description: 'Also fail when part of the target could not be fully inspected: an unreadable file, an oversized file scanned only at its ends, a file that ran out of scan time, an archive that could not be opened, or a reference follow-refs could not fetch.'
+    required: false
+    default: 'false'
   report-format:
     description: 'Also write a report in this format to report-file: markdown, junit, html or json. A markdown report is appended to the job summary.'
     required: false
@@ -124,6 +128,7 @@ runs:
         INPUT_BASELINE: ${{ inputs.baseline }}
         INPUT_RULES: ${{ inputs.rules }}
         INPUT_FOLLOW_REFS: ${{ inputs.follow-refs }}
+        INPUT_FAIL_ON_INCOMPLETE: ${{ inputs.fail-on-incomplete }}
         INPUT_REPORT_FORMAT: ${{ inputs.report-format }}
         INPUT_REPORT_FILE: ${{ inputs.report-file }}
         INPUT_AGENT_CONFIG: ${{ inputs.agent-config }}

@@ -230,6 +230,13 @@ fn print_text(result: &ScanResult, target: &str, view: Option<PolicyView>) {
                     verdict_gate.map(|g| g.to_string()).unwrap_or_default()
                 ));
             }
+            if v.policy.fails_on_incomplete(result) {
+                let n = crate::scanner::coverage::incomplete(&result.findings).count();
+                why.push(format!(
+                    "{n} item{} not fully inspected, with fail_on_incomplete",
+                    plural(n)
+                ));
+            }
             format!("Gate: FAIL ({})", why.join("; "))
                 .red()
                 .bold()
@@ -730,6 +737,25 @@ fn render_junit(result: &ScanResult, target: &str, view: Option<PolicyView>) -> 
                 cases,
                 "\n      <failure type=\"verdict\" message=\"verdict {} (score {}) is at or above fail_on_verdict {g}\"/>\n    ",
                 result.verdict, result.score
+            );
+        }
+        let _ = writeln!(cases, "</testcase>");
+    }
+    // Likewise coverage, when the policy fails closed on it: the coverage
+    // findings themselves are Low and would otherwise show as passing cases.
+    if let Some(v) = view.filter(|v| v.policy.fail_on_incomplete) {
+        tests += 1;
+        let gaps = crate::scanner::coverage::incomplete(&result.findings).count();
+        let _ = write!(
+            cases,
+            "    <testcase classname=\"sigil\" name=\"target fully inspected\" time=\"0\">"
+        );
+        if v.policy.fails_on_incomplete(result) {
+            failures += 1;
+            let _ = write!(
+                cases,
+                "\n      <failure type=\"coverage\" message=\"{gaps} item{} not fully inspected (fail_on_incomplete)\"/>\n    ",
+                plural(gaps)
             );
         }
         let _ = writeln!(cases, "</testcase>");
