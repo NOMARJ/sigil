@@ -48,8 +48,9 @@ use super::{Evidence, Finding, Phase, Severity};
 /// `.venv/bin/python`, has hidden code where the content scan does not look.
 /// What keeps a developer's own venv quiet is that the pycs pip and the
 /// interpreter write agree with their sources and aggregate into one Low
-/// `ARTIFACT-012` observation (before that, a non-git project with a `.venv`
-/// produced 107 High findings, one per cache directory).
+/// `ARTIFACT-012` observation (before that, a non-git project with a fresh
+/// `.venv` produced 105 High findings, one per cache directory, and a
+/// Critical one for a regex in pip's vendored urllib3 read as a URL).
 const SKIP_DIRS: &[&str] = &[
     ".git",
     "node_modules",
@@ -187,10 +188,8 @@ pub fn siphash(k0: u64, k1: u64, data: &[u8], c: usize, d: usize) -> [u8; 8] {
         k1 ^ 0x7465_6462_7974_6573,
     ];
     let full = data.len() / 8 * 8;
-    for chunk in data[..full].chunks_exact(8) {
-        let mut w = [0u8; 8];
-        w.copy_from_slice(chunk);
-        let m = u64::from_le_bytes(w);
+    for chunk in data[..full].as_chunks::<8>().0 {
+        let m = u64::from_le_bytes(*chunk);
         v[3] ^= m;
         for _ in 0..c {
             sip_round(&mut v);
@@ -1126,12 +1125,12 @@ mod tests {
     #[test]
     fn string_constants_come_out_of_marshal_data() {
         let mut body = vec![0xe3, 0, 0, 0];
-        body.extend(z("https://tmpfiles.org/dl/1/helper.pyc"));
+        body.extend(z("https://drop.invalid/dl/1/helper.pyc"));
         body.extend([b'a' | 0x80, 6, 0, 0, 0]);
         body.extend_from_slice(b"subpro");
         body.extend(z("ab")); // too short, dropped
         let s = string_constants(&body);
-        assert!(s.contains(&"https://tmpfiles.org/dl/1/helper.pyc".to_string()));
+        assert!(s.contains(&"https://drop.invalid/dl/1/helper.pyc".to_string()));
         assert!(s.contains(&"subpro".to_string()));
         assert!(!s.contains(&"ab".to_string()));
     }
@@ -1313,7 +1312,7 @@ mod tests {
         let strings: Vec<String> = [
             // urllib3's URI regex, folded from implicit concatenation.
             "^(?:([a-zA-Z][a-zA-Z0-9+.-]*):)?(?://([^\\/?#]*))?([^?#]*)",
-            "see https://tmpfiles.org/dl/1/helper.pyc)",
+            "see https://drop.invalid/dl/1/helper.pyc)",
             "git+ssh://git@github.com:org/repo.git",
             "http://localhost:8080/ready",
             "scheme://",
@@ -1325,7 +1324,7 @@ mod tests {
         assert_eq!(
             urls,
             vec![
-                ("https://tmpfiles.org/dl/1/helper.pyc", "tmpfiles.org"),
+                ("https://drop.invalid/dl/1/helper.pyc", "drop.invalid"),
                 ("git+ssh://git@github.com:org/repo.git", "github.com"),
                 ("http://localhost:8080/ready", "localhost"),
             ]
