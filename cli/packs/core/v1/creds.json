@@ -54,7 +54,7 @@
       "id": "CRED-003",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,60}\\.aws[/\\\\](credentials|config)\\b",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|copyfile|copyfilesync|copy2|copytree|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|createreadstream|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|exfil|send|sends|post|curl|wget|nc|ncat|get-content|collect|collects|gather|gathers|harvest|harvests|steal|steals|dump|dumps|b64encode|attach|attaches)\\b|\\bbase64\\s+(?:-\\S+\\s+)*[~/$]|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"]|\\[\\s*['\\\"`])[^\\n]{0,60}\\.aws[/\\\\](credentials|config)\\b|\\.aws[/\\\\](credentials|config)\\b[^\\n]{0,40}\\.(?:read_text|read_bytes|read|readlines)\\s*\\(",
       "description": "AWS credentials file read, copied or uploaded",
       "remediation": "Nothing a package installs should read, copy or upload ~/.aws/credentials or ~/.aws/config. Remove the access and use the AWS SDK's own credential chain if cloud access is genuinely needed. Prose that only names the path (\"never write ~/.aws/credentials\") is not matched.",
       "references": [
@@ -85,7 +85,7 @@
       "id": "CRED-005",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,60}\\.ssh[/\\\\](id_rsa|id_ed25519|id_ecdsa|id_dsa)\\b(?:[^.\\w]|$)",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|copyfile|copyfilesync|copy2|copytree|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|createreadstream|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|exfil|send|sends|post|curl|wget|nc|ncat|get-content|collect|collects|gather|gathers|harvest|harvests|steal|steals|dump|dumps|b64encode|attach|attaches)\\b|\\bbase64\\s+(?:-\\S+\\s+)*[~/$]|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"]|\\[\\s*['\\\"`])[^\\n]{0,60}\\.ssh[/\\\\](id_rsa|id_ed25519|id_ecdsa|id_dsa)\\b(?:[^.\\w]|$)|\\.ssh[/\\\\](id_rsa|id_ed25519|id_ecdsa|id_dsa)\\b[^.\\w][^\\n]{0,40}\\.(?:read_text|read_bytes|read|readlines)\\s*\\(",
       "description": "SSH private key read, copied or uploaded",
       "remediation": "Reading, copying or uploading an SSH private key (id_rsa, id_ed25519, id_ecdsa, id_dsa) hands over remote login to wherever the bytes go; nothing a package or skill installs should do it. Public keys (.pub), ssh-keygen and ssh-copy-id setup steps and ssh -i are deliberately not matched, so read what the matched line does with the key before approving.",
       "references": [
@@ -556,12 +556,12 @@
       "id": "CRED-031",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|send|sends|post|curl|wget|nc|ncat|get-content)\\b|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"])[^\\n]{0,80}(~|\\$HOME|\\$\\{HOME\\}|HOME\\b|USERPROFILE|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(kube/config|docker/config\\.json|netrc|pypirc|npmrc)",
+      "pattern": "(?i:\\b(cat|less|more|head|tail|strings|grep|cp|copy|copies|copyfile|copyfilesync|copy2|copytree|scp|rsync|tar|zip|open|read|reads|readfile|readfilesync|createreadstream|read_text|read_bytes|load|loads|access|accesses|upload|uploads|exfiltrate|exfil|send|sends|post|curl|wget|nc|ncat|get-content|collect|collects|gather|gathers|harvest|harvests|steal|steals|dump|dumps|b64encode|attach|attaches)\\b|\\bbase64\\s+(?:-\\S+\\s+)*[~/$]|--upload-file|--post-file|-d\\s*@|-F\\s*\\S*@|Read\\(|=\\s*['\\\"]|\\[\\s*['\\\"`])[^\\n]{0,80}(~|\\$HOME|\\$\\{HOME\\}|HOME\\b|USERPROFILE|/root|/home/[^/\\s]+)[^\\n]{0,60}\\.(kube/config|docker/config\\.json|netrc|pypirc|npmrc)",
       "description": "Reads a developer credential file",
       "suppress": {
         "line_contains": [
           "NPM_TOKEN",
-          "${"
+          "${{"
         ]
       },
       "remediation": "The line reads, copies or uploads a kube, docker, netrc, PyPI or npm credential file. Publishing tooling reading its own config is the one ordinary case; a skill or package reading someone else's is harvesting. Prose that only names the path is not matched.",
