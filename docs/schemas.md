@@ -420,6 +420,29 @@ The full schema is `SignaturePack` in `cli/src/corpus/schema.rs`. A signed
 pack carries `meta.signature`: base64 Ed25519 over the compact JSON
 serialisation of the pack without that field.
 
+### YARA rule file (`.yar`, `.yara`)
+
+UTF-8 YARA source in the subset described in
+[YARA rules](enterprise.md#yara-rules); one file is one pack with id
+`yara.<file stem>`. Largest file read: 8 MiB. How each rule maps to a Sigil
+rule:
+
+| YARA | Sigil rule |
+|---|---|
+| rule name | `id` — `YARA-` + the name upper-cased, `_` as `-` |
+| `meta: description` | `description` (default `YARA rule <name>`) |
+| `meta: severity` | `severity`: `critical`, `high`, `medium`, `low` (default `medium`) |
+| `meta: phase` | `phase`: any phase name (default `code_patterns`) |
+| `meta: remediation` | `remediation` (default: a generic note naming the rule file) |
+| `meta: reference` (repeatable) | `references` |
+| tags | `tags` |
+| `private` rule | evaluated and referable, never reported; listed with kind `yara-private` |
+
+Detached signature: `<file>.sig` beside the rule file, one line of base64
+holding the 64-byte Ed25519 signature over the bytes
+`sigil-yara-detached-signature-v1\n` followed by the rule file's exact
+bytes. `sigil rules sign <file> --key <key> -o <file>.sig` writes it.
+
 ### Scan report additions (JSON)
 
 When a policy is active the scan document gains, after `findings`:

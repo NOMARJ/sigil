@@ -198,6 +198,141 @@ policy lists under `rule_packs`) and the public key (as
 YAML pack cannot carry a signature, so on a keyed machine it is refused with a
 message naming `sigil rules sign`.
 
+### YARA rules
+
+A security team that keeps its detections in YARA can point Sigil at them as
+they are. `.yar` and `.yara` files load wherever a rule pack does — `--rules`,
+a directory of packs, a scan policy's `rule_packs`, the organisation policy —
+next to JSON and YAML packs. Sigil parses and evaluates them itself (no
+libyara, no plug-in), and refuses what it cannot evaluate faithfully rather
+than skipping it. (The machine-level `~/.sigil/packs/` directory reads JSON
+packs only; to deploy YARA files to every machine, list their directory under
+the organisation policy's `rule_packs`.)
+
+```yara
+// acme.yar
+rule Acme_Canary_Token : acme
+{
+    meta:
+        description = "Internal canary token in a published skill"
+        severity    = "high"           // critical | high | medium | low (default medium)
+        phase       = "network_exfil"  // any Sigil phase (default code_patterns)
+        remediation = "Canary tokens must not ship. Remove it and rotate the token."
+        reference   = "https://wiki.example.invalid/canaries"
+    strings:
+        $token = "example-canary-token" nocase wide ascii fullword
+        $bytes = { 53 49 47 49 4C ?? [0-16] 4C }
+    condition:
+        any of them and filesize < 5MB
+}
+```
+
+```bash
+sigil rules validate acme.yar             # every problem with file:line; exit 0/1/2
+sigil rules test acme.yar ./some-dir      # run only these rules and print what fires
+sigil --rules acme.yar scan .             # or --rules ./yara/ for a directory of rule files
+sigil rules show YARA-ACME-CANARY-TOKEN   # the rule as written, and what the policy does to it
+```
+
+**Identity.** Each rule becomes the Sigil rule `YARA-<NAME>`: the name
+upper-cased with `_` turned into `-`, so `Acme_Canary_Token` is
+`YARA-ACME-CANARY-TOKEN`. Inline `sigil:ignore` markers, `disable_rules`
+(`YARA-*` works), `severity_overrides` and baselines address it like any other
+rule. A file is one pack, `yara.<file name without extension>`. As with every
+custom pack, a rule whose id is already taken — by a built-in rule, another
+pack, or another rule in the same file whose name differs only in case or
+`_` — is refused, never allowed to replace it.
+
+**Evaluation.** YARA's semantics, not Sigil's line-oriented ones: strings match
+a file's raw bytes anywhere, across line breaks, in binary files the text
+phases skip; `#a` counts every offset a match starts at, overlapping ones
+included; `filesize` is the real size. A finding carries the rule's severity
+and phase, the line of the earliest matching string (none in a binary file), a
+snippet naming the rule and the matched strings (escaped, cut at 48 bytes;
+`private` strings are never shown), and the rule's remediation, or a generic
+one naming the rule file. What is evaluated:
+
+| Unit | Evaluated |
+|---|---|
+| Files on disk up to 10 MB, text or binary | the whole file |
+| Files of 10–512 MB | the first and last 2 MB, at their real offsets, with the real `filesize`. The finding is marked `[head/tail of oversized file]` and a `PROV-INCOMPLETE-001` note records that the middle was not read |
+| Files over 512 MB | not evaluated; reported as not content-scanned, as for every rule |
+| Archive members (zip, tar, gzip, two levels deep) | text members; with YARA rules loaded, binary members and document XML too, up to 4 MB each and 32 MB in total. A member past the cap is reported on its archive (`ARTIFACT-008`) |
+| Bytecode string constants | not evaluated separately: the `.pyc` file itself is evaluated on disk |
+
+**The subset.**
+
+| | Supported |
+|---|---|
+| Rules | `rule`, tags, `private` (evaluated and referable, never reported), `global` (a global rule that does not match switches off every rule in its file), references to rules defined earlier in the same file |
+| `meta:` | any keys. Sigil reads `description`, `author`, `reference` (repeatable), `severity`, `phase` and `remediation`; a key one letter away from one of these draws a warning |
+| Text strings | escapes `\"` `\\` `\t` `\n` `\r` `\xHH`; modifiers `nocase`, `wide`, `ascii`, `fullword`, `private` |
+| Hex strings | bytes, `??`, nibbles `4?` and `?4`, jumps `[n]`, `[n-m]`, `[n-]`, `[-]`, alternatives `( 41 \| 42 43 )`, comments; modifier `private` |
+| Regular expressions | `/.../` with the `i` and `s` flags; modifiers `nocase`, `ascii`, `fullword`, `private`. Matched over bytes with Rust `regex` syntax: no look-around or back-references, which YARA does not have either |
+| Conditions | `true`, `false`, `$a`, `#a`, `$a at N`, `$a in (N..M)`, `any`/`all`/`none`/`N`/`N%` `of them` and `of ($a*, $b)`, `and`, `or`, `not`, parentheses, `filesize`, integers (decimal, `0x`, `0o`, `KB`, `MB`), `+ - * \ %`, `== != < <= > >=` |
+
+Refused, with the construct named at its `file:line`: `import` and every
+module (`pe`, `elf`, `math`, `hash`, `dotnet`, …), `include`, `for` loops,
+`uint8()` … `int32be()`, `@a[i]` and `!a[i]`, `#a in (range)`, the string
+operators (`contains`, `matches`, `startswith`, …), external variables,
+`entrypoint`, `defined`, bitwise operators, floating-point numbers, `of` over
+rules or with `at`/`in`, the `xor`, `base64` and `base64wide` modifiers, `wide`
+regular expressions, and `~` in hex strings. YARA's own compile errors are
+enforced as well: a string the condition never uses, an undefined string, a
+rule defined twice, a reference to a rule not yet defined.
+
+**Fail closed.** A YARA file with any problem is refused as a whole, like any
+custom pack. `sigil rules validate` lists every problem with its `file:line`
+and exits `1`; a scan exits `2` rather than run without the rule, because a
+rule that silently does not run is a detection gap nobody notices.
+
+**Limits**, so that no rule can stall a scan whatever the scanned bytes are:
+
+- The regex engine is linear-time, but a counted repetition is unrolled into
+  the automaton, and on crafted input a wide one makes matching crawl: on
+  9.5 MB of adversarial data `{ 41 [0-768] 42 }` took 0.07 s and
+  `{ 41 [0-1024] 42 }` 36 s. A single search cannot be interrupted, so the
+  counted repetition in one string — bounded hex jumps and regex `{n,m}`
+  counts, summed, plus the minimum of `[n-]` and `{n,}` — is capped at 512,
+  and a wider string is refused with the limit named. `[-]`, `*` and `+` are
+  not counted.
+- A match of a string with an unbounded part (`[-]`, `[n-]`, `*`, `+`,
+  `{n,}`) is at most 4096 bytes long, YARA's own limit for regular
+  expressions.
+- `#a` stops counting at 1,000,000 matches, as YARA does.
+- YARA evaluation shares the per-file budget (`SIGIL_FILE_BUDGET_SECS`,
+  default 30 s). A file that exhausts it is reported (`PROV-BUDGET-001`); a
+  count cut short by it is a lower bound.
+- A rule file is at most 8 MB; a condition has at most 1000 terms and 64
+  levels of nesting (parentheses, `not`), and hex alternatives nest at most
+  16 deep. Parsing and evaluation recurse, so a pathological file is refused
+  rather than allowed to exhaust a thread's stack.
+
+**Cost.** Rules are compiled once per scan. On this repository's self-scan
+(523 files, 4 cores, median of 5 runs) one text rule took the YARA stage
+2.3 ms in total and 100 rules of three strings each 1.77 s summed across scan
+threads; the scan's own time stayed within run-to-run noise (11.53 s with no
+rules, 11.46 s and 11.68 s with them). With YARA rules loaded every file's
+bytes are kept in memory while it is scanned, and binary archive members are
+retained for them (32 MB cap).
+
+**Signing.** A YARA file cannot hold a signature inside it, so it is signed
+detached: `<file>.sig` beside it holds a base64 Ed25519 signature over the
+file's exact bytes, prefixed with `sigil-yara-detached-signature-v1\n` so the
+signature can never be replayed for anything else Sigil verifies.
+
+```bash
+sigil rules sign acme.yar --key sigil-packs.pem -o acme.yar.sig
+# stderr prints: export SIGIL_PACK_PUBLIC_KEY=<64 hex chars>
+```
+
+`sigil rules sign` refuses to sign a file that does not validate. Ship the
+`.sig` next to the `.yar`. With `SIGIL_PACK_PUBLIC_KEY` set, a YARA file
+without a valid signature — none, one from another key, or one for a file
+edited after signing — is refused with a `[SECURITY]` error and the scan exits
+`2`, exactly as an unsigned JSON or YAML pack is. Without the key, a `.sig`
+that is present is reported as "signed (not verified)".
+
 ## Adopting Sigil on an existing codebase: baselines
 
 Turning a gate on for a large repository usually means dozens of findings
@@ -419,3 +554,8 @@ Stated plainly so nothing here is over-relied on:
   policy-suppressed findings; use JSON, SARIF or JUnit for that audit trail.
 - There is no central policy server; distribution is by file and environment
   variable through the tooling you already use.
+- **YARA support is a subset**: the string-matching core, without modules
+  (`pe`, `elf`, `math`, …), loops or offset reads. A rule that needs them is
+  refused with the construct named, not approximated, so a library that leans
+  on modules has to be split. Directories of rule files are read one level
+  deep.
