@@ -158,6 +158,11 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // user's global agent memory file, which is persistence in spirit, but
         // it is deliberately not mapped to `installs_persistence` without a
         // corpus re-measurement (a clean NVIDIA setup skill does it on purpose).
+        // INSTR-032 is a Low observation ("from now on, always …") split out of
+        // INSTR-011 so a project's own instruction file is not read as memory
+        // poisoning; INSTR-033 is a skill that hides itself or sabotages code.
+        "INSTR-032" => Some("standing_directive"),
+        "INSTR-033" => Some("deceives_user"),
         "INSTR-001" | "INSTR-002" => Some("disables_safety_guardrails"),
         "INSTR-003" | "INSTR-004" => Some("suppresses_warnings"),
         "INSTR-005" => Some("exfiltrates_conversation"),
