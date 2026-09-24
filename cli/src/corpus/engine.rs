@@ -2169,10 +2169,13 @@ mod fp_calibration {
             "autograd.Function (see warp_layer.py).",
             "CODE-008"
         ));
+        // ...while the JavaScript constructor compiling a runtime string still
+        // fires. (`Function('return this')()` compiles a literal: the MCP pass
+        // made literal-only calls quiet, see mcp_fp_tests.rs.)
         assert!(fires(
             "code_patterns",
             "x.js",
-            "const g = Function('return this')();",
+            "const g = Function(src)();",
             "CODE-008"
         ));
         // CODE-MCP-002: metrics named tool_calls are not a dispatcher.

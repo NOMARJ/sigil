@@ -119,7 +119,16 @@
           "NEVER modify",
           "n't modify",
           "N'T modify",
-          "declines to"
+          "declines to",
+          "completion_command",
+          "completions bash",
+          "completions zsh",
+          "completions fish",
+          "completion bash",
+          "completion zsh",
+          "completion fish",
+          "completion -s ",
+          "completion --shell"
         ]
       },
       "remediation": "Remove the write to the shell startup file. Anything appended there executes in every new shell with the user's full privileges; a package must never do this silently.",
@@ -270,6 +279,11 @@
       "severity": "high",
       "pattern": "(\\.config/autostart/[^\\s\"']*\\.desktop|/etc/xdg/autostart/|Library/StartupItems/|\\bLoginItems\\b|SMLoginItemSetEnabled|\\bosascript\\b[^\\n]*login item)",
       "description": "Persistence — desktop autostart or login item",
+      "suppress": {
+        "path_contains": [
+          "/_CodeSignature/"
+        ]
+      },
       "remediation": "Remove the autostart/login-item registration. Starting at login is a decision for the user, made through the OS, not for a package to make on their behalf.",
       "references": [
         "MITRE T1547.013",

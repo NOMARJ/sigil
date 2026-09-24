@@ -14,9 +14,22 @@
       "severity": "critical",
       "pattern": "fs\\.(write|writeFile).*package\\.json|dependencies.*fs\\.(write|writeFile)",
       "description": "Self-modifying package.json dependencies detected",
+      "suppress": {
+        "filename_suffix": [
+          ".jsonl"
+        ]
+      },
       "remediation": "Check whose package.json is being written. A generator or release script editing its own project's manifest is normal; a library that rewrites the consuming project's dependencies at install or run time is adding a dependency nobody reviewed, so reject it unless the write is clearly local project tooling.",
-      "references": ["MITRE T1195.001", "CAPEC-538"],
-      "tags": ["supply-chain", "dependency-tampering", "package-json", "javascript"]
+      "references": [
+        "MITRE T1195.001",
+        "CAPEC-538"
+      ],
+      "tags": [
+        "supply-chain",
+        "dependency-tampering",
+        "package-json",
+        "javascript"
+      ]
     },
     {
       "id": "SUPPLY-002",
@@ -29,9 +42,32 @@
           "package.json"
         ]
       },
+      "suppress": {
+        "line_contains": [
+          "\"node\":",
+          "\"npm\":",
+          "\"pnpm\":",
+          "\"yarn\":",
+          "\"bun\":",
+          "\"version\": \"^",
+          "\"version\": \"~",
+          "\"version\": \">",
+          "\"version\":\"^",
+          "\"version\":\"~",
+          "\"version\":\">"
+        ]
+      },
       "remediation": "Read the second arm of the range. A peer range like \"^16.0.0 || ^17.0.0\" is ordinary, but a range whose alternative accepts a far-off major (\"^1.2.3 || ^99.0.0\") lets any future publish under that name, including a hijacked one, satisfy the constraint; pin to versions that exist today and commit a lockfile.",
-      "references": ["MITRE T1195.001", "CAPEC-538"],
-      "tags": ["supply-chain", "version-range", "npm", "package-json"]
+      "references": [
+        "MITRE T1195.001",
+        "CAPEC-538"
+      ],
+      "tags": [
+        "supply-chain",
+        "version-range",
+        "npm",
+        "package-json"
+      ]
     },
     {
       "id": "SUPPLY-003",
@@ -126,21 +162,43 @@
         ],
         "file_header_contains": [
           "typeof define===\"function\"&&define.amd"
+        ],
+        "line_contains": [
+          ".default.scope}`",
+          "\"deprecate\", \"message\", \"site\"",
+          "return import("
         ]
       },
       "remediation": "Code built from a template literal and handed to new Function or eval runs without ever appearing as reviewable source. A template engine compiling its own templates is the one legitimate case; anywhere else, check whether the interpolated values can come from a file, a response or user input, and reject the package if the generated code cannot be written out and read.",
-      "references": ["MITRE T1059.007", "CWE-94", "CWE-95"],
-      "tags": ["execution", "function-constructor", "template-literal", "javascript"]
+      "references": [
+        "MITRE T1059.007",
+        "CWE-94",
+        "CWE-95"
+      ],
+      "tags": [
+        "execution",
+        "function-constructor",
+        "template-literal",
+        "javascript"
+      ]
     },
     {
       "id": "SUPPLY-009",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "define\\s*\\([^)]*\\)[\\s\\S]*exec\\s*\\(|macro\\s*\\([\\s\\S]*Function\\s*\\(|__macro__\\s*\\([^)]*eval",
+      "pattern": "define\\s*\\([^)]*\\)[\\s\\S]*[^.\\w$]exec\\s*\\(|macro\\s*\\([\\s\\S]*[^.\\w$]Function\\s*\\(|__macro__\\s*\\([^)]*eval",
       "description": "Macro expansion with code execution",
       "remediation": "Look at what the expansion executes. An AMD define() module followed by a RegExp .exec() is noise, but a macro(), __macro__() or define() body whose output is fed to Function(), eval or a process exec generates code at build time that the source you reviewed never shows; expand it by hand and review the result, or reject the package.",
-      "references": ["CWE-94", "CAPEC-242"],
-      "tags": ["execution", "macro", "eval", "build-time"]
+      "references": [
+        "CWE-94",
+        "CAPEC-242"
+      ],
+      "tags": [
+        "execution",
+        "macro",
+        "eval",
+        "build-time"
+      ]
     },
     {
       "id": "SUPPLY-010",

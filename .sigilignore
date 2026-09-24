@@ -197,6 +197,11 @@ cli/src/corpus/compiled.rs
 # URL, an env sweep for TOKEN|SECRET, an XSS payload) to prove the rule fires,
 # next to the benign line it must leave alone. Test fixtures, not payloads.
 cli/src/corpus/agent_supply_chain_tests.rs
+# cli/src/corpus/mcp_fp_tests.rs: MCP-server calibration tests. Same category as
+# engine.rs — each test pairs a benign line from a registry MCP server with the
+# attack line the same rule must still report (an embedded base64 payload, a
+# URL-shortener cradle piped to iex, a live PEM key). Test fixtures, not payloads.
+cli/src/corpus/mcp_fp_tests.rs
 # cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
 # signature patterns ("curl") and boundary-case match lines to pin the
 # multi-byte truncation fix and the phase-resolution contract.

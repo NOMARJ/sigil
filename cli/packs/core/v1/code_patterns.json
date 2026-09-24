@@ -22,7 +22,7 @@
       "id": "CODE-002",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?m)(^|[^.\\w])exec\\s*\\(\\s*(?:[^\\s\\w)]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
+      "pattern": "(?m)(^|[^.\\w$])exec\\s*\\(\\s*(?:[^\\s\\w)\\[]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
       "description": "exec() call — arbitrary code execution",
       "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject.",
       "references": ["CWE-95", "CWE-78", "MITRE T1059"],
@@ -61,12 +61,27 @@
     {
       "id": "CODE-006",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "medium",
       "pattern": "yaml\\.(unsafe_)?load\\s*\\(",
       "description": "YAML unsafe load — potential code execution",
+      "suppress": {
+        "line_contains": [
+          "SafeLoader",
+          "CSafeLoader",
+          "BaseLoader"
+        ]
+      },
       "remediation": "Check the Loader: yaml.safe_load or yaml.load(..., Loader=SafeLoader) is fine, while yaml.unsafe_load or yaml.load with yaml.Loader/UnsafeLoader lets a !!python/object/apply tag in the document call any Python callable. If the YAML comes from a user, a repo or the network rather than a file the package ships, that is remote code execution; replace it with safe_load unless the document genuinely must carry Python objects.",
-      "references": ["CWE-502", "MITRE T1059.006"],
-      "tags": ["execution", "deserialization", "yaml", "python"]
+      "references": [
+        "CWE-502",
+        "MITRE T1059.006"
+      ],
+      "tags": [
+        "execution",
+        "deserialization",
+        "yaml",
+        "python"
+      ]
     },
     {
       "id": "CODE-007",
@@ -82,8 +97,21 @@
       "id": "CODE-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(^|[^.\\w$])Function\\s*\\(\\s*(?:[^)\\s]|$)",
+      "pattern": "(^|[^.\\w$])Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+|[\"'][^\"'\\n]*\\b(?:process|require|child_process|mainModule|fromCharCode|atob)\\b)",
       "description": "Function constructor — dynamic code execution",
+      "suppress": {
+        "line_contains": [
+          "class Function",
+          "Function(name=",
+          ".default.scope}`",
+          "\"deprecate\", \"message\", \"site\"",
+          "return import(",
+          "return binder.apply(this,arguments)",
+          "Function(``)",
+          "Function(`return this`)",
+          "Function(...this?.args"
+        ]
+      },
       "remediation": "Function(...) compiles a string into JavaScript, like eval but in global scope. Function('return this')() as a global-object lookup in bundled or UMD code, and template engines compiling their own templates, are recognisable and benign; anywhere else print the string it receives and reject the package if that string is decoded, concatenated from fragments or fetched, because the code was designed never to appear as reviewable source.",
       "references": ["CWE-95", "MITRE T1059.007"],
       "tags": ["execution", "function-constructor", "javascript"]
@@ -92,8 +120,21 @@
       "id": "CODE-009",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "new\\s+Function\\s*\\(",
+      "pattern": "new\\s+Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+|[\"'][^\"'\\n]*\\b(?:process|require|child_process|mainModule|fromCharCode|atob)\\b)",
       "description": "new Function() — dynamic code execution",
+      "suppress": {
+        "line_contains": [
+          "class Function",
+          "Function(name=",
+          ".default.scope}`",
+          "\"deprecate\", \"message\", \"site\"",
+          "return import(",
+          "return binder.apply(this,arguments)",
+          "Function(``)",
+          "Function(`return this`)",
+          "Function(...this?.args"
+        ]
+      },
       "remediation": "new Function(args, body) is the JavaScript compiler exposed at runtime, and the usual way a downloaded or decoded payload is run. Template engines (lodash.template, doT), schema compilers such as ajv and serializer generators build code from data shipped in the package and are recognisable by name; for anything else read the body string and reject if it is Base64- or charCode-decoded, joined from fragments or fetched over the network.",
       "references": ["CWE-95", "MITRE T1059.007"],
       "tags": ["execution", "function-constructor", "javascript", "dynamic-code"]

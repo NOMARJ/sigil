@@ -100,7 +100,7 @@
       "id": "CRED-006",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
+      "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----(\\s*$|\\s+[A-Za-z0-9+/]{16}|[\"'`]\\s*[,+]?\\s*$|(\\\\\\\\?r)?\\\\\\\\?n[\"'`]\\s*[,+]?\\s*$|(\\\\\\\\?[rn]|[\"'`]\\s*[,+]\\s*[\"'`])+([A-Za-z0-9+/]{16}|Proc-Type:))",
       "description": "Embedded private key",
       "evidence": "corroborate",
       "remediation": "Remove the private key from the package and rotate it; it has been distributed. A PEM block in tests/certs, dummyserver fixtures or a README example is the common benign shape — the key was generated for the test suite or is a documentation placeholder — so read the surrounding file before treating it as a compromise.",
@@ -109,7 +109,47 @@
       ],
       "tags": [
         "hardcoded-secret"
-      ]
+      ],
+      "suppress": {
+        "nearby_contains": [
+          "BEGIN PRIVATE KEY-----\n...",
+          "BEGIN PRIVATE KEY-----\n  ...",
+          "BEGIN PRIVATE KEY-----\n    ...",
+          "BEGIN PRIVATE KEY-----\n…",
+          "BEGIN PRIVATE KEY-----\n<",
+          "BEGIN PRIVATE KEY-----\n[",
+          "BEGIN PRIVATE KEY-----\nYOUR",
+          "BEGIN PRIVATE KEY-----\nyour",
+          "BEGIN PRIVATE KEY-----\n-----END",
+          "BEGIN RSA PRIVATE KEY-----\n...",
+          "BEGIN RSA PRIVATE KEY-----\n  ...",
+          "BEGIN RSA PRIVATE KEY-----\n    ...",
+          "BEGIN RSA PRIVATE KEY-----\n…",
+          "BEGIN RSA PRIVATE KEY-----\n<",
+          "BEGIN RSA PRIVATE KEY-----\n[",
+          "BEGIN RSA PRIVATE KEY-----\nYOUR",
+          "BEGIN RSA PRIVATE KEY-----\nyour",
+          "BEGIN RSA PRIVATE KEY-----\n-----END",
+          "BEGIN EC PRIVATE KEY-----\n...",
+          "BEGIN EC PRIVATE KEY-----\n  ...",
+          "BEGIN EC PRIVATE KEY-----\n    ...",
+          "BEGIN EC PRIVATE KEY-----\n…",
+          "BEGIN EC PRIVATE KEY-----\n<",
+          "BEGIN EC PRIVATE KEY-----\n[",
+          "BEGIN EC PRIVATE KEY-----\nYOUR",
+          "BEGIN EC PRIVATE KEY-----\nyour",
+          "BEGIN EC PRIVATE KEY-----\n-----END",
+          "BEGIN OPENSSH PRIVATE KEY-----\n...",
+          "BEGIN OPENSSH PRIVATE KEY-----\n  ...",
+          "BEGIN OPENSSH PRIVATE KEY-----\n    ...",
+          "BEGIN OPENSSH PRIVATE KEY-----\n…",
+          "BEGIN OPENSSH PRIVATE KEY-----\n<",
+          "BEGIN OPENSSH PRIVATE KEY-----\n[",
+          "BEGIN OPENSSH PRIVATE KEY-----\nYOUR",
+          "BEGIN OPENSSH PRIVATE KEY-----\nyour",
+          "BEGIN OPENSSH PRIVATE KEY-----\n-----END"
+        ]
+      }
     },
     {
       "id": "CRED-007",
@@ -131,12 +171,19 @@
           "changeme",
           "your-",
           "your_",
+          "\"YOUR_",
+          "'YOUR_",
+          "\"YOUR-",
+          "'YOUR-",
           "xxxx",
           "<your",
+          "<YOUR",
           "dummy",
           "REPLACE",
           "insert_",
-          "INSERT_"
+          "INSERT_",
+          "1234567890\"",
+          "1234567890'"
         ]
       }
     },
@@ -161,7 +208,19 @@
           "fixture",
           "readme",
           "spec",
-          "test"
+          "test",
+          "PKG-INFO"
+        ],
+        "line_contains": [
+          "your-",
+          "your_",
+          "YOUR_",
+          "<your",
+          "placeholder",
+          "changeme",
+          "mock-",
+          "dummy",
+          "xxxx"
         ]
       },
       "remediation": "Move the password out of source and rotate it.",
@@ -682,6 +741,33 @@
       "tags": [
         "exfiltration",
         "credential-theft"
+      ]
+    },
+    {
+      "id": "CRED-044",
+      "phase": "credentials",
+      "severity": "high",
+      "pattern": "(?i)browser[_-]?cookie3[^\\n]*discord[_-]?webhook|discord[_-]?webhook[^\\n]*browser[_-]?cookie3",
+      "description": "Browser-cookie extraction library declared beside a Discord webhook client (infostealer dependency set)",
+      "file_filter": {
+        "filename_exact": [
+          "setup.py",
+          "setup.cfg",
+          "pyproject.toml",
+          "requirements.txt",
+          "package.json",
+          "Pipfile"
+        ]
+      },
+      "remediation": "browser_cookie3 reads the session cookies of every browser profile on the machine, and discordwebhook posts to a Discord channel: declared together as dependencies they are the parts list of a cookie stealer that ships sessions to an attacker's webhook (the 2022 Roblox and Discord typosquat campaigns installed exactly this set). A tool that legitimately reuses your browser login has no reason to post to Discord. Do not install; if it was installed, sign out of every browser session and rotate the affected accounts.",
+      "references": [
+        "MITRE T1539",
+        "MITRE T1567.002"
+      ],
+      "tags": [
+        "credential-theft",
+        "infostealer",
+        "dependency"
       ]
     }
   ],

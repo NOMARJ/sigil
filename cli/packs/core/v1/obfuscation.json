@@ -11,9 +11,9 @@
     {
       "id": "OBFUSC-001",
       "phase": "obfuscation",
-      "severity": "high",
+      "severity": "low",
       "pattern": "base64\\.(b64)?decode\\s*\\(|from\\s+base64\\s+import\\s+[^\\n#]*\\b(b64)?decode\\b",
-      "description": "Base64 decoding (potential obfuscated payload)",
+      "description": "Base64 decoding (observation)",
       "remediation": "Find what base64.b64decode is decoding in this Python code. Decoding a token, a JWT segment, a data: URI or a binary field from an API response is ordinary; decoding a string literal embedded in the source is a hidden payload, especially when the result reaches exec, eval, compile, subprocess or a socket — decode it yourself and read the plaintext before installing.",
       "references": ["MITRE T1027", "MITRE T1140"],
       "tags": ["obfuscation", "base64", "python"]
@@ -21,9 +21,9 @@
     {
       "id": "OBFUSC-002",
       "phase": "obfuscation",
-      "severity": "high",
+      "severity": "low",
       "pattern": "atob\\s*\\(",
-      "description": "JavaScript atob() — base64 decoding",
+      "description": "JavaScript atob() — base64 decoding (observation)",
       "remediation": "Find what the JavaScript atob call is decoding. A JWT segment, a data: URI or a binary field from an API response is ordinary; a string literal embedded in the source is a hidden payload, especially when the result reaches eval, Function, require, fetch or a WebSocket — decode it yourself and read the plaintext before installing.",
       "references": ["MITRE T1027", "MITRE T1140"],
       "tags": ["obfuscation", "base64", "javascript", "atob"]
@@ -31,9 +31,9 @@
     {
       "id": "OBFUSC-003",
       "phase": "obfuscation",
-      "severity": "high",
+      "severity": "low",
       "pattern": "Buffer\\.from\\s*\\([^)]*,\\s*['\"]base64['\"]",
-      "description": "Node Buffer.from base64 decoding",
+      "description": "Node Buffer.from base64 decoding (observation)",
       "remediation": "Check the first argument of Buffer.from(..., 'base64') in this Node code. An environment variable, a JWT segment or a binary field from an API response is ordinary; a string literal embedded in the source is a hidden payload, especially when .toString() on the result reaches eval, Function, vm, child_process or fs.writeFile — decode it yourself and read the plaintext before installing.",
       "references": ["MITRE T1027", "MITRE T1140"],
       "tags": ["obfuscation", "base64", "javascript", "node"]
@@ -75,11 +75,21 @@
           "example",
           "fixture",
           "test"
+        ],
+        "line_contains": [
+          "\\x05\\x06\\x07\\b",
+          "\\v\\f\\r\\x0E\\x0F\\x10\\x11"
         ]
       },
       "remediation": "Decode the \\xNN run to bytes and look at what it is. Magic numbers, protocol frames and crypto test vectors are ordinary and are usually short and commented; a long escaped run in application or install code that decodes to readable text (a URL, a command, a module name) or to machine code is a payload hidden from text search — reject unless the decoded content is plainly benign and needed.",
-      "references": ["MITRE T1027"],
-      "tags": ["obfuscation", "hex", "escape-sequence"]
+      "references": [
+        "MITRE T1027"
+      ],
+      "tags": [
+        "obfuscation",
+        "hex",
+        "escape-sequence"
+      ]
     },
     {
       "id": "OBFUSC-007",
@@ -150,6 +160,36 @@
       "remediation": "Decode the tool description and read exactly what the model will be shown. A tool whose description merely says it handles Base64 is fine; a tool description, prompt or tool definition that is itself Base64-encoded or labelled encoded/obfuscated hides its instructions from the human reviewer while the model still reads them, which is the MCP tool-poisoning shape — reject the server unless the decoded text is plainly benign.",
       "references": ["MITRE T1027"],
       "tags": ["skill", "mcp", "obfuscation", "tool-poisoning"]
+    },
+    {
+      "id": "OBFUSC-012",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(?:\\b(?:b64decode|urlsafe_b64decode|standard_b64decode|decodebytes|decodestring|atob)\\s*\\(\\s*[bBrRuU]{0,2}[\"'`][A-Za-z0-9+/_-]{40,}={0,2}[\"'`]|Buffer\\.from\\s*\\(\\s*[\"'`][A-Za-z0-9+/=]{40,}[\"'`]\\s*,\\s*[\"'`]base64)",
+      "description": "Base64 decode of an inline literal payload (40+ encoded characters)",
+      "remediation": "Decode the literal yourself and read the plaintext. Decoding a value that arrives at run time (an API response, a JWT segment, an image, an environment variable) is ordinary and is reported only as the Low observation OBFUSC-001/002/003; a long Base64 literal decoded in place is text the author chose to hide from review — a URL, a script, a second-stage loader — and is how exec(b64decode('...')) and eval(atob('...')) payloads ship. Reject the package unless the decoded text is plainly benign (an embedded font or icon).",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "embedded-payload"]
+    },
+    {
+      "id": "OBFUSC-013",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(?:\\b(?:b64decode|urlsafe_b64decode|decodebytes|atob)\\s*\\(|Buffer\\.from\\s*\\()[^\\n]{0,80}?(?:\\.reverse\\(\\)|\\[\\s*::\\s*-1\\s*\\])",
+      "description": "Base64 decode of a reversed string",
+      "remediation": "The string is reversed (s.split('').reverse().join(''), s[::-1]) before it is Base64-decoded. Reversal protects nothing; it exists so the encoded text does not look like Base64 to a reviewer or a scanner. Undo both steps, read the plaintext and reject the package if it is a URL, a command or code.",
+      "references": ["MITRE T1027", "MITRE T1140"],
+      "tags": ["obfuscation", "base64", "string-reversal"]
+    },
+    {
+      "id": "OBFUSC-014",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(?:\\b(?:eval|exec|execSync|execFile|execFileSync|spawn|spawnSync|compile|runInThisContext|runInNewContext|runInContext|compileFunction|setTimeout|setInterval|Function|Script)|\\bos\\.(?:system|popen)|\\bsubprocess\\.(?:run|call|check_call|check_output|Popen|getoutput|getstatusoutput))\\s*\\(\\s*(?:[\\w$.]+\\s*\\(\\s*){0,3}(?:(?:[\\w$]+\\.)*(?:atob|b64decode|urlsafe_b64decode|standard_b64decode|decodebytes|decodestring)\\s*\\(|Buffer\\.from\\s*\\([^)]*,\\s*[\"'`]base64[\"'`])",
+      "description": "Base64 decode fed straight into a code or command sink",
+      "remediation": "The result of a Base64 decode goes directly into something that runs it: eval/exec/compile, the Function constructor, Node's vm (runInThisContext, runInNewContext, new vm.Script), a string passed to setTimeout/setInterval, child_process (exec, execSync, spawn) or Python's os.system/subprocess. Decoding data is an ordinary Low observation (OBFUSC-001/002/003); decoding something and executing it in the same expression is how a staged payload runs without its text ever appearing in the source. Find where the encoded value comes from (a literal, a download, an environment variable), decode it yourself without running it, and reject the package unless the plaintext is plainly benign.",
+      "references": ["MITRE T1027", "MITRE T1140", "MITRE T1059"],
+      "tags": ["obfuscation", "base64", "execution", "staged-payload"]
     }
   ],
   "provenance_rules": []
