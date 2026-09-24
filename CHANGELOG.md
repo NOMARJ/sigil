@@ -59,6 +59,12 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `Bash`, `Write`, `Edit` and `MultiEdit`, with typed vetting (a scanned npm
   package does not vet a PyPI package of the same name) and denies for
   download-then-run, `bash -s`, `tee | sh` and writes into agent tooling.
+  The plugin's shell fallback, used when the binary is not on PATH, now makes
+  the same decisions as the native hook on 16,000 of 16,000 generated
+  download-to-interpreter commands and 927 of 935 hand-written probes. The
+  probes were synthetic, so this measures agreement, not detection; the
+  remaining differences are listed in
+  [docs/detection/ux.md](docs/detection/ux.md).
   `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
   `check_command`).
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
