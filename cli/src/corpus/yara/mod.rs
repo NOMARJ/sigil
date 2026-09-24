@@ -38,7 +38,7 @@ mod tests;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub use eval::{scan, Segment, Subject};
+pub use eval::{scan, Segment, Subject, CONTEXT_BYTES};
 pub use strings::CompiledString;
 
 use super::custom::{CustomPack, PackForm, SignatureStatus};

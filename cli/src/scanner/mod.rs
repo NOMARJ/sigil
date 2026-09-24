@@ -665,6 +665,11 @@ struct OversizedExcerpt {
     /// line `tail_line_offset + i`. `None` for binary content, whose middle
     /// is not read.
     tail_line_offset: Option<usize>,
+    /// With `binary_ok` (YARA rules loaded): the few bytes just after the
+    /// head and just before the tail, so `^`, `$`, `\b` and `fullword` at a
+    /// segment's edge see the file's real bytes there.
+    head_after: Vec<u8>,
+    tail_before: Vec<u8>,
 }
 
 /// Read the first and last [`OVERSIZED_EXCERPT_BYTES`] of a file and, for
@@ -710,24 +715,54 @@ fn oversized_excerpt(path: &Path, len: u64, binary_ok: bool) -> Option<Oversized
     file.seek(SeekFrom::Start(tail_start)).ok()?;
     let mut tail = Vec::new();
     file.read_to_end(&mut tail).ok()?;
+    let (mut head_after, mut tail_before) = (Vec::new(), Vec::new());
+    if binary_ok {
+        let ctx = crate::corpus::yara::CONTEXT_BYTES;
+        let mut read_at = |at: u64, n: usize, out: &mut Vec<u8>| -> Option<()> {
+            file.seek(SeekFrom::Start(at)).ok()?;
+            (&mut file).take(n as u64).read_to_end(out).ok()?;
+            Some(())
+        };
+        let head_end = head.len() as u64;
+        let gap = tail_start.saturating_sub(head_end);
+        read_at(head_end, ctx.min(gap as usize), &mut head_after)?;
+        let before = tail_start.saturating_sub(ctx as u64).max(head_end);
+        read_at(before, (tail_start - before) as usize, &mut tail_before)?;
+    }
     Some(OversizedExcerpt {
         head,
         tail,
         tail_start,
         tail_line_offset: (!binary).then_some(newlines),
+        head_after,
+        tail_before,
     })
 }
 
 /// A file's bytes as read, kept for the byte-level YARA pass when YARA rules
 /// are loaded: the whole file, or the head and tail of an oversized one.
 struct RawRead {
+    /// The whole file; for an oversized one, its head followed by the few
+    /// bytes after it (context, not evaluated).
     head: Vec<u8>,
-    /// Oversized files: the tail, the file offset it starts at, and the
-    /// newlines before it (text only).
-    tail: Option<(Vec<u8>, u64, Option<usize>)>,
+    /// Bytes of `head` that are evaluated.
+    head_len: usize,
+    tail: Option<RawTail>,
     filesize: u64,
     /// Text content (findings carry line numbers), not binary.
     text: bool,
+}
+
+/// The tail of an oversized file, as the YARA pass sees it.
+struct RawTail {
+    /// The few bytes before the tail (context, not evaluated), then the tail.
+    bytes: Vec<u8>,
+    /// Context bytes at the start of `bytes`.
+    context: usize,
+    /// File offset of the tail's first evaluated byte.
+    start: u64,
+    /// Newlines in the file before `start` (text only).
+    newlines: Option<usize>,
 }
 
 impl RawRead {
@@ -736,18 +771,25 @@ impl RawRead {
         let mut segments = vec![Segment {
             base: 0,
             data: &self.head,
+            span: 0..self.head_len,
             newlines_before: self.text.then_some(0),
         }];
-        if let Some((tail, start, newlines)) = &self.tail {
+        if let Some(t) = &self.tail {
+            let context_newlines = t.bytes[..t.context].iter().filter(|b| **b == b'\n').count();
             segments.push(Segment {
-                base: *start,
-                data: tail,
-                newlines_before: if self.text { *newlines } else { None },
+                base: t.start - t.context as u64,
+                data: &t.bytes,
+                span: t.context..t.bytes.len(),
+                newlines_before: if self.text {
+                    t.newlines.map(|n| n.saturating_sub(context_newlines))
+                } else {
+                    None
+                },
             });
         }
         Subject {
             segments,
-            filesize: self.filesize,
+            filesize: Some(self.filesize),
             partial: self.tail.is_some(),
         }
     }
@@ -760,8 +802,9 @@ enum YaraBytes {
     /// evaluated on disk.
     None,
     Disk(RawRead),
-    /// An archive member: its exact bytes when they differ from its text.
-    Member(Option<Vec<u8>>),
+    /// An archive member: its exact bytes when they differ from its text,
+    /// and whether it was cut at the member size cap.
+    Member(Option<Vec<u8>>, bool),
 }
 
 /// One unit of content for the per-file pipeline: a file on disk, or text
@@ -870,11 +913,25 @@ fn read_for_scan(file_path: &Path, keep_raw: bool) -> DiskRead {
                         } else {
                             format!("{what} by the YARA rules")
                         }),
-                        raw: keep_raw.then(|| RawRead {
-                            text: text.is_some(),
-                            tail: Some((ex.tail, ex.tail_start, ex.tail_line_offset)),
-                            head: ex.head,
-                            filesize: meta.len(),
+                        raw: keep_raw.then(|| {
+                            let head_len = ex.head.len();
+                            let mut head = ex.head;
+                            head.extend_from_slice(&ex.head_after);
+                            let context = ex.tail_before.len();
+                            let mut bytes = ex.tail_before;
+                            bytes.extend_from_slice(&ex.tail);
+                            RawRead {
+                                text: text.is_some(),
+                                tail: Some(RawTail {
+                                    bytes,
+                                    context,
+                                    start: ex.tail_start,
+                                    newlines: ex.tail_line_offset,
+                                }),
+                                head,
+                                head_len,
+                                filesize: meta.len(),
+                            }
                         }),
                         text,
                         stray_nuls: None,
@@ -890,6 +947,7 @@ fn read_for_scan(file_path: &Path, keep_raw: bool) -> DiskRead {
                     text: decoded.is_some(),
                     tail: None,
                     filesize: bytes.len() as u64,
+                    head_len: bytes.len(),
                     head: bytes,
                 });
                 match decoded {
@@ -1111,7 +1169,7 @@ pub fn run_scan(
             let (read, rel_path, derived, gap, yara_bytes) = match unit {
                 ScanUnit::Virtual(v) => {
                     let yara_bytes = if yara_active && v.is_file {
-                        YaraBytes::Member(v.raw)
+                        YaraBytes::Member(v.raw, v.truncated)
                     } else {
                         YaraBytes::None
                     };
@@ -1164,12 +1222,24 @@ pub fn run_scan(
                     let subject = match &yara_bytes {
                         YaraBytes::None => None,
                         YaraBytes::Disk(raw) => Some(raw.subject()),
-                        YaraBytes::Member(Some(bytes)) => {
-                            Some(yara::Subject::whole(bytes, !bytes.contains(&0)))
+                        // A member cut at the size cap is its first part
+                        // only: evaluated, but with an unknown `filesize`
+                        // and its findings marked partial.
+                        YaraBytes::Member(Some(bytes), truncated) => {
+                            let text = !bytes.contains(&0);
+                            Some(if *truncated {
+                                yara::Subject::truncated(bytes, text)
+                            } else {
+                                yara::Subject::whole(bytes, text)
+                            })
                         }
-                        YaraBytes::Member(None) => read
-                            .as_ref()
-                            .map(|(text, _)| yara::Subject::whole(text.as_bytes(), true)),
+                        YaraBytes::Member(None, truncated) => read.as_ref().map(|(text, _)| {
+                            if *truncated {
+                                yara::Subject::truncated(text.as_bytes(), true)
+                            } else {
+                                yara::Subject::whole(text.as_bytes(), true)
+                            }
+                        }),
                     };
                     subject
                         .map(|s| yara::scan(yara_files, &s, &rel_path, &should_run_phase, clock))

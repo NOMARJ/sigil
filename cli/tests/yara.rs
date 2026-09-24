@@ -313,6 +313,68 @@ fn directories_policies_and_inline_markers_treat_yara_like_any_rule() {
 }
 
 #[test]
+fn the_edges_of_an_oversized_files_head_and_tail_are_not_the_files_edges() {
+    let fx = fixture();
+    // 12 MB of text. The scanned head (the first 2,000,000 bytes) ends in the
+    // middle of the word "SIGILab", and the scanned tail (the last 2,000,000)
+    // starts in the middle of "zzMARK": neither is a whole word, and neither
+    // edge is the start or end of the file.
+    let mut data = vec![b'x'; 12 * 1024 * 1024];
+    for (i, b) in data.iter_mut().enumerate() {
+        if i % 64 == 63 {
+            *b = b'\n';
+        }
+    }
+    let n = data.len();
+    let head_end = 2_000_000;
+    data[head_end - 6..head_end + 2].copy_from_slice(b" SIGILab");
+    let tail_start = n - 2_000_000;
+    data[tail_start - 2..tail_start + 4].copy_from_slice(b"zzMARK");
+    std::fs::write(fx.proj.join("big.txt"), &data).unwrap();
+    let rule = fx.root.join("edges.yar");
+    std::fs::write(
+        &rule,
+        "rule Edge_Word { strings: $a = \"SIGIL\" fullword condition: $a }\n\
+         rule Edge_End { strings: $a = /SIGIL$/ condition: $a }\n\
+         rule Edge_Start { strings: $a = /^MARK/ condition: $a }\n\
+         rule Edge_Tail_Word { strings: $a = /\\bMARK/ condition: $a }\n\
+         rule Edge_Plain { strings: $a = \"SIGIL\" $b = \"MARK\" condition: $a and $b }\n",
+    )
+    .unwrap();
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &[
+            "--rules",
+            rule.to_str().unwrap(),
+            "scan",
+            ".",
+            "--no-cache",
+            "-f",
+            "json",
+        ],
+        &[],
+    );
+    // (The fixture's other files carry the markers too; only big.txt counts.)
+    let on_big = |id: &str| {
+        findings(&o, id)
+            .into_iter()
+            .filter(|f| f["file"].as_str().unwrap_or("").ends_with("big.txt"))
+            .count()
+    };
+    for id in [
+        "YARA-EDGE-WORD",
+        "YARA-EDGE-END",
+        "YARA-EDGE-START",
+        "YARA-EDGE-TAIL-WORD",
+    ] {
+        assert_eq!(on_big(id), 0, "{id}: {}", stdout(&o));
+    }
+    // Both markers are in the scanned parts, so the plain rule fires.
+    assert_eq!(on_big("YARA-EDGE-PLAIN"), 1, "{}", stdout(&o));
+}
+
+#[test]
 fn an_oversized_binary_is_evaluated_on_its_head_and_tail_and_says_so() {
     let fx = fixture();
     // 12 MB of zeros with the marker bytes in the head, the middle and the

@@ -993,6 +993,7 @@ fn member(
         keep_raw(
             name,
             bytes,
+            truncated,
             &display,
             outer,
             scheme,
@@ -1014,6 +1015,7 @@ fn member(
         keep_raw(
             name,
             bytes,
+            truncated,
             &display,
             outer,
             scheme,
@@ -1030,6 +1032,7 @@ fn member(
         keep_raw(
             name,
             bytes,
+            truncated,
             &display,
             outer,
             scheme,
@@ -1076,6 +1079,7 @@ fn member(
         label: "archive member",
         raw,
         is_file: true,
+        truncated,
     });
 }
 
@@ -1086,6 +1090,7 @@ fn member(
 fn keep_raw(
     name: &str,
     bytes: Vec<u8>,
+    truncated: bool,
     display: &str,
     outer: &str,
     scheme: &str,
@@ -1118,6 +1123,7 @@ fn keep_raw(
         label: RAW_MEMBER_LABEL,
         raw: Some(bytes),
         is_file: true,
+        truncated,
     });
 }
 
@@ -1254,6 +1260,35 @@ mod tests {
             .map(|f| f.file.as_str())
             .collect();
         assert_eq!(disguised, vec!["s/image.png", "s/notes.pdf"]);
+    }
+
+    #[test]
+    fn a_member_cut_at_the_size_cap_is_marked_truncated() {
+        // One binary and one text member just over the cap, one under it:
+        // YARA rules see only the first MAX_MEMBER_BYTES of the big ones and
+        // must know they are not the whole member (its filesize is unknown).
+        let big_bin = vec![0u8; MAX_MEMBER_BYTES as usize + 10];
+        let big_txt = vec![b'x'; MAX_MEMBER_BYTES as usize + 10];
+        let outer = zip_bytes(&[
+            ("big.bin", &big_bin),
+            ("big.txt", &big_txt),
+            ("small.txt", b"small\n"),
+        ]);
+        let (d, files) = tree(&[("skill/bundle.zip", outer)]);
+        let s = scan_with(d.path(), &files, true);
+        let unit = |suffix: &str| {
+            s.units
+                .iter()
+                .find(|u| u.rel_path.ends_with(suffix))
+                .unwrap_or_else(|| panic!("{suffix}: {:?}", s.units))
+        };
+        assert!(unit("big.bin").truncated);
+        assert_eq!(
+            unit("big.bin").raw.as_ref().map(Vec::len),
+            Some(MAX_MEMBER_BYTES as usize)
+        );
+        assert!(unit("big.txt").truncated);
+        assert!(!unit("small.txt").truncated);
     }
 
     #[test]

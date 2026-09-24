@@ -7,13 +7,16 @@
 //! needs it — and bounded:
 //!
 //! - no match is longer than [`UNBOUNDED_MATCH_LIMIT`] when the string has an
-//!   unbounded part, the same limit YARA applies to regular expressions, and
-//!   the search walks the data in windows of that size, so a greedy `.*`
-//!   cannot rescan the rest of the file once per match;
+//!   unbounded part, and the search walks the data in windows of that size,
+//!   so a greedy `.*` cannot rescan the rest of the file once per match;
 //! - `#a` stops counting at [`MAX_MATCHES_PER_STRING`], YARA's own cap;
-//! - the per-file budget (`scanner::budget`) is checked between rules and
-//!   inside long counts. When it runs out, evaluation stops and the caller
-//!   reports the truncation.
+//! - every search runs in chunks of [`SEARCH_CHUNK`] start positions and
+//!   checks the per-file budget (`scanner::budget`) between them, so the
+//!   budget stops evaluation however slowly an automaton crawls over crafted
+//!   bytes. A rule whose evaluation the budget cut short is not reported
+//!   either way — a search cut short reads as "no match", which `not $a` or
+//!   `#a < 5` would turn into a finding — and the caller reports the
+//!   truncation (`PROV-BUDGET-001`).
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -25,12 +28,27 @@ use super::{ArithOp, CmpOp, Expr, Quant, YaraFile, YaraRule};
 use crate::scanner::budget::FileBudget;
 use crate::scanner::{Finding, Phase};
 
-/// Longest match of a string that has an unbounded part. YARA's own limit
-/// for regular expressions (`RE_SCAN_LIMIT`) is the same 4096 bytes.
+/// Longest match of a string that has an unbounded part. Not libyara's
+/// limit, in either direction (measured on libyara 4.5.4): its regular
+/// expression matches stop at about 1 KB, and its unbounded hex jumps are not
+/// limited at all (it chains the pieces of the string). See
+/// `docs/enterprise.md` ("YARA rules", Limits).
 pub const UNBOUNDED_MATCH_LIMIT: usize = 4096;
 
 /// Matches counted per string per file before `#a` stops (YARA: 1,000,000).
 pub const MAX_MATCHES_PER_STRING: u64 = 1_000_000;
+
+/// Start positions one automaton call covers before the budget is checked
+/// again. Linear-time matching is not always fast: once a wide bounded jump
+/// overflows the lazy DFA's cache, the engine simulates the NFA at a few
+/// microseconds per byte (measured: `{ 41 [0-511] 42 }` over 9.5 MB of
+/// high-complexity data, 54 s in one call), so one call over a whole file
+/// could outlast any budget.
+pub const SEARCH_CHUNK: usize = 64 * 1024;
+
+/// Real bytes kept on each side of a partial segment: two, for the UTF-16
+/// `fullword` check of a `wide` string.
+pub const CONTEXT_BYTES: usize = 2;
 
 /// Bytes of each matched string shown in a finding.
 const SNIPPET_BYTES: usize = 48;
@@ -42,17 +60,34 @@ const SNIPPET_STRINGS: usize = 3;
 pub struct Segment<'a> {
     /// Offset of `data[0]` in the file.
     pub base: u64,
+    /// The segment's bytes (`span`), plus up to [`CONTEXT_BYTES`] of the
+    /// file's real bytes on either side when the segment is part of a larger
+    /// file, so `^`, `$`, `\b` and `fullword` see what the file has there
+    /// rather than an edge that is not in the file.
     pub data: &'a [u8],
+    /// The part of `data` this segment evaluates: every match starts and
+    /// ends inside it.
+    pub span: std::ops::Range<usize>,
     /// Newlines in the file before `data[0]` when the file is text; `None`
     /// for binary content, whose findings carry no line number.
     pub newlines_before: Option<usize>,
+}
+
+impl Segment<'_> {
+    /// The index in `data` of file offset `at`, when it is inside `span`.
+    fn local(&self, at: u64) -> Option<usize> {
+        let local = usize::try_from(at.checked_sub(self.base)?).ok()?;
+        self.span.contains(&local).then_some(local)
+    }
 }
 
 /// What one evaluation looks at: a whole file, or the scanned head and tail
 /// of one too large to read whole.
 pub struct Subject<'a> {
     pub segments: Vec<Segment<'a>>,
-    pub filesize: u64,
+    /// The file's size; `None` when it is not known (an archive member cut
+    /// at the member size cap), which makes `filesize` undefined.
+    pub filesize: Option<u64>,
     /// `segments` do not cover the whole file.
     pub partial: bool,
 }
@@ -64,10 +99,22 @@ impl<'a> Subject<'a> {
             segments: vec![Segment {
                 base: 0,
                 data,
+                span: 0..data.len(),
                 newlines_before: text.then_some(0),
             }],
-            filesize: data.len() as u64,
+            filesize: Some(data.len() as u64),
             partial: false,
+        }
+    }
+
+    /// The first bytes of something larger whose size is not known (an
+    /// archive member cut at the member size cap): evaluated as far as they
+    /// go, with `filesize` undefined and findings marked partial.
+    pub fn truncated(data: &'a [u8], text: bool) -> Self {
+        Subject {
+            filesize: None,
+            partial: true,
+            ..Subject::whole(data, text)
         }
     }
 }
@@ -85,30 +132,44 @@ pub fn scan(
     for file in files {
         let mut results: Vec<bool> = Vec::with_capacity(file.rules.len());
         let mut evals: Vec<RuleEval<'_, '_>> = Vec::with_capacity(file.rules.len());
+        let mut cut_short = false;
         for rule in &file.rules {
             if budget.expired() {
-                return out;
+                cut_short = true;
+                break;
             }
             let mut ev = RuleEval::new(rule, subject, budget);
             let matched = ev.boolean(&rule.condition, &results).unwrap_or(false);
+            // A search the budget cut short reads as "no match", which
+            // `not $a`, `none of them` or `#a < 5` would turn into a finding.
+            // A rule whose evaluation ran out of time is not reported either
+            // way, nor is any rule after it; the caller reports the file as
+            // not fully analysed.
+            if budget.expired() {
+                cut_short = true;
+                break;
+            }
             results.push(matched);
             evals.push(ev);
         }
         // A global rule that does not match switches off every rule in its
-        // file, as it does in a YARA namespace.
+        // file, as it does in a YARA namespace; one the budget left
+        // unevaluated leaves every rule in the file unknown.
         let globals_hold = file
             .rules
             .iter()
-            .zip(&results)
-            .all(|(r, m)| !r.global || *m);
-        if !globals_hold {
-            continue;
-        }
-        for ((rule, matched), mut ev) in file.rules.iter().zip(results).zip(evals) {
-            if !matched || rule.private || !phase_enabled(rule.phase) {
-                continue;
+            .enumerate()
+            .all(|(k, r)| !r.global || results.get(k).copied().unwrap_or(false));
+        if globals_hold {
+            for ((rule, matched), mut ev) in file.rules.iter().zip(results).zip(evals) {
+                if !matched || rule.private || !phase_enabled(rule.phase) {
+                    continue;
+                }
+                out.push(ev.finding(rel_path));
             }
-            out.push(ev.finding(rel_path));
+        }
+        if cut_short {
+            return out;
         }
     }
     out
@@ -150,7 +211,9 @@ impl<'r, 's> RuleEval<'r, 's> {
         let mut best: Option<Hit> = None;
         for v in &s.variants {
             for (si, seg) in self.subject.segments.iter().enumerate() {
-                if let Some((start, end)) = next_in(s, v, seg.data, 0) {
+                if let Some((start, end)) =
+                    next_in(s, v, seg, seg.span.start, seg.span.end, self.budget)
+                {
                     let abs = seg.base + start as u64;
                     if best.is_none_or(|b| abs < self.subject.segments[b.seg].base + b.start as u64)
                     {
@@ -179,21 +242,40 @@ impl<'r, 's> RuleEval<'r, 's> {
         }
         let rule = self.rule;
         let s = &rule.strings[i];
-        let mut n = 0u64;
+        // Every offset a match starts at, per form. The ascii and wide forms
+        // of one string can both match at one offset (`"Q" wide ascii` over
+        // `Q\0`), which YARA counts once, so with two forms the offsets are
+        // merged rather than their counts added.
+        let mut per_form: Vec<Vec<u64>> = Vec::with_capacity(s.variants.len());
         'all: for v in &s.variants {
+            let mut starts = Vec::new();
             for seg in &self.subject.segments {
-                let mut pos = 0usize;
-                while let Some((start, _)) = next_in(s, v, seg.data, pos) {
-                    n += 1;
+                let mut pos = seg.span.start;
+                while let Some((start, _)) = next_in(s, v, seg, pos, seg.span.end, self.budget) {
+                    starts.push(seg.base + start as u64);
+                    let n = starts.len() as u64;
                     if n >= MAX_MATCHES_PER_STRING
                         || (n.is_multiple_of(4096) && self.budget.expired())
                     {
+                        per_form.push(starts);
                         break 'all;
                     }
                     pos = start + 1;
                 }
             }
+            per_form.push(starts);
         }
+        let n = match per_form.as_slice() {
+            [] => 0,
+            [one] => one.len() as u64,
+            _ => {
+                let mut all: Vec<u64> = per_form.concat();
+                all.sort_unstable();
+                all.dedup();
+                all.len() as u64
+            }
+        }
+        .min(MAX_MATCHES_PER_STRING);
         self.count[i] = Some(n);
         n
     }
@@ -203,12 +285,10 @@ impl<'r, 's> RuleEval<'r, 's> {
         let s = &self.rule.strings[i];
         let limit = s.max_len.unwrap_or(UNBOUNDED_MATCH_LIMIT);
         for seg in &self.subject.segments {
-            let len = seg.data.len() as u64;
-            if at < seg.base || at >= seg.base + len {
+            let Some(local) = seg.local(at) else {
                 continue;
-            }
-            let local = (at - seg.base) as usize;
-            let end = local.saturating_add(limit).min(seg.data.len());
+            };
+            let end = local.saturating_add(limit).min(seg.span.end);
             for v in &s.variants {
                 let input = Input::new(seg.data)
                     .span(local..end)
@@ -223,20 +303,21 @@ impl<'r, 's> RuleEval<'r, 's> {
         false
     }
 
-    /// A match of string `i` starting anywhere in `lo..=hi`.
+    /// A match of string `i` starting anywhere in `lo..=hi` (file offsets).
     fn within(&self, i: usize, lo: u64, hi: u64) -> bool {
         let s = &self.rule.strings[i];
         for seg in &self.subject.segments {
-            let seg_end = seg.base + seg.data.len() as u64;
-            if hi < seg.base || lo >= seg_end {
+            let first = seg.base + seg.span.start as u64;
+            let last = seg.base + seg.span.end as u64; // exclusive
+            if hi < first || lo >= last {
                 continue;
             }
-            let from = (lo.max(seg.base) - seg.base) as usize;
+            let from = (lo.max(first) - seg.base) as usize;
+            // A start past `hi` does not count, so the search stops there.
+            let until = (hi.saturating_add(1).min(last) - seg.base) as usize;
             for v in &s.variants {
-                if let Some((start, _)) = next_in(s, v, seg.data, from) {
-                    if seg.base + start as u64 <= hi {
-                        return true;
-                    }
+                if next_in(s, v, seg, from, until, self.budget).is_some() {
+                    return true;
                 }
             }
         }
@@ -288,7 +369,7 @@ impl<'r, 's> RuleEval<'r, 's> {
     fn integer(&mut self, e: &Expr, rules: &[bool]) -> Option<i64> {
         match e {
             Expr::Int(n) => Some(*n),
-            Expr::Filesize => i64::try_from(self.subject.filesize).ok(),
+            Expr::Filesize => self.subject.filesize.and_then(|f| i64::try_from(f).ok()),
             Expr::Count(i) => i64::try_from(self.count(*i)).ok(),
             Expr::Neg(a) => self.integer(a, rules)?.checked_neg(),
             Expr::Arith(op, a, b) => {
@@ -305,16 +386,27 @@ impl<'r, 's> RuleEval<'r, 's> {
         }
     }
 
+    /// `any`/`all`/`none`/`N`/`N%` `of` a set, with YARA's reading of the
+    /// edge cases (checked against libyara 4.5): `0 of` means none of them;
+    /// a negative count, or a percentage of 0 or less, is met whatever
+    /// matches; a percentage over 100 never is. A string listed twice in a
+    /// set counts twice, as in YARA.
     fn of(&mut self, quant: &Quant, set: &[usize], rules: &[bool]) -> Option<bool> {
+        let len = set.len() as u64;
         let need: u64 = match quant {
             Quant::Any => 1,
-            Quant::All => set.len() as u64,
+            Quant::All => len,
             Quant::None => return Some(!set.iter().any(|i| self.matched(*i))),
-            Quant::AtLeast(n) => self.integer(n, rules)?.max(0) as u64,
-            Quant::Percent(p) => {
-                let p = self.integer(p, rules)?.clamp(0, 100) as u64;
-                (p * set.len() as u64).div_ceil(100)
-            }
+            Quant::AtLeast(n) => match self.integer(n, rules)? {
+                0 => return Some(!set.iter().any(|i| self.matched(*i))),
+                n if n < 0 => return Some(true),
+                n => n as u64,
+            },
+            Quant::Percent(p) => match self.integer(p, rules)? {
+                p if p <= 0 => return Some(true),
+                // found * 100 >= p * len, as a whole number of strings.
+                p => u64::try_from((p as u128 * u128::from(len)).div_ceil(100)).unwrap_or(u64::MAX),
+            },
         };
         let mut have = 0u64;
         for (k, i) in set.iter().enumerate() {
@@ -374,10 +466,10 @@ impl<'r, 's> RuleEval<'r, 's> {
         } else {
             "its condition, with no string match".to_string()
         };
-        let prefix = if self.subject.partial {
-            "[head/tail of oversized file] "
-        } else {
-            ""
+        let prefix = match (self.subject.partial, self.subject.filesize) {
+            (false, _) => "",
+            (true, Some(_)) => "[head/tail of oversized file] ",
+            (true, None) => "[first part of oversized member] ",
         };
         Finding {
             phase: rule.phase,
@@ -403,57 +495,113 @@ impl<'r, 's> RuleEval<'r, 's> {
     }
 }
 
-/// The first match of `v` starting at or after `from` in `data` that passes
-/// the `fullword` check.
-fn next_in(s: &CompiledString, v: &Variant, data: &[u8], from: usize) -> Option<(usize, usize)> {
+/// The first match of `v` in `seg` starting in `from..until` that passes the
+/// `fullword` check. Matches end within the segment's span.
+fn next_in(
+    s: &CompiledString,
+    v: &Variant,
+    seg: &Segment<'_>,
+    from: usize,
+    until: usize,
+    budget: &FileBudget,
+) -> Option<(usize, usize)> {
     let mut pos = from;
     loop {
-        let (start, end) = search(v, s.max_len, data, pos)?;
-        if !s.fullword || fullword_ok(data, start, end, v.wide) {
+        let (start, end) = search(v, s.max_len, seg.data, seg.span.end, pos, until, budget)?;
+        if !s.fullword || fullword_ok(seg.data, start, end, v.wide) {
             return Some((start, end));
         }
         pos = start + 1;
     }
 }
 
-/// The leftmost match starting at or after `from`.
+/// The leftmost match starting in `from..until` and ending by `end`; `None`
+/// also when the budget runs out (the caller sees the expired budget).
 ///
-/// A bounded string searches the rest of the data directly: the automaton
-/// stops at most `max_len` bytes past the match start. An unbounded one is
-/// searched in windows, because a greedy repetition would otherwise read to
-/// the end of the data once per match: matches starting in
-/// `[pos, pos + L)` are resolved within `[pos, pos + 2L)`, and a match is
-/// then re-read anchored within `L` bytes of its start, so no match is
-/// longer than `L` = [`UNBOUNDED_MATCH_LIMIT`]. Look-around (`\b`, `$`)
-/// sees the real bytes past a window's edge, because the span is narrowed,
-/// not the haystack.
-fn search(v: &Variant, max_len: Option<usize>, data: &[u8], from: usize) -> Option<(usize, usize)> {
-    let len = data.len();
-    if from >= len {
-        return None;
+/// No automaton call covers more than [`SEARCH_CHUNK`] start positions, and
+/// the budget is checked before each, so a slow automaton cannot hold the
+/// thread past the budget. A bounded string (longest match `m`) searches
+/// each chunk plus `m` bytes: a match starting in the chunk ends within
+/// that, so the leftmost one is the one a search of the whole data finds.
+/// An unbounded one first asks whether anything matches within the chunk
+/// plus `L` bytes (`L` = [`UNBOUNDED_MATCH_LIMIT`]; no match longer than `L`
+/// counts, so a chunk that fails has none), then walks it in windows,
+/// because a greedy repetition would otherwise read to the end of the data
+/// once per match: matches starting in `[pos, pos + L)` are resolved within
+/// `[pos, pos + 2L)`, and a match is re-read anchored within `L` bytes of
+/// its start. Look-around (`\b`, `$`) sees the real bytes past a window's
+/// edge, because the span is narrowed, not the haystack.
+fn search(
+    v: &Variant,
+    max_len: Option<usize>,
+    data: &[u8],
+    end: usize,
+    from: usize,
+    until: usize,
+    budget: &FileBudget,
+) -> Option<(usize, usize)> {
+    let until = until.min(end);
+    let Some(m) = max_len else {
+        return search_unbounded(v, data, end, from, until, budget);
+    };
+    let mut pos = from;
+    while pos < until {
+        if budget.expired() {
+            return None;
+        }
+        let chunk_end = pos.saturating_add(SEARCH_CHUNK).min(until);
+        let window_end = chunk_end.saturating_add(m).min(end);
+        if let Some(found) = v.re.search(&Input::new(data).span(pos..window_end)) {
+            // A match starting past the chunk may be cut short by the
+            // window; the next chunk finds it whole.
+            if found.start() < chunk_end {
+                return Some((found.start(), found.end()));
+            }
+        }
+        pos = chunk_end;
     }
-    if max_len.is_some() {
-        return v
-            .re
-            .search(&Input::new(data).span(from..len))
-            .map(|m| (m.start(), m.end()));
-    }
-    if !v.re.is_match(Input::new(data).span(from..len)) {
-        return None;
-    }
+    None
+}
+
+/// [`search`] for a string with an unbounded part.
+fn search_unbounded(
+    v: &Variant,
+    data: &[u8],
+    end: usize,
+    from: usize,
+    until: usize,
+    budget: &FileBudget,
+) -> Option<(usize, usize)> {
     let l = UNBOUNDED_MATCH_LIMIT;
     let mut pos = from;
-    while pos < len {
+    // Starts before this lie in a chunk that passed the pre-check.
+    let mut checked = from;
+    while pos < until {
+        if budget.expired() {
+            return None;
+        }
+        if pos >= checked {
+            let chunk_end = pos.saturating_add(SEARCH_CHUNK).min(until);
+            let probe_end = chunk_end.saturating_add(l).min(end);
+            if !v.re.is_match(Input::new(data).span(pos..probe_end)) {
+                pos = chunk_end;
+                continue;
+            }
+            checked = chunk_end;
+        }
         let resolved_until = pos.saturating_add(l);
-        let window_end = pos.saturating_add(2 * l).min(len);
+        let window_end = pos.saturating_add(2 * l).min(end);
         match v.re.search(&Input::new(data).span(pos..window_end)) {
-            Some(m) if m.start() < resolved_until || window_end == len => {
+            Some(m) if m.start() < resolved_until || window_end == end => {
+                if m.start() >= until {
+                    return None;
+                }
                 // Already within the limit: a search confined to `L` bytes
                 // from this start would prefer the same match.
                 if m.end() - m.start() <= l {
                     return Some((m.start(), m.end()));
                 }
-                let limit = m.start().saturating_add(l).min(len);
+                let limit = m.start().saturating_add(l).min(end);
                 let bounded = Input::new(data)
                     .span(m.start()..limit)
                     .anchored(Anchored::Yes);
@@ -463,7 +611,7 @@ fn search(v: &Variant, max_len: Option<usize>, data: &[u8], from: usize) -> Opti
                 }
             }
             Some(_) => pos = resolved_until,
-            None if window_end == len => return None,
+            None if window_end == end => return None,
             None => pos = resolved_until,
         }
     }

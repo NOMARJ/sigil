@@ -33,6 +33,12 @@ const MAX_CONDITION_TERMS: usize = 1000;
 /// Nesting of parentheses, `not` and unary minus in one condition.
 const MAX_CONDITION_NESTING: usize = 64;
 
+/// Strings named, in total, by the sets of one condition (`them` counts every
+/// string of the rule). Sets are kept as written — a string named twice
+/// counts twice, as in YARA — so without a bound a hostile file could make
+/// `any of ($*, $*, ...)` expand to billions of entries.
+const MAX_SET_ENTRIES: usize = 1_000_000;
+
 /// Nesting of hex alternatives.
 const MAX_HEX_NESTING: usize = 16;
 
@@ -632,6 +638,16 @@ impl Lexer<'_> {
                                 "unbounded jumps are not allowed inside a hex alternative".into(),
                             ));
                         }
+                        // YARA refuses `( 41 [1] | 42 )` and `( [1] 41 | 42 )`.
+                        if matches!(branch.first(), Some(HexToken::Jump { .. }))
+                            || matches!(branch.last(), Some(HexToken::Jump { .. }))
+                        {
+                            return Err((
+                                line,
+                                "a branch of a hex alternative cannot start or end with a jump"
+                                    .into(),
+                            ));
+                        }
                         branches.push(branch);
                         if end == b')' {
                             break;
@@ -1045,6 +1061,7 @@ impl Parser<'_> {
             this,
             terms: 0,
             nesting: 0,
+            set_entries: 0,
         };
         let parsed = cond.condition();
         let used = std::mem::take(&mut cond.used);
@@ -1311,6 +1328,8 @@ struct CondParser<'p, 'a> {
     terms: usize,
     /// Current nesting (see [`MAX_CONDITION_NESTING`]).
     nesting: usize,
+    /// Set entries so far (see [`MAX_SET_ENTRIES`]).
+    set_entries: usize,
 }
 
 fn as_bool((e, ty): Typed) -> Expr {
@@ -1510,6 +1529,10 @@ impl CondParser<'_, '_> {
             let symbol = describe(&t.tok);
             let l = self.int(lhs, t.line, &symbol)?;
             let r = self.int(rhs, t.line, &symbol)?;
+            // YARA refuses a constant zero divisor at compile time.
+            if matches!(op, ArithOp::Div | ArithOp::Mod) && matches!(r, Expr::Int(0)) {
+                return Err((t.line, "division by zero".into()));
+            }
             lhs = (Expr::Arith(op, Box::new(l), Box::new(r)), Ty::Int);
         }
     }
@@ -1683,24 +1706,23 @@ impl CondParser<'_, '_> {
         let set = self.set(line)?;
         let n = e.0;
         if let Expr::Int(k) = n {
-            let limit = if percent { 100 } else { set.len() as i64 };
-            if k <= 0 {
+            // YARA: `0 of` means none of them; a constant percentage must be
+            // 1 to 100. A constant count larger than the set can never be
+            // met; YARA accepts it, Sigil refuses it as a certain mistake.
+            if percent && !(1..=100).contains(&k) {
+                return Err((
+                    line,
+                    format!("`{k}% of`: a percentage must be between 1 and 100"),
+                ));
+            }
+            if !percent && k > set.len() as i64 {
                 return Err((
                     line,
                     format!(
-                        "`{k}{} of` is ambiguous; write `none of`",
-                        if percent { "%" } else { "" }
+                        "`{k} of` asks for more strings than the set has ({}), so it can \
+                         never match",
+                        set.len()
                     ),
-                ));
-            }
-            if k > limit {
-                return Err((
-                    line,
-                    if percent {
-                        format!("`{k}% of` is more than 100%")
-                    } else {
-                        format!("`{k} of` asks for more strings than the set has ({limit})")
-                    },
                 ));
             }
         }
@@ -1746,6 +1768,14 @@ impl CondParser<'_, '_> {
             if close.tok != Tok::Punct(")") {
                 return Err((close.line, "expected `)` to close the range".into()));
             }
+            if let (Expr::Int(a), Expr::Int(b)) = (&lo, &hi) {
+                if a > b {
+                    return Err((
+                        line,
+                        format!("range ({a}..{b}): the lower bound is above the upper bound"),
+                    ));
+                }
+            }
             return Ok((Expr::StrIn(i, Box::new(lo), Box::new(hi)), Ty::Bool));
         }
         Ok((Expr::Str(i), Ty::Bool))
@@ -1765,6 +1795,20 @@ impl CondParser<'_, '_> {
             }
             None => Err((line, format!("string ${n} is not defined in this rule"))),
         }
+    }
+
+    /// Refuse a condition whose sets, with `pending` more entries, would name
+    /// more than [`MAX_SET_ENTRIES`] strings in total.
+    fn check_set_entries(&self, pending: usize, line: usize) -> PResult<()> {
+        if self.set_entries.saturating_add(pending) > MAX_SET_ENTRIES {
+            return Err((
+                line,
+                format!(
+                    "the sets in this condition name more than {MAX_SET_ENTRIES} strings in total"
+                ),
+            ));
+        }
+        Ok(())
     }
 
     fn set(&mut self, line: usize) -> PResult<Vec<usize>> {
@@ -1816,6 +1860,7 @@ impl CondParser<'_, '_> {
                         ))
                     }
                 }
+                self.check_set_entries(out.len(), item.line)?;
                 let sep = self.next()?;
                 match sep.tok {
                     Tok::Punct(",") => continue,
@@ -1838,8 +1883,10 @@ impl CondParser<'_, '_> {
                 ))
             }
         }
-        let mut seen = std::collections::HashSet::new();
-        out.retain(|i| seen.insert(*i));
+        // A string named twice (`($a, $a)`, `($a*, $a1)`) counts twice, as in
+        // YARA, so the set is kept as written.
+        self.check_set_entries(out.len(), line)?;
+        self.set_entries += out.len();
         if self.peek_ident("at")? || self.peek_ident("in")? {
             return Err((
                 line,

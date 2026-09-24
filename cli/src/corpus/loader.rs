@@ -280,6 +280,16 @@ pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<SignaturePack>, String> {
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            // A YARA file here would otherwise be a rule that silently never
+            // runs: say where YARA files are read from.
+            if super::yara::is_yara_path(&path) {
+                eprintln!(
+                    "[corpus] skipping {}: YARA files are not read from this directory; \
+                     pass them with --rules, or list them under rule_packs in a scan or \
+                     organisation policy",
+                    path.display()
+                );
+            }
             continue;
         }
         match load_pack_from_file(&path) {

@@ -439,6 +439,9 @@ pub struct VirtualFile {
     /// rules apply to it. False for derived text such as bytecode constants,
     /// whose file is evaluated on disk.
     pub is_file: bool,
+    /// The member was cut at the per-member size cap: its bytes are its
+    /// first part only, so byte-level rules see an unknown `filesize`.
+    pub truncated: bool,
 }
 
 /// What the bytecode pass found.
@@ -749,6 +752,7 @@ fn inspect_one(
             label: "bytecode constants",
             raw: None,
             is_file: false,
+            truncated: false,
         });
     }
 }
