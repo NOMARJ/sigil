@@ -68,15 +68,47 @@ pub fn is_reference_doc(rel_path: &str) -> bool {
 /// phases are never discounted here. Neither is anything in an agent
 /// instruction file (see [`is_agent_instruction_file`]).
 ///
+/// Nor is a rule in [`INSTRUCTION_SHAPED_RULES`]: those sit in a code phase
+/// for weighting, but what they match is a command an agent carries out when
+/// it follows the document, so a skill's `references/setup.md` saying
+/// `curl … | bash` is the payload, not an example of one.
+///
 /// This is a verdict input, not a suppression: the finding is still reported
 /// at its own severity. `scoring` treats it like a finding under `docs/` —
 /// counted in the total score, not in the first-party score that gates HIGH.
-pub fn is_documented_example(phase: Phase, rel_path: &str) -> bool {
+pub fn is_documented_example(phase: Phase, rule: &str, rel_path: &str) -> bool {
     matches!(
         phase,
         Phase::CodePatterns | Phase::NetworkExfil | Phase::Credentials | Phase::Obfuscation
-    ) && is_reference_doc(rel_path)
+    ) && !INSTRUCTION_SHAPED_RULES.contains(&rule)
+        && is_reference_doc(rel_path)
 }
+
+/// Code-phase rules whose match is an *action for the reader to take* rather
+/// than an API example: download-and-execute, running and deleting a script,
+/// uploading a local file, reading another application's credential store or
+/// a hidden credential file, auto-answering a confirmation prompt, and reading
+/// agent state into a command substitution.
+///
+/// A skill's reference documents are loaded into the agent's context and
+/// followed, so moving one of these lines out of `SKILL.md` into
+/// `references/install.md` must not take it out of the HIGH gate. Measured on
+/// the 455 clean vendor skills and 204 malicious skills: exempting these rules
+/// from the documentation context changed no verdict in either set (the
+/// documentation context still keeps 6 clean skills out of HIGH through the
+/// API examples it was written for); it closes the evasion for skills that
+/// place the payload in a reference file, as the malicious syncause-debugger
+/// sample does with `curl … install_probe.sh | bash` in
+/// `references/install/nodejs.md`.
+pub const INSTRUCTION_SHAPED_RULES: &[&str] = &[
+    "NET-RCE-001",
+    "SKILL-011",
+    "SKILL-016",
+    "SKILL-017",
+    "SKILL-018",
+    "SKILL-020",
+    "SKILL-021",
+];
 
 #[cfg(test)]
 mod tests {
@@ -128,24 +160,58 @@ mod tests {
         // An API example in a reference file documents code.
         assert!(is_documented_example(
             Phase::NetworkExfil,
+            "NET-001",
             "references/api.md"
         ));
-        assert!(is_documented_example(Phase::CodePatterns, "docs/usage.md"));
+        assert!(is_documented_example(
+            Phase::CodePatterns,
+            "CODE-001",
+            "docs/usage.md"
+        ));
         // The same code in the skill's entry point is the payload.
-        assert!(!is_documented_example(Phase::NetworkExfil, "SKILL.md"));
+        assert!(!is_documented_example(
+            Phase::NetworkExfil,
+            "NET-001",
+            "SKILL.md"
+        ));
         // ...and in a script it is code the skill runs.
         assert!(!is_documented_example(
             Phase::CodePatterns,
+            "CODE-001",
             "scripts/run.py"
         ));
         // An instruction in a reference file is still an instruction.
         assert!(!is_documented_example(
             Phase::PromptInjection,
+            "PROMPT-010",
             "references/setup.md"
         ));
         assert!(!is_documented_example(
             Phase::SkillSecurity,
+            "SKILL-024",
             "references/setup.md"
+        ));
+    }
+
+    #[test]
+    fn instruction_shaped_code_rules_are_never_documentation() {
+        // `curl … | bash` in a skill's reference file is a step the agent is
+        // told to run: moving it out of SKILL.md must not discount it.
+        for rule in INSTRUCTION_SHAPED_RULES {
+            assert!(
+                !is_documented_example(Phase::NetworkExfil, rule, "references/install/nodejs.md"),
+                "{rule}"
+            );
+            assert!(
+                !is_documented_example(Phase::Credentials, rule, "README.md"),
+                "{rule}"
+            );
+        }
+        // A code example of the same phase in the same file still is one.
+        assert!(is_documented_example(
+            Phase::NetworkExfil,
+            "NET-012",
+            "references/install/nodejs.md"
         ));
     }
 }
