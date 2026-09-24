@@ -100,7 +100,7 @@
       "id": "CRED-006",
       "phase": "credentials",
       "severity": "critical",
-      "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----(\\s*$|[\"'`]\\s*[,+]?\\s*$|(\\\\\\\\?r)?\\\\\\\\?n([\"'`]\\s*[,+]?\\s*$|[A-Za-z0-9+/]{16}))",
+      "pattern": "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----(\\s*$|\\s+[A-Za-z0-9+/]{16}|[\"'`]\\s*[,+]?\\s*$|(\\\\\\\\?r)?\\\\\\\\?n([\"'`]\\s*[,+]?\\s*$|[A-Za-z0-9+/]{16}))",
       "description": "Embedded private key",
       "evidence": "corroborate",
       "remediation": "Remove the private key from the package and rotate it; it has been distributed. A PEM block in tests/certs, dummyserver fixtures or a README example is the common benign shape — the key was generated for the test suite or is a documentation placeholder — so read the surrounding file before treating it as a compromise.",
@@ -144,8 +144,10 @@
           "changeme",
           "your-",
           "your_",
-          "YOUR_",
-          "YOUR-",
+          "\"YOUR_",
+          "'YOUR_",
+          "\"YOUR-",
+          "'YOUR-",
           "xxxx",
           "<your",
           "<YOUR",
@@ -153,7 +155,8 @@
           "REPLACE",
           "insert_",
           "INSERT_",
-          "1234567890"
+          "1234567890\"",
+          "1234567890'"
         ]
       }
     },

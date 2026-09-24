@@ -93,6 +93,8 @@ fn cred006_still_reports_real_key_shapes() {
             r#"const k = "-----BEGIN RSA PRIVATE KEY-----\n" +"#,
             // A dropped SSH key.
             r#"echo "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAE" > ~/.ssh/id"#,
+            // A PEM body flattened onto one line with spaces.
+            r#"PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY----- MIIEpQIBAAKCAQEAsNlRJVZn9ZvXcECQm65czs -----END RSA PRIVATE KEY-----""#,
         ],
     );
 }
@@ -462,6 +464,13 @@ fn imds_named_in_an_ssrf_blocklist_is_quiet() {
         "NET-013",
         &["        (\"AWS IMDSv1\",  \"http://169.254.169.254/latest/meta-data/\", {}),"],
     );
+    // A bundler puts a whole package on one line; an unrelated `::ffff:` helper
+    // elsewhere on it must not hide the credential probe (Shai-Hulud shape).
+    assert_fires(
+        "package/bundle.js",
+        "NET-013",
+        &["static AWS_EC2_METADATA_IPV4_ADDRESS=\"169.254.169.254\";const m=h=>h.startsWith(\"::ffff:\")?h.slice(7):h;"],
+    );
 }
 
 #[test]
@@ -528,7 +537,18 @@ fn credential_placeholders_are_quiet() {
     assert_quiet(
         "PKG-INFO",
         "CRED-007",
-        &["        \"OPENSOLR_API_KEY\": \"YOUR_OPENSOLR_API_KEY\""],
+        &[
+            "        \"OPENSOLR_API_KEY\": \"YOUR_OPENSOLR_API_KEY\"",
+            "   export MAPBOX_ACCESS_TOKEN='YOUR_SECRET_TOKEN'",
+            "                    \"OPENAI_API_KEY\": \"sk-proj-1234567890\",",
+        ],
+    );
+    // Placeholder words elsewhere on a long (sourcemap) line do not excuse a
+    // key literal on it.
+    assert_fires(
+        "dist/cli.js.map",
+        "CRED-007",
+        &["Run 'echo \\\"PRIVATE_KEY=YOUR_PRIVATE_KEY\\\" > .env' (1234567890 steps); const a = { privateKey: 'suiprivkey1qqAbCdEfGhIjKlMnOp' };"],
     );
     assert_quiet(
         "build/index.integration-with-mock.js",
@@ -547,7 +567,18 @@ fn sequential_byte_tables_are_not_hex_payloads() {
     assert_quiet(
         "bin/mcp-server.js",
         "OBFUSC-006",
-        &["  chars: `\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\b"],
+        &[
+            "  chars: `\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\b",
+            "\\v\\f\\r\\x0E\\x0F\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18 !\"#$%&",
+        ],
+    );
+    // Python's bytes repr writes \x08, \x0b and \x0c, never \b, \v or \f: an
+    // embedded binary in an install script still fires even when it contains a
+    // sequential run.
+    assert_fires(
+        "setup.py",
+        "OBFUSC-006",
+        &["    f.write(b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\t')"],
     );
     assert_fires(
         "payload.py",

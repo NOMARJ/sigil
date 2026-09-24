@@ -443,7 +443,7 @@
         "line_contains": [
           "SSRF",
           "ssrf",
-          "::ffff:",
+          "IPv4-mapped",
           "link-local",
           "RFC1918",
           "RFC 1918",

@@ -77,8 +77,8 @@
           "test"
         ],
         "line_contains": [
-          "\\x00\\x01\\x02\\x03",
-          "\\x10\\x11\\x12\\x13"
+          "\\x05\\x06\\x07\\b",
+          "\\v\\f\\r\\x0E\\x0F\\x10\\x11"
         ]
       },
       "remediation": "Decode the \\xNN run to bytes and look at what it is. Magic numbers, protocol frames and crypto test vectors are ordinary and are usually short and commented; a long escaped run in application or install code that decodes to readable text (a URL, a command, a module name) or to machine code is a payload hidden from text search — reject unless the decoded content is plainly benign and needed.",
