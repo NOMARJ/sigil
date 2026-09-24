@@ -96,16 +96,21 @@ closes them all.
 only when you run Sigil from inside that tree. Scanning a tree from outside
 applies its policy tighten-only (exactly as a fully locked policy), because a
 policy shipped inside code you are auditing is part of what is being audited.
+Such a file that does not load (malformed YAML, unknown key) is set aside
+with a refusal instead of stopping the scan, so a tree cannot keep Sigil from
+reporting on it by shipping a broken one; your own policy file, or one named
+with `--config`, still fails the run with exit `2`.
 Pass `--config <file>` to vouch for it. `sigil clone`/`pip`/`npm` never read
 a policy from quarantined content; they apply only the organisation and
 `--config` rule packs.
 
-**Sigil's own files.** The provenance finding a committed dotfile draws (the
-hidden-file rule firing on `.sigil.yml` or `.sigil-baseline.json`) is
-suppressed with kind `config_file` for the trusted policy file and the
-baselines in use, so adopting a policy or a baseline adds no findings of its
-own. Content findings in those files are not excused: a prompt injection
-written into a `.sigil.yml` comment is reported like anywhere else.
+**Sigil's own files.** Findings in the trusted policy file and in the
+baselines in use (for example the hidden-file rule firing on `.sigil.yml`, or
+a rule matching the text a baseline `message` glob quotes) are suppressed with
+kind `config_file`, so adopting a policy or a baseline adds no findings of
+its own. A Critical finding is never excused this way: a prompt injection
+written into a `.sigil.yml` comment is reported like anywhere else. To quote
+a Critical pattern in a baseline, add a `sigil:ignore` marker for it.
 
 ## Custom rules
 

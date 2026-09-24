@@ -913,13 +913,34 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
     } else {
         None
     };
+    let discovered = opts.explicit_config.is_none();
+    let mut project_doc = None;
     if let Some((path, guard)) = project {
-        let doc = load_policy_file(&path, Origin::Project)?;
         let restricted_all = if !allow_project {
             Some("the organisation policy sets allow_project_policy: false".to_string())
         } else {
             guard
         };
+        match load_policy_file(&path, Origin::Project) {
+            Ok(doc) => project_doc = Some((path, restricted_all, doc)),
+            // A discovered tighten-only file could only have made the scan
+            // stricter. One that does not load is set aside, loudly, rather
+            // than allowed to stop the scan: otherwise any tree could keep
+            // `sigil scan <tree>` from reporting on it by shipping one
+            // malformed `.sigil.yml`. A file you trust (your own tree, or
+            // `--config`) still fails the run, so a typo is never ignored.
+            Err(e) if discovered && restricted_all.is_some() => {
+                eff.refused.push(format!(
+                    "{}: not applied, it does not load ({}); a tighten-only policy is set \
+                     aside rather than allowed to stop the scan",
+                    path.display(),
+                    e.lines().next().unwrap_or("invalid policy")
+                ));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    if let Some((path, restricted_all, doc)) = project_doc {
         let locked = eff.locked.clone();
         merge(
             &mut eff,
@@ -1145,12 +1166,16 @@ impl EffectivePolicy {
             .collect();
         let mut kept = Vec::with_capacity(result.findings.len());
         for f in std::mem::take(&mut result.findings) {
-            // Only the provenance findings a committed dotfile draws (the
-            // hidden-file rule) are excused. Content findings in the file are
-            // not: a prompt injection written into `.sigil.yml` comments is
-            // still a prompt injection, and excusing it would bypass every
-            // lock the organisation policy sets.
-            let config_file = if f.phase == Phase::Provenance {
+            // A trusted config file excuses the hidden-file finding every
+            // committed dotfile draws, and the patterns a baseline's
+            // `message` globs quote (a glob quoting a code-execution call
+            // fires that rule on the baseline itself). It never excuses a
+            // Critical finding: nothing a policy or baseline needs to say is
+            // Sigil's "almost certainly malicious", and a prompt injection
+            // written into a `.sigil.yml` comment must not ride through on
+            // the file's trust. Quoting a Critical pattern in a baseline
+            // takes an explicit, reviewable `sigil:ignore` marker instead.
+            let config_file = if f.phase == Phase::Provenance || f.severity < Severity::Critical {
                 self.config_file_of(&f)
             } else {
                 None
@@ -1668,6 +1693,37 @@ baseline: .sigil-baseline.json
     }
 
     #[test]
+    fn a_broken_policy_in_a_tree_you_audit_cannot_stop_the_scan() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".sigil.yml"), "no_such_key: 1\n").unwrap();
+
+        // Audited from outside: set aside with a refusal, flags still apply.
+        let mut o = opts(root.path());
+        o.cwd = outside.path().to_path_buf();
+        o.cli.fail_on = Some("medium".into());
+        let eff = resolve_clean(&o).expect("an untrusted broken policy must not stop the scan");
+        assert!(eff.sources.is_empty());
+        assert_eq!(
+            eff.fail_on,
+            Severity::Medium,
+            "the flags layer still applies"
+        );
+        assert!(
+            eff.refused.iter().any(|r| r.contains("not applied")),
+            "{:?}",
+            eff.refused
+        );
+
+        // Your own tree, or a file you name, still fails loudly.
+        assert!(resolve_clean(&opts(root.path())).is_err());
+        let mut named = opts(outside.path());
+        named.explicit_config = Some(root.path().join(".sigil.yml"));
+        assert!(resolve_clean(&named).is_err());
+    }
+
+    #[test]
     fn lock_gaps_name_the_unlocked_keys_that_can_undo_a_locked_gate() {
         let org = |text: &str| parse_policy(text, Path::new("/"), Origin::Org).unwrap();
         // Nothing locked about the gate: nothing to warn about.
@@ -1947,7 +2003,7 @@ baseline: .sigil-baseline.json
     }
 
     #[test]
-    fn a_trusted_config_file_excuses_its_dotfile_finding_not_its_content() {
+    fn a_trusted_config_file_never_excuses_a_critical_finding() {
         let root = tempfile::tempdir().unwrap();
         std::fs::write(root.path().join(".sigil.yml"), "fail_on: high\n").unwrap();
         let root_c = canonical(root.path());
@@ -1970,12 +2026,25 @@ baseline: .sigil-baseline.json
             "instruction override in a comment",
         );
         injected.phase = Phase::PromptInjection;
-        let mut r = result(vec![hidden, injected]);
+        // A baseline `message` glob quoting a matched line draws the rule it
+        // quotes; below Critical that is the file's own content, excused.
+        let quoted = finding(
+            "CODE-001",
+            ".sigil.yml",
+            Severity::High,
+            "quoted pattern in a message glob",
+        );
+        let mut r = result(vec![hidden, injected, quoted]);
         let out = eff.apply(&mut r, &[]);
-        assert_eq!(out.count(SuppressionKind::ConfigFile), 1);
-        assert_eq!(out.suppressed[0].finding.rule, "PROV-001");
+        let excused: Vec<&str> = out
+            .suppressed
+            .iter()
+            .filter(|s| s.kind == SuppressionKind::ConfigFile)
+            .map(|s| s.finding.rule.as_str())
+            .collect();
+        assert_eq!(excused, vec!["PROV-001", "CODE-001"]);
         assert_eq!(r.findings.len(), 1);
-        assert_eq!(r.findings[0].rule, "PROMPT-001", "content stays active");
+        assert_eq!(r.findings[0].rule, "PROMPT-001", "Critical stays active");
     }
 
     #[test]

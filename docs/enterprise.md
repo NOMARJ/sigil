@@ -134,7 +134,10 @@ normal CI case, `sigil scan .`). Scanning a downloaded skill from elsewhere
 (`sigil scan ~/Downloads/some-skill`) applies that skill's policy
 **tighten-only**: its `disable_rules`, `ignore_paths`, `trusted_domains`,
 `baseline`, `rule_packs` and any loosening value are refused and reported, and
-the refusal tells you to pass `--config <file>` if you do vouch for it.
+the refusal tells you to pass `--config <file>` if you do vouch for it. If
+that skill's policy file does not even load, it is set aside with a refusal
+rather than allowed to stop the scan, so shipping a malformed `.sigil.yml`
+cannot keep Sigil from reporting on the skill.
 `sigil clone`, `sigil pip` and `sigil npm` never read a policy from the
 quarantined content at all. Discovery can be switched off entirely with
 `--no-project-config` or `SIGIL_NO_PROJECT_CONFIG=1`; the organisation policy
@@ -427,6 +430,11 @@ Stated plainly so nothing here is over-relied on:
 - **`.sigilignore` is honoured from the scanned tree.** A tree can hide its own
   files from the walk with a `.sigilignore`. The scanned-tree guard covers
   policy files, not `.sigilignore`. (Tracked for a future release.)
+- **`sigil:ignore` markers are outside the organisation policy.** An inline
+  marker in the scanned tree suppresses the rule it names on that line or
+  file, at any severity, whatever the organisation policy locks. Each one is
+  listed in the report (`inline_suppressed`, SARIF `inSource`), so review
+  them as part of code review; there is no switch to disable them.
 - **Standing inside a tree trusts its `.sigil.yml`.** The guard applies when
   you scan a tree from outside it; `cd`-ing into a freshly downloaded
   repository and running `sigil scan .` applies that repository's policy in
