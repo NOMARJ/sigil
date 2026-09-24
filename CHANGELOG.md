@@ -6,6 +6,65 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🥊 Head-to-head with NVIDIA SkillSpector
+
+Measured on the same real samples as SkillSpector 2.11.2 (static, `--no-llm`):
+204 malicious skills from the Datadog dataset's ai-skills bucket and 455 clean
+vendor skills (anthropics, NVIDIA, openai, vercel-labs). Full method, the
+cases Sigil loses, and the disclosure block:
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+
+| | Malicious blocked | Clean blocked | Clean warned |
+|---|---:|---:|---:|
+| Sigil before | 142/204 (69.6%) | 108/455 (23.7%) | 226/455 (49.7%) |
+| Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
+| SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+- **Coverage.**
+  - Agent supply chain pack (AGENTSC-001..041): fake-prerequisite downloads,
+    droppers, secret and session harvesting, tunnel hosts, writes to an agent's
+    global instruction file.
+  - Agent instruction pack (INSTR-001..033) and multilingual injection
+    (INTL-001..004, nine languages).
+  - Structural checks the engine implements: shipped bytecode compared with
+    its source (ARTIFACT-001..003, 012), executables disguised as documents or
+    source files, nested, encrypted and path-traversing archives
+    (ARTIFACT-004..011), dependency-source redirection (DEPSRC-001..007),
+    whitespace padding that hides text (PAD-001..003), declared versus used
+    privilege (LPRIV-001..003).
+  - Correlation follows a file path from the line that writes it to the line
+    that sends or runs it (AGENTSC-CHAIN-002, DROPPER-CHAIN-001,
+    DESER-CHAIN-001).
+  - MCP-server rules OBFUSC-012/013/014, NET-CLEAR-001, NET-RCE-002, CRED-044.
+  - UTF-16/UTF-32 files are decoded and scanned, and a stray NUL byte no longer
+    makes a text file "binary" (OBFUSC-NUL-001 reports it).
+- **False positives.** HIGH needs first-party High or Critical evidence; Low
+  findings are observations; guardrails ("never reveal your system prompt")
+  no longer read as the attack they forbid; the packs were calibrated against
+  the 455 clean skills and 169 clean MCP servers, each change adversarially
+  re-checked for the attack variants it could drop.
+- **Preemptive protection.** `sigil scan` takes archives, file URLs, GitHub
+  `/tree/` links and `mcp:<name>` from the MCP registry, unpacked into
+  quarantine first. `--follow-refs` downloads what a skill tells you to fetch
+  or run and scans it without running it. `sigil skills scan` reports on the
+  skills, MCP servers and hooks already installed. The Claude Code hook gates
+  `Bash`, `Write`, `Edit` and `MultiEdit`, with typed vetting (a scanned npm
+  package does not vet a PyPI package of the same name) and denies for
+  download-then-run, `bash -s`, `tee | sh` and writes into agent tooling.
+  `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
+  `check_command`).
+- **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
+  organisation file (`SIGIL_POLICY_FILE`) with locked keys and tighten-only
+  project files; custom rule packs in JSON, YAML or a YARA subset, Ed25519
+  signed; baselines; `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and
+  JUnit reports; `sigil rules`, `sigil baseline`, `sigil config --policy /
+  --validate`; a GitHub Action with a verdict-based gate, a GitLab template, a
+  pre-commit hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
+- **Speed.** Rules gate on a word-boundary-free, larger-cache form of their
+  pattern: a 3 MB minified bundle that exhausted its 30 s scan budget now scans
+  completely in 1.9 s. Median scan time per skill: 1.48 s (SkillSpector,
+  measured on the same machine in the baseline run: 26.82 s).
+
 ### 🧩 YARA rules as custom rules
 
 - **`--rules` accepts YARA rule files.** `.yar` and `.yara` files — and

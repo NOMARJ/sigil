@@ -259,6 +259,32 @@ sigil login
 | **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ⚠️ Python AST; regex elsewhere |
 | **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     | ✅ Apache-2.0               |
 
+### Sigil vs NVIDIA SkillSpector — measured
+
+Both tools on the same real samples, static analysis on both sides. Full
+method, the cases Sigil loses, and the feature comparison:
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+
+```
+Data Source: Real samples. Malicious: Datadog malicious-software-packages-dataset, ai-skills bucket.
+             Clean: every skill in anthropics/skills, NVIDIA/skills, openai/skills,
+             vercel-labs/agent-skills.
+Sample Size: 204 malicious skills, 455 clean skills.
+Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not measured).
+             "Clean" is vendor-published, not audited. Sigil's newer rules were written after
+             reading these corpora, so its figures are in-sample.
+```
+
+| | Malicious blocked | Clean skills blocked | Clean skills warned |
+|---|---:|---:|---:|
+| **Sigil** | **173/204 (84.8%)** | **7/455 (1.5%)** | **71/455 (15.6%)** |
+| SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+Median scan time per skill, both tools in one run on the same machine: 1.38 s
+for Sigil (before this change) and 26.82 s for SkillSpector; the current build
+measured 1.48 s in its own run. SkillSpector can send findings to a model you choose for
+adjudication; Sigil's LLM analysis runs on Sigil's service.
+
 **The Complete Stack:**
 
 - **Sigil** (Layer 1): Quarantine-first _before_ code enters your environment (supply-chain protection)
