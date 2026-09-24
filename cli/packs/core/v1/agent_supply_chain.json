@@ -458,7 +458,47 @@
         "memory-poisoning",
         "agent-config",
         "self-propagation"
-      ]
+      ],
+      "suppress": {
+        "line_contains": [
+          "not modify",
+          "never modify",
+          "n't modify",
+          "not edit",
+          "never edit",
+          "n't edit",
+          "not touch",
+          "never touch",
+          "n't touch",
+          "not write to",
+          "never write to",
+          "n't write to",
+          "not overwrite",
+          "never overwrite",
+          "n't overwrite",
+          "not change",
+          "never change",
+          "n't change",
+          "Not modify",
+          "Never modify",
+          "N't modify",
+          "Not edit",
+          "Never edit",
+          "N't edit",
+          "Not touch",
+          "Never touch",
+          "N't touch",
+          "Not write to",
+          "Never write to",
+          "N't write to",
+          "Not overwrite",
+          "Never overwrite",
+          "N't overwrite",
+          "Not change",
+          "Never change",
+          "N't change"
+        ]
+      }
     },
     {
       "id": "AGENTSC-031",

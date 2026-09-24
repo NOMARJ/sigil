@@ -526,7 +526,43 @@
       "tags": [
         "prompt-injection",
         "override"
-      ]
+      ],
+      "suppress": {
+        "line_contains": [
+          "try to override",
+          "tries to override",
+          "trying to override",
+          "attempt to override",
+          "attempts to override",
+          "attempting to override",
+          "request to override",
+          "requests to override",
+          "asks you to override",
+          "ask you to override",
+          "asked to override",
+          "not override",
+          "never override",
+          "cannot override",
+          "n't override",
+          "won't override",
+          "Try to override",
+          "Tries to override",
+          "Trying to override",
+          "Attempt to override",
+          "Attempts to override",
+          "Attempting to override",
+          "Request to override",
+          "Requests to override",
+          "Asks you to override",
+          "Ask you to override",
+          "Asked to override",
+          "Not override",
+          "Never override",
+          "Cannot override",
+          "N't override",
+          "Won't override"
+        ]
+      }
     },
     {
       "id": "PROMPT-012",

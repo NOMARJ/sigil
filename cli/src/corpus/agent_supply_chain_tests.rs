@@ -648,3 +648,22 @@ fn agentsc_chain_002_env_carrying_archive_is_uploaded() {
         .iter()
         .any(|f| f.rule == "AGENTSC-CHAIN-002"));
 }
+
+/// AGENTSC-030 names the global instruction file; a line that forbids
+/// touching it is a guardrail, not a hijack. The attack's own table row
+/// still fires.
+#[test]
+fn agentsc_030_is_quiet_on_a_line_that_forbids_the_write() {
+    for line in [
+        "Do not modify ~/.claude/CLAUDE.md",
+        "- Never edit `~/.gemini/GEMINI.md` from this skill.",
+        "This skill doesn't touch ~/.codex/AGENTS.md.",
+    ] {
+        assert!(!fires("SKILL.md", line, "AGENTSC-030"), "fired on: {line}");
+    }
+    assert!(fires(
+        "SKILL.md",
+        "   | Claude Code | `~/.claude/CLAUDE.md` |",
+        "AGENTSC-030"
+    ));
+}

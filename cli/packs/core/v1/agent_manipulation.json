@@ -534,7 +534,7 @@
       "id": "MANIP-011",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(you\\s+(can|may)\\s+)?(forget|ignore|disregard|suspend|set\\s+aside)\\s+(about\\s+)?(your\\s+|the\\s+)?(system\\s+prompt|safety\\s+(guidelines?|rules?|training|instructions?)|alignment\\s+training|guardrails?|content\\s+polic(y|ies))\\b",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]\\\"'“`]*|[.;:!?—–,]\\s*|<!--\\s*|\\b(?:and|then|also|now|please|so|just|simply|freely|you\\s+(?:can|may|must|should|shall|will|need\\s+to|have\\s+to|are\\s+(?:free|allowed|permitted|encouraged)\\s+to)|feel\\s+free\\s+to|i\\s+want\\s+you\\s+to|your\\s+task\\s+is\\s+to|make\\s+sure\\s+(?:to|you))\\s+)(?:forget|ignore|disregard|suspend|set\\s+aside)\\s+(?:about\\s+)?(?:your\\s+|the\\s+)?(?:system\\s+prompt|safety\\s+(?:guidelines?|rules?|training|instructions?)|alignment\\s+training|guardrails?|content\\s+polic(?:y|ies))\\b",
       "description": "Agent manipulation — instructs the agent to suspend its safety guidelines",
       "file_filter": {
         "extensions": [
