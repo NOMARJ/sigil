@@ -1,4 +1,5 @@
 mod api;
+mod baseline;
 mod cache;
 mod corpus;
 mod diff;
@@ -11,10 +12,13 @@ mod knowngood;
 mod ledger;
 mod output;
 mod policy;
+mod project_config;
 mod provenance;
 mod provider;
 mod quarantine;
+mod report;
 mod residue;
+mod rules_cmd;
 mod sandbox;
 mod sbom;
 mod scanner;
@@ -36,9 +40,22 @@ struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Output format (text, json, sarif, html)
+    /// Output format (text, json, sarif, html, markdown, junit)
     #[arg(short, long, global = true, default_value = "text")]
     format: String,
+
+    /// Write the report to this file instead of stdout
+    #[arg(short = 'o', long, global = true, value_name = "FILE")]
+    output: Option<PathBuf>,
+
+    /// Add a custom rule pack (JSON or YAML file, or a directory of packs).
+    /// Repeatable. Custom packs add rules; they can never replace built-ins
+    #[arg(long = "rules", global = true, value_name = "PATH")]
+    rules: Vec<PathBuf>,
+
+    /// Scan policy file to use instead of discovering .sigil.yml
+    #[arg(long, global = true, value_name = "FILE")]
+    config: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
@@ -118,14 +135,50 @@ enum Commands {
         enhanced: bool,
 
         /// Exit 1 when a finding at or above this severity is present
-        /// (low, medium, high, critical). Default: high.
-        #[arg(long, default_value = "high")]
-        fail_on: String,
+        /// (low, medium, high, critical). Default: high, or the policy's fail_on.
+        #[arg(long)]
+        fail_on: Option<String>,
+
+        /// Also exit 1 when the verdict is at or above this level
+        /// (low, medium, high, critical)
+        #[arg(long, value_name = "VERDICT")]
+        fail_on_verdict: Option<String>,
+
+        /// Accept the findings recorded in this baseline (see `sigil baseline`):
+        /// they are reported as suppressed and do not fail the scan
+        #[arg(long, value_name = "FILE")]
+        baseline: Option<PathBuf>,
+
+        /// Do not look for .sigil.yml in the scan root or current directory
+        /// (also SIGIL_NO_PROJECT_CONFIG=1). The organisation policy still applies
+        #[arg(long)]
+        no_project_config: bool,
 
         /// Disable trust-ledger allowlisting (report findings even when the
         /// content digest-matches an approved ledger pin)
         #[arg(long)]
         ignore_ledger: bool,
+    },
+
+    /// Record the current findings as accepted, so later scans fail only on
+    /// new ones (writes .sigil-baseline.json in the scanned directory, or -o)
+    Baseline {
+        /// Directory or file to scan
+        path: PathBuf,
+
+        /// Why these findings are accepted (recorded in the baseline)
+        #[arg(long)]
+        reason: Option<String>,
+
+        /// Do not look for .sigil.yml in the scan root or current directory
+        #[arg(long)]
+        no_project_config: bool,
+    },
+
+    /// List, inspect, validate, test and sign detection rules
+    Rules {
+        #[command(subcommand)]
+        action: rules_cmd::RulesAction,
     },
 
     /// Show the active detection corpus: which packs are loaded, from where
@@ -246,6 +299,21 @@ enum Commands {
         /// List all configuration values
         #[arg(short, long)]
         list: bool,
+
+        /// Show the effective scan policy for the current directory: which
+        /// policy files apply, merged values, locked keys, refused loosenings
+        #[arg(long)]
+        policy: bool,
+
+        /// Validate a scan policy file (.sigil.yml, or an organisation policy
+        /// with --org). Exit 0 valid, 1 invalid, 2 unreadable
+        #[arg(long, value_name = "FILE")]
+        validate: Option<PathBuf>,
+
+        /// With --validate: check the file as an organisation policy
+        /// (allows `locked` and `allow_project_policy`)
+        #[arg(long, requires = "validate")]
+        org: bool,
     },
 
     /// Manage credential providers for sandboxed execution
@@ -490,6 +558,11 @@ async fn main() {
         eprintln!("{} verbose mode enabled", "sigil:".bold().cyan());
     }
 
+    report::set_output_path(cli.output.clone());
+    if let Some(code) = prepare_command(&cli) {
+        process::exit(code);
+    }
+
     let exit_code = match cli.command {
         Commands::Clone {
             url,
@@ -545,6 +618,9 @@ async fn main() {
             enrich,
             enhanced,
             fail_on,
+            fail_on_verdict,
+            baseline,
+            no_project_config,
             ignore_ledger,
         } => {
             // `sigil scan <git url>` is the clone workflow: quarantine, then
@@ -554,6 +630,14 @@ async fn main() {
             if looks_like_git_url(&target) {
                 cmd_clone(&target, None, false, &cli.format, cli.verbose).await
             } else {
+                let policy_args = ScanPolicyArgs {
+                    fail_on,
+                    fail_on_verdict,
+                    baseline,
+                    no_project_config,
+                    config: cli.config.clone(),
+                    rules: cli.rules.clone(),
+                };
                 cmd_scan(
                     &path,
                     &phases,
@@ -562,13 +646,49 @@ async fn main() {
                     no_cache,
                     enrich,
                     enhanced,
-                    &fail_on,
+                    policy_args,
                     ignore_ledger,
                     &cli.format,
                     cli.verbose,
                 )
                 .await
             }
+        }
+
+        Commands::Baseline {
+            path,
+            reason,
+            no_project_config,
+        } => {
+            let policy_args = ScanPolicyArgs {
+                no_project_config,
+                config: cli.config.clone(),
+                rules: cli.rules.clone(),
+                ..Default::default()
+            };
+            cmd_baseline(&path, reason, policy_args, &cli.format, cli.verbose).await
+        }
+
+        Commands::Rules { action } => {
+            let policy = match &action {
+                rules_cmd::RulesAction::List { .. } | rules_cmd::RulesAction::Show { .. } => {
+                    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                    let args = ScanPolicyArgs {
+                        config: cli.config.clone(),
+                        rules: cli.rules.clone(),
+                        ..Default::default()
+                    };
+                    match load_policy(&cwd, &args, None, cli.verbose) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("{} {e}", "error:".bold().red());
+                            process::exit(EXIT_ERROR);
+                        }
+                    }
+                }
+                _ => project_config::EffectivePolicy::default(),
+            };
+            rules_cmd::cmd_rules(action, &cli.format, &policy)
         }
 
         Commands::Corpus => cmd_corpus(&cli.format),
@@ -607,8 +727,26 @@ async fn main() {
             cmd_diff(&baseline, &path, &cli.format, cli.verbose).await
         }
 
-        Commands::Config { key, value, list } => {
-            cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
+        Commands::Config {
+            key,
+            value,
+            list,
+            policy,
+            validate,
+            org,
+        } => {
+            if let Some(file) = validate {
+                cmd_config_validate(&file, org, &cli.format)
+            } else if policy {
+                let args = ScanPolicyArgs {
+                    config: cli.config.clone(),
+                    rules: cli.rules.clone(),
+                    ..Default::default()
+                };
+                cmd_config_policy(&args, &cli.format, cli.verbose)
+            } else {
+                cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
+            }
         }
 
         Commands::Run {
@@ -1132,6 +1270,7 @@ fn cmd_corpus(format: &str) -> i32 {
             corpus::loader::PackOrigin::Embedded => origin.to_string().dimmed().to_string(),
             corpus::loader::PackOrigin::Released => origin.to_string().green().to_string(),
             corpus::loader::PackOrigin::User => origin.to_string().yellow().to_string(),
+            corpus::loader::PackOrigin::Custom => origin.to_string().cyan().to_string(),
         };
         println!(
             "  {:<34} {:<9} {:<19} {:>6}",
@@ -1155,6 +1294,7 @@ fn cmd_corpus(format: &str) -> i32 {
             .unwrap_or_else(|| "~/.sigil/packs/".to_string())
     );
     println!("  A pack supersedes an embedded pack with the same id.");
+    println!("  Custom packs (--rules, policy rule_packs) only add rules.");
     println!();
 
     EXIT_CLEAN
@@ -1346,7 +1486,9 @@ async fn cmd_clone(
     // 3. Scan the cloned repo
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_container_locator(&mut result, "git", url);
-    print_scan_output(&result, &entry.path, format);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     // 4. Auto-approve if requested and scan is low risk
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -1437,7 +1579,9 @@ async fn cmd_pip(
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_extraction_report(&mut result, &extraction, &pkg_spec);
     apply_container_locator(&mut result, "pip", &pkg_spec);
-    print_scan_output(&result, &entry.path, format);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -1525,7 +1669,9 @@ async fn cmd_npm(
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_extraction_report(&mut result, &extraction, &pkg_spec);
     apply_container_locator(&mut result, "npm", &pkg_spec);
-    print_scan_output(&result, &entry.path, format);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -1801,148 +1947,125 @@ fn print_progress(format: &str, msg: String) {
 
 /// Shared scan output: summary, findings, verdict, plus the ledger-suppression
 /// attribution when active. In JSON mode everything is emitted as exactly one
-/// JSON document on stdout (see `output::print_scan_result_json`).
-fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
-    if format == "sarif" {
-        output::print_scan_sarif(result, &path.to_string_lossy());
-        return;
-    }
-    if format == "html" {
-        print!("{}", html_report::render(result, &path.to_string_lossy()));
-        return;
-    }
-    if format == "json" {
-        output::print_scan_result_json(result);
-        return;
-    }
-    output::print_scan_summary(result);
-    output::print_findings(&result.findings);
-    output::print_profile(result);
-    if !result.inline_suppressed.is_empty() {
-        println!(
-            "  {} {} finding{} suppressed by sigil:ignore markers:",
-            "[*]".green(),
-            result.inline_suppressed.len(),
-            if result.inline_suppressed.len() == 1 {
-                ""
-            } else {
-                "s"
-            },
-        );
-        for note in &result.inline_suppressions {
-            println!("       {}", note.dimmed());
+/// JSON document (see `output::print_scan_result_json`). Goes to stdout, or
+/// to the global `--output` file. Returns false when the report could not be
+/// written, which the caller turns into exit 2.
+fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) -> bool {
+    match report::emit(result, &path.to_string_lossy(), format, None) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            false
         }
     }
-    if let Some(by) = &result.suppressed_by {
-        println!(
-            "  {} {} finding{} suppressed by ledger approval ({})",
-            "[*]".green(),
-            result.suppressed_findings.len(),
-            if result.suppressed_findings.len() == 1 {
-                ""
-            } else {
-                "s"
-            },
-            by
-        );
-    }
-    output::print_verdict(
-        &result.verdict,
-        scanner::profile::grade(result.verdict, result.score),
-    );
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn cmd_scan(
-    path: &Path,
-    phases: &str,
-    severity: &str,
-    submit: bool,
-    no_cache: bool,
-    enrich: bool,
-    enhanced: bool,
-    fail_on: &str,
-    ignore_ledger: bool,
-    format: &str,
+/// Scan-policy inputs from the command line.
+#[derive(Default)]
+struct ScanPolicyArgs {
+    fail_on: Option<String>,
+    fail_on_verdict: Option<String>,
+    baseline: Option<PathBuf>,
+    no_project_config: bool,
+    config: Option<PathBuf>,
+    rules: Vec<PathBuf>,
+}
+
+/// Resolve the scan policy (organisation file, project file, flags) and
+/// register its rule packs. Must run before anything builds the detection
+/// corpus. `scan_root` is where `.sigil.yml` discovery starts; discovery is
+/// skipped with `--no-project-config` or `SIGIL_NO_PROJECT_CONFIG=1`.
+fn load_policy(
+    scan_root: &Path,
+    args: &ScanPolicyArgs,
+    min_severity: Option<String>,
     verbose: bool,
-) -> i32 {
-    // Exit-code contract (ADR-0010): 2 = scan error.
-    if !path.exists() {
+) -> Result<project_config::EffectivePolicy, String> {
+    let env_off = std::env::var(project_config::NO_PROJECT_POLICY_ENV)
+        .is_ok_and(|v| !v.is_empty() && v != "0");
+    let opts = project_config::ResolveOptions {
+        scan_root: Some(scan_root.to_path_buf()),
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        explicit_config: args.config.clone(),
+        discover: !args.no_project_config && !env_off,
+        cli: project_config::CliPolicy {
+            fail_on: args.fail_on.clone(),
+            fail_on_verdict: args.fail_on_verdict.clone(),
+            min_severity,
+            baseline: args.baseline.clone(),
+            rules: args.rules.clone(),
+        },
+    };
+    let policy = project_config::resolve(&opts)?;
+    let packs = policy.activate_rule_packs()?;
+    report_policy(&policy, &packs, verbose);
+    Ok(policy)
+}
+
+/// What a resolved policy did, on stderr so a JSON or SARIF stdout stays one
+/// document. Refusals are always shown; the rest with `--verbose`.
+fn report_policy(
+    policy: &project_config::EffectivePolicy,
+    packs: &[corpus::custom::CustomPack],
+    verbose: bool,
+) {
+    for r in &policy.refused {
+        eprintln!("{} policy: {r}", "warning:".bold().yellow());
+    }
+    if !verbose {
+        return;
+    }
+    if policy.sources.is_empty() {
+        eprintln!("policy: no policy file applied (built-in defaults)");
+    }
+    for s in &policy.sources {
         eprintln!(
-            "{} path does not exist: {}",
-            "error:".bold().red(),
-            path.display()
+            "policy: applied {} policy {}{}",
+            match s.origin {
+                project_config::Origin::Org => "organisation",
+                project_config::Origin::Project => "project",
+            },
+            s.path,
+            s.restricted
+                .as_ref()
+                .map(|why| format!(" (tighten-only: {why})"))
+                .unwrap_or_default()
         );
-        return 2;
     }
-
-    // Threshold at/above which a finding makes the scan fail (exit 1).
-    let fail_threshold = match fail_on.to_lowercase().as_str() {
-        "low" => scanner::Severity::Low,
-        "medium" => scanner::Severity::Medium,
-        "high" => scanner::Severity::High,
-        "critical" => scanner::Severity::Critical,
-        other => {
-            eprintln!(
-                "{} invalid --fail-on '{}' (use low, medium, high, critical)",
-                "error:".bold().red(),
-                other
-            );
-            return 2;
-        }
-    };
-    let exit_for =
-        |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
-
-    print_progress(
-        format,
-        format!(
-            "{} scanning {}...",
-            "sigil:".bold().cyan(),
-            path.display().to_string().bold()
-        ),
-    );
-
-    // --- Cache: only use when running a full unfiltered scan ---
-    let use_cache = !no_cache && phases == "all" && severity == "low";
-
-    // Try loading from cache
-    if use_cache {
-        if let Some(mut cached) = cache::load_cached(path) {
-            print_progress(
-                format,
-                format!("{} using cached result", "sigil:".bold().green()),
-            );
-            // Re-evaluate ledger suppression against the CURRENT ledger: a pin
-            // approved or revoked since the cache was written must take effect.
-            ledger::apply_suppression(&mut cached, path, ignore_ledger);
-            print_scan_output(&cached, path, format);
-            return exit_for(&cached.findings);
-        } else if verbose {
-            eprintln!("no cache entry found, scanning fresh");
-        }
+    for p in packs {
+        eprintln!(
+            "policy: rule pack '{}' from {} — {} rule(s), signature {}",
+            p.pack.meta.id,
+            p.path.display(),
+            p.pack.rules.len() + p.pack.provenance_rules.len() + p.pack.correlation_rules.len(),
+            p.signature
+        );
     }
+    let mut known: Vec<String> = corpus::compiled::corpus().rule_ids();
+    if let Ok(packs) = corpus::loader::load_all_packs() {
+        known.extend(
+            packs
+                .iter()
+                .flat_map(|p| p.provenance_rules.iter().map(|r| r.id.clone())),
+        );
+    }
+    let mut checked = policy.clone();
+    checked.check_rule_references(&known);
+    for w in &checked.warnings {
+        eprintln!("policy: note: {w}");
+    }
+}
 
-    // Parse phase filter
-    let phase_filter: Option<Vec<String>> = if phases == "all" {
-        None
-    } else {
-        Some(phases.split(',').map(|s| s.trim().to_string()).collect())
-    };
-
-    // Parse severity filter
-    let min_severity: Option<&str> = if severity == "low" {
-        None // "low" is the default minimum, meaning show everything
-    } else {
-        Some(severity)
-    };
-
-    let mut result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+/// Run every phase and feed over `path`: the scan both `sigil scan` and
+/// `sigil baseline` record, so a baseline matches exactly what a later scan
+/// produces.
+fn fresh_scan(path: &Path, phase_filter: Option<&[String]>, verbose: bool) -> scanner::ScanResult {
+    let mut result = scanner::run_scan(path, phase_filter, None);
 
     // OSV advisory feed (US-E1): append CVE/MAL- findings from lockfiles.
     // Runs whenever a full-phase scan is requested (phases == "all").
     // Network failures are handled inside scan_for_osv_findings — never fatal.
-    if phases == "all" {
+    if phase_filter.is_none() {
         // The three feeds make network round-trips (OSV detail fetches, npm/PyPI
         // registry lookups). --verbose reports each feed's wall-clock so a slow
         // scan can be attributed to a specific feed rather than guessed at.
@@ -2011,31 +2134,145 @@ async fn cmd_scan(
             );
         }
     }
+    result
+}
 
-    // Trust-ledger allowlisting (F-010 US-H2): content that digest-matches an
-    // approved pin has its findings suppressed — moved out of score, verdict,
-    // and exit code, but kept visible in the output. Runs after every phase
-    // and feed so a RUGPULL-001 drift signal can veto suppression.
-    let suppressed = ledger::apply_suppression(&mut result, path, ignore_ledger);
-    if verbose && suppressed {
+#[allow(clippy::too_many_arguments)]
+async fn cmd_scan(
+    path: &Path,
+    phases: &str,
+    severity: &str,
+    submit: bool,
+    no_cache: bool,
+    enrich: bool,
+    enhanced: bool,
+    policy_args: ScanPolicyArgs,
+    ignore_ledger: bool,
+    format: &str,
+    verbose: bool,
+) -> i32 {
+    // Exit-code contract (ADR-0010): 2 = scan error.
+    if !path.exists() {
         eprintln!(
-            "ledger: {} finding(s) suppressed ({})",
-            result.suppressed_findings.len(),
-            result.suppressed_by.as_deref().unwrap_or("")
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
         );
+        return 2;
     }
 
-    print_scan_output(&result, path, format);
-
-    // Save to cache
-    if use_cache {
-        if let Err(err) = cache::save_to_cache(path, &result) {
-            if verbose {
-                eprintln!("cache save failed: {}", err);
-            }
-        } else if verbose {
-            eprintln!("result cached successfully");
+    // Scan policy: organisation file, .sigil.yml, then flags. Resolved before
+    // anything touches the corpus, because it can add rule packs (and the
+    // cache key includes the corpus digest). `--severity` is the policy's
+    // min_severity on the command line; `low` is the default and means "all".
+    let min_severity = (severity != "low").then(|| severity.to_string());
+    let policy = match load_policy(path, &policy_args, min_severity, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
         }
+    };
+    let baselines = match policy.load_baselines() {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+
+    print_progress(
+        format,
+        format!(
+            "{} scanning {}...",
+            "sigil:".bold().cyan(),
+            path.display().to_string().bold()
+        ),
+    );
+
+    // --- Cache: only for a full scan. The policy is applied after the cache,
+    // so a cached result is always the unfiltered one and a policy change
+    // never serves a stale verdict.
+    let use_cache = !no_cache && phases == "all";
+    let cached = if use_cache {
+        let hit = cache::load_cached(path);
+        if hit.is_none() && verbose {
+            eprintln!("no cache entry found, scanning fresh");
+        }
+        hit
+    } else {
+        None
+    };
+    let from_cache = cached.is_some();
+
+    let mut result = match cached {
+        Some(mut cached) => {
+            print_progress(
+                format,
+                format!("{} using cached result", "sigil:".bold().green()),
+            );
+            // Re-evaluate ledger suppression against the CURRENT ledger: a pin
+            // approved or revoked since the cache was written must take effect.
+            ledger::apply_suppression(&mut cached, path, ignore_ledger);
+            cached
+        }
+        None => {
+            // Parse phase filter
+            let phase_filter: Option<Vec<String>> = if phases == "all" {
+                None
+            } else {
+                Some(phases.split(',').map(|s| s.trim().to_string()).collect())
+            };
+            let mut result = fresh_scan(path, phase_filter.as_deref(), verbose);
+
+            // Trust-ledger allowlisting (F-010 US-H2): content that digest-matches an
+            // approved pin has its findings suppressed — moved out of score, verdict,
+            // and exit code, but kept visible in the output. Runs after every phase
+            // and feed so a RUGPULL-001 drift signal can veto suppression.
+            let suppressed = ledger::apply_suppression(&mut result, path, ignore_ledger);
+            if verbose && suppressed {
+                eprintln!(
+                    "ledger: {} finding(s) suppressed ({})",
+                    result.suppressed_findings.len(),
+                    result.suppressed_by.as_deref().unwrap_or("")
+                );
+            }
+
+            // Save to cache
+            if use_cache {
+                if let Err(err) = cache::save_to_cache(path, &result) {
+                    if verbose {
+                        eprintln!("cache save failed: {}", err);
+                    }
+                } else if verbose {
+                    eprintln!("result cached successfully");
+                }
+            }
+            result
+        }
+    };
+
+    // Policy: severity overrides, min_severity, disabled rules, ignored
+    // paths, trusted domains, baselines. Suppressed findings stay in the
+    // report, attributed; they leave score, verdict and exit code.
+    let outcome = policy.apply(&mut result, &baselines);
+    if verbose && !outcome.suppressed.is_empty() {
+        eprintln!(
+            "policy: {} finding(s) suppressed ({} by baseline)",
+            outcome.suppressed.len(),
+            outcome.count(project_config::SuppressionKind::Baseline)
+        );
+    }
+    let view = report::PolicyView {
+        policy: &policy,
+        outcome: &outcome,
+    };
+    if let Err(e) = report::emit(&result, &path.to_string_lossy(), format, Some(view)) {
+        eprintln!("{} {e}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
+    if from_cache {
+        return scan_exit_code(&policy, &result);
     }
 
     // --- Cloud threat enrichment -------------------------------------------
@@ -2084,7 +2321,9 @@ async fn cmd_scan(
                 "{} Enhanced scanning requires authentication. Run: sigil login",
                 "error:".bold().red()
             );
-            return 1;
+            // ADR-0010: the requested analysis did not run — an error (2),
+            // not a finding (1), so CI never reads it as "code is risky".
+            return EXIT_ERROR;
         }
 
         if verbose {
@@ -2150,7 +2389,445 @@ async fn cmd_scan(
         }
     }
 
-    exit_for(&result.findings)
+    scan_exit_code(&policy, &result)
+}
+
+/// Exit code for `sigil scan` under ADR-0010: 1 when an active finding is at
+/// or above `fail_on`, or the verdict is at or above `fail_on_verdict`.
+fn scan_exit_code(policy: &project_config::EffectivePolicy, result: &scanner::ScanResult) -> i32 {
+    match exit_code_for(&result.findings, policy.fail_on) {
+        EXIT_CLEAN if policy.fails_on_verdict(result) => EXIT_FINDINGS,
+        code => code,
+    }
+}
+
+/// Checks and setup that must happen before a command runs.
+///
+/// Commands that render a scan report refuse an unknown `--format` up front.
+/// Commands that build the detection corpus without discovering a project
+/// policy of their own — the acquisitions, `diff`, `corpus` — load the
+/// organisation policy, `--config` and `--rules` here, so custom packs are
+/// registered before the corpus is compiled. An acquisition never reads a
+/// policy from the content it quarantines, and only a policy's `rule_packs`
+/// affect it: suppression keys never weaken the quarantine gate.
+///
+/// Returns an exit code when the command must not run.
+fn prepare_command(cli: &Cli) -> Option<i32> {
+    let scan_like = match &cli.command {
+        Commands::Scan { path, .. } => Some(looks_like_git_url(&path.to_string_lossy())),
+        Commands::Clone { .. } | Commands::Pip { .. } | Commands::Npm { .. } => Some(true),
+        Commands::Diff { .. } | Commands::Corpus => Some(false),
+        _ => None,
+    };
+    if matches!(
+        cli.command,
+        Commands::Scan { .. }
+            | Commands::Clone { .. }
+            | Commands::Pip { .. }
+            | Commands::Npm { .. }
+    ) {
+        if let Err(e) = report::validate_format(&cli.format) {
+            eprintln!("{} {e}", "error:".bold().red());
+            return Some(EXIT_ERROR);
+        }
+    }
+    let acquisition = scan_like?;
+    if matches!(cli.command, Commands::Scan { .. }) && !acquisition {
+        // A local scan resolves its policy itself, with discovery.
+        return None;
+    }
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let args = ScanPolicyArgs {
+        no_project_config: true,
+        config: cli.config.clone(),
+        rules: cli.rules.clone(),
+        ..Default::default()
+    };
+    match load_policy(&cwd, &args, None, cli.verbose) {
+        Ok(_) => None,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            Some(EXIT_ERROR)
+        }
+    }
+}
+
+/// `sigil baseline <path>`: record the findings a scan would fail on today.
+async fn cmd_baseline(
+    path: &Path,
+    reason: Option<String>,
+    policy_args: ScanPolicyArgs,
+    format: &str,
+    verbose: bool,
+) -> i32 {
+    if !path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
+        return EXIT_ERROR;
+    }
+    let mut policy = match load_policy(path, &policy_args, None, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+    let dest = report::output_path()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| {
+            let dir = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(Path::new("."))
+            };
+            dir.join(baseline::DEFAULT_BASELINE_FILE)
+        });
+    // The file being written is configuration, not a finding: regenerating a
+    // baseline must not record the previous one.
+    policy.add_config_file(&dest);
+    eprintln!(
+        "{} scanning {} to record a baseline...",
+        "sigil:".bold().cyan(),
+        path.display().to_string().bold()
+    );
+    let mut result = fresh_scan(path, None, verbose);
+    ledger::apply_suppression(&mut result, path, false);
+    // Record what the gate would see: the policy's suppressions apply, its
+    // existing baselines do not — a new baseline replaces them.
+    let outcome = policy.apply(&mut result, &[]);
+    let file = baseline::BaselineFile::from_result(&result, &path.display().to_string(), reason);
+    let yaml = matches!(
+        dest.extension().and_then(|e| e.to_str()),
+        Some("yaml") | Some("yml")
+    );
+    let text = if yaml {
+        serde_yaml::to_string(&file).map_err(|e| e.to_string())
+    } else {
+        serde_json::to_string_pretty(&file)
+            .map(|s| s + "\n")
+            .map_err(|e| e.to_string())
+    };
+    let written = text.and_then(|t| std::fs::write(&dest, t).map_err(|e| e.to_string()));
+    if let Err(e) = written {
+        eprintln!(
+            "{} cannot write baseline {}: {e}",
+            "error:".bold().red(),
+            dest.display()
+        );
+        return EXIT_ERROR;
+    }
+
+    if format == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "baseline": dest.display().to_string(),
+                "findings": file.findings.len(),
+                "policy_suppressed": outcome.suppressed.len(),
+                "verdict_before_baseline": result.verdict.to_string(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "{} baseline written to {} — {} finding(s) accepted{}",
+            "sigil:".bold().green(),
+            dest.display(),
+            file.findings.len(),
+            if outcome.suppressed.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " ({} more already suppressed by policy)",
+                    outcome.suppressed.len()
+                )
+            }
+        );
+        println!(
+            "  Fail only on new findings: sigil scan {} --baseline {}",
+            path.display(),
+            dest.display()
+        );
+        println!(
+            "  or add `baseline: {}` to .sigil.yml. Review the file before committing it.",
+            dest.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default()
+        );
+    }
+    EXIT_CLEAN
+}
+
+/// `sigil config --validate FILE`: check a scan policy without scanning.
+fn cmd_config_validate(file: &Path, org: bool, format: &str) -> i32 {
+    if !file.is_file() {
+        eprintln!("{} {}: no such file", "error:".bold().red(), file.display());
+        return EXIT_ERROR;
+    }
+    let origin = if org {
+        project_config::Origin::Org
+    } else {
+        project_config::Origin::Project
+    };
+    let mut errors: Vec<String> = Vec::new();
+    let mut notes: Vec<String> = Vec::new();
+    match project_config::load_policy_file(file, origin) {
+        Ok(doc) => {
+            for p in &doc.rule_packs {
+                match corpus::custom::load_path(p) {
+                    Ok(packs) => notes.push(format!(
+                        "rule_packs: {} loads ({} pack(s))",
+                        p.display(),
+                        packs.len()
+                    )),
+                    Err(e) => errors.push(format!("rule_packs: {e}")),
+                }
+            }
+            if let Some(b) = &doc.baseline {
+                match baseline::Baseline::load(b) {
+                    Ok(bl) => notes.push(format!(
+                        "baseline: {} loads ({} entr{}, {} glob rule(s))",
+                        b.display(),
+                        bl.entry_count(),
+                        if bl.entry_count() == 1 { "y" } else { "ies" },
+                        bl.rule_count()
+                    )),
+                    Err(e) => errors.push(format!("baseline: {e}")),
+                }
+            }
+        }
+        Err(e) => errors.extend(e.lines().map(str::to_string)),
+    }
+    let ok = errors.is_empty();
+    if format == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "file": file.display().to_string(),
+                "valid": ok,
+                "errors": errors,
+                "notes": notes,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        for n in &notes {
+            println!("  {} {n}", "·".dimmed());
+        }
+        for e in &errors {
+            println!("  {} {e}", "✗".red());
+        }
+        if ok {
+            println!(
+                "  {} {} is a valid {} policy",
+                "sigil:".bold().green(),
+                file.display(),
+                if org { "organisation" } else { "project" }
+            );
+        }
+    }
+    if ok {
+        EXIT_CLEAN
+    } else {
+        EXIT_FINDINGS
+    }
+}
+
+/// `sigil config --policy`: the effective scan policy for the current
+/// directory, with every source and every refused loosening.
+fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut policy = match load_policy(&cwd, args, None, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+    let mut known = corpus::compiled::corpus().rule_ids();
+    if let Ok(packs) = corpus::loader::load_all_packs() {
+        known.extend(
+            packs
+                .iter()
+                .flat_map(|p| p.provenance_rules.iter().map(|r| r.id.clone())),
+        );
+    }
+    policy.check_rule_references(&known);
+    let outcome = project_config::PolicyOutcome::default();
+    if format == "json" {
+        let mut doc = policy.to_json(&outcome);
+        if let Some(obj) = doc.as_object_mut() {
+            for k in [
+                "notes",
+                "suppressed",
+                "hidden_below_min_severity",
+                "severity_overridden",
+            ] {
+                obj.remove(k);
+            }
+            obj.insert(
+                "disable_rules".into(),
+                serde_json::json!(policy
+                    .disable_rules
+                    .iter()
+                    .map(|d| serde_json::json!({"rule": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "severity_overrides".into(),
+                serde_json::json!(policy.severity_overrides.iter().map(|o| serde_json::json!({"rule": o.pattern, "severity": o.severity.to_string(), "raise_only": o.raise_only, "source": o.source})).collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "ignore_paths".into(),
+                serde_json::json!(policy
+                    .ignore_paths
+                    .iter()
+                    .map(|d| serde_json::json!({"glob": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "trusted_domains".into(),
+                serde_json::json!(policy
+                    .trusted_domains
+                    .iter()
+                    .map(|d| serde_json::json!({"domain": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "baselines".into(),
+                serde_json::json!(policy.baselines.iter().map(|d| serde_json::json!({"path": d.value.display().to_string(), "source": d.source})).collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "rule_packs".into(),
+                serde_json::json!(policy.rule_packs.iter().map(|d| serde_json::json!({"path": d.value.display().to_string(), "source": d.source})).collect::<Vec<_>>()),
+            );
+        }
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return EXIT_CLEAN;
+    }
+
+    println!();
+    println!("  {} effective scan policy", "sigil".bold().cyan());
+    if policy.sources.is_empty() {
+        println!("  no policy file applies here (built-in defaults)");
+    }
+    for s in &policy.sources {
+        println!(
+            "  {} {} policy {}{}",
+            "source:".dimmed(),
+            match s.origin {
+                project_config::Origin::Org => "organisation",
+                project_config::Origin::Project => "project",
+            },
+            s.path,
+            s.restricted
+                .as_ref()
+                .map(|w| format!(" (tighten-only: {w})"))
+                .unwrap_or_default()
+        );
+    }
+    let show = |k: &str, v: String| println!("  {:<19} {v}", format!("{k}:").dimmed());
+    show("fail_on", policy.fail_on.to_string());
+    show(
+        "fail_on_verdict",
+        policy
+            .fail_on_verdict
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "(not set)".to_string()),
+    );
+    show(
+        "min_severity",
+        policy
+            .min_severity
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "LOW (show everything)".to_string()),
+    );
+    let list = |items: Vec<String>| {
+        if items.is_empty() {
+            "(none)".to_string()
+        } else {
+            items.join(", ")
+        }
+    };
+    show(
+        "disable_rules",
+        list(
+            policy
+                .disable_rules
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "severity_overrides",
+        list(
+            policy
+                .severity_overrides
+                .iter()
+                .map(|o| {
+                    format!(
+                        "{}={}{}",
+                        o.pattern,
+                        o.severity,
+                        if o.raise_only { " (raise only)" } else { "" }
+                    )
+                })
+                .collect(),
+        ),
+    );
+    show(
+        "ignore_paths",
+        list(
+            policy
+                .ignore_paths
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "trusted_domains",
+        list(
+            policy
+                .trusted_domains
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "baseline",
+        list(
+            policy
+                .baselines
+                .iter()
+                .map(|d| d.value.display().to_string())
+                .collect(),
+        ),
+    );
+    show(
+        "rule_packs",
+        list(
+            policy
+                .rule_packs
+                .iter()
+                .map(|d| d.value.display().to_string())
+                .collect(),
+        ),
+    );
+    show("locked", list(policy.locked.clone()));
+    for r in &policy.refused {
+        println!("  {} {r}", "refused:".yellow());
+    }
+    for w in &policy.warnings {
+        println!("  {} {w}", "note:".dimmed());
+    }
+    println!();
+    EXIT_CLEAN
 }
 
 // ---------------------------------------------------------------------------
@@ -2291,7 +2968,24 @@ fn collect_file_contents(
     file_contents
 }
 
+/// Exit code for `sigil diff`: 1 when the scan introduced new findings.
+fn diff_exit_code(diff: &diff::ScanDiff) -> i32 {
+    if diff.new_findings.is_empty() {
+        EXIT_CLEAN
+    } else {
+        EXIT_FINDINGS
+    }
+}
+
 async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {
+    if !scan_path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            scan_path.display()
+        );
+        return EXIT_ERROR;
+    }
     // Load baseline
     let baseline_data = match std::fs::read_to_string(baseline_path) {
         Ok(data) => data,
@@ -2302,7 +2996,7 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
                 baseline_path,
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -2314,7 +3008,7 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -2377,12 +3071,10 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
         }
     }
 
-    // Exit with non-zero if new findings were introduced
-    if !diff_result.new_findings.is_empty() {
-        2
-    } else {
-        0
-    }
+    // ADR-0010: new findings are a gate failure (1), not an error (2). This
+    // returned 2 before, which a CI job that retries on "infrastructure
+    // errors" would have treated as a flaky run rather than a regression.
+    diff_exit_code(&diff_result)
 }
 
 async fn cmd_clear_cache() -> i32 {

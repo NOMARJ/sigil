@@ -105,13 +105,24 @@ fn pack_has_signature(raw: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Load all packs: embedded core packs plus any user-installed packs.
+/// Load all packs: embedded core packs, the released corpus, user-installed
+/// packs, and then any custom packs named for this run (`--rules`, a scan
+/// policy's `rule_packs`; see [`super::custom`]).
 ///
 /// Embedded pack parse failures are logged with a `[SECURITY]` prefix because
 /// they indicate binary corruption (the packs are bundled at compile time).
 /// User-installed pack signature failures are propagated as `Err` so the
 /// caller can abort the scan; see `load_packs_from_dir`.
 pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
+    let mut packs = load_base_packs()?;
+    // 4. Custom packs for this run. Additive only: they can never supersede a
+    //    pack loaded above (see `custom::check_against`).
+    super::custom::append_registered(&mut packs)?;
+    Ok(packs)
+}
+
+/// Every pack except this run's custom packs: embedded, released and user.
+pub fn load_base_packs() -> Result<Vec<SignaturePack>, String> {
     let mut packs: Vec<SignaturePack> = Vec::new();
 
     // 1. Embedded packs — the bootstrap corpus.
@@ -188,6 +199,8 @@ pub enum PackOrigin {
     Released,
     /// User-installed pack in `~/.sigil/packs/`.
     User,
+    /// Named for this run by `--rules` or a scan policy's `rule_packs`.
+    Custom,
 }
 
 impl std::fmt::Display for PackOrigin {
@@ -196,6 +209,7 @@ impl std::fmt::Display for PackOrigin {
             PackOrigin::Embedded => "embedded",
             PackOrigin::Released => "released",
             PackOrigin::User => "user",
+            PackOrigin::Custom => "custom",
         })
     }
 }
@@ -233,6 +247,9 @@ pub fn load_all_packs_with_origin() -> Result<Vec<(SignaturePack, PackOrigin)>, 
         for pack in load_packs_from_dir(&dir)? {
             apply(pack, PackOrigin::User);
         }
+    }
+    for custom in super::custom::registered() {
+        packs.push((custom.pack, PackOrigin::Custom));
     }
 
     Ok(packs)
@@ -295,11 +312,10 @@ mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use ed25519_dalek::{Signer, SigningKey};
-    use std::sync::Mutex;
-
     // Serialise tests that mutate SIGIL_PACK_PUBLIC_KEY so parallel test
-    // runners don't race on the env var.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    // runners don't race on the env var. Shared with the custom-pack tests,
+    // which read the same variable.
+    use crate::corpus::custom::PACK_KEY_ENV_LOCK as ENV_LOCK;
 
     // -----------------------------------------------------------------------
     // Helpers shared across signing tests

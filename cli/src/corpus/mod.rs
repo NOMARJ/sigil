@@ -10,8 +10,10 @@
 //! - [`loader`] — discovers and parses packs from embedded data and `~/.sigil/packs/`
 //! - [`engine`] — runs pack rules against file content, returning `Finding`s
 //! - [`compiled`] — the same rules compiled once into a cached, per-phase form
+//! - [`custom`] — custom packs named for one run (`--rules`, policy `rule_packs`)
 
 pub mod compiled;
+pub mod custom;
 pub mod engine;
 pub mod loader;
 pub mod schema;
