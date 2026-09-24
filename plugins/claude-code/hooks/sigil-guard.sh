@@ -12,7 +12,8 @@
 #           (git clone, npm/pip/cargo/gem/go installs with explicit packages,
 #           curl|sh pipelines). Redirected to sigil clone / sigil npm / sigil pip.
 #   DENY  — also npx/bunx/uvx/pipx run/dlx remote runners (native hook:
-#           `sigil hook pretooluse` allows npx of a project-local binary).
+#           `sigil hook pretooluse` allows npx of a project-local binary),
+#           and npm exec|x, bun x, uv tool run of a registry package.
 #   DENY  — remote execution one step removed, judged per pipeline stage like
 #           the native hook: a download piped through `tee` or into
 #           `bash -s` / `sudo -u user bash` / python / node / iex, or
@@ -202,9 +203,8 @@ if [ $PIPE_CHECK = 1 ]; then
   # (pwsh|powershell), (iex|invoke-expression)
   PW_I='([pP][wW][sS][hH]|[pP][oO][wW][eE][rR][sS][hH][eE][lL][lL])'
   IEX_I='([iI][eE][xX]|[iI][nN][vV][oO][kK][eE]-[eE][xX][pP][rR][eE][sS][sS][iI][oO][nN])'
-  # PowerShell -c|-command|-f|-file|-encodedcommand|-e|-ec, and -No…
+  # PowerShell -c|-command|-f|-file|-encodedcommand|-e|-ec
   PW_ARG='([cC]|[cC][oO][mM][mM][aA][nN][dD]|[fF]|[fF][iI][lL][eE]|[eE][nN][cC][oO][dD][eE][dD][cC][oO][mM][mM][aA][nN][dD]|[eE]|[eE][cC])'
-  PW_NO='[nN][oO]'
 
   WS="[[:space:]$SOH]"
   NWS="[^[:space:]$SOH]"
@@ -215,29 +215,40 @@ if [ $PIPE_CHECK = 1 ]; then
   TE="([[:space:]]|[|;&)'\"\`$SOH]|\$)"
   STOP="([|;&)'\"\`$SOH]|\$)"
 
+  # hook.rs tokenises the arguments, so a backslash in front of a flag is
+  # quote removal (`bash \-s` is `bash -s`).
+  BQ='\\?'
   # Shells run stdin unless given -c or a script file; -s, - and -- keep
-  # reading stdin (`bash -s stable`). -o/+o take a value.
-  SH_OK="(--$TC+|[+]([^o$TX]$TC*|o$TC+)?|[+-]o[[:space:]]+$TC+|-([^-cso$TX][^cs$TX]*|o[^cs$TX]+))"
-  SH_RUN="(--|-|-(s|[^-c$TX][^c$TX]*s)[^c$TX]*)$TE"
+  # reading stdin (`bash -s stable`). -o/+o take a value; as the last word,
+  # with no value, they leave stdin as the script.
+  SH_OK="$BQ(--$TC+|[+]([^o$TX]$TC*|o$TC+)?|[+-]o[[:space:]]+$TC+|-([^-cso$TX][^cs$TX]*|o[^cs$TX]+))"
+  SH_RUN="$BQ(--|-|-(s|[^-c$TX][^c$TX]*s)[^c$TX]*)$TE"
+  SH_LAST="${BQ}[+-]o"
   # Other interpreters run stdin unless given inline code (-c -e -m -p -n
   # -r -E, --eval/--print/--module in any case) or a script; -W/-X take a
-  # value. OT_LONG is any other long flag.
+  # value (and, last with none, leave stdin as the script). OT_LONG is any
+  # other long flag.
   OT_LONG="--([^epmEPM$TX]$TC*|[eE]([^vV$TX]$TC*|[vV]([^aA$TX]$TC*|[aA]([^lL$TX]$TC*|[lL]$TC+)?)?)?|[pP]([^rR$TX]$TC*|[rR]([^iI$TX]$TC*|[iI]([^nN$TX]$TC*|[nN]([^tT$TX]$TC*|[tT]$TC+)?)?)?)?|[mM]([^oO$TX]$TC*|[oO]([^dD$TX]$TC*|[dD]([^uU$TX]$TC*|[uU]([^lL$TX]$TC*|[lL]([^eE$TX]$TC*|[eE]$TC+)?)?)?)?)?)"
-  OT_OK="(-[WX][[:space:]]+$TC+|-([^-cmepnrEWX$TX][^cmepnrE$TX]*|[WX][^cmepnrE$TX]+)|$OT_LONG|[+]$TC*)"
-  OT_RUN="(--|-)$TE"
-  # PowerShell runs stdin for `-` or `-Command -` / `-File -`.
-  PW_OK="(-$PW_NO$TC*)"
-  PW_RUN="((--|-)|-${PW_ARG}[[:space:]]+-)$TE"
+  OT_OK="$BQ(-[WX][[:space:]]+$TC+|-([^-cmepnrEWX$TX][^cmepnrE$TX]*|[WX][^cmepnrE$TX]+)|$OT_LONG|[+]$TC*)"
+  OT_RUN="$BQ(--|-)$TE"
+  OT_LAST="$BQ-[WX]"
+  # PowerShell runs stdin for `-` or `-Command -` / `-File -`; any other
+  # flag (`-NoProfile`, `-Sta`, `+x`) keeps it reading. PW_FLAG is a flag
+  # name other than PW_ARG (or `-`), in any case.
+  PW_FLAG="([^cCeEfF$TX-]$TC*|-$TC+|[cC]([^oO$TX]$TC*|[oO]([^mM$TX]$TC*|[mM]([^mM$TX]$TC*|[mM]([^aA$TX]$TC*|[aA]([^nN$TX]$TC*|[nN]([^dD$TX]$TC*|[dD]$TC+)?)?)?)?)?)|[eE]([^cCnN$TX]$TC*|[cC]$TC+|[nN]([^cC$TX]$TC*|[cC]([^oO$TX]$TC*|[oO]([^dD$TX]$TC*|[dD]([^eE$TX]$TC*|[eE]([^dD$TX]$TC*|[dD]([^cC$TX]$TC*|[cC]([^oO$TX]$TC*|[oO]([^mM$TX]$TC*|[mM]([^mM$TX]$TC*|[mM]([^aA$TX]$TC*|[aA]([^nN$TX]$TC*|[nN]([^dD$TX]$TC*|[dD]$TC+)?)?)?)?)?)?)?)?)?)?)?)?)|[fF]([^iI$TX]$TC*|[iI]([^lL$TX]$TC*|[lL]([^eE$TX]$TC*|[eE]$TC+)?)?))"
+  PW_OK="$BQ(-$PW_FLAG|[+]$TC*)"
+  PW_RUN="$BQ((--|-)|-${PW_ARG}[[:space:]]+$BQ-)$TE"
 
   tail_re() {
     # $1 = token that keeps the interpreter reading stdin, $2 = token that
-    # settles it: all $1 tokens up to the end of the arguments, or $1
+    # settles it, $3 = a valued flag that may end the arguments: all $1
+    # tokens up to the end of the arguments (the last may be $3), or $1
     # tokens then a $2 token.
-    R="([\"')$SOH]|\$|[[:space:]]+(($1[[:space:]]+)*$2|($1[[:space:]]+)*($1)?[[:space:]]*$STOP))"
+    R="([\"')$SOH]|\$|[[:space:]]+(($1[[:space:]]+)*$2|($1[[:space:]]+)*($1|$3)?[[:space:]]*$STOP))"
   }
-  tail_re "$SH_OK" "$SH_RUN"; SH_TAIL=$R
-  tail_re "$OT_OK" "$OT_RUN"; OT_TAIL=$R
-  tail_re "$PW_OK" "$PW_RUN"; PW_TAIL=$R
+  tail_re "$SH_OK" "$SH_RUN" "$SH_LAST"; SH_TAIL=$R
+  tail_re "$OT_OK" "$OT_RUN" "$OT_LAST"; OT_TAIL=$R
+  tail_re "$PW_OK" "$PW_RUN" "$PW_OK"; PW_TAIL=$R
 
   # `| tee file |` stages in between still hand the interpreter the
   # download; `sudo -u user` takes a value.
@@ -270,15 +281,20 @@ fi
 #   - pipx install / uv tool install <pkg> (gated by sigil pip <pkg>)
 #   - running a file downloaded earlier in the same command (gated by
 #     sigil scan <file>)
-# Stages that name an agent CLI or a package runner are left to the rules
-# further down, as hook.rs settles them first.
+#   - npm exec|x, bun x and uv tool run of a registry package in command
+#     position (gated by sigil npm|pip <pkg>)
+# hook.rs settles agent-CLI acquisition and package runners first, so those
+# stages skip the deno, tooling and installer checks; npx, bunx, uvx, pipx
+# run and dlx are left to the rules further down.
 
 # Lexer (POSIX awk): one record per segment — S, the operator in front of it
 # (A for &&, O otherwise), its tokens — and per pipeline stage — T, the
-# stage text, its tokens — fields separated by US.
+# stage text, its tokens — fields separated by US. A US in the command
+# itself becomes STX first: to hook.rs it is an ordinary word character,
+# and left in place it would shift every field after it.
 # shellcheck disable=SC2016 # an awk program, not shell
 LEX_AWK='
-BEGIN { US = sprintf("%c", 31); SQ = sprintf("%c", 39) }
+BEGIN { US = sprintf("%c", 31); STX = sprintf("%c", 2); SQ = sprintf("%c", 39) }
 function trim(s) { sub(/^[ \t\r\f\v]+/, "", s); sub(/[ \t\r\f\v]+$/, "", s); return s }
 function tok(s,    out, cur, inw, i, n, c, d, e) {
   out = ""; cur = ""; inw = 0; n = length(s)
@@ -314,6 +330,7 @@ function seg(s, op,    n, st, k, x) {
 }
 { cmd = (NR == 1) ? $0 : (cmd "\n" $0) }
 END {
+  gsub(US, STX, cmd)
   n = length(cmd); op = "O"; start = 1; i = 1
   while (i <= n) {
     c = substr(cmd, i, 1); nx = substr(cmd, i + 1, 1); pv = (i > 1) ? substr(cmd, i - 1, 1) : ""
@@ -335,7 +352,14 @@ AGENT_FILES='\.claude/settings(\.local)?\.json|\.claude\.json|\.mcp\.json|\.code
 AGENT_RE="(^|/)(($AGENT_DIRS)(/|\$)|($AGENT_FILES)\$)"
 
 SIGIL_RE='^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*(sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)?([^[:space:]]*/)?sigil(\.exe)?([[:space:]]|$)'
-EARLIER_RE="${WB}([^[:space:]]*/)?([A-Za-z0-9_.-]+[[:space:]]+mcp[[:space:]]+add|claude[[:space:]]+plugins?[[:space:]]+(marketplace|install|i)[[:space:]]|gemini[[:space:]]+extensions?[[:space:]]+(install|link)[[:space:]]|clawhub(@[^[:space:]]*)?[[:space:]]+install|(npx|bunx|uvx|pipx[[:space:]]+run|(pnpm|yarn)[[:space:]]+dlx|npm[[:space:]]+(exec|x)|bun[[:space:]]+x|uv[[:space:]]+tool[[:space:]]+run)([[:space:]]|\$))"
+# Stages hook.rs classify_stage settles before the checks below: agent-CLI
+# acquisition, matched after any word boundary as agent_acquisition does,
+# and a package runner in command position (RUNNER_PAT: the start of the
+# stage after env assignments and wrappers, just inside a quote or paren,
+# or after an argv `--`). A runner word anywhere else is not a run — a URL
+# ending in /npx, an argument named bunx — and must not exempt the stage.
+AGENT_ACQ_RE="${WB}(([^[:space:]]*/)?([A-Za-z0-9_.-]+[[:space:]]+mcp[[:space:]]+(add|add-json|add-from-claude-desktop)([[:space:]]|\$)|claude[[:space:]]+plugins?[[:space:]]+(marketplace[[:space:]]+add|install|i)[[:space:]]|gemini[[:space:]]+extensions?[[:space:]]+(install|link)[[:space:]]|clawhub(@[^[:space:]]+)?[[:space:]]+install[[:space:]])|(npx|bunx|pnpm[[:space:]]+dlx|yarn[[:space:]]+dlx)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*(skills|add-skill|@vercel/skills)(@[^[:space:]]+)?[[:space:]]+(add|install)[[:space:]])"
+RUNNER_POS_RE="(^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*((sudo|exec|time|nohup|env|command|xargs)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*|[\"'(]|[[:space:]]--[[:space:]]+)([^[:space:]]*/)?(npx|bunx|uvx|pipx[[:space:]]+run|pnpm[[:space:]]+dlx|yarn[[:space:]]+dlx|npm[[:space:]]+(exec|x)|bun[[:space:]]+x|uv[[:space:]]+tool[[:space:]]+run)([[:space:]]|\$)"
 DENO_RE="${WB}([^[:space:]]*/)?deno[[:space:]]+(run|x|install|serve)([[:space:]]|\$)"
 TOOL_INSTALL_RE="${WB}([^[:space:]]*/)?(pipx|uv${MOD}[[:space:]]+tool)${MOD}[[:space:]]+install${FLAGS}${PKG}"
 
@@ -677,6 +701,142 @@ tool_pkg() {
   R='<pkg>'
 }
 
+# exact_version <v>: cmdline::exact_version — three dot-separated parts,
+# each starting with a digit, after any leading v's and then ='s.
+exact_version() {
+  ev_v=$1
+  while :; do case $ev_v in v*) ev_v=${ev_v#?} ;; *) break ;; esac; done
+  while :; do case $ev_v in =*) ev_v=${ev_v#?} ;; *) break ;; esac; done
+  IFS=.
+  # shellcheck disable=SC2086 # split on the dots
+  set -- $ev_v
+  IFS=$IFS_DEFAULT
+  [ $# -ge 3 ] || return 1
+  case $1 in [0-9]*) ;; *) return 1 ;; esac
+  case $2 in [0-9]*) ;; *) return 1 ;; esac
+  case $3 in [0-9]*) ;; *) return 1 ;; esac
+}
+
+# runner_scan TOKENS: cmdline::parse_runner from the first package-runner
+# word in TOKENS. Fails when there is none. Otherwise sets RN_TOOL (empty
+# when parse_runner finds no package, or a local path) and, for a package:
+# R, the typed target it fetches (npm:<spec> / pypi:<spec>), RN_SPEC,
+# RN_REGISTRY, RN_ALT (the vetting sigil command), RN_UNPINNED (the
+# message suffix) and RN_LOCAL (1 when `bun x <bin>` resolves to a
+# node_modules/.bin of the working directory or one above it).
+runner_scan() {
+  RN_TOOL=''; RN_LOCAL=0; R=''
+  while [ $# -gt 0 ]; do
+    rn_h=${1##*/}
+    case $rn_h:${2-}:${3-} in
+      npx:*|bunx:*|uvx:*) RN_TOOL=$rn_h; shift; break ;;
+      pipx:run:*|pnpm:dlx:*|yarn:dlx:*|npm:exec:*|npm:x:*|bun:x:*)
+        RN_TOOL="$rn_h $2"; shift 2; break ;;
+      uv:tool:run) RN_TOOL='uv tool run'; shift 3; break ;;
+    esac
+    shift
+  done
+  [ -n "$RN_TOOL" ] || return 1
+  case $RN_TOOL in
+    'npm x') RN_TOOL='npm exec' ;;
+  esac
+  case $RN_TOOL in
+    uvx|'pipx run'|'uv tool run') rn_eco=pypi ;;
+    *) rn_eco=npm ;;
+  esac
+  rn_spec=''; rn_has=0; rn_pos=''; rn_haspos=0
+  while [ $# -gt 0 ]; do
+    rn_t=$1
+    shift
+    case $rn_t in
+      --)
+        if [ $rn_haspos = 0 ] && [ $# -gt 0 ]; then rn_pos=$1; rn_haspos=1; fi
+        break ;;
+      -y|--yes) ;;
+      -*=*)
+        case ${rn_t%%=*} in
+          --package|--from|--spec) rn_spec=${rn_t#*=}; rn_has=1 ;;
+        esac ;;
+      -*)
+        rn_valued=0; rn_explicit=0
+        if [ $rn_eco = npm ]; then
+          case $rn_t in
+            -p|--package) rn_valued=1; rn_explicit=1 ;;
+            -c|--call|--registry|-w|--workspace|--cache|--userconfig) rn_valued=1 ;;
+          esac
+        else
+          case $rn_t in
+            --from|--spec) rn_valued=1; rn_explicit=1 ;;
+            --with|--python|-p|--index-url|--extra-index-url|--index|--default-index|--pip-args|--with-requirements|--constraints) rn_valued=1 ;;
+          esac
+        fi
+        if [ $rn_valued = 1 ]; then
+          if [ $rn_explicit = 1 ]; then
+            rn_has=0; [ $# -gt 0 ] && { rn_spec=$1; rn_has=1; }
+          fi
+          [ $# -gt 0 ] && shift
+        fi ;;
+      *) rn_pos=$rn_t; rn_haspos=1; break ;;
+    esac
+  done
+  if [ $rn_has = 0 ]; then
+    [ $rn_haspos = 1 ] || { RN_TOOL=''; return 0; }
+    rn_spec=$rn_pos
+  fi
+  # cmdline::local_spec: not a registry package.
+  case $rn_spec in
+    .*|/*|\~*|file:*) RN_TOOL=''; return 0 ;;
+    *://*) ;;
+    *.tgz) RN_TOOL=''; return 0 ;;
+  esac
+  RN_SPEC=$rn_spec
+  RN_UNPINNED=' (unpinned: whatever version is current)'
+  if [ $rn_eco = npm ]; then
+    RN_REGISTRY='npm registry'
+    # Pinned: an exact version after the name's @ (cmdline::npm_split);
+    # URLs and git/github specs never are.
+    case $rn_spec in
+      *://*) ;;
+      @*)
+        rn_rest=${rn_spec#@}
+        case $rn_rest in
+          *@*) exact_version "${rn_rest#*@}" && RN_UNPINNED='' ;;
+        esac ;;
+      *:*) ;;
+      *@*) exact_version "${rn_spec#*@}" && RN_UNPINNED='' ;;
+    esac
+    RN_ALT="sigil npm $rn_spec"
+    R=npm:$rn_spec
+  else
+    RN_REGISTRY='Python package index'
+    case $rn_spec in
+      *://*) ;;
+      *==*) exact_version "${rn_spec#*==}" && RN_UNPINNED='' ;;
+      *@*) exact_version "${rn_spec#*@}" && RN_UNPINNED='' ;;
+    esac
+    rn_vet=$rn_spec
+    while :; do case $rn_vet in *@*) rn_vet="${rn_vet%%@*}==${rn_vet#*@}" ;; *) break ;; esac; done
+    RN_ALT="sigil pip $rn_vet"
+    R=pypi:$rn_vet
+  fi
+  # `bun x tsc` in a project that has typescript installed runs the local
+  # binary (hook.rs runner(): npx, bunx and bun x, a bare name).
+  case $RN_TOOL:$rn_spec in
+    npx:*[@/]*|bunx:*[@/]*|'bun x':*[@/]*) ;;
+    npx:*|bunx:*|'bun x':*)
+      rn_d=$CUR_CWD
+      while [ -n "$rn_d" ]; do
+        if [ -e "${rn_d%/}/node_modules/.bin/$rn_spec" ]; then RN_LOCAL=1; break; fi
+        case $rn_d in
+          /) break ;;
+          */*) rn_d=${rn_d%/*}; [ -n "$rn_d" ] || rn_d=/ ;;
+          *) break ;;
+        esac
+      done ;;
+  esac
+  return 0
+}
+
 # tooling_download RAW TOKENS: a curl/wget stage saving into agent tooling
 # (hook.rs tooling_write). Uses ST_DLF, the stage's download_file.
 tooling_download() {
@@ -754,7 +914,26 @@ judge_stage() {
   st_earlier=0
   case $st_raw in
     *mcp*|*plugin*|*extension*|*clawhub*|*npx*|*bunx*|*uvx*|*pipx*|*dlx*|*npm*|*bun*|*uv*)
-      has_in "$st_raw" "$EARLIER_RE" && st_earlier=1 ;;
+      if has_in "$st_raw" "$AGENT_ACQ_RE"; then
+        st_earlier=1
+      elif has_in "$st_raw" "$RUNNER_POS_RE"; then
+        # hook.rs runner(): settled here only when parse_runner names a
+        # registry package. npx, bunx, uvx, pipx run and dlx are denied by
+        # the rules at the end; the runners those rules do not name are
+        # judged here.
+        # shellcheck disable=SC2048,SC2086 # split every token into words
+        runner_scan "$@" || runner_scan $*
+        if [ -n "$RN_TOOL" ]; then
+          st_earlier=1
+          case $RN_TOOL in
+            'npm exec'|'bun x'|'uv tool run')
+              if [ "$RN_LOCAL" = 0 ]; then
+                ST_DENY="\`$RN_TOOL $RN_SPEC\` downloads $RN_SPEC from the $RN_REGISTRY and runs it in one step, with no scan$RN_UNPINNED. Use: $RN_ALT && $st_raw. $BYPASS_HINT"
+                st_targets=$R
+              fi ;;
+          esac
+        fi
+      fi ;;
   esac
   if [ $st_earlier = 0 ]; then
     st_deno=''
@@ -808,11 +987,19 @@ judge_stage() {
   return 0
 }
 
-# Every check here needs a curl/wget download, deno or an install verb in the
-# command. Without awk the lexer yields nothing and these checks are skipped.
+# Every check here needs a curl/wget download, deno, an install verb, npm
+# exec|x, bun x or uv tool run in the command. Command words are compared
+# after quote removal, as the shell and
+# hook.rs's tokenizer see them (`cu''rl`, `c\url` and `"curl"` are all
+# curl), so the pre-filter looks at the command with quotes and backslashes
+# dropped. Without awk the lexer yields nothing and these checks are skipped.
 LEX=''
+LEX_TXT=$CMD
 case $CMD in
-  *curl*|*wget*|*deno*|*install*)
+  *[\"\'\\]*) LEX_TXT=$(printf '%s' "$CMD" | tr -d "\"'\\\\") ;;
+esac
+case $LEX_TXT in
+  *curl*|*wget*|*deno*|*install*|*npm*[[:space:]]exec*|*npm*[[:space:]]x*|*bun*[[:space:]]x*|*uv*tool*run*)
     LEX=$(printf '%s\n' "$CMD" | LC_ALL=C awk "$LEX_AWK" 2>/dev/null) || LEX='' ;;
 esac
 GATES=''

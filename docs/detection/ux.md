@@ -353,3 +353,51 @@ plugin's CHANGELOG). Agent-CLI acquisition (`claude mcp add`, plugin and
 extension installs, `npx skills add`, `clawhub install`) and copies or
 unpacks into agent tooling are still enforced by the native `sigil hook`
 only.
+
+**Shell fallback, verification pass.** A later pass compared the fallback
+with the native hook command by command.
+
+```
+Data Source: Synthetic probes, plus shell lines and fenced shell blocks from
+             the §5 skill corpora (static text only, nothing executed).
+Sample Size: 935 hand-written probes; 16,000 generated
+             `curl … | <interpreter> <flags>` commands; 43,869 corpus lines
+             and 7,649 corpus blocks.
+Limitations: Measures agreement with the native hook, not detection
+             accuracy. dash and mawk only; bash --posix was not run.
+```
+
+It fixed four ways the first version of the fallback allowed what the
+native hook denies: a runner word anywhere in a stage exempted it from the
+new checks (`curl … https://x.io/npx > ~/.claude/skills/x/SKILL.md`,
+`pipx install evil npx`); the per-stage checks only ran when the literal
+text `curl` or `wget` appeared (`cu''rl -o i.sh … && bash i.sh`); a `\037`
+character in the command shifted the lexer's fields; and interpreter flags
+the native hook tokenises (`| bash -o`, `| bash \-s`, `| pwsh -Sta`). It
+also gave the fallback `npm exec`, `bun x` and `uv tool run`, which it had
+never covered. After the fixes the generated commands agree with the
+native hook 16,000/16,000 and the probes 927/935 (the rest: agent-CLI
+acquisition, the legacy `npx` rule, and no-break spaces, which the native
+tokenizer splits on and a shell does not); the corpus replay gives the same
+decisions as before the fixes on all 51,518 commands.
+
+The pass also found shapes **the native hook allows**. The fallback matches
+it, so they are open in both:
+
+- pipe to an interpreter: `curl … 2>&1 | sh`, `curl … |& sh`,
+  `curl … | bash; …`, `curl … | bash >/dev/null`, `| "bash"`,
+  `| env -i bash`, `| command bash`, `| doas bash`, `` `curl … | bash` ``,
+  `bash < <(curl …)`;
+- download then run: `bash -e i.sh` (`-e` is read as inline code),
+  `sudo -u root bash i.sh`, `sudo -E bash i.sh`,
+  `exec|command|nohup|time bash i.sh`, `. ./i.sh`, `(bash i.sh)`,
+  `bash < i.sh`, `cat i.sh | sh`, `curl -oi.sh …`;
+- the scan gate counts a scan that runs before the download
+  (`sigil scan i.sh && curl -o i.sh … && bash i.sh`) or before a second
+  download to the same path, and a shell function or `./sigil` named
+  sigil satisfies it;
+- downloads into agent tooling behind `sudo -E`, `env`, `command`, a
+  subshell `( … )`, `bash -c '…'`, or `| tee ~/.claude/skills/…`;
+- a false deny: a scan gate across a line continuation
+  (`… && sigil scan i.sh && \` then `bash i.sh` on the next line), because
+  a newline clears the gate.
