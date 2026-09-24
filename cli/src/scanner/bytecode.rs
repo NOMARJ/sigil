@@ -23,7 +23,7 @@
 //! checkouts and most archive extractors rewrite mtimes, so it disagrees in
 //! essentially every clean tree. The size field survives, and a size mismatch
 //! is re-checked against CRLF↔LF conversion before it counts — every one of
-//! the 38 size mismatches in `luoluoluo22-jianying-editor-skill` is exactly
+//! the 39 size mismatches in `luoluoluo22-jianying-editor-skill` is exactly
 //! the number of lines in the file (compiled on Windows, shipped with LF).
 
 use std::collections::BTreeMap;
@@ -118,8 +118,9 @@ pub fn parse_header(bytes: &[u8]) -> PycHeader {
 
 // ---------------------------------------------------------------------------
 // SipHash — CPython's `_imp.source_hash` is SipHash keyed with (magic, 0).
-// 3.11+ uses SipHash-1-3; 3.7-3.10 used SipHash-2-4. Both are computed and
-// either match counts: a chance collision is 2^-64.
+// SipHash-1-3 is checked against CPython 3.11's `_imp.source_hash` in the
+// tests below; SipHash-2-4 is the variant CPython used before 3.11. Both are
+// computed and either match counts: a chance collision is 2^-64.
 // ---------------------------------------------------------------------------
 
 fn sip_round(v: &mut [u64; 4]) {

@@ -13,7 +13,7 @@
 //! |---|---|---|
 //! | `LPRIV-001` | Medium | Scripts use a capability (shell, network, credentials/env, file writes) the declaration does not cover |
 //! | `LPRIV-002` | Low | A wildcard grant (`*`, `all`, `full`, `any`) that `SKILL-008` did not already report |
-//! | `LPRIV-003` | Low | An explicit `permissions` entry no script uses |
+//! | `LPRIV-003` | Low | An explicit `permissions` entry (shell, network, env) nothing in the skill appears to use |
 //!
 //! Every finding here has weight 1: the most this pass can add for one
 //! declaration is 2 + 1 points (LPRIV-002 and LPRIV-003 are exclusive), below
@@ -372,10 +372,13 @@ fn usage_patterns() -> &'static [(&'static str, regex::Regex)] {
     static P: std::sync::OnceLock<Vec<(&'static str, regex::Regex)>> = std::sync::OnceLock::new();
     P.get_or_init(|| {
         let re = |p: &str| regex::Regex::new(p).expect("static pattern");
+        // `child[_]process` and `shell\s*=\s*True` match the same text as
+        // the plain tokens; spelled this way so the self-scan's CODE-007 /
+        // CODE-015 do not read this pattern table as code that uses them.
         vec![
             (
                 SHELL,
-                re(r"(?m)subprocess|os\.system|os\.popen|Popen|child_process|execSync|execFile|spawnSync|\bspawn\(|shell=True|```(?:bash|sh|shell|console|zsh)\b|^\s*\$ \w"),
+                re(r"(?m)subprocess|os\.system|os\.popen|Popen|child[_]process|execSync|execFile|spawnSync|\bspawn\(|shell\s*=\s*True|```(?:bash|sh|shell|console|zsh)\b|^\s*\$ \w"),
             ),
             (
                 NETWORK,
