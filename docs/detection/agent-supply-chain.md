@@ -49,7 +49,7 @@ CRITICAL with it; a sample can be counted under more than one rule.
 | AGENTSC-002 | High | skill_security | Password-protected archive handed out as a prerequisite ("extract using pass: …") | 24 | 0 | 0 |
 | AGENTSC-003 | High | skill_security | Installer on a personal file-share drive (Quark, Baidu, Lanzou, MEGA, MediaFire …) | 1 | 0 | 0 |
 | AGENTSC-004 | Critical | code_patterns | Script or executable URL on an anonymous file-drop host (tmpfiles.org, catbox, transfer.sh, 0x0.st …) — a dropper | 1 | 1 | 0 |
-| AGENTSC-005 | Medium | skill_security | Per-OS download of a required tool ("Download (Windows, MacOS) from", "requires X to be installed on Windows/MacOS") | 39 | 24 | 0 |
+| AGENTSC-005 | Medium | skill_security | Per-OS download of a required tool for two platforms at once ("Download (Windows, MacOS) from", "requires X to be installed on Windows/MacOS"); a single-platform download ("(Linux x86_64) from", "requires Xcode to be installed on macOS") is left alone | 39 | 24 | 0 |
 | AGENTSC-010 | High | credentials | Environment swept for secret-named variables (`env \| grep TOKEN\|SECRET\|PASSWORD`) | 1 | 1 | 0 |
 | AGENTSC-011 | Medium | code_patterns | Project tarball that excludes `.git`/`node_modules` but not `.env` | 4 | 4 | 0 |
 | AGENTSC-012 | High | network_exfil | `curl` form-upload of a file from `/etc`, `~`, `$HOME` … | 1 | 1 | 0 |
@@ -126,13 +126,62 @@ Every missed sample was read (statically; nothing in the corpus was run).
 | `tmdgusya-code-squad-skills-subway` | MEDIUM | Team lunch-order tool that posts to a default GitHub repo and reads `../../../.env`; its `execSync` string building is injection-prone (CODE-007 fires). Not clearly malicious. |
 | `buff-m-email-sender-skill` | MEDIUM | `requirements.txt` asks for `smtplib-ssl`, a package named after a standard-library module. Possibly a squat, but that is dependency-name analysis (typosquat module), not this pack. |
 
+## Adversarial review: precision fixes
+
+A second pass tried each rule against lines it should not match: benign
+phrasings of the same idiom, and 170 clean MCP server packages from the MCP
+registry (`mcp_clean`, not used to write the rules, so an out-of-sample
+check). Changes:
+
+| Rule | Problem found | Change |
+|---|---|---|
+| AGENTSC-002 | "Open in a browser … with pass/fail statistics" (SAP hana-cli docs) read as "open with pass"; "Download report.zip and log in with your password" also matched | `open` dropped as a verb; the password word must be followed by `:`/`=` or a quoted value |
+| AGENTSC-010 | `env \| grep ROOTLY_API_TOKEN` (rootly-mcp-server `tests/README.md`), a check that one named variable is set, matched at High | the secret word must stand alone (`'TOKEN`, `-i token`, `'_token'`), not end a variable name; an inverted grep (`grep -v`) is suppressed |
+| AGENTSC-030 | `~/.continue/config.json` (Continue's MCP server and model settings, 2 SAP hana-cli doc lines) matched as a global instruction file | `continue/config` removed; `~/.continue/rules` kept |
+| AGENTSC-032 | "Always use noreply@anthropic.com for the Co-Authored-By trailer" matched at High (prompt_injection, 30 points) | a fixed address after "use" must be made the sender, account, mailbox, login or recipient |
+| AGENTSC-005 | "Download the CUDA toolkit (Linux x86_64) from …", "This skill requires Xcode to be installed on macOS" matched | two platforms must be named together, as the lure does ("Windows, MacOS") |
+| AGENTSC-013 | "Extract the refresh_token from the OAuth response" and "通过授权码获取 … refresh_token" (obtaining a token is the OAuth flow) matched | lines about a token *response* are suppressed; the Chinese branch needs extract/export/steal for refresh tokens |
+| AGENTSC-003 | a dataset or model-weights link on Baidu/MEGA ("预训练模型下载：https://pan.baidu.com/…") matched as an installer | lines naming a dataset, weights, checkpoint or model are suppressed |
+| AGENTSC-004 | `.bin` (model weights, firmware) counted as an executable for a standalone Critical | `.bin` removed from the extension list |
+| AGENTSC-020 | loopback and LAN wildcard DNS (`hello.default.127.0.0.1.sslip.io`, Knative's magic DNS) matched | `127.0.0.1.` / `192.168.` forms suppressed |
+| AGENTSC-001 | the lure reworded without "from" ("Download it here:", "Get the installer at", `[Download X](https://x.vercel.app/)`) was missed, and "Get the live demo from https://demo.vercel.app" matched | `here`/`at`/`via` and markdown download links added; bare `get` now needs an installable object |
+
+Measured on the same corpora and command as the Result table:
+
+```
+Data Source: Real samples (same 204 malicious / 455 clean skill directories),
+             plus 170 clean MCP server packages (mcp_clean) for the regex check.
+Sample Size: 659 benchmark samples; 170 MCP packages.
+Limitations: the MCP check runs each rule's regex with ripgrep, applying the
+             file filter and line/path suppressions but not nearby_contains;
+             verdicts were checked with the binary only for packages that
+             had a hit.
+```
+
+- Benchmark, before and after the fixes: 184/204 malicious blocked,
+  188/204 warned; 108/455 clean blocked, 226/455 warned — identical. No
+  sample of the 659 changes verdict or AGENTSC rule set.
+- Malicious corpus, regex level: every AGENTSC line hit is unchanged.
+- Clean MCP packages, regex level: 7 line hits in 6 files before, 3 in 2
+  files after. The two left are `next-devtools-mcp`'s README telling the
+  user to add a line to `~/.claude/CLAUDE.md` (AGENTSC-030, Medium, a true
+  description) and `brightdata-mcp`'s README telling the agent to use its
+  tools "ALWAYS instead of WebSearch" (AGENTSC-031, Medium). Both packages
+  were already HIGH with the baseline binary. The two packages that lost
+  their hits keep their verdicts (`rootly-mcp-server` HIGH, score 339 before
+  the fixes and 324 after, the baseline figure; SAP `hana-cli` CRITICAL for
+  unrelated findings).
+
 ## Suppressing a finding
 
 Each rule's remediation says what to check. When a reviewer has checked and
-the line is legitimate, suppress it where it is, with a reason:
+the line is legitimate, suppress it where it is, with a reason. A marker on
+a line of its own must say `ignore-next-line`; plain `sigil:ignore` covers
+only the line it is written on:
 
 ```text
-<!-- sigil:ignore AGENTSC-030 -- optional, documented Codex identity install -->
+<!-- sigil:ignore-next-line AGENTSC-030 -- optional, documented Codex identity install -->
+Copy AGENTS.md to `~/.codex/AGENTS.md` if you want it in every session.
 ```
 
 or, for a path that should never be scanned, add a scoped entry with a written
@@ -153,6 +202,28 @@ rationale to `.sigilignore`.
 - **Language.** The token-harvest rule (AGENTSC-013) and the file-share rule
   (AGENTSC-003) include Chinese keywords because the samples were Chinese;
   other languages are not covered.
+- **AGENTSC-014 reads one line at a time.** It matches a storage state
+  written on one line (Python's `json.dump` default, as in the measured
+  sample) and a Netscape `cookies.txt`. A pretty-printed storage state, with
+  `"name"`, `"value"` and `"domain"` on separate lines, is not matched.
+- **AGENTSC-041 only matches markup at the start of a line** (after optional
+  wrapping tags), which is how it leaves quoted test vectors such as
+  `'"><img src=x onerror=…>'` alone. A payload placed mid-sentence is not
+  matched, and a payload at the start of a line inside a fenced code block
+  is (the engine does not track fences).
+- **AGENTSC-030 detects a path, not a write.** It fires wherever the global
+  instruction file is named: the malicious self-propagation table, but also
+  a skill that backs the file up (`cp ~/.claude/CLAUDE.md config/`, a read)
+  or a README that documents an opt-in global install. With the verdict
+  logic this pack was written against (dc82a94) a Medium in the
+  `prompt_injection` phase scores 2 × 10 = 20 and the rule's
+  `installs_persistence` label is an ACTION behaviour, so mentions alone can
+  reach HIGH: a two-file test skill whose README names `~/.claude/CLAUDE.md`
+  three times while telling the user to edit it themselves scans LOW (score
+  0) with the baseline binary and HIGH (score 60) with this pack. That is
+  the density and action terms of that verdict logic applied to a Medium; a
+  verdict that requires a High or Critical finding before HIGH removes it.
+  Check what the skill does with the file before acting on this finding.
 - **In-sample measurement.** See the disclosure block at the top.
 
 ## Reconciliation with the false-positive calibration

@@ -12,7 +12,7 @@
       "id": "AGENTSC-001",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)\\b(?:download|install|get)\\b[^\\n]{0,80}?\\bfrom\\b[^\\n]{0,20}?https?://(?:[a-z0-9-]+\\.)+(?:vercel\\.app|netlify\\.app|pages\\.dev|web\\.app|firebaseapp\\.com|surge\\.sh|glitch\\.me|onrender\\.com|herokuapp\\.com|fly\\.dev|railway\\.app|replit\\.app|repl\\.co|workers\\.dev|deno\\.dev|000webhostapp\\.com|wixsite\\.com|weebly\\.com|blogspot\\.com|forum|top|xyz|icu|click|zip|mov|shop|online|site|lol|cfd|sbs|quest)(?:[:/\\s)\"'>\\]]|$)",
+      "pattern": "(?i)\\b(?:download|install|get\\s+(?:the\\s+)?(?:cli|installer|binary|tool|app|helper|agent|client|driver)\\b)\\b[^\\n]{0,80}?\\b(?:from|at|here|via)\\b[^\\n]{0,20}?https?://(?:[a-z0-9-]+\\.)+(?:vercel\\.app|netlify\\.app|pages\\.dev|web\\.app|firebaseapp\\.com|surge\\.sh|glitch\\.me|onrender\\.com|herokuapp\\.com|fly\\.dev|railway\\.app|replit\\.app|repl\\.co|workers\\.dev|deno\\.dev|000webhostapp\\.com|wixsite\\.com|weebly\\.com|blogspot\\.com|forum|top|xyz|icu|click|zip|mov|shop|online|site|lol|cfd|sbs|quest)(?:[:/\\s)\"'>\\]]|$)|\\[[^\\]\\n]{0,60}\\b(?:download|install)[^\\]\\n]{0,60}\\]\\(\\s*https?://(?:[a-z0-9-]+\\.)+(?:vercel\\.app|netlify\\.app|pages\\.dev|web\\.app|firebaseapp\\.com|surge\\.sh|glitch\\.me|onrender\\.com|herokuapp\\.com|fly\\.dev|railway\\.app|replit\\.app|repl\\.co|workers\\.dev|deno\\.dev|000webhostapp\\.com|wixsite\\.com|weebly\\.com|blogspot\\.com|forum|top|xyz|icu|click|zip|mov|shop|online|site|lol|cfd|sbs|quest)(?:[:/\\s)\"'>\\]]|$)",
       "description": "Fake prerequisite — skill sends the reader to download and install a tool from a free-hosting or throwaway web origin",
       "file_filter": {
         "extensions": [
@@ -60,7 +60,7 @@
       "id": "AGENTSC-002",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)\\.(?:zip|rar|7z)\\b[^\\n]{0,160}\\b(?:pass(?:word)?|pwd|passcode)\\b\\s*[:=]?\\s*[`\"'*]*\\w+|\\b(?:extract|unzip|unpack|decompress|open)\\w*\\b[^\\n]{0,60}\\b(?:using|with)\\s+(?:the\\s+)?(?:pass(?:word)?|pwd|passcode)\\b|\\b(?:archive|zip)\\s+password\\b",
+      "pattern": "(?i)\\.(?:zip|rar|7z)\\b[^\\n]{0,160}\\b(?:pass(?:word)?|pwd|passcode)\\b(?:\\s*[:=]\\s*[`\"'*]*\\w+|\\s*[`\"'*]+\\w+|\\s+is\\s+[`\"'*]+\\w+)|\\b(?:extract|unzip|unpack|decompress)\\w*\\b[^\\n]{0,60}\\b(?:using|with)\\s+(?:the\\s+)?(?:pass(?:word)?|pwd|passcode)\\b\\s*(?:[:=]|[`\"'*])|\\b(?:archive|zip)\\s+password\\b",
       "description": "Fake prerequisite — skill hands out a password-protected archive to extract and run",
       "file_filter": {
         "extensions": [
@@ -137,6 +137,21 @@
           ".clinerules"
         ]
       },
+      "suppress": {
+        "line_contains": [
+          "dataset",
+          "Dataset",
+          "weights",
+          "Weights",
+          "checkpoint",
+          "pretrained",
+          "Pretrained",
+          "数据集",
+          "模型",
+          "权重",
+          "预训练"
+        ]
+      },
       "remediation": "The skill tells the reader to install software from a share link on a personal cloud drive (Quark, Baidu, Lanzou, MEGA, MediaFire and similar) instead of the publisher's own site or an app store. Anyone can upload a repackaged installer to such a drive, the link says nothing about who built the file, and old builds of popular apps shared this way are a standard carrier for trojanised copies. Get the software from its vendor, check which version the skill really needs, and do not run a binary from the share link.",
       "references": [
         "MITRE T1204.002",
@@ -155,7 +170,7 @@
       "id": "AGENTSC-004",
       "phase": "code_patterns",
       "severity": "critical",
-      "pattern": "(?i)https?://(?:[a-z0-9-]+\\.)*(?:tmpfiles\\.org|file\\.io|0x0\\.st|catbox\\.moe|transfer\\.sh|temp\\.sh|bashupload\\.com|gofile\\.io|pixeldrain\\.com|anonfiles\\.com|filebin\\.net|oshi\\.at|uguu\\.se|termbin\\.com|files\\.fm|filetransfer\\.io|dropmefiles\\.com|sendspace\\.com|mediafire\\.com|mega\\.nz|pan\\.quark\\.cn|pan\\.baidu\\.com|we\\.tl)/[^\\s\"'<>)]*\\.(?:py|pyc|pyz|sh|bash|ps1|psm1|bat|cmd|vbs|js|mjs|jar|exe|dll|scr|msi|dmg|pkg|deb|rpm|appimage|bin|elf|so|dylib)\\b",
+      "pattern": "(?i)https?://(?:[a-z0-9-]+\\.)*(?:tmpfiles\\.org|file\\.io|0x0\\.st|catbox\\.moe|transfer\\.sh|temp\\.sh|bashupload\\.com|gofile\\.io|pixeldrain\\.com|anonfiles\\.com|filebin\\.net|oshi\\.at|uguu\\.se|termbin\\.com|files\\.fm|filetransfer\\.io|dropmefiles\\.com|sendspace\\.com|mediafire\\.com|mega\\.nz|pan\\.quark\\.cn|pan\\.baidu\\.com|we\\.tl)/[^\\s\"'<>)]*\\.(?:py|pyc|pyz|sh|bash|ps1|psm1|bat|cmd|vbs|js|mjs|jar|exe|dll|scr|msi|dmg|pkg|deb|rpm|appimage|elf|so|dylib)\\b",
       "description": "Script or executable fetched from an anonymous file-drop host (dropper)",
       "remediation": "A file-drop host (tmpfiles.org, catbox, transfer.sh, 0x0.st and similar) serves whatever was last uploaded under a random path, records no publisher and expires the file within hours or days. That is exactly what a dropper wants: the reviewed package contains only the URL, and the code that runs is fetched after review and can be swapped at any time. No legitimate package loads its own helper scripts or binaries from an anonymous upload service. Treat the package as malicious: do not run it, and if it already ran, look for the fetched file in temporary directories and for the process it started.",
       "references": [
@@ -176,8 +191,8 @@
       "id": "AGENTSC-005",
       "phase": "skill_security",
       "severity": "medium",
-      "pattern": "(?i)\\bdownload\\b[^\\n]{0,40}\\(\\s*(?:windows|macos|mac\\s*os|os\\s*x|linux)\\b[^)\\n]{0,40}\\)\\s*from\\b|\\bskill\\s+requires\\b[^\\n]{0,40}\\bto\\s+be\\s+installed\\s+on\\s+(?:windows|macos|mac)\\b",
-      "description": "Fake prerequisite — per-OS download of a required tool from a web page, outside any package manager",
+      "pattern": "(?i)\\bdownload\\b[^\\n]{0,40}\\(\\s*(?:windows|macos|mac\\s*os|mac|os\\s*x|linux)\\s*(?:,|/|&|\\band\\b|\\bor\\b)\\s*(?:and\\s+)?(?:windows|macos|mac\\s*os|mac|os\\s*x|linux)\\b[^)\\n]{0,30}\\)\\s*from\\b|\\bskill\\s+requires\\b[^\\n]{0,40}\\bto\\s+be\\s+installed\\s+on\\s+(?:windows|macos|mac\\s*os|mac|os\\s*x|linux)\\s*(?:,|/|&|\\band\\b|\\bor\\b)\\s*(?:and\\s+)?(?:windows|macos|mac\\s*os|mac|os\\s*x|linux)\\b",
+      "description": "Fake prerequisite — per-OS download of a required tool (Windows and macOS at once) from a web page, outside any package manager",
       "file_filter": {
         "extensions": [
           "md",
@@ -222,9 +237,21 @@
       "phase": "credentials",
       "severity": "high",
       "weight": 5,
-      "pattern": "(?i)\\b(?:env|printenv|export\\s+-p|set|Get-ChildItem\\s+env:|gci\\s+env:|dir\\s+env:|ls\\s+env:)\\s*\\|\\s*(?:e?grep|findstr|Select-String|rg)\\b[^\\n]{0,60}(?:TOKEN|SECRET|PASSW(?:OR)?D|API_?KEY|CREDENTIAL|PRIVATE_?KEY|ACCESS_?KEY)",
+      "pattern": "(?i)\\b(?:env|printenv|export\\s+-p|set|Get-ChildItem\\s+env:|gci\\s+env:|dir\\s+env:|ls\\s+env:)\\s*\\|\\s*(?:e?grep|findstr|Select-String|rg)\\b[^\\n]{0,60}[^A-Za-z0-9_\\n]_?(?:TOKEN|SECRET|PASSW(?:OR)?D|API_?KEY|CREDENTIAL|PRIVATE_?KEY|ACCESS_?KEY)",
       "description": "Environment swept for secret-named variables (token, secret, password, API key)",
-      "remediation": "Listing the whole environment and keeping only the variables whose names contain TOKEN, SECRET, PASSWORD or KEY has one purpose: collecting the credentials the agent's shell was started with. Debugging reads one named variable (`echo $CUDA_HOME`); an inventory or audit step has no use for secret values. Follow the variable the sweep is stored in — in the malicious skill this rule was measured on it is posted to an external endpoint as 'metrics'. Remove the step, and rotate every secret that was in the environment when it ran. Weighted above the credentials-phase default because this is a harvesting action, not a capability a client library has.",
+      "suppress": {
+        "line_contains": [
+          "grep -v",
+          "grep -Ev",
+          "grep -vE",
+          "grep -iv",
+          "grep -vi",
+          "--invert-match",
+          "findstr /v",
+          "-NotMatch"
+        ]
+      },
+      "remediation": "Listing the whole environment and keeping only the variables whose names contain TOKEN, SECRET, PASSWORD or KEY has one purpose: collecting the credentials the agent's shell was started with. Debugging reads one named variable (`echo $CUDA_HOME`, `env | grep HF_TOKEN` to check it is set — neither matches); an inventory or audit step has no use for secret values. Follow the variable the sweep is stored in — in the malicious skill this rule was measured on it is posted to an external endpoint as 'metrics'. Remove the step, and rotate every secret that was in the environment when it ran. Weighted above the credentials-phase default because this is a harvesting action, not a capability a client library has.",
       "references": [
         "MITRE T1552",
         "MITRE T1082",
@@ -284,8 +311,15 @@
       "id": "AGENTSC-013",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)(?:\\b(?:extract|harvest|steal|grab|scrape|exfiltrate)(?:s|es|ed|ing)?|\\bdump(?:ed|ing)?)\\b[^\\n]{0,40}\\b(?:refresh[_ ]tokens?|sessionid|session[_ ]cookies?|auth(?:entication)?[_ ]cookies?|login[_ ]cookies?)\\b|(?:获取|提取|抓取|导出|窃取|读取)[^\\n]{0,40}(?:sessionid|session_id|refresh_token|登录态)|\\bcookies?\\b[^\\n]{0,80}\\bname\\s*={2,3}\\s*[\"'](?:sessionid|session_id|sessid|auth_token|access_token|refresh_token)[\"']",
+      "pattern": "(?i)(?:\\b(?:extract|harvest|steal|grab|scrape|exfiltrate)(?:s|es|ed|ing)?|\\bdump(?:ed|ing)?)\\b[^\\n]{0,40}\\b(?:refresh[_ ]tokens?|sessionid|session[_ ]cookies?|auth(?:entication)?[_ ]cookies?|login[_ ]cookies?)\\b|(?:获取|提取|抓取|导出|窃取|读取)[^\\n]{0,40}(?:sessionid|session_id|登录态)|(?:提取|抓取|导出|窃取)[^\\n]{0,40}refresh_token|\\bcookies?\\b[^\\n]{0,80}\\bname\\s*={2,3}\\s*[\"'](?:sessionid|session_id|sessid|auth_token|access_token|refresh_token)[\"']",
       "description": "Skill's stated job is extracting refresh tokens or session cookies",
+      "suppress": {
+        "line_contains": [
+          "response",
+          "Response",
+          "响应"
+        ]
+      },
       "remediation": "A refresh token or a session cookie is a login: whoever holds it acts as the user until it is revoked, with no password and no second factor. This skill describes pulling those values out of another application's configuration files or out of a logged-in browser and handing them back to the caller — what an infostealer does, packaged as a utility. Legitimate integrations obtain their own tokens through the provider's OAuth flow and keep them in the provider's credential store. Do not run it against a real profile; if it has run, revoke the sessions and tokens it could reach.",
       "references": [
         "MITRE T1539",
@@ -364,6 +398,14 @@
       "severity": "high",
       "pattern": "(?i)\\b(?:https?|wss?)://[^\\s/\"'<>]*\\b(?:bore\\.pub|bore\\.digital|sslip\\.io|nip\\.io|xip\\.io|traefik\\.me|trycloudflare\\.com|pinggy\\.(?:io|link|online)|tunnelmole\\.net|lhr\\.life|playit\\.gg|ply\\.gg|zrok\\.io|tunnelto\\.dev|devtunnels\\.ms)(?:[:/\\s)\"'>\\]]|$)",
       "description": "Endpoint on an ephemeral tunnel or IP-wildcard DNS host (bore.pub, sslip.io, nip.io, trycloudflare)",
+      "suppress": {
+        "line_contains": [
+          "127.0.0.1.nip.io",
+          "127.0.0.1.sslip.io",
+          "-127-0-0-1.",
+          "192.168."
+        ]
+      },
       "remediation": "The address resolves through a tunnelling service (bore.pub, trycloudflare, pinggy, tunnelmole and similar) or an IP-wildcard DNS name (`<ip>.sslip.io`, `<ip>.nip.io`), so the server behind it is a laptop or a bare cloud IP, can change hands when the tunnel restarts, and has no organisation behind the name. When the agent's MCP server or API lives there, every tool call — and any key in its headers — goes to that machine over a channel nobody can attribute. Ask for the provider's real, TLS-terminated domain, and do not connect an agent to a tunnel endpoint you do not operate. (NET-014 covers the older dynamic-DNS and ngrok-style relays.)",
       "references": [
         "MITRE T1572",
@@ -382,7 +424,7 @@
       "id": "AGENTSC-030",
       "phase": "prompt_injection",
       "severity": "medium",
-      "pattern": "(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%)[/\\\\]\\.(?:claude[/\\\\]CLAUDE\\.md|gemini[/\\\\]GEMINI\\.md|codex[/\\\\](?:instructions|AGENTS)\\.md|cursor[/\\\\]rules\\b|codeium[/\\\\]windsurf[/\\\\]memories|continue[/\\\\](?:config|rules)|roo[/\\\\]rules|kiro[/\\\\]steering|config[/\\\\]opencode[/\\\\]AGENTS\\.md)",
+      "pattern": "(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%)[/\\\\]\\.(?:claude[/\\\\]CLAUDE\\.md|gemini[/\\\\]GEMINI\\.md|codex[/\\\\](?:instructions|AGENTS)\\.md|cursor[/\\\\]rules\\b|codeium[/\\\\]windsurf[/\\\\]memories|continue[/\\\\]rules\\b|roo[/\\\\]rules|kiro[/\\\\]steering|config[/\\\\]opencode[/\\\\]AGENTS\\.md)",
       "description": "Skill targets the user's global agent instruction file (~/.claude/CLAUDE.md, ~/.gemini/GEMINI.md, ~/.codex/AGENTS.md, ~/.cursor/rules)",
       "file_filter": {
         "extensions": [
@@ -466,7 +508,7 @@
       "id": "AGENTSC-032",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(?:automatically|always|by\\s+default|default\\s+to)\\b[^\\n]{0,30}\\b(?:use|send\\s+(?:from|as|via)|sign\\s+in\\s+as|log\\s*in\\s+as)\\b[^\\n]{0,15}[`\"'*]*[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}",
+      "pattern": "(?i)\\b(?:automatically|always|by\\s+default|default\\s+to)\\b[^\\n]{0,30}\\b(?:(?:send\\s+(?:from|as|via)|sign\\s+in\\s+as|log\\s*in\\s+as)\\b[^\\n]{0,15}[`\"'*]*[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}|use\\b[^\\n]{0,15}[`\"'*]*[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}[`\"'*]*\\s+(?:as|for)\\s+(?:the\\s+|a\\s+|your\\s+)?(?:default\\s+)?(?:sender|from\\s+address|account|mailbox|login|recipient|reply-to)\\b)",
       "description": "Skill silently defaults to a hard-coded third-party account (sender, login or mailbox)",
       "file_filter": {
         "extensions": [
