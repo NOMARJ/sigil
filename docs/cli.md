@@ -87,28 +87,31 @@ Full policy table: [detection/ux.md](detection/ux.md#4-sigil-hook-pretooluse--th
 
 ### sigil config
 
-Show current configuration or initialize the directory structure.
+Read or set values in `~/.sigil/config.json`, and inspect or validate the scan
+policy that applies to a directory.
 
 ```bash
-sigil config             # Show current config and scanner status
-sigil config --init      # Create ~/.sigil directories
+sigil config --list                      # Print ~/.sigil/config.json
+sigil config api_url                     # Print one value
+sigil config api_url https://sigil.local # Set one value
+sigil config --policy                    # Effective scan policy for the current directory
+sigil config --validate .sigil.yml       # Check a project policy without scanning
+sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation policy
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--init` | Create all required directories under `~/.sigil/` |
+| `--list`, `-l` | Print the whole configuration file |
+| `--policy` | Show which policy files apply (organisation `SIGIL_POLICY_FILE`, project `.sigil.yml`, or `--config FILE`), the merged values, locked keys, and any loosening the organisation policy refused |
+| `--validate FILE` | Validate a policy file. Exit 0 valid, 1 invalid (every problem listed), 2 unreadable |
+| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked` and `allow_project_policy` |
 
-**Output includes:**
-
-- Quarantine, approved, logs, and reports directory paths
-- API URL
-- Authentication status
-- Installed external scanners (semgrep, bandit, trufflehog, safety)
+The policy format, precedence and lock rules are in
+[Rolling Sigil out across an organisation](enterprise.md).
 
 ---
-
 
 ## Audit Commands
 
@@ -210,7 +213,7 @@ sigil npm @langchain/community
 Scan a file, a directory, or a git URL for security issues.
 
 ```bash
-sigil scan <path-or-url> [--format text|json|sarif|html] [--fail-on <severity>] [--phases <list>] [--severity <min>]
+sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE] [--fail-on <severity>] [--fail-on-verdict <level>] [--baseline FILE] [--rules PACK] [--config FILE] [--phases <list>] [--severity <min>]
 ```
 
 **Arguments:**
@@ -223,8 +226,14 @@ sigil scan <path-or-url> [--format text|json|sarif|html] [--fail-on <severity>] 
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--format` | `text` | `text`, `json` (the stable contract, [ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)), `sarif` (2.1.0), or `html` (one self-contained page, no scripts, safe to attach to a ticket) |
-| `--fail-on` | `high` | Exit 1 when a finding at or above this severity is present |
+| `--format`, `-f` | `text` | `text`, `json` (the stable contract, [ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)), `sarif` (2.1.0), `html` (one self-contained page, no scripts, safe to attach to a ticket), `markdown` (for pull-request comments and CI job summaries) or `junit` (one test case per finding, for CI test-report views). See [Report formats](#report-formats) |
+| `--output`, `-o` | stdout | Write the report to this file |
+| `--fail-on` | `high`, or the policy's `fail_on` | Exit 1 when an active finding at or above this severity is present |
+| `--fail-on-verdict` | | Also exit 1 when the verdict is at or above this level (`low`, `medium`, `high`, `critical`) |
+| `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
+| `--rules` | | Add a custom rule pack (JSON or YAML file, or a directory of packs). Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) |
+| `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
+| `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
 | `--phases` | `all` | Comma-separated phase filter |
 | `--severity` | `low` | Minimum severity to report |
 | `--no-cache` | | Force a fresh scan even if the content is unchanged |
@@ -268,6 +277,10 @@ sigil scan ./skill --format html > report.html  # Shareable report
 sigil scan ./pkg --format json | jq .summary    # verdict, score, grade, platform
 sigil scan ./pkg --format sarif > sigil.sarif   # GitHub Code Scanning upload
 sigil scan ./skill --follow-refs                # Also scan the installer it tells you to run
+sigil scan . --format markdown -o sigil.md      # Pull-request comment / job summary
+sigil scan . --format junit -o sigil-junit.xml  # CI test-report view
+sigil scan . --baseline .sigil-baseline.json    # Fail only on findings added since the baseline
+sigil scan . --rules ./acme-rules.yaml          # Add your organisation's rules
 ```
 
 #### Scanning an MCP server from the MCP registry
@@ -397,6 +410,80 @@ Each skill is scored as a standalone `sigil scan <skill>` would score the same
 findings. The overall verdict, score and exit code are not affected.
 
 ---
+
+### sigil baseline
+
+Record the current findings as accepted, so later scans fail only on new ones.
+Use it to adopt Sigil on an existing codebase without first clearing every
+historical finding.
+
+```bash
+sigil baseline . --reason "accepted at adoption, tracked in SEC-123"
+sigil scan . --baseline .sigil-baseline.json
+```
+
+| Argument / flag | Description |
+|------|-------------|
+| `path` | Directory or file to scan |
+| `--reason` | Why these findings are accepted. Recorded in the baseline |
+| `-o FILE` | Write the baseline here instead of `.sigil-baseline.json` in the scanned directory. A `.yaml`/`.yml` name writes YAML |
+| `--no-project-config` | Ignore `.sigil.yml` |
+
+A finding is matched by rule, file and the content of the matched line, not
+its line number, so inserting code above an accepted finding does not re-open
+it, while a second copy of the same risky line is a new finding. Entries that
+stop matching are reported as stale. The file stores hashes, not snippets.
+Exit 0 when the baseline is written, 2 when the scan or the write failed.
+
+### sigil rules
+
+List, inspect, validate, test and sign detection rules, including custom packs
+passed with `--rules`.
+
+```bash
+sigil rules list                          # Every active rule
+sigil rules list --phase network_exfil    # One phase
+sigil rules show CODE-001                 # Pattern, filters, suppressions, remediation, policy effect
+sigil rules validate ./acme-rules.yaml    # Exit 0 valid, 1 invalid, 2 unreadable
+sigil rules test ./acme-rules.yaml ./fixtures   # Run only this pack and print what fires
+sigil rules sign ./acme-rules.yaml --key signing.pem -o acme-rules.signed.json
+```
+
+A pack can be JSON or YAML, in the full schema or the compact form. When
+`SIGIL_PACK_PUBLIC_KEY` is set, every custom pack must carry a valid signature
+from that key; an unsigned or badly signed pack stops the scan with exit 2
+rather than being skipped. See
+[Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing).
+
+### sigil diff
+
+Run a fresh scan and compare it with an earlier JSON scan result.
+
+```bash
+sigil scan . --format json -o before.json
+# ... change the code ...
+sigil diff --baseline before.json .
+```
+
+Exit 0 when there are no new findings, 1 when there are new findings, 2 when the
+baseline or the path cannot be read. (Before this release, new findings gave 2.)
+
+### Report formats
+
+`--format` and `-o` are global flags, so every command that renders a report
+takes them.
+
+| Format | Use it for |
+|--------|-----------|
+| `text` | Terminals |
+| `json` | Machines. The stable output contract ([ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)) |
+| `sarif` | GitHub Code Scanning and other SARIF 2.1.0 consumers |
+| `html` | One self-contained page with no scripts, safe to attach to a ticket |
+| `markdown` (`md`) | Pull-request comments and CI job summaries: verdict and findings table |
+| `junit` | CI test-report views (GitLab, Jenkins, Azure DevOps): one test case per finding, failed when the finding is at or above `--fail-on` |
+
+`sigil skills scan` supports `text`, `json` and `markdown`. It exits 2 for any
+other format rather than silently printing text.
 
 ### sigil fetch
 
