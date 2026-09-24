@@ -129,7 +129,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // Structural checks (scanner::bytecode / artifacts). None of these is
         // an ACTION behaviour: ARTIFACT-002 gates CRITICAL on its own, and the
         // rest describe what was shipped, not something the package did.
-        "ARTIFACT-001" => Some("ships_bytecode"),
+        "ARTIFACT-001" | "ARTIFACT-012" => Some("ships_bytecode"),
         "ARTIFACT-002" | "ARTIFACT-003" => Some("bytecode_source_mismatch"),
         "ARTIFACT-004" | "ARTIFACT-006" | "ARTIFACT-011" => Some("concealed_executable"),
         "ARTIFACT-005" | "ARTIFACT-009" => Some("concealed_artifact"),
