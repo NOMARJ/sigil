@@ -370,25 +370,122 @@ fn known_secret(v: &str) -> bool {
     .is_match(v)
 }
 
+/// The known-format credential inside `v`, if any (`Bearer ghp_…` yields the
+/// `ghp_…` token).
+fn known_secret_in(v: &str) -> Option<String> {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| {
+        regex::Regex::new(
+            r"(sk-ant-[A-Za-z0-9_-]{20,}|sk-(proj-)?[A-Za-z0-9_-]{32,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{30,}|npm_[A-Za-z0-9]{36}|sk_live_[0-9a-zA-Z]{24,}|rk_live_[0-9a-zA-Z]{24,}|shpat_[a-fA-F0-9]{32}|pplx-[A-Za-z0-9]{40,}|lin_api_[A-Za-z0-9]{40})",
+        )
+        .expect("static pattern compiles")
+    });
+    re.find(v).map(|m| m.as_str().to_string())
+}
+
+/// A remote endpoint for display: no password, no query string (either can
+/// carry a credential).
+fn display_url(u: &str) -> String {
+    match reqwest::Url::parse(u) {
+        Ok(mut p) => {
+            if p.password().is_some() {
+                let _ = p.set_password(Some("redacted"));
+            }
+            p.set_query(None);
+            p.to_string()
+        }
+        Err(_) => u.split('?').next().unwrap_or(u).to_string(),
+    }
+}
+
+/// Does this key name a credential? Judged on the key's words (split on
+/// `_`, `-`, `.` and camelCase), by what the key *ends* with: `GITHUB_PAT`,
+/// `API_KEY`, `x-api-key`, `clientSecret` and `PGPASSWORD` are credentials;
+/// `PYTHONPATH`, `MEMORY_FILE_PATH`, `GIT_AUTHOR_NAME`, `OAUTH_CALLBACK_URL`,
+/// `TOKEN_FILE` and `TOKENIZERS_PARALLELISM` are not, although a substring
+/// test for `pat`, `auth` or `token` matches every one of them.
 fn secret_named(k: &str) -> bool {
-    let l = k.to_ascii_lowercase();
-    [
+    let mut words: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut prev_lower = false;
+    for c in k.chars() {
+        if !c.is_ascii_alphanumeric() {
+            words.push(std::mem::take(&mut cur));
+            prev_lower = false;
+            continue;
+        }
+        if c.is_ascii_uppercase() && prev_lower {
+            words.push(std::mem::take(&mut cur));
+        }
+        prev_lower = c.is_ascii_lowercase() || c.is_ascii_digit();
+        cur.push(c.to_ascii_lowercase());
+    }
+    words.push(cur);
+    words.retain(|w| !w.is_empty());
+    let Some(last) = words.last().map(String::as_str) else {
+        return false;
+    };
+    const LAST: &[&str] = &[
         "token",
+        "tokens",
         "secret",
+        "secrets",
         "password",
         "passwd",
+        "pwd",
+        "pass",
+        "passphrase",
         "apikey",
-        "api_key",
-        "api-key",
-        "access_key",
-        "private_key",
-        "authorization",
-        "auth",
-        "credential",
         "pat",
-    ]
-    .iter()
-    .any(|w| l.contains(w))
+        "auth",
+        "authorization",
+        "credential",
+        "credentials",
+        "cookie",
+        "bearer",
+    ];
+    const PAIRS: &[(&str, &str)] = &[
+        ("api", "key"),
+        ("access", "key"),
+        ("private", "key"),
+        ("secret", "key"),
+        ("signing", "key"),
+        ("master", "key"),
+        ("auth", "key"),
+        ("license", "key"),
+        ("service", "key"),
+        ("client", "secret"),
+    ];
+    let pair = words.len() >= 2 && {
+        let prev = words[words.len() - 2].as_str();
+        PAIRS.iter().any(|(a, b)| *a == prev && *b == last)
+    };
+    // One-word keys written without separators: `PGPASSWORD`, `ghtoken`.
+    let joined = words.concat();
+    let fused = ["token", "secret", "password", "passwd", "apikey"]
+        .iter()
+        .any(|w| joined.ends_with(w));
+    LAST.contains(&last) || pair || fused
+}
+
+/// Broad test used only to decide what to *hide* in displayed command
+/// lines: showing `PYTHONPATH=…` redacted costs nothing, printing a token
+/// in clear does. Findings use the precise [`secret_named`].
+fn might_be_secret(k: &str) -> bool {
+    let l = k.to_ascii_lowercase();
+    secret_named(k)
+        || [
+            "token",
+            "secret",
+            "password",
+            "passwd",
+            "key",
+            "auth",
+            "credential",
+            "pat",
+        ]
+        .iter()
+        .any(|w| l.contains(w))
 }
 
 fn redact(v: &str) -> String {
@@ -404,7 +501,7 @@ fn redact_line(parts: &[String]) -> String {
             let shown = if known_secret(p) {
                 redact(p)
             } else if let Some((k, v)) = p.split_once('=') {
-                if secret_named(k) && !is_placeholder(v) {
+                if might_be_secret(k) && !is_placeholder(v) {
                     format!("{k}={}", redact(v))
                 } else {
                     p.clone()
@@ -560,10 +657,17 @@ fn check_url(
         || host
             .parse::<std::net::IpAddr>()
             .is_ok_and(|ip| ip.is_loopback());
+    // Wildcard-DNS names that resolve to the IP spelled inside them
+    // (`1-2-3-4.sslip.io`, `x.18.191.220.185.nip.io`): a raw IP with a
+    // hostname (and a certificate) in front of it.
+    let ip_alias = ["sslip.io", "nip.io", "xip.io"]
+        .iter()
+        .any(|d| host.ends_with(&format!(".{d}")));
     if cmdline::capture_host(&host) {
         out.push(finding("AGENTCFG-009", file, line, host.clone()));
     } else if !local
         && (u.scheme() == "http"
+            || ip_alias
             || host
                 .parse::<std::net::IpAddr>()
                 .is_ok_and(|ip| !crate::ingest::is_non_public(ip)))
@@ -1129,6 +1233,7 @@ impl<'a> Discovery<'a> {
                     &scope,
                     &format!("{name}:"),
                     Some(&dir),
+                    Exposure::User,
                 );
             }
             let mcp = dir.join(".mcp.json");
@@ -1173,6 +1278,7 @@ impl<'a> Discovery<'a> {
                         &scope,
                         &format!("{name}:"),
                         Some(&dir),
+                        Exposure::User,
                     );
                 }
             }
@@ -1350,7 +1456,7 @@ impl<'a> Discovery<'a> {
                 ));
             }
             let mut detail = if let Some(u) = &s.url {
-                u.split('?').next().unwrap_or(u).to_string()
+                display_url(u)
             } else {
                 redact_line(&s.command)
             };
@@ -1597,6 +1703,7 @@ impl<'a> Discovery<'a> {
         scope: &str,
         prefix: &str,
         plugin_root: Option<&Path>,
+        exposure: Exposure,
     ) {
         let Some(events) = hooks.as_object() else {
             return;
@@ -1621,7 +1728,15 @@ impl<'a> Discovery<'a> {
                     };
                     let mut out = Vec::new();
                     let line = line_of(text, cmd.lines().next().unwrap_or(cmd));
-                    check_command(&mut out, &shown, line, cmd, &cmdline::tokenize(cmd), true);
+                    let parts = cmdline::tokenize(cmd);
+                    check_command(&mut out, &shown, line, cmd, &parts, true);
+                    // A token written into the hook command itself (a
+                    // notification webhook's bearer token, say).
+                    for p in &parts {
+                        if let Some(m) = known_secret_in(p) {
+                            check_secret(&mut out, &shown, line, exposure, "hook-command", &m);
+                        }
+                    }
                     let name = if matcher.is_empty() {
                         format!("{prefix}{event}")
                     } else {
@@ -1633,7 +1748,7 @@ impl<'a> Discovery<'a> {
                         &self.opts.home,
                         plugin_root,
                     );
-                    let detail: String = cmd.chars().take(160).collect();
+                    let detail: String = redact_line(&parts).chars().take(160).collect();
                     self.push(tool, scope, Kind::Hook, name, file, detail, out);
                     if let Some(last) = self.items.last_mut() {
                         last.scripts = scripts;
@@ -1705,7 +1820,7 @@ impl<'a> Discovery<'a> {
                 continue;
             };
             if let Some(h) = v.get("hooks") {
-                self.hooks_from(&f, &text, h, &tool, scope, "", None);
+                self.hooks_from(&f, &text, h, &tool, scope, "", None, exposure);
             }
             let shown = self.display(&f);
             let mut out = Vec::new();
