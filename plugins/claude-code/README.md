@@ -223,9 +223,12 @@ The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A
 | `npm install <pkg>`, `npm add`, `yarn add`, `pnpm add`                  | **deny** | Use `sigil npm <pkg>`                                        |
 | `pip install <pkg>`, `uv add`                                           | **deny** | Use `sigil pip <pkg>`                                        |
 | `cargo install/add`, `gem install`, `go install/get`                    | **deny** | Quarantine + scan the source with `sigil clone` first        |
-| `curl \| sh` / `wget \| bash`                                           | **deny** | Piping a download into a shell executes unscanned code       |
+| `curl \| sh`, `curl \| bash -s`, `curl \| tee f \| sh`, `bash <(curl …)` | **deny** | Piping a download into an interpreter executes unscanned code |
+| `curl -o i.sh URL && bash i.sh` (download, then run it)                | **deny** | Allowed as `curl -o i.sh URL && sigil scan i.sh && bash i.sh` |
+| `curl … > ~/.claude/skills/…`, `-o .mcp.json` (downloads into agent tooling) | **deny** | Use `sigil scan <url>` — quarantine + scan first       |
+| `pipx install`, `uv tool install`, `deno run npm:…` / `https://…`       | **deny** | Prefix `sigil pip <pkg> &&` / `sigil npm <pkg> &&`; download and `sigil scan` a URL module |
 | Bare lockfile restores (`npm install`, `npm ci`, `pip install -r`, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
-| One-shot runners (`npx`, `dlx`, `pipx run`)                             | **ask**  | Downloads and executes in one step with no scan              |
+| One-shot runners (`npx`, `bunx`, `dlx`, `uvx`, `pipx run`)             | **deny** | Downloads and executes in one step with no scan              |
 | Everything else                                                         | allow    |                                                              |
 
 **Escape hatches:**

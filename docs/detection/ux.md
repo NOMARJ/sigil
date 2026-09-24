@@ -346,6 +346,10 @@ matches the lane's recorded "before" run on all 38,944 lines.
 still bypasses the whole command (existing semantics, kept on purpose), so
 the gate stops an agent that follows a skill's instructions, not one that
 is instructed to evade it. The hook is stateless: a download in one Bash
-call and its execution in the next are not linked. The shell-guard fallback
-in `plugins/claude-code/hooks/sigil-guard.sh` does not implement the new
-denies; only the native `sigil hook` does.
+call and its execution in the next are not linked. At the time of this pass
+the shell-guard fallback in `plugins/claude-code/hooks/sigil-guard.sh` did
+not implement the new denies. It has since been brought in line (see the
+plugin's CHANGELOG). Agent-CLI acquisition (`claude mcp add`, plugin and
+extension installs, `npx skills add`, `clawhub install`) and copies or
+unpacks into agent tooling are still enforced by the native `sigil hook`
+only.
