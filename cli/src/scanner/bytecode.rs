@@ -1,4 +1,4 @@
-//! Shipped Python bytecode (`ARTIFACT-001` .. `ARTIFACT-003`).
+//! Shipped Python bytecode (`ARTIFACT-001` .. `ARTIFACT-003`, `ARTIFACT-012`).
 //!
 //! A `.pyc` is code Python will execute that nobody can read as source. The
 //! file walker deliberately skips `__pycache__/` for content scanning (it is
@@ -15,25 +15,51 @@
 //!
 //! | Rule | Severity | Shape |
 //! |---|---|---|
-//! | `ARTIFACT-001` | High | Bytecode shipped at all (one finding per directory) |
-//! | `ARTIFACT-002` | Critical, standalone | Bytecode Python runs *instead of* the shipped source: an unchecked-hash pyc whose hash does not match the `.py`, or a sourceless `.pyc` at an importable location |
-//! | `ARTIFACT-003` | Critical, corroborate | Bytecode compiled from *different* source than shipped: a recorded source size that no line-ending conversion explains, a checked-hash mismatch, a `__pycache__` entry with no source, or URL constants the source does not contain |
+//! | `ARTIFACT-001` | High | Bytecode that could not be matched to its shipped source: no size field, an unchecked hash, a source too large to compare, or any divergence below (one finding per directory) |
+//! | `ARTIFACT-002` | Critical, standalone | Bytecode Python runs *instead of* the shipped source: an unchecked-hash pyc whose hash does not match the `.py`, a sourceless `.pyc` at an importable location, or a pyc the import system would load as-is (unchecked hash, matching checked hash, or matching mtime+size) whose constants were compiled from other code |
+//! | `ARTIFACT-003` | Critical, corroborate | Bytecode compiled from *different* source than shipped: a recorded source size that no line-ending conversion explains, a checked-hash mismatch, a `__pycache__` entry with no source, or URL constants / identifiers the source does not contain |
+//! | `ARTIFACT-012` | Low | Bytecode caches that agree with their shipped source (header and constants) — what CPython writes beside a script the first time it runs; one observation per tree |
 //!
-//! The mtime field of a timestamp pyc is deliberately not compared: git
-//! checkouts and most archive extractors rewrite mtimes, so it disagrees in
-//! essentially every clean tree. The size field survives, and a size mismatch
-//! is re-checked against CRLF↔LF conversion before it counts — every one of
-//! the 39 size mismatches in `luoluoluo22-jianying-editor-skill` is exactly
-//! the number of lines in the file (compiled on Windows, shipped with LF).
+//! A mismatching mtime is never evidence on its own: git checkouts and most
+//! archive extractors rewrite mtimes, so it disagrees in essentially every
+//! clean tree. It is used only the other way round — a timestamp pyc whose
+//! mtime and size both equal the source's is one Python will load as-is. A
+//! size mismatch is re-checked against CRLF↔LF conversion before it counts —
+//! every one of the 39 size mismatches in `luoluoluo22-jianying-editor-skill`
+//! is exactly the number of lines in the file (compiled on Windows, shipped
+//! with LF).
+//!
+//! Headers are attacker-written, so agreement is not proof: the string
+//! constants (names, literals, docstrings) of an honest pyc are made only of
+//! words its source contains, and bytecode that names three or more things
+//! the source never mentions was compiled from something else
+//! ([`foreign_words`]).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use super::{Evidence, Finding, Phase, Severity};
 
-/// Directories the bytecode walk never enters: VCS metadata and vendored JS
-/// trees hold no Python the skill ships, and walking them costs time.
-const SKIP_DIRS: &[&str] = &[".git", "node_modules", "target", ".tox", ".mypy_cache"];
+/// Directories the bytecode walk never enters: VCS metadata, vendored JS
+/// trees and tool caches hold no Python the skill ships.
+///
+/// Virtual environments (`.venv/`, `venv/`) are walked on purpose: a skill
+/// that ships one with a sourceless module in it, and tells the agent to run
+/// `.venv/bin/python`, has hidden code where the content scan does not look.
+/// What keeps a developer's own venv quiet is that the pycs pip and the
+/// interpreter write agree with their sources and aggregate into one Low
+/// `ARTIFACT-012` observation (before that, a non-git project with a fresh
+/// `.venv` produced 105 High findings, one per cache directory, and a
+/// Critical one for a regex in pip's vendored urllib3 read as a URL).
+const SKIP_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    ".next",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+];
 
 /// Bounds on the dedicated walk. A shipped virtual environment can hold tens
 /// of thousands of files; past these the walk stops and says so.
@@ -50,13 +76,18 @@ const MAX_STRINGS_BYTES: usize = 1024 * 1024;
 pub const RULE_SHIPPED: &str = "ARTIFACT-001";
 pub const RULE_RUNS_INSTEAD: &str = "ARTIFACT-002";
 pub const RULE_DIVERGES: &str = "ARTIFACT-003";
+pub const RULE_CACHE: &str = "ARTIFACT-012";
 
 /// The parsed fixed header of a `.pyc`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PycHeader {
     /// Timestamp-invalidated: Python recompiles when the source's mtime or
     /// size differ, so a stale file here is ignored at import time.
-    Timestamp { magic: u16, size: Option<u32> },
+    Timestamp {
+        magic: u16,
+        mtime: Option<u32>,
+        size: Option<u32>,
+    },
     /// Hash-invalidated (PEP 552). `checked == false` means Python loads the
     /// bytecode without comparing it to the source at all.
     Hash {
@@ -89,6 +120,7 @@ pub fn parse_header(bytes: &[u8]) -> PycHeader {
             if flags & 1 == 0 {
                 PycHeader::Timestamp {
                     magic,
+                    mtime: u32_at(8),
                     size: u32_at(12),
                 }
             } else {
@@ -108,19 +140,25 @@ pub fn parse_header(bytes: &[u8]) -> PycHeader {
         // 3.3 .. 3.6: magic, mtime, size.
         3230..=3391 => PycHeader::Timestamp {
             magic,
+            mtime: u32_at(4),
             size: u32_at(8),
         },
         // 3.0 .. 3.2 and Python 2: magic, mtime; no size field.
-        3000..=3229 | 20_000..=u16::MAX => PycHeader::Timestamp { magic, size: None },
+        3000..=3229 | 20_000..=u16::MAX => PycHeader::Timestamp {
+            magic,
+            mtime: u32_at(4),
+            size: None,
+        },
         _ => PycHeader::Invalid,
     }
 }
 
 // ---------------------------------------------------------------------------
 // SipHash — CPython's `_imp.source_hash` is SipHash keyed with (magic, 0).
-// SipHash-1-3 is checked against CPython 3.11's `_imp.source_hash` in the
-// tests below; SipHash-2-4 is the variant CPython used before 3.11. Both are
-// computed and either match counts: a chance collision is 2^-64.
+// SipHash-1-3 (CPython 3.11+) is checked against CPython 3.11's
+// `_imp.source_hash` in the tests below, and SipHash-2-4 (3.7 .. 3.10)
+// against CPython 3.10's. Both are computed and either match counts: a chance
+// collision is 2^-64.
 // ---------------------------------------------------------------------------
 
 fn sip_round(v: &mut [u64; 4]) {
@@ -283,28 +321,144 @@ pub fn string_constants(body: &[u8]) -> Vec<String> {
     out
 }
 
+/// The host of a URL-shaped word, if it has a real scheme (letters, then
+/// letters, digits, `+ - .`) and a real host name (a dotted name or
+/// `localhost`, with an optional port and userinfo). A regex such as
+/// urllib3's `^(?:([a-zA-Z][a-zA-Z0-9+.-]*):)?(?://...` contains `://` and
+/// is not a URL: before this check, pip's own vendored `url.py` in a fresh
+/// virtualenv read as bytecode "compiled from different source".
+fn url_host(word: &str) -> Option<(&str, &str)> {
+    let (before, rest) = word.split_once("://")?;
+    let scheme = before
+        .rsplit(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')))
+        .next()?;
+    if scheme.is_empty()
+        || scheme.len() > 16
+        || !scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+    {
+        return None;
+    }
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let hostport = authority.rsplit('@').next()?;
+    let host = hostport.split(':').next()?;
+    let hostlike = host.len() >= 4
+        && (host.contains('.') || host == "localhost")
+        && !host.starts_with(['.', '-'])
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
+    if !hostlike {
+        return None;
+    }
+    let start = before.len() - scheme.len();
+    let url = word[start..].trim_end_matches(['"', '\'', ')', ']', ',', ';', '>']);
+    Some((url, host))
+}
+
 /// URL-shaped constants: the ones whose absence from the source is evidence
 /// that the bytecode was compiled from something else.
-fn url_constants(strings: &[String]) -> Vec<&str> {
+fn url_constants(strings: &[String]) -> Vec<(&str, &str)> {
     strings
         .iter()
         .flat_map(|s| s.split_whitespace())
-        .filter(|w| w.contains("://") && w.len() >= 12)
+        .filter_map(url_host)
         .collect()
 }
 
 /// Is this URL constant accounted for by the source text? The compiler folds
-/// implicit concatenation (`"https://host/" "path"`) into one constant, so the
-/// `scheme://host` prefix appearing in the source is enough.
-fn url_in_source(url: &str, source: &str) -> bool {
-    if source.contains(url) {
-        return true;
+/// implicit concatenation (`"https://" "api.example.com/v1"`) into one
+/// constant, so the host appearing anywhere in the source is enough; a host
+/// the source never names was compiled from something else.
+fn url_in_source(url: &str, host: &str, source: &str) -> bool {
+    source.contains(url) || source.contains(host)
+}
+
+/// Distinct foreign words that make bytecode "compiled from something else".
+///
+/// Measured by compiling every one of the 799 `.py` files in the four clean
+/// vendor skill catalogues with CPython 3.10, 3.11, 3.12 and 3.13 and running
+/// this extraction over each result: no honest pyc had more than one foreign
+/// word (`return`, the annotations key, before it was allow-listed; a folded
+/// constant such as `"d0" "d1" ...`). The two `tjade273` backdoor pycs have 10
+/// and 11 (`eval`, `environ`, `PWNED`, ...).
+const FOREIGN_WORDS_MIN: usize = 3;
+/// Most distinct words checked per pyc.
+const MAX_WORDS_CHECKED: usize = 4_000;
+
+/// Identifier-like words (4+ characters, starting with a letter or `_`) in
+/// `s`, skipping compiler-made names written in angle brackets (`<module>`,
+/// `func.<locals>.<listcomp>`).
+fn words(s: &str) -> Vec<&str> {
+    let b = s.as_bytes();
+    let is_word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if !is_word(b[i]) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < b.len() && is_word(b[i]) {
+            i += 1;
+        }
+        let bracketed = start > 0 && b[start - 1] == b'<' && b.get(i) == Some(&b'>');
+        let tok = s[start..i].trim_start_matches(|c: char| c.is_ascii_digit());
+        if !bracketed && tok.len() >= 4 {
+            out.push(tok);
+        }
     }
-    let Some((scheme, rest)) = url.split_once("://") else {
-        return false;
-    };
-    let host = rest.split(['/', '?', '#']).next().unwrap_or(rest);
-    !host.is_empty() && source.contains(&format!("{scheme}://{host}"))
+    out
+}
+
+/// Identifier-like words in the bytecode's string constants (names, string
+/// literals, docstrings) that the shipped source never mentions. An honest
+/// pyc is built only out of words its source contains; bytecode compiled
+/// from other code names things the reviewed file does not.
+pub fn foreign_words(strings: &[String], source: &str) -> Vec<String> {
+    let source_words: std::collections::HashSet<&str> = words(source).into_iter().collect();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut foreign: Vec<String> = Vec::new();
+    for s in strings {
+        // `co_filename`: the absolute path the file was compiled at.
+        let lower = s.to_ascii_lowercase();
+        if (lower.ends_with(".py") || lower.ends_with(".pyw"))
+            && (s.contains('/') || s.contains('\\'))
+        {
+            continue;
+        }
+        for w in words(s) {
+            if seen.len() >= MAX_WORDS_CHECKED {
+                return foreign;
+            }
+            if !seen.insert(w) {
+                continue;
+            }
+            // Dunders are compiler vocabulary; a word of one repeated letter
+            // is a folded constant ("a" * 40); `return` is the annotations
+            // key and `format` the parameter of 3.14's generated `__annotate__`.
+            if (w.starts_with("__") && w.ends_with("__"))
+                || w.bytes().all(|c| c == w.as_bytes()[0])
+                || w == "return"
+                || w == "format"
+            {
+                continue;
+            }
+            // Private names are mangled: `__attr` in class `Foo` is `_Foo__attr`.
+            let demangled = match w.get(1..).and_then(|r| r.find("__")) {
+                Some(p) if w.starts_with('_') && p > 0 => &w[p + 1..],
+                _ => w,
+            };
+            if source_words.contains(w)
+                || source_words.contains(demangled)
+                || source.contains(demangled)
+            {
+                continue;
+            }
+            foreign.push(w.to_string());
+        }
+    }
+    foreign
 }
 
 // ---------------------------------------------------------------------------
@@ -482,11 +636,45 @@ pub fn scan(root: &Path, strip_base: &Path) -> BytecodeScan {
         return out;
     }
 
-    // ARTIFACT-001: one finding per directory, so a vendored tree with a
-    // thousand cached modules is one observation rather than a thousand.
+    // Inspect first: whether a file is only an observation depends on what
+    // it turns out to be.
+    let mut diverging: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    let mut consistent: Vec<String> = Vec::new();
+    let mut unverified: Vec<String> = Vec::new();
+    let mut uninspected: Vec<String> = Vec::new();
+    for (i, pyc) in files.iter().enumerate() {
+        let r = rel(strip_base, pyc);
+        if i >= MAX_INSPECTED {
+            uninspected.push(r);
+        } else if inspect_one(pyc, strip_base, &mut out, &mut diverging) {
+            consistent.push(r);
+        } else {
+            unverified.push(r);
+        }
+    }
+    // Past the cap nothing is known about a file, and a thousand directories
+    // of it are one fact, not a thousand High findings.
+    if let Some(first) = uninspected.first() {
+        out.findings.push(finding(
+            Phase::Provenance,
+            RULE_SHIPPED,
+            Severity::High,
+            first,
+            format!(
+                "{} more Python bytecode file(s) past the inspection cap of {MAX_INSPECTED} \
+                 were not compared with their source (first: {first})",
+                uninspected.len()
+            ),
+            3,
+            Evidence::Standalone,
+        ));
+    }
+
+    // ARTIFACT-001: bytecode that could not be shown to be its shipped
+    // source, one finding per directory, so a vendored tree with a thousand
+    // cached modules is one observation rather than a thousand.
     let mut by_dir: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for f in &files {
-        let r = rel(strip_base, f);
+    for r in unverified {
         let dir = r
             .rsplit_once('/')
             .map(|(d, _)| d.to_string())
@@ -512,7 +700,7 @@ pub fn scan(root: &Path, strip_base: &Path) -> BytecodeScan {
             &members[0],
             format!(
                 "Python bytecode shipped: {} file(s) in {place}/ ({}{more}). Bytecode runs \
-                 but cannot be reviewed as source",
+                 but cannot be reviewed as source, and these could not be matched to it",
                 members.len(),
                 names.join(", ")
             ),
@@ -535,13 +723,41 @@ pub fn scan(root: &Path, strip_base: &Path) -> BytecodeScan {
         ));
     }
 
+    // ARTIFACT-012: caches that agree with their source in every way this
+    // pass can check. This is what CPython writes beside a script the first
+    // time it runs, so an installed skill that has been used once has them;
+    // one Low observation for the whole tree, never a verdict.
+    if !consistent.is_empty() {
+        let mut dirs: Vec<&str> = consistent
+            .iter()
+            .map(|r| r.rsplit_once('/').map(|(d, _)| d).unwrap_or("."))
+            .collect();
+        dirs.dedup();
+        let shown: Vec<&str> = dirs.iter().take(3).copied().collect();
+        let more = if dirs.len() > shown.len() {
+            format!(", +{} more", dirs.len() - shown.len())
+        } else {
+            String::new()
+        };
+        out.findings.push(finding(
+            Phase::Provenance,
+            RULE_CACHE,
+            Severity::Low,
+            &consistent[0],
+            format!(
+                "{} Python bytecode cache file(s) that match their shipped .py (header size, \
+                 hash and constants agree) in {}{more}",
+                consistent.len(),
+                shown.join(", ")
+            ),
+            1,
+            Evidence::Standalone,
+        ));
+    }
+
     // ARTIFACT-003 is reported once per directory, like ARTIFACT-001: a
     // sloppy sdist with twenty stale caches is one fact about its build, and
     // must not add twenty Critical findings' worth of score.
-    let mut diverging: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
-    for pyc in files.iter().take(MAX_INSPECTED) {
-        inspect_one(pyc, strip_base, &mut out, &mut diverging);
-    }
     for members in diverging.values() {
         let (first, reason) = &members[0];
         let more = if members.len() > 1 {
@@ -572,26 +788,37 @@ pub fn scan(root: &Path, strip_base: &Path) -> BytecodeScan {
     out
 }
 
+/// Seconds-resolution mtime as CPython records it (`int(st_mtime) & 0xFFFFFFFF`).
+fn mtime_u32(p: &Path) -> Option<u32> {
+    let t = std::fs::metadata(p).ok()?.modified().ok()?;
+    let secs = t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    Some((secs & 0xffff_ffff) as u32)
+}
+
+/// Inspect one bytecode file, pushing any divergence finding. Returns true
+/// when the file is a cache that agrees with its shipped source in every way
+/// checked here (header size or hash, no foreign URL, no foreign words) — an
+/// observation, not a finding.
 fn inspect_one(
     pyc: &Path,
     strip_base: &Path,
     out: &mut BytecodeScan,
     diverging: &mut BTreeMap<String, Vec<(String, String)>>,
-) {
+) -> bool {
     let r = rel(strip_base, pyc);
     let Ok(meta) = std::fs::metadata(pyc) else {
-        return;
+        return false;
     };
     if meta.len() > MAX_PYC_BYTES {
-        return;
+        return false;
     }
     let Ok(bytes) = std::fs::read(pyc) else {
-        return;
+        return false;
     };
     let header = parse_header(&bytes);
     if header == PycHeader::Invalid {
         // Not loadable by CPython; presence is already ARTIFACT-001.
-        return;
+        return false;
     }
     let (candidates, in_cache) = source_for(pyc);
     let source_path = candidates.iter().find(|p| p.is_file());
@@ -607,9 +834,18 @@ fn inspect_one(
         PycHeader::Timestamp { magic, .. } if (3230..3392).contains(&magic) => 12,
         PycHeader::Timestamp { .. } => 8,
         PycHeader::Hash { .. } => 16,
-        PycHeader::Invalid => return,
+        PycHeader::Invalid => return false,
     };
     let strings = string_constants(bytes.get(body_start..).unwrap_or(&[]));
+
+    // Whether the import system would load this file as-is in place of
+    // compiling the shipped source: an unchecked-hash pyc always is; a
+    // checked-hash pyc is when its hash matches; a timestamp pyc in
+    // __pycache__ is when its recorded mtime and size equal the source file's
+    // (which an archive that preserves mtimes makes easy to arrange).
+    let mut runs_as_is = false;
+    // Whether the header agrees with the shipped source.
+    let mut header_agrees = false;
 
     // (rule, severity, evidence, reason) for the strongest divergence found.
     let mut verdict: Option<(&str, Severity, Evidence, String)> = None;
@@ -647,6 +883,10 @@ fn inspect_one(
                 || line_ending_variants(src)
                     .iter()
                     .any(|v| hash_matches(*key, hash, v));
+            runs_as_is = in_cache && (!*checked || matches);
+            // An unchecked hash is never compared with anything, so a match
+            // proves only that whoever built the file knew the source.
+            header_agrees = matches && *checked;
             if !matches {
                 verdict = Some(if *checked {
                     (
@@ -670,48 +910,92 @@ fn inspect_one(
                 });
             }
         }
-        (Some(src), PycHeader::Timestamp { size: Some(sz), .. }) if !size_agrees(*sz, src) => {
-            verdict = Some((
-                RULE_DIVERGES,
-                Severity::Critical,
-                Evidence::Corroborate,
-                format!(
-                    "pyc records a {sz}-byte source but the shipped .py is {} bytes, and \
-                     no line-ending conversion explains the difference — compiled from \
-                     different source",
-                    src.len()
-                ),
-            ));
-        }
-        _ => {}
-    }
-
-    // A header that agrees can still hide different code: URL constants the
-    // shipped source never mentions are compiled from something else.
-    if verdict.is_none() {
-        if let Some(src) = &source {
-            let text = String::from_utf8_lossy(src);
-            let foreign: Vec<&str> = url_constants(&strings)
-                .into_iter()
-                .filter(|u| !url_in_source(u, &text))
-                .collect();
-            if let Some(first) = foreign.first() {
+        (
+            Some(src),
+            PycHeader::Timestamp {
+                size: Some(sz),
+                mtime,
+                ..
+            },
+        ) => {
+            if size_agrees(*sz, src) {
+                header_agrees = true;
+                runs_as_is = in_cache
+                    && u64::from(*sz) == (src.len() as u64 & 0xffff_ffff)
+                    && mtime.is_some()
+                    && *mtime == source_path.and_then(|p| mtime_u32(p));
+            } else {
                 verdict = Some((
                     RULE_DIVERGES,
                     Severity::Critical,
                     Evidence::Corroborate,
                     format!(
-                        "bytecode contains {} URL constant(s) absent from the shipped source \
-                         (e.g. {first})",
-                        foreign.len()
+                        "pyc records a {sz}-byte source but the shipped .py is {} bytes, and \
+                         no line-ending conversion explains the difference — compiled from \
+                         different source",
+                        src.len()
                     ),
                 ));
+            }
+        }
+        _ => {}
+    }
+
+    // A header that agrees can still hide different code: URL constants or
+    // identifiers the shipped source never mentions were compiled from
+    // something else. When Python would load the file as-is, that is the
+    // code that runs instead of the reviewed source.
+    if verdict.is_none() {
+        if let Some(src) = &source {
+            let text = String::from_utf8_lossy(src);
+            let foreign_urls: Vec<&str> = url_constants(&strings)
+                .into_iter()
+                .filter(|(u, host)| !url_in_source(u, host, &text))
+                .map(|(u, _)| u)
+                .collect();
+            let reason = if let Some(first) = foreign_urls.first() {
+                Some(format!(
+                    "bytecode contains {} URL constant(s) absent from the shipped source \
+                     (e.g. {first})",
+                    foreign_urls.len()
+                ))
+            } else {
+                let foreign = foreign_words(&strings, &text);
+                (foreign.len() >= FOREIGN_WORDS_MIN).then(|| {
+                    let shown: Vec<&str> = foreign.iter().take(6).map(String::as_str).collect();
+                    format!(
+                        "bytecode names {} identifier(s)/string(s) the shipped source never \
+                         mentions ({}) — compiled from different code",
+                        foreign.len(),
+                        shown.join(", ")
+                    )
+                })
+            };
+            if let Some(reason) = reason {
+                verdict = Some(if runs_as_is {
+                    (
+                        RULE_RUNS_INSTEAD,
+                        Severity::Critical,
+                        Evidence::Standalone,
+                        format!(
+                            "{reason}; Python loads this file as-is instead of compiling the \
+                             shipped .py"
+                        ),
+                    )
+                } else {
+                    (
+                        RULE_DIVERGES,
+                        Severity::Critical,
+                        Evidence::Corroborate,
+                        reason,
+                    )
+                });
             }
         }
     }
 
     let Some((rule, severity, evidence, reason)) = verdict else {
-        return;
+        return header_agrees;
     };
     if rule == RULE_DIVERGES {
         let dir = r
@@ -741,6 +1025,7 @@ fn inspect_one(
             label: "bytecode constants",
         });
     }
+    false
 }
 
 #[cfg(test)]
@@ -891,8 +1176,231 @@ mod tests {
         );
         let scan = scan(d.path(), d.path());
         let r = rules(&scan);
-        assert_eq!(r, vec![(RULE_SHIPPED.into(), Severity::High)], "{r:?}");
+        // The unchecked pyc's hash matches, but Python never checks it, so a
+        // match proves nothing about the code: still "shipped, unverified".
+        // The timestamp pyc agrees (CRLF compile) and names nothing foreign:
+        // an observation only.
+        assert_eq!(
+            r,
+            vec![
+                (RULE_SHIPPED.into(), Severity::High),
+                (RULE_CACHE.into(), Severity::Low)
+            ],
+            "{r:?}"
+        );
+        assert!(scan.findings[0].file.ends_with("cpython-311.pyc"));
         assert!(scan.units.is_empty());
+    }
+
+    /// A timestamp pyc stamped with the source's own mtime.
+    fn ts_pyc_for(source: &Path, body: &[u8]) -> Vec<u8> {
+        let len = std::fs::metadata(source).unwrap().len() as u32;
+        let mut b = ts_pyc(len, body);
+        b[8..12].copy_from_slice(&mtime_u32(source).unwrap().to_le_bytes());
+        b
+    }
+
+    #[test]
+    fn siphash24_matches_cpython_310_source_hash() {
+        // `_imp.source_hash` under CPython 3.10.20 (SipHash-2-4), keyed with
+        // the 3.10 magic word (0x0a0d0d6f); computed by the interpreter, not
+        // by hand.
+        let key = u32::from_le_bytes([0x6f, 0x0d, 0x0d, 0x0a]) as u64;
+        assert_eq!(hex::encode(siphash(key, 0, b"", 2, 4)), "8cc0cd2525e7fd27");
+        assert_eq!(hex::encode(siphash(key, 0, b"a", 2, 4)), "3f75554bda1e742f");
+        assert_eq!(
+            hex::encode(siphash(key, 0, b"xxxxxxxx", 2, 4)),
+            "65a65b7ede06ca93"
+        );
+        assert_eq!(
+            hex::encode(siphash(key, 0, &[b'x'; 17], 2, 4)),
+            "2a475d3083f9ddcb"
+        );
+        assert_eq!(
+            hex::encode(siphash(key, 0, b"def f():\n    return 1\n", 2, 4)),
+            "990c9db73497884c"
+        );
+    }
+
+    #[test]
+    fn a_skill_that_has_run_once_is_not_high() {
+        // CPython writes __pycache__/x.cpython-3xx.pyc beside a script the
+        // first time it runs: mtime and size of the source, constants out of
+        // the source. An installed skill that was used once looks like this.
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "SKILL.md", b"# CSV\n");
+        let src = b"import csv\n\ndef main(path):\n    print(len(list(csv.reader(open(path)))), 'rows')\n";
+        write(d.path(), "scripts/summary.py", src);
+        let body: Vec<u8> = [
+            "csv", "main", "path", "print", "list", "reader", "open", "rows",
+        ]
+        .iter()
+        .flat_map(|s| z(s))
+        .collect();
+        let pyc = ts_pyc_for(&d.path().join("scripts/summary.py"), &body);
+        write(
+            d.path(),
+            "scripts/__pycache__/summary.cpython-311.pyc",
+            &pyc,
+        );
+        let s = scan(d.path(), d.path());
+        assert_eq!(rules(&s), vec![(RULE_CACHE.into(), Severity::Low)]);
+        assert_eq!(s.findings[0].weight, 1);
+        assert!(s.units.is_empty());
+    }
+
+    #[test]
+    fn a_forged_header_does_not_hide_different_code() {
+        // Unchecked-hash pyc whose header hash is computed over the SHIPPED
+        // source (so it "matches") while the body is other code: Python runs
+        // it without looking at the source.
+        let d = tempfile::tempdir().unwrap();
+        let shipped = b"def f():\n    return 1\n";
+        write(d.path(), "s/utils.py", shipped);
+        let mut body = z("subprocess");
+        body.extend(z("check_output"));
+        body.extend(z("harvest_keys"));
+        write(
+            d.path(),
+            "s/__pycache__/utils.cpython-311.pyc",
+            &hash_pyc(false, shipped, &body),
+        );
+        let s = scan(d.path(), d.path());
+        let f = s
+            .findings
+            .iter()
+            .find(|f| f.rule == RULE_RUNS_INSTEAD)
+            .unwrap_or_else(|| panic!("ARTIFACT-002 expected: {:?}", s.findings));
+        assert_eq!(f.evidence, Evidence::Standalone);
+        assert!(f.snippet.contains("subprocess"), "{}", f.snippet);
+        assert_eq!(s.units.len(), 1, "constants handed to the phases");
+
+        // Same forgery on a timestamp pyc: mtime and size copied from the
+        // source, so the import system loads it as-is. Standalone too.
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "s/utils.py", shipped);
+        let pyc = ts_pyc_for(&d.path().join("s/utils.py"), &body);
+        write(d.path(), "s/__pycache__/utils.cpython-311.pyc", &pyc);
+        let s = scan(d.path(), d.path());
+        assert!(
+            s.findings
+                .iter()
+                .any(|f| f.rule == RULE_RUNS_INSTEAD && f.evidence == Evidence::Standalone),
+            "{:?}",
+            s.findings
+        );
+
+        // With a stale mtime Python recompiles the source instead, so the
+        // divergence is evidence about the build, not code that runs.
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "s/utils.py", shipped);
+        write(
+            d.path(),
+            "s/__pycache__/utils.cpython-311.pyc",
+            &ts_pyc(shipped.len() as u32, &body),
+        );
+        let r = rules(&scan(d.path(), d.path()));
+        assert!(
+            r.contains(&(RULE_DIVERGES.into(), Severity::Critical)),
+            "{r:?}"
+        );
+        assert!(!r.iter().any(|(id, _)| id == RULE_RUNS_INSTEAD), "{r:?}");
+    }
+
+    #[test]
+    fn url_constants_are_real_urls() {
+        let strings: Vec<String> = [
+            // urllib3's URI regex, folded from implicit concatenation.
+            "^(?:([a-zA-Z][a-zA-Z0-9+.-]*):)?(?://([^\\/?#]*))?([^?#]*)",
+            "see https://drop.invalid/dl/1/helper.pyc)",
+            "git+ssh://git@github.com:org/repo.git",
+            "http://localhost:8080/ready",
+            "scheme://",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let urls = url_constants(&strings);
+        assert_eq!(
+            urls,
+            vec![
+                ("https://drop.invalid/dl/1/helper.pyc", "drop.invalid"),
+                ("git+ssh://git@github.com:org/repo.git", "github.com"),
+                ("http://localhost:8080/ready", "localhost"),
+            ]
+        );
+        // Implicit concatenation splits scheme and host in the source.
+        let source = "BASE = (\"https://\" \"api.example.com/v1\")\n";
+        assert!(url_in_source(
+            "https://api.example.com/v1",
+            "api.example.com",
+            source
+        ));
+        assert!(!url_in_source(
+            "https://drop.example.net/x",
+            "drop.example.net",
+            source
+        ));
+    }
+
+    #[test]
+    fn foreign_words_ignore_what_the_compiler_adds() {
+        let source =
+            "class ScriptFile:\n    def __add(self):\n        return [x for x in self.items]\n";
+        let strings: Vec<String> = [
+            "ScriptFile",
+            "_ScriptFile__add",
+            "ScriptFile.__add.<locals>.<listcomp>",
+            "<module>",
+            "/home/builder/proj/script_file.py",
+            "items",
+            "return",
+            "aaaaaaaa",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert!(foreign_words(&strings, source).is_empty());
+        let payload: Vec<String> = ["environ", "eval", "PWNED unsafe"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(
+            foreign_words(&payload, source),
+            vec!["environ", "eval", "PWNED", "unsafe"]
+        );
+    }
+
+    #[test]
+    fn a_virtualenv_is_one_observation_unless_it_hides_something() {
+        // pip-compiled caches in a local venv: consistent, one Low finding
+        // however many directories they sit in.
+        let d = tempfile::tempdir().unwrap();
+        for pkg in ["pip", "pip/_internal", "setuptools", "idna"] {
+            let src = format!(".venv/lib/python3.11/site-packages/{pkg}/__init__.py");
+            write(d.path(), &src, b"from . import core\n");
+            let pyc = ts_pyc_for(&d.path().join(&src), &z("core"));
+            write(
+                d.path(),
+                &format!(
+                    ".venv/lib/python3.11/site-packages/{pkg}/__pycache__/__init__.cpython-311.pyc"
+                ),
+                &pyc,
+            );
+        }
+        let s = scan(d.path(), d.path());
+        assert_eq!(rules(&s), vec![(RULE_CACHE.into(), Severity::Low)]);
+        assert!(s.findings[0].snippet.starts_with("4 Python bytecode cache"));
+        // A sourceless module shipped inside a venv is importable from its
+        // interpreter: reported like anywhere else (SkillSpector SC8 has the
+        // same case).
+        write(d.path(), ".venv/lib/payload.pyc", &ts_pyc(10, b""));
+        let r = rules(&scan(d.path(), d.path()));
+        assert!(
+            r.contains(&(RULE_RUNS_INSTEAD.into(), Severity::Critical)),
+            "{r:?}"
+        );
+        assert!(r.contains(&(RULE_SHIPPED.into(), Severity::High)), "{r:?}");
     }
 
     #[test]

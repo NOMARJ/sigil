@@ -14,8 +14,8 @@
       "id": "ARTIFACT-001",
       "phase": "provenance",
       "severity": "high",
-      "description": "Python bytecode shipped (.pyc / .pyo / __pycache__)",
-      "remediation": "Bytecode runs but cannot be reviewed, and nothing guarantees it was compiled from the .py beside it. Delete every __pycache__/ directory and .pyc/.pyo file from the skill or package, add them to the ignore list used when publishing, and review only the source. If the author insists on shipping bytecode, ask why; a skill has no reason to.",
+      "description": "Python bytecode shipped that could not be matched to its source (.pyc / .pyo / __pycache__)",
+      "remediation": "Bytecode runs but cannot be reviewed, and this file could not be shown to be the .py beside it: it has no source-size field (Python 2 / 3.0-3.2), uses an unchecked hash (PEP 552) that Python never verifies, its source is missing or too large to compare, or it diverges from the source (see ARTIFACT-002/003 on the same files). Delete every __pycache__/ directory and .pyc/.pyo file from the skill or package, add them to the ignore list used when publishing, and review only the source. If the author insists on shipping bytecode, ask why; a skill has no reason to.",
       "references": [
         "CWE-506",
         "CWE-1104",
@@ -29,8 +29,8 @@
       "id": "ARTIFACT-002",
       "phase": "obfuscation",
       "severity": "critical",
-      "description": "Bytecode runs instead of the reviewed source (unchecked-hash pyc mismatch, or sourceless importable .pyc)",
-      "remediation": "Python will load this bytecode without consulting the .py a reviewer reads: an unchecked hash-based pyc (PEP 552) is never compared with its source, and a .pyc beside a package with no .py is imported directly. Treat the skill as backdoored: do not install or run it, disassemble the .pyc (python -m dis, or decompyle3 in an isolated VM) to see what it does, and report the publisher.",
+      "description": "Bytecode runs instead of the reviewed source (unchecked or loadable pyc that is not the .py, or sourceless importable .pyc)",
+      "remediation": "Python will load this bytecode instead of compiling the .py a reviewer reads: an unchecked hash-based pyc (PEP 552) is never compared with its source, a pyc whose checked hash or recorded mtime and size match the source is loaded as-is, and a .pyc beside a package with no .py is imported directly - and this one's header hash, or its constants (URLs, identifiers the source never mentions), show it was compiled from other code. Treat the skill as backdoored: do not install or run it, disassemble the .pyc (python -m dis, or decompyle3 in an isolated VM) to see what it does, and report the publisher.",
       "references": [
         "CWE-506",
         "CWE-494",
@@ -47,7 +47,7 @@
       "severity": "critical",
       "evidence": "corroborate",
       "description": "Bytecode compiled from different source than shipped",
-      "remediation": "The pyc header or its constants disagree with the shipped .py: a recorded source size no line-ending conversion explains, a checked hash that does not match, bytecode with no source at all, or URL constants the source never mentions. Python normally recompiles a stale timestamp pyc, but the file still proves the author ran different code than they published. Read the extracted constants in the finding's derived units, remove the bytecode, and do not trust the package until the difference is explained.",
+      "remediation": "The pyc header or its constants disagree with the shipped .py: a recorded source size no line-ending conversion explains, a checked hash that does not match, bytecode with no source at all, or URL constants or three or more identifiers the source never mentions. Python recompiles a stale timestamp pyc rather than load it, but the file still proves the author ran different code than they published. Read the extracted constants in the finding's derived units, remove the bytecode, and do not trust the package until the difference is explained.",
       "references": [
         "CWE-506",
         "CWE-1104",
@@ -61,8 +61,8 @@
       "phase": "obfuscation",
       "severity": "critical",
       "evidence": "corroborate",
-      "description": "Executable disguised under a document, text or image name",
-      "remediation": "The file's magic bytes say ELF, PE, Mach-O, Java class or WebAssembly while its name claims a document, image or text file. There is no packaging reason for that; it exists to get past a reviewer who trusts extensions. Do not run the skill. Identify the binary (file, sha256 against a malware database) in an isolated environment, and check the skill's scripts for whatever renames, chmods or executes it.",
+      "description": "Executable disguised under a document, text, image or source-code name",
+      "remediation": "The file's magic bytes say ELF, PE, Mach-O, Java class or WebAssembly while its name claims a document, image, text or source file (a helper.py or run.sh that is machine code runs as a program when invoked as ./helper.py). There is no packaging reason for that; it exists to get past a reviewer who trusts extensions. Do not run the skill. Identify the binary (file, sha256 against a malware database) in an isolated environment, and check the skill's scripts for whatever renames, chmods or executes it.",
       "references": [
         "CWE-506",
         "MITRE T1036.008",
@@ -76,8 +76,8 @@
       "id": "ARTIFACT-005",
       "phase": "obfuscation",
       "severity": "high",
-      "description": "Archive or script disguised under a document, text or image name",
-      "remediation": "The file is an archive (zip, gzip, tar, 7z, rar...) or a #! script while its name claims a document, image or text file. Sigil still opens zip and tar contents and scans them; review those findings, then ask why the file is named as something else. Office formats that are zips by design (docx, xlsx, pptx, epub) are not reported here.",
+      "description": "Archive or script disguised under a document, text, image or source-code name",
+      "remediation": "The file is an archive (zip, gzip, tar, 7z, rar...) while its name claims a document, image, text or source file - python app.py runs the __main__.py inside a zip named app.py - or a #! script named as a document or image. Sigil still opens zip and tar contents and scans them; review those findings, then ask why the file is named as something else. Office formats that are zips by design (docx, xlsx, pptx, epub) are not reported here.",
       "references": [
         "CWE-506",
         "MITRE T1036.008",
@@ -160,6 +160,18 @@
         "OWASP LLM03"
       ],
       "tags": ["supply-chain", "archive", "executable"]
+    },
+    {
+      "id": "ARTIFACT-012",
+      "phase": "provenance",
+      "severity": "low",
+      "description": "Python bytecode cache that matches its shipped source",
+      "remediation": "Observation only: CPython writes __pycache__/<module>.cpython-3xx.pyc beside a script the first time it runs, so an installed skill that has been used once has these. Each file's header (recorded source size, or a checked hash) agrees with the .py beside it and its string constants name nothing the source does not, so it is the compiled source. Delete the __pycache__ directories before publishing a skill; a reviewer should not have to take bytecode on trust.",
+      "references": [
+        "CWE-1104",
+        "OWASP LLM03"
+      ],
+      "tags": ["supply-chain", "bytecode", "python", "observation"]
     },
     {
       "id": "PAD-001",

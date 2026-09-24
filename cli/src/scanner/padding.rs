@@ -36,6 +36,9 @@ const BLOCK_BYTES: usize = 2048;
 const MIN_LETTERS: usize = 3;
 /// Most findings from one file; a file built out of padding is one story.
 const MAX_FINDINGS: usize = 5;
+/// Most runs classified per file. A hostile file can be one run per line for
+/// millions of lines; the strongest few are all that is reported anyway.
+const MAX_RUNS: usize = 1_000;
 
 /// Characters that render as blank space or as nothing at all.
 pub fn is_padding(c: char) -> bool {
@@ -156,14 +159,20 @@ fn logical_lines(text: &str) -> Vec<Line> {
     out
 }
 
+/// Byte offsets of every `\n`, for [`line_of`].
+fn newline_index(text: &str) -> Vec<usize> {
+    text.bytes()
+        .enumerate()
+        .filter(|(_, b)| *b == b'\n')
+        .map(|(i, _)| i)
+        .collect()
+}
+
 /// 1-based physical line (by `\n`) of a byte offset, matching every other
-/// finding's line numbers.
-fn line_of(text: &str, offset: usize) -> usize {
-    text.as_bytes()[..offset.min(text.len())]
-        .iter()
-        .filter(|b| **b == b'\n')
-        .count()
-        + 1
+/// finding's line numbers. A binary search over a precomputed index, so a
+/// file with thousands of runs is not re-read once per run.
+fn line_of(newlines: &[usize], offset: usize) -> usize {
+    newlines.partition_point(|&p| p < offset) + 1
 }
 
 fn excerpt(text: &str) -> String {
@@ -215,7 +224,7 @@ struct Run {
     kind: &'static str,
 }
 
-fn classify(text: &str, run: &Run, file: &str) -> Finding {
+fn classify(text: &str, newlines: &[usize], run: &Run, file: &str) -> Finding {
     let after = run.after.trim();
     let n_letters = letters(after);
     let body = &text[run.start..run.end];
@@ -231,7 +240,7 @@ fn classify(text: &str, run: &Run, file: &str) -> Finding {
                     "{what} pushes instruction-like text out of view: \"{}\"",
                     excerpt(after)
                 ),
-                line_of(text, offset),
+                line_of(newlines, offset),
             )
         } else {
             (
@@ -239,7 +248,7 @@ fn classify(text: &str, run: &Run, file: &str) -> Finding {
                 Severity::Medium,
                 2,
                 format!("{what} pushes text out of view: \"{}\"", excerpt(after)),
-                line_of(text, offset),
+                line_of(newlines, offset),
             )
         }
     } else {
@@ -248,7 +257,7 @@ fn classify(text: &str, run: &Run, file: &str) -> Finding {
             Severity::Low,
             1,
             format!("{what} with nothing meaningful after it"),
-            line_of(text, run.start),
+            line_of(newlines, run.start),
         )
     };
     let mut f = finding(
@@ -315,7 +324,7 @@ pub fn scan_file(rel_path: &str, text: &str) -> Vec<Finding> {
             continue;
         }
         let j = (i..lines.len()).find(|&k| !blank[k]).unwrap_or(lines.len());
-        if j - i >= VERTICAL_LINES {
+        if j - i >= VERTICAL_LINES && runs.len() < MAX_RUNS {
             let start = lines[i].start;
             let end = if j < lines.len() {
                 lines[j].start
@@ -356,10 +365,20 @@ pub fn scan_file(rel_path: &str, text: &str) -> Vec<Finding> {
             let run_ends = !is_padding(c) || idx.peek().is_none();
             if run_ends {
                 if let Some((rb, n)) = run_start.take() {
-                    if n >= HORIZONTAL_CHARS {
+                    if n >= HORIZONTAL_CHARS && runs.len() < MAX_RUNS {
                         let end = if is_padding(c) { s.len() } else { b };
                         let rest = &s[end..];
-                        if !rest.trim_start().starts_with('|') && !is_alignment(rest, data_file) {
+                        // In JSON and YAML, leading spaces and tabs are the
+                        // nesting depth, not something pushed out of view: a
+                        // schema 45 levels deep is indented 90 columns. Any
+                        // Unicode filler in the run still counts.
+                        let indentation = data_file
+                            && rb == 0
+                            && s[..end].bytes().all(|x| x == b' ' || x == b'\t');
+                        if !indentation
+                            && !rest.trim_start().starts_with('|')
+                            && !is_alignment(rest, data_file)
+                        {
                             runs.push(Run {
                                 start: line.start + rb,
                                 end: line.start + end,
@@ -407,8 +426,15 @@ pub fn scan_file(rel_path: &str, text: &str) -> Vec<Finding> {
         }
     }
 
+    if runs.is_empty() {
+        return Vec::new();
+    }
     runs.sort_by_key(|r| r.start);
-    let mut out: Vec<Finding> = runs.iter().map(|r| classify(text, r, rel_path)).collect();
+    let newlines = newline_index(text);
+    let mut out: Vec<Finding> = runs
+        .iter()
+        .map(|r| classify(text, &newlines, r, rel_path))
+        .collect();
     // The strongest findings first, bounded.
     out.sort_by(|a, b| b.severity.cmp(&a.severity).then(a.line.cmp(&b.line)));
     out.truncate(MAX_FINDINGS);
@@ -500,6 +526,54 @@ mod tests {
         // Code is not in scope at all.
         let code = format!("x = 1{}# note\n", " ".repeat(200));
         assert!(rules("main.py", &code).is_empty());
+    }
+
+    #[test]
+    fn indentation_in_data_files_is_structure() {
+        // A JSON schema 45 levels deep: 90 columns of indentation before a
+        // key whose text says "delete" and "token". Structure, not hiding.
+        let mut json = String::from("{\n");
+        for i in 1..45 {
+            json.push_str(&format!("{}\"a{i}\": {{\n", "  ".repeat(i)));
+        }
+        json.push_str(&format!(
+            "{}\"description\": \"Delete the token after use\"\n",
+            "  ".repeat(45)
+        ));
+        for i in (1..45).rev() {
+            json.push_str(&format!("{}}}\n", "  ".repeat(i)));
+        }
+        json.push_str("}\n");
+        assert!(
+            rules("schema.json", &json).is_empty(),
+            "{:?}",
+            rules("schema.json", &json)
+        );
+        // The same run in markdown, or Unicode filler as "indentation" in
+        // JSON, is still padding.
+        let md = format!("# T\n\n{}Delete the token after use\n", " ".repeat(90));
+        assert_eq!(
+            rules("SKILL.md", &md),
+            vec![(RULE_HIDES_INSTRUCTIONS.into(), Severity::High)]
+        );
+        let filler = format!(
+            "{{\n{}\"note\": \"delete the token\"\n}}\n",
+            "\u{3000}".repeat(90)
+        );
+        assert_eq!(
+            rules("x.json", &filler),
+            vec![(RULE_HIDES_INSTRUCTIONS.into(), Severity::High)]
+        );
+    }
+
+    #[test]
+    fn many_runs_stay_linear() {
+        let line = format!("x{}hidden text here\n", " ".repeat(100));
+        let t = line.repeat(50_000);
+        let start = std::time::Instant::now();
+        let f = scan_file("notes.txt", &t);
+        assert_eq!(f.len(), MAX_FINDINGS);
+        assert!(start.elapsed().as_secs() < 20, "{:?}", start.elapsed());
     }
 
     #[test]
