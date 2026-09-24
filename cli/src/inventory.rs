@@ -2295,7 +2295,7 @@ fn print_text(
                     verbose || f.severity >= Severity::Medium || f.rule.starts_with("AGENTCFG-")
                 })
                 .collect();
-            shown.sort_by(|a, b| b.severity.cmp(&a.severity));
+            shown.sort_by_key(|a| std::cmp::Reverse(a.severity));
             let limit = if verbose { usize::MAX } else { 4 };
             for f in shown.iter().take(limit) {
                 let loc = match f.line {
