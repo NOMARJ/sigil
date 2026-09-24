@@ -2,7 +2,7 @@
 
 This page measures Sigil against [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector)
 on the job both tools claim: deciding, before an AI agent loads it, whether a
-skill is safe. Both tools were run on the same real samples.
+skill or an MCP server is safe. Both tools were run on the same real samples.
 Nothing here is simulated or estimated, and the results that do not favour
 Sigil are listed too.
 
@@ -12,11 +12,13 @@ Data Source: Real samples.
              (204 skills published with malicious intent).
              Clean skills: every skill directory (a SKILL.md) in anthropics/skills, NVIDIA/skills,
              openai/skills and vercel-labs/agent-skills (455 skills).
-Sample Size: 204 malicious skills, 455 clean skills.
+             Clean MCP servers: 169 servers from the official MCP registry (npm or PyPI package,
+             pinned by SHA-256 in evaluation_results/corpora/mcp_clean_manifest.json).
+Sample Size: 204 malicious skills, 455 clean skills, 169 clean MCP servers.
 Limitations: Static analysis on both sides: SkillSpector 2.11.2 with --no-llm, Sigil's offline
              phases. SkillSpector's optional LLM stage was not measured (no provider credentials
              in the measurement environment), and it may move SkillSpector's numbers either way.
-             "Clean" means published in a vendor catalog, not audited, so the
+             "Clean" means published in a vendor catalog or the registry, not audited, so the
              false-positive columns are upper bounds.
              Sigil's newer rules were written after reading these corpora, so its figures on them
              are in-sample. SkillSpector was measured as released.
@@ -43,6 +45,30 @@ denominator is 203.
 - **Speed:** median 1.48 s per skill for Sigil, measured in the final run. In
   the baseline run, where both tools shared the machine, the medians were
   1.38 s for Sigil and 26.82 s for SkillSpector.
+
+## MCP servers
+
+Both tools on the same 169 clean MCP servers from the official registry, one
+unpacked package per server. There is no malicious MCP-server corpus of
+comparable size, so this measures false positives only.
+
+| | Scanned | Blocked | Warned | CRITICAL | Median scan time |
+|---|---:|---:|---:|---:|---:|
+| **Sigil** | 169 (0 errors) | **39 (23.1%)** | **125 (74.0%)** | 17 | **2.5 s** |
+| SkillSpector 2.11.2 | 156 (13 timed out at 10 min) | 100 (64.1%) | 127 (81.4%) | 78 | 19.3 s |
+| Sigil, on the 156 SkillSpector finished | 156 | 28 (17.9%) | 112 (71.8%) | 12 | |
+
+Sigil blocks 6 servers SkillSpector does not; SkillSpector blocks 78 Sigil does
+not.
+
+This is Sigil's weakest false-positive result. MCP servers ship as complete
+packages, often with minified bundles, and most of Sigil's blocks come from
+code-execution and obfuscation rules firing inside bundled JavaScript, or from
+an npm lifecycle script (INSTALL-003 is Critical for any install-time script).
+The 13 servers SkillSpector timed out on are large bundles, and Sigil blocks 11
+of them, so the like-for-like row above flatters Sigil somewhat. The
+calibration and the remaining false positives, server by server, are in
+[`docs/detection/mcp-server-calibration.md`](../detection/mcp-server-calibration.md).
 
 ## Rule-level parity
 
@@ -194,6 +220,12 @@ python3 scripts/benchmark_skills.py --tools sigil,skillspector \
     --clean /path/to/anthropics_skills --clean /path/to/NVIDIA_skills \
     --clean /path/to/openai_skills --clean /path/to/vercel-labs_agent-skills \
     --out evaluation_results/skills_benchmark/run
+
+# MCP servers: rebuild the corpus from the manifest, then one package per directory
+python3 evaluation_results/corpora/fetch_mcp_clean.py --out /path/to/mcp_clean \
+    --from-manifest evaluation_results/corpora/mcp_clean_manifest.json
+python3 scripts/benchmark_skills.py --tools sigil,skillspector --timeout 600 \
+    --clean /path/to/mcp_clean --clean-sample-depth 1 --out evaluation_results/skills_benchmark/mcp
 
 ```
 

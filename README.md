@@ -268,8 +268,8 @@ method, the cases Sigil loses, and the feature comparison:
 ```
 Data Source: Real samples. Malicious: Datadog malicious-software-packages-dataset, ai-skills bucket.
              Clean: every skill in anthropics/skills, NVIDIA/skills, openai/skills,
-             vercel-labs/agent-skills.
-Sample Size: 204 malicious skills, 455 clean skills.
+             vercel-labs/agent-skills; 169 MCP servers from the official MCP registry.
+Sample Size: 204 malicious skills, 455 clean skills, 169 clean MCP servers.
 Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not measured).
              "Clean" is vendor-published, not audited. Sigil's newer rules were written after
              reading these corpora, so its figures are in-sample.
@@ -279,6 +279,11 @@ Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not m
 |---|---:|---:|---:|
 | **Sigil** | **173/204 (84.8%)** | **7/455 (1.5%)** | **71/455 (15.6%)** |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+| Clean MCP servers | Blocked | Warned |
+|---|---:|---:|
+| **Sigil** | **39/169 (23.1%)** | **125/169 (74.0%)** |
+| SkillSpector 2.11.2 | 100/156 (64.1%), 13 timed out | 127/156 (81.4%) |
 
 Median scan time per skill, both tools in one run on the same machine: 1.38 s
 for Sigil (before this change) and 26.82 s for SkillSpector; the current build

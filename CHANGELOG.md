@@ -20,6 +20,9 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
+On 169 clean MCP servers from the official registry, Sigil blocks 39 (23.1%);
+SkillSpector blocks 100 of the 156 it finished (64.1%; it timed out on 13).
+
 On the 844-package Datadog selection (npm and PyPI malware, same samples as the
 previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
 93.01% at any severity and from 65.52% to 66.47% at ≥ Critical, and fell from
