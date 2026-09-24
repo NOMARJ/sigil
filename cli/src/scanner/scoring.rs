@@ -123,7 +123,7 @@ pub fn signal_score(findings: &[Finding]) -> u32 {
 /// a code capability matched inside reference documentation (see
 /// [`super::context::is_documented_example`]).
 fn is_secondary(f: &Finding) -> bool {
-    is_secondary_path(&f.file) || super::context::is_documented_example(f.phase, &f.file)
+    is_secondary_path(&f.file) || super::context::is_documented_example(f.phase, &f.rule, &f.file)
 }
 
 /// Paths whose findings describe content a package ships *around* its code:
@@ -277,9 +277,10 @@ pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
 ///   one scanned file in [`HIGH_EVIDENCE_FILE_RATIO`] carries it, or it
 ///   co-occurs with an action behaviour at ≥ 50 points.
 /// - **MediumRisk**: any Medium-or-above finding in the code the package runs
-///   (which includes attack-shaped evidence too diluted to reach HIGH), or a
-///   signal score ≥ 10 overall (Medium and above; Low observations do not
-///   count).
+///   (which includes attack-shaped evidence too diluted to reach HIGH), any
+///   High or Critical finding anywhere (a test, a doc, a documentation
+///   example), or a signal score ≥ 10 overall (Medium and above; Low
+///   observations do not count).
 /// - **LowRisk**: everything else, including any number of Low observations.
 ///
 /// Critical is evidence-gated, not score-only. A large pile of medium/low
@@ -363,8 +364,19 @@ pub fn determine_verdict_with_size(
     // however many of them it has. The reported `score` still includes them —
     // it is what the grade and the report show — which is why it is not the
     // number compared here.
+    //
+    // An attack-shaped (High or Critical) finding is at least MEDIUM wherever
+    // it sits. Tests, docs and documentation examples keep it out of the HIGH
+    // gate, but "a payload hidden in a test directory is still a payload" (see
+    // [`is_secondary_path`]), so it must not read as LOW. Without this the
+    // outcome depended on the phase weight: a High code finding in `tests/`
+    // scores 15 and was MEDIUM, while a High credential finding in
+    // `references/api.md` scores 6 and was LOW.
     let _ = score;
-    if signal_score(findings) >= 10 || has_first_party_signal(findings) {
+    if signal_score(findings) >= 10
+        || has_first_party_signal(findings)
+        || findings.iter().any(|f| f.severity >= Severity::High)
+    {
         return Verdict::MediumRisk;
     }
 
@@ -950,10 +962,28 @@ mod tests {
         for file in ["tests/test_exfil.py", "references/api.md", "docs/setup.md"] {
             let f = Finding {
                 phase: Phase::NetworkExfil,
-                ..at("NET-RCE-001", file, Severity::High, 3)
+                ..at("NET-011", file, Severity::High, 3)
             };
             assert!(!has_attack_evidence(std::slice::from_ref(&f)), "{file}");
         }
+        // A download piped into a shell is a step the agent is told to run, so
+        // a skill's reference document does not discount it (a test file
+        // still does).
+        let referenced = Finding {
+            phase: Phase::NetworkExfil,
+            ..at(
+                "NET-RCE-001",
+                "references/install/nodejs.md",
+                Severity::High,
+                3,
+            )
+        };
+        assert!(has_attack_evidence(std::slice::from_ref(&referenced)));
+        let tested = Finding {
+            phase: Phase::NetworkExfil,
+            ..at("NET-RCE-001", "tests/test_install.py", Severity::High, 3)
+        };
+        assert!(!has_attack_evidence(std::slice::from_ref(&tested)));
         // The same finding in the skill's entry point is the payload.
         let payload = Finding {
             phase: Phase::NetworkExfil,
@@ -971,6 +1001,41 @@ mod tests {
             ..at("PROMPT-010", "references/setup.md", Severity::High, 10)
         };
         assert!(has_attack_evidence(std::slice::from_ref(&instruction)));
+    }
+
+    #[test]
+    fn an_attack_shaped_finding_outside_the_shipped_code_is_still_medium() {
+        // Kept out of the HIGH gate, but never LOW: a High credential finding
+        // in a reference document scores 3 x 2 = 6, under the signal bar of
+        // 10, and used to leave the verdict at LOW RISK while a High code
+        // finding in tests/ (3 x 5 = 15) was MEDIUM.
+        for (phase, rule, file, weight) in [
+            (Phase::Credentials, "CRED-011", "references/atof.md", 2),
+            (Phase::NetworkExfil, "NET-011", "docs/setup.md", 3),
+            (Phase::CodePatterns, "CODE-001", "tests/test_eval.py", 5),
+        ] {
+            let f = Finding {
+                phase,
+                ..at(rule, file, Severity::High, weight)
+            };
+            let findings = std::slice::from_ref(&f);
+            assert!(!has_attack_evidence(findings), "{file}");
+            assert_eq!(
+                determine_verdict_with_size(findings, calculate_score(findings), 3),
+                Verdict::MediumRisk,
+                "{file}"
+            );
+        }
+        // A Medium finding outside the shipped code below the signal bar
+        // stays LOW: only attack-shaped severities get the floor.
+        let medium = Finding {
+            phase: Phase::Credentials,
+            ..at("CRED-031", "docs/setup.md", Severity::Medium, 2)
+        };
+        assert_eq!(
+            determine_verdict_with_size(std::slice::from_ref(&medium), 4, 3),
+            Verdict::LowRisk
+        );
     }
 
     #[test]

@@ -80,9 +80,16 @@ Obfuscation finding in a reference document (`.md`, `.mdx`, `.markdown`,
 `.cursorrules`, `.windsurfrules`, `.clinerules`) never qualify, and only those
 four phases do: a prompt-injection, agent-manipulation or skill-manifest
 finding in a reference file the agent is sent to read is still an instruction.
+Neither is a code-phase rule whose match is an action the reader carries out
+(`INSTRUCTION_SHAPED_RULES` in `context.rs`: NET-RCE-001, SKILL-011, SKILL-016,
+SKILL-017, SKILL-018, SKILL-020, SKILL-021), so a skill cannot take
+`curl … | bash` out of the HIGH gate by moving it from `SKILL.md` into
+`references/install.md` (see "Verification" below).
 The finding is still reported at its own severity; only the HIGH gate stops
-counting it. The context is derived from the finding's own path and phase, so
-the ledger, enforcement and `sigil diff` recompute the same verdict.
+counting it, and a High or Critical finding anywhere keeps the verdict at
+MEDIUM or above. The context is derived from the finding's own path, phase
+and rule id, so the ledger, enforcement and `sigil diff` recompute the same
+verdict.
 
 The concentration ratio was chosen by replaying saved findings from an
 intermediate pack set (not the final one): 1 in 4 blocked 143 malicious / 10

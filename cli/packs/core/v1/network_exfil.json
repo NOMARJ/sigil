@@ -106,7 +106,7 @@
       "id": "NET-006",
       "phase": "network_exfil",
       "severity": "medium",
-      "pattern": "(?i)\\b(webhook|callback)[_-]?(url|uri|endpoint)?\\s*[:=]\\s*['\\\"]?https?://",
+      "pattern": "(?i)\\b(webhook|callback)[_-]?(url|uri|endpoint)?['\\\"]?\\s*(?::=|[:=])\\s*['\\\"]?https?://",
       "description": "Webhook or callback URL assigned to an external endpoint",
       "suppress": {
         "safe_domains": [
@@ -270,7 +270,7 @@
       "id": "NET-RCE-001",
       "phase": "network_exfil",
       "severity": "high",
-      "pattern": "(?i)\\b(curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n|]*[a-z0-9-]\\.[a-z]{2,}[^\\n|]*\\|\\s*(sudo\\s+(-\\S+\\s+)*)?(bash|sh|zsh|dash|ksh|python[0-9.]*|node|perl|ruby|pwsh|powershell|iex|invoke-expression)\\b|(?i:\\b(?:iex|invoke-expression)\\b[^\\n]{0,20}\\(\\s*(?:iwr|irm|invoke-webrequest|invoke-restmethod|\\(?\\s*new-object\\s+(?:system\\.)?net\\.webclient\\s*\\)?)\\b|\\bnew-object\\s+(?:system\\.)?net\\.webclient\\b[^\\n]{0,40}\\.downloadstring\\s*\\()",
+      "pattern": "(?i)\\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n|]*(?:[a-z0-9-]\\.[a-z]{2,}|\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b)[^\\n|]*(?:\\|\\s*(?:sudo\\s+)?(?:tee|cat|base64|openssl|xxd|gunzip|gzip|zcat|bunzip2|xz|unxz|rev|tr|sed)\\b[^\\n|]*)*\\|\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:(?:/usr)?(?:/local)?/bin/)?(?:env\\s+)?(?:(?:ba|z|da|k)?sh\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^c\\s-])|python[0-9.]*\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^cm\\s-])|(?:node|perl|ruby)\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^epnla\\s-])|(?:pwsh|powershell|iex|invoke-expression)\\b)|(?:^|[\\s;&|(`'\\\"])(?:sudo\\s+(?:-\\S+\\s+)*)?(?:(?:/usr)?(?:/local)?/bin/)?(?:env\\s+)?(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|source|\\.)\\s+(?:-\\S+\\s+)*(?:<\\(\\s*|[\\\"']?\\$\\(\\s*)\\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n)]*(?:[a-z0-9-]\\.[a-z]{2,}|\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b)|\\b(?:iex|invoke-expression)\\b[^\\n]{0,20}\\(\\s*(?:iwr|irm|invoke-webrequest|invoke-restmethod|\\(?\\s*new-object\\s+(?:system\\.)?net\\.webclient\\s*\\)?)\\b|\\bnew-object\\s+(?:system\\.)?net\\.webclient\\b[^\\n]{0,40}\\.downloadstring\\s*\\(",
       "description": "Remote script piped straight into an interpreter (download-and-execute)",
       "suppress": {
         "line_contains": [
@@ -289,10 +289,12 @@
           "https://deno.land/install.sh",
           "https://cli.sentry.dev/install",
           "https://raw.githubusercontent.com/Homebrew/install/",
+          "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/",
+          "https://install.ohmyz.sh",
           "https://get.helm.sh/"
         ]
       },
-      "remediation": "The command downloads code and runs it in one step, so what executes is whatever the server returns at that moment, never anything a reviewer saw. Check the host: a vendor's documented installer is a known (still unreviewed) shape and the best-known ones are allow-listed; an unknown domain, a URL shortener, a raw IP, a paste site or an attacker-controlled GitHub path is the dropper shape. Prefer a pinned release with a checksum, or a package manager.",
+      "remediation": "The command downloads code and runs it in one step, so what executes is whatever the server returns at that moment, never anything a reviewer saw. The shapes covered are a download piped into an interpreter (also through /bin/sh, env, sudo, or a base64/gunzip/tee stage), an interpreter fed by process or command substitution (bash <(curl …), bash -c \"$(curl …)\", source <(curl …)), and PowerShell's iex download cradles; an interpreter that only reads the download as data (python3 -c '…json…', node -e, perl -pe, python3 -m json.tool) is not matched. Check the host:a vendor's documented installer is a known (still unreviewed) shape and the best-known ones are allow-listed; an unknown domain, a URL shortener, a raw IP, a paste site or an attacker-controlled GitHub path is the dropper shape. Prefer a pinned release with a checksum, or a package manager.",
       "references": [
         "CWE-494",
         "MITRE T1105",
