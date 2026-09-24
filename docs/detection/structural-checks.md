@@ -425,6 +425,18 @@ The adversarial fixtures are synthetic (`advfix.py` in the review's scratch dire
 15 attack shapes and 6 benign counterparts, each a one-directory skill; they measure shape
 coverage, not prevalence.
 
+**On the integrated tree.** `ws/engine` is already merged into
+`claude/sigil-skillspector-comparison-jz4v68`, whose later scoring needs a High finding
+for HIGH and ignores Low observations. A trial merge of this branch into that tip (one
+conflict, `inspect_one`'s timestamp arm in `bytecode.rs`: take this branch's side) passes
+`cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo test`
+(699 + 7 + 4 tests) and the self-scan gate. Against the tip itself, same benchmark and
+corpora: malicious blocked/warned 173/184 → 173/184 and clean 8/73 → 8/73 (no verdict
+changed on any of the 659 samples); adversarial attack fixtures flagged at Medium or above
+5/15 → 14/15; benign fixtures at HIGH or above 2/6 → 0/6; the used-once skill HIGH RISK →
+LOW RISK; the fresh `.venv` project 107 findings (MEDIUM) → an `ARTIFACT-012` and a Low
+`NET-001` (LOW).
+
 ## Known gaps
 
 - Bytecode is inspected through its header and string constants only; there is no
