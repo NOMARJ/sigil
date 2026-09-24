@@ -10,8 +10,9 @@ Data Source: Transcribed from measurements already committed to this repository 
              runs used the Datadog malicious-software-packages-dataset (real,
              human-triaged malicious npm/PyPI packages) and a clean control set of
              popular packages fetched from the live registries.
-Sample Size: 3 published measurement runs (351, 844 and 844 malicious samples;
-             20 clean control packages each) and 3 README publications of them.
+Sample Size: 4 published measurement runs (351, 844, 844 and 844 malicious
+             samples; 20 clean control packages in the first three, none in the
+             fourth) and the README publications of them.
 Limitations: This file is a transcription, not a measurement. Every value is
              copied verbatim from the source row's linked artifact, with no
              rounding, no recomputation and no interpolation. The per-run
@@ -31,6 +32,7 @@ Both are read at four thresholds: any severity / ≥ Medium / ≥ High / ≥ Cri
 | 2026-06-11 | [`f1e194d`](https://github.com/NOMARJ/sigil/commit/f1e194d) | not recorded | `605a7318822117b3b29466747e65db1d582f290c` | `5f7ebb09543449f01fff5216fe610f545a7abb78dba4b1eb3080ad6599a050bb` | 351 malicious (110/bucket), 20 clean | 340/351 96.87% · 339/351 96.58% · 317/351 90.31% · 209/351 59.54% | 17/20 85.00% · 16/20 80.00% · 14/20 70.00% · 4/20 20.00% | Extract failures 0, scan errors 0. Includes a ledger-warm pass: 20 control packages approved into a hermetic trust ledger, warm FP 0.00% at all four thresholds, `recall_delta = 0`. |
 | 2026-09-03 | [`c7771d2`](https://github.com/NOMARJ/sigil/commit/c7771d2) | not recorded | `unknown` (recorded literally as `unknown`) | `587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b` | 844 malicious (204/bucket, incl. the AI-skills bucket), 20 clean | 750/844 88.86% · 744/844 88.15% · 672/844 79.62% · 540/844 63.98% | 18/20 90.00% · 17/20 85.00% · 15/20 75.00% · 5/20 25.00% | Extract failures 0, scan errors 0. **No ledger-warm pass** — `ledger_warm` is `{}` in the JSON. |
 | 2026-09-03 | [`da316a5`](https://github.com/NOMARJ/sigil/commit/da316a5) | not recorded | `unknown` | `587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b` | 844 malicious (204/bucket, incl. the AI-skills bucket), 20 clean | 772/844 91.47% · 764/844 90.52% · 718/844 85.07% · 553/844 65.52% | 17/20 85.00% · 17/20 85.00% · 13/20 65.00% · 5/20 25.00% | Extract failures 0, scan errors 0. No ledger-warm pass. Same dataset fingerprint as the row above, so the two are directly comparable. The clean-set columns count a package containing a finding at that severity; by *verdict* this run returns CRITICAL RISK on 0 of 20 and HIGH RISK or worse on 16 of 20, against 6 and 18 for the row above. |
+| 2026-09-24 | [`7826ea1`](https://github.com/NOMARJ/sigil/commit/7826ea1) | release build of `7826ea1` | `1dbcfc517277f3e3d32434f8f6a82e6e9fb75580` | `63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade` (with the commit recorded as `unknown` it is `587e09d2…`: the same 844 samples as rows 2 and 3) | 844 malicious (204/bucket, incl. the AI-skills bucket), no clean control | 785/844 93.01% · 761/844 90.17% · 752/844 89.10% · 561/844 66.47% | not measured (no control set in this run) | Extract failures 0, scan errors 0. [`honest_detection_eval_7826ea1.md`](honest_detection_eval_7826ea1.md). Against row 3: +13 any, −3 ≥ Medium, +34 ≥ High, +8 ≥ Critical. |
 
 All three runs used the same offline, deterministic phase set:
 `install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection`.
@@ -60,6 +62,14 @@ the 41 samples that lost their High rating when the rule was narrowed, all 128
 of its findings matched prose and none matched a manifest value. Row 2's
 AI-skills figures were inflated by that; the rules added in row 3 are what
 recover and exceed them honestly.
+
+**Rows 3 and 4 compare on recall.** Row 4's fingerprint differs only because
+the dataset commit was resolved this time instead of recorded as `unknown`;
+recomputed with `unknown`, the same selection gives `587e09d2…`. Recall rose at
+any, ≥ High and ≥ Critical and fell by 3 samples at ≥ Medium. Row 4 has no clean
+control set, so it says nothing about precision on packages; the skill and
+MCP-server false-positive measurements for the same build are in
+[`skills_benchmark/`](skills_benchmark/).
 
 ### Fields the reports do not record
 

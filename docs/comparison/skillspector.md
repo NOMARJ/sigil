@@ -82,6 +82,29 @@ Agreement is high where the examples are attacks: SkillSpector's agent-rogue
 The per-rule table is in
 [`evaluation_results/skills_benchmark/parity_sigil_7826ea1.md`](../../evaluation_results/skills_benchmark/parity_sigil_7826ea1.md).
 
+## Malicious npm and PyPI packages
+
+Sigil also gates package installs (`sigil pip`, `sigil npm`), so it is measured
+on the full Datadog dataset selection as well. SkillSpector was not run here:
+it is a skill scanner, and these are packages.
+
+```
+Data Source: Datadog malicious-software-packages-dataset, 844 samples (204 per ecosystem/category
+             bucket, including the AI-skills bucket), selected deterministically by scripts/run_eval.py.
+Sample Size: 844 malicious packages; no clean control set in this run.
+Limitations: GuardDog selection bias (Datadog's disclaimer). Offline static phases only.
+```
+
+| Threshold | Sigil before this change | Sigil, this change |
+|---|---:|---:|
+| any severity | 772 (91.47%) | 785 (93.01%) |
+| ≥ Medium | 764 (90.52%) | 761 (90.17%) |
+| ≥ High | 718 (85.07%) | 752 (89.10%) |
+| ≥ Critical | 553 (65.52%) | 561 (66.47%) |
+
+Recall fell by 3 samples at ≥ Medium. Report:
+[`evaluation_results/honest_detection_eval_7826ea1.md`](../../evaluation_results/honest_detection_eval_7826ea1.md).
+
 ## Where Sigil loses
 
 Sigil does not block every malicious skill, and some of what it blocks is

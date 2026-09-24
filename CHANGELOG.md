@@ -20,6 +20,11 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
+On the 844-package Datadog selection (npm and PyPI malware, same samples as the
+previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
+93.01% at any severity and from 65.52% to 66.47% at ≥ Critical, and fell from
+90.52% to 90.17% at ≥ Medium ([report](evaluation_results/honest_detection_eval_7826ea1.md)).
+
 - **Coverage.**
   - Agent supply chain pack (AGENTSC-001..041): fake-prerequisite downloads,
     droppers, secret and session harvesting, tunnel hosts, writes to an agent's
