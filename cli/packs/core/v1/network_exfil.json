@@ -361,6 +361,9 @@
           "://8.8.8.8",
           "://8.8.4.4",
           "://9.9.9.9",
+          "://93.184.216.34",
+          "://93.184.215.14",
+          "://1.2.3.4",
           "://172.16.",
           "://172.17.",
           "://172.18.",
@@ -379,7 +382,7 @@
           "://172.31."
         ]
       },
-      "remediation": "The code talks to a bare public IP address instead of a named host. Services a package legitimately depends on have names (and TLS certificates for them); a hard-coded address is how beacons, droppers and dependency-confusion callbacks reach a server that has no domain to seize. Loopback, private, link-local and documentation ranges and the public DNS resolvers are not reported. Find out who owns the address and what is sent to it; INSTALL-RAWIP-001 reports the same URL at High when it sits in setup.py, a package __init__.py or package.json, where it runs or resolves at install or import time.",
+      "remediation": "The code talks to a bare public IP address instead of a named host. Services a package legitimately depends on have names (and TLS certificates for them); a hard-coded address is how beacons, droppers and dependency-confusion callbacks reach a server that has no domain to seize. Loopback, private, link-local and documentation ranges, the public DNS resolvers, example.com's addresses and the 1.2.3.4 placeholder are not reported (they are what documentation examples use). Find out who owns the address and what is sent to it; INSTALL-RAWIP-001 reports the same URL at High when it sits in setup.py, a package __init__.py or package.json, where it runs or resolves at install or import time.",
       "references": [
         "MITRE T1071.001",
         "MITRE T1041",

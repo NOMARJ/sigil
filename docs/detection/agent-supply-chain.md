@@ -187,6 +187,21 @@ Limitations: In-sample. Every rule below was written or re-graded after reading
 | AGENTSC-CHAIN-002 | — | High | New correlation: an AGENTSC-011 archive whose path (`tar -czf "$TARBALL"`) is uploaded within 20 lines (`curl -F "file=@$TARBALL"`, NET-UPLOAD-001, or an HTTP client) | 4 | 0 |
 | AGENTSC-005 | Medium | Medium | Unchanged. All 39 samples it fires on are blocked by AGENTSC-001 or SKILL-024, so High would add no block, and "Download (Windows, macOS) from …" is also how a legitimate cross-platform tool words its download page | 39 | 0 |
 
+The rows for AGENTSC-031, AGENTSC-033, AGENTSC-034 and AGENTSC-015 describe
+the rules after the adversarial verification pass ("Adversarial verification"
+in `fp-calibration.md`). That pass narrowed them because benign inputs fired
+them at High:
+
+- opt-in documentation that tells a person how to add a snippet to their global
+  file (AGENTSC-034)
+- a scoped product description, "replaces all the default tools for PDF
+  editing" (AGENTSC-031)
+- a loop that looks for the user's public key (AGENTSC-015)
+
+Blocked and warned counts did not change. AGENTSC-033 now also fires on the two
+firecrawl copies' "Replaces all built-in … tools" line; they stay blocked on
+"MUST replace WebFetch and WebSearch".
+
 The fake-prerequisite behaviour (`drive_by_install`, AGENTSC-001..005) is now
 an ACTION behaviour in `scoring.rs`, as the "Remaining misses" table above
 proposed. Re-measured after the calibration: `luoluoluo22-jianying-editor-skill`

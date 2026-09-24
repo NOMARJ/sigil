@@ -46,9 +46,9 @@
 //!   the handle would report that as the credential file reaching the send.
 //! - a sink that *runs a file* (behaviour `executes_program`: an interpreter
 //!   on a path, `Start-Process`, `os.startfile`) is linked only through a file
-//!   the source line wrote. What an HTTP call assigns (`data =
-//!   client.get(u).json()`) and then hands to a local script as input is an
-//!   argument to that script, not the program that runs.
+//!   the source line wrote, named on the launch line itself. What an HTTP call
+//!   assigns (`data = client.get(u).json()`) and then hands to a local script
+//!   as input is an argument to that script, not the program that runs.
 //!
 //! Correlation reads rule ids, never severities: a Low observation (an HTTP
 //! client call, a subprocess launch, an environment read) is as good a source
@@ -204,6 +204,12 @@ pub fn written_paths(line: &str) -> Vec<&str> {
     for re in res {
         for c in re.captures_iter(line) {
             if let Some(m) = c.get(1) {
+                // A device is not a file anyone runs or uploads afterwards:
+                // `curl -o /dev/null <health-check>` writes nothing, and
+                // `/dev/null` recurs on unrelated lines (`>/dev/null`).
+                if m.as_str().starts_with("/dev/") {
+                    continue;
+                }
                 push_binding(&mut out, m.as_str());
             }
         }
@@ -323,6 +329,15 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             let sink_line = sink.line.unwrap_or(0);
             let window = arg_window(lines, sink_line);
             let file_only = runs_a_file(&sink.rule);
+            // A launch names its program on its own line (the launch rule
+            // matches interpreter and operand together), so the lines after
+            // it are not its program: `>/dev/null` or `input=data` there is
+            // not what runs.
+            let link_text: &str = if file_only {
+                lines.get(sink_line.wrapping_sub(1)).copied().unwrap_or("")
+            } else {
+                &window
+            };
             if rule
                 .sink_excludes
                 .iter()
@@ -344,7 +359,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                         } else {
                             source_bindings(l)
                         };
-                        bound.iter().any(|ident| contains_word(&window, ident))
+                        bound.iter().any(|ident| contains_word(link_text, ident))
                     })
                 };
                 if !linked {
@@ -629,6 +644,8 @@ mod tests {
             vec!["retrieve_it", "/tmp/stage.pyz"]
         );
         assert!(written_targets(r#"text = open("/etc/hosts").read()"#).is_empty());
+        // Output discarded to a device writes no file a later line can use.
+        assert!(written_paths("fetch-tool -fsS -o /dev/null \"$CHECK_URL\"").is_empty());
         // One-letter handles collide with string prefixes (f"...", r"...").
         assert!(written_targets("with open(dest, 'w') as f:") == vec!["dest"]);
     }

