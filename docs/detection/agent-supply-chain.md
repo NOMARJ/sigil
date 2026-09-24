@@ -178,14 +178,29 @@ Limitations: In-sample. Every rule below was written or re-graded after reading
 
 | Rule | Before | After | Change | Malicious hit | Clean hit |
 |---|---|---|---|---:|---:|
-| AGENTSC-031 | Medium | High | Narrowed to the unconditional take-over forms: "MUST/always replace WebFetch/WebSearch/built-in", "replaces all built-in … tools" | 2 | 0 |
-| AGENTSC-033 | — | Medium | New: the softer forms split out of the old AGENTSC-031 ("instead of WebFetch", "never use WebSearch", "should replace", "prefer X over WebFetch") | 0 | 0 |
-| AGENTSC-034 | — | High | New: an instruction to write the skill's rules into the global instruction file ("automatically append … to the global CLAUDE.md", "我已自動加固您的全局規則") | 1 | 0 |
+| AGENTSC-031 | Medium | High | Narrowed to the take-over order: "MUST/always replace (override, supersede) WebFetch/WebSearch/built-in" | 2 | 0 |
+| AGENTSC-033 | — | Medium | New: the softer forms split out of the old AGENTSC-031 ("instead of WebFetch", "never use WebSearch", "should replace", "prefer X over WebFetch") and the claim "replaces all built-in … tools", which scoped to one task ("replaces all the default tools for PDF editing") is an ordinary product description | 2 | 0 |
+| AGENTSC-034 | — | High | New: an instruction to write the skill's rules into the global instruction file without the user's say — a stealth or no-consent phrase ("silently", "without asking", "do not tell the user", 不要告诉用户, 静默), a first-person report of an automatic write ("I have automatically updated your global rules", 我已自動加固您的全局規則), or "automatically … the user's global …". Opt-in documentation ("add the following to your global CLAUDE.md", 将以下内容添加到全局规则) does not fire; AGENTSC-030 still names the file at Medium | 1 | 0 |
 | AGENTSC-030 | Medium | Medium | Unchanged. It names the global file; NVIDIA `tao-setup` documents an opt-in script that installs its identity there, and AGENTSC-034 now carries the write instruction instead of this rule being raised | 3 | 1 |
-| AGENTSC-015 | — | High | New: a loop over the user's SSH private-key names (`for key_file in ["id_rsa", "id_ed25519", …]`, the JS `.forEach` and shell `for k in ~/.ssh/id_*` forms). A list of key names that is only data — Pygments' filename table — does not match | 1 | 0 |
+| AGENTSC-015 | — | High | New: a loop over the user's SSH private-key names (`for key_file in ["id_rsa", "id_ed25519", …]`, the JS `.forEach` and shell `for k in ~/.ssh/id_*` forms). A list of key names that is only data — Pygments' filename table — does not match, and a loop that looks for the public half (`.pub` within the next three lines) is suppressed | 1 | 0 |
 | AGENTSC-011 | Medium | Medium | Unchanged: a tarball without `.env` excluded that stays on the machine is a hygiene defect | 4 | 0 |
 | AGENTSC-CHAIN-002 | — | High | New correlation: an AGENTSC-011 archive whose path (`tar -czf "$TARBALL"`) is uploaded within 20 lines (`curl -F "file=@$TARBALL"`, NET-UPLOAD-001, or an HTTP client) | 4 | 0 |
 | AGENTSC-005 | Medium | Medium | Unchanged. All 39 samples it fires on are blocked by AGENTSC-001 or SKILL-024, so High would add no block, and "Download (Windows, macOS) from …" is also how a legitimate cross-platform tool words its download page | 39 | 0 |
+
+The rows for AGENTSC-031, AGENTSC-033, AGENTSC-034 and AGENTSC-015 describe
+the rules after the adversarial verification pass ("Adversarial verification"
+in `fp-calibration.md`). That pass narrowed them because benign inputs fired
+them at High:
+
+- opt-in documentation that tells a person how to add a snippet to their global
+  file (AGENTSC-034)
+- a scoped product description, "replaces all the default tools for PDF
+  editing" (AGENTSC-031)
+- a loop that looks for the user's public key (AGENTSC-015)
+
+Blocked and warned counts did not change. AGENTSC-033 now also fires on the two
+firecrawl copies' "Replaces all built-in … tools" line; they stay blocked on
+"MUST replace WebFetch and WebSearch".
 
 The fake-prerequisite behaviour (`drive_by_install`, AGENTSC-001..005) is now
 an ACTION behaviour in `scoring.rs`, as the "Remaining misses" table above

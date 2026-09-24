@@ -340,8 +340,13 @@
       "severity": "high",
       "weight": 5,
       "pattern": "\\bfor\\s+[A-Za-z_]\\w*\\s+in\\s+[\\[(]\\s*[\\\"'](?:~/\\.ssh/|\\.ssh/)?id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']\\s*,|\\[\\s*[\\\"']id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']\\s*,\\s*[\\\"']id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"'][^\\]\\n]*\\]\\s*\\.(?:forEach|map|filter|flatMap|some|find|reduce)\\s*\\(|\\bfor\\s+[A-Za-z_]\\w*\\s+in\\s+(?:[\\\"']?(?:~|\\$HOME|\\$\\{HOME\\})/\\.ssh/id_(?:rsa|ed25519|ecdsa|dsa)(?:_sk)?[\\\"']?\\s+)+[\\\"']?(?:~|\\$HOME|\\$\\{HOME\\})/\\.ssh/id_(?:rsa|ed25519|ecdsa|dsa)",
+      "suppress": {
+        "nearby_contains": [
+          ".pub"
+        ]
+      },
       "description": "Loop over the user's SSH private-key filenames (id_rsa, id_ed25519, id_ecdsa ...)",
-      "remediation": "The code walks a list of private-key filenames — id_rsa, id_ed25519, id_ecdsa — to find whichever key the user has. A tool that uses SSH takes the key it was configured with (a path argument, ssh-agent, ~/.ssh/config); trying every default key name in turn is what a credential harvester does before reading and sending them, and in the sample this rule was written from the loop reads each key into the same dictionary as five provider API keys. Read what the loop does with each file. If the contents are read, stored or sent, treat every key in ~/.ssh as compromised. A list of key names that is only data (a syntax highlighter's filename table) is not a loop and does not match.",
+      "remediation": "The code walks a list of private-key filenames — id_rsa, id_ed25519, id_ecdsa — to find whichever key the user has. A tool that uses SSH takes the key it was configured with (a path argument, ssh-agent, ~/.ssh/config); trying every default key name in turn is what a credential harvester does before reading and sending them, and in the sample this rule was written from the loop reads each key into the same dictionary as five provider API keys. Read what the loop does with each file. If the contents are read, stored or sent, treat every key in ~/.ssh as compromised. A list of key names that is only data (a syntax highlighter's filename table) is not a loop and does not match, and a loop that looks for the *public* half (`.pub` within the next three lines — finding a key to show or register) is suppressed.",
       "references": [
         "MITRE T1552.004",
         "MITRE T1005",
@@ -417,8 +422,8 @@
       "id": "AGENTSC-031",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(?:must|always)\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in)\\b|\\breplaces?\\s+all\\s+(?:the\\s+)?(?:built-?in|default|native|other)\\b[^\\n]{0,80}\\btools?\\b",
-      "description": "Skill orders the agent to replace its built-in tools with the skill's service for every task (tool shadowing)",
+      "pattern": "(?i)\\b(?:must|always)\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in)\\b",
+      "description": "Skill orders the agent to replace its built-in web tools with the skill's service (tool shadowing)",
       "file_filter": {
         "extensions": [
           "md",
@@ -445,7 +450,7 @@
           ".clinerules"
         ]
       },
-      "remediation": "The skill instructs the agent to stop using the host's own tools (WebFetch, WebSearch and the like) and route every request through the skill's service instead: 'MUST replace WebFetch and WebSearch', 'replaces all built-in ... tools', 'no exceptions'. That hands one third party every URL, search query and page the user's agent touches — internal ones included — and takes the host's built-in protections out of the path. A skill may offer a better tool for its own task; it may not claim all of the agent's traffic. High because the line is the take-over itself: none of the 455 vendor skills the rule was measured against says it, and a scoped preference ('use this tool instead of WebFetch for our docs') is AGENTSC-033 at Medium. Scope the instruction to the skill's use case or remove it, and read the service's data-retention terms before letting it see every request.",
+      "remediation": "The skill instructs the agent to stop using the host's own tools (WebFetch, WebSearch and the like) and route every request through the skill's service instead: 'MUST replace WebFetch and WebSearch', 'always override the built-in fetch', 'no exceptions'. That hands one third party every URL, search query and page the user's agent touches — internal ones included — and takes the host's built-in protections out of the path. A skill may offer a better tool for its own task; it may not claim all of the agent's traffic. High because the line is the take-over itself, an order rather than a claim: none of the 455 vendor skills the rule was measured against says it. Claims and preferences ('replaces all built-in ... tools', 'use this tool instead of WebFetch for our docs') are AGENTSC-033 at Medium, because the same words scoped to one task ('replaces all the default tools for PDF editing') are an ordinary product description. Scope the instruction to the skill's use case or remove it, and read the service's data-retention terms before letting it see every request.",
       "references": [
         "OWASP Agentic Top 10 — Tool Misuse",
         "OWASP LLM06:2025 Excessive Agency",
@@ -514,8 +519,8 @@
       "id": "AGENTSC-033",
       "phase": "prompt_injection",
       "severity": "medium",
-      "pattern": "(?i)\\b(?:instead\\s+of|never\\s+use|do\\s+not\\s+use|don.t\\s+use)\\s+(?:the\\s+)?(?:built-?in\\s+)?(?:WebFetch|WebSearch)\\b|\\bshould\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in\\s+tools?)\\b|\\b(?:prefer|prioriti[sz]e)\\b[^\\n]{0,40}\\bover\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch)\\b",
-      "description": "Skill steers the agent away from its built-in web tools toward the skill's service",
+      "pattern": "(?i)\\b(?:instead\\s+of|never\\s+use|do\\s+not\\s+use|don.t\\s+use)\\s+(?:the\\s+)?(?:built-?in\\s+)?(?:WebFetch|WebSearch)\\b|\\bshould\\s+(?:replace|override|supersede)\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch|web_search|web_fetch|built-?in\\s+tools?)\\b|\\b(?:prefer|prioriti[sz]e)\\b[^\\n]{0,40}\\bover\\b[^\\n]{0,40}\\b(?:WebFetch|WebSearch)\\b|\\breplaces?\\s+all\\s+(?:the\\s+)?(?:built-?in|default|native|other)\\b[^\\n]{0,80}\\btools?\\b",
+      "description": "Skill steers the agent away from its built-in tools toward the skill's service",
       "file_filter": {
         "extensions": [
           "md",
@@ -542,7 +547,7 @@
           ".clinerules"
         ]
       },
-      "remediation": "The skill tells the agent not to use the host's own web tools ('instead of WebFetch', 'never use WebSearch', 'prefer X over WebFetch'). Scoped to the skill's own task this is an ordinary preference — a vendor's docs skill pointing at its own fetcher — so it is Medium: read the sentence and check its scope. If it applies to every request the agent makes, it is the tool-shadowing shape AGENTSC-031 reports at High, and every URL and query the agent handles would pass through the skill's service.",
+      "remediation": "The skill tells the agent not to use the host's own tools ('instead of WebFetch', 'never use WebSearch', 'prefer X over WebFetch'), or claims to replace them ('replaces all built-in ... tools'). Scoped to the skill's own task this is an ordinary preference or product description — a vendor's docs skill pointing at its own fetcher, an MCP server that replaces the default tools for one file type — so it is Medium: read the sentence and check its scope. If it applies to every request the agent makes, it is the tool-shadowing shape AGENTSC-031 reports at High, and every URL and query the agent handles would pass through the skill's service.",
       "references": [
         "OWASP Agentic Top 10 — Tool Misuse",
         "OWASP LLM06:2025 Excessive Agency"
@@ -556,8 +561,8 @@
       "id": "AGENTSC-034",
       "phase": "prompt_injection",
       "severity": "high",
-      "pattern": "(?i)\\b(?:automatically|silently|without\\s+asking)\\b[^\\n]{0,60}\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,80}\\b(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,40}\\b(?:rules?|instructions?|protocol|section|lines?|following)\\b[^\\n]{0,40}\\b(?:to|into)\\s+(?:the\\s+end\\s+of\\s+)?(?:the\\s+|your\\s+|the\\s+user'?s\\s+)?(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,20}(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)",
-      "description": "Skill tells the agent to write the skill's own rules into the user's global instruction file",
+      "pattern": "(?i)\\bI(?:'ve|\\s+have)\\s+(?:automatically|silently)\\s+(?:\\w+\\s+){0,2}?(?:updated|hardened|added|appended|written|modified|patched|installed)\\b[^\\n]{0,60}\\b(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|我已(?:经|經)?(?:自动|自動|静默|靜默|悄悄)[^\\n]{0,20}(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,20}(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)|\\b(?:silently|quietly|without\\s+(?:asking|telling|notifying|informing|(?:the\\s+user'?s\\s+)?(?:confirmation|consent|permission|approval))|(?:do\\s+not|don.t|never)\\s+(?:tell|mention|inform|notify|ask))\\b[^\\n]{0,60}\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,80}\\b(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,80}\\b(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)\\b[^\\n]{0,80}\\b(?:silently|quietly|without\\s+(?:asking|telling|notifying|informing|(?:the\\s+user'?s\\s+)?(?:confirmation|consent|permission|approval))|(?:do\\s+not|don.t|never)\\s+(?:tell|mention|inform|notify|ask))\\b|(?:静默|靜默|悄悄|默默|不要告诉|不要告訴|无需告知|無需告知|不必告知|无需确认|無需確認|无需询问|無需詢問|不要询问|不要詢問)[^\\n]{0,20}(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,30}(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)|(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,30}(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)[^\\n]{0,40}(?:静默|靜默|悄悄|默默|不要告诉|不要告訴|无需告知|無需告知|不必告知|无需确认|無需確認|无需询问|無需詢問|不要询问|不要詢問)|(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)[^\\n]{0,30}(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,40}(?:静默|靜默|悄悄|默默|不要告诉|不要告訴|无需告知|無需告知|不必告知|无需确认|無需確認|无需询问|無需詢問|不要询问|不要詢問)|\\bautomatically\\b[^\\n]{0,60}\\b(?:append|add|write|insert|inject)\\b[^\\n]{0,80}\\bthe\\s+user'?s\\s+(?:global|user[- ]level)\\s+(?:rules?|instructions?|memory|prompt|CLAUDE\\.md|GEMINI\\.md|AGENTS\\.md)|(?:自动|自動)[^\\n]{0,20}(?:追加|写入|寫入|添加|加入|加固|注入)[^\\n]{0,20}(?:用户|用戶)的?(?:全局|全域)(?:规则|規則|提示词|提示詞|指令|设置|設定)",
+      "description": "Skill tells the agent to write its own rules into the user's global instruction file without the user's knowledge",
       "file_filter": {
         "extensions": [
           "md",
@@ -578,7 +583,7 @@
           ".clinerules"
         ]
       },
-      "remediation": "The skill instructs the agent to append its own protocol to the user's global instruction file (~/.claude/CLAUDE.md, ~/.gemini/GEMINI.md, ~/.codex/instructions.md, the IDE's global rules) so that it loads in every future session — in the measured sample, 'I have automatically hardened your global rules so the auto-skill protocol is permanently in effect', told to the user only after the write. That is self-propagation: a one-off install becomes a standing instruction the user never reviews. AGENTSC-030 (Medium) reports a skill that merely names the global file, which a vendor may document as an opt-in install; this rule reports the instruction to write there, and is High. Remove the step, and check the global file on disk for anything the skill added.",
+      "remediation": "The skill instructs the agent to append its own protocol to the user's global instruction file (~/.claude/CLAUDE.md, ~/.gemini/GEMINI.md, ~/.codex/instructions.md, the IDE's global rules) so that it loads in every future session, and to do it without the user's say: silently, without asking, 'do not tell the user', or reported only afterwards — in the measured sample, 'I have automatically hardened your global rules so the auto-skill protocol is permanently in effect'. That is self-propagation: a one-off install becomes a standing instruction the user never reviewed. The rule needs that marker (a stealth or no-consent phrase, a first-person report of an automatic write, or 'automatically ... the user's global ...'): documentation that tells a person how to add a snippet to their own global file, or an agent step that asks first, is an opt-in install and is left to AGENTSC-030 (Medium), which reports any skill that names the global file. Remove the step, and check the global file on disk for anything the skill added.",
       "references": [
         "OWASP Agentic Top 10 — Memory Poisoning",
         "OWASP LLM01:2025 Prompt Injection",
