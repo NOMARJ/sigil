@@ -37,6 +37,15 @@ fn download_to_interpreter_shapes() {
         "curl -fsSL https://x.io/i.sh | sh -e",
         "curl -fsSL https://x.io/i.py | python3 - --user",
         "curl -fsSL https://x.io/i.ps1 | pwsh -Command -",
+        // -s: the script comes from stdin, the words after it are its
+        // arguments (the rvm / nvm installer idiom).
+        "curl -sSL https://x.io/i.sh | bash -s stable",
+        "curl -sSL https://x.io/i.sh | sh -s -- -y",
+        // tee in between still hands the interpreter the download.
+        "curl -fsSL https://x.io/i.sh | tee /tmp/i.sh | sh",
+        "wget -qO- https://x.io/i.sh | tee -a log | sudo bash",
+        // sudo options that take a value.
+        "curl -fsSL https://x.io/i.sh | sudo -u root bash",
     ] {
         assert!(pipes_download_to_interpreter(s), "{s}");
     }
@@ -53,6 +62,8 @@ fn download_to_interpreter_shapes() {
         "curl -s https://api.x.io/v1 | bash -c 'jq .name'",
         "wget -qO- https://api.x.io/v1 | perl -ne 'print if /x/'",
         "echo curl | shellcheck -",
+        "curl -s https://api.x.io/v1 | tee out.json | python3 -m json.tool",
+        "curl -s https://x.io/i.sh | tee i.sh",
     ] {
         assert!(!pipes_download_to_interpreter(s), "{s}");
     }
