@@ -431,6 +431,14 @@ pub struct VirtualFile {
     pub locator: String,
     /// Prefixed to every snippet so a reader knows the text was derived.
     pub label: &'static str,
+    /// The unit's exact bytes, when they are a file of their own (an archive
+    /// member) and differ from `text`: invalid UTF-8, or a member the content
+    /// phases do not read, kept only for the byte-level YARA pass.
+    pub raw: Option<Vec<u8>>,
+    /// The unit is a file's own bytes (an archive member), so byte-level
+    /// rules apply to it. False for derived text such as bytecode constants,
+    /// whose file is evaluated on disk.
+    pub is_file: bool,
 }
 
 /// What the bytecode pass found.
@@ -739,6 +747,8 @@ fn inspect_one(
             text: strings.join("\n"),
             locator: format!("pyc://{r}|constants"),
             label: "bytecode constants",
+            raw: None,
+            is_file: false,
         });
     }
 }

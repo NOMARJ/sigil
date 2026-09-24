@@ -766,6 +766,7 @@ mod precedence_tests {
             provenance_rules: Vec::new(),
             correlation_rules: Vec::new(),
             engine_rules: Vec::new(),
+            yara: None,
         }
     }
 

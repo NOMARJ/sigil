@@ -26,6 +26,13 @@ tokio = { version = "1", features = ["full"] }
 # published binaries independent of each distro's system libssl.
 reqwest = { version = "0.11", features = ["json", "blocking", "native-tls-vendored"] }
 regex = "1"
+# The engine `regex` itself runs on, with exactly the features `regex` enables
+# (so nothing new is compiled): YARA rules need byte-level search over a span
+# of a haystack, which `regex::bytes` does not expose.
+regex-automata = { version = "0.4", default-features = false, features = ["std", "syntax", "meta", "nfa-pikevm", "nfa-backtrack", "hybrid", "dfa-onepass", "perf-inline", "perf-literal", "unicode"] }
+# Its parser, with the features `regex` enables: a YARA string's parsed form
+# is inspected for counted repetition before it is compiled.
+regex-syntax = "0.8"
 walkdir = "2"
 ignore = "0.4"
 rayon = "1"

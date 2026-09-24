@@ -30,9 +30,13 @@
 //! pack with any error is refused as a whole. A rule that silently does not
 //! run is a detection gap nobody notices, which is worse than a failed run.
 //!
+//! A third shape, YARA rule files (`.yar`, `.yara`), is read by
+//! [`super::yara`] and becomes a pack of `YARA-<NAME>` rules evaluated over
+//! raw file bytes.
+//!
 //! When `SIGIL_PACK_PUBLIC_KEY` is set, custom packs are held to the same rule
-//! as `~/.sigil/packs/`: each must carry a valid Ed25519 `meta.signature`.
-//! `sigil rules sign` produces one.
+//! as `~/.sigil/packs/`: each must carry a valid Ed25519 `meta.signature`
+//! (a YARA file: a detached `<file>.sig`). `sigil rules sign` produces both.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -51,7 +55,7 @@ use crate::scanner::Phase;
 pub const MAX_PACK_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Extensions a directory of packs is read for.
-const PACK_EXTENSIONS: &[&str] = &["json", "yaml", "yml"];
+const PACK_EXTENSIONS: &[&str] = &["json", "yaml", "yml", "yar", "yara"];
 
 /// Keys a full-schema rule may carry. Anything else is almost certainly a
 /// misspelling (`supress`, `file_filters`) that serde would ignore silently.
@@ -116,14 +120,35 @@ impl std::fmt::Display for SignatureStatus {
     }
 }
 
+/// Which shape a custom pack was written in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackForm {
+    /// `meta` + `rules`, the schema of the built-in packs.
+    Full,
+    /// `rules:` (and an optional `pack:` block), converted on load.
+    Compact,
+    /// A YARA rule file.
+    Yara,
+}
+
+impl std::fmt::Display for PackForm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PackForm::Full => "full",
+            PackForm::Compact => "compact",
+            PackForm::Yara => "yara",
+        })
+    }
+}
+
 /// One custom pack, parsed, validated and converted to the full schema.
 #[derive(Debug, Clone)]
 pub struct CustomPack {
     pub pack: SignaturePack,
     /// The file it was read from.
     pub path: PathBuf,
-    /// Whether the file used the compact form.
-    pub compact: bool,
+    /// The shape the file was written in.
+    pub form: PackForm,
     pub signature: SignatureStatus,
     /// Non-fatal observations, e.g. `evidence` on a non-critical rule.
     pub warnings: Vec<String>,
@@ -197,8 +222,8 @@ pub(super) fn append_registered(packs: &mut Vec<SignaturePack>) -> Result<(), St
 // Loading
 // ---------------------------------------------------------------------------
 
-/// Load every pack at `path`: one file, or each `.json`/`.yaml`/`.yml` file
-/// directly inside a directory, in name order.
+/// Load every pack at `path`: one file, or each `.json`/`.yaml`/`.yml`/
+/// `.yar`/`.yara` file directly inside a directory, in name order.
 pub fn load_path(path: &Path) -> Result<Vec<CustomPack>, String> {
     let meta = std::fs::metadata(path)
         .map_err(|e| format!("{}: cannot read rule pack: {e}", path.display()))?;
@@ -219,7 +244,7 @@ pub fn load_path(path: &Path) -> Result<Vec<CustomPack>, String> {
     files.sort();
     if files.is_empty() {
         return Err(format!(
-            "{}: no .json, .yaml or .yml rule packs in this directory",
+            "{}: no .json, .yaml, .yml, .yar or .yara rule packs in this directory",
             path.display()
         ));
     }
@@ -249,6 +274,11 @@ pub fn load_file(path: &Path) -> Result<CustomPack, String> {
             meta.len(),
             MAX_PACK_BYTES
         ));
+    }
+    if super::yara::is_yara_path(path) {
+        let bytes = std::fs::read(path)
+            .map_err(|e| format!("{}: cannot read rule pack: {e}", path.display()))?;
+        return super::yara::parse_pack(&bytes, path).map_err(|errs| errs.join("\n"));
     }
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("{}: cannot read rule pack: {e}", path.display()))?;
@@ -302,7 +332,11 @@ pub fn parse_pack(text: &str, path: &Path) -> Result<CustomPack, Vec<String>> {
         Some(pack) if errors.is_empty() => Ok(CustomPack {
             pack,
             path: path.to_path_buf(),
-            compact,
+            form: if compact {
+                PackForm::Compact
+            } else {
+                PackForm::Full
+            },
             signature,
             warnings,
         }),
@@ -409,6 +443,7 @@ fn full_to_pack(doc: &Value, errors: &mut Vec<String>) -> Option<SignaturePack> 
         // Structural checks are implemented in Rust; a custom pack cannot
         // declare engine rules.
         engine_rules: Vec::new(),
+        yara: None,
     })
 }
 
@@ -496,6 +531,7 @@ fn compact_to_pack(doc: &Value, path: &Path, errors: &mut Vec<String>) -> Option
         provenance_rules: Vec::new(),
         correlation_rules: Vec::new(),
         engine_rules: Vec::new(),
+        yara: None,
     })
 }
 
@@ -614,7 +650,7 @@ fn rule_label(i: usize, raw: &Value) -> String {
 }
 
 /// The id shape `sigil:ignore` markers and policy globs can refer to.
-fn id_shape() -> &'static Regex {
+pub(crate) fn id_shape() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| Regex::new(r"^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+$").expect("id regex"))
 }
@@ -770,13 +806,11 @@ pub fn check_against(base: &[SignaturePack], custom: &[CustomPack]) -> Vec<Strin
     errors
 }
 
+/// Every id a pack defines — content, provenance, correlation, engine and
+/// YARA rules alike: a custom rule reusing any of them would be reported,
+/// suppressed and overridden as if it were the other rule.
 fn pack_rule_ids(p: &SignaturePack) -> Vec<String> {
-    p.rules
-        .iter()
-        .map(|r| r.id.clone())
-        .chain(p.provenance_rules.iter().map(|r| r.id.clone()))
-        .chain(p.correlation_rules.iter().map(|r| r.id.clone()))
-        .collect()
+    p.rule_ids()
 }
 
 fn unknown_key(context: &str, key: &str, known: &[&str]) -> String {
@@ -949,7 +983,7 @@ rules:
         let _g = ENV_LOCK.lock().unwrap();
         std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
         let p = parse("acme.yaml", COMPACT).expect("compact pack parses");
-        assert!(p.compact);
+        assert_eq!(p.form, PackForm::Compact);
         assert_eq!(p.pack.meta.id, "acme-rules");
         let r = &p.pack.rules[0];
         assert_eq!(r.id, "ACME-001");
@@ -977,7 +1011,7 @@ rules:
         let json = r#"{"meta":{"id":"org-pack","name":"Org","version":"1.0.0","updated_at":"2026-09-01","author":"sec","description":"d"},
             "rules":[{"id":"ORG-100","phase":"network_exfil","severity":"high","pattern":"exfil\\.example","description":"d","remediation":"r"}]}"#;
         let p = parse("org.json", json).expect("json parses");
-        assert!(!p.compact);
+        assert_eq!(p.form, PackForm::Full);
         assert_eq!(p.pack.rules[0].phase, "network_exfil");
 
         let yaml = "meta: {id: org-pack, name: Org, version: 1.0.0, updated_at: '2026-09-01', author: sec, description: d}\nrules:\n  - {id: ORG-100, phase: credentials, severity: low, pattern: 'x\\d', description: d, remediation: r}\n";
