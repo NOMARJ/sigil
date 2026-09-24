@@ -191,6 +191,15 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "NET-EXE-001" => Some("downloads_executable"),
         "NET-UPLOAD-001" => Some("uploads_local_file"),
         "NET-RAWIP-001" => Some("raw_ip_endpoint"),
+        // Structural checks (scanner::bytecode / artifacts). None of these is
+        // an ACTION behaviour: ARTIFACT-002 gates CRITICAL on its own, and the
+        // rest describe what was shipped, not something the package did.
+        "ARTIFACT-001" => Some("ships_bytecode"),
+        "ARTIFACT-002" | "ARTIFACT-003" => Some("bytecode_source_mismatch"),
+        "ARTIFACT-004" | "ARTIFACT-006" | "ARTIFACT-011" => Some("concealed_executable"),
+        "ARTIFACT-005" | "ARTIFACT-009" => Some("concealed_artifact"),
+        "ARTIFACT-010" => Some("archive_path_traversal"),
+        "PAD-003" => Some("whitespace_padding"),
         _ => None,
     };
     if specific.is_some() {
@@ -235,6 +244,10 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("RUGPULL-", "post_approval_drift"),
         ("ARCHIVE-BOMB", "decompression_bomb"),
         ("AGENTCFG-", "agent_config_risk"),
+        ("ARTIFACT-", "bundled_archive"),
+        ("DEPSRC-", "dependency_source_redirect"),
+        ("PAD-", "hides_text_with_padding"),
+        ("LPRIV-", "privilege_mismatch"),
         // OSV advisory ids.
         ("MAL-", "known_malicious_package"),
         ("GHSA-", "known_vulnerable_dependency"),

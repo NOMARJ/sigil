@@ -1233,14 +1233,21 @@ mod parity_python {
 
     #[test]
     fn parity_python_supply_registry_redirect() {
-        let contents = r#"registry=https://my-internal-registry.example.com"#;
+        // SUPPLY-005 now covers publishConfig only; install-time redirection
+        // in .npmrc/pyproject is parsed by scanner::depsrc (DEPSRC-001..007).
+        let contents =
+            r#""publishConfig": {"registry": "https://my-internal-registry.example.com"}"#;
         let packs = packs_for_phase("network_exfil");
-        let findings = scan_file_with_packs(&packs, ".npmrc", ".npmrc", contents);
+        let findings = scan_file_with_packs(&packs, "package.json", "package.json", contents);
         assert!(
             has_rule(&findings, "SUPPLY-005"),
             "expected SUPPLY-005; got {:?}",
             findings
         );
+        // The regex rule no longer reads .npmrc (no double report with DEPSRC-001).
+        let npmrc = "registry=https://my-internal-registry.example.com";
+        let findings = scan_file_with_packs(&packs, ".npmrc", ".npmrc", npmrc);
+        assert!(!has_rule(&findings, "SUPPLY-005"), "{findings:?}");
     }
 
     #[test]

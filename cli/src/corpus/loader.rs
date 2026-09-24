@@ -38,6 +38,9 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/multilingual_injection.json"),
     include_str!("../../packs/core/v1/agent_supply_chain.json"),
     include_str!("../../packs/core/v1/agent_instructions.json"),
+    // Metadata for the structural checks implemented in Rust
+    // (scanner::bytecode, artifacts, padding, lpriv); no regex rules.
+    include_str!("../../packs/core/v1/structural.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
@@ -517,7 +520,11 @@ mod tests {
                 "pack has empty id: {:?}",
                 pack.meta
             );
-            let has_rules = !pack.rules.is_empty() || !pack.provenance_rules.is_empty();
+            // A pack of engine_rules (metadata for checks implemented in
+            // Rust, e.g. structural.json) counts: it documents live rules.
+            let has_rules = !pack.rules.is_empty()
+                || !pack.provenance_rules.is_empty()
+                || !pack.engine_rules.is_empty();
             assert!(
                 has_rules,
                 "pack '{}' has no rules or provenance_rules",
@@ -742,6 +749,7 @@ mod precedence_tests {
             rules: Vec::new(),
             provenance_rules: Vec::new(),
             correlation_rules: Vec::new(),
+            engine_rules: Vec::new(),
         }
     }
 
