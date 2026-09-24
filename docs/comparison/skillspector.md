@@ -44,6 +44,44 @@ denominator is 203.
   the baseline run, where both tools shared the machine, the medians were
   1.38 s for Sigil and 26.82 s for SkillSpector.
 
+## Rule-level parity
+
+SkillSpector's own test suite is the most complete public statement of what
+each of its rules is meant to catch. `scripts/skillspector_parity.py` collects
+every example those tests construct (1,796 unique samples across 80 rule ids)
+and asks whether Sigil flags each one.
+
+```
+Data Source: SkillSpector's own test suite, every finding its tests construct, de-duplicated.
+Sample Size: 1,796 samples across 80 SkillSpector rule ids.
+Limitations: The rows include findings SkillSpector's later stages filter out as false
+             positives and test-only markers. A row measures agreement with SkillSpector's
+             examples, not recall on malicious code.
+```
+
+| | Sigil flags (any severity) | Sigil ≥ High |
+|---|---:|---:|
+| Sigil before this change (`dc82a94`) | 416/1,796 (23.2%) | 275 (15.3%) |
+| **Sigil, this change** | **623/1,796 (34.7%)** | **385 (21.4%)** |
+
+Agreement is high where the examples are attacks: SkillSpector's agent-rogue
+(AR, 81%), taint-tracking (TT, 88%), supply-chain (SC, 61%) and code-AST
+(AST, 58%) families. It is low in the two largest families, tool misuse (TM,
+9% of 406) and privilege escalation (PE, 15% of 277):
+
+- **Destructive commands** (`rm -rf` of the root or the home directory and
+  their variants) make up most of the tool-misuse rows. Sigil has no rule for
+  them. This is a real gap, listed under [Where Sigil loses](#where-sigil-loses).
+- **Credential words** (`keyring`, "Access tokens") make up most of the
+  privilege-escalation rows. Sigil reports a credential path only when
+  something reads or sends it; a bare mention is not flagged. That choice is a
+  large part of why Sigil blocks 1.5% of clean skills and SkillSpector 25.9%.
+- **Container privileges** (`--privileged`, `hostNetwork`, the Docker socket)
+  and disabled TLS verification are not covered by Sigil either.
+
+The per-rule table is in
+[`evaluation_results/skills_benchmark/parity_sigil_7826ea1.md`](../../evaluation_results/skills_benchmark/parity_sigil_7826ea1.md).
+
 ## Where Sigil loses
 
 Sigil does not block every malicious skill, and some of what it blocks is
@@ -89,6 +127,11 @@ evidence is a near-name import. The per-sample reasons are in
 
 Five of the seven are instructions a preemptive gate is meant to stop and
 show. `figma` is borderline and `vercel-optimize` is a false positive.
+
+**Not covered.** Sigil has no rule for recursive deletion of the root or home
+directory, or for disk wipes beyond `dd` to a device and the classic fork bomb
+(SKILL-012 catches those two). It has none for container-privilege settings or
+disabled TLS verification either. SkillSpector covers all three.
 
 **LLM adjudication.** SkillSpector can send findings to a model you choose
 (OpenAI, Anthropic, Bedrock, NVIDIA, a local Claude or Codex CLI, and others).

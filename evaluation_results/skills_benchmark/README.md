@@ -18,6 +18,7 @@ Limitations: Static analysis only (SkillSpector --no-llm). "Clean" is published,
 | `sigil_dc82a94.{json,md}` | Sigil before this change | 204 malicious + 455 clean skills | 2026-09-23 |
 | `baseline_2026-09-23_sigil-dc82a94_skillspector-2.11.2.{json,md}` | Sigil before this change and SkillSpector 2.11.2, same run | 204 malicious + 411 clean skills (openai/skills was missed by discovery at the time: its skills sit under a hidden `.curated/` directory) | 2026-09-23 |
 | `skillspector-2.11.2_openai-skills_2026-09-23.{json,md}` | SkillSpector 2.11.2 | the 44 openai/skills skills the baseline missed | 2026-09-23 |
+| `parity_sigil_7826ea1.{json,md}` | Sigil, final build of this change, on `scripts/skillspector_parity.py run` | 1,796 examples from SkillSpector's own test suite | 2026-09-24 |
 
 SkillSpector's 455-skill figures are the sum of the baseline run (411) and the
 openai run (44).
