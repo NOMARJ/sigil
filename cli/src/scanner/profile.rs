@@ -12,13 +12,13 @@
 //! verdict recalibration in #160 it is read by
 //! `scoring.rs::has_action_behaviour`, which gates the HIGH verdict: one
 //! first-party finding whose behaviour is `install_time_execution`,
-//! `exfiltration_endpoint`, `installs_persistence` or `dynamic_execution`
-//! lets a first-party score of 50 reach HIGH, where 200 would otherwise be
-//! required — and the verdict becomes the process exit code. A rule with no
-//! specific arm inherits its family's behaviour from its id prefix alone, so
-//! editing the specific-id arms or the family-prefix table below changes
-//! verdicts and exit codes, not just display text. Re-measure against the
-//! corpus before changing either.
+//! `exfiltration_endpoint`, `installs_persistence`, `dynamic_execution` or
+//! `drive_by_install` lets a first-party score of 50 reach HIGH, where 200
+//! would otherwise be required — and the verdict becomes the process exit
+//! code. A rule with no specific arm inherits its family's behaviour from its
+//! id prefix alone, so editing the specific-id arms or the family-prefix
+//! table below changes verdicts and exit codes, not just display text.
+//! Re-measure against the corpus before changing either.
 
 use super::{Finding, ScanResult, Severity, Verdict};
 
@@ -94,7 +94,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "NET-008" | "NET-009" => Some("raw_sockets"),
         "NET-010" => Some("dns_lookup"),
         "NET-011" => Some("encodes_before_send"),
-        "NET-012" => Some("downloads_remote_content"),
+        "NET-012" | "NET-RCE-001" => Some("downloads_remote_content"),
         "NET-013" => Some("targets_metadata_endpoint"),
         "NET-014" => Some("c2_tunnel_host"),
         "NET-015" => Some("suspicious_domain"),
@@ -126,6 +126,85 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // who publishes an sdist-only package forces that path on a plain
         // `pip install <name>`.
         "INSTALL-006" => Some("build_configuration"),
+        // Concealment from the user is manipulation of the agent, not an
+        // instruction override: same split as MANIP-007 vs PROMPT-001.
+        "INTL-003" => Some("manipulates_agent"),
+        "REF-001" => Some("downloads_executable"),
+        "REF-002" => Some("unscanned_reference"),
+        // Agent supply chain pack (agent_supply_chain.json). The ACTION arms
+        // were chosen for what the rule proves, not for the verdict it buys:
+        // AGENTSC-004 is code that fetches a script from an anonymous
+        // file-drop host to run it (dynamic execution in the plainest sense),
+        // AGENTSC-030 and AGENTSC-034 are a skill naming, and telling the
+        // agent to write itself into, the agent's global instruction file
+        // (persistence), and the fake-prerequisite rules (AGENTSC-001..005)
+        // are an instruction to fetch and run an installer, labelled
+        // `drive_by_install` — an action since the reconciliation pass (see
+        // ACTION_BEHAVIOURS in scoring.rs for the measurement).
+        "AGENTSC-001" | "AGENTSC-002" | "AGENTSC-003" | "AGENTSC-005" => Some("drive_by_install"),
+        "AGENTSC-004" => Some("dynamic_execution"),
+        "AGENTSC-010" | "AGENTSC-013" | "AGENTSC-015" => Some("harvests_credentials"),
+        "AGENTSC-011" | "AGENTSC-012" | "AGENTSC-032" | "AGENTSC-CHAIN-001"
+        | "AGENTSC-CHAIN-002" => Some("exfiltrates_data"),
+        "AGENTSC-014" => Some("hardcoded_secrets"),
+        "AGENTSC-020" => Some("c2_tunnel_host"),
+        "AGENTSC-030" | "AGENTSC-034" => Some("installs_persistence"),
+        "AGENTSC-031" | "AGENTSC-033" => Some("manipulates_agent"),
+        "AGENTSC-040" => Some("hijacks_browser_session"),
+        "AGENTSC-041" => Some("active_content_payload"),
+        // Agent-instruction pack (agent_instructions.json). None of these is an
+        // ACTION behaviour: they describe what a skill tells the agent to do,
+        // and gate the verdict through severity alone. INSTR-014 writes the
+        // user's global agent memory file, which is persistence in spirit, but
+        // it is deliberately not mapped to `installs_persistence` without a
+        // corpus re-measurement (a clean NVIDIA setup skill does it on purpose).
+        // INSTR-032 is a Low observation ("from now on, always …") split out of
+        // INSTR-011 so a project's own instruction file is not read as memory
+        // poisoning; INSTR-033 is a skill that hides itself or sabotages code.
+        "INSTR-032" => Some("standing_directive"),
+        "INSTR-033" => Some("deceives_user"),
+        "INSTR-001" | "INSTR-002" => Some("disables_safety_guardrails"),
+        "INSTR-003" | "INSTR-004" => Some("suppresses_warnings"),
+        "INSTR-005" => Some("exfiltrates_conversation"),
+        "INSTR-006" | "INSTR-007" => Some("manipulates_user"),
+        "INSTR-008" => Some("harmful_content"),
+        "INSTR-009" | "INSTR-010" => Some("leaks_system_prompt"),
+        "INSTR-011" | "INSTR-012" | "INSTR-013" | "INSTR-014" | "INSTR-015" => {
+            Some("poisons_agent_memory")
+        }
+        "INSTR-016" | "INSTR-017" | "INSTR-018" | "INSTR-019" | "INSTR-020" => {
+            Some("excessive_agency")
+        }
+        "INSTR-021" => Some("unbounded_consumption"),
+        "INSTR-022" | "INSTR-023" => Some("selects_model"),
+        "INSTR-024" | "INSTR-025" | "INSTR-026" => Some("snoops_agent_config"),
+        "INSTR-027" => Some("self_modifies"),
+        "INSTR-028" => Some("disables_signature_check"),
+        "INSTR-029" => Some("hidden_instruction"),
+        "INSTR-030" => Some("trigger_abuse"),
+        "INSTR-031" => Some("uses_obfuscation"),
+        // Reconciliation rules (docs/detection/fp-calibration.md,
+        // "Reconciliation"). The Low observations get specific, non-action
+        // labels so the CODE- family default (`dynamic_execution`, an action)
+        // cannot attach to a routine launch or model load; the chains carry
+        // what the link proves. A downloaded file that is then run is dynamic
+        // execution; a bundled pickle that is loaded is deserialization.
+        "CODE-RUNFILE-001" => Some("executes_program"),
+        "CODE-DESER-001" | "DESER-CHAIN-001" => Some("unsafe_deserialization"),
+        "CODE-MODEL-001" => Some("bundled_pickle_file"),
+        "DROPPER-CHAIN-001" => Some("dynamic_execution"),
+        "NET-EXE-001" => Some("downloads_executable"),
+        "NET-UPLOAD-001" => Some("uploads_local_file"),
+        "NET-RAWIP-001" => Some("raw_ip_endpoint"),
+        // Structural checks (scanner::bytecode / artifacts). None of these is
+        // an ACTION behaviour: ARTIFACT-002 gates CRITICAL on its own, and the
+        // rest describe what was shipped, not something the package did.
+        "ARTIFACT-001" | "ARTIFACT-012" => Some("ships_bytecode"),
+        "ARTIFACT-002" | "ARTIFACT-003" => Some("bytecode_source_mismatch"),
+        "ARTIFACT-004" | "ARTIFACT-006" | "ARTIFACT-011" => Some("concealed_executable"),
+        "ARTIFACT-005" | "ARTIFACT-009" => Some("concealed_artifact"),
+        "ARTIFACT-010" => Some("archive_path_traversal"),
+        "PAD-003" => Some("whitespace_padding"),
         _ => None,
     };
     if specific.is_some() {
@@ -137,7 +216,11 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
     // behaviour profile is read as a description of the package — so it
     // contributes none. Returning early matters: the "PROV-" family below
     // would otherwise assert a provenance anomaly nobody observed.
-    if rule_id == crate::scanner::budget::BUDGET_RULE_ID {
+    // The same holds for the partial-read finding (scanner::coverage): an
+    // unreadable or partly read file says nothing about what the package does.
+    if rule_id == crate::scanner::budget::BUDGET_RULE_ID
+        || rule_id == crate::scanner::coverage::RULE_PARTIAL
+    {
         return None;
     }
 
@@ -153,12 +236,15 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("INSTALL-MCP-", "mcp_registration"),
         ("INSTALL-", "install_time_execution"),
         ("PROMPT-", "prompt_injection"),
+        ("INTL-", "prompt_injection"),
         ("MANIP-", "manipulates_agent"),
+        ("INSTR-", "agent_instruction_abuse"),
         ("SKILL-", "manifest_risk"),
         ("INFER-", "inference_tampering"),
         ("RSHELL-", "reverse_shell"),
         ("SUPPLY-", "supply_chain_manipulation"),
         ("PERSIST-", "installs_persistence"),
+        ("AGENTSC-", "agent_supply_chain"),
         ("EXFIL-", "exfiltrates_data"),
         ("TYPOSQUAT-", "typosquat_dependency"),
         ("HYGIENE-", "publish_hygiene"),
@@ -166,6 +252,11 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("KNOWNGOOD-DRIFT", "modified_known_release"),
         ("RUGPULL-", "post_approval_drift"),
         ("ARCHIVE-BOMB", "decompression_bomb"),
+        ("AGENTCFG-", "agent_config_risk"),
+        ("ARTIFACT-", "bundled_archive"),
+        ("DEPSRC-", "dependency_source_redirect"),
+        ("PAD-", "hides_text_with_padding"),
+        ("LPRIV-", "privilege_mismatch"),
         // OSV advisory ids.
         ("MAL-", "known_malicious_package"),
         ("GHSA-", "known_vulnerable_dependency"),
@@ -219,6 +310,7 @@ fn builtin_title(rule_id: &str) -> Option<&'static str> {
         "PROV-REPO-MISMATCH" => Some("Package repository does not match the registry record"),
         "EXFIL-CHAIN-001" => Some("Credential read flows into an outbound network send"),
         "TYPOSQUAT-001" => Some("Dependency name is one edit away from a top package (typosquat)"),
+        id if id.starts_with("AGENTCFG-") => crate::inventory::title(id),
         _ => None,
     }
 }
@@ -363,6 +455,7 @@ mod tests {
         // A truncated scan is a fact about the scan, not a behaviour of the
         // package: it must not be reported as a provenance anomaly.
         assert_eq!(behavior_for(crate::scanner::budget::BUDGET_RULE_ID), None);
+        assert_eq!(behavior_for(crate::scanner::coverage::RULE_PARTIAL), None);
         assert_eq!(behavior_for("PROV-DOWNGRADE"), Some("provenance_drift"));
         assert_eq!(behavior_for("TOTALLY-UNKNOWN"), None);
     }
@@ -371,15 +464,49 @@ mod tests {
     /// profile silently under-reports the moment a pack adds a family.
     #[test]
     fn every_corpus_rule_maps_to_a_behavior() {
+        // Coverage findings are facts about the scan, not behaviours of the
+        // package, and deliberately map to none.
         let unmapped: Vec<String> = crate::corpus::compiled::corpus()
             .rule_ids()
             .into_iter()
             .filter(|id| behavior_for(id).is_none())
+            .filter(|id| {
+                id != crate::scanner::budget::BUDGET_RULE_ID
+                    && id != crate::scanner::coverage::RULE_PARTIAL
+            })
             .collect();
         assert!(
             unmapped.is_empty(),
             "rules without a behaviour: {unmapped:?}"
         );
+    }
+
+    /// INSTR-* findings gate the verdict through their severity alone. None
+    /// may borrow the lower HIGH threshold that an action behaviour unlocks
+    /// in `scoring::has_action_behaviour` without a corpus re-measurement.
+    #[test]
+    fn agent_instruction_rules_are_not_action_behaviours() {
+        const ACTIONS: &[&str] = &[
+            "install_time_execution",
+            "exfiltration_endpoint",
+            "installs_persistence",
+            "dynamic_execution",
+        ];
+        let ids: Vec<String> = crate::corpus::compiled::corpus()
+            .rule_ids()
+            .into_iter()
+            .filter(|id| id.starts_with("INSTR-"))
+            .collect();
+        assert!(
+            ids.len() >= 30,
+            "agent_instructions pack not loaded: {ids:?}"
+        );
+        for id in &ids {
+            let b = behavior_for(id).unwrap_or_else(|| panic!("{id} has no behaviour"));
+            assert!(!ACTIONS.contains(&b), "{id} maps to action behaviour {b}");
+        }
+        assert_eq!(behavior_for("INSTR-014"), Some("poisons_agent_memory"));
+        assert_eq!(behavior_for("INSTR-099"), Some("agent_instruction_abuse"));
     }
 
     #[test]

@@ -171,6 +171,17 @@ cli/src/scanner/context.rs
 # them, and signing.rs carries Ed25519 test-vector hex byte arrays (tripping the
 # hex-payload rule). Detection-engine test fixtures + crypto test vectors, not payloads.
 cli/src/corpus/engine.rs
+# cli/src/corpus/multilingual_tests.rs: INTL-001..004 pack tests. Same category as
+# engine.rs — each case is an injected instruction in another language beside a
+# benign sentence sharing its vocabulary. Detection-engine test inputs, not payloads.
+cli/src/corpus/multilingual_tests.rs
+# cli/src/corpus/guardrail_tests.rs: PROMPT-001/005 tests pairing guardrails that must stay
+# quiet with the injections they forbid. Detection-engine test inputs, not payloads.
+cli/src/corpus/guardrail_tests.rs
+# cli/src/transitive_tests.rs: --follow-refs tests. The injected fetcher returns
+# credential-exfiltration scripts and PE headers so the walk can be shown to
+# scan and flag them. Detection test inputs, never fetched or run.
+cli/src/transitive_tests.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
 # cli/src/corpus/compiled.rs: the compiled-corpus path. Same category as
@@ -180,6 +191,17 @@ cli/src/corpus/signing.rs
 # uncompiled paths agree. Removing those fixtures would remove the guarantee
 # that the optimisation did not change detection behaviour.
 cli/src/corpus/compiled.rs
+# cli/src/corpus/agent_supply_chain_tests.rs: unit tests for the AGENTSC-* pack.
+# Same category as engine.rs — each test feeds the engine a line reduced from a
+# real malicious skill (a fake-prerequisite download link, a file-drop dropper
+# URL, an env sweep for TOKEN|SECRET, an XSS payload) to prove the rule fires,
+# next to the benign line it must leave alone. Test fixtures, not payloads.
+cli/src/corpus/agent_supply_chain_tests.rs
+# cli/src/corpus/mcp_fp_tests.rs: MCP-server calibration tests. Same category as
+# engine.rs — each test pairs a benign line from a registry MCP server with the
+# attack line the same rule must still report (an embedded base64 payload, a
+# URL-shortener cradle piped to iex, a live PEM key). Test fixtures, not payloads.
+cli/src/corpus/mcp_fp_tests.rs
 # cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
 # signature patterns ("curl") and boundary-case match lines to pin the
 # multi-byte truncation fix and the phase-resolution contract.
@@ -198,6 +220,26 @@ cli/src/cache.rs
 cli/src/ledger.rs
 # cli/tests/explain.rs: CLI parser fixture contains JSON scan findings by design.
 cli/tests/explain.rs
+# cli/src/residue/checks.rs: its unit tests enumerate
+# download-and-execute command lines ("curl https://example.com/install.sh | sh",
+# "wget -qO- … | bash") as INPUT to the pre-tool-use hook and the residue
+# classifier, which must block them. (hook.rs's tests moved to hook_tests.rs, below.) NET-RCE-001 (fp-lane split of NET-012)
+# reports those literals at High, as it should for real code. Test inputs for
+# our own guards, not payloads; the production logic is covered by the modules'
+# Rust unit tests.
+cli/src/residue/checks.rs
+# cli/src/{hook,inventory,cmdline,ingest}_tests.rs: the unit tests of the
+# PreToolUse gate, the installed-tooling posture scan (sigil skills), the shared
+# command-line analysis and archive/URL ingest. They ARE the positive and
+# negative fixtures for those detectors: curl|sh pipelines, hooks that post
+# their event payload, fake ghp_/sk-ant- tokens, a reverse-shell one-liner in a
+# skill, tunnel hosts, the cloud-metadata address, zip-slip archives. The tests
+# were moved out of hook.rs / inventory.rs / cmdline.rs / ingest.rs so those
+# production files stay scanned.
+cli/src/hook_tests.rs
+cli/src/inventory_tests.rs
+cli/src/cmdline_tests.rs
+cli/src/ingest_tests.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.

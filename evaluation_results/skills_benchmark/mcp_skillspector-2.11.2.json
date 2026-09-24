@@ -1,0 +1,3656 @@
+{
+ "summary": {
+  "skillspector": {
+   "errors": 13,
+   "malicious": {
+    "scanned": 0,
+    "block": 0,
+    "warn": 0,
+    "any": 0,
+    "seconds": 0
+   },
+   "clean": {
+    "scanned": 156,
+    "block": 100,
+    "warn": 127,
+    "any": 149,
+    "seconds": 7877.1
+   }
+  }
+ },
+ "corpora": {
+  "clean:mcp_clean": 169
+ },
+ "outcomes": [
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__contextlayer-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 2.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__ctxl",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 3.02,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__ctxl-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 2.91,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.dimensions__analytics-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 20,
+   "rules": [
+    "EA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 76.51,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.elfa__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 26,
+   "rules": [
+    "EA2",
+    "P2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "P2",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 8.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.perplexity__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 24,
+   "rules": [
+    "E1",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [],
+   "seconds": 9.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.reka__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 25,
+   "rules": [
+    "EA4",
+    "PE3",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 21.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.wavespeed__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 12,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 5.62,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/aws.api.us-east-1.ecs-mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 72,
+   "rules": [
+    "AST7",
+    "EA4",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 41.45,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/aws.api.us-east-1.eks-mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 72,
+   "rules": [
+    "AST7",
+    "EA4",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 41.95,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.aave__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 30,
+   "rules": [
+    "AR2",
+    "AS1",
+    "AS2",
+    "E1",
+    "EA1",
+    "EA2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AR2",
+    "AS1",
+    "AS2"
+   ],
+   "seconds": 18.06,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.adbutler__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 16,
+   "rules": [
+    "E1",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 34.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.allstacks__allstacks-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 38,
+   "rules": [
+    "E1",
+    "PE3",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "PE3",
+    "TM1"
+   ],
+   "seconds": 11.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.altmetric.mcp__altmetric-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 20,
+   "rules": [
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 13.2,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.apideck__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.13,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/com.appfigures__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 55,
+   "rules": [
+    "AE4",
+    "EA2",
+    "MP2",
+    "P2",
+    "P9",
+    "PE1",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "YR4"
+   ],
+   "high_rules": [
+    "P2",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 191.4,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.audioeye__testing-sdk-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 3566,
+   "rules": [
+    "AR2",
+    "AS1",
+    "EA2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC3",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "AR2",
+    "AS1",
+    "PE3",
+    "SC3",
+    "YR4"
+   ],
+   "seconds": 223.07,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.auth0__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 303,
+   "rules": [
+    "EA1",
+    "EA2",
+    "P1",
+    "P6",
+    "P9",
+    "PE1",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "SSRF3",
+    "YR4"
+   ],
+   "high_rules": [
+    "P1",
+    "P6",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 18.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.automox__automox-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 68,
+   "rules": [
+    "AST7",
+    "EA2",
+    "MP2",
+    "OH3",
+    "P1",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF1",
+    "TM1",
+    "TM3",
+    "YR4"
+   ],
+   "high_rules": [
+    "P1",
+    "PE3",
+    "SSRF1",
+    "TM1",
+    "YR4"
+   ],
+   "seconds": 132.97,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.blackduck__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 51,
+   "rules": [
+    "EA2",
+    "EA3",
+    "MP2",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 30.56,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.blindpay__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 47,
+   "rules": [
+    "AS1",
+    "E1",
+    "MP2",
+    "PE2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3"
+   ],
+   "seconds": 19.53,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.browser-use__browser-use",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 136,
+   "rules": [
+    "AE4",
+    "AR1",
+    "AR2",
+    "AS3",
+    "AST1",
+    "AST4",
+    "AST7",
+    "E1",
+    "E2",
+    "EA2",
+    "EA4",
+    "MP2",
+    "MP3",
+    "OH3",
+    "P3",
+    "PE3",
+    "RA1",
+    "RA2",
+    "RP1",
+    "SC2",
+    "SC4",
+    "SSRF2",
+    "TM3",
+    "TT2"
+   ],
+   "high_rules": [
+    "AR1",
+    "AR2",
+    "AST1",
+    "E2",
+    "MP3",
+    "P3",
+    "PE3",
+    "RA1",
+    "SC2",
+    "SC4"
+   ],
+   "seconds": 155.78,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.clicksend__clicksend-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 31,
+   "rules": [
+    "P3",
+    "PE2",
+    "SC1",
+    "SC4",
+    "SC5",
+    "YR4"
+   ],
+   "high_rules": [
+    "P3",
+    "SC4",
+    "YR4"
+   ],
+   "seconds": 11.78,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.codescene__codescene-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "SC1"
+   ],
+   "high_rules": [],
+   "seconds": 5.5,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.cosmicjs__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 15,
+   "rules": [
+    "EA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 21.17,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.dbconvert__streams",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 8,
+   "rules": [
+    "RA2",
+    "RP1",
+    "TM1"
+   ],
+   "high_rules": [],
+   "seconds": 11.16,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.docfork__docfork-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 15,
+   "rules": [
+    "E1",
+    "PE2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 10.68,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.easyship__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 38,
+   "rules": [
+    "AS1",
+    "AST7",
+    "E1",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC4",
+    "TM1",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3",
+    "SC4",
+    "TM1",
+    "YR4"
+   ],
+   "seconds": 95.74,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.eclipsesource__review-guard",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 30,
+   "rules": [
+    "AS1",
+    "EA2",
+    "P9",
+    "PE2",
+    "PE3",
+    "RA2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3"
+   ],
+   "seconds": 20.85,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.eztexting__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 9.01,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.files__python-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 24,
+   "rules": [
+    "AST7",
+    "E5",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [],
+   "seconds": 23.52,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.geekflare__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 16,
+   "rules": [
+    "P9",
+    "PE2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 13.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.gitkraken__gk-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 10,
+   "rules": [
+    "P9",
+    "SC4"
+   ],
+   "high_rules": [
+    "SC4"
+   ],
+   "seconds": 10.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.growsurf__growsurf",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 46,
+   "rules": [
+    "AS1",
+    "AS2",
+    "E1",
+    "EA2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "AS2",
+    "PE3"
+   ],
+   "seconds": 53.07,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__airbnb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "AS2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2"
+   ],
+   "seconds": 10.4,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__amazon",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "AS2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2"
+   ],
+   "seconds": 10.72,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__bing",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "AS2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2"
+   ],
+   "seconds": 9.64,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__booking",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "AS2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2"
+   ],
+   "seconds": 14.46,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__duckduckgo",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 5,
+   "rules": [
+    "AS1",
+    "AS2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "AS2"
+   ],
+   "seconds": 13.21,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hovercode__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 11.29,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.intellegens__alchemite-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 15,
+   "rules": [
+    "PE3",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 15.49,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.ismalicious__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 17,
+   "rules": [
+    "E1",
+    "MP2",
+    "P9",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 34.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.keboola__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 79,
+   "rules": [
+    "AST7",
+    "E1",
+    "EA2",
+    "EA3",
+    "PE2",
+    "PE3",
+    "RA1",
+    "RA2",
+    "RP1",
+    "TM1",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3",
+    "RA1",
+    "TM1"
+   ],
+   "seconds": 85.72,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.kudosity__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 6,
+   "rules": [
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 15.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.letta__memory-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 14,
+   "rules": [
+    "P2",
+    "P4",
+    "PE2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P2"
+   ],
+   "seconds": 9.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.macroaxis__macroaxis-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AS1",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1"
+   ],
+   "seconds": 8.38,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft.esrp__esrp-oss-mcp-test",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 9.05,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__azure",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 4,
+   "rules": [
+    "AR1",
+    "AS1",
+    "RP1"
+   ],
+   "high_rules": [
+    "AR1",
+    "AS1"
+   ],
+   "seconds": 19.17,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__esrp-oss-mcp-test",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 10.23,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__microsoft-fabric",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "RP1"
+   ],
+   "high_rules": [],
+   "seconds": 10.04,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__powerbi-modeling-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 235,
+   "rules": [
+    "AR1",
+    "EA3",
+    "RP1"
+   ],
+   "high_rules": [
+    "AR1"
+   ],
+   "seconds": 48.61,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__template-server-name",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "RP1"
+   ],
+   "high_rules": [],
+   "seconds": 8.4,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.mux__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 57,
+   "rules": [
+    "MP2",
+    "PE3",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 101.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.mysupermarket__grocery-prices",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 7.61,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.offensive360__o360-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 6,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 9.17,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.opensolr__opensolr-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 12,
+   "rules": [
+    "AR2",
+    "E1",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "AR2"
+   ],
+   "seconds": 17.83,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.opsmill__infrahub-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 41,
+   "rules": [
+    "AST7",
+    "EA4",
+    "P2",
+    "PE3",
+    "SC1",
+    "SC4",
+    "SC9",
+    "TM1"
+   ],
+   "high_rules": [
+    "P2",
+    "PE3",
+    "SC4",
+    "SC9",
+    "TM1"
+   ],
+   "seconds": 50.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pdfgate__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 7,
+   "rules": [
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 11.36,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.postman__postman-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 46,
+   "rules": [
+    "P9",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 41.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.proabono__mcp-installation",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 13,
+   "rules": [
+    "AS2",
+    "EA2",
+    "PE1",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2"
+   ],
+   "seconds": 26.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__appsignal",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 17,
+   "rules": [
+    "EA2",
+    "PE3",
+    "RA2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 16.89,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__dynamodb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 9,
+   "rules": [
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 8.85,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__fetchpet",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 12,
+   "rules": [
+    "E4",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "E4"
+   ],
+   "seconds": 13.41,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__fly-io",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 15,
+   "rules": [
+    "MP3",
+    "P9",
+    "PE3",
+    "RA2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "MP3",
+    "PE3"
+   ],
+   "seconds": 15.37,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__gcs",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 20,
+   "rules": [
+    "P9",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 14.45,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__remote-filesystem",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 9,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 11.9,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.rootly__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 60,
+   "rules": [
+    "AR2",
+    "AS3",
+    "AST7",
+    "E1",
+    "E2",
+    "EA2",
+    "P1",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC2",
+    "SC4",
+    "SC9",
+    "TM1",
+    "TM2",
+    "YR1",
+    "YR4"
+   ],
+   "high_rules": [
+    "AR2",
+    "E2",
+    "P1",
+    "PE3",
+    "SC4",
+    "SC9",
+    "TM1",
+    "TM2",
+    "YR1",
+    "YR4"
+   ],
+   "seconds": 268.16,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.scoutapm__scout-mcp-local",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 12,
+   "rules": [
+    "AST7",
+    "PE3",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 13.0,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.smartbear__smartbear-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 175,
+   "rules": [
+    "AR2",
+    "E1",
+    "EA2",
+    "OH3",
+    "P4",
+    "PE3",
+    "RA2",
+    "SC1",
+    "SC4",
+    "SSRF3",
+    "TM1"
+   ],
+   "high_rules": [
+    "AR2",
+    "PE3",
+    "TM1"
+   ],
+   "seconds": 110.25,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.stackhawk__stackhawk",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 53,
+   "rules": [
+    "P6",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3"
+   ],
+   "seconds": 24.25,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.streamkap__tools",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 56,
+   "rules": [
+    "EA2",
+    "PE2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "SSRF1",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3",
+    "SSRF1"
+   ],
+   "seconds": 91.81,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.supabase__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 69,
+   "rules": [
+    "EA1",
+    "EA2",
+    "MP2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 42.65,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.synder__gl-importer-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 10,
+   "rules": [
+    "AS3",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 10.37,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.tracklution__server-side-tracking",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 40,
+   "rules": [
+    "AS1",
+    "AS2",
+    "E1",
+    "P2",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "AS2",
+    "P2"
+   ],
+   "seconds": 13.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.vaiz__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 11,
+   "rules": [
+    "E1",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 12.61,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.xcodebuildmcp__XcodeBuildMCP",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.15,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/com.xverum__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 9.85,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.zeroheight__zeroheight",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 41,
+   "rules": [
+    "E2",
+    "PE2",
+    "PE3",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "E2",
+    "PE3"
+   ],
+   "seconds": 24.02,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.zype.mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 5,
+   "rules": [
+    "EA2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 8.89,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.edgegap__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 14,
+   "rules": [
+    "P6",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P6"
+   ],
+   "seconds": 12.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.openfeature__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 21,
+   "rules": [
+    "AS1",
+    "P2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "P2"
+   ],
+   "seconds": 18.33,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.rivet__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 56,
+   "rules": [
+    "AE4",
+    "MP2",
+    "P2",
+    "PE1",
+    "PE3",
+    "SC1",
+    "SC3",
+    "SC4",
+    "TM1",
+    "TM3",
+    "YR4"
+   ],
+   "high_rules": [
+    "P2",
+    "PE3",
+    "SC3",
+    "TM1",
+    "YR4"
+   ],
+   "seconds": 596.51,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.svelte__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.3,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.tinify__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 24,
+   "rules": [
+    "AS1",
+    "E1",
+    "EA2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3"
+   ],
+   "seconds": 6.54,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.aiven__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 137,
+   "rules": [
+    "E1",
+    "E2",
+    "EA2",
+    "MP2",
+    "OH3",
+    "P6",
+    "PE1",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1",
+    "TM2",
+    "YR4"
+   ],
+   "high_rules": [
+    "E2",
+    "P6",
+    "PE3",
+    "TM1",
+    "TM2",
+    "YR4"
+   ],
+   "seconds": 170.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__capacitor-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 8.41,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__ionic-framework-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 14.65,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "P9",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 13.21,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.carbone__carbone-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 25,
+   "rules": [
+    "E2",
+    "EA2",
+    "EA3",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF1",
+    "TM1",
+    "TM3"
+   ],
+   "high_rules": [
+    "E2",
+    "PE3",
+    "SSRF1",
+    "TM1"
+   ],
+   "seconds": 24.81,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.form__formio-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 34,
+   "rules": [
+    "E1",
+    "EA2",
+    "PE1",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 30.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.form__formio-uag",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 47,
+   "rules": [
+    "EA3",
+    "EA4",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3"
+   ],
+   "seconds": 20.2,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.frase__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 41,
+   "rules": [
+    "EA1",
+    "EA2",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 152.54,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.fusionauth__mcp-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 60,
+   "rules": [
+    "MP2",
+    "PE1",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 116.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.gainium__gainium-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 16,
+   "rules": [
+    "PE3",
+    "SC1",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "PE3",
+    "TM1"
+   ],
+   "seconds": 31.64,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.getunleash__unleash-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 34,
+   "rules": [
+    "P6",
+    "PE3",
+    "RA1",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3",
+    "RA1",
+    "TM1"
+   ],
+   "seconds": 44.6,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Automattic__simplenote-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 36,
+   "rules": [
+    "AS1",
+    "E1",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1"
+   ],
+   "seconds": 27.38,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Azure__containerization-assist",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 822,
+   "rules": [
+    "AR2",
+    "E1",
+    "E3",
+    "EA1",
+    "EA2",
+    "OH3",
+    "P6",
+    "PE2",
+    "PE3",
+    "PE4",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC2",
+    "SC4",
+    "SC9",
+    "TM1",
+    "TM2",
+    "TM3",
+    "TM4",
+    "YR1"
+   ],
+   "high_rules": [
+    "AR2",
+    "P6",
+    "PE3",
+    "PE4",
+    "SC9",
+    "TM1",
+    "TM2",
+    "TM4",
+    "YR1"
+   ],
+   "seconds": 337.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ChromeDevTools__chrome-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.23,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ClickHouse__mcp-clickhouse",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 69,
+   "rules": [
+    "AST3",
+    "AST4",
+    "AST7",
+    "E2",
+    "EA4",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SC6",
+    "TM3"
+   ],
+   "high_rules": [
+    "E2",
+    "PE3",
+    "SC4",
+    "SC6"
+   ],
+   "seconds": 60.04,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.CrowdStrike__falcon-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 57,
+   "rules": [
+    "AS2",
+    "AST7",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC4",
+    "YR1",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS2",
+    "P6",
+    "PE3",
+    "YR1",
+    "YR4"
+   ],
+   "seconds": 93.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Decodo__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 39,
+   "rules": [
+    "E2",
+    "P9",
+    "PE2",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "E2"
+   ],
+   "seconds": 22.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.GoogleCloudPlatform__gemini-cloud-assist-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 27,
+   "rules": [
+    "AS1",
+    "EA3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1"
+   ],
+   "seconds": 22.67,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.NVIDIA__elements",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.13,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.PagerDuty__pagerduty-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 22,
+   "rules": [
+    "E1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 24.63,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.PrefectHQ__prefect-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 120,
+   "rules": [
+    "AS1",
+    "AST4",
+    "E1",
+    "E2",
+    "PE2",
+    "PE3",
+    "RA1",
+    "RA2",
+    "RP1",
+    "SC2",
+    "SC4",
+    "SC6",
+    "TM1",
+    "TM2"
+   ],
+   "high_rules": [
+    "AS1",
+    "E2",
+    "PE3",
+    "RA1",
+    "SC4",
+    "SC6"
+   ],
+   "seconds": 66.53,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.SAP-samples__hana-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.22,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.SAP__fiori-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.14,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Snowflake-Labs__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 72,
+   "rules": [
+    "AS1",
+    "AST7",
+    "E1",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC4",
+    "TM2"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3",
+    "SC4",
+    "TM2"
+   ],
+   "seconds": 30.05,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ZenRows__zenrows-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 34,
+   "rules": [
+    "E1",
+    "MP2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 13.77,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.appwrite__mcp-for-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 36,
+   "rules": [
+    "AS2",
+    "EA3",
+    "PE3",
+    "RP1",
+    "SC2",
+    "SC4",
+    "TM2"
+   ],
+   "high_rules": [
+    "AS2",
+    "PE3",
+    "SC4",
+    "TM2"
+   ],
+   "seconds": 12.36,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.aws__aws-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 72,
+   "rules": [
+    "AST7",
+    "EA4",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 48.47,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.aws__mcp-proxy-for-aws",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 73,
+   "rules": [
+    "AST7",
+    "EA4",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 43.42,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.awslabs__mcp-server-for-oscal",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 81,
+   "rules": [
+    "AST3",
+    "AST4",
+    "AST7",
+    "E1",
+    "E2",
+    "E4",
+    "EA1",
+    "EA2",
+    "MP2",
+    "P2",
+    "PE2",
+    "PE3",
+    "RA1",
+    "RA2",
+    "RP1",
+    "SC4",
+    "SC6",
+    "TM1",
+    "TM2",
+    "YR4"
+   ],
+   "high_rules": [
+    "E2",
+    "E4",
+    "P2",
+    "PE3",
+    "RA1",
+    "SC4",
+    "SC6",
+    "TM1",
+    "TM2",
+    "YR4"
+   ],
+   "seconds": 331.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.brave__brave-search-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "RP1"
+   ],
+   "high_rules": [],
+   "seconds": 13.38,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.brightdata__brightdata-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 32,
+   "rules": [
+    "AS1",
+    "E1",
+    "EA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "SC4"
+   ],
+   "seconds": 13.38,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.browserbase__mcp-server-browserbase",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 31,
+   "rules": [
+    "P6",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P6"
+   ],
+   "seconds": 11.23,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.browserstack__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 135,
+   "rules": [
+    "E1",
+    "EA2",
+    "EA3",
+    "P6",
+    "PE2",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P6"
+   ],
+   "seconds": 33.14,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-browser",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.13,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-commands",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 17,
+   "rules": [
+    "EA1",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 31.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-filesystem",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 30,
+   "rules": [
+    "AR2",
+    "RA1",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AR2",
+    "RA1"
+   ],
+   "seconds": 51.21,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-search",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 13,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 12.55,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.cloudinary__asset-management-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.15,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.comet-ml__opik-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 69,
+   "rules": [
+    "E2",
+    "E4",
+    "P1",
+    "P3",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "E2",
+    "E4",
+    "P1",
+    "P3",
+    "PE3"
+   ],
+   "seconds": 19.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.configcat__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 17,
+   "rules": [
+    "E1",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 16.85,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.containers__kubernetes-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 32,
+   "rules": [
+    "MP2",
+    "P2",
+    "P9",
+    "PE3",
+    "RP1"
+   ],
+   "high_rules": [
+    "P2",
+    "PE3"
+   ],
+   "seconds": 14.29,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.couchbase__mcp-server-couchbase",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 95,
+   "rules": [
+    "AST4",
+    "E1",
+    "E2",
+    "EA1",
+    "EA2",
+    "MP3",
+    "P2",
+    "P9",
+    "PE1",
+    "PE3",
+    "PE5",
+    "RP1",
+    "SC2",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "E2",
+    "MP3",
+    "P2",
+    "PE3",
+    "PE5",
+    "SC2",
+    "SC4",
+    "YR4"
+   ],
+   "seconds": 76.9,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.dynatrace-oss__Dynatrace-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.15,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.dynatrace-oss__dynatrace-managed-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 37,
+   "rules": [
+    "AS1",
+    "E1",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3"
+   ],
+   "seconds": 20.26,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.firebase__firebase-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 302,
+   "rules": [
+    "EA2",
+    "EA4",
+    "MP3",
+    "OH1",
+    "P2",
+    "P3",
+    "P6",
+    "P9",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC2",
+    "SC4",
+    "SC6",
+    "TM2",
+    "TM3"
+   ],
+   "high_rules": [
+    "MP3",
+    "OH1",
+    "P2",
+    "P3",
+    "P6",
+    "PE3",
+    "SC2",
+    "SC6",
+    "TM2"
+   ],
+   "seconds": 167.6,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.firecrawl__firecrawl-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 28,
+   "rules": [
+    "EA2",
+    "MP2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC2",
+    "SC4",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC2"
+   ],
+   "seconds": 16.86,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.getsentry__sentry-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 83,
+   "rules": [
+    "AS2",
+    "E1",
+    "EA2",
+    "EA3",
+    "MP2",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS2",
+    "P6",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 462.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.growthbook__growthbook-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 86,
+   "rules": [
+    "AR2",
+    "E1",
+    "EA2",
+    "EA4",
+    "MP1",
+    "P9",
+    "PE2",
+    "PE3",
+    "RA1",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1",
+    "TM3"
+   ],
+   "high_rules": [
+    "AR2",
+    "PE3",
+    "RA1",
+    "TM1"
+   ],
+   "seconds": 22.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.localstack__localstack-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 68,
+   "rules": [
+    "E1",
+    "EA2",
+    "MP2",
+    "P9",
+    "PE3",
+    "PE4",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "PE3",
+    "PE4",
+    "TM1"
+   ],
+   "seconds": 482.01,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-devkit-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 192,
+   "rules": [
+    "AS3",
+    "E1",
+    "EA2",
+    "MP2",
+    "P6",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3"
+   ],
+   "seconds": 88.71,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-docs-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 52,
+   "rules": [
+    "MP2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 23.49,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 105,
+   "rules": [
+    "E1",
+    "MP2",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 208.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.microsoft__playwright-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 37,
+   "rules": [
+    "AS1",
+    "EA1",
+    "P2",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "P2"
+   ],
+   "seconds": 7.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mongodb-js__mongodb-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.13,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.motherduckdb__mcp-server-motherduck",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 61,
+   "rules": [
+    "AS1",
+    "AST4",
+    "E2",
+    "OH3",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "AS1",
+    "E2",
+    "PE3",
+    "SC4",
+    "TM1"
+   ],
+   "seconds": 19.48,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mozilla__firefox-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 52,
+   "rules": [
+    "AS1",
+    "EA1",
+    "EA3",
+    "MP2",
+    "OH3",
+    "P6",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM3",
+    "TM4",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS1",
+    "P6",
+    "PE3",
+    "TM4",
+    "YR4"
+   ],
+   "seconds": 56.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__gds-agent",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 48,
+   "rules": [
+    "AST4",
+    "AST7",
+    "E2",
+    "OH3",
+    "PE3",
+    "RA2",
+    "SC4"
+   ],
+   "high_rules": [
+    "E2",
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 30.74,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-aura-manager",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 47,
+   "rules": [
+    "E1",
+    "EA2",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF2",
+    "TM3"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 22.55,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-cypher",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 63,
+   "rules": [
+    "AR2",
+    "E2",
+    "EA2",
+    "EA4",
+    "MP2",
+    "OH3",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF2",
+    "TM3"
+   ],
+   "high_rules": [
+    "AR2",
+    "E2",
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 25.01,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-data-modeling",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 57,
+   "rules": [
+    "EA2",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF2",
+    "TM1"
+   ],
+   "high_rules": [
+    "P6",
+    "PE3",
+    "SC4",
+    "TM1"
+   ],
+   "seconds": 27.37,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-memory",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 49,
+   "rules": [
+    "AR2",
+    "PE3",
+    "RP1",
+    "SC4",
+    "SSRF2",
+    "TM3"
+   ],
+   "high_rules": [
+    "AR2",
+    "PE3",
+    "SC4"
+   ],
+   "seconds": 23.23,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-labs__neo4j-mcp-canary",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 11,
+   "rules": [
+    "AST4",
+    "E1",
+    "EA3",
+    "P9",
+    "RP1",
+    "SC9",
+    "YR4"
+   ],
+   "high_rules": [
+    "SC9",
+    "YR4"
+   ],
+   "seconds": 6.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.paypal__paypal-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 33,
+   "rules": [
+    "E1",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 5.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.perplexityai__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 21,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 7.3,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.questdb__mcp-server-questdb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 39,
+   "rules": [
+    "AS1",
+    "EA2",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1"
+   ],
+   "seconds": 15.49,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.redis__mcp-redis",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 45,
+   "rules": [
+    "AST7",
+    "PE3",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 17.06,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.saucelabs__sauce-api-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 45,
+   "rules": [
+    "AS1",
+    "E1",
+    "EA2",
+    "EA3",
+    "P2",
+    "P6",
+    "P9",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC4",
+    "TT3"
+   ],
+   "high_rules": [
+    "AS1",
+    "P2",
+    "P6",
+    "PE3",
+    "TT3"
+   ],
+   "seconds": 23.97,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.snyk__saw-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 21,
+   "rules": [
+    "AS3",
+    "AST7",
+    "E1",
+    "PE3",
+    "RP1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 15.86,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.tavily-ai__tavily-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 23,
+   "rules": [
+    "E1",
+    "EA3",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1",
+    "YR4"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4",
+    "TM1",
+    "YR4"
+   ],
+   "seconds": 6.62,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.team-telnyx__telnyx",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 441,
+   "rules": [
+    "AS2",
+    "E1",
+    "E2",
+    "EA2",
+    "EA3",
+    "EA4",
+    "MP2",
+    "OH1",
+    "P2",
+    "P3",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS2",
+    "E2",
+    "OH1",
+    "P2",
+    "P3",
+    "PE3"
+   ],
+   "seconds": 466.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.timescale__pg-aiguide",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 21,
+   "rules": [
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 8.06,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.timescale__tiger-skills",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 24,
+   "rules": [
+    "EA1",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "PE3"
+   ],
+   "seconds": 6.13,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__context7",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 51,
+   "rules": [
+    "AE4",
+    "AS1",
+    "EA2",
+    "PE2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1",
+    "TM2"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3",
+    "TM1",
+    "TM2"
+   ],
+   "seconds": 14.95,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 37,
+   "rules": [
+    "AS1",
+    "AS2",
+    "MP2",
+    "OH3",
+    "P1",
+    "P3",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS1",
+    "AS2",
+    "P1",
+    "P3",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 17.97,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__redis-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 28,
+   "rules": [
+    "AS1",
+    "P9",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3"
+   ],
+   "seconds": 8.79,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.vercel__next-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 43,
+   "rules": [
+    "AR2",
+    "AR3",
+    "E1",
+    "P6",
+    "PE3",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1",
+    "TM3"
+   ],
+   "high_rules": [
+    "AR2",
+    "AR3",
+    "P6",
+    "PE3",
+    "SC4",
+    "TM1"
+   ],
+   "seconds": 28.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.mailtrap__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 42,
+   "rules": [
+    "P3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "YR4"
+   ],
+   "high_rules": [
+    "P3",
+    "YR4"
+   ],
+   "seconds": 22.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.oxylabs__oxylabs-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 46,
+   "rules": [
+    "P9",
+    "PE2",
+    "PE3",
+    "RP1",
+    "SC2",
+    "SC4",
+    "TM2"
+   ],
+   "high_rules": [
+    "PE3",
+    "SC4",
+    "TM2"
+   ],
+   "seconds": 22.67,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.prospeo__prospeo-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 17,
+   "rules": [
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 27.74,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.qase__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 62,
+   "rules": [
+    "AS1",
+    "E1",
+    "EA2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC1",
+    "SC4",
+    "TM1"
+   ],
+   "high_rules": [
+    "AS1",
+    "PE3",
+    "TM1"
+   ],
+   "seconds": 39.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.scorecard__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 20,
+   "rules": [
+    "EA2",
+    "RP1",
+    "SC1",
+    "SC4"
+   ],
+   "high_rules": [],
+   "seconds": 31.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.scrapfly.mcp__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 9,
+   "rules": [
+    "AS1",
+    "EA4",
+    "P6",
+    "PE3",
+    "RA2",
+    "YR4"
+   ],
+   "high_rules": [
+    "AS1",
+    "P6",
+    "PE3",
+    "YR4"
+   ],
+   "seconds": 6.58,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.slingdata__sling-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 19,
+   "rules": [
+    "AST4",
+    "E1",
+    "E2",
+    "EA2",
+    "RA2",
+    "TM1",
+    "TT3"
+   ],
+   "high_rules": [
+    "E2",
+    "TM1",
+    "TT3"
+   ],
+   "seconds": 10.1,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.snyk__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.16,
+   "error": "timeout"
+  },
+  {
+   "sample": "corpora/mcp_clean/ly.img__codesign",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 600.14,
+   "error": "timeout"
+  }
+ ]
+}

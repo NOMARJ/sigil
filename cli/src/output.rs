@@ -343,6 +343,10 @@ pub fn scan_result_document(result: &ScanResult) -> serde_json::Value {
             "recommendation": p.recommendation,
             "duration_ms": result.duration_ms,
             "platform": result.platform,
+            // Coverage findings: parts of the target not fully inspected
+            // (scanner::coverage). 0 means everything was read.
+            "incomplete_count": crate::scanner::coverage::incomplete(&result.findings).count(),
+            "complete": !crate::scanner::coverage::is_incomplete(&result.findings),
         },
     });
     if let Some(by) = &result.suppressed_by {
@@ -519,12 +523,28 @@ pub fn print_quarantine_list(entries: &[QuarantineEntry], detailed: bool, format
 /// is consumed by GitHub Code Scanning, VS Code SARIF Viewer, and other
 /// security tooling.
 pub fn print_scan_sarif(result: &ScanResult, target: &str) {
+    let sarif = scan_sarif_document(result, target, &[]);
+    println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+}
+
+/// The SARIF 2.1.0 document for a scan.
+///
+/// `external` holds findings a scan policy or baseline took out of the
+/// verdict, each with its justification. They are emitted like inline
+/// suppressions but with `suppressions[].kind = "external"`, which is how
+/// SARIF says "dismissed by configuration outside the source".
+pub fn scan_sarif_document(
+    result: &ScanResult,
+    target: &str,
+    external: &[(&Finding, String)],
+) -> serde_json::Value {
     // Rule descriptors cover suppressed findings too: a result that names a
     // rule the driver never declared is invalid SARIF.
     let all_findings: Vec<Finding> = result
         .findings
         .iter()
         .chain(result.inline_suppressed.iter())
+        .chain(external.iter().map(|(f, _)| *f))
         .cloned()
         .collect();
     let results: Vec<serde_json::Value> = result
@@ -536,10 +556,15 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
                 .inline_suppressed
                 .iter()
                 .zip(result.inline_suppressions.iter())
-                .map(|(f, note)| sarif_result(f, Some(note.as_str()))),
+                .map(|(f, note)| sarif_result(f, Some(("inSource", note.as_str())))),
+        )
+        .chain(
+            external
+                .iter()
+                .map(|(f, note)| sarif_result(f, Some(("external", note.as_str())))),
         )
         .collect();
-    let sarif = serde_json::json!({
+    serde_json::json!({
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
         "version": "2.1.0",
         "runs": [{
@@ -570,9 +595,7 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
                 }
             }]
         }]
-    });
-
-    println!("{}", serde_json::to_string_pretty(&sarif).unwrap());
+    })
 }
 
 /// One SARIF result.
@@ -580,8 +603,9 @@ pub fn print_scan_sarif(result: &ScanResult, target: &str) {
 /// A finding silenced by an inline marker is still reported, with a
 /// `suppressions` entry of kind `inSource` carrying the reviewer's reason —
 /// that is how GitHub Code Scanning learns an alert was dismissed in the
-/// code rather than silently missing from the run.
-fn sarif_result(f: &Finding, suppressed_note: Option<&str>) -> serde_json::Value {
+/// code rather than silently missing from the run. A finding a policy or
+/// baseline suppressed carries kind `external`.
+fn sarif_result(f: &Finding, suppression: Option<(&str, &str)>) -> serde_json::Value {
     let mut r = serde_json::json!({
         "ruleId": f.rule,
         "level": severity_to_sarif_level(f.severity),
@@ -614,9 +638,9 @@ fn sarif_result(f: &Finding, suppressed_note: Option<&str>) -> serde_json::Value
             "behavior": profile::behavior_for(&f.rule)
         }
     });
-    if let Some(note) = suppressed_note {
+    if let Some((kind, note)) = suppression {
         r["suppressions"] = serde_json::json!([{
-            "kind": "inSource",
+            "kind": kind,
             "justification": note
         }]);
     }

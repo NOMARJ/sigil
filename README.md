@@ -136,8 +136,8 @@ sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
 
-# Download and scan any URL
-sigil fetch https://example.com/agent-tool.tar.gz
+# Download and scan any URL: archives, single files, GitHub /tree/ links
+sigil scan https://example.com/agent-tool.tar.gz
 
 # Manage quarantine
 sigil list              # See all quarantined items
@@ -259,6 +259,37 @@ sigil login
 | **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ⚠️ Python AST; regex elsewhere |
 | **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     | ✅ Apache-2.0               |
 
+### Sigil vs NVIDIA SkillSpector — measured
+
+Both tools on the same real samples, static analysis on both sides. Full
+method, the cases Sigil loses, and the feature comparison:
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+
+```
+Data Source: Real samples. Malicious: Datadog malicious-software-packages-dataset, ai-skills bucket.
+             Clean: every skill in anthropics/skills, NVIDIA/skills, openai/skills,
+             vercel-labs/agent-skills; 169 MCP servers from the official MCP registry.
+Sample Size: 204 malicious skills, 455 clean skills, 169 clean MCP servers.
+Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not measured).
+             "Clean" is vendor-published, not audited. Sigil's newer rules were written after
+             reading these corpora, so its figures are in-sample.
+```
+
+| | Malicious blocked | Clean skills blocked | Clean skills warned |
+|---|---:|---:|---:|
+| **Sigil** | **173/204 (84.8%)** | **7/455 (1.5%)** | **71/455 (15.6%)** |
+| SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+| Clean MCP servers | Blocked | Warned |
+|---|---:|---:|
+| **Sigil** | **39/169 (23.1%)** | **125/169 (74.0%)** |
+| SkillSpector 2.11.2 | 100/156 (64.1%), 13 timed out | 127/156 (81.4%) |
+
+Median scan time per skill, both tools in one run on the same machine: 1.38 s
+for Sigil (before this change) and 26.82 s for SkillSpector; the current build
+measured 1.48 s in its own run. SkillSpector can send findings to a model you choose for
+adjudication; Sigil's LLM analysis runs on Sigil's service.
+
 **The Complete Stack:**
 
 - **Sigil** (Layer 1): Quarantine-first _before_ code enters your environment (supply-chain protection)
@@ -279,7 +310,11 @@ Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. 
 
 Sigil publishes its measured detection numbers, including the ones that
 aren't flattering. Full method and results:
-[`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md).
+[`evaluation_results/honest_detection_eval_7826ea1.md`](evaluation_results/honest_detection_eval_7826ea1.md)
+(recall, this change) and
+[`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md)
+(recall and the clean control set, previous run); every run is in
+[`evaluation_results/HISTORY.md`](evaluation_results/HISTORY.md).
 
 ```
 Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
@@ -294,22 +329,25 @@ Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
              sees — both are given below.
 ```
 
-| Metric | Measured | Previous release |
+| Metric | This change | Previous run |
 | --- | --- | --- |
-| Recall (malicious detected, any severity) | **91.47%** | 88.86% |
-| Recall at ≥ High | **85.07%** | 79.62% |
-| Recall at ≥ Critical | **65.52%** | 63.98% |
-| Clean packages with a ≥ High finding, first scan | **65%** (13 of 20) | 75% (15 of 20) |
-| Clean packages returning a CRITICAL RISK verdict | **0** (0 of 20) | 6 of 20 |
-| Clean packages returning HIGH RISK or worse | 16 of 20 | 18 of 20 |
-| FP rate after trust-ledger approval (`sigil approve`) | 0% | 0% |
-| FP rate at ≥ High with Pro AI adjudication | not re-measured | 30% |
+| Recall (malicious detected, any severity) | **93.01%** (785/844) | 91.47% |
+| Recall at ≥ Medium | 90.17% (761/844) | 90.52% |
+| Recall at ≥ High | **89.10%** (752/844) | 85.07% |
+| Recall at ≥ Critical | **66.47%** (561/844) | 65.52% |
+| Clean packages with a ≥ High finding, first scan | not re-measured | 65% (13 of 20) |
+| Clean packages returning a CRITICAL RISK verdict | not re-measured | 0 (0 of 20) |
+| Clean packages returning HIGH RISK or worse | not re-measured | 16 of 20 |
+| FP rate after trust-ledger approval (`sigil approve`) | not re-measured | 0% |
+| FP rate at ≥ High with Pro AI adjudication | not re-measured | not re-measured (30% two runs earlier) |
 
-Both columns are the same 844 samples at the same dataset fingerprint
-(`587e09d2…`), so they are directly comparable. Recall rose at every threshold
-while false positives fell, rather than one being traded for the other. The
-Pro adjudication row is carried forward from the previous release and was not
-re-measured for this one.
+Both columns are the same 844 samples (dataset fingerprint `587e09d2…`), so
+recall compares directly: it rose at any, ≥ High and ≥ Critical and fell by 3
+samples at ≥ Medium. This change was not re-measured on the 20-package clean
+control set. Its false-positive measurement is on agent skills and MCP servers
+instead: 7 of 455 clean vendor skills blocked (1.5%, down from 108) and 39 of
+169 clean MCP servers blocked. See
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
 
 The AI-skills bucket was the weakest by a wide margin and is no longer: on the
 60-sample subset the harness reports it at 95.0% detected at any severity and

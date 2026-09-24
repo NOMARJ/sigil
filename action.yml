@@ -12,7 +12,7 @@ inputs:
     required: false
     default: '.'
   threshold:
-    description: 'Minimum verdict level to fail the action (low/medium/high/critical)'
+    description: 'Minimum verdict to fail the action (low/medium/high/critical): the job fails when the scan verdict is at or above it. Ignored when a policy file is active (its gate decides).'
     required: false
     default: 'medium'
   api-key:
@@ -35,6 +35,38 @@ inputs:
     description: 'Path (relative to the workspace) where the SARIF report is written when upload-sarif is true'
     required: false
     default: 'sigil-results.sarif'
+  config:
+    description: 'Scan policy file (.sigil.yml format) to apply, passed as --config. When a policy is active its gate (fail_on / fail_on_verdict) decides pass or fail instead of threshold. Organisation policies can also be supplied with the SIGIL_POLICY_FILE environment variable.'
+    required: false
+    default: ''
+  baseline:
+    description: 'Baseline file (from `sigil baseline`) of accepted findings; only new findings count. Passed as --baseline.'
+    required: false
+    default: ''
+  rules:
+    description: 'Custom rule packs (JSON/YAML files or directories), one per line or comma-separated. Each is passed as --rules; custom packs add rules and can never replace built-ins.'
+    required: false
+    default: ''
+  follow-refs:
+    description: 'Also download and scan (never run) the scripts and installers the scanned files tell someone to fetch or run (--follow-refs).'
+    required: false
+    default: 'false'
+  fail-on-incomplete:
+    description: 'Also fail when part of the target could not be fully inspected: an unreadable file, an oversized file scanned only at its ends, a file that ran out of scan time, an archive that could not be opened, or a reference follow-refs could not fetch.'
+    required: false
+    default: 'false'
+  report-format:
+    description: 'Also write a report in this format to report-file: markdown, junit, html or json. A markdown report is appended to the job summary.'
+    required: false
+    default: ''
+  report-file:
+    description: 'Path for the extra report written when report-format is set'
+    required: false
+    default: 'sigil-report'
+  agent-config:
+    description: 'Also posture-scan the agent tooling committed to the repository (.mcp.json, .claude/ hooks, settings and skills, .cursor/, .gemini/ and similar) with `sigil skills scan --no-user`. Fails the job at high or above when fail-on-findings is true.'
+    required: false
+    default: 'false'
 
 outputs:
   verdict:
@@ -55,6 +87,12 @@ outputs:
   sarif-file:
     description: 'Path of the SARIF report written by the scan (only set when upload-sarif is true)'
     value: ${{ steps.scan.outputs.sarif-file }}
+  gate:
+    description: 'pass or fail, as decided by the threshold (or by the policy file when one is active)'
+    value: ${{ steps.scan.outputs.gate }}
+  report-file:
+    description: 'Path of the extra report (only set when report-format is set)'
+    value: ${{ steps.scan.outputs.report-file }}
 
 runs:
   using: 'composite'
@@ -86,6 +124,14 @@ runs:
         INPUT_PHASES: ${{ inputs.phases }}
         INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
         INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_RULES: ${{ inputs.rules }}
+        INPUT_FOLLOW_REFS: ${{ inputs.follow-refs }}
+        INPUT_FAIL_ON_INCOMPLETE: ${{ inputs.fail-on-incomplete }}
+        INPUT_REPORT_FORMAT: ${{ inputs.report-format }}
+        INPUT_REPORT_FILE: ${{ inputs.report-file }}
+        INPUT_AGENT_CONFIG: ${{ inputs.agent-config }}
         SIGIL_ACTION_PATH: ${{ github.action_path }}
       run: |
         chmod +x "${{ github.action_path }}/.github/action-entrypoint.sh"

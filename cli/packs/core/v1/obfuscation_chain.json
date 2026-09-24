@@ -76,11 +76,25 @@
       "id": "OBFUSC-CHAIN-006",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "[\\u200B-\\u200D\\uFEFF]",
+      "pattern": "[\\x21-\\x7E][\\x{200B}-\\x{200D}\\x{FEFF}]|[\\x{200B}-\\x{200D}][\\x21-\\x7E]|[\\x{200B}-\\x{200D}\\x{FEFF}][\\x{200B}-\\x{200D}]|[\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{FE0F}\\x{1F000}-\\x{1FAFF}][\\x{200B}-\\x{200D}]|[\\x{200B}-\\x{200D}][\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{1F000}-\\x{1FAFF}]|\\s[\\x{200B}-\\x{200D}\\x{FEFF}]|[\\x{200B}-\\x{200D}]\\s",
       "description": "Zero-width Unicode characters detected — potential steganography",
+      "suppress": {
+        "line_contains": [
+          "nonASCIIidentifier",
+          "chars: \"",
+          "\"chars\": \""
+        ]
+      },
       "remediation": "Hex-dump the flagged line to see where the zero-width characters sit and what they are hiding. A UTF-8 byte-order mark at the very start of a file, ZWJ inside emoji sequences and ZWNJ in Persian, Arabic or Indic text are legitimate; zero-width characters inside code, identifiers or string literals that are later decoded are steganography or look-alike identifiers, and the file should be rejected.",
-      "references": ["MITRE T1027"],
-      "tags": ["obfuscation", "unicode", "zero-width", "steganography"]
+      "references": [
+        "MITRE T1027"
+      ],
+      "tags": [
+        "obfuscation",
+        "unicode",
+        "zero-width",
+        "steganography"
+      ]
     },
     {
       "id": "OBFUSC-CHAIN-007",
@@ -116,7 +130,7 @@
       "id": "OBFUSC-CHAIN-010",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "(window|global|this|document)\\s*\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|(window|global|this|document)\\s*\\[\\s*\\w+\\s*\\]\\s*\\(",
+      "pattern": "\\b(window|global|globalThis|document)\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|\\b(window|global|globalThis|document)\\[\\s*\\w+\\s*\\]\\s*\\(",
       "description": "Dynamic property access with string concatenation or variable reference",
       "suppress": {
         "path_contains": [
@@ -202,7 +216,7 @@
       "id": "OBFUSC-CHAIN-017",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "__import__\\s*\\(\\s*[\"'][\\w\\.]+[\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
+      "pattern": "__import__\\s*\\(\\s*[\\\"'](os|subprocess|socket|pty|ctypes|builtins|base64|zlib|marshal|pickle|codecs|importlib|shutil|urllib[\\w.]*|http[\\w.]*|requests)[\\\"']\\s*\\)\\s*\\.\\s*\\w+\\s*\\(",
       "description": "Dynamic import with immediate method execution — import-time side effect",
       "remediation": "__import__('pkg_resources').declare_namespace(__name__) and __import__('setuptools').setup(...) are common legacy Python packaging idioms. Anything else called in the same expression — os.system, subprocess.Popen, urllib.request.urlopen, socket.socket, ctypes — is an ordinary import written so 'import os' never appears in the file and runs at import time; judge it by the module and method named and reject if they touch the shell, the network or files outside the package.",
       "references": ["MITRE T1059.006", "MITRE T1027"],

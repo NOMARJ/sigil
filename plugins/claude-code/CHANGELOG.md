@@ -5,6 +5,23 @@ All notable changes to the Sigil Security plugin for Claude Code will be documen
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- The PreToolUse gate now also runs on Write, Edit and MultiEdit (matcher `Bash|Write|Edit|MultiEdit`). The native `sigil hook pretooluse` denies edits that plant a download-to-shell or an exfiltrating command in agent tooling (hooks, MCP configs, skills), and asks before hook or MCP-config edits.
+- The shell fallback (`hooks/sigil-guard.sh`, used when the binary is not on PATH) now denies remote runners (`npx`, `bunx`, `uvx`, `pipx run`, `pnpm dlx`, `yarn dlx`) instead of asking, matching the native hook.
+- The shell fallback now also has the native hook's remote-execution denies, with the same reasons:
+  - a download piped through `tee`, into `bash -s …`, into `sudo -u <user> bash`, into python/node/perl/ruby/php/deno/bun or PowerShell `iex`, or substituted into one (`bash <(curl …)`, `sh -c "$(curl …)"`). This is never gated, and a `sigil` call elsewhere in the command no longer exempts it;
+  - a file downloaded and run in one command (`curl -o i.sh URL && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`), allowed when `sigil scan i.sh &&` comes between the download and the run;
+  - a download saved into agent tooling (`curl … > ~/.claude/skills/x/SKILL.md`, `-o .mcp.json`, `wget -P ~/.codex/skills`, `.cursor/rules`, `.gemini/…` and the other paths the native hook lists), never gated;
+  - `pipx install <pkg>` and `uv tool install <pkg>`, allowed after `sigil pip <pkg> &&`;
+  - `deno run|x|install|serve` of an `npm:`, `jsr:` or `http(s)://` module (`npm:` allowed after `sigil npm <pkg> &&`);
+  - `npm exec` / `npm x`, `bun x` and `uv tool run` of a registry package, in command position as the native hook matches runners, allowed after `sigil npm|pip <pkg> &&` (`bun x <bin>` of the project's own `node_modules/.bin` is allowed, as natively).
+- Like the native hook, the fallback judges these per pipeline stage, and it follows `cd`. It matches command words after quote removal (`cu''rl`, `w\get` and `"curl"` are curl) and treats a runner word as a runner only in command position, so a URL ending in `/npx` or an argument named `bunx` does not exempt a stage from these checks. It no longer denies a download piped into an interpreter that reads it as data (`| python3 -m json.tool`, `| bash -c '…'`, `| sh ./script.sh`).
+- The per-stage checks need `awk`. Without it they are skipped, and the pipe check and the older rules still apply.
+- Without `jq`, a JSON-escaped newline in the command now separates commands, as it does with `jq`, instead of becoming a space. Deny reasons that quote the command are JSON-escaped.
+- The bundled MCP server is now the `sigil` binary's built-in server (`sigil mcp`) instead of `npx -y @nomark/sigil-mcp-server`. The npm package was never published, so the previous registration failed to start on every install; the built-in server needs nothing beyond the `sigil` binary the hooks already require.
+
 ## [1.1.0] - 2026-08-06
 
 ### Added

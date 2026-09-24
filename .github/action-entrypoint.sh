@@ -30,6 +30,14 @@ FAIL_ON_FINDINGS="${INPUT_FAIL_ON_FINDINGS:-true}"
 PHASES="${INPUT_PHASES:-all}"
 UPLOAD_SARIF="${INPUT_UPLOAD_SARIF:-false}"
 SARIF_FILE="${INPUT_SARIF_FILE:-sigil-results.sarif}"
+CONFIG_FILE="${INPUT_CONFIG:-}"
+BASELINE_FILE="${INPUT_BASELINE:-}"
+RULES_INPUT="${INPUT_RULES:-}"
+FOLLOW_REFS="${INPUT_FOLLOW_REFS:-false}"
+FAIL_ON_INCOMPLETE="${INPUT_FAIL_ON_INCOMPLETE:-false}"
+REPORT_FORMAT="${INPUT_REPORT_FORMAT:-}"
+REPORT_FILE="${INPUT_REPORT_FILE:-sigil-report}"
+AGENT_CONFIG="${INPUT_AGENT_CONFIG:-false}"
 ACTION_PATH="${SIGIL_ACTION_PATH:-$(dirname "$(dirname "$0")")}"
 
 # ── Validate inputs ──────────────────────────────────────────────────────────
@@ -47,12 +55,49 @@ if [ ! -e "$SCAN_PATH" ]; then
     exit 1
 fi
 
+REPORT_FORMAT=$(echo "$REPORT_FORMAT" | tr '[:upper:]' '[:lower:]')
+case "$REPORT_FORMAT" in
+    ""|markdown|junit|html|json) ;;
+    *)
+        fail "Invalid report-format: $REPORT_FORMAT (must be markdown, junit, html or json)"
+        exit 1
+        ;;
+esac
+for f in "$CONFIG_FILE" "$BASELINE_FILE"; do
+    if [ -n "$f" ] && [ ! -e "$f" ]; then
+        fail "File does not exist: $f"
+        exit 1
+    fi
+done
+
+# Options shared by every scan pass: policy, baseline, custom rule packs,
+# transitive references. One array so the JSON, SARIF and report passes
+# can never disagree about what was scanned.
+COMMON_ARGS=()
+[ -n "$CONFIG_FILE" ] && COMMON_ARGS+=(--config "$CONFIG_FILE")
+[ -n "$BASELINE_FILE" ] && COMMON_ARGS+=(--baseline "$BASELINE_FILE")
+if [ -n "$RULES_INPUT" ]; then
+    while IFS= read -r pack; do
+        pack=$(echo "$pack" | xargs)
+        [ -n "$pack" ] && COMMON_ARGS+=(--rules "$pack")
+    done < <(echo "$RULES_INPUT" | tr ',' '\n')
+fi
+[ "$FOLLOW_REFS" = "true" ] && COMMON_ARGS+=(--follow-refs)
+if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
+    COMMON_ARGS+=(--phases "$PHASES")
+fi
+
 log "Sigil Security Scan"
 log "  Path:      $SCAN_PATH"
 log "  Threshold: $THRESHOLD"
 log "  Phases:    $PHASES"
 log "  Fail:      $FAIL_ON_FINDINGS"
 log "  SARIF:     $UPLOAD_SARIF"
+[ -n "$CONFIG_FILE" ] && log "  Policy:    $CONFIG_FILE"
+[ -n "$BASELINE_FILE" ] && log "  Baseline:  $BASELINE_FILE"
+[ -n "$RULES_INPUT" ] && log "  Rules:     $(echo "$RULES_INPUT" | tr '\n' ' ')"
+[ "$FOLLOW_REFS" = "true" ] && log "  Follow references: on"
+[ "$FAIL_ON_INCOMPLETE" = "true" ] && log "  Fail on incomplete coverage: on"
 [ -n "$API_KEY" ] && log "  API key:   (provided)"
 
 # ── SARIF pass (opt-in, best effort) ─────────────────────────────────────────
@@ -79,10 +124,7 @@ EOF
 run_sarif_pass() {
     [ "$UPLOAD_SARIF" = "true" ] || return 0
 
-    local sarif_cmd=(sigil scan "$SCAN_PATH" --format sarif)
-    if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
-        sarif_cmd+=(--phases "$PHASES")
-    fi
+    local sarif_cmd=(sigil scan "$SCAN_PATH" --format sarif "${COMMON_ARGS[@]}")
 
     local sarif_dir
     sarif_dir=$(dirname "$SARIF_FILE")
@@ -121,12 +163,7 @@ SCAN_EXIT=0
 log "Running sigil scan on '$SCAN_PATH'..."
 echo ""
 
-SCAN_CMD=(sigil scan "$SCAN_PATH" --format json)
-
-# Add phases filter if specified
-if [ -n "${PHASES:-}" ] && [ "$PHASES" != "all" ]; then
-    SCAN_CMD+=(--phases "$PHASES")
-fi
+SCAN_CMD=(sigil scan "$SCAN_PATH" --format json "${COMMON_ARGS[@]}")
 
 
 # Add API key for cloud features
@@ -152,6 +189,8 @@ FINDINGS_COUNT=0
 GRADE=""
 RECOMMENDATION=""
 BADGE=""
+POLICY_GATE=""
+INCOMPLETE_COUNT=0
 JSON_OK=false
 
 if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
@@ -162,6 +201,10 @@ if jq -e '.summary' "$SCAN_OUTPUT" >/dev/null 2>&1; then
     # binaries simply leave them empty and the badge is skipped.
     GRADE=$(jq -r '.summary.grade // empty' "$SCAN_OUTPUT" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-F' | cut -c1)
     RECOMMENDATION=$(jq -r '.summary.recommendation // empty' "$SCAN_OUTPUT" | tr -d '\r' | head -n1)
+    # Present only when a scan policy is active; it then owns the pass/fail.
+    POLICY_GATE=$(jq -r '.summary.gate // empty' "$SCAN_OUTPUT")
+    # Parts of the target Sigil could not fully inspect; absent (0) on older binaries.
+    INCOMPLETE_COUNT=$(jq -r '(.summary.incomplete_count // 0) | (tonumber? // 0) | floor' "$SCAN_OUTPUT")
     VERDICT=$(jq -r '.summary.verdict // empty' "$SCAN_OUTPUT" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
     case "$VERDICT" in
         low-risk) VERDICT="low" ;;
@@ -255,6 +298,47 @@ echo "badge=$BADGE" >> "$GITHUB_OUTPUT"
 # ── Optional SARIF pass for GitHub Code Scanning ────────────────────────────
 run_sarif_pass
 
+# ── Optional extra report (markdown / junit / html / json) ───────────────────
+REPORT_WRITTEN=""
+if [ -n "$REPORT_FORMAT" ]; then
+    case "$REPORT_FORMAT" in
+        markdown) ext=md ;;
+        junit) ext=xml ;;
+        *) ext="$REPORT_FORMAT" ;;
+    esac
+    # Add the extension unless the file name already has one (look at the
+    # base name only: directories such as /tmp/tmp.x1y2 contain dots).
+    case "$(basename "$REPORT_FILE")" in
+        *.*) ;;
+        *) REPORT_FILE="$REPORT_FILE.$ext" ;;
+    esac
+    mkdir -p "$(dirname "$REPORT_FILE")" 2>/dev/null || true
+    set +e
+    sigil scan "$SCAN_PATH" --format "$REPORT_FORMAT" -o "$REPORT_FILE" "${COMMON_ARGS[@]}" >/dev/null
+    set -e
+    if [ -s "$REPORT_FILE" ]; then
+        REPORT_WRITTEN="$REPORT_FILE"
+        echo "report-file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+        log "Report written: $REPORT_FILE"
+    else
+        warn "Report pass did not write $REPORT_FILE"
+    fi
+fi
+
+# ── Optional posture scan of committed agent tooling ────────────────────────
+AGENT_EXIT=0
+AGENT_REPORT=""
+if [ "$AGENT_CONFIG" = "true" ]; then
+    AGENT_REPORT=$(mktemp)
+    PROJECT_DIR="$SCAN_PATH"
+    [ -d "$PROJECT_DIR" ] || PROJECT_DIR=$(dirname "$PROJECT_DIR")
+    log "Posture-scanning committed agent tooling in '$PROJECT_DIR'..."
+    set +e
+    sigil skills scan --no-user --project "$PROJECT_DIR" --format markdown --fail-on high -o "$AGENT_REPORT" >/dev/null
+    AGENT_EXIT=$?
+    set -e
+fi
+
 # ── Write job summary ────────────────────────────────────────────────────────
 VERDICT_EMOJI=""
 case "$VERDICT" in
@@ -339,33 +423,78 @@ esac
         echo ""
     fi
 
+    if [ -n "$POLICY_GATE" ]; then
+        echo "**Policy gate:** \`$POLICY_GATE\` (the scan policy decides pass/fail; threshold is not used)"
+        echo ""
+    fi
+
+    if [ "$REPORT_FORMAT" = "markdown" ] && [ -n "$REPORT_WRITTEN" ]; then
+        echo "<details>"
+        echo "<summary>Full Sigil report</summary>"
+        echo ""
+        cat "$REPORT_WRITTEN"
+        echo ""
+        echo "</details>"
+        echo ""
+    fi
+
+    if [ -n "$AGENT_REPORT" ] && [ -s "$AGENT_REPORT" ]; then
+        echo "### Agent tooling posture (\`sigil skills scan --no-user\`)"
+        echo ""
+        cat "$AGENT_REPORT"
+        echo ""
+    fi
+
     echo "---"
     echo "*Scanned by [Sigil](https://github.com/NOMARJ/sigil) — automated security auditing for AI agent code.*"
     echo ""
     echo "*Automated static analysis result. Not a security certification. Provided as-is without warranty. See [sigilsec.ai/terms](https://sigilsec.ai/terms) for full terms.*"
 } >> "$GITHUB_STEP_SUMMARY"
 
-# ── Determine threshold-based exit ───────────────────────────────────────────
-threshold_to_score() {
+# ── Determine the gate ───────────────────────────────────────────────────────
+# The job fails when the scan VERDICT is at or above the threshold. Verdicts
+# ignore Low observations by design, while the numeric score still counts
+# them, so gating on the score would fail repositories whose verdict is
+# LOW RISK. When a scan policy is active, its own gate decides instead.
+level_rank() {
     case "$1" in
+        clean)    echo 0 ;;
         low)      echo 1 ;;
-        medium)   echo 10 ;;
-        high)     echo 25 ;;
-        critical) echo 50 ;;
-        *)        echo 10 ;;
+        medium)   echo 2 ;;
+        high)     echo 3 ;;
+        critical) echo 4 ;;
+        *)        echo 4 ;;
     esac
 }
 
-THRESHOLD_SCORE=$(threshold_to_score "$THRESHOLD")
+GATE="pass"
+GATE_WHY="verdict $VERDICT is below threshold $THRESHOLD"
+if [ -n "$POLICY_GATE" ]; then
+    GATE="$POLICY_GATE"
+    GATE_WHY="scan policy gate: $POLICY_GATE"
+elif [ "$(level_rank "$VERDICT")" -ge "$(level_rank "$THRESHOLD")" ]; then
+    GATE="fail"
+    GATE_WHY="verdict $VERDICT is at or above threshold $THRESHOLD"
+fi
+if [ "$FAIL_ON_INCOMPLETE" = "true" ] && [ "$INCOMPLETE_COUNT" -gt 0 ]; then
+    GATE="fail"
+    GATE_WHY="$GATE_WHY; $INCOMPLETE_COUNT part(s) of the target could not be fully inspected (fail-on-incomplete)"
+fi
+if [ "$AGENT_CONFIG" = "true" ] && [ "$AGENT_EXIT" -eq 1 ]; then
+    GATE="fail"
+    GATE_WHY="$GATE_WHY; committed agent tooling has a finding at or above high"
+fi
+echo "gate=$GATE" >> "$GITHUB_OUTPUT"
 
-if [ "$FAIL_ON_FINDINGS" = "true" ] && [ "$RISK_SCORE" -ge "$THRESHOLD_SCORE" ]; then
-    fail "Risk score ($RISK_SCORE) meets or exceeds threshold ($THRESHOLD = score $THRESHOLD_SCORE)"
+if [ "$FAIL_ON_FINDINGS" = "true" ] && [ "$GATE" = "fail" ]; then
+    fail "Gate failed: $GATE_WHY"
     fail "Set 'fail-on-findings: false' to continue on findings."
     exit 1
 fi
 
 # ── Clean up ─────────────────────────────────────────────────────────────────
 rm -rf "$SIGIL_QUARANTINE_DIR" "$SIGIL_APPROVED_DIR" "$SIGIL_LOG_DIR" "$SIGIL_REPORT_DIR" "$SCAN_OUTPUT" 2>/dev/null || true
+[ -n "$AGENT_REPORT" ] && rm -f "$AGENT_REPORT"
 
-pass "Scan passed. Risk score $RISK_SCORE is below threshold ($THRESHOLD = score $THRESHOLD_SCORE)."
+pass "Scan passed: $GATE_WHY."
 exit 0

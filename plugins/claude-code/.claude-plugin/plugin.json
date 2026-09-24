@@ -27,11 +27,10 @@
   "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "sigil": {
-      "command": "npx",
-      "args": ["-y", "@nomark/sigil-mcp-server"],
-      "env": {
-        "SIGIL_BINARY": "sigil"
-      }
+      "command": "sigil",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

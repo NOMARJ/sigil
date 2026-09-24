@@ -12,7 +12,7 @@
       "id": "SKILL-001",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)(tool_calls|\"execute\"|execute_command|run_command)",
+      "pattern": "(?i)(\\\"execute\\\"|execute_command|run_command)",
       "description": "Skill manifest — undeclared execution capability",
       "file_filter": {
         "filename_exact": [
@@ -76,13 +76,12 @@
       "id": "SKILL-003",
       "phase": "skill_security",
       "severity": "critical",
-      "pattern": "(?i)\"(?:command|cmd|run|exec|entry_?point|script|shell|interpreter)\"\\s*:\\s*\"[^\"]*(?:\\b(?:ba|z|da|k)?sh\\b|\\bcmd(?:\\.exe)?\\b|\\bpowershell\\b|\\bpwsh\\b|\\b(?:node|deno|bun|python[0-9.]*|ruby|perl|php)\\b[^\"]*\\s-{1,2}(?:e|c|eval|command|exec)\\b|[|;]|&&|https?://|\\b(?:eval|exec|os\\.system)\\s*\\(|\\bsubprocess\\.(?:run|call|Popen|check_output)\\b)|(^|[^\\w.$])(eval|exec|execSync|execFileSync|spawnSync|os\\.system|subprocess\\.(run|call|Popen|check_output))\\s*\\(|[\\'\"](node:)?child_process[\\'\"]",
+      "pattern": "(?i)\\\"(?:command|cmd|run|exec|entry_?point|script|shell|interpreter)\\\"\\s*:\\s*\\\"[^\\\"]*(?:\\b(?:ba|z|da|k)?sh\\b|\\bcmd(?:\\.exe)?\\b|\\bpowershell\\b|\\bpwsh\\b|\\b(?:node|deno|bun|python[0-9.]*|ruby|perl|php)\\b[^\\\"]*\\s-{1,2}(?:e|c|eval|command|exec)\\b|[|;]|&&|https?://|\\b(?:eval|exec|os\\.system)\\s*\\(|\\bsubprocess\\.(?:run|call|Popen|check_output)\\b)|(^|[^\\w.$])(eval|exec|execSync|execFileSync|spawnSync|os\\.system|subprocess\\.(run|call|Popen|check_output))\\(\\s*(?:[^)\\s]|$)|['\\\"](node:)?child_process['\\\"]",
       "description": "Skill manifest — code execution reference",
       "file_filter": {
         "filename_exact": [
           "manifest.json",
           "plugin.json",
-          "package.json",
           "SKILL.md",
           "mcp.json",
           "tool.json"
@@ -108,7 +107,7 @@
       "id": "SKILL-004",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)(hidden|internal|private|undocumented)\\s*\"?\\s*:\\s*true",
+      "pattern": "(?i)\\b(hidden|internal|undocumented)\\b\\\"?\\s*:\\s*true",
       "description": "Skill manifest — hidden/undocumented capability flag",
       "file_filter": {
         "filename_exact": [
@@ -170,7 +169,7 @@
       "id": "SKILL-006",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)(postinstall|preinstall|activate|on_install|on_load)\\s*\"?\\s*:",
+      "pattern": "(?i)(^\\s*[\\\"']?|[\\\"'])(postinstall|preinstall|activate|on_install|on_load|on_activate)[\\\"']?\\s*:",
       "description": "Skill manifest — lifecycle hook (code runs on install/activate)",
       "file_filter": {
         "filename_exact": [
@@ -201,7 +200,7 @@
     {
       "id": "SKILL-008",
       "phase": "skill_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "(?i)(\"(permissions|tools|allowed[_-]?tools|capabilities|allow)\"\\s*:\\s*(\\[\\s*\"\\*\"|\\{\\s*\"\\*\"|\"\\*\")|^allowed-tools:.*\\bBash(\\s*(,|$)|\\(\\s*(\\*|\\*:\\*|bash:\\*|sh:\\*|zsh:\\*)\\s*\\)))",
       "description": "Skill manifest — unrestricted (wildcard) tool or permission grant",
       "file_filter": {
@@ -222,7 +221,7 @@
           ".mcp.yml"
         ]
       },
-      "remediation": "Grant the narrowest tool set the skill needs: name each command (`Bash(git status:*)`) instead of `Bash` or `*`.",
+      "remediation": "An unrestricted Bash grant (allowed-tools: Bash) or a wildcard permission is common in legitimate skills, so it is reported as an observation (Low) and does not move the verdict by itself. It still widens what every other finding can do: grant the narrowest tool set the skill needs, naming each command (Bash(git status:*)) instead of Bash or *.",
       "references": [
         "CWE-250",
         "OWASP Agentic Top 10 — Excessive Agency"
@@ -307,7 +306,7 @@
       "id": "SKILL-011",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?i)\\b(python3?|node|bash|sh|zsh|ruby|perl|php|pwsh)\\s+[^\\n;&|]{1,100}&&\\s*rm\\s+(-[rfv]+\\s+)?[^\\s;&|]+",
+      "pattern": "(?i)\\b(python3?|node|bash|sh|zsh|ruby|perl|php|pwsh)\\s+[^\\n;&|]{1,100}&&\\s*rm\\s+(-[rfv]+\\s+)?[^\\s;&|]*\\.(py|sh|js|mjs|cjs|ts|rb|pl|php|ps1|bat|exe|bin)\\b",
       "description": "Skill runs a script and deletes it in the same command (anti-forensics)",
       "remediation": "Read the script before it is removed, because after the chain runs there is nothing left to review: a command that copies or fetches a script, runs it, and deletes it in one `&&` chain leaves the effects on disk and no artefact to explain them. Ordinary temp-file cleanup happens in a trap or a separate teardown step and does not need the interpreter and the `rm` welded together. Split the steps, keep the script in the repository, and check what it did while it existed.",
       "references": [
@@ -507,7 +506,7 @@
       "id": "SKILL-022",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)(getenv|environ\\.get|env\\[|process\\.env\\.[A-Z_]+\\s*\\|\\|)[^\\n]{0,60}[\\\"'](?-i:(sk_live_|sk-[A-Za-z0-9]|pk_live_|ghp_|gho_|github_pat_|xox[baprs]-|AIza|glpat-|npm_))[A-Za-z0-9_\\-]{12,}[\\\"']",
+      "pattern": "(?i)(getenv|environ\\.get|env\\[|process\\.env\\.[A-Z_]+\\s*\\|\\|)[^\\n]{0,60}[\\\"'](?-i:(sk_live_|sk-[A-Za-z0-9]|pk_live_|ghp_|gho_|github_pat_|xox[baprs]-|AIza|glpat-|npm_))[A-Za-z0-9_\\-]{12,}[\\\"']|(?i:(getenv|environ\\.get)\\s*\\(\\s*[\\\"'][A-Z0-9_]*(KEY|TOKEN|SECRET)[\\\"']\\s*,\\s*[\\\"'][A-Za-z0-9_\\-]{24,}[\\\"'])",
       "description": "Live credential shipped as the fallback for a missing environment variable",
       "remediation": "Revoke and rotate the key: it is in the package, so it is already published to everyone who installed it. A default argument to `os.getenv` or a `process.env.X ||` fallback looks like a convenience, but it means the code authenticates with the author's own credential whenever the variable is unset — silently, and for every user. Fail loudly on a missing variable instead, and keep the real value in the host's secret store.",
       "references": [
@@ -543,7 +542,7 @@
       "id": "SKILL-024",
       "phase": "skill_security",
       "severity": "high",
-      "pattern": "(?i)\\b(?:download|fetch|grab)\\b[^\\n]{0,160}\\.(?:zip|exe|dmg|msi|pkg|appimage|deb|rpm)\\b[^\\n]{0,160}\\b(?:run|execute|launch)\\b",
+      "pattern": "(?i)\\b(?:download|fetch|grab)\\b[^\\n]{0,160}\\.(?:zip|exe|dmg|msi|pkg|appimage|deb|rpm)\\b[^\\n]{0,160}\\b(?:run|execute|launch)\\b|(?i:\\b(?:extract|unzip|unpack|open)\\w*\\b[^\\n]{0,60}\\bwith\\s+(?:the\\s+)?password\\b|\\b(?:archive|zip|rar|7z)\\s+password\\b|\\b(?:run|open|launch|execute)\\s+(?:the\\s+)?[\\w.-]+\\.exe\\b|\\bdownload\\s+and\\s+(?:install|run)\\b[^\\n]{0,60}\\bfrom\\b[^\\n]{0,10}https?://[^\\s/]*(?:\\.vercel\\.app|\\.netlify\\.app|\\.pages\\.dev|\\.github\\.io|\\.glitch\\.me|\\.onrender\\.com|\\.web\\.app|\\.firebaseapp\\.com|\\.herokuapp\\.com|\\.surge\\.sh|\\.forum)\\b)",
       "description": "Skill instructs the agent to download an executable artifact and run it",
       "file_filter": {
         "extensions": [
@@ -570,7 +569,7 @@
           ".clinerules"
         ]
       },
-      "remediation": "A skill that gates its function behind downloading an archive or installer from a web address and running it is describing a drive-by install, not a dependency. Real prerequisites are declared to a package manager (`pip install x`, `npm install x`) or to the host's own installer, where the artifact is named, versioned and checksummed. Check what the linked artifact is, who publishes it, and whether the skill works without it; a prerequisite that exists only in the instructions is the point of the attack.",
+      "remediation": "Do not download or run the artifact. A skill that needs a binary should name a package-manager install or a signed vendor release, never a zip, dmg, msi or exe to fetch and launch. The fake-prerequisite campaigns against agent-skill registries (for example the ClawHub \"OpenClawCLI\" wave) split the tell over several lines, so this rule also fires on each piece alone: an archive extracted with a password (which keeps antivirus from inspecting it), an instruction to run a named .exe, and \"download and install ... from\" a free-hosting domain. Treat any of them in a skill as the delivery step of malware.",
       "references": [
         "MITRE T1204.002",
         "OWASP Agentic Top 10 — Tool Misuse",

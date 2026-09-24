@@ -223,9 +223,12 @@ The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A
 | `npm install <pkg>`, `npm add`, `yarn add`, `pnpm add`                  | **deny** | Use `sigil npm <pkg>`                                        |
 | `pip install <pkg>`, `uv add`                                           | **deny** | Use `sigil pip <pkg>`                                        |
 | `cargo install/add`, `gem install`, `go install/get`                    | **deny** | Quarantine + scan the source with `sigil clone` first        |
-| `curl \| sh` / `wget \| bash`                                           | **deny** | Piping a download into a shell executes unscanned code       |
+| `curl \| sh`, `curl \| bash -s`, `curl \| tee f \| sh`, `bash <(curl …)` | **deny** | Piping a download into an interpreter executes unscanned code |
+| `curl -o i.sh URL && bash i.sh` (download, then run it)                | **deny** | Allowed as `curl -o i.sh URL && sigil scan i.sh && bash i.sh` |
+| `curl … > ~/.claude/skills/…`, `-o .mcp.json` (downloads into agent tooling) | **deny** | Use `sigil scan <url>` — quarantine + scan first       |
+| `pipx install`, `uv tool install`, `deno run npm:…` / `https://…`       | **deny** | Prefix `sigil pip <pkg> &&` / `sigil npm <pkg> &&`; download and `sigil scan` a URL module |
 | Bare lockfile restores (`npm install`, `npm ci`, `pip install -r`, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
-| One-shot runners (`npx`, `dlx`, `pipx run`)                             | **ask**  | Downloads and executes in one step with no scan              |
+| One-shot runners (`npx`, `bunx`, `dlx`, `uvx`, `pipx run`, `npm exec`, `bun x`, `uv tool run`) | **deny** | Downloads and executes in one step with no scan |
 | Everything else                                                         | allow    |                                                              |
 
 **Escape hatches:**
@@ -245,9 +248,9 @@ UserPromptSubmit hooks additionally suggest Sigil skills when you mention "clone
 
 ### Bundled MCP Server
 
-Installing the plugin also registers Sigil's MCP server (`npx -y @nomark/sigil-mcp-server`), giving Claude Code direct tool access to scanning, quarantine management, and the public scan database. See [docs/mcp.md](../../docs/mcp.md) for the full tool reference.
+Installing the plugin also registers Sigil's built-in MCP server (`sigil mcp`), giving Claude Code `scan`, `scan_package` and `check_command` tools that return a verdict and a `safe_to_install` decision. It runs from the same `sigil` binary the hooks use, so there is nothing else to install. See [docs/mcp.md](../../docs/mcp.md) for the tool reference.
 
-> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm, so the automatic `npx`-based registration takes effect once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js`.
+> The nine-tool Node server in `plugins/mcp-server` (quarantine management and the public scan database) is not yet published to npm. To use it, build it from source (`cd plugins/mcp-server && npm install && npm run build`) and register `node /path/to/sigil/plugins/mcp-server/dist/index.js` alongside or instead of `sigil mcp`.
 
 ## Examples
 

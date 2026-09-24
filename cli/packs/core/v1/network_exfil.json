@@ -11,7 +11,7 @@
     {
       "id": "NET-001",
       "phase": "network_exfil",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "requests\\.(get|post|put|delete|patch|head)\\s*\\(",
       "description": "HTTP request via requests library",
       "suppress": {
@@ -44,9 +44,9 @@
     {
       "id": "NET-002",
       "phase": "network_exfil",
-      "severity": "medium",
-      "pattern": "urllib\\.(request\\.)?urlopen\\s*\\(|from\\s+urllib\\.request\\s+import\\s+[^\\n#]*\\burlopen\\b",
-      "description": "HTTP request via urllib",
+      "severity": "low",
+      "pattern": "urllib\\.(request\\.)?(urlopen|urlretrieve)\\s*\\(|from\\s+urllib\\.request\\s+import\\s+[^\\n#]*\\b(urlopen|urlretrieve)\\b",
+      "description": "HTTP request via urllib (urlopen, urlretrieve)",
       "suppress": {
         "nearby_contains": [
           "sigil-reviewed-urlopen"
@@ -63,7 +63,7 @@
     {
       "id": "NET-003",
       "phase": "network_exfil",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "http\\.client\\.HTTP",
       "description": "HTTP client connection",
       "remediation": "Confirm the destination is documented and expected for this package.",
@@ -77,7 +77,7 @@
     {
       "id": "NET-004",
       "phase": "network_exfil",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "fetch\\s*\\(\\s*['\"]https?://",
       "description": "fetch() to external URL",
       "remediation": "Confirm the fetched URL is documented and owned by the package's maintainers.",
@@ -91,7 +91,7 @@
     {
       "id": "NET-005",
       "phase": "network_exfil",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "axios\\.(get|post|put|delete|patch)\\s*\\(",
       "description": "HTTP request via axios",
       "remediation": "Confirm the destination is documented and expected for this package.",
@@ -105,9 +105,21 @@
     {
       "id": "NET-006",
       "phase": "network_exfil",
-      "severity": "high",
-      "pattern": "(?i)(webhook|callback|notify).*https?://",
-      "description": "Webhook / callback URL detected",
+      "severity": "medium",
+      "pattern": "(?i)\\b(webhook|callback)[_-]?(url|uri|endpoint)?['\\\"]?\\s*(?::=|[:=])\\s*['\\\"]?https?://",
+      "description": "Webhook or callback URL assigned to an external endpoint",
+      "suppress": {
+        "safe_domains": [
+          "://localhost",
+          "://127.0.0.1",
+          "://0.0.0.0",
+          "://[::1]",
+          "example.com",
+          "example.org",
+          "example.net",
+          "://..."
+        ]
+      },
       "remediation": "Check what the webhook receives. A webhook that posts scan output, environment details or file contents is exfiltration.",
       "references": [
         "MITRE T1567"
@@ -121,8 +133,17 @@
       "id": "NET-007",
       "phase": "network_exfil",
       "severity": "critical",
-      "pattern": "https?://[^\\s]*\\.(ngrok|pipedream|requestbin|hookbin)|https?://[^\\s]*(webhook\\.site|transfer\\.sh|burpcollaborator\\.net|oast\\.(fun|live|me|pro|site|online)|interact\\.sh|pastebin\\.com/raw)",
+      "pattern": "https?://[^\\s]*\\.(ngrok|pipedream|requestbin|hookbin)|https?://[^\\s]*(webhook\\.site|transfer\\.sh|burpcollaborator\\.net|oastify\\.com|oast\\.(fun|live|me|pro|site|online)|interact\\.sh|pastebin\\.com/raw)",
       "description": "Known exfiltration / OOB-callback service URL",
+      "suppress": {
+        "line_contains": [
+          "/...'",
+          "/...\"",
+          "/...`",
+          "/...)",
+          "/... "
+        ]
+      },
       "remediation": "Remove the endpoint. These services exist to receive out-of-band callbacks and file drops; there is no legitimate reason for shipped code to talk to one.",
       "references": [
         "MITRE T1567",
@@ -146,6 +167,9 @@
           "conftest",
           "fixture",
           "test"
+        ],
+        "line_contains": [
+          "AF_UNIX"
         ]
       },
       "remediation": "Raw sockets in agent tooling need a documented reason (a custom protocol, a health check). Without one, treat as a reverse-shell precursor.",
@@ -195,7 +219,7 @@
       "id": "NET-011",
       "phase": "network_exfil",
       "severity": "high",
-      "pattern": "(base64|b64)(encode|\\.b64encode)\\s*\\(.*\\.(read|getenv|environ)",
+      "pattern": "(base64|b64)(encode|\\.b64encode)\\s*\\(.*\\.(getenv|environ)",
       "description": "Data encoding before potential exfiltration",
       "remediation": "Data is base64-encoded right where it is read — the standard step before exfiltration. Trace where the encoded value goes.",
       "references": [
@@ -209,7 +233,7 @@
     {
       "id": "NET-012",
       "phase": "network_exfil",
-      "severity": "medium",
+      "severity": "low",
       "pattern": "(curl|wget)\\s+.*(https?://)",
       "description": "curl/wget command in code",
       "suppress": {
@@ -234,12 +258,142 @@
           "api/scripts/README_FORGE_CLASSIFICATION.md"
         ]
       },
-      "remediation": "A curl/wget in shipped code downloads something at run time. Pin what is fetched, verify its checksum, and never pipe it to a shell.",
+      "remediation": "A curl/wget with a URL is how skills document an API and how installers fetch releases, so on its own it is an observation (Low) and never moves the verdict. Confirm the host is the one the skill documents and pin what is fetched. Piping the download straight into an interpreter is reported separately as NET-RCE-001.",
       "references": [
         "MITRE T1105"
       ],
       "tags": [
         "download"
+      ]
+    },
+    {
+      "id": "NET-RCE-001",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n|]*(?:[a-z0-9-]\\.[a-z]{2,}|\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b)[^\\n|]*(?:\\|\\s*(?:sudo\\s+)?(?:tee|cat|base64|openssl|xxd|gunzip|gzip|zcat|bunzip2|xz|unxz|rev|tr|sed)\\b[^\\n|]*)*\\|\\s*(?:sudo\\s+(?:-\\S+\\s+)*)?(?:(?:/usr)?(?:/local)?/bin/)?(?:env\\s+)?(?:(?:ba|z|da|k)?sh\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^c\\s-])|python[0-9.]*\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^cm\\s-])|(?:node|perl|ruby)\\b(?:(?:\\s*$|\\s*[;&|)`'\\\".,#]|\\s+(?:[^\\s-]|-(?:\\s|$)|--))|\\s+-[^epnla\\s-])|(?:pwsh|powershell|iex|invoke-expression)\\b)|(?:^|[\\s;&|(`'\\\"])(?:sudo\\s+(?:-\\S+\\s+)*)?(?:(?:/usr)?(?:/local)?/bin/)?(?:env\\s+)?(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|source|\\.)\\s+(?:-\\S+\\s+)*(?:<\\(\\s*|[\\\"']?\\$\\(\\s*)\\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n)]*(?:[a-z0-9-]\\.[a-z]{2,}|\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b)|\\b(?:iex|invoke-expression)\\b[^\\n]{0,20}\\(\\s*(?:iwr|irm|invoke-webrequest|invoke-restmethod|\\(?\\s*new-object\\s+(?:system\\.)?net\\.webclient\\s*\\)?)\\b|\\bnew-object\\s+(?:system\\.)?net\\.webclient\\b[^\\n]{0,40}\\.downloadstring\\s*\\(",
+      "description": "Remote script piped straight into an interpreter (download-and-execute)",
+      "suppress": {
+        "line_contains": [
+          "-m json.tool"
+        ],
+        "safe_domains": [
+          "https://astral.sh/",
+          "https://sh.rustup.rs",
+          "https://get.docker.com",
+          "https://deb.nodesource.com/",
+          "https://rpm.nodesource.com/",
+          "https://install.python-poetry.org",
+          "https://bootstrap.pypa.io/",
+          "https://ollama.com/install.sh",
+          "https://bun.sh/install",
+          "https://deno.land/install.sh",
+          "https://cli.sentry.dev/install",
+          "https://raw.githubusercontent.com/Homebrew/install/",
+          "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/",
+          "https://install.ohmyz.sh",
+          "https://get.helm.sh/"
+        ]
+      },
+      "remediation": "The command downloads code and runs it in one step, so what executes is whatever the server returns at that moment, never anything a reviewer saw. The shapes covered are a download piped into an interpreter (also through /bin/sh, env, sudo, or a base64/gunzip/tee stage), an interpreter fed by process or command substitution (bash <(curl …), bash -c \"$(curl …)\", source <(curl …)), and PowerShell's iex download cradles; an interpreter that only reads the download as data (python3 -c '…json…', node -e, perl -pe, python3 -m json.tool) is not matched. Check the host:a vendor's documented installer is a known (still unreviewed) shape and the best-known ones are allow-listed; an unknown domain, a URL shortener, a raw IP, a paste site or an attacker-controlled GitHub path is the dropper shape. Prefer a pinned release with a checksum, or a package manager.",
+      "references": [
+        "CWE-494",
+        "MITRE T1105",
+        "MITRE T1059.004",
+        "OWASP LLM03:2025 Supply Chain"
+      ],
+      "tags": [
+        "download",
+        "execution",
+        "remote-code",
+        "supply-chain"
+      ]
+    },
+    {
+      "id": "NET-EXE-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:curl(?:\\.exe)?|wget(?:\\.exe)?|Invoke-WebRequest|iwr|Start-BitsTransfer|bitsadmin|certutil(?:\\.exe)?)\\b[^\\n]{0,200}https?://[^\\s\\\"'<>]+\\.(?:exe|scr|msi|bat|cmd|vbs|vbe|jse|wsf|hta|ps1|dll|pif|cpl)\\b",
+      "description": "Windows executable or script downloaded with curl.exe, wget, Invoke-WebRequest, BITS or certutil",
+      "remediation": "A command line fetches a Windows program or script (.exe, .msi, .scr, .ps1, .bat, .vbs, .hta, .dll) from a URL. An installer that documents its own download from the vendor's release page is ordinary; a package that builds this command in code — in the measured samples a `curl.exe -L <raw GitHub URL>/x.exe -o <cwd>\\x.exe` string passed to `powershell -Command`, followed by `Start-Process` on the same path — is a dropper. Medium on its own; DROPPER-CHAIN-001 reports it at High when the downloaded path is then launched. Check the URL's owner and what runs the file.",
+      "references": [
+        "MITRE T1105",
+        "MITRE T1204.002",
+        "CWE-494"
+      ],
+      "tags": [
+        "download",
+        "windows",
+        "dropper"
+      ]
+    },
+    {
+      "id": "NET-UPLOAD-001",
+      "phase": "network_exfil",
+      "severity": "low",
+      "pattern": "\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:-F|--form)\\s+[\\\"']?[^\\s\\\"'=]+=@|\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:--data-binary|--data|--data-raw|--data-urlencode|-d)\\s+[\\\"']?@|\\bcurl(?:\\.exe)?\\b[^\\n]*\\s(?:-T|--upload-file)\\s+",
+      "description": "curl uploads a local file (-F name=@file, --data-binary @file, -T file)",
+      "remediation": "An observation, not a finding on its own: uploading a build artifact or a report is what deploy and CI scripts do. Read which file is sent and to whom. It matters when the file is something the user did not choose to publish — a credential file, the host's configuration, or a project archive that still carries .env (AGENTSC-CHAIN-002 and EXFIL-CHAIN-001 report those links at High and Critical).",
+      "references": [
+        "MITRE T1048",
+        "MITRE T1567"
+      ],
+      "tags": [
+        "upload",
+        "curl"
+      ]
+    },
+    {
+      "id": "NET-RAWIP-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "pattern": "(?i)\\b(?:https?|wss?|ftp)://(?:[a-z0-9._~%!$&'()*+,;=-]+@)?(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}(?:[:/?#\\s\\\"'<>)\\]]|$)",
+      "description": "URL whose host is a public IPv4 address",
+      "suppress": {
+        "line_contains": [
+          "://127.",
+          "://10.",
+          "://0.0.0.0",
+          "://192.168.",
+          "://169.254.",
+          "://192.0.2.",
+          "://198.51.100.",
+          "://203.0.113.",
+          "://255.255.255.255",
+          "://1.1.1.1",
+          "://8.8.8.8",
+          "://8.8.4.4",
+          "://9.9.9.9",
+          "://93.184.216.34",
+          "://93.184.215.14",
+          "://1.2.3.4",
+          "://172.16.",
+          "://172.17.",
+          "://172.18.",
+          "://172.19.",
+          "://172.20.",
+          "://172.21.",
+          "://172.22.",
+          "://172.23.",
+          "://172.24.",
+          "://172.25.",
+          "://172.26.",
+          "://172.27.",
+          "://172.28.",
+          "://172.29.",
+          "://172.30.",
+          "://172.31."
+        ]
+      },
+      "remediation": "The code talks to a bare public IP address instead of a named host. Services a package legitimately depends on have names (and TLS certificates for them); a hard-coded address is how beacons, droppers and dependency-confusion callbacks reach a server that has no domain to seize. Loopback, private, link-local and documentation ranges, the public DNS resolvers, example.com's addresses and the 1.2.3.4 placeholder are not reported (they are what documentation examples use). Find out who owns the address and what is sent to it; INSTALL-RAWIP-001 reports the same URL at High when it sits in setup.py, a package __init__.py or package.json, where it runs or resolves at install or import time.",
+      "references": [
+        "MITRE T1071.001",
+        "MITRE T1041",
+        "CWE-506"
+      ],
+      "tags": [
+        "raw-ip",
+        "c2",
+        "beacon"
       ]
     },
     {
@@ -261,9 +415,9 @@
     {
       "id": "NET-MCP-002",
       "phase": "network_exfil",
-      "severity": "high",
+      "severity": "low",
       "pattern": "mcp.*proxy|proxy.*mcp",
-      "description": "MCP proxy configuration - potential MITM",
+      "description": "MCP proxy configuration (observation)",
       "remediation": "An MCP proxy sits between the agent and its tool servers and sees, and can rewrite, every tool description, call and result that passes through it. A proxy the operator chose and documented (a stdio-to-HTTP bridge such as mcp-proxy or mcp-remote pointed at a known server, or an enterprise MCP gateway) is normal; one introduced by a package or dependency, or one forwarding to a host you do not recognise, is interception of the whole tool channel, so remove it or verify the upstream URL before approving.",
       "references": [
         "MITRE T1557",
@@ -290,6 +444,15 @@
         "path_contains": [
           "/tests/",
           "__tests__"
+        ],
+        "line_contains": [
+          "SSRF",
+          "ssrf",
+          "IPv4-mapped",
+          "link-local",
+          "RFC1918",
+          "RFC 1918",
+          "fc00::/7"
         ]
       },
       "remediation": "A package should never query the instance-metadata service: that is where cloud credentials are harvested from. Remove the request, or if this is deliberate cloud bootstrap code, mark the line with sigil-reviewed-imds.",
@@ -400,6 +563,120 @@
         "exfiltration",
         "dns"
       ]
+    },
+    {
+      "id": "NET-CLEAR-001",
+      "phase": "network_exfil",
+      "severity": "high",
+      "pattern": "(?i)\\b\\w*(base_?url|api_?url|api_?base|endpoint)\\w*[\"']?\\s*[:=]\\s*[\"'`]http://[a-z0-9-]+(\\.[a-z0-9-]+)+(:\\d+)?(/[^\"'`\\s]*)?[\"'`]",
+      "description": "API base URL hardcoded to a plaintext-HTTP remote host",
+      "file_filter": {
+        "extensions": ["py", "js", "ts", "jsx", "tsx", "mjs", "cjs"]
+      },
+      "suppress": {
+        "line_contains": [
+          "://localhost/",
+          "://localhost:",
+          "://localhost\"",
+          "://localhost'",
+          "://localhost`",
+          "://127.0.0.1/",
+          "://127.0.0.1:",
+          "://127.0.0.1\"",
+          "://127.0.0.1'",
+          "://127.0.0.1`",
+          "://0.0.0.0/",
+          "://0.0.0.0:",
+          "://0.0.0.0\"",
+          "://0.0.0.0'",
+          "://0.0.0.0`",
+          "://[::1]/",
+          "://[::1]:",
+          "://[::1]\"",
+          "://[::1]'",
+          "://[::1]`",
+          "://host.docker.internal/",
+          "://host.docker.internal:",
+          "://host.docker.internal\"",
+          "://host.docker.internal'",
+          "://host.docker.internal`",
+          "example.com/",
+          "example.com:",
+          "example.com\"",
+          "example.com'",
+          "example.com`",
+          "example.org/",
+          "example.org:",
+          "example.org\"",
+          "example.org'",
+          "example.org`",
+          ".localhost/",
+          ".localhost:",
+          ".localhost\"",
+          ".localhost'",
+          ".localhost`",
+          ".local/",
+          ".local:",
+          ".local\"",
+          ".local'",
+          ".local`",
+          ".example/",
+          ".example:",
+          ".example\"",
+          ".example'",
+          ".example`",
+          ".test/",
+          ".test:",
+          ".test\"",
+          ".test'",
+          ".test`",
+          ".internal/",
+          ".internal:",
+          ".internal\"",
+          ".internal'",
+          ".internal`",
+          ".lan/",
+          ".lan:",
+          ".lan\"",
+          ".lan'",
+          ".lan`",
+          ".corp/",
+          ".corp:",
+          ".corp\"",
+          ".corp'",
+          ".corp`",
+          ".invalid/",
+          ".invalid:",
+          ".invalid\"",
+          ".invalid'",
+          ".invalid`",
+          "http://10.",
+          "http://192.168.",
+          "http://172.16."
+        ]
+      },
+      "remediation": "A base URL or endpoint constant names a remote host over plain http://. Every request the client makes — the API key in its auth header, the prompt, the response — crosses the network unencrypted to that host, and a hardcoded host that is not the provider the package claims to use is a proxy that sees all of it. Local, private-network and documentation hosts are not reported. Use the provider's https endpoint, or take the URL from configuration, and reject a package that routes your key through an undocumented relay.",
+      "references": ["CWE-319", "MITRE T1557", "CAPEC-94"],
+      "tags": ["network", "endpoint-redirect", "cleartext", "api-client"]
+    },
+    {
+      "id": "NET-RCE-002",
+      "phase": "network_exfil",
+      "severity": "critical",
+      "pattern": "(?i)\\b(curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\\b[^\\n|]*\\b(is\\.gd|bit\\.ly|tinyurl\\.com|t\\.co|cutt\\.ly|rb\\.gy|shorturl\\.at|goo\\.gl|ow\\.ly|tiny\\.cc|s\\.id|v\\.gd|t\\.ly|rebrand\\.ly|bl\\.ink|shorturl\\.gg|urlz\\.fr)/[^\\n|]*\\|\\s*(sudo\\s+)?(bash|sh|zsh|python[0-9.]*|node|iex|invoke-expression|pwsh|powershell)\\b",
+      "description": "Download-and-execute through a URL shortener",
+      "remediation": "A script is fetched from a link-shortening service (is.gd, bit.ly, tinyurl, …) and piped straight into a shell or PowerShell's Invoke-Expression. The shortener hides where the script comes from and can be re-pointed at any time, so what runs tomorrow is not what a reviewer saw today; no legitimate installer needs one. Do not run the line; resolve the link without executing it and report the package.",
+      "references": [
+        "MITRE T1059",
+        "MITRE T1105",
+        "MITRE T1204.002",
+        "CWE-494"
+      ],
+      "tags": [
+        "download-execute",
+        "url-shortener",
+        "remote-code"
+      ]
     }
   ],
   "provenance_rules": [],
@@ -429,7 +706,8 @@
           "NET-008",
           "NET-009",
           "NET-012",
-          "NET-014"
+          "NET-014",
+          "NET-UPLOAD-001"
         ]
       },
       "window_lines": 20,
@@ -451,6 +729,47 @@
       "tags": [
         "exfiltration",
         "credential-theft"
+      ]
+    },
+    {
+      "id": "DROPPER-CHAIN-001",
+      "phase": "code_patterns",
+      "severity": "high",
+      "description": "Downloaded file is executed",
+      "weight": 5,
+      "source": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "NET-001",
+          "NET-002",
+          "NET-003",
+          "NET-004",
+          "NET-005",
+          "NET-012",
+          "NET-EXE-001",
+          "NET-RAWIP-001",
+          "AGENTSC-004"
+        ]
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "CODE-RUNFILE-001"
+        ]
+      },
+      "window_lines": 20,
+      "sink_excludes": [],
+      "remediation": "A download writes a file (`open(PATH, 'wb')` under the response, `curl -o \"$OUT\"`, `curl.exe ... -o \"{output_file}\"`, `urlretrieve(url, path)`) and a few lines later the same path is launched: `subprocess.run([\"python3\", PATH])`, `Start-Process \"{output_file}\"`, `os.startfile(path)`. That is download-and-execute split across lines — the NET-RCE-001 shape without the pipe — and in the measured samples it ran at import time from a package's __init__.py (a .pyz from a look-alike domain) and from three PyPI droppers fetching an .exe. Nothing the package ships tells a reviewer what the downloaded program does. Pin the artifact by hash and verify it before running it, or reject the package.",
+      "references": [
+        "MITRE T1105",
+        "MITRE T1059",
+        "MITRE T1204.002",
+        "CWE-494"
+      ],
+      "tags": [
+        "dropper",
+        "download-execute",
+        "chain"
       ]
     }
   ]

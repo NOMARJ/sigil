@@ -36,6 +36,47 @@ Verify: `sigil help`
 
 ### 2. Configure Your Client
 
+#### Built-in server (no Node.js, nothing else to install)
+
+The `sigil` binary contains its own MCP server. It speaks the MCP stdio
+transport (newline-delimited JSON-RPC 2.0, protocol revisions 2025-06-18,
+2025-03-26 and 2024-11-05):
+
+```bash
+# Claude Code
+claude mcp add sigil -- sigil mcp
+
+# Codex CLI
+codex mcp add sigil -- sigil mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "sigil": { "command": "sigil", "args": ["mcp"] }
+  }
+}
+```
+
+It exposes three tools:
+
+| Tool | Arguments | Returns |
+|------|-----------|---------|
+| `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `policy_gate`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
+| `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` | the same summary for a package downloaded into quarantine without running its install scripts |
+| `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook |
+
+`safe_to_install` is `true` only for a `LOW RISK` verdict that no active scan
+policy fails. When a policy is in effect, `policy_gate` is `pass` or `fail`
+(otherwise `null`); a `fail` (for example `fail_on_incomplete` on a target
+that could not be fully inspected, or `fail_on_verdict: low`) makes `decision`
+`block` and `safe_to_install` `false`, whatever the verdict. Each tool call runs
+the CLI as a child process with `--format json`, so quarantine, the trust
+ledger, the scan cache and any policy apply exactly as they do on the command
+line. The server writes nothing but protocol messages to stdout.
+
+#### Node.js server (nine tools)
+
 > **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm. The `npx`-based configurations below are the target state and will work once the package is published. Until then, build the server from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js` — see [Building from Source](#building-from-source-current-working-path) below.
 
 #### Claude Code (Plugin — Recommended)

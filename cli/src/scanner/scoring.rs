@@ -69,10 +69,20 @@ fn severity_score(severity: Severity) -> u32 {
 ///
 /// The weight on each finding already reflects the phase multiplier
 /// (set at creation time in the phases module).
+///
+/// This is the *reported* score and it includes Low observations, so a result
+/// with nothing but observations still reads as grade B rather than A. The
+/// verdict does not use it directly: see [`signal_score`].
 pub fn calculate_score(findings: &[Finding]) -> u32 {
+    capped_score(findings, |_| true)
+}
+
+/// Sum `severity_score * weight` over the findings `keep` accepts, with the
+/// per-`(rule, file)` cap applied among the kept findings.
+fn capped_score(findings: &[Finding], keep: impl Fn(&Finding) -> bool) -> u32 {
     let mut counted: HashMap<(&str, &str), usize> = HashMap::new();
     let mut score = 0u32;
-    for f in findings {
+    for f in findings.iter().filter(|f| keep(f)) {
         let seen = counted
             .entry((f.rule.as_str(), f.file.as_str()))
             .or_insert(0);
@@ -84,26 +94,38 @@ pub fn calculate_score(findings: &[Finding]) -> u32 {
     score
 }
 
-/// Determine the overall risk classification from findings and the aggregate score.
+/// Whether a finding is allowed to move the verdict at all.
 ///
-/// Thresholds:
-/// - **LowRisk**: score 0-9
-/// - **MediumRisk**: score 10-24
-/// - **HighRisk**: score >= 25, unless critical evidence is present
-/// - **CriticalRisk**: critical evidence, as defined below
+/// Low is the severity of a *capability*: a network client, a subprocess
+/// call with an argument list, an API key read from the environment, an
+/// unrestricted Bash grant in a skill header. Legitimate skills are made of
+/// these, so the corpus reports them as observations and the verdict ignores
+/// them — otherwise a pile of observations becomes a verdict by volume, which
+/// is exactly how a two-file skill with one `subprocess.run([...])` used to
+/// come back HIGH RISK.
 ///
-/// Critical is evidence-gated, not score-only. A large pile of medium/low
-/// heuristics can raise the aggregate risk, but it must not claim "almost
-/// certainly malicious" unless at least one rule actually emitted Critical.
-///
-/// Not every Critical rule earns that claim by itself. A rule marked
-/// `"evidence": "corroborate"` in its pack (see
-/// [`crate::corpus::schema::Evidence`]) reports at Critical and contributes
-/// its full weight to the score, but only gates the verdict when a *second,
-/// different* corroborating rule also fired: `requests` ships expired test
-/// certificates and `dotenv` documents a private key in its README, and one
-/// `CRED-006` line in either is not evidence that the package is malicious.
-/// Two independent corroborating Criticals is a different claim from one.
+/// Measured on the 455 clean vendor skills and 204 malicious skills (see
+/// docs/detection/fp-calibration.md), before the rule changes that moved
+/// routine idioms to Low: excluding Low alone moved 6 clean skills out of
+/// HIGH and 3 malicious ones.
+fn is_signal(f: &Finding) -> bool {
+    f.severity >= Severity::Medium
+}
+
+/// The part of the score the verdict reads: [`calculate_score`] without the
+/// Low observations.
+pub fn signal_score(findings: &[Finding]) -> u32 {
+    capped_score(findings, is_signal)
+}
+
+/// Whether a finding sits outside the code the package runs: a secondary
+/// path (tests, docs, examples, vendored trees — see [`is_secondary_path`]) or
+/// a code capability matched inside reference documentation (see
+/// [`super::context::is_documented_example`]).
+fn is_secondary(f: &Finding) -> bool {
+    is_secondary_path(&f.file) || super::context::is_documented_example(f.phase, &f.rule, &f.file)
+}
+
 /// Paths whose findings describe content a package ships *around* its code:
 /// its own tests, docs and examples, a vendored third-party tree, or a build
 /// product that is a copy of code counted elsewhere.
@@ -132,6 +154,13 @@ fn is_secondary_path(path: &str) -> bool {
         "fixtures",
         "benchmark",
         "benchmarks",
+        // A skill's own evaluation suite (`evals/evals.json`, `evals/files/`),
+        // the convention Anthropic's skill-creator and NVIDIA's skills share.
+        // It is the skill's test directory by another name, and it holds
+        // deliberately hostile inputs: nvflare-convert-pytorch ships a
+        // prompt-injection requirements.txt under evals/files/ to prove the
+        // skill resists it.
+        "evals",
         "vendor",
         "node_modules",
         "third_party",
@@ -140,26 +169,29 @@ fn is_secondary_path(path: &str) -> bool {
     lower.split('/').any(|seg| DIRS.contains(&seg))
 }
 
-/// The part of the score that comes from code the package actually ships to run.
+/// The part of the verdict score that comes from code the package actually
+/// ships to run.
 ///
-/// Same per-`(rule, file)` cap as [`calculate_score`]; the only difference is
-/// that findings under [`is_secondary_path`] do not contribute.
+/// Same per-`(rule, file)` cap as [`calculate_score`]; findings that are not
+/// [signal](is_signal) or that are [secondary](is_secondary) do not
+/// contribute.
 pub fn first_party_score(findings: &[Finding]) -> u32 {
-    let mut counted: HashMap<(&str, &str), usize> = HashMap::new();
-    let mut score = 0u32;
-    for f in findings {
-        if is_secondary_path(&f.file) {
-            continue;
-        }
-        let seen = counted
-            .entry((f.rule.as_str(), f.file.as_str()))
-            .or_insert(0);
-        *seen += 1;
-        if *seen <= PER_RULE_FILE_SCORE_CAP {
-            score = score.saturating_add(severity_score(f.severity) * f.weight);
-        }
-    }
-    score
+    capped_score(findings, |f| is_signal(f) && !is_secondary(f))
+}
+
+/// Whether the code the package ships carries at least one attack-shaped
+/// finding: a High or Critical rule, in a first-party path.
+///
+/// High and Critical are reserved for attack shapes (a download piped into a
+/// shell, a credential file read and sent, an instruction to hide an action
+/// from the user); routine capabilities are Low and context-dependent ones
+/// Medium. So this is the question "is there anything here that looks like an
+/// attack?", and HIGH RISK requires a yes. A lone Medium — or a pile of them —
+/// can raise the verdict to MEDIUM, never to HIGH.
+fn has_attack_evidence(findings: &[Finding]) -> bool {
+    findings
+        .iter()
+        .any(|f| f.severity >= Severity::High && !is_secondary(f))
 }
 
 /// Behaviours that describe an action taken on the host or the network, as
@@ -168,11 +200,21 @@ pub fn first_party_score(findings: &[Finding]) -> u32 {
 /// running at install time, shipping an exfiltration endpoint, installing
 /// persistence or building code at runtime is a decision about what the
 /// package does to the machine it lands on.
+///
+/// `drive_by_install` (the AGENTSC-001..005 fake-prerequisite rules: "download
+/// and install <tool> from <throwaway origin>", a password-protected archive,
+/// an installer on a personal file-share) is the same decision made in an
+/// agent skill's instructions rather than in its code — the agent that loads
+/// the skill is the one told to fetch and run the installer. Adding it moved
+/// one malicious skill to HIGH (a 97-file skill whose file-share installer
+/// link and download-and-run lines were diluted below the point terms) and no
+/// clean skill; see docs/detection/fp-calibration.md, "Reconciliation".
 const ACTION_BEHAVIOURS: &[&str] = &[
     "install_time_execution",
     "exfiltration_endpoint",
     "installs_persistence",
     "dynamic_execution",
+    "drive_by_install",
 ];
 
 /// Whether any finding in a *first-party* path carries an action behaviour.
@@ -185,7 +227,7 @@ const ACTION_BEHAVIOURS: &[&str] = &[
 fn has_action_behaviour(findings: &[Finding]) -> bool {
     findings
         .iter()
-        .filter(|f| !is_secondary_path(&f.file))
+        .filter(|f| is_signal(f) && !is_secondary(f))
         .any(|f| {
             crate::scanner::profile::behavior_for(&f.rule)
                 .is_some_and(|b| ACTION_BEHAVIOURS.contains(&b))
@@ -204,15 +246,59 @@ const HIGH_DENSITY_NUM: u32 = 7;
 const HIGH_DENSITY_DEN: u32 = 2;
 /// First-party evidence required to corroborate an action behaviour.
 const HIGH_ACTION_FIRST_PARTY: u32 = 50;
+/// One scanned file in this many carrying attack-shaped evidence reaches HIGH
+/// on its own — the concentration term.
+///
+/// The point terms above weigh a finding by its phase, and the phase weights
+/// were set for packages: a High credential finding is worth 3 × 2 = 6 points,
+/// so a two-file skill whose one script dumps `os.environ` never reached the
+/// 3.5-per-file density bar without a routine network call beside it to push
+/// it over. Counting *files* instead asks the question the density term was
+/// standing in for — is the attack-shaped code a real part of this package,
+/// or one line lost in a large one — without depending on which phase caught
+/// it. See docs/detection/fp-calibration.md for the measurement behind 8.
+const HIGH_EVIDENCE_FILE_RATIO: usize = 8;
 
 pub fn determine_verdict(findings: &[Finding], score: u32) -> Verdict {
     determine_verdict_with_size(findings, score, 0)
 }
 
-/// Verdict, given the number of files the scan actually walked.
+/// Determine the overall risk classification, given the number of files the
+/// scan actually walked.
 ///
-/// `files_scanned` of 0 means "unknown"; the density term is then skipped
-/// rather than dividing by a guess.
+/// Each level is a claim about evidence, and severity is what carries it:
+///
+/// - **CriticalRisk**: a Critical rule fired — one `standalone` Critical, or
+///   two *different* `corroborate` Criticals (see below).
+/// - **HighRisk**: attack-shaped evidence — a High or Critical finding — in
+///   the code the package runs (not tests, docs, vendored trees or
+///   documentation examples), *and* that evidence is a real part of the
+///   package: first-party signal ≥ 200, or ≥ 3.5 points per scanned file, or
+///   one scanned file in [`HIGH_EVIDENCE_FILE_RATIO`] carries it, or it
+///   co-occurs with an action behaviour at ≥ 50 points.
+/// - **MediumRisk**: any Medium-or-above finding in the code the package runs
+///   (which includes attack-shaped evidence too diluted to reach HIGH), any
+///   High or Critical finding anywhere (a test, a doc, a documentation
+///   example), or a signal score ≥ 10 overall (Medium and above; Low
+///   observations do not count).
+/// - **LowRisk**: everything else, including any number of Low observations.
+///
+/// Critical is evidence-gated, not score-only. A large pile of medium/low
+/// heuristics can raise the aggregate risk, but it must not claim "almost
+/// certainly malicious" unless at least one rule actually emitted Critical.
+///
+/// Not every Critical rule earns that claim by itself. A rule marked
+/// `"evidence": "corroborate"` in its pack (see
+/// [`crate::corpus::schema::Evidence`]) reports at Critical and contributes
+/// its full weight to the score, but only gates the verdict when a *second,
+/// different* corroborating rule also fired: `requests` ships expired test
+/// certificates and `dotenv` documents a private key in its README, and one
+/// `CRED-006` line in either is not evidence that the package is malicious.
+/// Two independent corroborating Criticals is a different claim from one.
+///
+/// `files_scanned` of 0 means "unknown"; the density and concentration terms
+/// are then skipped rather than dividing by a guess. `score` is the reported
+/// score ([`calculate_score`]); the verdict reads [`signal_score`] instead.
 pub fn determine_verdict_with_size(
     findings: &[Finding],
     score: u32,
@@ -233,11 +319,20 @@ pub fn determine_verdict_with_size(
         return Verdict::CriticalRisk;
     }
 
-    // HIGH is three questions, not one sum. The sum alone does not separate the
-    // populations: measured over 844 malicious samples and 450 clean packages,
-    // clean packages sit at median 70 and p75 295 while malicious sit at median
-    // 148 — overlapping almost entirely, because a large clean package
-    // accumulates score by being large.
+    // HIGH first needs something that looks like an attack: a High or Critical
+    // finding in the code the package runs. Without one, no amount of Medium
+    // evidence reaches HIGH — a pile of "suspicious in context" findings is a
+    // reason to review, not to block. Before this gate a two-file skill with a
+    // single Medium `subprocess.run([...])` was HIGH RISK on the density term
+    // alone.
+    let attack = has_attack_evidence(findings);
+
+    // ...and then the evidence must be a real part of the package rather than
+    // one line lost in a large one. That is three questions, not one sum. The
+    // sum alone does not separate the populations: measured over 844 malicious
+    // samples and 450 clean packages, clean packages sit at median 70 and p75
+    // 295 while malicious sit at median 148 — overlapping almost entirely,
+    // because a large clean package accumulates score by being large.
     let first_party = first_party_score(findings);
     // Density over FIRST-PARTY score, not total score. Dividing the total by
     // the file count mixed two different populations: the numerator counted
@@ -250,18 +345,57 @@ pub fn determine_verdict_with_size(
     // 32.0%).
     let dense = files_scanned > 0
         && HIGH_DENSITY_DEN * first_party >= HIGH_DENSITY_NUM * files_scanned as u32;
-    if first_party >= HIGH_FIRST_PARTY
-        || dense
-        || (first_party >= HIGH_ACTION_FIRST_PARTY && has_action_behaviour(findings))
+    let concentrated = files_scanned > 0
+        && attack_evidence_files(findings) * HIGH_EVIDENCE_FILE_RATIO >= files_scanned;
+    if attack
+        && (first_party >= HIGH_FIRST_PARTY
+            || dense
+            || concentrated
+            || (first_party >= HIGH_ACTION_FIRST_PARTY && has_action_behaviour(findings)))
     {
         return Verdict::HighRisk;
     }
 
-    if score >= 10 {
+    // MEDIUM is "suspicious in context, review before approving", which is
+    // what a Medium finding says. So any Medium-or-above finding in the code
+    // the package runs is at least MEDIUM, and findings around it (tests,
+    // docs) reach MEDIUM by the signal score. Low observations never count
+    // (see [`is_signal`]): a skill made only of routine capabilities is LOW
+    // however many of them it has. The reported `score` still includes them —
+    // it is what the grade and the report show — which is why it is not the
+    // number compared here.
+    //
+    // An attack-shaped (High or Critical) finding is at least MEDIUM wherever
+    // it sits. Tests, docs and documentation examples keep it out of the HIGH
+    // gate, but "a payload hidden in a test directory is still a payload" (see
+    // [`is_secondary_path`]), so it must not read as LOW. Without this the
+    // outcome depended on the phase weight: a High code finding in `tests/`
+    // scores 15 and was MEDIUM, while a High credential finding in
+    // `references/api.md` scores 6 and was LOW.
+    let _ = score;
+    if signal_score(findings) >= 10
+        || has_first_party_signal(findings)
+        || findings.iter().any(|f| f.severity >= Severity::High)
+    {
         return Verdict::MediumRisk;
     }
 
     Verdict::LowRisk
+}
+
+/// Whether any Medium-or-above finding sits in the code the package runs.
+fn has_first_party_signal(findings: &[Finding]) -> bool {
+    findings.iter().any(|f| is_signal(f) && !is_secondary(f))
+}
+
+/// Number of distinct first-party files carrying a High or Critical finding.
+fn attack_evidence_files(findings: &[Finding]) -> usize {
+    findings
+        .iter()
+        .filter(|f| f.severity >= Severity::High && !is_secondary(f))
+        .map(|f| f.file.as_str())
+        .collect::<HashSet<&str>>()
+        .len()
 }
 
 #[cfg(test)]
@@ -399,11 +533,17 @@ mod tests {
 
     #[test]
     fn unknown_file_count_skips_the_density_term() {
-        let findings = vec![at("CODE-001", "index.js", Severity::Medium, 2)];
-        // files_scanned = 0 means "unknown": density must not divide by a guess.
+        let findings = vec![at("CODE-001", "index.js", Severity::High, 2)];
+        // files_scanned = 0 means "unknown": density and concentration must not
+        // divide by a guess. One file holding a 6-point High finding would be
+        // dense and concentrated at 1 file; unknown, it is only MEDIUM.
         assert_eq!(
-            determine_verdict_with_size(&findings, 4, 0),
-            Verdict::LowRisk
+            determine_verdict_with_size(&findings, 6, 0),
+            Verdict::MediumRisk
+        );
+        assert_eq!(
+            determine_verdict_with_size(&findings, 6, 1),
+            Verdict::HighRisk
         );
     }
 
@@ -412,8 +552,13 @@ mod tests {
         // INSTALL- rules carry install_time_execution. One alone, with almost
         // no other first-party evidence, is not HIGH; npm postinstall hooks are
         // ordinary. 111 of 450 clean packages carry this behaviour.
+        // It is a Medium finding in shipped code, so the result is MEDIUM:
+        // reported for review, never HIGH on its own.
         let one = vec![at("INSTALL-004", "package.json", Severity::Medium, 2)];
-        assert_eq!(determine_verdict_with_size(&one, 4, 30), Verdict::LowRisk);
+        assert_eq!(
+            determine_verdict_with_size(&one, 4, 30),
+            Verdict::MediumRisk
+        );
 
         // Two install-hook findings in the code the package ships reach the
         // corroboration threshold, and the install behaviour then gates HIGH
@@ -436,11 +581,18 @@ mod tests {
         // installs_persistence matches in `docs/shell-completion.md` — the
         // project documenting its own install steps — while contributing
         // nothing to first_party_score. Documentation is not an action.
+        //
+        // The documented finding is PERSIST-005 (a startup file *written*,
+        // High) rather than the Low PERSIST-004 reference the original report
+        // was about, because a Low finding no longer carries an action
+        // behaviour into the verdict at all (see
+        // `a_low_action_behaviour_does_not_gate_high`); the path rule under
+        // test here is independent of that.
         let documented = vec![
             at(
-                "PERSIST-004",
+                "PERSIST-005",
                 "click/docs/shell-completion.md",
-                Severity::Low,
+                Severity::High,
                 5,
             ),
             at("CODE-013", "click/core.py", Severity::High, 5),
@@ -462,6 +614,66 @@ mod tests {
         assert_eq!(
             determine_verdict_with_size(&shipped, 100, 112),
             Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn a_drive_by_install_instruction_is_an_action() {
+        // luoluoluo22 jianying-editor-skill: an installer on a personal
+        // file-share (AGENTSC-003) in a 97-file skill. Its attack evidence is
+        // real but diluted below the point and concentration terms; the
+        // fake-prerequisite instruction is what lets 50 first-party points
+        // reach HIGH, exactly as an install hook would.
+        // AGENTSC-003 is a skill_security rule: an instruction in README.md
+        // is first-party for a skill (only code-phase findings in reference
+        // docs are documentation examples).
+        let skill = |file: &str| Finding {
+            phase: Phase::SkillSecurity,
+            ..at("AGENTSC-003", file, Severity::High, 5)
+        };
+        let findings = vec![
+            skill("README.md"),
+            skill("index.html"),
+            at("OBFUSC-001", "scripts/jy_wrapper.py", Severity::High, 5),
+            at("NET-RCE-001", "index.html", Severity::High, 3),
+        ];
+        assert!(has_action_behaviour(&findings));
+        assert!(first_party_score(&findings) >= HIGH_ACTION_FIRST_PARTY);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 60, 97),
+            Verdict::HighRisk
+        );
+        // The same instruction alone, below the corroboration threshold, is
+        // not HIGH in a large skill.
+        let alone = vec![skill("README.md")];
+        assert!(first_party_score(&alone) < HIGH_ACTION_FIRST_PARTY);
+        assert_ne!(
+            determine_verdict_with_size(&alone, 15, 97),
+            Verdict::HighRisk
+        );
+    }
+
+    #[test]
+    fn a_low_action_behaviour_does_not_gate_high() {
+        // PERSIST-004 only *references* a shell startup file (Low). Before the
+        // Low-observation rule it carried installs_persistence into the action
+        // term and let 50 points of unrelated evidence reach HIGH.
+        let findings = vec![
+            at(
+                "PERSIST-004",
+                "click/_shell_completion.py",
+                Severity::Low,
+                5,
+            ),
+            at("CODE-013", "click/core.py", Severity::High, 5),
+            at("CODE-011", "click/parser.py", Severity::High, 5),
+            at("CODE-004", "click/utils.py", Severity::High, 5),
+            at("CRED-002", "click/termui.py", Severity::High, 5),
+        ];
+        assert!(!has_action_behaviour(&findings));
+        assert_eq!(
+            determine_verdict_with_size(&findings, 65, 112),
+            Verdict::MediumRisk
         );
     }
 
@@ -649,19 +861,193 @@ mod tests {
             determine_verdict_with_size(&findings, score, 20),
             Verdict::CriticalRisk
         );
-        // 140 points in a 20-file package is 7 per file — dense enough to be
-        // HIGH...
+        // Nor HIGH: 120 signal points in a 20-file package is dense, but every
+        // one of them is Medium, and a pile of "suspicious in context" findings
+        // is a reason to review, not to block...
         assert_eq!(
             determine_verdict_with_size(&findings, score, 20),
-            Verdict::HighRisk
+            Verdict::MediumRisk
         );
-        // ...and the same 140 points spread through a large package is not:
-        // that is the recalibration, and it is why 16 of 20 popular packages
-        // no longer come back HIGH RISK for being large.
+        // ...and the same holds spread through a large package.
         assert_eq!(
             determine_verdict_with_size(&findings, score, 400),
             Verdict::MediumRisk
         );
+    }
+
+    // -- the evidence gate --------------------------------------------------
+
+    #[test]
+    fn a_lone_medium_in_a_two_file_skill_is_not_high() {
+        // SkillSpector's clean fixture tests/fixtures/mcp_clean_skill: one
+        // subprocess.run with an argument list in a two-file skill. At Medium,
+        // 10 points over 2 files cleared the 3.5-per-file density bar and the
+        // skill was HIGH RISK. Density still fires; the evidence gate does not.
+        let findings = vec![at("CODE-013", "scripts/format.py", Severity::Medium, 5)];
+        assert!(2 * first_party_score(&findings) >= 7 * 2);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 10, 2),
+            Verdict::MediumRisk
+        );
+        // Several Medium findings from different rules are still not HIGH.
+        let many = vec![
+            at("CODE-013", "scripts/a.py", Severity::Medium, 5),
+            at("CODE-004", "scripts/a.py", Severity::Medium, 5),
+            at("MANIP-008", "SKILL.md", Severity::Medium, 10),
+        ];
+        assert_eq!(
+            determine_verdict_with_size(&many, 40, 2),
+            Verdict::MediumRisk
+        );
+    }
+
+    #[test]
+    fn low_observations_never_move_the_verdict() {
+        // A skill made only of routine capabilities: network clients, an API
+        // key read from the environment, subprocess calls, a Bash grant.
+        let findings: Vec<Finding> = (0..30)
+            .map(|i| at("NET-001", &format!("scripts/c{i}.py"), Severity::Low, 3))
+            .chain((0..30).map(|i| at("CRED-001", &format!("scripts/c{i}.py"), Severity::Low, 2)))
+            .chain(std::iter::once(at(
+                "SKILL-008",
+                "SKILL.md",
+                Severity::Low,
+                5,
+            )))
+            .collect();
+        let score = calculate_score(&findings);
+        assert_eq!(score, 30 * 3 + 30 * 2 + 5, "the reported score keeps them");
+        assert_eq!(signal_score(&findings), 0);
+        assert_eq!(first_party_score(&findings), 0);
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 31),
+            Verdict::LowRisk
+        );
+    }
+
+    #[test]
+    fn one_high_finding_in_a_small_skill_is_high_by_concentration() {
+        // SkillSpector's malicious fixture: a two-file skill whose helper
+        // iterates os.environ (CRED-033, High, weight 2). 6 points over 2 files
+        // is under the density bar, which is tuned to phase weights; the
+        // concentration term asks whether the attack-shaped code is a real
+        // part of the package instead.
+        let findings = vec![
+            at("CRED-033", "scripts/helper.py", Severity::High, 2),
+            at("NET-001", "scripts/helper.py", Severity::Low, 3),
+        ];
+        assert!(2 * first_party_score(&findings) < 7 * 2);
+        assert_eq!(
+            determine_verdict_with_size(&findings, 12, 2),
+            Verdict::HighRisk
+        );
+        // The same finding in one file of a 40-file package is diluted: it is
+        // reported and it raises the verdict to MEDIUM, but it does not block.
+        assert_eq!(
+            determine_verdict_with_size(&findings, 12, 40),
+            Verdict::MediumRisk
+        );
+        // With the file count unknown the concentration term is skipped.
+        assert_eq!(
+            determine_verdict_with_size(&findings, 12, 0),
+            Verdict::MediumRisk
+        );
+    }
+
+    #[test]
+    fn attack_evidence_outside_the_shipped_code_does_not_gate_high() {
+        // A High finding in tests/ or in a reference document's code example
+        // is reported, and counts toward the total, but it is not evidence
+        // about what the package does when it runs.
+        for file in ["tests/test_exfil.py", "references/api.md", "docs/setup.md"] {
+            let f = Finding {
+                phase: Phase::NetworkExfil,
+                ..at("NET-011", file, Severity::High, 3)
+            };
+            assert!(!has_attack_evidence(std::slice::from_ref(&f)), "{file}");
+        }
+        // A download piped into a shell is a step the agent is told to run, so
+        // a skill's reference document does not discount it (a test file
+        // still does).
+        let referenced = Finding {
+            phase: Phase::NetworkExfil,
+            ..at(
+                "NET-RCE-001",
+                "references/install/nodejs.md",
+                Severity::High,
+                3,
+            )
+        };
+        assert!(has_attack_evidence(std::slice::from_ref(&referenced)));
+        let tested = Finding {
+            phase: Phase::NetworkExfil,
+            ..at("NET-RCE-001", "tests/test_install.py", Severity::High, 3)
+        };
+        assert!(!has_attack_evidence(std::slice::from_ref(&tested)));
+        // The same finding in the skill's entry point is the payload.
+        let payload = Finding {
+            phase: Phase::NetworkExfil,
+            ..at("NET-RCE-001", "SKILL.md", Severity::High, 3)
+        };
+        assert!(has_attack_evidence(std::slice::from_ref(&payload)));
+        assert_eq!(
+            determine_verdict_with_size(std::slice::from_ref(&payload), 9, 2),
+            Verdict::HighRisk
+        );
+        // An instruction in a reference file is still an instruction: only the
+        // code phases are discounted there.
+        let instruction = Finding {
+            phase: Phase::PromptInjection,
+            ..at("PROMPT-010", "references/setup.md", Severity::High, 10)
+        };
+        assert!(has_attack_evidence(std::slice::from_ref(&instruction)));
+    }
+
+    #[test]
+    fn an_attack_shaped_finding_outside_the_shipped_code_is_still_medium() {
+        // Kept out of the HIGH gate, but never LOW: a High credential finding
+        // in a reference document scores 3 x 2 = 6, under the signal bar of
+        // 10, and used to leave the verdict at LOW RISK while a High code
+        // finding in tests/ (3 x 5 = 15) was MEDIUM.
+        for (phase, rule, file, weight) in [
+            (Phase::Credentials, "CRED-011", "references/atof.md", 2),
+            (Phase::NetworkExfil, "NET-011", "docs/setup.md", 3),
+            (Phase::CodePatterns, "CODE-001", "tests/test_eval.py", 5),
+        ] {
+            let f = Finding {
+                phase,
+                ..at(rule, file, Severity::High, weight)
+            };
+            let findings = std::slice::from_ref(&f);
+            assert!(!has_attack_evidence(findings), "{file}");
+            assert_eq!(
+                determine_verdict_with_size(findings, calculate_score(findings), 3),
+                Verdict::MediumRisk,
+                "{file}"
+            );
+        }
+        // A Medium finding outside the shipped code below the signal bar
+        // stays LOW: only attack-shaped severities get the floor.
+        let medium = Finding {
+            phase: Phase::Credentials,
+            ..at("CRED-031", "docs/setup.md", Severity::Medium, 2)
+        };
+        assert_eq!(
+            determine_verdict_with_size(std::slice::from_ref(&medium), 4, 3),
+            Verdict::LowRisk
+        );
+    }
+
+    #[test]
+    fn a_skills_evals_directory_is_secondary() {
+        // nvflare-convert-pytorch ships a hostile requirements.txt under
+        // evals/files/ to prove the skill resists it.
+        assert!(is_secondary_path(
+            "evals/files/injection-pt/requirements.txt"
+        ));
+        assert!(is_secondary_path("skill/evals/evals.json"));
+        // A code directory merely named eval is not.
+        assert!(!is_secondary_path("scripts/eval/run.py"));
     }
 
     // -- per-(rule, file) contribution cap ---------------------------------

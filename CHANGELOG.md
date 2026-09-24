@@ -6,6 +6,157 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🥊 Head-to-head with NVIDIA SkillSpector
+
+Measured on the same real samples as SkillSpector 2.11.2 (static, `--no-llm`):
+204 malicious skills from the Datadog dataset's ai-skills bucket and 455 clean
+vendor skills (anthropics, NVIDIA, openai, vercel-labs). Full method, the
+cases Sigil loses, and the disclosure block:
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+
+| | Malicious blocked | Clean blocked | Clean warned |
+|---|---:|---:|---:|
+| Sigil before | 142/204 (69.6%) | 108/455 (23.7%) | 226/455 (49.7%) |
+| Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
+| SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+On 169 clean MCP servers from the official registry, Sigil blocks 39 (23.1%);
+SkillSpector blocks 100 of the 156 it finished (64.1%; it timed out on 13).
+
+On the 844-package Datadog selection (npm and PyPI malware, same samples as the
+previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
+93.01% at any severity and from 65.52% to 66.47% at ≥ Critical, and fell from
+90.52% to 90.17% at ≥ Medium ([report](evaluation_results/honest_detection_eval_7826ea1.md)).
+
+- **Coverage.**
+  - Agent supply chain pack (AGENTSC-001..041): fake-prerequisite downloads,
+    droppers, secret and session harvesting, tunnel hosts, writes to an agent's
+    global instruction file.
+  - Agent instruction pack (INSTR-001..033) and multilingual injection
+    (INTL-001..004, nine languages).
+  - Structural checks the engine implements: shipped bytecode compared with
+    its source (ARTIFACT-001..003, 012), executables disguised as documents or
+    source files, nested, encrypted and path-traversing archives
+    (ARTIFACT-004..011), dependency-source redirection (DEPSRC-001..007),
+    whitespace padding that hides text (PAD-001..003), declared versus used
+    privilege (LPRIV-001..003).
+  - Correlation follows a file path from the line that writes it to the line
+    that sends or runs it (AGENTSC-CHAIN-002, DROPPER-CHAIN-001,
+    DESER-CHAIN-001).
+  - MCP-server rules OBFUSC-012/013/014, NET-CLEAR-001, NET-RCE-002, CRED-044.
+  - UTF-16/UTF-32 files are decoded and scanned, and a stray NUL byte no longer
+    makes a text file "binary" (OBFUSC-NUL-001 reports it).
+- **False positives.** HIGH needs first-party High or Critical evidence; Low
+  findings are observations; guardrails ("never reveal your system prompt")
+  no longer read as the attack they forbid; the packs were calibrated against
+  the 455 clean skills and 169 clean MCP servers, each change adversarially
+  re-checked for the attack variants it could drop.
+- **Preemptive protection.** `sigil scan` takes archives, file URLs, GitHub
+  `/tree/` links and `mcp:<name>` from the MCP registry, unpacked into
+  quarantine first. `--follow-refs` downloads what a skill tells you to fetch
+  or run and scans it without running it. `sigil skills scan` reports on the
+  skills, MCP servers and hooks already installed. The Claude Code hook gates
+  `Bash`, `Write`, `Edit` and `MultiEdit`, with typed vetting (a scanned npm
+  package does not vet a PyPI package of the same name) and denies for
+  download-then-run, `bash -s`, `tee | sh` and writes into agent tooling.
+  The plugin's shell fallback, used when the binary is not on PATH, now makes
+  the same decisions as the native hook on 16,000 of 16,000 generated
+  download-to-interpreter commands and 927 of 935 hand-written probes. The
+  probes were synthetic, so this measures agreement, not detection; the
+  remaining differences are listed in
+  [docs/detection/ux.md](docs/detection/ux.md).
+  `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
+  `check_command`).
+- **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
+  organisation file (`SIGIL_POLICY_FILE`) with locked keys and tighten-only
+  project files; custom rule packs in JSON, YAML or a YARA subset, Ed25519
+  signed; baselines; `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and
+  JUnit reports; `sigil rules`, `sigil baseline`, `sigil config --policy /
+  --validate`; a GitHub Action with a verdict-based gate, a GitLab template, a
+  pre-commit hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
+- **Speed.** Rules gate on a word-boundary-free, larger-cache form of their
+  pattern: a 3 MB minified bundle that exhausted its 30 s scan budget now scans
+  completely in 1.9 s. Median scan time per skill: 1.48 s (SkillSpector,
+  measured on the same machine in the baseline run: 26.82 s).
+
+### 🧩 YARA rules as custom rules
+
+- **`--rules` accepts YARA rule files.** `.yar` and `.yara` files — and
+  directories holding them, next to JSON and YAML packs — load wherever a rule
+  pack does: `--rules`, a scan policy's `rule_packs`, the organisation policy.
+  `sigil rules list | show | validate | test | sign` work with them. Each rule
+  becomes the Sigil rule `YARA-<NAME>` (upper-cased, `_` to `-`), so inline
+  `sigil:ignore` markers, `disable_rules`, `severity_overrides` and baselines
+  address it like any other rule. Severity, phase and remediation come from
+  the rule's `meta:` (default medium, `code_patterns`, a generic remediation
+  naming the rule file). Details and the exact subset:
+  [docs/enterprise.md#yara-rules](docs/enterprise.md#yara-rules).
+- **Native, not libyara.** A parser and evaluator for the string-matching core
+  of YARA — text strings with `nocase`/`wide`/`ascii`/`fullword`/`private`,
+  hex strings with wildcards, nibbles, jumps and alternatives, regular
+  expressions with `i`/`s`, and conditions over `$a`, `#a`, `at`, `in`,
+  `of` sets, `filesize`, integer arithmetic and comparisons, `private` and
+  `global` rules and references to earlier rules — built on the
+  `regex-automata` engine `regex` already runs on (the only new direct
+  dependencies, `regex-automata` and `regex-syntax`, were already in the
+  build, with the same features). Strings match each file's **raw bytes**,
+  whole-file, binary files included; archive members are evaluated too (binary
+  members and document XML only when YARA rules are loaded), and a file over
+  10 MB is evaluated on its first and last 2 MB, said so on the finding and in
+  a `PROV-INCOMPLETE-001` note.
+- **Fail closed.** Modules and `import`, `include`, `for` loops,
+  `uint32()`-style reads, `@a[i]`/`!a[i]`, string operators, external
+  variables, `xor`/`base64` modifiers and the rest of YARA outside the subset
+  are refused with the construct named at its `file:line`; `sigil rules
+  validate` lists every problem (exit 1) and a scan exits 2 instead of running
+  without the rule. YARA's own compile errors (unreferenced strings, undefined
+  strings, duplicate rules) are enforced.
+- **Bounded on crafted input.** Evaluation shares the per-file budget, and
+  every search is chunked (64 KiB of start positions per automaton call, the
+  budget checked between calls), because the cap on width alone does not
+  bound the time: on 9.5 MB of high-complexity synthetic data
+  `{ 41 [0-511] 42 }` took 54 s as one search, and `/A.*B/s` on data crafted
+  so every start is an overlong match took over 200 s; a scan of either file
+  now stops at the 30 s budget and reports `PROV-BUDGET-001`. A rule whose
+  evaluation the budget cut short is not reported either way, so a truncated
+  search or count cannot fire `not $a` or `#a < N`. `sigil rules test` keeps
+  the budget too, and says when a sample ran out of it. Counted repetition per
+  string (hex jumps plus `{n,m}` counts) is capped at 512 positions, which
+  bounds the cost per byte. Matches of unbounded strings are limited to 4096
+  bytes (libyara 4.5.4 stops regex matches at about 1 KB and does not limit
+  unbounded hex jumps) and searched in windows; `#a` stops at 1,000,000.
+- **YARA's meaning, checked against libyara.** Regular expressions are
+  rewritten from YARA's dialect before Rust's parser sees them, so `\z`, `\A`,
+  `\<`, `\v`, `[[:alpha:]]`, `[a&&b]` and `[\w-z]` mean what they mean to YARA
+  (letters and plain byte lists) rather than Rust anchors and set syntax, and
+  `{,n}` and a literal `{` are accepted as YARA accepts them. `0 of them`
+  means none, a string named twice in a set counts twice and a computed
+  percentage over 100 is never met, as in libyara. The oversized-file head and
+  tail carry their neighbouring bytes, so `^`, `$`, `\b` and `fullword` at
+  their edges see the real file; an archive member cut at 4 MB has an
+  undefined `filesize`. Differential run against libyara 4.5.4 (yara-python)
+  on synthetic inputs: 127 rules × 60 inputs, 7,620 of 7,620 (rule, input)
+  results agree. Before these fixes, on the 118 of those rules it accepted,
+  76 of 7,080 disagreed (regex dialect, `0 of`, and the ascii and wide forms
+  of one string matching at one offset, which libyara counts once).
+- **Detached signatures.** `sigil rules sign acme.yar --key k.pem -o
+  acme.yar.sig` writes a base64 Ed25519 signature over the file's exact bytes
+  (domain-separated). With `SIGIL_PACK_PUBLIC_KEY` set, an unsigned, tampered
+  or wrongly keyed `.yar` is refused with a `[SECURITY]` error and exit 2, as
+  JSON and YAML packs are.
+- **Collisions.** Custom rule ids are now also checked against the ids of the
+  engine-implemented rules (`ARTIFACT-*`, `LPRIV-*`, `PAD-*`, ...), not only regex,
+  provenance and correlation rules; a custom rule reusing one was previously
+  accepted.
+- **Measured cost**, on this repository's self-scan (523 files; 5 interleaved
+  runs per configuration on a 4-core machine shared with other jobs; network
+  feeds excluded): median scan time 11.61 s before this change, 11.53 s with
+  no YARA rules, 11.46 s with one text rule, 11.31 s with one hex rule and
+  11.68 s with 100 rules of three strings each — all inside the run-to-run
+  spread (10.8–13.2 s). `SIGIL_TIMING=1` attributes 2.3 ms to the YARA stage
+  for one rule and 1.77 s for 300 strings, summed across scan threads (4.0%
+  of stage time). Findings were identical in every configuration.
+
 ### 🎯 Verdict
 
 - **HIGH RISK is no longer a score threshold.** It was `score >= 25`, and the score is a

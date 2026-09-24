@@ -34,6 +34,13 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/reverse_shells.json"),
     include_str!("../../packs/core/v1/persistence.json"),
     include_str!("../../packs/core/v1/agent_manipulation.json"),
+    // Prompt injection written in languages other than English.
+    include_str!("../../packs/core/v1/multilingual_injection.json"),
+    include_str!("../../packs/core/v1/agent_supply_chain.json"),
+    include_str!("../../packs/core/v1/agent_instructions.json"),
+    // Metadata for the structural checks implemented in Rust
+    // (scanner::bytecode, artifacts, padding, lpriv); no regex rules.
+    include_str!("../../packs/core/v1/structural.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
@@ -105,13 +112,24 @@ fn pack_has_signature(raw: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Load all packs: embedded core packs plus any user-installed packs.
+/// Load all packs: embedded core packs, the released corpus, user-installed
+/// packs, and then any custom packs named for this run (`--rules`, a scan
+/// policy's `rule_packs`; see [`super::custom`]).
 ///
 /// Embedded pack parse failures are logged with a `[SECURITY]` prefix because
 /// they indicate binary corruption (the packs are bundled at compile time).
 /// User-installed pack signature failures are propagated as `Err` so the
 /// caller can abort the scan; see `load_packs_from_dir`.
 pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
+    let mut packs = load_base_packs()?;
+    // 4. Custom packs for this run. Additive only: they can never supersede a
+    //    pack loaded above (see `custom::check_against`).
+    super::custom::append_registered(&mut packs)?;
+    Ok(packs)
+}
+
+/// Every pack except this run's custom packs: embedded, released and user.
+pub fn load_base_packs() -> Result<Vec<SignaturePack>, String> {
     let mut packs: Vec<SignaturePack> = Vec::new();
 
     // 1. Embedded packs — the bootstrap corpus.
@@ -188,6 +206,8 @@ pub enum PackOrigin {
     Released,
     /// User-installed pack in `~/.sigil/packs/`.
     User,
+    /// Named for this run by `--rules` or a scan policy's `rule_packs`.
+    Custom,
 }
 
 impl std::fmt::Display for PackOrigin {
@@ -196,6 +216,7 @@ impl std::fmt::Display for PackOrigin {
             PackOrigin::Embedded => "embedded",
             PackOrigin::Released => "released",
             PackOrigin::User => "user",
+            PackOrigin::Custom => "custom",
         })
     }
 }
@@ -234,6 +255,9 @@ pub fn load_all_packs_with_origin() -> Result<Vec<(SignaturePack, PackOrigin)>, 
             apply(pack, PackOrigin::User);
         }
     }
+    for custom in super::custom::registered() {
+        packs.push((custom.pack, PackOrigin::Custom));
+    }
 
     Ok(packs)
 }
@@ -256,6 +280,16 @@ pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<SignaturePack>, String> {
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            // A YARA file here would otherwise be a rule that silently never
+            // runs: say where YARA files are read from.
+            if super::yara::is_yara_path(&path) {
+                eprintln!(
+                    "[corpus] skipping {}: YARA files are not read from this directory; \
+                     pass them with --rules, or list them under rule_packs in a scan or \
+                     organisation policy",
+                    path.display()
+                );
+            }
             continue;
         }
         match load_pack_from_file(&path) {
@@ -295,11 +329,10 @@ mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use ed25519_dalek::{Signer, SigningKey};
-    use std::sync::Mutex;
-
     // Serialise tests that mutate SIGIL_PACK_PUBLIC_KEY so parallel test
-    // runners don't race on the env var.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    // runners don't race on the env var. Shared with the custom-pack tests,
+    // which read the same variable.
+    use crate::corpus::custom::PACK_KEY_ENV_LOCK as ENV_LOCK;
 
     // -----------------------------------------------------------------------
     // Helpers shared across signing tests
@@ -513,7 +546,11 @@ mod tests {
                 "pack has empty id: {:?}",
                 pack.meta
             );
-            let has_rules = !pack.rules.is_empty() || !pack.provenance_rules.is_empty();
+            // A pack of engine_rules (metadata for checks implemented in
+            // Rust, e.g. structural.json) counts: it documents live rules.
+            let has_rules = !pack.rules.is_empty()
+                || !pack.provenance_rules.is_empty()
+                || !pack.engine_rules.is_empty();
             assert!(
                 has_rules,
                 "pack '{}' has no rules or provenance_rules",
@@ -738,6 +775,8 @@ mod precedence_tests {
             rules: Vec::new(),
             provenance_rules: Vec::new(),
             correlation_rules: Vec::new(),
+            engine_rules: Vec::new(),
+            yara: None,
         }
     }
 

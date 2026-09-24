@@ -384,6 +384,35 @@ fn default_window() -> usize {
 }
 
 // ---------------------------------------------------------------------------
+// Engine rules (implemented in Rust, documented in a pack)
+// ---------------------------------------------------------------------------
+
+/// A rule whose detection lives in the scanner's Rust code rather than in a
+/// regex — checks a pattern cannot express, such as comparing a `.pyc`
+/// header with the shipped source or opening a bundled archive.
+///
+/// The pack entry carries what every rule carries for a reader (title,
+/// remediation, references, tags) so these findings are explained exactly
+/// like corpus findings in JSON, SARIF and HTML output, and so `sigil diff`
+/// can attribute a new finding to a newly added rule. The engine owns the
+/// detection and the severity it reports; a test pins the two together.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineRule {
+    pub id: String,
+    pub phase: String,
+    pub severity: String,
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Evidence::is_standalone")]
+    pub evidence: Evidence,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Pack metadata
 // ---------------------------------------------------------------------------
 
@@ -424,4 +453,41 @@ pub struct SignaturePack {
     /// Finding-correlation rules (post-pass; see [`CorrelationRule`]).
     #[serde(default)]
     pub correlation_rules: Vec<CorrelationRule>,
+
+    /// Metadata for rules the engine implements in Rust (see [`EngineRule`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub engine_rules: Vec<EngineRule>,
+
+    /// The compiled rules of a YARA file loaded as a custom pack
+    /// ([`super::yara`]). Never part of a JSON pack: a YARA pack is read from
+    /// `.yar` source, and its signature is detached.
+    #[serde(skip)]
+    pub yara: Option<std::sync::Arc<super::yara::YaraFile>>,
+}
+
+impl SignaturePack {
+    /// Every rule id this pack defines, of every kind.
+    pub fn rule_ids(&self) -> Vec<String> {
+        self.rules
+            .iter()
+            .map(|r| r.id.clone())
+            .chain(self.provenance_rules.iter().map(|r| r.id.clone()))
+            .chain(self.correlation_rules.iter().map(|r| r.id.clone()))
+            .chain(self.engine_rules.iter().map(|r| r.id.clone()))
+            .chain(
+                self.yara
+                    .iter()
+                    .flat_map(|y| y.rules.iter().map(|r| r.id.clone())),
+            )
+            .collect()
+    }
+
+    /// How many rules the pack defines, of every kind.
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+            + self.provenance_rules.len()
+            + self.correlation_rules.len()
+            + self.engine_rules.len()
+            + self.yara.as_ref().map_or(0, |y| y.rules.len())
+    }
 }

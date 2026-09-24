@@ -12,19 +12,143 @@
       "id": "INFER-001",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "(?i)(OpenAI|Anthropic)\\s*\\(.*base_url\\s*=",
-      "description": "Inference security — custom base_url in LLM client (potential endpoint hijack)",
+      "pattern": "(?i)\\b(Async)?(Azure)?(OpenAI|Anthropic)\\s*\\(.*\\bbase_?url\\s*[:=]\\s*[rbuf]?[\"'`]https?://",
+      "description": "Inference security — LLM client pointed at a hardcoded endpoint (potential endpoint hijack)",
       "file_filter": {
-        "extensions": ["py", "js", "ts", "jsx", "tsx"]
+        "extensions": [
+          "py",
+          "js",
+          "ts",
+          "jsx",
+          "tsx"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "://api.openai.com/",
+          "://api.openai.com:",
+          "://api.openai.com\"",
+          "://api.openai.com'",
+          "://api.openai.com`",
+          "://api.anthropic.com/",
+          "://api.anthropic.com:",
+          "://api.anthropic.com\"",
+          "://api.anthropic.com'",
+          "://api.anthropic.com`",
+          ".openai.azure.com/",
+          ".openai.azure.com:",
+          ".openai.azure.com\"",
+          ".openai.azure.com'",
+          ".openai.azure.com`",
+          "://localhost/",
+          "://localhost:",
+          "://localhost\"",
+          "://localhost'",
+          "://localhost`",
+          "://127.0.0.1/",
+          "://127.0.0.1:",
+          "://127.0.0.1\"",
+          "://127.0.0.1'",
+          "://127.0.0.1`",
+          "://0.0.0.0/",
+          "://0.0.0.0:",
+          "://0.0.0.0\"",
+          "://0.0.0.0'",
+          "://0.0.0.0`",
+          "://host.docker.internal/",
+          "://host.docker.internal:",
+          "://host.docker.internal\"",
+          "://host.docker.internal'",
+          "://host.docker.internal`",
+          "://openrouter.ai/",
+          "://openrouter.ai:",
+          "://openrouter.ai\"",
+          "://openrouter.ai'",
+          "://openrouter.ai`",
+          "://integrate.api.nvidia.com/",
+          "://integrate.api.nvidia.com:",
+          "://integrate.api.nvidia.com\"",
+          "://integrate.api.nvidia.com'",
+          "://integrate.api.nvidia.com`",
+          "://generativelanguage.googleapis.com/",
+          "://generativelanguage.googleapis.com:",
+          "://generativelanguage.googleapis.com\"",
+          "://generativelanguage.googleapis.com'",
+          "://generativelanguage.googleapis.com`",
+          "://api.groq.com/",
+          "://api.groq.com:",
+          "://api.groq.com\"",
+          "://api.groq.com'",
+          "://api.groq.com`",
+          "://api.together.xyz/",
+          "://api.together.xyz:",
+          "://api.together.xyz\"",
+          "://api.together.xyz'",
+          "://api.together.xyz`",
+          "://api.together.ai/",
+          "://api.together.ai:",
+          "://api.together.ai\"",
+          "://api.together.ai'",
+          "://api.together.ai`",
+          "://api.deepseek.com/",
+          "://api.deepseek.com:",
+          "://api.deepseek.com\"",
+          "://api.deepseek.com'",
+          "://api.deepseek.com`",
+          "://api.mistral.ai/",
+          "://api.mistral.ai:",
+          "://api.mistral.ai\"",
+          "://api.mistral.ai'",
+          "://api.mistral.ai`",
+          "://api.fireworks.ai/",
+          "://api.fireworks.ai:",
+          "://api.fireworks.ai\"",
+          "://api.fireworks.ai'",
+          "://api.fireworks.ai`",
+          "://api.x.ai/",
+          "://api.x.ai:",
+          "://api.x.ai\"",
+          "://api.x.ai'",
+          "://api.x.ai`",
+          "://api.perplexity.ai/",
+          "://api.perplexity.ai:",
+          "://api.perplexity.ai\"",
+          "://api.perplexity.ai'",
+          "://api.perplexity.ai`",
+          "://api.cerebras.ai/",
+          "://api.cerebras.ai:",
+          "://api.cerebras.ai\"",
+          "://api.cerebras.ai'",
+          "://api.cerebras.ai`",
+          "://dashscope.aliyuncs.com/",
+          "://dashscope.aliyuncs.com:",
+          "://dashscope.aliyuncs.com\"",
+          "://dashscope.aliyuncs.com'",
+          "://dashscope.aliyuncs.com`",
+          "://dashscope-intl.aliyuncs.com/",
+          "://dashscope-intl.aliyuncs.com:",
+          "://dashscope-intl.aliyuncs.com\"",
+          "://dashscope-intl.aliyuncs.com'",
+          "://dashscope-intl.aliyuncs.com`"
+        ]
       },
       "remediation": "Read the base_url passed to the OpenAI or Anthropic Python client. A value taken from configuration or an environment variable, or a documented endpoint (Azure, a local vLLM or Ollama server, a named gateway such as OpenRouter or LiteLLM), is normal; a hardcoded unfamiliar host receives every prompt, every completion and the API key in the auth header, so treat an unexplained literal URL as an endpoint hijack and reject the package.",
-      "references": ["MITRE T1557", "CWE-300", "CAPEC-94"],
-      "tags": ["inference", "endpoint-redirect", "llm-client", "python"]
+      "references": [
+        "MITRE T1557",
+        "CWE-300",
+        "CAPEC-94"
+      ],
+      "tags": [
+        "inference",
+        "endpoint-redirect",
+        "llm-client",
+        "python"
+      ]
     },
     {
       "id": "INFER-002",
       "phase": "inference_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "(?i)baseURL\\s*:\\s*['\"][^'\"]*['\"]",
       "description": "Inference security — custom baseURL in JS LLM client config",
       "file_filter": {
@@ -38,7 +162,7 @@
       "id": "INFER-003",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "f[\"'].*\\{os\\.(environ|getenv)",
+      "pattern": "f[\\\"'].*\\{os\\.(environ\\.get\\s*\\(|environ\\s*\\[|getenv\\s*\\()\\s*[\\\"'][A-Za-z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
       "description": "Inference security — env var interpolated into prompt string",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
@@ -51,10 +175,13 @@
       "id": "INFER-004",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "process\\.env\\.\\w+.*(` |\\$\\{)",
+      "pattern": "process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*\\b.*(` |\\$\\{)",
       "description": "Inference security — process.env in template literal prompt",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      },
+      "suppress": {
+        "line_contains": ["Bearer ", "Basic ", "Authorization", "authorization", "headers", "x-api-key", "X-API-Key", "Token token=", "console.", "logger.", "log(", "Log(", "warn(", "Error("]
       },
       "remediation": "This JavaScript/TypeScript line reads process.env and opens a template literal on the same line; identify the variable and the string it feeds. A hostname going into a URL, or a key going into an Authorization header value, is ordinary; an API key, token or password interpolated into prompt, message or request-body text puts the secret in the model's context and the provider's logs, where a prompt-injected agent can repeat it — keep secrets in auth headers, never in prompt text.",
       "references": ["CWE-201"],
@@ -64,10 +191,13 @@
       "id": "INFER-005",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "(`|\\$\\{).*process\\.env\\.\\w+",
+      "pattern": "(`|\\$\\{).*process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
       "description": "Inference security — template literal with process.env",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
+      },
+      "suppress": {
+        "line_contains": ["Bearer ", "Basic ", "Authorization", "authorization", "headers", "x-api-key", "X-API-Key", "Token token=", "console.", "logger.", "log(", "Log(", "warn(", "Error("]
       },
       "remediation": "A JavaScript/TypeScript template literal interpolates process.env on this line; identify the variable and where the string goes. A hostname in a URL or a key in a Bearer header value is ordinary; a key, token or password interpolated into text that is sent as a prompt, a message or a request body puts the secret in the model's context and the provider's logs, where a prompt-injected agent can repeat it — keep secrets in auth headers, never in prompt text.",
       "references": ["CWE-201"],
@@ -82,6 +212,9 @@
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
       },
+      "suppress": {
+        "line_contains": ["your-", "your_", "YOUR_", "<your", "placeholder", "example", "xxxx", "dummy", "fake", "test-key", "sk-..."]
+      },
       "remediation": "A literal api_key value in Python source (including api_key= passed to an OpenAI or Anthropic client) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it.",
       "references": ["CWE-798", "MITRE T1552.001"],
       "tags": ["credentials", "hardcoded-secret", "api-key", "python"]
@@ -95,6 +228,9 @@
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
       },
+      "suppress": {
+        "line_contains": ["your-", "your_", "YOUR_", "<your", "placeholder", "example", "xxxx", "dummy", "fake", "test-key", "sk-..."]
+      },
       "remediation": "A literal apiKey value in a JavaScript/TypeScript client config (the apiKey option of the OpenAI or Anthropic Node SDK) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it.",
       "references": ["CWE-798", "MITRE T1552.001"],
       "tags": ["credentials", "hardcoded-secret", "api-key", "javascript"]
@@ -102,7 +238,7 @@
     {
       "id": "INFER-008",
       "phase": "inference_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "httpx\\.Client\\s*\\(.*base_url",
       "description": "Inference security — custom httpx client wrapping API calls",
       "file_filter": {
@@ -115,7 +251,7 @@
     {
       "id": "INFER-009",
       "phase": "inference_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "requests\\.Session\\s*\\(.*proxy|proxies\\s*=\\s*\\{",
       "description": "Inference security — proxy config for API requests",
       "file_filter": {
@@ -128,7 +264,7 @@
     {
       "id": "INFER-010",
       "phase": "inference_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "(?i)(requests\\.(post|put|get)|fetch\\s*\\().*prompt",
       "description": "Inference security — prompt content sent via HTTP",
       "file_filter": {
@@ -141,7 +277,7 @@
     {
       "id": "INFER-011",
       "phase": "inference_security",
-      "severity": "high",
+      "severity": "low",
       "pattern": "(?i)(prompt|completion|response).*\\.write\\s*\\(|open\\s*\\(.*[\"']w[\"'].*prompt",
       "description": "Inference security — prompt/completion content written to file",
       "file_filter": {
