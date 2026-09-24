@@ -24,7 +24,9 @@ Pass one or more ``--malicious DIR`` and ``--clean DIR`` roots. A sample is
 every directory under a root that contains a ``SKILL.md`` (the directory
 itself is scanned), or, with ``--sample-depth N``, every directory exactly N
 levels below the root (use this for datasets whose samples are not all
-``SKILL.md`` skills).
+``SKILL.md`` skills). ``--clean-sample-depth N`` does the same for the
+``--clean`` roots: the clean MCP-server corpus keeps one unpacked package per
+directory (``mcp_clean/<server>/``), so it is scanned with depth 1.
 
 Scanners
 --------
@@ -70,6 +72,8 @@ class Outcome:
     level: str = "NONE"
     findings: int = 0
     rules: list[str] = field(default_factory=list)
+    # Rules with at least one High or Critical finding: what a block rests on.
+    high_rules: list[str] = field(default_factory=list)
     seconds: float = 0.0
     error: str | None = None
 
@@ -109,7 +113,7 @@ def discover(root: Path, depth: int | None) -> list[Path]:
     return sorted(found)
 
 
-def run_sigil(binary: str, sample: Path, home: str, timeout: int) -> tuple[str, int, list[str], str | None]:
+def run_sigil(binary: str, sample: Path, home: str, timeout: int) -> tuple[str, int, list[str], list[str], str | None]:
     env = dict(os.environ, HOME=home, SIGIL_NO_TELEMETRY="1")
     proc = subprocess.run(
         [binary, "scan", str(sample), "--format", "json", "--no-cache"],
@@ -118,16 +122,18 @@ def run_sigil(binary: str, sample: Path, home: str, timeout: int) -> tuple[str, 
     try:
         doc = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        return "NONE", 0, [], f"exit {proc.returncode}: {proc.stderr.strip()[:200]}"
+        return "NONE", 0, [], [], f"exit {proc.returncode}: {proc.stderr.strip()[:200]}"
     verdict = (doc.get("summary", {}).get("verdict") or doc.get("verdict") or "").upper()
     level = next((lv for lv in ("CRITICAL", "HIGH", "MEDIUM", "LOW") if verdict.startswith(lv)), "NONE")
     findings = doc.get("findings", [])
     if level == "LOW" and not findings:
         level = "NONE"
-    return level, len(findings), sorted({f.get("rule", "") for f in findings}), None
+    high = sorted({f.get("rule", "") for f in findings
+                   if str(f.get("severity", "")).upper() in ("HIGH", "CRITICAL")})
+    return level, len(findings), sorted({f.get("rule", "") for f in findings}), high, None
 
 
-def run_skillspector(binary: str, sample: Path, home: str, timeout: int) -> tuple[str, int, list[str], str | None]:
+def run_skillspector(binary: str, sample: Path, home: str, timeout: int) -> tuple[str, int, list[str], list[str], str | None]:
     env = dict(os.environ, HOME=home)
     proc = subprocess.run(
         [binary, "scan", str(sample), "--no-llm", "--format", "json"],
@@ -136,13 +142,15 @@ def run_skillspector(binary: str, sample: Path, home: str, timeout: int) -> tupl
     try:
         doc = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        return "NONE", 0, [], f"exit {proc.returncode}: {proc.stderr.strip()[:200]}"
+        return "NONE", 0, [], [], f"exit {proc.returncode}: {proc.stderr.strip()[:200]}"
     issues = doc.get("issues", [])
     sev = (doc.get("risk_assessment", {}).get("severity") or "LOW").upper()
     level = sev if sev in RANK else "NONE"
     if level == "LOW" and not issues:
         level = "NONE"
-    return level, len(issues), sorted({i.get("id") or i.get("rule_id") or "" for i in issues}), None
+    high = sorted({i.get("id") or i.get("rule_id") or "" for i in issues
+                   if str(i.get("severity", "")).upper() in ("HIGH", "CRITICAL")})
+    return level, len(issues), sorted({i.get("id") or i.get("rule_id") or "" for i in issues}), high, None
 
 
 RUNNERS = {"sigil": (resolve_sigil, run_sigil), "skillspector": (resolve_skillspector, run_skillspector)}
@@ -232,7 +240,8 @@ def render_markdown(summary: dict, outcomes: list[Outcome], args, corpora: dict)
     lines += ["", "## Clean samples blocked", ""]
     for o in outcomes:
         if o.label == "clean" and o.error is None and RANK[o.level] >= RANK["HIGH"]:
-            lines.append(f"- {o.tool}: `{o.sample}` — {o.level} {o.rules[:8]}")
+            lines.append(f"- {o.tool}: `{o.sample}` — {o.level} {o.rules[:8]}"
+                         + (f" (High/Critical: {o.high_rules})" if o.high_rules else ""))
     return "\n".join(lines) + "\n"
 
 
@@ -242,6 +251,12 @@ def main() -> int:
     ap.add_argument("--clean", action="append", default=[], type=Path)
     ap.add_argument("--sample-depth", type=int, default=None,
                     help="treat directories exactly N levels below each --malicious root as samples")
+    ap.add_argument("--clean-sample-depth", type=int, default=None,
+                    help="treat directories exactly N levels below each --clean root as samples "
+                         "(1 for the MCP-server corpus: one unpacked package per directory)")
+    ap.add_argument("--stride", type=int, default=1,
+                    help="keep every Nth sample of each root, in sorted order starting with the "
+                         "first (a deterministic subsample for slow tools)")
     ap.add_argument("--tools", default="sigil,skillspector")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=300)
@@ -260,9 +275,10 @@ def main() -> int:
 
     work: list[tuple[Path, str, str]] = []
     corpora: dict[str, int] = {}
-    for label, roots, depth in (("malicious", args.malicious, args.sample_depth), ("clean", args.clean, None)):
+    for label, roots, depth in (("malicious", args.malicious, args.sample_depth),
+                                ("clean", args.clean, args.clean_sample_depth)):
         for root in roots:
-            samples = discover(root.resolve(), depth)
+            samples = discover(root.resolve(), depth)[:: max(1, args.stride)]
             corpora[f"{label}:{root.name}"] = len(samples)
             work += [(s, label, root.name) for s in samples]
 
@@ -274,7 +290,8 @@ def main() -> int:
         o = Outcome(sample=str(sample), label=label, corpus=corpus, tool=tool)
         t0 = time.monotonic()
         try:
-            o.level, o.findings, o.rules, o.error = RUNNERS[tool][1](binaries[tool], sample, home, args.timeout)
+            o.level, o.findings, o.rules, o.high_rules, o.error = RUNNERS[tool][1](
+                binaries[tool], sample, home, args.timeout)
         except subprocess.TimeoutExpired:
             o.error = "timeout"
         o.seconds = round(time.monotonic() - t0, 2)

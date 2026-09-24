@@ -82,7 +82,6 @@
         "filename_exact": [
           "manifest.json",
           "plugin.json",
-          "package.json",
           "SKILL.md",
           "mcp.json",
           "tool.json"

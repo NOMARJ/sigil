@@ -76,11 +76,25 @@
       "id": "OBFUSC-CHAIN-006",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "[\\u200B-\\u200D\\uFEFF]",
+      "pattern": "[\\x21-\\x7E][\\x{200B}-\\x{200D}\\x{FEFF}]|[\\x{200B}-\\x{200D}][\\x21-\\x7E]|[\\x{200B}-\\x{200D}\\x{FEFF}][\\x{200B}-\\x{200D}]|[\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{FE0F}\\x{1F000}-\\x{1FAFF}][\\x{200B}-\\x{200D}]|[\\x{200B}-\\x{200D}][\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{1F000}-\\x{1FAFF}]|\\s[\\x{200B}-\\x{200D}\\x{FEFF}]|[\\x{200B}-\\x{200D}]\\s",
       "description": "Zero-width Unicode characters detected — potential steganography",
+      "suppress": {
+        "line_contains": [
+          "nonASCIIidentifier",
+          "chars: \"",
+          "\"chars\": \""
+        ]
+      },
       "remediation": "Hex-dump the flagged line to see where the zero-width characters sit and what they are hiding. A UTF-8 byte-order mark at the very start of a file, ZWJ inside emoji sequences and ZWNJ in Persian, Arabic or Indic text are legitimate; zero-width characters inside code, identifiers or string literals that are later decoded are steganography or look-alike identifiers, and the file should be rejected.",
-      "references": ["MITRE T1027"],
-      "tags": ["obfuscation", "unicode", "zero-width", "steganography"]
+      "references": [
+        "MITRE T1027"
+      ],
+      "tags": [
+        "obfuscation",
+        "unicode",
+        "zero-width",
+        "steganography"
+      ]
     },
     {
       "id": "OBFUSC-CHAIN-007",
@@ -116,7 +130,7 @@
       "id": "OBFUSC-CHAIN-010",
       "phase": "obfuscation",
       "severity": "high",
-      "pattern": "(window|global|this|document)\\s*\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|(window|global|this|document)\\s*\\[\\s*\\w+\\s*\\]\\s*\\(",
+      "pattern": "\\b(window|global|globalThis|document)\\[\\s*[\"']?[\\w]+[\"']?\\s*\\+\\s*[\"']?[\\w]+[\"']?\\s*\\]|\\b(window|global|globalThis|document)\\[\\s*\\w+\\s*\\]\\s*\\(",
       "description": "Dynamic property access with string concatenation or variable reference",
       "suppress": {
         "path_contains": [
