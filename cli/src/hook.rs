@@ -13,9 +13,11 @@
 //!   `gemini mcp add` / `extensions install|link`, `npx skills add`,
 //!   `clawhub install`;
 //! - remote execution: `npx`/`bunx`/`pnpm dlx`/`yarn dlx`/`npm exec`/
-//!   `uvx`/`uv tool run`/`pipx run` of a registry package, and a download
+//!   `uvx`/`uv tool run`/`pipx run` of a registry package (and `pipx
+//!   install`, `uv tool install`, `deno run npm:…|https://…`), a download
 //!   piped or substituted into an interpreter (`curl … | sh`,
-//!   `bash <(curl …)`, `iwr … | iex`);
+//!   `bash <(curl …)`, `iwr … | iex`), and a download saved to a file and
+//!   run in the same command (`curl -o i.sh … && bash i.sh`);
 //! - writes into agent tooling: downloading, unpacking or copying into
 //!   `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`,
 //!   `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, ... .
@@ -24,7 +26,9 @@
 //! command can gate the original one, the alternative is written as
 //! `sigil … && <original>`, and that form is allowed: a command chained
 //! with `&&` after a `sigil scan|clone|pip|npm` of the same target only runs
-//! when the scan passed. A download piped into an interpreter is never
+//! when the scan passed. "Same" includes the kind of target (see
+//! [`Target`]): a scan of a directory named `evil` does not vet the npm
+//! package `evil`. A download piped into an interpreter is never
 //! gated this way — the server can serve the scanner and the shell
 //! different bytes — so its alternative is download, scan, then run.
 //!
@@ -192,40 +196,103 @@ fn is_sigil(stage: &str) -> bool {
     )
 }
 
-/// Normalise a target token so `https://github.com/o/r.git`, `o/r` and
-/// `./dir/` compare equal to their other spellings.
-fn norm(t: &str) -> String {
-    let mut s = t.trim().trim_matches(['"', '\'']).to_string();
-    for p in [
-        "https://github.com/",
-        "http://github.com/",
-        "git@github.com:",
-        "github:",
-    ] {
-        if let Some(r) = s.strip_prefix(p) {
-            s = r.to_string();
-        }
-    }
-    if let Some(r) = s.strip_suffix(".git") {
-        s = r.to_string();
-    }
-    while s.len() > 1 && s.ends_with('/') {
-        s.pop();
-    }
-    if let Some(r) = s.strip_prefix("./") {
-        s = r.to_string();
-    }
-    s
+/// What a vetting `sigil` call checked, or what a stage acquires. A gate
+/// counts only when the kind and the normalised name both agree: `sigil
+/// npm evil` says nothing about the PyPI package `evil`, and a scan of a
+/// local directory named `evil` says nothing about either registry package
+/// (anyone can `mkdir evil` first).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Target {
+    /// An npm package spec, as `sigil npm` takes it.
+    Npm(String),
+    /// A PyPI package spec, as `sigil pip` takes it.
+    Pypi(String),
+    /// A remote repository, canonicalised to `host/owner/repo`.
+    Repo(String),
+    /// A local file or directory, resolved against the working directory.
+    Path(String),
+    /// Something no sigil call vets by name (a crate, a gem, a Go module, a
+    /// file on another host): a stage acquiring it is never gated.
+    Unvettable,
 }
 
-/// Targets a `sigil scan|clone|pip|npm|skills` invocation vets.
-fn vetting_targets(stage: &str) -> Option<Vec<String>> {
+/// Trim shell quotes from a token.
+fn unquote(t: &str) -> &str {
+    t.trim().trim_matches(['"', '\''])
+}
+
+/// Does this token name a remote repository rather than a local path?
+fn is_remote(t: &str) -> bool {
+    let t = unquote(t);
+    t.contains("://") || t.starts_with("git@") || t.starts_with("github:")
+}
+
+/// `https://github.com/o/r.git`, `git@github.com:o/r`, `github:o/r` and
+/// `http://www.github.com/o/r/` all become `github.com/o/r`.
+fn canon_repo(t: &str) -> String {
+    let mut s = unquote(t).to_string();
+    if let Some(r) = s.strip_prefix("github:") {
+        s = format!("github.com/{r}");
+    }
+    if let Some(r) = s.strip_prefix("git@") {
+        s = r.replacen(':', "/", 1);
+    }
+    if let Some((_, r)) = s.split_once("://") {
+        s = r.to_string();
+    }
+    // `user@host/...` credentials are not part of the identity.
+    if let Some((_, r)) = s.split_once('@').filter(|(u, _)| !u.contains('/')) {
+        s = r.to_string();
+    }
+    let s = s.trim_start_matches("www.").trim_end_matches('/');
+    let s = s.strip_suffix(".git").unwrap_or(s);
+    match s.split_once('/') {
+        Some((host, rest)) => format!("{}/{rest}", host.to_ascii_lowercase()),
+        None => s.to_ascii_lowercase(),
+    }
+}
+
+/// A repository at a named branch or tag is a different artifact from its
+/// default branch.
+fn with_branch(repo: String, branch: &Option<String>) -> String {
+    match branch {
+        Some(b) => format!("{repo}#{}", unquote(b)),
+        None => repo,
+    }
+}
+
+/// A local path as the command would resolve it: `~`/`$HOME` expanded,
+/// relative paths joined to the current directory (which follows `cd`),
+/// `.` components and trailing slashes dropped.
+fn canon_path(t: &str, ctx: &Context) -> String {
+    expand(unquote(t), ctx)
+        .components()
+        .filter(|c| *c != std::path::Component::CurDir)
+        .collect::<PathBuf>()
+        .to_string_lossy()
+        .to_string()
+}
+
+/// A source argument (`npx skills add <src>`, `gemini extensions install
+/// <src>`, `claude plugin marketplace add <src>`): a local path, a URL, or
+/// GitHub `owner/repo` shorthand.
+fn source_target(src: &str, ctx: &Context) -> Target {
+    if is_local(src) {
+        Target::Path(canon_path(src, ctx))
+    } else {
+        Target::Repo(canon_repo(&github_url(src)))
+    }
+}
+
+/// Targets a `sigil scan|clone|pip|npm` invocation vets. `sigil skills`
+/// inspects what is already installed and vets nothing by name.
+fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
     let toks = cmdline::tokenize(stage);
     let i = toks
         .iter()
         .position(|t| t.rsplit('/').next().unwrap_or(t).trim_end_matches(".exe") == "sigil")?;
     let sub = toks.get(i + 1)?.as_str();
-    if !matches!(sub, "scan" | "clone" | "pip" | "npm" | "skills") {
+    if !matches!(sub, "scan" | "clone" | "pip" | "npm") {
         return None;
     }
     const VALUED: &[&str] = &[
@@ -239,39 +306,57 @@ fn vetting_targets(stage: &str) -> Option<Vec<String>> {
         "-b",
         "--branch",
         "--baseline",
-        "--root",
-        "--project",
-        "--tool",
+        "-o",
+        "--output",
+        "--policy",
+        "--rules",
+        "--config",
     ];
-    let mut out = Vec::new();
-    let mut skip = false;
-    for t in &toks[i + 2..] {
-        if skip {
-            skip = false;
-            continue;
+    let mut names = Vec::new();
+    // `sigil pip ruff -V 0.4.0` vets ruff==0.4.0, not whatever `ruff`
+    // resolves to later.
+    let mut version: Option<String> = None;
+    // `sigil clone <url> -b dev` vets the dev branch, not the default one.
+    let mut branch: Option<String> = None;
+    let mut it = toks[i + 2..].iter();
+    while let Some(t) = it.next() {
+        if t == "-V" || t == "--version" {
+            version = it.next().cloned();
+        } else if let Some(v) = t.strip_prefix("--version=") {
+            version = Some(v.to_string());
+        } else if t == "-b" || t == "--branch" {
+            branch = it.next().cloned();
+        } else if VALUED.contains(&t.as_str()) {
+            it.next();
+        } else if !t.starts_with('-') {
+            names.push(unquote(t).to_string());
         }
-        if VALUED.contains(&t.as_str()) {
-            skip = true;
-            continue;
-        }
-        if t.starts_with('-') {
-            continue;
-        }
-        out.push(norm(t));
     }
-    Some(out)
+    Some(
+        names
+            .into_iter()
+            .map(|n| match (sub, &version) {
+                ("npm", Some(v)) => Target::Npm(format!("{n}@{v}")),
+                ("npm", None) => Target::Npm(n),
+                ("pip", Some(v)) => Target::Pypi(format!("{n}=={v}")),
+                ("pip", None) => Target::Pypi(n),
+                _ if is_remote(&n) => Target::Repo(with_branch(canon_repo(&n), &branch)),
+                _ => Target::Path(canon_path(&n, ctx)),
+            })
+            .collect(),
+    )
 }
 
 /// A stage after `sigil … &&` is gated when *every* thing it acquires was
-/// vetted by the chain: `sigil npm a && npm install a b` still installs an
-/// unvetted `b`. A stage whose targets cannot be named is never gated.
-fn gated(gates: &[Vec<String>], targets: &[String]) -> bool {
-    let vetted: Vec<&String> = gates.iter().flatten().filter(|g| !g.is_empty()).collect();
+/// vetted by the chain, as the same kind of thing: `sigil npm a && npm
+/// install a b` still installs an unvetted `b`, and `sigil npm a && pip
+/// install a` installs a different package. A stage whose targets cannot
+/// be named is never gated.
+fn gated(gates: &[Vec<Target>], targets: &[Target]) -> bool {
     !targets.is_empty()
-        && targets.iter().all(|t| {
-            let n = norm(t);
-            vetted.iter().any(|g| **g == n)
-        })
+        && targets
+            .iter()
+            .all(|t| !matches!(t, Target::Unvettable) && gates.iter().flatten().any(|g| g == t))
 }
 
 // Command patterns shared by the classifiers and `stage_targets`. Group 2
@@ -303,40 +388,89 @@ fn first_non_flag(toks: &[String], skip: usize) -> Option<String> {
         .cloned()
 }
 
-/// Everything a stage would acquire, as the strings a vetting `sigil`
-/// call names: packages, repository URLs, archives, copied sources, the
-/// package an MCP server runs. Empty when the stage acquires nothing the
-/// chain could have vetted (a download, a bare lockfile restore).
-fn stage_targets(stage: &str) -> Vec<String> {
+/// The target a package runner fetches, in the registry it fetches from.
+fn runner_target(r: &cmdline::Runner) -> Target {
+    match r.ecosystem {
+        cmdline::Ecosystem::Npm => Target::Npm(r.vet_target()),
+        cmdline::Ecosystem::Pypi => Target::Pypi(r.vet_target()),
+    }
+}
+
+/// Script files an MCP server command runs (`node ./server.js`), which
+/// `sigil scan <file>` can vet.
+fn mcp_script_args(command: &[String]) -> Vec<&String> {
+    command
+        .iter()
+        .skip(1)
+        .chain(command.first())
+        .filter(|t| {
+            !t.starts_with('-')
+                && (t.contains('/')
+                    || [".js", ".mjs", ".cjs", ".ts", ".py", ".sh"]
+                        .iter()
+                        .any(|e| t.ends_with(e)))
+        })
+        .collect()
+}
+
+/// Everything a stage would acquire, typed by what can vet it: packages,
+/// repositories, archives, copied sources, the package or script an MCP
+/// server runs. Empty when the stage acquires nothing the chain could have
+/// vetted (a download, a bare lockfile restore, a remote MCP endpoint, a
+/// container image).
+fn stage_targets(stage: &str, ctx: &Context) -> Vec<Target> {
     let from = |pat: &str| find_at(stage, pat).map(|i| cmdline::tokenize(&stage[i..]));
     if let Some(t) = from(&mcp_add_pat()) {
         let m = parse_mcp_add(&t);
         if let Some(r) = cmdline::parse_runner(&m.command) {
-            return vec![r.vet_target()];
+            return vec![runner_target(&r)];
         }
-        return m
-            .command
-            .first()
-            .map(|_| m.command.clone())
-            .unwrap_or_default();
+        let remote = m.url.is_some()
+            || m.command
+                .first()
+                .is_some_and(|c| c.starts_with("http://") || c.starts_with("https://"));
+        if remote || cmdline::container_risk(&m.command).is_some() {
+            return vec![];
+        }
+        let scripts = mcp_script_args(&m.command);
+        return scripts
+            .iter()
+            .map(|s| Target::Path(canon_path(s, ctx)))
+            .collect();
     }
     if let Some(t) = from(&marketplace_pat()) {
-        return first_non_flag(&t, 4).into_iter().collect();
+        return first_non_flag(&t, 4)
+            .map(|s| source_target(&s, ctx))
+            .into_iter()
+            .collect();
     }
     if let Some(t) = from(&extensions_pat()) {
-        return first_non_flag(&t, 3).into_iter().collect();
+        return first_non_flag(&t, 3)
+            .map(|s| source_target(&s, ctx))
+            .into_iter()
+            .collect();
     }
     if let Some(t) = from(&skills_cli_pat()) {
         let pos = t
             .iter()
             .position(|x| x == "add" || x == "install")
             .unwrap_or(t.len());
-        return first_non_flag(&t, pos + 1).into_iter().collect();
+        return first_non_flag(&t, pos + 1)
+            .map(|s| source_target(&s, ctx))
+            .into_iter()
+            .collect();
     }
     if let Some(r) = find_at(stage, RUNNER_PAT)
         .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
     {
-        return vec![r.vet_target()];
+        return vec![runner_target(&r)];
+    }
+    if let Some(m) = deno_module(stage) {
+        // A URL module is fetched at run time: nothing can vet it by name.
+        return vec![match m.strip_prefix("npm:") {
+            Some(spec) => Target::Npm(spec.to_string()),
+            None => Target::Unvettable,
+        }];
     }
     let mut toks = cmdline::tokenize(stage);
     while toks
@@ -365,6 +499,19 @@ fn stage_targets(stage: &str) -> Vec<String> {
         }
         out
     };
+    let paths = |v: Vec<String>| -> Vec<Target> {
+        v.iter()
+            .map(|p| {
+                // `scp host:path`: a file on another machine, which no local
+                // scan named `host:path` has seen.
+                if head == "scp" && p.contains(':') && !p.starts_with('/') {
+                    Target::Unvettable
+                } else {
+                    Target::Path(canon_path(p, ctx))
+                }
+            })
+            .collect()
+    };
     match head.as_str() {
         "cp" | "mv" | "rsync" | "ln" | "install" | "scp" => {
             let mut target_dir = None;
@@ -387,29 +534,60 @@ fn stage_targets(stage: &str) -> Vec<String> {
             if target_dir.is_none() {
                 args.pop();
             }
-            args
+            paths(args)
         }
-        "unzip" => positional(&["-d", "-x"]).into_iter().take(1).collect(),
-        "7z" | "7za" => positional(&[]).into_iter().skip(1).take(1).collect(),
+        "unzip" => paths(positional(&["-d", "-x"]).into_iter().take(1).collect()),
+        "7z" | "7za" => paths(positional(&[]).into_iter().skip(1).take(1).collect()),
         "tar" | "bsdtar" => {
             let mut it = toks.iter().skip(1);
             while let Some(t) = it.next() {
                 if let Some(v) = t.strip_prefix("--file=") {
-                    return vec![v.to_string()];
+                    return paths(vec![v.to_string()]);
                 }
                 if t == "--file" || (t.starts_with('-') && !t.starts_with("--") && t.ends_with('f'))
                 {
-                    return it.next().cloned().into_iter().collect();
+                    return paths(it.next().cloned().into_iter().collect());
                 }
             }
             vec![]
         }
         "git" | "gh" => {
             let i = toks.iter().position(|t| t == "clone").unwrap_or(toks.len());
-            first_non_flag(&toks, i + 1).into_iter().collect()
+            let mut branch = None;
+            let mut url = None;
+            let mut it = toks.iter().skip(i + 1);
+            while let Some(t) = it.next() {
+                if t == "-b" || t == "--branch" {
+                    branch = it.next().cloned();
+                } else if let Some(b) = t.strip_prefix("--branch=") {
+                    branch = Some(b.to_string());
+                } else if matches!(
+                    t.as_str(),
+                    "--depth" | "-o" | "--origin" | "-c" | "--config"
+                ) {
+                    it.next();
+                } else if !t.starts_with('-') && url.is_none() {
+                    url = Some(t.clone());
+                }
+            }
+            url.map(|u| {
+                if is_local(&u) {
+                    Target::Path(canon_path(&u, ctx))
+                } else {
+                    Target::Repo(with_branch(canon_repo(&github_url(&u)), &branch))
+                }
+            })
+            .into_iter()
+            .collect()
         }
         _ => {
-            // Package managers: every argument after the install verb.
+            // Package managers: every argument after the install verb, in
+            // the registry that manager installs from. Crates, gems and Go
+            // modules have no `sigil` subcommand that vets them by name.
+            let npm = matches!(head.as_str(), "npm" | "yarn" | "pnpm" | "bun");
+            let pypi = head.starts_with("pip")
+                || head == "uv"
+                || (head.starts_with("python") && toks.iter().any(|t| t == "pip"));
             match toks
                 .iter()
                 .position(|t| matches!(t.as_str(), "install" | "i" | "add" | "get"))
@@ -417,7 +595,23 @@ fn stage_targets(stage: &str) -> Vec<String> {
                 Some(i) => toks[i + 1..]
                     .iter()
                     .filter(|t| !t.starts_with('-'))
-                    .cloned()
+                    .map(|t| {
+                        let t = unquote(t).to_string();
+                        if (npm || pypi) && is_local(&t) {
+                            Target::Path(canon_path(&t, ctx))
+                        } else if npm {
+                            Target::Npm(t)
+                        } else if pypi {
+                            // `uv tool install ruff@0.4.0` is ruff==0.4.0.
+                            Target::Pypi(if t.contains("://") {
+                                t
+                            } else {
+                                t.replacen('@', "==", 1)
+                            })
+                        } else {
+                            Target::Unvettable
+                        }
+                    })
                     .collect(),
                 None => vec![],
             }
@@ -801,6 +995,37 @@ fn runner(stage: &str, ctx: &Context) -> Option<Decision> {
     )))
 }
 
+/// `deno run|x|install|serve <module>`: the module argument of a deno
+/// command, when it is fetched from somewhere (`https://…`, `npm:…`,
+/// `jsr:…`) rather than read from disk.
+fn deno_module(stage: &str) -> Option<String> {
+    let at = find_at(
+        stage,
+        &format!(r"{WB}((\S*/)?deno\s+(run|x|install|serve))(\s|$)"),
+    )?;
+    let toks = cmdline::tokenize(&stage[at..]);
+    let m = toks.iter().skip(2).find(|t| !t.starts_with('-'))?;
+    let remote = m.starts_with("https://")
+        || m.starts_with("http://")
+        || m.starts_with("npm:")
+        || m.starts_with("jsr:");
+    remote.then(|| m.clone())
+}
+
+/// Deno fetches and runs a remote module in one step, like npx.
+fn deno_remote(stage: &str) -> Option<Decision> {
+    let m = deno_module(stage)?;
+    if let Some(spec) = m.strip_prefix("npm:") {
+        return Some(Decision::Deny(format!(
+            "deno fetches {spec} from the npm registry and runs it in one step, with no scan. Use: sigil npm {spec} && {}. {BYPASS_HINT}",
+            stage.trim()
+        )));
+    }
+    Some(Decision::Deny(format!(
+        "deno fetches {m} and runs it in one step, with no scan (the server decides per request what it serves). Download the module, run sigil scan on it, then deno run the local file. {BYPASS_HINT}"
+    )))
+}
+
 /// Downloads, unpacks and copies into agent tooling directories.
 fn tooling_write(stage: &str, ctx: &Context) -> Option<Decision> {
     let mut toks = cmdline::tokenize(stage);
@@ -864,10 +1089,12 @@ fn tooling_write(stage: &str, ctx: &Context) -> Option<Decision> {
                     _ => {}
                 }
             }
-            let dest = dest.or_else(|| remote_name.then(cwd_dest).flatten())?;
-            if dest == "-" || !is_agent_dest(&dest, ctx) {
-                return None;
-            }
+            // The flag parse above, or the saved file as `download_file`
+            // resolves it (which also follows `> file` redirects).
+            let dest = dest
+                .or_else(|| remote_name.then(cwd_dest).flatten())
+                .filter(|d| d != "-" && is_agent_dest(d, ctx))
+                .or_else(|| download_file(stage, ctx).filter(|f| agent_path(f)))?;
             let url = cmdline::first_url(stage).unwrap_or_else(|| "<url>".into());
             Some(Decision::Deny(format!(
                 "Downloads into agent tooling ({dest}) with no scan. Use: sigil scan {url} — it downloads into quarantine and scans first. {BYPASS_HINT}"
@@ -1077,6 +1304,25 @@ fn package_managers(stage: &str, ctx: &Context) -> Decision {
             "uv add installs unscanned code. Use: sigil pip <pkg> (quarantine + scan first). {BYPASS_HINT}"
         ));
     }
+    // Tool installers: the same registry download as `uvx` / `pipx run`,
+    // kept on PATH afterwards.
+    if let Some(at) = find_at(
+        stage,
+        &format!(r"{WB}((\S*/)?(pipx|uv{MOD}\s+tool){MOD}\s+install){FLAGS}{PKG}"),
+    ) {
+        let toks = cmdline::tokenize(&stage[at..]);
+        let pkg = toks
+            .iter()
+            .skip_while(|t| *t != "install")
+            .skip(1)
+            .find(|t| !t.starts_with('-'))
+            .map(|p| unquote(p).replace('@', "=="))
+            .unwrap_or_else(|| "<pkg>".into());
+        return Decision::Deny(format!(
+            "This installs {pkg} from the Python package index with no scan; its build and entry points run with your privileges. Use: sigil pip {pkg} && {} — and pin an exact version. {BYPASS_HINT}",
+            stage.trim()
+        ));
+    }
 
     // Other package managers with explicit packages.
     if has(
@@ -1107,11 +1353,146 @@ fn package_managers(stage: &str, ctx: &Context) -> Decision {
     Decision::Allow(NO_MATCH.into())
 }
 
+/// Tokens of a stage with leading `sudo` and `VAR=value` words dropped.
+fn command_tokens(stage: &str) -> Vec<String> {
+    let mut toks = cmdline::tokenize(stage);
+    while toks
+        .first()
+        .is_some_and(|t| t == "sudo" || t == "env" || (t.contains('=') && !t.starts_with('-')))
+    {
+        toks.remove(0);
+    }
+    toks
+}
+
+/// The file a `curl`/`wget` stage saves its download to, resolved like
+/// [`canon_path`]. `None` when it writes to stdout or is not a download.
+fn download_file(stage: &str, ctx: &Context) -> Option<String> {
+    let toks = command_tokens(stage);
+    let head = toks.first()?.rsplit('/').next()?.to_string();
+    let wget = head == "wget";
+    if !wget && head != "curl" {
+        return None;
+    }
+    let url_name = cmdline::first_url(stage).and_then(|u| {
+        let path = u.split(['?', '#']).next()?.to_string();
+        let name = path
+            .split("://")
+            .nth(1)?
+            .split_once('/')?
+            .1
+            .rsplit('/')
+            .next()?;
+        (!name.is_empty()).then(|| name.to_string())
+    });
+    let mut out: Option<String> = None;
+    let mut dir: Option<String> = None;
+    let mut remote = wget;
+    let mut it = toks.iter().skip(1);
+    while let Some(t) = it.next() {
+        let t = t.as_str();
+        match t {
+            ">" | ">>" => out = it.next().cloned(),
+            _ if t.starts_with('>') && !t.starts_with(">&") => {
+                out = Some(t.trim_start_matches('>').to_string())
+            }
+            "--output" | "--output-document" => out = it.next().cloned(),
+            "-o" if wget => {
+                it.next(); // wget -o is its log file
+            }
+            "-o" => out = it.next().cloned(),
+            "-O" if wget => out = it.next().cloned(),
+            "-O" | "--remote-name" => remote = true,
+            "-P" | "--directory-prefix" | "--output-dir" => dir = it.next().cloned(),
+            _ if t.starts_with("--output-document=") || t.starts_with("--output=") => {
+                out = t.split_once('=').map(|(_, v)| v.to_string())
+            }
+            _ if t.starts_with("--directory-prefix=") || t.starts_with("--output-dir=") => {
+                dir = t.split_once('=').map(|(_, v)| v.to_string())
+            }
+            // Bundled short flags: curl `-fsSLo file`, `-fsSLO`; wget `-qO file`, `-qO-`.
+            _ if t.starts_with('-') && !t.starts_with("--") => {
+                let flags = &t[1..];
+                if wget {
+                    if let Some(i) = flags.find('O') {
+                        let rest = &flags[i + 1..];
+                        out = if rest.is_empty() {
+                            it.next().cloned()
+                        } else {
+                            Some(rest.to_string())
+                        };
+                    }
+                } else if flags.ends_with('o') {
+                    out = it.next().cloned();
+                } else if flags.contains('O') {
+                    remote = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    let file = out.or_else(|| remote.then_some(url_name).flatten())?;
+    if file == "-" || file.starts_with("/dev/") {
+        return None;
+    }
+    let file = match dir {
+        Some(d) if !file.contains('/') => format!("{}/{file}", d.trim_end_matches('/')),
+        _ => file,
+    };
+    Some(canon_path(&file, ctx))
+}
+
+/// The file a stage executes: the script argument of an interpreter
+/// (`bash x.sh`, `python3 x.py`, `. x.sh`) or a path run directly (`./x`).
+fn executed_file(stage: &str, ctx: &Context) -> Option<String> {
+    let toks = command_tokens(stage);
+    let head = toks.first()?;
+    let base = head.rsplit('/').next().unwrap_or(head);
+    let interp = matches!(
+        base.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.'),
+        "sh" | "bash"
+            | "zsh"
+            | "dash"
+            | "ksh"
+            | "fish"
+            | "python"
+            | "node"
+            | "deno"
+            | "bun"
+            | "perl"
+            | "ruby"
+            | "php"
+            | "pwsh"
+            | "powershell"
+            | "source"
+            | "."
+    );
+    if !interp {
+        return head.contains('/').then(|| canon_path(head, ctx));
+    }
+    for t in toks.iter().skip(1) {
+        if matches!(
+            t.as_str(),
+            "-c" | "-e" | "-m" | "-Command" | "-EncodedCommand"
+        ) {
+            return None; // inline code or a module, not a file
+        }
+        if t == "run" || t.starts_with('-') {
+            continue;
+        }
+        return Some(canon_path(t, ctx));
+    }
+    None
+}
+
 fn classify_stage(stage: &str, ctx: &Context) -> Decision {
     if let Some(d) = agent_acquisition(stage) {
         return d;
     }
     if let Some(d) = runner(stage, ctx) {
+        return d;
+    }
+    if let Some(d) = deno_remote(stage) {
         return d;
     }
     if let Some(d) = tooling_write(stage, ctx) {
@@ -1144,7 +1525,9 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
     }
 
     let mut ctx = ctx.clone();
-    let mut gates: Vec<Vec<String>> = Vec::new();
+    let mut gates: Vec<Vec<Target>> = Vec::new();
+    // Files curl/wget saved earlier in this command line.
+    let mut downloads: Vec<String> = Vec::new();
     let mut decision = Decision::Allow(NO_MATCH.into());
     for (op, seg) in segments(cmd) {
         if op != Op::And {
@@ -1166,13 +1549,30 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
             // The command is going through sigil: that stage is allowed,
             // and a vetting call gates what follows it with `&&`.
             if is_sigil(stage) {
-                if let Some(t) = vetting_targets(stage) {
+                if let Some(t) = vetting_targets(stage, &ctx) {
                     gates.push(t);
                 }
                 continue;
             }
-            let d = classify_stage(stage, &ctx);
-            let d = if d.rank() > 0 && gated(&gates, &stage_targets(stage)) {
+            let mut d = classify_stage(stage, &ctx);
+            let mut targets = stage_targets(stage, &ctx);
+            // Download to a file, then run that file: the same remote
+            // execution as `curl … | sh`, one step removed. Unlike the pipe,
+            // this form can be gated — the scan reads the bytes that run.
+            if let Some(f) = executed_file(stage, &ctx).filter(|f| downloads.contains(f)) {
+                d = worse(
+                    d,
+                    Decision::Deny(format!(
+                        "Runs {f}, downloaded earlier in this command, without a scan: remote code execution one step removed from curl | sh. Use: sigil scan {f} && {} (after the download). {BYPASS_HINT}",
+                        stage.trim()
+                    )),
+                );
+                targets = vec![Target::Path(f)];
+            }
+            if let Some(f) = download_file(stage, &ctx) {
+                downloads.push(f);
+            }
+            let d = if d.rank() > 0 && gated(&gates, &targets) {
                 Decision::Allow("Gated by a preceding sigil check on the same target".into())
             } else {
                 d

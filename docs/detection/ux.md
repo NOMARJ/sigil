@@ -21,7 +21,7 @@ Command syntax is in [cli.md](../cli.md); CI wiring is in [cicd.md](../cicd.md).
 | Target | What happens |
 |---|---|
 | A directory or a plain file | Scanned in place (unchanged). |
-| A git URL (`https://github.com/o/r`, `git@…`, `….git`) | Cloned into quarantine and scanned (unchanged; same as `sigil clone`). |
+| A git URL (`https://github.com/o/r`, `git@…`, `….git`) | Cloned into quarantine and scanned (unchanged; same as `sigil clone`). An `<owner>/<repo>` URL on a known forge stays a clone even when the repository name looks like a file (`vercel/next.js`, `mrdoob/three.js`), and so does a GitLab project path with no `/-/`. |
 | `https://github.com/<o>/<r>/tree/<ref>/<dir>` | The repository is cloned (depth 1, `core.symlinks=false`) into quarantine and **only `<dir>` is scanned**. A ref containing `/` (`feature/x`) is resolved against `git ls-remote`. |
 | A local archive: `.zip`, `.skill`, `.tar.gz`, `.tgz`, `.tar`, `.whl`, `.vsix`, `.crate`, `.gz` | Unpacked into a new quarantine entry, then scanned. The format is read from the file's leading bytes, so a renamed archive is still unpacked. |
 | An `http(s)` URL to an archive or a single file (`…/SKILL.md`, `…/install.sh`, `…/skill.zip`) | Downloaded into quarantine; archives are unpacked. GitHub and GitLab `/blob/` pages are rewritten to their raw URLs (the page itself is HTML, not the file). |
@@ -142,9 +142,9 @@ suspicious in context. **High/Critical** is an attack shape.
 | AGENTCFG-003 | High | `docker/podman run` with `--privileged`, dangerous `--cap-add`, host PID/user/IPC namespaces, unconfined profiles, or mounts of `/`, a home directory, `/etc`, the Docker socket or a credential directory | The container is the host. Named volumes and project mounts do not fire. |
 | AGENTCFG-004 | Low | `--network host` | Reaches local-only services; common for local tooling. |
 | AGENTCFG-005 | High | A known-format credential (`sk-ant-…`, `ghp_…`, `AKIA…`, `xox?-…`, private keys, …) in a **project-scoped** config | The file travels with the repository. |
-| AGENTCFG-006 | Medium | A secret-named literal (`*_TOKEN`, `*_KEY`, `password`, …) in a project-scoped config | Probably a secret; placeholders (`${VAR}`, `<token>`, `your-…`) do not fire. |
+| AGENTCFG-006 | Medium | A secret-named literal in a project-scoped config. The key's *last word* decides: `…_TOKEN`, `…_SECRET`, `…_PASSWORD`, `…_PAT`, `…_AUTH`, `…_API_KEY`, `…_ACCESS_KEY`, `clientSecret`, `PGPASSWORD`, `Authorization` | Probably a secret; placeholders (`${VAR}`, `<token>`, `your-…`) do not fire, and neither do keys that merely contain those letters (`PYTHONPATH`, `MEMORY_FILE_PATH`, `GIT_AUTHOR_NAME`, `OAUTH_CALLBACK_URL`, `TOKEN_FILE`). |
 | AGENTCFG-007 | Low | A credential in a **user-level** config | Routine — vendor docs tell you to put it there — but every skill and server running as you can read it. |
-| AGENTCFG-008 | Medium | A remote MCP endpoint over plaintext `http` or a raw public IP | Anyone on the path can rewrite tool descriptions. |
+| AGENTCFG-008 | Medium | A remote MCP endpoint over plaintext `http`, a raw public IP, or a raw IP behind wildcard DNS (`<ip>.sslip.io`, `<ip>.nip.io`, `<ip>.xip.io`) | Anyone on the path can rewrite tool descriptions; an unnamed host has no owner to hold to account (one malicious skill in the corpus points its `.mcp.json` at an n8n webhook on `…18.191.220.185.sslip.io`). |
 | AGENTCFG-009 | High | A remote MCP endpoint on a tunnel or request-capture host (ngrok, trycloudflare, webhook.site, pipedream, interact.sh, …) | Standard exfiltration and throwaway-C2 infrastructure. |
 | AGENTCFG-010 | High | An inline interpreter payload (`-c`, `-e`, `-EncodedCommand`) that decodes or evaluates (`base64 -d`, `b64decode`, `atob(`, `exec(`, `eval(`, …) | Hides what runs. |
 | AGENTCFG-011 | Medium | A program run from `/tmp`, `/var/tmp` or `/dev/shm` | World-writable staging directories. |
@@ -184,8 +184,11 @@ run instead:
 | `gemini extensions install <url>` / `link <dir>` | deny | `sigil clone <url> && …` / `sigil scan <dir> && …` |
 | `npx skills add o/r`, `clawhub install x` | deny | `sigil clone …` / `sigil scan <archive-or-url>` |
 | `npx`/`bunx`/`pnpm dlx`/`yarn dlx`/`npm exec`/`uvx`/`uv tool run`/`pipx run` of a registry package | deny | `sigil npm <spec> && <original>` / `sigil pip <spec> && …` |
-| `curl … \| sh`, `bash <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
-| `curl -o ~/.claude/skills/…`, `wget -P …`, `unzip … -d ~/.claude/skills`, `tar -x … -C ~/.gemini/extensions`, `cp -r x ~/.codex/skills/`, `git clone <url> ~/.claude/skills/x`, `cp x .mcp.json` (also after `cd` into those directories) | deny | `sigil scan <src> && <original>` / `sigil clone <url> && <original>` |
+| `pipx install <pkg>`, `uv tool install <pkg>` | deny | `sigil pip <pkg> && <original>` |
+| `deno run\|x\|install\|serve` of an `npm:` / `jsr:` / `https://` module | deny | `sigil npm <spec> && <original>` for `npm:`; otherwise download, scan, run the local file |
+| `curl … \| sh`, `curl … \| bash -s stable`, `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `bash <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
+| Download to a file, then run that file in the same command: `curl -o i.sh … && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`, `curl -O …/setup.py && python3 setup.py` | deny | `sigil scan <file> && <run>` after the download |
+| `curl -o ~/.claude/skills/…`, `curl … > .mcp.json`, `wget -P …`, `unzip … -d ~/.claude/skills`, `tar -x … -C ~/.gemini/extensions`, `cp -r x ~/.codex/skills/`, `git clone <url> ~/.claude/skills/x`, `cp x .mcp.json` (also after `cd` into those directories) | deny | `sigil scan <src> && <original>` / `sigil clone <url> && <original>` |
 
 Allowed look-alikes include `npx tsc` when the project has
 `node_modules/.bin/tsc` (found up the tree, as npx does), `npx ./local.js`,
@@ -194,12 +197,31 @@ copying out of or between skill directories, `ls`/`cat`/`mkdir` on them, and
 creating archives of them.
 
 **Gating.** A command chained with `&&` after `sigil scan|clone|pip|npm` of
-the *same* target is allowed — it only runs if the scan passed. Targets are
-compared after normalisation (`https://github.com/o/r.git` = `o/r`, `./dir/` =
-`dir`); a different version is a different artifact (`sigil npm express &&
-npm install express@4` is denied). A download piped into an interpreter is
-**never** gated this way: the server can serve the scanner and the shell
-different bytes.
+the *same* target is allowed — it only runs if the scan passed. "Same" means
+the same kind of thing as well as the same name:
+
+- an npm package (`npm install`, `npx`, `deno run npm:`) is vetted only by
+  `sigil npm`, a PyPI package (`pip install`, `uvx`, `pipx`, `uv tool
+  install`) only by `sigil pip`;
+- a repository (`git clone`, `npx skills add o/r`, `gemini extensions
+  install <url>`, `claude plugin marketplace add o/r`) by `sigil clone` or
+  `sigil scan <url>`, compared as `host/owner/repo` (so
+  `https://github.com/o/r.git`, `git@github.com:o/r` and `o/r` shorthand
+  agree), with a `-b <branch>` part of the identity;
+- a local path (`cp`, `unzip`, `tar -x`, a script an MCP server runs) by
+  `sigil scan <path>`, compared after resolving `~` and the working
+  directory (which follows `cd`).
+
+So `sigil scan evil && npm install evil` (a directory named `evil` proves
+nothing about the registry package), `sigil npm evil && pip install evil`,
+`sigil skills scan && npx -y scan` and `sigil pip ruff -V 0.4.0 && pip
+install ruff` are all denied. A different version is a different artifact
+(`sigil npm express && npm install express@4` is denied). Crates, gems and Go
+modules have no `sigil` subcommand that vets them by name, so they are never
+gated. A download piped into an interpreter is **never** gated either: the
+server can serve the scanner and the shell different bytes. A download saved
+to a file *can* be: `curl -o i.sh URL && sigil scan i.sh && bash i.sh` is
+allowed, because the scan reads the bytes that run.
 
 **No laundering.** A sigil invocation allows only its own segment:
 `sigil --version; npm install evil`, `sigil help | npm install evil` and
@@ -268,3 +290,62 @@ server): 2.08 s. A tree scan of the 382-skill NVIDIA corpus took 55.2 / 55.8 s
 with the baseline binary and 45.4 / 44.0 s with the lane binary; the per-skill
 breakdown adds a second directory walk, so the difference is machine load, not
 a speed-up — read it as "no measurable overhead".
+
+---
+
+## 6. Adversarial review (verification pass)
+
+An independent pass re-ran the measurements above and probed each part for
+bypasses and false positives. Every number here comes from a command run in
+that pass.
+
+```
+Data Source: Real samples — the same 204 malicious and 455 clean skills as §5
+             (static reading only), plus synthetic fixtures for the probes.
+Sample Size: as stated per row.
+Limitations: The replays measure how often the gate steps in on skill
+             instructions, not detection accuracy. "Clean" means published
+             by a vendor, not audited.
+```
+
+**Reproduced.** The benchmark with the fixed binary gives the §5 numbers
+again (malicious blocked 142/204, warned 149/204; clean blocked 108/455,
+warned 226/455; 0 errors), with **0** level differences from the lane run
+across all 659 samples. The per-skill breakdown agrees with standalone scans
+for **455/455** skills. The line replay of the baseline binary (dc82a94)
+matches the lane's recorded "before" run on all 38,944 lines.
+
+**Found and fixed.**
+
+| Part | Defect (all reproduced before fixing) | Fix |
+|---|---|---|
+| hook gating | Gates compared bare names, so a vetting call of one kind vetted another kind with the same name: `mkdir evil && sigil scan evil && npm install evil`, `sigil npm evil && pip install evil`, `sigil scan x && npx -y x`, `sigil skills scan && npx -y scan` were all **allowed**; `sigil pip ruff -V 0.4.0 && pip install ruff` dropped the version; `sigil clone URL -b dev && git clone URL` ignored the branch; a relative path stayed "vetted" after `cd`. | Typed targets (npm / PyPI / repository / path), branch and version part of the identity, paths resolved against the working directory. |
+| hook, remote execution | Allowed: `curl … \| bash -s stable` (the rvm/nvm installer idiom), `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `curl -o i.sh … && bash i.sh` and other download-then-run forms, `curl … > ~/.claude/skills/x/SKILL.md`, `pipx install x`, `uv tool install x`, `deno run npm:x` / `deno run https://…`. | All denied, with the gated alternative where one exists (`… && sigil scan i.sh && bash i.sh`). |
+| `sigil scan <url>` | `https://github.com/vercel/next.js` (any repository whose name ends like a file) was downloaded as a single file — GitHub's HTML page — instead of cloned. | `<owner>/<repo>` on a forge, and a GitLab path without `/-/`, stay on the clone path. |
+| `sigil skills` | AGENTCFG-006 fired Medium on `MEMORY_FILE_PATH`, `PYTHONPATH`, `GIT_AUTHOR_NAME`, `OAUTH_CALLBACK_URL`, `COMPAT_MODE` (substring `pat`/`auth`), turning a routine project `.mcp.json` MEDIUM RISK. | Key names judged by their last word(s). |
+| `sigil skills` | `--format json` printed a bearer token written into a hook command in clear (the item's `detail`), and the token itself was never reported; an endpoint URL's password was shown. | Details redacted; a known-format token in a hook is AGENTCFG-005/007. |
+| `sigil skills` | A malicious corpus skill's `.mcp.json` (an n8n webhook on `…18.191.220.185.sslip.io`) scanned LOW with no finding. | AGENTCFG-008 covers raw IPs behind wildcard DNS. |
+
+**Cost of the hook fixes on real instructions.**
+
+- Line replay (38,944 lines, one Bash call per line): **0** decisions
+  change against the lane binary. None of the newly caught shapes occurs on
+  a single line of either corpus.
+- Block replay (new measurement: each fenced shell block sent as *one*
+  command, as an agent runs a code block — 5,447 clean and 2,164 malicious
+  blocks). Lane binary: clean 352 deny / 33 ask / 5,062 allow, malicious
+  155 / 14 / 1,995. Fixed binary: clean 356 / 33 / 5,058, malicious
+  155 / 14 / 1,995. The 4 clean blocks now denied all download code and run
+  it in the same block (a Miniforge installer, two Holoscan example `.py`
+  files, a MinIO binary) — the remote execution the gate exists to stop,
+  on the vendor's say-so; clean skills with a denied block go from 90 to
+  91. No malicious block changed: the fixes close bypasses that this
+  corpus does not happen to use.
+
+**Not changed, still open.** `SIGIL_BYPASS=1` written *inside* the command
+still bypasses the whole command (existing semantics, kept on purpose), so
+the gate stops an agent that follows a skill's instructions, not one that
+is instructed to evade it. The hook is stateless: a download in one Bash
+call and its execution in the next are not linked. The shell-guard fallback
+in `plugins/claude-code/hooks/sigil-guard.sh` does not implement the new
+denies; only the native `sigil hook` does.

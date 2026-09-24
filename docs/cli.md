@@ -67,11 +67,17 @@ does it, and every deny names the sigil command to run instead:
 | `claude plugin install …`, `claude plugin marketplace add o/r` | deny | `sigil clone https://github.com/o/r && …` |
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
-| `curl … \| sh`, `bash <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>` |
+| `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
+| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `bash <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>` |
+| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … | deny | `sigil scan <src> && <original>` |
 
 The `sigil … && <original>` form is allowed: the second command only runs if
-the scan of the same target passed. A sigil call no longer allows the rest of
+the scan of the same target passed. "Same" includes the kind of target: an
+npm package is vetted by `sigil npm`, a PyPI package by `sigil pip`, a
+repository by `sigil clone` (branch included), a local path by `sigil scan`
+— so `sigil scan evil && npm install evil` is still denied. A sigil call no
+longer allows the rest of
 a command line — `sigil --version; npm install x` is denied. `npx tsc` is
 allowed when the project has `node_modules/.bin/tsc`.
 

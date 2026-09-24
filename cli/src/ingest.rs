@@ -593,6 +593,20 @@ fn plan_url(url: &reqwest::Url) -> Plan {
     if RAW_HOSTS.contains(&host.as_str()) {
         return Plan::Download(url.to_string());
     }
+    // A repository whose name looks like a file name (`vercel/next.js`,
+    // `mrdoob/three.js`, `chartjs/Chart.js`) is still a repository. On a
+    // forge, `<owner>/<repo>` is exactly two segments, and a GitLab file
+    // URL always goes through `/-/` (or the legacy `/raw/` / `/blob/`), so
+    // neither shape may fall through to the file-suffix check below.
+    if GIT_FORGES.contains(&host.as_str()) {
+        let gitlab_repo = host == "gitlab.com"
+            && !segs
+                .iter()
+                .any(|s| matches!(s.as_str(), "-" | "raw" | "blob" | "uploads"));
+        if segs.len() == 2 || gitlab_repo {
+            return Plan::Passthrough;
+        }
+    }
     let path = url.path().to_ascii_lowercase();
     if DOWNLOAD_SUFFIXES.iter().any(|s| path.ends_with(s)) {
         return Plan::Download(url.to_string());

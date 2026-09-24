@@ -230,6 +230,12 @@ fn plan_routes_urls_and_keeps_existing_inputs() {
         "https://github.com/foo/bar.git",
         "https://gitlab.com/group/proj",
         "git@github.com:foo/bar.git",
+        // Repository names that end like a file are still repositories.
+        "https://github.com/vercel/next.js",
+        "https://github.com/mrdoob/three.js/",
+        "https://github.com/chartjs/Chart.js.git",
+        "https://gitlab.com/group/sub/widget.js",
+        "https://codeberg.org/o/notes.md",
     ] {
         assert_eq!(plan(git_url).unwrap(), Passthrough, "{git_url}");
     }

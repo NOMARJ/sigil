@@ -118,6 +118,11 @@ fn executes_stdin(interp: &str, rest: &str) -> bool {
             if t.starts_with('-') && !t.starts_with("--") && t.contains('c') {
                 return false; // -c 'string': stdin is data for that string
             }
+            if t.starts_with('-') && !t.starts_with("--") && t.contains('s') {
+                // -s: commands come from stdin and the words after it are
+                // the script's arguments (`curl … | bash -s stable`).
+                return true;
+            }
             if t == "-o" || t == "+o" {
                 i += 2;
                 continue;
@@ -160,7 +165,9 @@ pub fn pipes_download_to_interpreter(s: &str) -> bool {
     let pipe = re(
         &PIPE,
         &format!(
-            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}(\s[^|;&]*)?\|\s*(sudo(\s+-\S+)*\s+)?(env(\s+\w+=\S*)*\s+)?(\S*/)?(?P<interp>sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell)([\s"')]|$)"#
+            // `| tee file |` stages in between still hand the interpreter
+            // the download; `sudo -u user` takes a value.
+            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}(\s[^|;&]*)?(\|\s*(\S*/)?tee(\s[^|;&]*)?)*\|\s*(sudo(\s+-\S+(\s+[^-\s|;&]\S*)?)*\s+)?(env(\s+\w+=\S*)*\s+)?(\S*/)?(?P<interp>sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell)([\s"')]|$)"#
         ),
     );
     let subst = re(

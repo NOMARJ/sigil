@@ -449,6 +449,107 @@ fn symlinked_skills_are_followed_one_level() {
 }
 
 #[test]
+fn secret_names_are_judged_by_words_not_substrings() {
+    for k in [
+        "GITHUB_PAT",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ANTHROPIC_API_KEY",
+        "x-api-key",
+        "Authorization",
+        "clientSecret",
+        "apiKey",
+        "APIKey",
+        "PGPASSWORD",
+        "DB_PASSWORD",
+        "NPM_CONFIG__AUTH",
+        "AWS_SECRET_ACCESS_KEY",
+        "ghtoken",
+    ] {
+        assert!(secret_named(k), "{k} names a credential");
+    }
+    for k in [
+        "PATH",
+        "PYTHONPATH",
+        "NODE_PATH",
+        "MEMORY_FILE_PATH",
+        "db-path",
+        "GIT_AUTHOR_NAME",
+        "OAUTH_CALLBACK_URL",
+        "AUTH_MODE",
+        "TOKEN_FILE",
+        "TOKENIZERS_PARALLELISM",
+        "COMPAT_MODE",
+        "SPATIAL_INDEX_DIR",
+        "DISPATCH_QUEUE",
+        "BYPASS_CACHE",
+    ] {
+        assert!(!secret_named(k), "{k} is not a credential name");
+    }
+    // Display redaction stays broad: hiding a path costs nothing.
+    assert!(redact_line(&["TOKEN_FILE=/home/me/.tok".into()]).contains('…'));
+}
+
+#[test]
+fn routine_env_in_a_project_config_is_not_a_secret_finding() {
+    let proj = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(
+        proj.path().join(".mcp.json"),
+        r#"{"mcpServers":{
+            "memory":{"command":"npx","args":["-y","@modelcontextprotocol/server-memory@2025.4.25"],
+                      "env":{"MEMORY_FILE_PATH":"/home/me/notes/memory.json"}},
+            "py":{"command":"uv","args":["run","server.py","--db-path=/srv/data/app.sqlite"],
+                  "env":{"PYTHONPATH":"/home/me/src/lib","GIT_AUTHOR_NAME":"Jane Q Developer",
+                         "OAUTH_CALLBACK_URL":"http://localhost:8765/callback"}},
+            "leak":{"command":"node","args":["srv.js"],
+                    "env":{"GITHUB_PAT":"abcd1234efgh5678ijkl"}},
+            "ipalias":{"type":"http","url":"https://n8n-x.18.191.220.185.sslip.io/mcp/abc"},
+            "vendor":{"type":"http","url":"https://prefect.fastmcp.app/mcp"}
+        }}"#,
+    )
+    .unwrap();
+    let (items, _) = discover(&opts(home.path(), Some(proj.path())));
+    assert!(rules(find(&items, Kind::McpServer, "memory")).is_empty());
+    assert!(rules(find(&items, Kind::McpServer, "py")).is_empty());
+    assert_eq!(
+        rules(find(&items, Kind::McpServer, "leak")),
+        ["AGENTCFG-006"]
+    );
+    // A raw IP behind wildcard DNS is still a raw IP endpoint (seen in the
+    // malicious corpus: an n8n webhook on <ip>.sslip.io); a vendor's https
+    // endpoint is not.
+    assert_eq!(
+        rules(find(&items, Kind::McpServer, "ipalias")),
+        ["AGENTCFG-008"]
+    );
+    assert!(rules(find(&items, Kind::McpServer, "vendor")).is_empty());
+}
+
+#[test]
+fn secrets_in_hook_commands_and_endpoint_urls_are_reported_and_never_shown() {
+    let home = tempfile::tempdir().unwrap();
+    let proj = tempfile::tempdir().unwrap();
+    let hook = format!(
+        r#"{{"hooks":{{"Stop":[{{"hooks":[{{"type":"command","command":"curl -s -H \"Authorization: Bearer {GHP}\" https://api.example.com/notify"}}]}}]}}}}"#
+    );
+    put(proj.path(), ".claude/settings.json", &hook);
+    put(
+        proj.path(),
+        ".mcp.json",
+        r#"{"mcpServers":{"db":{"type":"http","url":"https://svc:hunter2hunter2@mcp.example.com/mcp?key=abc"}}}"#,
+    );
+    let (items, _) = discover(&opts(home.path(), Some(proj.path())));
+    let h = find(&items, Kind::Hook, "Stop");
+    assert!(rules(h).contains(&"AGENTCFG-005"), "{:?}", rules(h));
+    let db = find(&items, Kind::McpServer, "db");
+    let json = serde_json::to_string(&items).unwrap();
+    assert!(!json.contains(GHP), "hook token shown in clear");
+    assert!(!json.contains("hunter2hunter2"), "URL password shown");
+    assert!(!db.detail.contains("key=abc"));
+    assert!(db.detail.contains("mcp.example.com/mcp"));
+}
+
+#[test]
 fn every_rule_has_a_title_and_policy_severity() {
     for (id, sev, t) in RULES {
         assert!(id.starts_with("AGENTCFG-") && !t.is_empty());
