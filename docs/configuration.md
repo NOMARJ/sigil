@@ -62,7 +62,7 @@ allow_project_policy: true          # false = project files may only tighten
 | `severity_overrides` | map id/glob → severity | rewrites a finding's severity before everything else; later entries win |
 | `ignore_paths` | list of globs | findings in matching paths move to `policy.suppressed` |
 | `rule_packs` | list of paths | adds custom rule packs (relative to the policy file) |
-| `trusted_domains` | list of host names | a Network/Exfil finding up to High whose URLs all point at these hosts (or their subdomains) moves to `policy.suppressed`; never Critical findings, credential-flow chains, reverse shells, decoded or truncated lines |
+| `trusted_domains` | list of host names | a Network/Exfil finding up to High whose URLs all point at these hosts (or their subdomains) moves to `policy.suppressed`; never Critical findings, credential-flow chains, data-egress rules (`SKILL-017`, `NET-011`, `NET-018`), reverse shells, decoded or truncated lines, or a line with a URL whose host cannot be read with certainty (userinfo `@`, percent encoding, templates, shell quoting) |
 | `baseline` | path | findings recorded in the baseline move to `policy.suppressed` |
 | `locked` | list of keys, or `all` | organisation only; see below |
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
@@ -85,7 +85,12 @@ without them.
 locked `fail_on`, `fail_on_verdict` or `min_severity` and may raise
 severities, but may not add to a locked `disable_rules`, `ignore_paths`,
 `trusted_domains` or `rule_packs`, set a locked `baseline`, or loosen a value.
-Refusals are warnings on stderr and entries in `policy.refused`.
+Refusals are warnings on stderr and entries in `policy.refused`. Locking the
+gate (`fail_on`, `fail_on_verdict`) is not enough on its own: every unlocked
+key among `min_severity`, `severity_overrides`, `baseline`, `disable_rules`,
+`ignore_paths` and `trusted_domains` can still take findings out from under
+it. `sigil config --validate FILE --org` lists each one; `locked: [all]`
+closes them all.
 
 **The scanned-tree guard.** A project file found in the scan root is trusted
 only when you run Sigil from inside that tree. Scanning a tree from outside
@@ -95,10 +100,12 @@ Pass `--config <file>` to vouch for it. `sigil clone`/`pip`/`npm` never read
 a policy from quarantined content; they apply only the organisation and
 `--config` rule packs.
 
-**Sigil's own files.** Findings in the trusted policy file and in the
-baselines in use (for example the hidden-file rule firing on `.sigil.yml`)
-are suppressed with kind `config_file`, so adopting a policy or a baseline
-never adds findings of its own.
+**Sigil's own files.** The provenance finding a committed dotfile draws (the
+hidden-file rule firing on `.sigil.yml` or `.sigil-baseline.json`) is
+suppressed with kind `config_file` for the trusted policy file and the
+baselines in use, so adopting a policy or a baseline adds no findings of its
+own. Content findings in those files are not excused: a prompt injection
+written into a `.sigil.yml` comment is reported like anywhere else.
 
 ## Custom rules
 
@@ -122,7 +129,7 @@ rules:
     remediation: What a reviewer should check.
     references: [CWE-200]
     tags: [data-leak]
-    weight: 5                     # optional, default the phase weight
+    weight: 5                     # optional, default the phase weight; at most 100
 ```
 
 Custom packs only add rules: a pack id or rule id that already exists is

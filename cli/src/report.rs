@@ -191,7 +191,7 @@ fn print_text(result: &ScanResult, view: Option<PolicyView>) {
         );
     }
     if let Some(v) = view.filter(|v| v.active()) {
-        for line in policy_lines(v) {
+        for line in policy_lines(v).into_iter().chain(source_lines(v)) {
             println!("  {} {}", "[*]".green(), line);
         }
         let (fail_on, verdict_gate) = gate(Some(v));
@@ -281,6 +281,31 @@ fn policy_lines(v: PolicyView) -> Vec<String> {
     }
     lines.extend(out.notes.iter().cloned());
     lines
+}
+
+/// One line per policy file in play, so a reader of the text report can see
+/// *whose* policy suppressed findings — in particular a `.sigil.yml` that
+/// ships inside the tree being scanned.
+fn source_lines(v: PolicyView) -> Vec<String> {
+    v.policy
+        .sources
+        .iter()
+        .map(|src| {
+            format!(
+                "{} policy applied: {}{}",
+                match src.origin {
+                    crate::project_config::Origin::Org => "organisation",
+                    crate::project_config::Origin::Project => "project",
+                },
+                clean(&src.path),
+                if src.restricted.is_some() {
+                    " (tighten-only)"
+                } else {
+                    ""
+                }
+            )
+        })
+        .collect()
 }
 
 fn plural(n: usize) -> &'static str {
@@ -390,7 +415,7 @@ fn render_plain(result: &ScanResult, target: &str, view: Option<PolicyView>) -> 
     }
     if let Some(v) = view.filter(|v| v.active()) {
         let _ = writeln!(s);
-        for line in policy_lines(v) {
+        for line in policy_lines(v).into_iter().chain(source_lines(v)) {
             let _ = writeln!(s, "{line}");
         }
         let _ = writeln!(

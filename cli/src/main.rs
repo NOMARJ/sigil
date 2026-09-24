@@ -2413,6 +2413,34 @@ fn scan_exit_code(policy: &project_config::EffectivePolicy, result: &scanner::Sc
 ///
 /// Returns an exit code when the command must not run.
 fn prepare_command(cli: &Cli) -> Option<i32> {
+    // The global `-o/--output` is honoured by the report-writing commands
+    // (and `sbom`/`policy generate` keep their own `-o`). Anywhere else it
+    // would be silently ignored and a CI step would go on to read a file
+    // that was never written, so it is refused.
+    let honours_output = matches!(
+        &cli.command,
+        Commands::Scan { .. }
+            | Commands::Clone { .. }
+            | Commands::Pip { .. }
+            | Commands::Npm { .. }
+            | Commands::Baseline { .. }
+            | Commands::Sbom { .. }
+            | Commands::Policy {
+                action: PolicyAction::Generate { .. }
+            }
+            | Commands::Rules {
+                action: rules_cmd::RulesAction::List { .. }
+                    | rules_cmd::RulesAction::Show { .. }
+                    | rules_cmd::RulesAction::Sign { .. }
+            }
+    );
+    if cli.output.is_some() && !honours_output {
+        eprintln!(
+            "{} --output is not supported by this command; redirect its stdout instead",
+            "error:".bold().red()
+        );
+        return Some(EXIT_ERROR);
+    }
     let scan_like = match &cli.command {
         Commands::Scan { path, .. } => Some(looks_like_git_url(&path.to_string_lossy())),
         Commands::Clone { .. } | Commands::Pip { .. } | Commands::Npm { .. } => Some(true),
@@ -2576,6 +2604,7 @@ fn cmd_config_validate(file: &Path, org: bool, format: &str) -> i32 {
     let mut notes: Vec<String> = Vec::new();
     match project_config::load_policy_file(file, origin) {
         Ok(doc) => {
+            notes.extend(project_config::lock_gaps(&doc));
             for p in &doc.rule_packs {
                 match corpus::custom::load_path(p) {
                     Ok(packs) => notes.push(format!(

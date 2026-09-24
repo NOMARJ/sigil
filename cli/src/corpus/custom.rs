@@ -649,6 +649,7 @@ fn validate_pack(pack: &SignaturePack, errors: &mut Vec<String>, warnings: &mut 
             ));
         }
         check_severity(&label, &rule.severity, errors);
+        check_weight(&label, rule.weight, errors);
         if rule.description.trim().is_empty() {
             errors.push(format!("{label}: description must not be empty"));
         }
@@ -699,8 +700,24 @@ fn validate_pack(pack: &SignaturePack, errors: &mut Vec<String>, warnings: &mut 
     for (i, rule) in pack.correlation_rules.iter().enumerate() {
         let label = format!("correlation_rules[{i}] ({})", rule.id);
         check_severity(&label, &rule.severity, errors);
+        check_weight(&label, rule.weight, errors);
         if Phase::from_name(&rule.phase).is_none() {
             errors.push(format!("{label}: unknown phase '{}'", rule.phase));
+        }
+    }
+}
+
+/// Largest `weight` a custom rule may carry. Built-in rules use 1-10; the
+/// score multiplies weight by a severity factor in `u32`, so an unbounded
+/// weight could overflow it and wrap a High finding to a near-zero score.
+pub const MAX_CUSTOM_WEIGHT: u32 = 100;
+
+fn check_weight(label: &str, weight: Option<u32>, errors: &mut Vec<String>) {
+    if let Some(w) = weight {
+        if w > MAX_CUSTOM_WEIGHT {
+            errors.push(format!(
+                "{label}: weight {w} is too large (at most {MAX_CUSTOM_WEIGHT}; built-in rules use 1-10)"
+            ));
         }
     }
 }
@@ -1016,6 +1033,25 @@ rules:
         assert!(all.contains("severity 'severe' is not one of"), "{all}");
         assert!(all.contains("unknown phase 'networking'"), "{all}");
         assert!(all.contains("matches the empty string"), "{all}");
+    }
+
+    #[test]
+    fn an_oversized_weight_is_refused_so_the_score_cannot_wrap() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        // 3 (High) x 1431655766 wraps u32 to 2: a High rule that scores nothing.
+        let text = "rules:\n  - {id: ACME-1, pattern: 'eval', severity: high, description: d, weight: 1431655766}\n";
+        let errs = parse("w.yaml", text).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("weight 1431655766 is too large")),
+            "{errs:?}"
+        );
+        // The largest allowed weight, and the built-in range, load.
+        let ok = format!(
+            "rules:\n  - {{id: ACME-1, pattern: 'eval', severity: high, description: d, weight: {MAX_CUSTOM_WEIGHT}}}\n"
+        );
+        assert!(parse("w.yaml", &ok).is_ok());
     }
 
     #[test]

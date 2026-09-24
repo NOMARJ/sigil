@@ -431,6 +431,19 @@ fn report_formats_and_output_file() {
             assert!(text.contains("<failure type=\"E2E-001\""));
         }
     }
+
+    // A command that does not write a report refuses -o instead of ignoring
+    // it and leaving a CI step to read a file that was never written.
+    let dest = fx.root.join("corpus.txt");
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &["corpus", "-o", dest.to_str().unwrap()],
+        &[],
+    );
+    assert_eq!(code(&o), 2, "{}", stderr(&o));
+    assert!(stderr(&o).contains("--output is not supported"));
+    assert!(!dest.exists());
 }
 
 #[test]
