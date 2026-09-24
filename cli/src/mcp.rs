@@ -318,11 +318,20 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
         .and_then(Value::as_str)
         .unwrap_or("UNKNOWN")
         .to_string();
-    let safe_to_install = matches!(verdict.as_str(), "LOW RISK");
-    let decision = match verdict.as_str() {
-        "LOW RISK" => "allow",
-        "MEDIUM RISK" => "review",
-        _ => "block",
+    // An active scan policy can fail a target the verdict alone would pass
+    // (`fail_on_incomplete`, `fail_on_verdict: low`, a lowered `fail_on`).
+    // Its gate only ever tightens the decision.
+    let gate = summary.get("gate").and_then(Value::as_str);
+    let policy_blocks = gate == Some("fail");
+    let safe_to_install = !policy_blocks && matches!(verdict.as_str(), "LOW RISK");
+    let decision = if policy_blocks {
+        "block"
+    } else {
+        match verdict.as_str() {
+            "LOW RISK" => "allow",
+            "MEDIUM RISK" => "review",
+            _ => "block",
+        }
     };
 
     let mut findings: Vec<Value> = report
@@ -353,6 +362,7 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
         "verdict": verdict,
         "decision": decision,
         "safe_to_install": safe_to_install,
+        "policy_gate": gate,
         "score": summary.get("score"),
         "grade": summary.get("grade"),
         "platform": summary.get("platform"),
@@ -498,6 +508,31 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("path does not exist"));
+    }
+
+    #[test]
+    fn a_failing_policy_gate_blocks_whatever_the_verdict() {
+        // fail_on_incomplete with only a Low coverage finding: the verdict is
+        // LOW RISK but the policy gate fails, so the agent must not install.
+        let stdout = r#"{"summary":{"verdict":"LOW RISK","gate":"fail","incomplete_count":1},"findings":[]}"#;
+        let s = summarise_report("x", 1, stdout, "").unwrap();
+        assert_eq!(s["safe_to_install"], false);
+        assert_eq!(s["decision"], "block");
+        assert_eq!(s["policy_gate"], "fail");
+
+        let stdout = r#"{"summary":{"verdict":"MEDIUM RISK","gate":"fail"},"findings":[]}"#;
+        let s = summarise_report("x", 1, stdout, "").unwrap();
+        assert_eq!(s["decision"], "block");
+
+        // A passing gate never loosens the verdict.
+        let stdout = r#"{"summary":{"verdict":"HIGH RISK","gate":"pass"},"findings":[]}"#;
+        let s = summarise_report("x", 0, stdout, "").unwrap();
+        assert_eq!(s["safe_to_install"], false);
+        assert_eq!(s["decision"], "block");
+        let stdout = r#"{"summary":{"verdict":"LOW RISK","gate":"pass"},"findings":[]}"#;
+        let s = summarise_report("x", 0, stdout, "").unwrap();
+        assert_eq!(s["safe_to_install"], true);
+        assert_eq!(s["decision"], "allow");
     }
 
     #[test]

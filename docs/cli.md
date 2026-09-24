@@ -366,9 +366,12 @@ same phases over them. Nothing it downloads is executed.
   targets and are never followed.
 - **Bounds.** Only `http(s)` URLs are fetched. A host must resolve to a public
   address: loopback, RFC 1918, link-local, CGNAT and cloud-metadata addresses
-  are refused. The connection is pinned to the address that was checked, and
-  every redirect hop is re-checked. The limits are at most 20 fetches per scan,
-  10 MiB per response and 15 seconds per request. Fetched archives are unpacked
+  are refused. The host is read with the same URL parser the HTTP client
+  connects with. Redirects are followed one hop at a time (at most 5): each
+  hop's host is checked the same way and that hop's connection is pinned to the
+  address that was checked, so a second DNS answer cannot swap in an internal
+  address. The limits are at most 20 fetches per scan, 10 MiB per response and
+  15 seconds per request, redirects included. Fetched archives are unpacked
   with the same bounded extractor the package workflows use.
 
 Findings in fetched content keep their rule ids. They are attributed to the URL,
@@ -705,7 +708,7 @@ sigil skills scan --root /mnt/image/home/dev --no-project   # an image or a fixt
 |--------|---------|-------------|
 | `scan` / `list` | `scan` | `scan` scans every content item and inspects every config entry; `list` only discovers |
 | `--root <dir>` | `$SIGIL_HOME`, else your home | Treat `<dir>` as the home directory; system-wide managed settings (`/etc/claude-code/…`) are then not read |
-| `--project <dir>` | current directory | Project whose `.claude/`, `.mcp.json`, `.cursor/`, `.vscode/mcp.json`, … are inspected |
+| `--project <dir>` | current directory | Project whose `.claude/`, `.mcp.json`, `.cursor/`, `.vscode/mcp.json`, … are inspected. A path that is not a directory exits 2 instead of inspecting nothing |
 | `--no-project` | | Skip project-scoped locations |
 | `--no-user` | | Skip user-level and system locations (result does not depend on whose machine runs it) |
 | `--tool <ids>` | all | Comma-separated tool ids: `claude-code`, `claude-desktop`, `codex`, `gemini-cli`, `cursor`, `windsurf`, `vscode`, `cline`, `roo-code`, `kilo-code`, `continue`, `goose`, `opencode`, `zed`, `amazon-q`, `kiro`, `junie`, `openclaw`, `copilot`, `agents` |

@@ -2261,6 +2261,18 @@ pub fn cmd_skills(
         );
         return crate::EXIT_ERROR;
     }
+    // A --project that does not name a directory would be inspected as an
+    // empty project, and an inventory that found nothing reads as a pass.
+    if let Some(p) = project.as_ref().filter(|_| !no_project) {
+        if !p.is_dir() {
+            eprintln!(
+                "{} --project is not a directory: {}",
+                "error:".bold().red(),
+                p.display()
+            );
+            return crate::EXIT_ERROR;
+        }
+    }
     let project = if no_project {
         None
     } else {

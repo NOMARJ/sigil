@@ -438,17 +438,38 @@ fn is_internal(ip: IpAddr) -> bool {
     }
 }
 
-/// Resolve `url`'s host and refuse anything that is not a public address.
-/// Returns the first public address, for pinning the connection to it.
-fn public_address(url: &str) -> Result<(String, std::net::SocketAddr), String> {
-    let scheme = url.split_once("://").map(|(s, _)| s.to_ascii_lowercase());
-    let port = match scheme.as_deref() {
-        Some("https") => 443,
-        Some("http") => 80,
+/// Redirects followed before a fetch is abandoned.
+const MAX_REDIRECTS: usize = 5;
+
+/// Vet `url`'s host and refuse anything that is not a public address.
+///
+/// The host comes from the same URL parser reqwest connects with, so the
+/// host that is checked is the host that is dialled (a hand-rolled split
+/// reads `http://127.0.0.1\@example.com/` as example.com; the WHATWG parser
+/// reqwest uses reads it as 127.0.0.1). Returns the name and the vetted
+/// address to pin the connection to, or `None` for an IP literal, which is
+/// never resolved.
+fn public_address(url: &str) -> Result<Option<(String, std::net::SocketAddr)>, String> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| format!("bad URL: {e}"))?;
+    let default_port = match parsed.scheme() {
+        "https" => 443,
+        "http" => 80,
         _ => return Err("only http and https references are fetched".into()),
     };
-    let host = host_of(url).ok_or("no host in URL")?.to_string();
-    if host.eq_ignore_ascii_case("localhost") || host.to_ascii_lowercase().ends_with(".localhost") {
+    let port = parsed.port().unwrap_or(default_port);
+    let host = parsed.host_str().ok_or("no host in URL")?;
+    let literal = host
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(ip) = literal.parse::<IpAddr>() {
+        if is_internal(ip) {
+            return Err(format!("refused internal address {ip}"));
+        }
+        return Ok(None);
+    }
+    let host = host.to_ascii_lowercase();
+    if host == "localhost" || host.ends_with(".localhost") {
         return Err(format!("refused internal host {host}"));
     }
     let addrs: Vec<_> = (host.as_str(), port)
@@ -464,53 +485,75 @@ fn public_address(url: &str) -> Result<(String, std::net::SocketAddr), String> {
             bad.ip()
         ));
     }
-    Ok((host, addrs[0]))
+    Ok(Some((host, addrs[0])))
 }
 
+/// Where a redirect from `current` to `location` leads, as an absolute URL.
+fn redirect_target(current: &str, location: &str) -> Result<String, String> {
+    reqwest::Url::parse(current)
+        .and_then(|base| base.join(location))
+        .map(|u| u.to_string())
+        .map_err(|e| format!("bad redirect to {location:?}: {e}"))
+}
+
+/// Fetch `url`, following redirects by hand. Every hop is vetted by
+/// `public_address` and its connection is pinned to the address that was
+/// vetted, so a second DNS answer for a redirect's host cannot swap in an
+/// internal address between the check and the connection.
 fn fetch_bytes(url: &str, policy: &Policy) -> Result<(Vec<u8>, String), String> {
-    let (host, addr) = public_address(url)?;
-    let client = reqwest::blocking::Client::builder()
-        .timeout(policy.timeout)
-        .user_agent(concat!(
-            "sigil/",
-            env!("CARGO_PKG_VERSION"),
-            " (reference scan; content is never executed)"
-        ))
-        // Pin the connection to the address that was checked, so a second
-        // DNS answer cannot swap in an internal one.
-        .resolve(&host, addr)
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.previous().len() >= 5 {
-                attempt.error("too many redirects")
-            } else if let Err(e) = public_address(attempt.url().as_str()) {
-                attempt.error(e)
-            } else {
-                attempt.follow()
-            }
-        }))
-        .build()
-        .map_err(|e| format!("client: {e}"))?;
-    let resp = client
-        .get(url)
-        .send()
-        .map_err(|e| format!("fetch failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP {}", resp.status()));
+    let deadline = std::time::Instant::now() + policy.timeout;
+    let mut current = url.to_string();
+    for _ in 0..=MAX_REDIRECTS {
+        let pin = public_address(&current)?;
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return Err("timed out".into());
+        }
+        let mut builder = reqwest::blocking::Client::builder()
+            .timeout(remaining)
+            .user_agent(concat!(
+                "sigil/",
+                env!("CARGO_PKG_VERSION"),
+                " (reference scan; content is never executed)"
+            ))
+            .redirect(reqwest::redirect::Policy::none());
+        if let Some((host, addr)) = &pin {
+            builder = builder.resolve(host, *addr);
+        }
+        let client = builder.build().map_err(|e| format!("client: {e}"))?;
+        let resp = client
+            .get(&current)
+            .send()
+            .map_err(|e| format!("fetch failed: {e}"))?;
+        let status = resp.status();
+        if status.is_redirection() {
+            let location = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .ok_or_else(|| format!("HTTP {status} without a Location"))?;
+            current = redirect_target(&current, location)?;
+            continue;
+        }
+        if !status.is_success() {
+            return Err(format!("HTTP {status}"));
+        }
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let mut body = Vec::new();
+        resp.take(policy.max_bytes + 1)
+            .read_to_end(&mut body)
+            .map_err(|e| format!("read failed: {e}"))?;
+        if body.len() as u64 > policy.max_bytes {
+            return Err(format!("larger than {} bytes", policy.max_bytes));
+        }
+        return Ok((body, content_type));
     }
-    let content_type = resp
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    let mut body = Vec::new();
-    resp.take(policy.max_bytes + 1)
-        .read_to_end(&mut body)
-        .map_err(|e| format!("read failed: {e}"))?;
-    if body.len() as u64 > policy.max_bytes {
-        return Err(format!("larger than {} bytes", policy.max_bytes));
-    }
-    Ok((body, content_type))
+    Err("too many redirects".into())
 }
 
 /// What a downloaded body is, from its first bytes.

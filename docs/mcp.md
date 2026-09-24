@@ -62,11 +62,15 @@ It exposes three tools:
 
 | Tool | Arguments | Returns |
 |------|-----------|---------|
-| `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
+| `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `policy_gate`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
 | `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` | the same summary for a package downloaded into quarantine without running its install scripts |
 | `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook |
 
-`safe_to_install` is `true` only for a `LOW RISK` verdict. Each tool call runs
+`safe_to_install` is `true` only for a `LOW RISK` verdict that no active scan
+policy fails. When a policy is in effect, `policy_gate` is `pass` or `fail`
+(otherwise `null`); a `fail` (for example `fail_on_incomplete` on a target
+that could not be fully inspected, or `fail_on_verdict: low`) makes `decision`
+`block` and `safe_to_install` `false`, whatever the verdict. Each tool call runs
 the CLI as a child process with `--format json`, so quarantine, the trust
 ledger, the scan cache and any policy apply exactly as they do on the command
 line. The server writes nothing but protocol messages to stdout.

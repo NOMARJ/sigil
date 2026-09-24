@@ -99,6 +99,48 @@ fn internal_addresses_are_refused() {
 }
 
 #[test]
+fn the_host_checked_is_the_host_reqwest_dials() {
+    // Each of these is an internal address to the URL parser reqwest
+    // connects with, whatever a naive split of the authority says.
+    for url in [
+        "http://127.0.0.1\\@example.com/x",
+        "http://example.com@127.0.0.1/x",
+        "http://[::1]/x",
+        "http://[::ffff:7f00:1]/x",
+        "http://0x7f000001/x",
+        "http://2130706433/x",
+        "http://169.254.169.254./latest",
+        "HTTP://LOCALHOST/x",
+        "http://api.localhost/x",
+    ] {
+        assert!(public_address(url).is_err(), "{url} must be refused");
+    }
+    // A public IP literal is not resolved, so there is nothing to pin.
+    assert_eq!(public_address("http://93.184.216.34/x"), Ok(None));
+}
+
+#[test]
+fn redirects_resolve_against_the_current_hop() {
+    assert_eq!(
+        redirect_target("https://a.example/dir/page", "../next.sh").unwrap(),
+        "https://a.example/next.sh"
+    );
+    assert_eq!(
+        redirect_target("https://a.example/x", "//b.example/y").unwrap(),
+        "https://b.example/y"
+    );
+    assert_eq!(
+        redirect_target("https://a.example/x", "http://127.0.0.1/y").unwrap(),
+        "http://127.0.0.1/y"
+    );
+    // Whatever a redirect points at is vetted before it is fetched.
+    assert!(
+        public_address(&redirect_target("https://a.example/x", "http://127.0.0.1/y").unwrap())
+            .is_err()
+    );
+}
+
+#[test]
 fn sniffing_identifies_executables_archives_and_html() {
     assert_eq!(sniff(b"\x7fELF\x02\x01", ""), Kind::NativeExecutable("ELF"));
     assert_eq!(

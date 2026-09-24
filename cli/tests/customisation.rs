@@ -563,3 +563,40 @@ fn diff_reports_new_findings_as_one_not_two() {
     );
     assert_eq!(code(&o), 2);
 }
+
+#[test]
+fn skills_refuses_a_project_that_is_not_a_directory() {
+    // An inventory of a mistyped --project would find nothing and pass.
+    let fx = fixture();
+    let missing = fx.root.join("no-such-project");
+    let file = fx.root.join("pack.yaml");
+    for bad in [&missing, &file] {
+        let o = sigil(
+            &fx,
+            &fx.root,
+            &[
+                "skills",
+                "scan",
+                "--no-user",
+                "--project",
+                bad.to_str().unwrap(),
+            ],
+            &[],
+        );
+        assert_eq!(code(&o), 2, "{}: {}", bad.display(), stderr(&o));
+        assert!(stderr(&o).contains("--project is not a directory"));
+    }
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &[
+            "skills",
+            "scan",
+            "--no-user",
+            "--project",
+            fx.proj.to_str().unwrap(),
+        ],
+        &[],
+    );
+    assert_ne!(code(&o), 2, "{}", stderr(&o));
+}
