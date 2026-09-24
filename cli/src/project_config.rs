@@ -364,6 +364,41 @@ pub fn parse_policy(text: &str, base_dir: &Path, origin: Origin) -> Result<Polic
     }
 }
 
+/// Unlocked keys through which a project policy (or a flag) can still undo an
+/// organisation's locked gate.
+///
+/// Locking `fail_on` alone does not hold the gate: a project can hide the
+/// findings under a higher `min_severity`, lower their severity with
+/// `severity_overrides`, or accept them in a `baseline`. `sigil config
+/// --validate --org` reports each such key so a locked policy is not assumed
+/// to be tighter than it is.
+pub fn lock_gaps(doc: &PolicyDoc) -> Vec<String> {
+    let locked = |k: &str| doc.locked.iter().any(|l| l == k);
+    if !locked("fail_on") && !locked("fail_on_verdict") {
+        return Vec::new();
+    }
+    [
+        ("min_severity", "hide findings below a higher threshold"),
+        ("severity_overrides", "lower rule severities under the gate"),
+        (
+            "baseline",
+            "accept existing findings wholesale in a baseline file",
+        ),
+        ("disable_rules", "switch rules off"),
+        ("ignore_paths", "exclude paths from the verdict"),
+        ("trusted_domains", "excuse network findings"),
+    ]
+    .iter()
+    .filter(|(k, _)| !locked(k))
+    .map(|(k, what)| {
+        format!(
+            "the gate is locked but `{k}` is not: a project policy or flag can still {what} \
+             (add it to `locked`, or use `locked: [all]`, if projects must not)"
+        )
+    })
+    .collect()
+}
+
 fn show(v: &serde_yaml::Value) -> String {
     match v {
         serde_yaml::Value::String(s) => format!("'{s}'"),
@@ -765,7 +800,25 @@ fn merge(eff: &mut EffectivePolicy, doc: PolicyDoc, rules: &LayerRules) {
         &mut e.trusted_domains
     });
 
-    let raise_only = rules.restricted("severity_overrides").is_some();
+    let restricted_overrides = rules.restricted("severity_overrides");
+    let raise_only = restricted_overrides.is_some();
+    if let Some(why) = restricted_overrides {
+        // Which findings an override would lower is only known per finding,
+        // so the refusal is recorded once, up front, for any override that
+        // could lower something.
+        let could_lower: Vec<String> = doc
+            .severity_overrides
+            .iter()
+            .filter(|(_, s)| *s < Severity::Critical)
+            .map(|(p, s)| format!("{p}: {s}"))
+            .collect();
+        if !could_lower.is_empty() {
+            eff.refused.push(format!(
+                "severity_overrides: {src} asked for [{}]; applied raise-only, never lowering a severity ({why})",
+                could_lower.join(", ")
+            ));
+        }
+    }
     for (pattern, severity) in doc.severity_overrides {
         eff.severity_overrides.push(SeverityOverride {
             pattern,
@@ -888,13 +941,34 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
     } else {
         None
     };
+    let discovered = opts.explicit_config.is_none();
+    let mut project_doc = None;
     if let Some((path, guard)) = project {
-        let doc = load_policy_file(&path, Origin::Project)?;
         let restricted_all = if !allow_project {
             Some("the organisation policy sets allow_project_policy: false".to_string())
         } else {
             guard
         };
+        match load_policy_file(&path, Origin::Project) {
+            Ok(doc) => project_doc = Some((path, restricted_all, doc)),
+            // A discovered tighten-only file could only have made the scan
+            // stricter. One that does not load is set aside, loudly, rather
+            // than allowed to stop the scan: otherwise any tree could keep
+            // `sigil scan <tree>` from reporting on it by shipping one
+            // malformed `.sigil.yml`. A file you trust (your own tree, or
+            // `--config`) still fails the run, so a typo is never ignored.
+            Err(e) if discovered && restricted_all.is_some() => {
+                eff.refused.push(format!(
+                    "{}: not applied, it does not load ({}); a tighten-only policy is set \
+                     aside rather than allowed to stop the scan",
+                    path.display(),
+                    e.lines().next().unwrap_or("invalid policy")
+                ));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    if let Some((path, restricted_all, doc)) = project_doc {
         let locked = eff.locked.clone();
         merge(
             &mut eff,
@@ -1138,7 +1212,21 @@ impl EffectivePolicy {
             .collect();
         let mut kept = Vec::with_capacity(result.findings.len());
         for f in std::mem::take(&mut result.findings) {
-            if let Some(path) = self.config_file_of(&f) {
+            // A trusted config file excuses the hidden-file finding every
+            // committed dotfile draws, and the patterns a baseline's
+            // `message` globs quote (a glob quoting a code-execution call
+            // fires that rule on the baseline itself). It never excuses a
+            // Critical finding: nothing a policy or baseline needs to say is
+            // Sigil's "almost certainly malicious", and a prompt injection
+            // written into a `.sigil.yml` comment must not ride through on
+            // the file's trust. Quoting a Critical pattern in a baseline
+            // takes an explicit, reviewable `sigil:ignore` marker instead.
+            let config_file = if f.phase == Phase::Provenance || f.severity < Severity::Critical {
+                self.config_file_of(&f)
+            } else {
+                None
+            };
+            if let Some(path) = config_file {
                 let reason = format!("Sigil configuration file {}", path.display());
                 outcome.push(f, SuppressionKind::ConfigFile, reason);
                 continue;
@@ -1243,9 +1331,11 @@ impl EffectivePolicy {
     ///
     /// Deliberately narrow. Only Network/Exfil findings up to High qualify;
     /// Critical findings, correlation chains (a credential flowing to a host
-    /// — trusted hosts like GitHub are classic exfiltration channels) and
-    /// reverse shells never do. Every URL visible on the line must point at a
-    /// trusted host, and a line whose snippet was truncated or decoded from
+    /// — trusted hosts like GitHub are classic exfiltration channels), the
+    /// single-line shapes of data leaving the machine ([`DATA_EGRESS_RULES`],
+    /// for the same reason) and reverse shells never do. Every URL visible on
+    /// the line must point at a trusted host and be readable (see
+    /// [`url_hosts`]), and a line whose snippet was truncated or decoded from
     /// an encoded blob is never excused, because part of it is out of sight.
     fn trusted_domain_reason(
         &self,
@@ -1255,6 +1345,7 @@ impl EffectivePolicy {
         if f.phase != Phase::NetworkExfil
             || f.severity >= Severity::Critical
             || correlation_ids.contains(&f.rule)
+            || DATA_EGRESS_RULES.contains(&f.rule.as_str())
             || f.rule.starts_with("RSHELL-")
             || f.snippet.starts_with("[decoded")
             || f.snippet.starts_with("[tail of oversized file]")
@@ -1262,7 +1353,7 @@ impl EffectivePolicy {
         {
             return None;
         }
-        let hosts = url_hosts(&f.snippet);
+        let hosts = url_hosts(&f.snippet)?;
         if hosts.is_empty() {
             return None;
         }
@@ -1307,17 +1398,67 @@ impl EffectivePolicy {
     }
 }
 
-/// Hosts of every URL in `text`.
-fn url_hosts(text: &str) -> Vec<String> {
+/// Network/Exfil rules whose match shows data *leaving* — a file or command
+/// output uploaded, secrets encoded for sending, data smuggled out in DNS
+/// labels — rather than a connection being made. `trusted_domains` never
+/// excuses them: a trusted multi-tenant host (GitHub, Slack, a cloud bucket)
+/// accepts an attacker's upload as readily as yours, which is the reason
+/// credential-flow chains are never excused either.
+const DATA_EGRESS_RULES: &[&str] = &["NET-011", "NET-018", "SKILL-017"];
+
+/// Hosts of every URL in `text`, or `None` when any URL's host cannot be
+/// read with certainty.
+///
+/// Reading the wrong host is how a domain allowlist is bypassed, so this errs
+/// towards `None` (not excused):
+///
+/// - The authority runs to the first `/`, `?`, `#`, `\` or whitespace, as URL
+///   parsers read it, so `https://evil.io#@trusted.com` reads as `evil.io`.
+///   Any `@` left in it (userinfo: `https://trusted.com@evil.io`) or `%` (a
+///   percent-encoded host) makes the URL unreadable.
+/// - After the host and an optional `:port`, the authority may only hold
+///   closing quotes and brackets. Anything else — `"https://trusted".evil.io`
+///   is `https://trusted.evil.io` to a shell — is unreadable.
+/// - A templated or empty host (`https://${host}/`, `"https://" + host`) is
+///   unreadable.
+fn url_hosts(text: &str) -> Option<Vec<String>> {
     use std::sync::OnceLock;
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
-        regex::Regex::new(r"(?i)\b(?:https?|wss?|ftp)://(?:[^/\s@'\x22]*@)?([a-z0-9.-]+)")
-            .expect("url regex")
+        regex::Regex::new(r"(?i)\b(?:https?|wss?|ftp)://").expect("url scheme regex")
     });
-    re.captures_iter(text)
-        .map(|c| c[1].to_ascii_lowercase().trim_end_matches('.').to_string())
-        .collect()
+    let mut hosts = Vec::new();
+    for m in re.find_iter(text) {
+        let rest = &text[m.end()..];
+        let end = rest
+            .find(|c: char| matches!(c, '/' | '?' | '#' | '\\') || c.is_whitespace())
+            .unwrap_or(rest.len());
+        let authority = &rest[..end];
+        if authority.contains('@') || authority.contains('%') {
+            return None;
+        }
+        let host_len = authority
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '.'))
+            .unwrap_or(authority.len());
+        let host = authority[..host_len]
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        let mut tail = &authority[host_len..];
+        if let Some(port) = tail.strip_prefix(':') {
+            let digits = port
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(port.len());
+            tail = &port[digits..];
+        }
+        let closed = tail
+            .chars()
+            .all(|c| matches!(c, '"' | '\'' | '`' | ')' | ']' | '}' | '>' | ',' | ';'));
+        if host.is_empty() || !closed {
+            return None;
+        }
+        hosts.push(host);
+    }
+    Some(hosts)
 }
 
 /// Why a finding was taken out of the verdict by policy.
@@ -1596,6 +1737,92 @@ baseline: .sigil-baseline.json
         let eff = resolve_clean(&o).unwrap();
         assert_eq!(eff.disable_rules.len(), 1);
         assert!(eff.refused.is_empty());
+    }
+
+    #[test]
+    fn a_broken_policy_in_a_tree_you_audit_cannot_stop_the_scan() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".sigil.yml"), "no_such_key: 1\n").unwrap();
+
+        // Audited from outside: set aside with a refusal, flags still apply.
+        let mut o = opts(root.path());
+        o.cwd = outside.path().to_path_buf();
+        o.cli.fail_on = Some("medium".into());
+        let eff = resolve_clean(&o).expect("an untrusted broken policy must not stop the scan");
+        assert!(eff.sources.is_empty());
+        assert_eq!(
+            eff.fail_on,
+            Severity::Medium,
+            "the flags layer still applies"
+        );
+        assert!(
+            eff.refused.iter().any(|r| r.contains("not applied")),
+            "{:?}",
+            eff.refused
+        );
+
+        // Your own tree, or a file you name, still fails loudly.
+        assert!(resolve_clean(&opts(root.path())).is_err());
+        let mut named = opts(outside.path());
+        named.explicit_config = Some(root.path().join(".sigil.yml"));
+        assert!(resolve_clean(&named).is_err());
+    }
+
+    #[test]
+    fn lock_gaps_name_the_unlocked_keys_that_can_undo_a_locked_gate() {
+        let org = |text: &str| parse_policy(text, Path::new("/"), Origin::Org).unwrap();
+        // Nothing locked about the gate: nothing to warn about.
+        assert!(lock_gaps(&org("locked: [disable_rules]\n")).is_empty());
+        // The gate locked alone leaves every loosening channel open.
+        let gaps = lock_gaps(&org("locked: [fail_on]\n"));
+        for k in [
+            "min_severity",
+            "severity_overrides",
+            "baseline",
+            "disable_rules",
+        ] {
+            assert!(
+                gaps.iter().any(|g| g.contains(&format!("`{k}`"))),
+                "{k}: {gaps:?}"
+            );
+        }
+        // The documented example in enterprise.md, and `all`, close them.
+        let example = "locked: [fail_on, fail_on_verdict, min_severity, severity_overrides, \
+                       baseline, disable_rules, ignore_paths, trusted_domains, rule_packs]\n";
+        assert!(lock_gaps(&org(example)).is_empty());
+        assert!(lock_gaps(&org("locked: [all]\n")).is_empty());
+    }
+
+    #[test]
+    fn a_raise_only_override_that_could_lower_is_reported_as_refused() {
+        let mut eff = EffectivePolicy::default();
+        let locked = vec!["severity_overrides".to_string()];
+        let doc = PolicyDoc {
+            severity_overrides: vec![
+                ("CODE-*".to_string(), Severity::Low),
+                ("NET-006".to_string(), Severity::Critical),
+            ],
+            ..Default::default()
+        };
+        merge(
+            &mut eff,
+            doc,
+            &LayerRules {
+                source: ".sigil.yml".to_string(),
+                restricted_all: None,
+                locked: &locked,
+            },
+        );
+        assert_eq!(eff.severity_overrides.len(), 2);
+        assert!(eff.severity_overrides.iter().all(|o| o.raise_only));
+        assert_eq!(eff.refused.len(), 1, "{:?}", eff.refused);
+        assert!(eff.refused[0].contains("CODE-*: LOW"), "{:?}", eff.refused);
+        assert!(
+            !eff.refused[0].contains("NET-006"),
+            "raising is not refused"
+        );
     }
 
     #[test]
@@ -1896,6 +2123,170 @@ baseline: .sigil-baseline.json
             from_flag.fail_on_incomplete,
             "the flag wins over the project's false"
         );
+    }
+
+    #[test]
+    fn a_trusted_config_file_never_excuses_a_critical_finding() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".sigil.yml"), "fail_on: high\n").unwrap();
+        let root_c = canonical(root.path());
+        let eff = EffectivePolicy {
+            scan_root: Some(root_c.clone()),
+            config_files: vec![root_c.join(".sigil.yml")],
+            ..Default::default()
+        };
+        let mut hidden = finding(
+            "PROV-001",
+            ".sigil.yml",
+            Severity::Low,
+            "Hidden file: .sigil.yml",
+        );
+        hidden.phase = Phase::Provenance;
+        let mut injected = finding(
+            "PROMPT-001",
+            ".sigil.yml",
+            Severity::Critical,
+            "instruction override in a comment",
+        );
+        injected.phase = Phase::PromptInjection;
+        // A baseline `message` glob quoting a matched line draws the rule it
+        // quotes; below Critical that is the file's own content, excused.
+        let quoted = finding(
+            "CODE-001",
+            ".sigil.yml",
+            Severity::High,
+            "quoted pattern in a message glob",
+        );
+        let mut r = result(vec![hidden, injected, quoted]);
+        let out = eff.apply(&mut r, &[]);
+        let excused: Vec<&str> = out
+            .suppressed
+            .iter()
+            .filter(|s| s.kind == SuppressionKind::ConfigFile)
+            .map(|s| s.finding.rule.as_str())
+            .collect();
+        assert_eq!(excused, vec!["PROV-001", "CODE-001"]);
+        assert_eq!(r.findings.len(), 1);
+        assert_eq!(r.findings[0].rule, "PROMPT-001", "Critical stays active");
+    }
+
+    #[test]
+    fn url_hosts_reads_the_host_a_client_would_connect_to_or_gives_up() {
+        let h = |s: &str| url_hosts(s);
+        // Readable: the everyday shapes, with ports and closing punctuation.
+        assert_eq!(
+            h(r#"client.get("https://API.corp.example.org:8443/v1", timeout=5)"#),
+            Some(vec!["api.corp.example.org".to_string()])
+        );
+        assert_eq!(
+            h("dl -s https://corp.example.org/a https://cdn.corp.example.org"),
+            Some(vec![
+                "corp.example.org".to_string(),
+                "cdn.corp.example.org".to_string()
+            ])
+        );
+        assert_eq!(
+            h("fetch(`https://corp.example.org`)"),
+            Some(vec!["corp.example.org".to_string()])
+        );
+        assert_eq!(h("no url here"), Some(vec![]));
+        // A fragment or query ends the authority: the host is the part before it.
+        assert_eq!(
+            h(r#"get("https://evil.example#@corp.example.org/x")"#),
+            Some(vec!["evil.example".to_string()])
+        );
+        assert_eq!(
+            h(r#"get("https://evil.example?@corp.example.org/x")"#),
+            Some(vec!["evil.example".to_string()])
+        );
+        // Unreadable: userinfo, percent-encoding, shell concatenation,
+        // templated or empty hosts.
+        for s in [
+            "get('https://corp.example.org@evil.example/x')",
+            "get('https://corp.example.org:443@evil.example/x')",
+            r#"post("https://%65vil.example/x")"#,
+            r#"dl -s "https://corp.example.org".evil.io/x"#,
+            "dl https://corp.example.org$SUFFIX/x",
+            "fetch(`https://${host}/api`)",
+            r#"post("https://" + host)"#,
+            "get('http://[::1]:8080/')",
+        ] {
+            assert_eq!(h(s), None, "{s}");
+        }
+    }
+
+    #[test]
+    fn trusted_domains_refuse_unreadable_urls_and_data_egress_shapes() {
+        let eff = EffectivePolicy {
+            trusted_domains: vec![Sourced {
+                value: "corp.example.org".into(),
+                source: "p".into(),
+            }],
+            ..Default::default()
+        };
+        let net = |rule: &str, sev: Severity, snippet: &str| {
+            let mut f = finding(rule, "a.py", sev, snippet);
+            f.phase = Phase::NetworkExfil;
+            f
+        };
+        // Excused: every URL on the line is readable and trusted.
+        let ok = net(
+            "NET-001",
+            Severity::Medium,
+            "HTTP request: client.get('https://api.corp.example.org/v1')",
+        );
+        let mut r = result(vec![ok]);
+        assert_eq!(
+            eff.apply(&mut r, &[]).count(SuppressionKind::TrustedDomain),
+            1
+        );
+
+        // Not excused: the host a client would reach is not the trusted one,
+        // or cannot be read, or the rule shows data leaving (the last three:
+        // their URL is readable and trusted, and they are still refused).
+        // Snippets are paraphrased so this file does not match the rules.
+        let refused = vec![
+            net(
+                "NET-001",
+                Severity::Medium,
+                "get('https://evil.example#@corp.example.org/')",
+            ),
+            net(
+                "NET-001",
+                Severity::Medium,
+                "get('https://corp.example.org@evil.example/')",
+            ),
+            net(
+                "NET-012",
+                Severity::Medium,
+                "dl -s \"https://corp.example.org\".evil.io/x",
+            ),
+            net(
+                "NET-001",
+                Severity::Medium,
+                "get('https://corp.example.org/a'); post('https://%65vil.example/x')",
+            ),
+            net(
+                "SKILL-017",
+                Severity::High,
+                "upload archive to https://corp.example.org/up",
+            ),
+            net(
+                "NET-011",
+                Severity::High,
+                "send encoded secret to https://corp.example.org/in",
+            ),
+            net(
+                "NET-018",
+                Severity::High,
+                "encoded labels under https://corp.example.org",
+            ),
+        ];
+        let n = refused.len();
+        let mut r = result(refused);
+        let out = eff.apply(&mut r, &[]);
+        assert!(out.suppressed.is_empty(), "{:?}", out.suppressed);
+        assert_eq!(r.findings.len(), n);
     }
 
     #[test]

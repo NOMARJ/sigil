@@ -59,12 +59,23 @@ locked:                     # project files and flags can only tighten these
   - fail_on
   - fail_on_verdict
   - fail_on_incomplete
+  - min_severity            # else a project can hide findings under the gate
+  - severity_overrides      # else a project can lower severities under the gate
+  - baseline                # else a project can accept every current finding
   - disable_rules
   - ignore_paths
   - trusted_domains
   - rule_packs
 allow_project_policy: true  # false = every project file is tighten-only
 ```
+
+Locking `fail_on` alone does not hold the gate: an unlocked `min_severity`,
+`severity_overrides`, `baseline`, `disable_rules`, `ignore_paths` or
+`trusted_domains` each lets a project take findings out from under it. The
+example locks all of them (`locked: [all]` is the short form). Leave
+`baseline` unlocked only if projects may adopt Sigil with a baseline of
+their own, and know that it can accept anything present today. `sigil config
+--validate FILE --org` lists every unlocked key that can undo a locked gate.
 
 Distribute it the way you distribute other endpoint configuration, and set the
 variable for every shell, IDE and CI job:
@@ -135,11 +146,31 @@ normal CI case, `sigil scan .`). Scanning a downloaded skill from elsewhere
 (`sigil scan ~/Downloads/some-skill`) applies that skill's policy
 **tighten-only**: its `disable_rules`, `ignore_paths`, `trusted_domains`,
 `baseline`, `rule_packs` and any loosening value are refused and reported, and
-the refusal tells you to pass `--config <file>` if you do vouch for it.
+the refusal tells you to pass `--config <file>` if you do vouch for it. If
+that skill's policy file does not even load, it is set aside with a refusal
+rather than allowed to stop the scan, so shipping a malformed `.sigil.yml`
+cannot keep Sigil from reporting on the skill.
 `sigil clone`, `sigil pip` and `sigil npm` never read a policy from the
 quarantined content at all. Discovery can be switched off entirely with
 `--no-project-config` or `SIGIL_NO_PROJECT_CONFIG=1`; the organisation policy
 still applies.
+
+The guard is a heuristic about *where you stand*, not about who wrote the
+file: `git clone <url> && cd <repo> && sigil scan .` trusts that repository's
+`.sigil.yml` exactly as CI does. Judge unfamiliar code with `sigil clone`, or
+scan it from outside the tree, or pass `--no-project-config`. The text report
+names every policy file that applied (`project policy applied: …`), and a
+locked organisation policy bounds what any project file can do.
+
+`trusted_domains` excuses a Network/Exfil finding only when every URL on the
+line is readable and points at a trusted host (or a subdomain of one). A URL
+whose host is hidden behind userinfo (`https://trusted@evil`), percent
+encoding, a template, or shell quoting (`"https://trusted".evil.io`) is never
+excused, nor are Critical findings, credential-flow chains, reverse shells and
+the rules that show data leaving (`SKILL-017` file or command-output upload,
+`NET-011` encode-then-send, `NET-018` DNS exfiltration). Trust hosts you
+control: a multi-tenant host such as `github.com` or `hooks.slack.com` serves
+an attacker's account as readily as yours.
 
 ## Custom rule packs and signing
 
@@ -324,7 +355,10 @@ suppressed findings are skipped (with the reason), and when
 
 `-f/--format` selects `text` (default), `json`, `sarif`, `html`, `markdown`
 (`md`) or `junit`; `-o/--output FILE` writes the report to a file instead of
-stdout (the text report is then written without colour). Progress and
+stdout (the text report is then written without colour). `-o` is honoured by
+`scan`, `clone`, `pip`, `npm`, `baseline` and `rules list`/`show`/`sign`
+(`sbom` and `policy generate` keep their own `-o`); any other command refuses
+it with exit `2` rather than ignore it and leave the file unwritten. Progress and
 warnings always go to stderr, so a JSON or SARIF stdout is exactly one
 document.
 
@@ -408,6 +442,17 @@ Stated plainly so nothing here is over-relied on:
 - **`.sigilignore` is honoured from the scanned tree.** A tree can hide its own
   files from the walk with a `.sigilignore`. The scanned-tree guard covers
   policy files, not `.sigilignore`. (Tracked for a future release.)
+- **`sigil:ignore` markers are outside the organisation policy.** An inline
+  marker in the scanned tree suppresses the rule it names on that line or
+  file, at any severity, whatever the organisation policy locks. Each one is
+  listed in the report (`inline_suppressed`, SARIF `inSource`), so review
+  them as part of code review; there is no switch to disable them.
+- **Standing inside a tree trusts its `.sigil.yml`.** The guard applies when
+  you scan a tree from outside it; `cd`-ing into a freshly downloaded
+  repository and running `sigil scan .` applies that repository's policy in
+  full (the report names it). Use `sigil clone`, scan from outside, or
+  `--no-project-config` for code you have not reviewed, and lock the
+  organisation policy's loosening keys.
 - **`SIGIL_BYPASS=1`** — the Claude Code guard allows a command that sets
   `SIGIL_BYPASS=1` itself, so an agent can opt out. Treat the guard as a strong
   default for a cooperative agent, not a boundary against a hostile one. An
