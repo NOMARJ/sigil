@@ -2166,14 +2166,58 @@ pub fn cmd_skills(
         );
         return crate::EXIT_ERROR;
     }
+    // text and json always worked; markdown (a CI job summary / PR comment)
+    // and the global --output were accepted by the parser but silently
+    // ignored. Anything else is refused rather than printed as text.
+    let out_path = crate::report::output_path();
+    match format {
+        "text" | "json" | "markdown" | "md" => {}
+        other => {
+            eprintln!(
+                "{} sigil skills supports --format text, json or markdown (got {other:?})",
+                "error:".bold().red()
+            );
+            return crate::EXIT_ERROR;
+        }
+    }
+    if format == "text" && out_path.is_some() {
+        eprintln!(
+            "{} --output needs --format json or markdown for sigil skills",
+            "error:".bold().red()
+        );
+        return crate::EXIT_ERROR;
+    }
     let (mut items, searched) = discover(&opts);
     if scan {
         evaluate(&mut items);
     }
-    if format == "json" {
-        print_json(&opts, &items, scan, fail_on);
-    } else {
-        print_text(&opts, &items, &searched, scan, verbose);
+    let rendered = match format {
+        "json" => Some(format!(
+            "{}\n",
+            serde_json::to_string_pretty(&json_document(&opts, &items, scan, fail_on))
+                .unwrap_or_default()
+        )),
+        "markdown" | "md" => Some(render_markdown(&opts, &items, scan, fail_on)),
+        _ => None,
+    };
+    match (rendered, out_path) {
+        (Some(doc), Some(path)) => {
+            if let Err(e) = std::fs::write(path, doc) {
+                eprintln!(
+                    "{} cannot write report to {}: {e}",
+                    "error:".bold().red(),
+                    path.display()
+                );
+                return crate::EXIT_ERROR;
+            }
+            eprintln!(
+                "{} {format} report written to {}",
+                "sigil:".bold().green(),
+                path.display()
+            );
+        }
+        (Some(doc), None) => print!("{doc}"),
+        (None, _) => print_text(&opts, &items, &searched, scan, verbose),
     }
     if scan {
         exit_code(&items, threshold)
@@ -2182,7 +2226,7 @@ pub fn cmd_skills(
     }
 }
 
-fn print_json(opts: &Options, items: &[Item], scan: bool, fail_on: &str) {
+fn json_document(opts: &Options, items: &[Item], scan: bool, fail_on: &str) -> serde_json::Value {
     let mut by_kind: BTreeMap<&str, usize> = BTreeMap::new();
     let mut by_verdict: BTreeMap<String, usize> = BTreeMap::new();
     for i in items {
@@ -2210,7 +2254,115 @@ fn print_json(opts: &Options, items: &[Item], scan: bool, fail_on: &str) {
             "fail_on": fail_on,
         },
     });
-    println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+    doc
+}
+
+/// Markdown for a CI job summary or a PR comment. Table cells escape `|`;
+/// finding text is already secret-redacted by the evaluators.
+fn render_markdown(opts: &Options, items: &[Item], scan: bool, fail_on: &str) -> String {
+    use std::fmt::Write as _;
+    let cell = |s: &str| clip(&s.replace('|', "\\|").replace('\n', " "), 120);
+    let mut out = String::new();
+    let _ = writeln!(out, "## Sigil agent tooling posture\n");
+    let scope = match &opts.project {
+        Some(p) if opts.user => {
+            format!("home `{}`, project `{}`", opts.home.display(), p.display())
+        }
+        Some(p) => format!("project `{}`", p.display()),
+        None => format!("home `{}`", opts.home.display()),
+    };
+    let _ = writeln!(out, "Inspected {scope}.\n");
+    if items.is_empty() {
+        let _ = writeln!(out, "No agent skills, plugins, hooks or MCP servers found.");
+        return out;
+    }
+    if scan {
+        let mut by_verdict: BTreeMap<String, usize> = BTreeMap::new();
+        for i in items {
+            *by_verdict
+                .entry(i.verdict.clone().unwrap_or_default())
+                .or_default() += 1;
+        }
+        let failing = items
+            .iter()
+            .flat_map(|i| i.findings.iter())
+            .filter(|f| f.severity >= severity_from(fail_on))
+            .count();
+        let summary: Vec<String> = by_verdict
+            .iter()
+            .filter(|(v, _)| !v.is_empty())
+            .map(|(v, n)| format!("{n} {}", v.to_lowercase()))
+            .collect();
+        let _ = writeln!(
+            out,
+            "**{} item(s)**: {}. Findings at or above `{fail_on}`: **{failing}**.\n",
+            items.len(),
+            summary.join(", ")
+        );
+        let _ = writeln!(out, "| Verdict | Tool | Scope | Kind | Name | Location |");
+        let _ = writeln!(out, "|---|---|---|---|---|---|");
+        for i in items {
+            let _ = writeln!(
+                out,
+                "| {} | {} | {} | {} | {} | `{}` |",
+                i.verdict.as_deref().unwrap_or(""),
+                cell(&i.tool),
+                cell(&i.scope),
+                i.kind.label(),
+                cell(&i.name),
+                cell(&i.location)
+            );
+        }
+        let flagged: Vec<(&Item, &Finding)> = items
+            .iter()
+            .flat_map(|i| i.findings.iter().map(move |f| (i, f)))
+            .filter(|(_, f)| f.severity >= Severity::Medium || f.rule.starts_with("AGENTCFG-"))
+            .collect();
+        if !flagged.is_empty() {
+            let _ = writeln!(out, "\n### Findings\n");
+            let _ = writeln!(out, "| Severity | Rule | Item | Detail | Location |");
+            let _ = writeln!(out, "|---|---|---|---|---|");
+            for (i, f) in flagged {
+                let loc = match f.line {
+                    Some(l) => format!("{}:{l}", f.file),
+                    None => f.file.clone(),
+                };
+                let _ = writeln!(
+                    out,
+                    "| {} | {} | {} | {} | `{}` |",
+                    f.severity,
+                    f.rule,
+                    cell(&i.name),
+                    cell(&f.snippet),
+                    cell(&loc)
+                );
+            }
+        }
+    } else {
+        let _ = writeln!(out, "| Tool | Scope | Kind | Name | Location |");
+        let _ = writeln!(out, "|---|---|---|---|---|");
+        for i in items {
+            let _ = writeln!(
+                out,
+                "| {} | {} | {} | {} | `{}` |",
+                cell(&i.tool),
+                cell(&i.scope),
+                i.kind.label(),
+                cell(&i.name),
+                cell(&i.location)
+            );
+        }
+    }
+    out
+}
+
+fn severity_from(s: &str) -> Severity {
+    match s.to_ascii_lowercase().as_str() {
+        "low" => Severity::Low,
+        "medium" => Severity::Medium,
+        "critical" => Severity::Critical,
+        _ => Severity::High,
+    }
 }
 
 fn colour_verdict(v: &str) -> String {
