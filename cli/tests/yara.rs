@@ -100,6 +100,17 @@ fn sigil(fx: &Fixture, cwd: &Path, args: &[&str], env: &[(&str, &str)]) -> Outpu
     cmd.output().expect("run sigil")
 }
 
+/// Wall-clock ceilings in these tests are set for an optimised build. CI
+/// runs `cargo test` unoptimised, where the regex engines are about an order
+/// of magnitude slower, so the ceiling scales with the profile: it still
+/// catches a search that is not bounded at all (minutes), and no longer fails
+/// on a slow runner. The deterministic assertions beside each ceiling (a cut
+/// short `not $a` never fires, the budget finding is reported) hold in both.
+fn ceiling(release_secs: u64) -> std::time::Duration {
+    let factor = if cfg!(debug_assertions) { 8 } else { 1 };
+    std::time::Duration::from_secs(release_secs * factor)
+}
+
 fn code(o: &Output) -> i32 {
     o.status.code().expect("exit code")
 }
@@ -569,11 +580,7 @@ fn rules_list_show_and_test_include_yara_rules() {
     let out = stdout(&o);
     assert!(out.contains("[PROV-BUDGET-001]"), "{out}");
     assert!(!out.contains("[YARA-SLOW-PROBE]"), "{out}");
-    assert!(
-        started.elapsed() < std::time::Duration::from_secs(30),
-        "{:?}",
-        started.elapsed()
-    );
+    assert!(started.elapsed() < ceiling(30), "{:?}", started.elapsed());
 }
 
 #[test]

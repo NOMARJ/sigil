@@ -14,6 +14,17 @@ use crate::corpus::custom::PACK_KEY_ENV_LOCK as ENV_LOCK;
 use crate::scanner::budget::FileBudget;
 use crate::scanner::Finding;
 
+/// Wall-clock ceilings in these tests are set for an optimised build. CI
+/// runs `cargo test` unoptimised, where the regex engines are about an order
+/// of magnitude slower, so the ceiling scales with the profile: it still
+/// catches a search that is not bounded at all (minutes), and no longer fails
+/// on a slow runner. The deterministic assertions beside each ceiling (a cut
+/// short `not $a` never fires, the budget finding is reported) hold in both.
+fn ceiling(release_secs: u64) -> std::time::Duration {
+    let factor = if cfg!(debug_assertions) { 8 } else { 1 };
+    std::time::Duration::from_secs(release_secs * factor)
+}
+
 fn compile_ok(src: &str) -> YaraFile {
     match compile_rules(src, Path::new("test.yar")) {
         Ok((file, _)) => file,
@@ -1146,7 +1157,7 @@ fn a_rule_the_budget_cuts_short_is_not_reported() {
     );
     assert!(out.is_empty(), "{out:?}");
     assert!(
-        start.elapsed() < std::time::Duration::from_secs(10),
+        start.elapsed() < ceiling(10),
         "the budget did not stop the search: {:?}",
         start.elapsed()
     );
@@ -1208,7 +1219,7 @@ fn a_slow_automaton_is_stopped_by_the_budget() {
     );
     assert!(out.is_empty(), "a cut-short `not $a` must not fire");
     assert!(
-        start.elapsed() < std::time::Duration::from_secs(15),
+        start.elapsed() < ceiling(15),
         "the budget did not stop the search: {:?}",
         start.elapsed()
     );
@@ -1293,11 +1304,7 @@ fn unbounded_strings_are_windowed_and_stay_fast() {
     }
     let start = std::time::Instant::now();
     assert!(matches(r"$r = /A.*9/s", "#r == 20000", &data));
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(20),
-        "took {:?}",
-        start.elapsed()
-    );
+    assert!(start.elapsed() < ceiling(20), "took {:?}", start.elapsed());
 
     // A match longer than the limit is not reported; one within it is.
     let long = format!("A{}B", "x".repeat(UNBOUNDED_MATCH_LIMIT + 10));
