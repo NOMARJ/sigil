@@ -297,7 +297,7 @@
       "phase": "network_exfil",
       "severity": "high",
       "description": "Package-manager config adds an extra index or package source",
-      "remediation": "pip --extra-index-url, find-links, a non-default uv index or a supplemental poetry/Pipfile source on an unrecognised host is the dependency-confusion shape: pip picks the highest version of a name across every index, so the extra host can shadow any public package. Remove it, or pin the private packages to that index explicitly (uv explicit = true, poetry priority = \"explicit\") and hash-pin everything else.",
+      "remediation": "pip --extra-index-url, find-links, a non-default uv index or a supplemental poetry/Pipfile source on an unrecognised host - including a find-links page or index on a code forge, which serves whatever one account there uploaded - is the dependency-confusion shape: pip picks the highest version of a name across every index, so the extra host can shadow any public package. Remove it, or pin the private packages to that index explicitly (uv explicit = true, poetry priority = \"explicit\") and hash-pin everything else.",
       "references": [
         "CWE-427",
         "CWE-494",
@@ -366,8 +366,8 @@
       "id": "DEPSRC-006",
       "phase": "network_exfil",
       "severity": "medium",
-      "description": "Install command points the package manager at an unrecognised index",
-      "remediation": "Instructions or a script run pip, uv, npm, yarn or poetry with --index-url, --extra-index-url, --registry, 'config set registry' or an equivalent environment variable naming a host that is not a default registry, known vendor index or public mirror. An agent following the skill will install whatever that host serves. Confirm who operates the host before letting the command run.",
+      "description": "Install command or written config points the package manager at an unrecognised or plaintext index",
+      "remediation": "Instructions or a script run pip, uv, npm, yarn or poetry with --index-url, --extra-index-url, --registry, 'config set registry' / 'npm set registry' or an equivalent environment variable, or write the equivalent config line (echo 'registry=...' > ~/.npmrc, a heredoc into pip.conf), naming a host that is not a default registry, known vendor index or public mirror, or any host over plaintext http://. An agent following the skill will install whatever that host serves. Confirm who operates the host, and that it is reached over https, before letting the command run.",
       "references": [
         "CWE-494",
         "CWE-829",
@@ -385,8 +385,8 @@
       "id": "DEPSRC-007",
       "phase": "network_exfil",
       "severity": "high",
-      "description": "Package source fetched over plaintext HTTP",
-      "remediation": "A registry, index or dependency URL uses http:// to a non-local host, so any network hop can replace the packages. Switch to https:// or remove the source.",
+      "description": "Shipped package-manager config fetches over plaintext HTTP",
+      "remediation": "A registry, index or dependency URL in a shipped config file (.npmrc, pip.conf, requirements, pyproject, package.json dependencies...) uses http:// to a non-local host, so any network hop can replace the packages. Switch to https:// or remove the source. (The same URL in an install command is DEPSRC-006, Medium.)",
       "references": [
         "CWE-319",
         "CWE-494",

