@@ -556,7 +556,9 @@ fn test(pack: &Path, target: &Path) -> i32 {
     }
     let sig_packs: Vec<_> = packs.iter().map(|p| p.pack.clone()).collect();
     let compiled = crate::corpus::compiled::CompiledCorpus::from_packs(&sig_packs);
-    let budget = crate::scanner::budget::FileBudget::unbounded();
+    // The same per-file budget as a scan (SIGIL_FILE_BUDGET_SECS, 0 for
+    // none): a crafted sample must not hang a rule test either.
+    let budget_limit = crate::scanner::budget::configured_budget();
     let base = if target.is_file() {
         target.parent().unwrap_or(Path::new("."))
     } else {
@@ -576,8 +578,23 @@ fn test(pack: &Path, target: &Path) -> i32 {
         let binary = bytes.contains(&0);
         if !compiled.yara().is_empty() {
             let subject = crate::corpus::yara::Subject::whole(&bytes, !binary);
-            for f in crate::corpus::yara::scan(compiled.yara(), &subject, &rel, &|_| true, &budget)
-            {
+            let budget = crate::scanner::budget::FileBudget::start(budget_limit);
+            let found =
+                crate::corpus::yara::scan(compiled.yara(), &subject, &rel, &|_| true, &budget);
+            if budget.expired() {
+                println!(
+                    "  {:<8} [{}] {rel}\n           {}",
+                    "note",
+                    crate::scanner::budget::BUDGET_RULE_ID,
+                    format!(
+                        "YARA evaluation ran out of time; rules not finished are not shown \
+                         (raise or disable with {}=<seconds>, 0 to disable)",
+                        crate::scanner::budget::BUDGET_ENV
+                    )
+                    .dimmed()
+                );
+            }
+            for f in found {
                 hits += 1;
                 println!(
                     "  {:<8} [{}] {}{}\n           {}",

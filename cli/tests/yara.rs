@@ -537,6 +537,43 @@ fn rules_list_show_and_test_include_yara_rules() {
     let out = stdout(&o);
     assert!(out.contains("[YARA-SIGIL-TEST-MARKER]"), "{out}");
     assert!(out.contains("[YARA-SIGIL-TEST-BYTES]"), "{out}");
+
+    // `rules test` keeps the per-file budget: a sample crafted so that every
+    // start of `/A.*B/s` is a match just past the 4096-byte limit takes
+    // seconds without it, and must be stopped and said so.
+    let slow_rule = fx.root.join("slow.yar");
+    std::fs::write(
+        &slow_rule,
+        "rule Slow_Probe { strings: $a = /A.*B/s condition: not $a }\n",
+    )
+    .unwrap();
+    let mut block = vec![b'A'; 4000];
+    block.extend(std::iter::repeat_n(b'x', 4097));
+    block.push(b'B');
+    let samples = fx.root.join("samples");
+    std::fs::create_dir_all(&samples).unwrap();
+    std::fs::write(samples.join("crafted.bin"), block.repeat(256)).unwrap();
+    let started = std::time::Instant::now();
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &[
+            "rules",
+            "test",
+            slow_rule.to_str().unwrap(),
+            samples.to_str().unwrap(),
+        ],
+        &[("SIGIL_FILE_BUDGET_SECS", "0.3")],
+    );
+    assert_eq!(code(&o), 0);
+    let out = stdout(&o);
+    assert!(out.contains("[PROV-BUDGET-001]"), "{out}");
+    assert!(!out.contains("[YARA-SLOW-PROBE]"), "{out}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "{:?}",
+        started.elapsed()
+    );
 }
 
 #[test]
