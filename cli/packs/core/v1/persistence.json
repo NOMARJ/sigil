@@ -108,7 +108,15 @@
           "MUST NOT",
           "No confirmation means stop",
           "declines to",
-          "completion"
+          "completion_command",
+          "completions bash",
+          "completions zsh",
+          "completions fish",
+          "completion bash",
+          "completion zsh",
+          "completion fish",
+          "completion -s ",
+          "completion --shell"
         ]
       },
       "remediation": "Remove the write to the shell startup file. Anything appended there executes in every new shell with the user's full privileges; a package must never do this silently.",

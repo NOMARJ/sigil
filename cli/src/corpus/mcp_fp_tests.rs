@@ -586,3 +586,207 @@ fn sequential_byte_tables_are_not_hex_payloads() {
         &["s = '\\x63\\x75\\x72\\x6c\\x20\\x68\\x74\\x74\\x70'"],
     );
 }
+
+// ---------------------------------------------------------------------------
+// Verifier pass (ws/mcpfp-v): attack variants of the narrowed rules
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cred006_reports_keys_assembled_on_one_line() {
+    assert_fires(
+        "src/keys.js",
+        "CRED-006",
+        &[
+            // An array of PEM lines joined at run time.
+            r#"const k = ["-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEAsNlRJVZn9ZvXcECQm65czs"].join("\n");"#,
+            // String concatenation with the newline as its own literal.
+            r#"const k = "-----BEGIN RSA PRIVATE KEY-----" + "\n" + "MIIEowIBAAKCAQEAsNlRJVZn9ZvXcECQm65czs";"#,
+            // A legacy encrypted PEM: headers come before the key material.
+            r#"const k = "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,3F17F5316E2BAC89\n";"#,
+        ],
+    );
+    // A PEM builder around a runtime variable is still not a key.
+    assert_quiet(
+        "src/keys.js",
+        "CRED-006",
+        &[
+            r#"const pem = "-----BEGIN PRIVATE KEY-----\n" + privateKeyBase64Material + "\n-----END PRIVATE KEY-----";"#,
+            "MARKERS = ['-----BEGIN RSA PRIVATE KEY-----', '-----END RSA PRIVATE KEY-----']",
+        ],
+    );
+}
+
+#[test]
+fn cred006_placeholder_window_does_not_hide_a_short_real_key() {
+    // An Ed25519 PKCS#8 key has a one-line body, so its END line and the markup
+    // after it fall inside the four-line window read for placeholders. A `<` or
+    // `[` after the END line is markup, not a placeholder body.
+    let key = "-----BEGIN PRIVATE KEY-----\n\
+               MC4CAQAwBQYDK2VwBCIEIGp3Qz3kX5hS8m1c0hFJ3wz0H2yC7o1aQ4mJ8pL9sT2x\n\
+               -----END PRIVATE KEY-----\n";
+    assert!(fires(
+        "config/signing.xml",
+        &format!("<privateKey>\n{key}</privateKey>\n"),
+        "CRED-006"
+    ));
+    assert!(fires(
+        "config/settings.ini",
+        &format!("[auth]\n{key}[server]\nport=1\n"),
+        "CRED-006"
+    ));
+    // The placeholder bodies themselves stay quiet.
+    for body in ["<your private key>", "[REDACTED]", "YOUR_KEY_HERE", "..."] {
+        let doc =
+            format!("-----BEGIN RSA PRIVATE KEY-----\n{body}\n-----END RSA PRIVATE KEY-----\n");
+        assert!(!fires("docs/setup.md", &doc, "CRED-006"), "{body}");
+    }
+}
+
+#[test]
+fn base64_decode_into_a_code_or_command_sink_is_high() {
+    // Each of these was High only through OBFUSC-001/002/003 before those
+    // became observations; no other rule sees them.
+    for (path, line) in [
+        (
+            "index.js",
+            "require('vm').runInThisContext(Buffer.from(x, 'base64').toString());",
+        ),
+        (
+            "index.js",
+            "vm.runInNewContext(Buffer.from(p, 'base64').toString('utf8'), { require });",
+        ),
+        (
+            "index.js",
+            "require('child_process').execSync(Buffer.from(cmd, 'base64').toString());",
+        ),
+        ("index.js", "cp.exec(atob(c));"),
+        ("index.js", "setTimeout(atob(p), 10);"),
+        (
+            "setup.py",
+            "subprocess.run(base64.b64decode(c).decode(), shell=True)",
+        ),
+        (
+            "setup.py",
+            "code = compile(base64.b64decode(blob), '<x>', 'exec')",
+        ),
+    ] {
+        assert_eq!(
+            severity_of(path, line, "OBFUSC-014"),
+            Some(Severity::High),
+            "{line}"
+        );
+    }
+    assert_quiet(
+        "dist/index.js",
+        "OBFUSC-014",
+        &[
+            "const claims = JSON.parse(atob(token.split('.')[1]));",
+            "fs.writeFileSync(out, Buffer.from(data, 'base64'));",
+            "setTimeout(() => done(), 10); const x = atob(y);",
+        ],
+    );
+    assert_quiet(
+        "agent/gif.py",
+        "OBFUSC-014",
+        &["img = Image.open(io.BytesIO(base64.b64decode(data)))"],
+    );
+}
+
+#[test]
+fn infer005_secret_names_in_any_case() {
+    assert_fires(
+        "src/agent.ts",
+        "INFER-005",
+        &[
+            "const prompt = `Use this key: ${process.env.openai_api_key}`;",
+            "const prompt = `Use this key: ${process.env.apiKey}`;",
+            "messages.push({ role: 'user', content: `My GitHub token is ${process.env.GITHUB_TOKEN}` });",
+        ],
+    );
+}
+
+#[test]
+fn llm_client_allowlist_does_not_cover_lookalike_hosts() {
+    assert_fires(
+        "src/client.py",
+        "INFER-001",
+        &[
+            "client = OpenAI(base_url='https://api.openai.com.relay.dev/v1', api_key=k)",
+            "client = OpenAI(base_url='https://localhost.relay.dev/v1', api_key=k)",
+        ],
+    );
+    assert_quiet(
+        "src/client.py",
+        "INFER-001",
+        &[
+            "client = OpenAI(base_url='https://api.openai.com/v1', api_key=k)",
+            "client = AzureOpenAI(base_url=\"https://myres.openai.azure.com/openai\", api_key=k)",
+            "client = OpenAI(base_url=\"http://127.0.0.1:8000/v1\", api_key=k)",
+        ],
+    );
+}
+
+#[test]
+fn cleartext_base_url_local_hosts_are_whole_labels() {
+    assert_fires(
+        "src/config.ts",
+        "NET-CLEAR-001",
+        &[
+            "const API_BASE_URL = \"http://relay.localtunnel.me/v1\";",
+            "const API_BASE_URL = \"http://api.testing-relay.ru/v1\";",
+            "const API_BASE_URL = \"http://proxy.lanzou.com/v1\";",
+            "const API_BASE_URL = \"http://example.com.relay.ru/v1\";",
+        ],
+    );
+    assert_quiet(
+        "tests/conftest.py",
+        "NET-CLEAR-001",
+        &[
+            "BASE_URL = \"http://test-api.local\"",
+            "        \"api_url\": \"http://local-api.test\",",
+            "LOCALHOST_BASE_URL = \"http://127.0.0.1:8000\"",
+        ],
+    );
+}
+
+#[test]
+fn shell_rc_write_of_model_output_is_not_a_completion_script() {
+    // "completion" is also the word for model output in agent code.
+    assert_fires(
+        "agent/setup.py",
+        "PERSIST-005",
+        &["open(os.path.expanduser(\"~/.bashrc\"), \"a\").write(completion.choices[0].message.content)"],
+    );
+    assert_quiet(
+        "README.md",
+        "PERSIST-005",
+        &[
+            "streamkap completions zsh >> ~/.zshrc",
+            "# Installation: {{app_path}} {{completion_command}} >> ~/.bashrc",
+        ],
+    );
+}
+
+#[test]
+fn one_line_package_json_keeps_the_range_check() {
+    // The package's own "version" on the same line does not excuse a hijackable range.
+    assert_fires(
+        "package.json",
+        "SUPPLY-002",
+        &[r#"{"name":"x","version":"1.0.0","dependencies":{"left-pad":"1.3.0 || 99.0.0"}}"#],
+    );
+}
+
+#[test]
+fn function_constructor_literal_reaching_for_process_still_fires() {
+    assert_fires(
+        "index.js",
+        "CODE-008",
+        &["Function(\"return process\")().mainModule.require('child_process').execSync(cmd);"],
+    );
+    assert_fires(
+        "index.js",
+        "CODE-009",
+        &["new Function('return require')()('child_process').exec(c);"],
+    );
+}

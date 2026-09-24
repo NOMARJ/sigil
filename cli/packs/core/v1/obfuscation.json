@@ -180,6 +180,16 @@
       "remediation": "The string is reversed (s.split('').reverse().join(''), s[::-1]) before it is Base64-decoded. Reversal protects nothing; it exists so the encoded text does not look like Base64 to a reviewer or a scanner. Undo both steps, read the plaintext and reject the package if it is a URL, a command or code.",
       "references": ["MITRE T1027", "MITRE T1140"],
       "tags": ["obfuscation", "base64", "string-reversal"]
+    },
+    {
+      "id": "OBFUSC-014",
+      "phase": "obfuscation",
+      "severity": "high",
+      "pattern": "(?:\\b(?:eval|exec|execSync|execFile|execFileSync|spawn|spawnSync|compile|runInThisContext|runInNewContext|runInContext|compileFunction|setTimeout|setInterval|Function|Script)|\\bos\\.(?:system|popen)|\\bsubprocess\\.(?:run|call|check_call|check_output|Popen|getoutput|getstatusoutput))\\s*\\(\\s*(?:[\\w$.]+\\s*\\(\\s*){0,3}(?:(?:[\\w$]+\\.)*(?:atob|b64decode|urlsafe_b64decode|standard_b64decode|decodebytes|decodestring)\\s*\\(|Buffer\\.from\\s*\\([^)]*,\\s*[\"'`]base64[\"'`])",
+      "description": "Base64 decode fed straight into a code or command sink",
+      "remediation": "The result of a Base64 decode goes directly into something that runs it: eval/exec/compile, the Function constructor, Node's vm (runInThisContext, runInNewContext, new vm.Script), a string passed to setTimeout/setInterval, child_process (exec, execSync, spawn) or Python's os.system/subprocess. Decoding data is an ordinary Low observation (OBFUSC-001/002/003); decoding something and executing it in the same expression is how a staged payload runs without its text ever appearing in the source. Find where the encoded value comes from (a literal, a download, an environment variable), decode it yourself without running it, and reject the package unless the plaintext is plainly benign.",
+      "references": ["MITRE T1027", "MITRE T1140", "MITRE T1059"],
+      "tags": ["obfuscation", "base64", "execution", "staged-payload"]
     }
   ],
   "provenance_rules": []

@@ -97,7 +97,7 @@
       "id": "CODE-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(^|[^.\\w$])Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+)",
+      "pattern": "(^|[^.\\w$])Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+|[\"'][^\"'\\n]*\\b(?:process|require|child_process|mainModule|fromCharCode|atob)\\b)",
       "description": "Function constructor — dynamic code execution",
       "suppress": {
         "line_contains": [
@@ -120,7 +120,7 @@
       "id": "CODE-009",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "new\\s+Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+)",
+      "pattern": "new\\s+Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+|[\"'][^\"'\\n]*\\b(?:process|require|child_process|mainModule|fromCharCode|atob)\\b)",
       "description": "new Function() — dynamic code execution",
       "suppress": {
         "line_contains": [
