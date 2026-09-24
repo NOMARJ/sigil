@@ -36,6 +36,7 @@ pub enum Stage {
     PhaseSkillSecurity,
     PhaseInferenceSecurity,
     CloudSignatures,
+    Yara,
     OversizedTail,
     Suppress,
     Correlate,
@@ -45,7 +46,7 @@ pub enum Stage {
 
 impl Stage {
     /// Every stage, in pipeline order.
-    pub const ALL: [Stage; 21] = [
+    pub const ALL: [Stage; 22] = [
         Stage::Walk,
         Stage::Provenance,
         Stage::Read,
@@ -62,6 +63,7 @@ impl Stage {
         Stage::PhaseSkillSecurity,
         Stage::PhaseInferenceSecurity,
         Stage::CloudSignatures,
+        Stage::Yara,
         Stage::OversizedTail,
         Stage::Suppress,
         Stage::Correlate,
@@ -91,6 +93,7 @@ impl Stage {
             Stage::PhaseSkillSecurity => "phase skill_security",
             Stage::PhaseInferenceSecurity => "phase inference_security",
             Stage::CloudSignatures => "cloud signatures",
+            Stage::Yara => "yara rules",
             Stage::OversizedTail => "oversized tail",
             Stage::Suppress => "suppress",
             Stage::Correlate => "correlate",

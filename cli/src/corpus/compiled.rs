@@ -30,7 +30,7 @@
 //! before and after.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use regex::Regex;
 
@@ -39,6 +39,7 @@ use crate::scanner::{Finding, Phase, Severity};
 
 use super::loader::load_all_packs;
 use super::schema::{CorrelationRule, Evidence, FileFilter, SignaturePack, SuppressionPredicates};
+use super::yara::YaraFile;
 
 /// A single rule with its phase, severity and weight already resolved.
 pub struct CompiledRule {
@@ -165,6 +166,9 @@ pub struct CompiledCorpus {
     /// invalid pattern is a loud failure, not a silent detection gap.
     #[allow(dead_code)]
     pub invalid_patterns: Vec<String>,
+    /// YARA rule files loaded as custom packs, compiled once at load and
+    /// evaluated over each file's raw bytes by `scanner::run_scan`.
+    yara: Vec<Arc<YaraFile>>,
 }
 
 impl CompiledCorpus {
@@ -179,6 +183,7 @@ impl CompiledCorpus {
         let mut meta_by_id: HashMap<String, RuleMeta> = HashMap::new();
         let mut correlation_rules: Vec<CorrelationRule> = Vec::new();
         let mut engine_rule_ids: Vec<String> = Vec::new();
+        let mut yara: Vec<Arc<YaraFile>> = Vec::new();
 
         // Pack order then rule-within-pack order is preserved, because finding
         // output order is derived from it.
@@ -240,6 +245,20 @@ impl CompiledCorpus {
                 );
                 engine_rule_ids.push(rule.id.clone());
             }
+            if let Some(file) = &pack.yara {
+                for rule in &file.rules {
+                    meta_by_id.insert(
+                        rule.id.clone(),
+                        RuleMeta {
+                            title: rule.description.clone(),
+                            remediation: Some(rule.remediation_or_default(&file.path)),
+                            references: rule.references.clone(),
+                            tags: rule.tags.clone(),
+                        },
+                    );
+                }
+                yara.push(Arc::clone(file));
+            }
             // Provenance rules are not content rules and never enter a
             // RegexSet, but their metadata is looked up the same way.
             for rule in &pack.provenance_rules {
@@ -268,7 +287,18 @@ impl CompiledCorpus {
             correlation_rules,
             engine_rule_ids,
             invalid_patterns,
+            yara,
         }
+    }
+
+    /// The YARA rule files this corpus carries (custom packs only).
+    pub fn yara(&self) -> &[Arc<YaraFile>] {
+        &self.yara
+    }
+
+    /// Public YARA rules: the ones that can produce a finding.
+    fn yara_rules(&self) -> impl Iterator<Item = &super::yara::YaraRule> {
+        self.yara.iter().flat_map(|f| f.public_rules())
     }
 
     /// Descriptive metadata for a rule id, if the active corpus defines it.
@@ -298,6 +328,7 @@ impl CompiledCorpus {
             .flat_map(|p| p.rules.iter().map(|r| r.id.clone()))
             .chain(self.correlation_rules.iter().map(|r| r.id.clone()))
             .chain(self.engine_rule_ids.iter().cloned())
+            .chain(self.yara_rules().map(|r| r.id.clone()))
             .collect();
         ids.sort_unstable();
         ids.dedup();
@@ -310,6 +341,13 @@ impl CompiledCorpus {
     /// difference between them is a difference in the scanned code.
     pub fn digest(&self) -> String {
         use sha2::{Digest, Sha256};
+        // A YARA rule is identified by its whole source (private rules
+        // included: they change what the public ones match).
+        let yara_sources: Vec<(&str, &str)> = self
+            .yara
+            .iter()
+            .flat_map(|f| f.rules.iter().map(|r| (r.id.as_str(), r.source.as_str())))
+            .collect();
         let mut entries: Vec<(&str, &str)> = self
             .per_phase
             .values()
@@ -324,6 +362,7 @@ impl CompiledCorpus {
                     .iter()
                     .map(|id| (id.as_str(), "engine")),
             )
+            .chain(yara_sources)
             .collect();
         entries.sort_unstable();
         let mut hasher = Sha256::new();
@@ -345,6 +384,7 @@ impl CompiledCorpus {
             .map(|p| p.rule_count())
             .sum::<usize>()
             + self.correlation_rules.len()
+            + self.yara_rules().count()
     }
 
     /// Run one phase's rules over a file's contents.

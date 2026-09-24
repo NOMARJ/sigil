@@ -115,8 +115,10 @@ a Critical pattern in a baseline, add a `sigil:ignore` marker for it.
 ## Custom rules
 
 `--rules PATH` (repeatable, a file or a directory) and a policy's
-`rule_packs` add rule packs in JSON or YAML. Two shapes are accepted: the full
-pack schema used by `cli/packs/core/v1/`, and a compact form:
+`rule_packs` add rule packs in JSON or YAML, and YARA rule files (`.yar`,
+`.yara`; see [YARA rules](enterprise.md#yara-rules)). Two JSON/YAML shapes are
+accepted: the full pack schema used by `cli/packs/core/v1/`, and a compact
+form:
 
 ```yaml
 pack: {id: acme-rules, name: ACME rules, version: 1.0.0}   # optional

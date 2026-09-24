@@ -457,4 +457,37 @@ pub struct SignaturePack {
     /// Metadata for rules the engine implements in Rust (see [`EngineRule`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub engine_rules: Vec<EngineRule>,
+
+    /// The compiled rules of a YARA file loaded as a custom pack
+    /// ([`super::yara`]). Never part of a JSON pack: a YARA pack is read from
+    /// `.yar` source, and its signature is detached.
+    #[serde(skip)]
+    pub yara: Option<std::sync::Arc<super::yara::YaraFile>>,
+}
+
+impl SignaturePack {
+    /// Every rule id this pack defines, of every kind.
+    pub fn rule_ids(&self) -> Vec<String> {
+        self.rules
+            .iter()
+            .map(|r| r.id.clone())
+            .chain(self.provenance_rules.iter().map(|r| r.id.clone()))
+            .chain(self.correlation_rules.iter().map(|r| r.id.clone()))
+            .chain(self.engine_rules.iter().map(|r| r.id.clone()))
+            .chain(
+                self.yara
+                    .iter()
+                    .flat_map(|y| y.rules.iter().map(|r| r.id.clone())),
+            )
+            .collect()
+    }
+
+    /// How many rules the pack defines, of every kind.
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+            + self.provenance_rules.len()
+            + self.correlation_rules.len()
+            + self.engine_rules.len()
+            + self.yara.as_ref().map_or(0, |y| y.rules.len())
+    }
 }

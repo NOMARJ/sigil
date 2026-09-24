@@ -55,8 +55,9 @@ struct Cli {
     #[arg(short = 'o', long, global = true, value_name = "FILE")]
     output: Option<PathBuf>,
 
-    /// Add a custom rule pack (JSON or YAML file, or a directory of packs).
-    /// Repeatable. Custom packs add rules; they can never replace built-ins
+    /// Add a custom rule pack (JSON or YAML, a YARA .yar/.yara file, or a
+    /// directory of them). Repeatable. Custom packs add rules; they can never
+    /// replace built-ins
     #[arg(long = "rules", global = true, value_name = "PATH")]
     rules: Vec<PathBuf>,
 
@@ -1359,6 +1360,7 @@ fn cmd_corpus(format: &str) -> i32 {
                 "origin": origin.to_string(),
                 "rules": p.rules.len(),
                 "provenance_rules": p.provenance_rules.len(),
+                "yara_rules": p.yara.as_ref().map_or(0, |y| y.rules.len()),
             })).collect::<Vec<_>>(),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
@@ -1393,7 +1395,9 @@ fn cmd_corpus(format: &str) -> i32 {
             pack.meta.id,
             pack.meta.version,
             origin_label,
-            pack.rules.len() + pack.provenance_rules.len()
+            pack.rules.len()
+                + pack.provenance_rules.len()
+                + pack.yara.as_ref().map_or(0, |y| y.rules.len())
         );
     }
     println!();
@@ -2155,7 +2159,7 @@ fn report_policy(
             "policy: rule pack '{}' from {} — {} rule(s), signature {}",
             p.pack.meta.id,
             p.path.display(),
-            p.pack.rules.len() + p.pack.provenance_rules.len() + p.pack.correlation_rules.len(),
+            p.pack.rule_count(),
             p.signature
         );
     }

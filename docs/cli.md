@@ -238,7 +238,7 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--fail-on-verdict` | | Also exit 1 when the verdict is at or above this level (`low`, `medium`, `high`, `critical`) |
 | `--fail-on-incomplete` | off | Also exit 1 when part of the target could not be fully inspected. Also `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete: true` in a policy. See [Incomplete coverage](#incomplete-coverage) |
 | `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
-| `--rules` | | Add a custom rule pack (JSON or YAML file, or a directory of packs). Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) |
+| `--rules` | | Add a custom rule pack: a JSON or YAML pack, a YARA `.yar`/`.yara` rule file, or a directory of them. Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) and [YARA rules](enterprise.md#yara-rules) |
 | `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
 | `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
 | `--phases` | `all` | Comma-separated phase filter |
@@ -476,13 +476,18 @@ sigil rules show CODE-001                 # Pattern, filters, suppressions, reme
 sigil rules validate ./acme-rules.yaml    # Exit 0 valid, 1 invalid, 2 unreadable
 sigil rules test ./acme-rules.yaml ./fixtures   # Run only this pack and print what fires
 sigil rules sign ./acme-rules.yaml --key signing.pem -o acme-rules.signed.json
+sigil rules validate ./acme.yar           # A YARA rule file: every problem with file:line
+sigil rules sign ./acme.yar --key signing.pem -o acme.yar.sig   # Detached signature
 ```
 
-A pack can be JSON or YAML, in the full schema or the compact form. When
-`SIGIL_PACK_PUBLIC_KEY` is set, every custom pack must carry a valid signature
-from that key; an unsigned or badly signed pack stops the scan with exit 2
-rather than being skipped. See
-[Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing).
+A pack can be JSON or YAML, in the full schema or the compact form, or a YARA
+rule file (`.yar`, `.yara`), whose rules become `YARA-<NAME>` and are matched
+against each file's raw bytes. When `SIGIL_PACK_PUBLIC_KEY` is set, every
+custom pack must carry a valid signature from that key — for a YARA file, a
+detached `<file>.sig` beside it; an unsigned or badly signed pack stops the
+scan with exit 2 rather than being skipped. See
+[Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing)
+and [YARA rules](enterprise.md#yara-rules).
 
 ### sigil diff
 

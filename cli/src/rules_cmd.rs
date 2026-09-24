@@ -36,8 +36,9 @@ pub enum RulesAction {
         /// Rule id, e.g. CODE-001 (case-insensitive)
         id: String,
     },
-    /// Validate a rule pack (JSON or YAML; full schema or compact form)
-    /// without scanning anything. Exit 0 valid, 1 invalid, 2 unreadable.
+    /// Validate a rule pack (JSON or YAML, full schema or compact form; or a
+    /// YARA .yar/.yara file) without scanning anything. Exit 0 valid,
+    /// 1 invalid, 2 unreadable.
     Validate {
         /// Pack file, or a directory of packs
         path: PathBuf,
@@ -49,8 +50,9 @@ pub enum RulesAction {
         /// File or directory to test the rules against
         target: PathBuf,
     },
-    /// Sign a rule pack with an Ed25519 private key; writes signed JSON to
-    /// --output (or stdout) and prints the public key for SIGIL_PACK_PUBLIC_KEY
+    /// Sign a rule pack with an Ed25519 private key; writes signed JSON (for
+    /// a .yar/.yara file: the detached signature for <file>.sig) to --output
+    /// (or stdout) and prints the public key for SIGIL_PACK_PUBLIC_KEY
     Sign {
         /// Pack file to sign (a compact pack is converted to the full schema)
         path: PathBuf,
@@ -123,6 +125,32 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 references: r.references.clone(),
                 tags: r.tags.clone(),
             });
+        }
+        if let Some(file) = &pack.yara {
+            for r in &file.rules {
+                rows.push(RuleRow {
+                    id: r.id.clone(),
+                    kind: if r.private { "yara-private" } else { "yara" },
+                    phase: r.phase.canonical_name().to_string(),
+                    severity: r.severity.to_string(),
+                    weight: Some(r.phase.default_weight()),
+                    description: if r.private {
+                        format!("(private) {}", r.description)
+                    } else {
+                        r.description.clone()
+                    },
+                    pack_id: pack.meta.id.clone(),
+                    pack_version: pack.meta.version.clone(),
+                    origin,
+                    pattern: Some(r.source.clone()),
+                    file_filter: None,
+                    suppress: None,
+                    evidence: None,
+                    remediation: Some(r.remediation_or_default(&file.path)),
+                    references: r.references.clone(),
+                    tags: r.tags.clone(),
+                });
+            }
         }
         for r in &pack.correlation_rules {
             rows.push(RuleRow {
@@ -371,7 +399,17 @@ fn show(id: &str, as_json: bool, policy: &EffectivePolicy) -> i32 {
         field("behaviour", b.to_string());
     }
     if let Some(p) = &row.pattern {
-        field("pattern", p.clone());
+        if row.kind.starts_with("yara") {
+            // A YARA rule is shown as written, one line per source line.
+            field(
+                "yara",
+                p.lines()
+                    .collect::<Vec<_>>()
+                    .join(&format!("\n  {:<12} ", "")),
+            );
+        } else {
+            field("pattern", p.clone());
+        }
     }
     if let Some(ff) = &row.file_filter {
         let mut parts = Vec::new();
@@ -458,8 +496,8 @@ fn validate(path: &Path, as_json: bool) -> i32 {
             "packs": packs.iter().map(|p| json!({
                 "path": p.path.display().to_string(),
                 "id": p.pack.meta.id,
-                "form": if p.compact { "compact" } else { "full" },
-                "rules": p.pack.rules.len() + p.pack.provenance_rules.len() + p.pack.correlation_rules.len(),
+                "form": p.form.to_string(),
+                "rules": p.pack.rule_count(),
                 "signature": p.signature.to_string(),
                 "warnings": p.warnings,
             })).collect::<Vec<_>>(),
@@ -472,8 +510,8 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                 if ok { "✓".green() } else { "·".dimmed() },
                 p.path.display(),
                 p.pack.meta.id,
-                p.pack.rules.len() + p.pack.provenance_rules.len() + p.pack.correlation_rules.len(),
-                if p.compact { "compact" } else { "full" },
+                p.pack.rule_count(),
+                p.form,
                 p.signature
             );
             for w in &p.warnings {
@@ -518,6 +556,9 @@ fn test(pack: &Path, target: &Path) -> i32 {
     }
     let sig_packs: Vec<_> = packs.iter().map(|p| p.pack.clone()).collect();
     let compiled = crate::corpus::compiled::CompiledCorpus::from_packs(&sig_packs);
+    // The same per-file budget as a scan (SIGIL_FILE_BUDGET_SECS, 0 for
+    // none): a crafted sample must not hang a rule test either.
+    let budget_limit = crate::scanner::budget::configured_budget();
     let base = if target.is_file() {
         target.parent().unwrap_or(Path::new("."))
     } else {
@@ -529,15 +570,46 @@ fn test(pack: &Path, target: &Path) -> i32 {
         let Ok(bytes) = std::fs::read(file) else {
             continue;
         };
-        if bytes.contains(&0) {
-            continue;
-        }
-        let text = String::from_utf8_lossy(&bytes);
         let rel = file
             .strip_prefix(base)
             .unwrap_or(file)
             .to_string_lossy()
             .to_string();
+        let binary = bytes.contains(&0);
+        if !compiled.yara().is_empty() {
+            let subject = crate::corpus::yara::Subject::whole(&bytes, !binary);
+            let budget = crate::scanner::budget::FileBudget::start(budget_limit);
+            let found =
+                crate::corpus::yara::scan(compiled.yara(), &subject, &rel, &|_| true, &budget);
+            if budget.expired() {
+                println!(
+                    "  {:<8} [{}] {rel}\n           {}",
+                    "note",
+                    crate::scanner::budget::BUDGET_RULE_ID,
+                    format!(
+                        "YARA evaluation ran out of time; rules not finished are not shown \
+                         (raise or disable with {}=<seconds>, 0 to disable)",
+                        crate::scanner::budget::BUDGET_ENV
+                    )
+                    .dimmed()
+                );
+            }
+            for f in found {
+                hits += 1;
+                println!(
+                    "  {:<8} [{}] {}{}\n           {}",
+                    f.severity.to_string(),
+                    f.rule,
+                    f.file,
+                    f.line.map(|l| format!(":{l}")).unwrap_or_default(),
+                    f.snippet.dimmed()
+                );
+            }
+        }
+        if binary {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
         let name = file
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -560,7 +632,10 @@ fn test(pack: &Path, target: &Path) -> i32 {
         "\n  {} {hit} match(es) in {} file(s) from {} rule(s)",
         "sigil:".bold().cyan(),
         files.len(),
-        sig_packs.iter().map(|p| p.rules.len()).sum::<usize>(),
+        sig_packs
+            .iter()
+            .map(|p| p.rules.len() + p.yara.as_ref().map_or(0, |y| y.public_rules().count()))
+            .sum::<usize>(),
         hit = hits
     );
     0
@@ -574,6 +649,26 @@ fn sign(path: &Path, key: &Path) -> i32 {
             return 2;
         }
     };
+    if crate::corpus::yara::is_yara_path(path) {
+        // A YARA file cannot hold its own signature: the signature is a
+        // separate file that travels beside it.
+        let signature = match crate::corpus::yara::sign_detached(path, &signing_key) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("{} {e}", "error:".bold().red());
+                return 1;
+            }
+        };
+        let code = write_out(&signature);
+        eprintln!(
+            "{} signed. Keep the signature beside the rule file as {}, and verify on every \
+             machine with:\n  export SIGIL_PACK_PUBLIC_KEY={}",
+            "sigil:".bold().green(),
+            crate::corpus::yara::signature_path(path).display(),
+            hex::encode(signing_key.verifying_key().to_bytes())
+        );
+        return code;
+    }
     let signed = match custom::sign_file(path, &signing_key) {
         Ok(s) => s,
         Err(e) => {

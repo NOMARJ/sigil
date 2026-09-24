@@ -655,19 +655,28 @@ const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
 /// How many of the slowest files `SIGIL_TIMING=1` lists.
 const TIMING_SLOWEST_FILES: usize = 15;
 
-/// The scanned parts of an oversized file.
+/// The scanned parts of an oversized file, as read.
 struct OversizedExcerpt {
-    head: String,
-    tail: String,
+    head: Vec<u8>,
+    tail: Vec<u8>,
+    /// File offset of the tail's first byte.
+    tail_start: u64,
     /// Newlines before the tail starts: tail line `i` (1-based) is file
-    /// line `tail_line_offset + i`.
-    tail_line_offset: usize,
+    /// line `tail_line_offset + i`. `None` for binary content, whose middle
+    /// is not read.
+    tail_line_offset: Option<usize>,
+    /// With `binary_ok` (YARA rules loaded): the few bytes just after the
+    /// head and just before the tail, so `^`, `$`, `\b` and `fullword` at a
+    /// segment's edge see the file's real bytes there.
+    head_after: Vec<u8>,
+    tail_before: Vec<u8>,
 }
 
-/// Read the first and last [`OVERSIZED_EXCERPT_BYTES`] of a text file and
-/// count the newlines in between, so tail findings carry real line numbers.
-/// Returns `None` for binary content or a file past [`OVERSIZED_MAX_BYTES`].
-fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
+/// Read the first and last [`OVERSIZED_EXCERPT_BYTES`] of a file and, for
+/// text, count the newlines in between, so tail findings carry real line
+/// numbers. Returns `None` for a file past [`OVERSIZED_MAX_BYTES`], and for
+/// binary content unless `binary_ok` (YARA rules read binary files).
+fn oversized_excerpt(path: &Path, len: u64, binary_ok: bool) -> Option<OversizedExcerpt> {
     use std::io::{Read, Seek, SeekFrom};
     if len > OVERSIZED_MAX_BYTES {
         return None;
@@ -683,7 +692,8 @@ fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
         }
     }
     head.truncate(filled);
-    if head.contains(&0) {
+    let binary = head.contains(&0);
+    if binary && !binary_ok {
         return None;
     }
     let excerpt = OVERSIZED_EXCERPT_BYTES as u64;
@@ -691,7 +701,7 @@ fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
     let mut newlines = head.iter().filter(|b| **b == b'\n').count();
     let mut pos = excerpt;
     let mut buf = vec![0u8; 1 << 20];
-    while pos < tail_start {
+    while !binary && pos < tail_start {
         let want = ((tail_start - pos) as usize).min(buf.len());
         match file.read(&mut buf[..want]) {
             Ok(0) => break,
@@ -705,14 +715,96 @@ fn oversized_excerpt(path: &Path, len: u64) -> Option<OversizedExcerpt> {
     file.seek(SeekFrom::Start(tail_start)).ok()?;
     let mut tail = Vec::new();
     file.read_to_end(&mut tail).ok()?;
-    if tail.contains(&0) {
-        tail.clear();
+    let (mut head_after, mut tail_before) = (Vec::new(), Vec::new());
+    if binary_ok {
+        let ctx = crate::corpus::yara::CONTEXT_BYTES;
+        let mut read_at = |at: u64, n: usize, out: &mut Vec<u8>| -> Option<()> {
+            file.seek(SeekFrom::Start(at)).ok()?;
+            (&mut file).take(n as u64).read_to_end(out).ok()?;
+            Some(())
+        };
+        let head_end = head.len() as u64;
+        let gap = tail_start.saturating_sub(head_end);
+        read_at(head_end, ctx.min(gap as usize), &mut head_after)?;
+        let before = tail_start.saturating_sub(ctx as u64).max(head_end);
+        read_at(before, (tail_start - before) as usize, &mut tail_before)?;
     }
     Some(OversizedExcerpt {
-        head: String::from_utf8_lossy(&head).into_owned(),
-        tail: String::from_utf8_lossy(&tail).into_owned(),
-        tail_line_offset: newlines,
+        head,
+        tail,
+        tail_start,
+        tail_line_offset: (!binary).then_some(newlines),
+        head_after,
+        tail_before,
     })
+}
+
+/// A file's bytes as read, kept for the byte-level YARA pass when YARA rules
+/// are loaded: the whole file, or the head and tail of an oversized one.
+struct RawRead {
+    /// The whole file; for an oversized one, its head followed by the few
+    /// bytes after it (context, not evaluated).
+    head: Vec<u8>,
+    /// Bytes of `head` that are evaluated.
+    head_len: usize,
+    tail: Option<RawTail>,
+    filesize: u64,
+    /// Text content (findings carry line numbers), not binary.
+    text: bool,
+}
+
+/// The tail of an oversized file, as the YARA pass sees it.
+struct RawTail {
+    /// The few bytes before the tail (context, not evaluated), then the tail.
+    bytes: Vec<u8>,
+    /// Context bytes at the start of `bytes`.
+    context: usize,
+    /// File offset of the tail's first evaluated byte.
+    start: u64,
+    /// Newlines in the file before `start` (text only).
+    newlines: Option<usize>,
+}
+
+impl RawRead {
+    fn subject(&self) -> crate::corpus::yara::Subject<'_> {
+        use crate::corpus::yara::{Segment, Subject};
+        let mut segments = vec![Segment {
+            base: 0,
+            data: &self.head,
+            span: 0..self.head_len,
+            newlines_before: self.text.then_some(0),
+        }];
+        if let Some(t) = &self.tail {
+            let context_newlines = t.bytes[..t.context].iter().filter(|b| **b == b'\n').count();
+            segments.push(Segment {
+                base: t.start - t.context as u64,
+                data: &t.bytes,
+                span: t.context..t.bytes.len(),
+                newlines_before: if self.text {
+                    t.newlines.map(|n| n.saturating_sub(context_newlines))
+                } else {
+                    None
+                },
+            });
+        }
+        Subject {
+            segments,
+            filesize: Some(self.filesize),
+            partial: self.tail.is_some(),
+        }
+    }
+}
+
+/// Where the YARA pass gets a unit's bytes.
+enum YaraBytes {
+    /// Nothing to evaluate: YARA rules are not loaded, the file could not be
+    /// read, or the unit is derived text (bytecode constants) whose file is
+    /// evaluated on disk.
+    None,
+    Disk(RawRead),
+    /// An archive member: its exact bytes when they differ from its text,
+    /// and whether it was cut at the member size cap.
+    Member(Option<Vec<u8>>, bool),
 }
 
 /// One unit of content for the per-file pipeline: a file on disk, or text
@@ -780,9 +872,11 @@ struct DiskRead {
     gap: Option<String>,
     /// NUL bytes removed from the text, and the line of the first.
     stray_nuls: Option<(usize, usize)>,
+    /// The bytes, when `keep_raw` (YARA rules are loaded).
+    raw: Option<RawRead>,
 }
 
-fn read_for_scan(file_path: &Path) -> DiskRead {
+fn read_for_scan(file_path: &Path, keep_raw: bool) -> DiskRead {
     let mb = |n: u64| n as f64 / 1_000_000.0;
     let gap = |what: String| DiskRead {
         gap: Some(what),
@@ -795,34 +889,90 @@ fn read_for_scan(file_path: &Path) -> DiskRead {
             mb(OVERSIZED_MAX_BYTES)
         )),
         Ok(meta) if meta.len() > MAX_CONTENT_SCAN_BYTES => {
-            match oversized_excerpt(file_path, meta.len()) {
-                Some(ex) => DiskRead {
-                    text: Some((ex.head, Some((ex.tail, ex.tail_line_offset)))),
-                    gap: Some(format!(
+            match oversized_excerpt(file_path, meta.len(), keep_raw) {
+                Some(ex) => {
+                    let what = format!(
                         "only the first and last {:.0} MB of this {:.1} MB file were scanned",
                         mb(OVERSIZED_EXCERPT_BYTES as u64),
                         mb(meta.len())
-                    )),
-                    stray_nuls: None,
-                },
+                    );
+                    let text = ex.tail_line_offset.map(|offset| {
+                        let head = String::from_utf8_lossy(&ex.head).into_owned();
+                        let tail = if ex.tail.contains(&0) {
+                            String::new()
+                        } else {
+                            String::from_utf8_lossy(&ex.tail).into_owned()
+                        };
+                        (head, Some((tail, offset)))
+                    });
+                    DiskRead {
+                        // Binary content is read here only for YARA rules;
+                        // the gap says which part of it they saw.
+                        gap: Some(if text.is_some() {
+                            what
+                        } else {
+                            format!("{what} by the YARA rules")
+                        }),
+                        raw: keep_raw.then(|| {
+                            let head_len = ex.head.len();
+                            let mut head = ex.head;
+                            head.extend_from_slice(&ex.head_after);
+                            let context = ex.tail_before.len();
+                            let mut bytes = ex.tail_before;
+                            bytes.extend_from_slice(&ex.tail);
+                            RawRead {
+                                text: text.is_some(),
+                                tail: Some(RawTail {
+                                    bytes,
+                                    context,
+                                    start: ex.tail_start,
+                                    newlines: ex.tail_line_offset,
+                                }),
+                                head,
+                                head_len,
+                                filesize: meta.len(),
+                            }
+                        }),
+                        text,
+                        stray_nuls: None,
+                    }
+                }
                 None => DiskRead::default(),
             }
         }
         Ok(_) => match std::fs::read(file_path) {
-            Ok(bytes) => match textdecode::decode(&bytes) {
-                Some(d) => DiskRead {
-                    text: Some((d.text, None)),
-                    gap: None,
-                    stray_nuls: d.first_nul_line.map(|line| (d.stray_nuls, line)),
-                },
-                // An instruction file an agent will read, whose bytes are
-                // not text Sigil can decode, was not inspected at all.
-                None if is_text_instruction_name(file_path) => gap(
-                    "an instruction file whose content is not decodable text; nothing in it was inspected"
-                        .to_string(),
-                ),
-                None => DiskRead::default(),
-            },
+            Ok(bytes) => {
+                let decoded = textdecode::decode(&bytes);
+                let raw = keep_raw.then(|| RawRead {
+                    text: decoded.is_some(),
+                    tail: None,
+                    filesize: bytes.len() as u64,
+                    head_len: bytes.len(),
+                    head: bytes,
+                });
+                match decoded {
+                    Some(d) => DiskRead {
+                        text: Some((d.text, None)),
+                        gap: None,
+                        stray_nuls: d.first_nul_line.map(|line| (d.stray_nuls, line)),
+                        raw,
+                    },
+                    // An instruction file an agent will read, whose bytes are
+                    // not text Sigil can decode, was not inspected at all by
+                    // the content phases (YARA rules, when loaded, still are).
+                    None if is_text_instruction_name(file_path) => DiskRead {
+                        raw,
+                        ..gap(
+                            "an instruction file whose content is not decodable text; nothing in it was inspected"
+                                .to_string(),
+                        )
+                    },
+                    None => DiskRead {
+                        raw,
+                        ..Default::default()
+                    },
+                }
+            }
             Err(e) => gap(format!("could not be read: {e}")),
         },
         Err(e) => gap(format!("could not be read: {e}")),
@@ -870,6 +1020,45 @@ fn stray_nul_finding(rel_path: &str, n: usize, line: usize) -> Finding {
     }
 }
 
+/// The finding that records a file whose analysis ran out of time.
+fn budget_finding(rel_path: &str, limit: Option<std::time::Duration>) -> Finding {
+    Finding {
+        phase: Phase::Provenance,
+        rule: budget::BUDGET_RULE_ID.to_string(),
+        severity: Severity::Medium,
+        file: rel_path.to_string(),
+        line: None,
+        snippet: format!(
+            "Scan budget exhausted after {:.1}s — this file was not fully analysed \
+             (raise or disable with {}=<seconds>, 0 to disable)",
+            limit.map(|d| d.as_secs_f64()).unwrap_or(0.0),
+            budget::BUDGET_ENV
+        ),
+        weight: 1,
+        kev: false,
+        epss: 0.0,
+        fingerprint: String::new(),
+        locator: None,
+        // Irrelevant either way at Medium — only Critical findings are
+        // gated — so it takes the default rather than making a claim about
+        // evidence it does not carry.
+        evidence: crate::corpus::schema::Evidence::default(),
+    }
+}
+
+/// Findings from derived content (an archive member, bytecode constants)
+/// say where the content came from.
+fn label_derived(findings: &mut [Finding], derived: &Option<(String, &'static str)>) {
+    if let Some((locator, label)) = derived {
+        for f in findings.iter_mut() {
+            f.snippet = format!("[{label}] {}", f.snippet);
+            if f.locator.is_none() {
+                f.locator = Some(locator.clone());
+            }
+        }
+    }
+}
+
 pub fn run_scan(
     path: &Path,
     phase_filter: Option<&[String]>,
@@ -905,6 +1094,11 @@ pub fn run_scan(
         }
     };
 
+    // YARA rule files loaded as custom packs (`--rules x.yar`). When there
+    // are any, every file's bytes are kept for the byte-level pass below.
+    let yara_files = crate::corpus::compiled::corpus().yara();
+    let yara_active = !yara_files.is_empty();
+
     let (files, unlisted) = timing::measure(timing::Stage::Walk, || collect_files_reporting(path));
     let files_scanned = files.len();
 
@@ -932,7 +1126,7 @@ pub fn run_scan(
     // shipped source — is scanned below exactly like a file on disk.
     let virtual_files = timing::measure(timing::Stage::Provenance, || {
         let mut tree = bytecode::scan(path, strip_base);
-        let mut art = artifacts::scan(strip_base, &files);
+        let mut art = artifacts::scan_with(strip_base, &files, yara_active);
         tree.findings.append(&mut art.findings);
         tree.units.append(&mut art.units);
         findings.extend(
@@ -972,21 +1166,41 @@ pub fn run_scan(
             // separately; a normal file yields its whole text and no tail.
             // A virtual file (archive member, bytecode constants) is already
             // text and carries its own path, locator and label.
-            let (read, rel_path, derived, gap) = match unit {
-                ScanUnit::Virtual(v) => (
-                    Some((v.text, None)),
-                    v.rel_path,
-                    Some((v.locator, v.label)),
-                    (None, None),
-                ),
+            let (read, rel_path, derived, gap, yara_bytes) = match unit {
+                ScanUnit::Virtual(v) => {
+                    let yara_bytes = if yara_active && v.is_file {
+                        YaraBytes::Member(v.raw, v.truncated)
+                    } else {
+                        YaraBytes::None
+                    };
+                    // A member kept only for YARA rules has no text for the
+                    // content phases.
+                    let read = (v.label != artifacts::RAW_MEMBER_LABEL).then_some((v.text, None));
+                    (
+                        read,
+                        v.rel_path,
+                        Some((v.locator, v.label)),
+                        (None, None),
+                        yara_bytes,
+                    )
+                }
                 ScanUnit::Disk(file_path) => {
-                    let disk = timing::measure(timing::Stage::Read, || read_for_scan(file_path));
+                    let disk = timing::measure(timing::Stage::Read, || {
+                        read_for_scan(file_path, yara_active)
+                    });
                     let rel_path = file_path
                         .strip_prefix(strip_base)
                         .unwrap_or(file_path)
                         .to_string_lossy()
                         .to_string();
-                    (disk.text, rel_path, None, (disk.gap, disk.stray_nuls))
+                    let yara_bytes = disk.raw.map_or(YaraBytes::None, YaraBytes::Disk);
+                    (
+                        disk.text,
+                        rel_path,
+                        None,
+                        (disk.gap, disk.stray_nuls),
+                        yara_bytes,
+                    )
                 }
             };
             let (gap, stray_nuls) = gap;
@@ -997,12 +1211,58 @@ pub fn run_scan(
                 .into_iter()
                 .chain(stray_nuls.map(|(n, line)| stray_nul_finding(&rel_path, n, line)))
                 .collect::<Vec<_>>();
+
+            // YARA rules read the unit's bytes, not its normalised text: the
+            // whole file, binary files included (crate::corpus::yara). One
+            // clock covers them and the content phases below.
+            let yara_clock = yara_active.then(|| budget::FileBudget::start(file_budget_limit));
+            let yara_findings: Vec<Finding> = match &yara_clock {
+                Some(clock) => timing::measure(timing::Stage::Yara, || {
+                    use crate::corpus::yara;
+                    let subject = match &yara_bytes {
+                        YaraBytes::None => None,
+                        YaraBytes::Disk(raw) => Some(raw.subject()),
+                        // A member cut at the size cap is its first part
+                        // only: evaluated, but with an unknown `filesize`
+                        // and its findings marked partial.
+                        YaraBytes::Member(Some(bytes), truncated) => {
+                            let text = !bytes.contains(&0);
+                            Some(if *truncated {
+                                yara::Subject::truncated(bytes, text)
+                            } else {
+                                yara::Subject::whole(bytes, text)
+                            })
+                        }
+                        YaraBytes::Member(None, truncated) => read.as_ref().map(|(text, _)| {
+                            if *truncated {
+                                yara::Subject::truncated(text.as_bytes(), true)
+                            } else {
+                                yara::Subject::whole(text.as_bytes(), true)
+                            }
+                        }),
+                    };
+                    subject
+                        .map(|s| yara::scan(yara_files, &s, &rel_path, &should_run_phase, clock))
+                        .unwrap_or_default()
+                }),
+                None => Vec::new(),
+            };
+            drop(yara_bytes);
+
             let Some((contents, tail)) = read else {
-                return if gap_finding.is_empty() {
-                    none
-                } else {
-                    (gap_finding, Vec::new())
-                };
+                // Nothing for the content phases (a binary file, a member kept
+                // for YARA rules): what could not be read, and what the YARA
+                // rules found.
+                let mut out = gap_finding;
+                out.extend(yara_findings);
+                if yara_clock.is_some_and(|c| c.expired()) {
+                    out.push(budget_finding(&rel_path, file_budget_limit));
+                }
+                if out.is_empty() {
+                    return none;
+                }
+                label_derived(&mut out, &derived);
+                return (out, Vec::new());
             };
 
             let mut file_findings: Vec<Finding> = gap_finding;
@@ -1048,7 +1308,9 @@ pub fn run_scan(
             // Everything below is on one file's clock. When it runs out the
             // remaining work is dropped and the truncation is reported, so a
             // file that defeats the analyser cannot look like a clean file.
-            let file_budget = budget::FileBudget::start(file_budget_limit);
+            // With YARA rules loaded the clock started before they ran.
+            let file_budget =
+                yara_clock.unwrap_or_else(|| budget::FileBudget::start(file_budget_limit));
 
             // The file itself is the depth-0 analysis unit, scanned directly
             // rather than through the queue: a full copy of the text just to
@@ -1061,6 +1323,9 @@ pub fn run_scan(
                 &cloud_sigs,
                 &file_budget,
             ));
+            // YARA findings join here, so an inline `sigil:ignore YARA-...`
+            // marker applies to them like any other rule.
+            file_findings.extend(yara_findings);
 
             // Analysis is a bounded worklist, not a single pass. A phase that
             // decodes something enqueues the decoded content, and every phase
@@ -1146,28 +1411,7 @@ pub fn run_scan(
             // it is that the loss is never silent.
             let budget_exhausted = file_budget.expired();
             if budget_exhausted {
-                file_findings.push(Finding {
-                    phase: Phase::Provenance,
-                    rule: budget::BUDGET_RULE_ID.to_string(),
-                    severity: Severity::Medium,
-                    file: rel_path.clone(),
-                    line: None,
-                    snippet: format!(
-                        "Scan budget exhausted after {:.1}s — this file was not fully analysed \
-                         (raise or disable with {}=<seconds>, 0 to disable)",
-                        file_budget_limit.map(|d| d.as_secs_f64()).unwrap_or(0.0),
-                        budget::BUDGET_ENV
-                    ),
-                    weight: 1,
-                    kev: false,
-                    epss: 0.0,
-                    fingerprint: String::new(),
-                    locator: None,
-                    // Irrelevant either way at Medium — only Critical findings
-                    // are gated — so it takes the default rather than making a
-                    // claim about evidence it does not carry.
-                    evidence: crate::corpus::schema::Evidence::default(),
-                });
+                file_findings.push(budget_finding(&rel_path, file_budget_limit));
             }
 
             // A marker on the line that carried an encoded blob also covers
@@ -1192,8 +1436,9 @@ pub fn run_scan(
             silenced.append(&mut chain_silenced);
 
             // Findings from derived text say where the text came from.
+            label_derived(&mut kept, &derived);
             if let Some((locator, label)) = &derived {
-                for f in kept.iter_mut().chain(silenced.iter_mut().map(|(f, _)| f)) {
+                for (f, _) in silenced.iter_mut() {
                     f.snippet = format!("[{label}] {}", f.snippet);
                     if f.locator.is_none() {
                         f.locator = Some(locator.clone());
@@ -1490,7 +1735,7 @@ mod oversized_tests {
             result.findings
         );
 
-        let missing = read_for_scan(&dir.path().join("missing.py"));
+        let missing = read_for_scan(&dir.path().join("missing.py"), false);
         assert!(missing.text.is_none());
         assert!(missing.gap.unwrap().starts_with("could not be read"));
     }

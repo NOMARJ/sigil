@@ -54,6 +54,13 @@ const MAX_MEMBER_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 128 * 1024 * 1024;
 /// Text retained for the content phases across the whole scan.
 const MAX_RETAINED_TEXT: usize = 32 * 1024 * 1024;
+/// Bytes of members the content phases do not read (binaries, document XML)
+/// retained for YARA rules across the whole scan, when any are loaded. A
+/// separate cap, so loading YARA rules never costs text members their scan.
+const MAX_RETAINED_RAW: usize = 32 * 1024 * 1024;
+
+/// Label of an archive member kept only for the byte-level YARA pass.
+pub const RAW_MEMBER_LABEL: &str = "archive member (raw bytes)";
 
 /// What a file's leading bytes say it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -357,7 +364,8 @@ fn is_appledouble(name: &str) -> bool {
 #[derive(Debug, Default)]
 pub struct ArtifactScan {
     pub findings: Vec<Finding>,
-    /// Text members of archives, for the content phases.
+    /// Text members of archives, for the content phases (and, with
+    /// `keep_raw`, the members they do not read, for YARA rules).
     pub units: Vec<VirtualFile>,
 }
 
@@ -368,6 +376,9 @@ struct Budget {
     bytes: u64,
     retained: usize,
     scanned: std::collections::HashSet<PathBuf>,
+    /// Keep members the content phases skip, for YARA rules.
+    keep_raw: bool,
+    retained_raw: usize,
 }
 
 impl Budget {
@@ -407,13 +418,23 @@ fn read_head(path: &Path) -> Option<Vec<u8>> {
 }
 
 /// Run the magic and archive checks over the walked files.
+#[allow(dead_code)]
 pub fn scan(strip_base: &Path, files: &[PathBuf]) -> ArtifactScan {
+    scan_with(strip_base, files, false)
+}
+
+/// [`scan`]; with `keep_raw`, archive members the content phases do not
+/// read (executables, binary data, document XML) are also returned, with
+/// their bytes, for YARA rules to evaluate.
+pub fn scan_with(strip_base: &Path, files: &[PathBuf], keep_raw: bool) -> ArtifactScan {
     let mut out = ArtifactScan::default();
     let mut budget = Budget {
         members: 0,
         bytes: 0,
         retained: 0,
         scanned: files.iter().cloned().collect(),
+        keep_raw,
+        retained_raw: 0,
     };
     for path in files {
         let rel = path
@@ -996,6 +1017,18 @@ fn member(
         if !container_is_exec {
             tally.executables.push(name.to_string());
         }
+        keep_raw(
+            name,
+            bytes,
+            truncated,
+            &display,
+            outer,
+            scheme,
+            sibling_root,
+            budget,
+            tally,
+            out,
+        );
         return;
     }
     // Inside a document, anything that runs is out of place: a script, a
@@ -1006,6 +1039,18 @@ fn member(
     }
     if bytes.contains(&0) {
         tally.binary += 1;
+        keep_raw(
+            name,
+            bytes,
+            truncated,
+            &display,
+            outer,
+            scheme,
+            sibling_root,
+            budget,
+            tally,
+            out,
+        );
         return;
     }
     if office && !runs_inside_document && is_document_part(&lower) {
@@ -1014,6 +1059,18 @@ fn member(
         // skipped: a `mimetype` or `[Content_Types].xml` member is one line
         // for anyone to add to a zip, and must not switch off the scan of the
         // SKILL.md or script packed beside it.
+        keep_raw(
+            name,
+            bytes,
+            truncated,
+            &display,
+            outer,
+            scheme,
+            sibling_root,
+            budget,
+            tally,
+            out,
+        );
         return;
     }
     // The common benign shape is a zip of the skill sitting beside the skill:
@@ -1041,11 +1098,67 @@ fn member(
     }
     budget.retained += bytes.len();
     tally.text += 1;
+    // Valid UTF-8 is kept once, as the text; anything else is shown to the
+    // content phases lossily, and its exact bytes are kept for YARA rules.
+    let (text, raw) = match String::from_utf8(bytes) {
+        Ok(text) => (text, None),
+        Err(e) => {
+            let text = String::from_utf8_lossy(e.as_bytes()).into_owned();
+            (text, budget.keep_raw.then(|| e.into_bytes()))
+        }
+    };
     out.units.push(VirtualFile {
         rel_path: display.clone(),
-        text: String::from_utf8_lossy(&bytes).into_owned(),
+        text,
         locator: format!("{scheme}://{outer}|{name}"),
         label: "archive member",
+        raw,
+        is_file: true,
+        truncated,
+    });
+}
+
+/// With YARA rules loaded, keep a member the content phases do not read, so
+/// the byte-level pass still sees it. Past the cap the archive is reported
+/// as not fully inspected rather than silently passed over.
+#[allow(clippy::too_many_arguments)]
+fn keep_raw(
+    name: &str,
+    bytes: Vec<u8>,
+    truncated: bool,
+    display: &str,
+    outer: &str,
+    scheme: &str,
+    sibling_root: Option<&Path>,
+    budget: &mut Budget,
+    tally: &mut Tally,
+    out: &mut ArtifactScan,
+) {
+    if !budget.keep_raw || bytes.is_empty() {
+        return;
+    }
+    // Byte-identical to the file beside the archive: evaluated on disk.
+    if let Some(root) = sibling_root {
+        if !escapes_root(name) && std::fs::read(root.join(name)).is_ok_and(|b| b == bytes) {
+            tally.duplicates += 1;
+            return;
+        }
+    }
+    if budget.retained_raw + bytes.len() > MAX_RETAINED_RAW {
+        tally.incomplete.push(format!(
+            "{name}: raw-bytes cap for YARA rules reached, not evaluated"
+        ));
+        return;
+    }
+    budget.retained_raw += bytes.len();
+    out.units.push(VirtualFile {
+        rel_path: display.to_string(),
+        text: String::new(),
+        locator: format!("{scheme}://{outer}|{name}"),
+        label: RAW_MEMBER_LABEL,
+        raw: Some(bytes),
+        is_file: true,
+        truncated,
     });
 }
 
@@ -1182,6 +1295,76 @@ mod tests {
             .map(|f| f.file.as_str())
             .collect();
         assert_eq!(disguised, vec!["s/image.png", "s/notes.pdf"]);
+    }
+
+    #[test]
+    fn a_member_cut_at_the_size_cap_is_marked_truncated() {
+        // One binary and one text member just over the cap, one under it:
+        // YARA rules see only the first MAX_MEMBER_BYTES of the big ones and
+        // must know they are not the whole member (its filesize is unknown).
+        let big_bin = vec![0u8; MAX_MEMBER_BYTES as usize + 10];
+        let big_txt = vec![b'x'; MAX_MEMBER_BYTES as usize + 10];
+        let outer = zip_bytes(&[
+            ("big.bin", &big_bin),
+            ("big.txt", &big_txt),
+            ("small.txt", b"small\n"),
+        ]);
+        let (d, files) = tree(&[("skill/bundle.zip", outer)]);
+        let s = scan_with(d.path(), &files, true);
+        let unit = |suffix: &str| {
+            s.units
+                .iter()
+                .find(|u| u.rel_path.ends_with(suffix))
+                .unwrap_or_else(|| panic!("{suffix}: {:?}", s.units))
+        };
+        assert!(unit("big.bin").truncated);
+        assert_eq!(
+            unit("big.bin").raw.as_ref().map(Vec::len),
+            Some(MAX_MEMBER_BYTES as usize)
+        );
+        assert!(unit("big.txt").truncated);
+        assert!(!unit("small.txt").truncated);
+    }
+
+    #[test]
+    fn raw_members_are_kept_only_for_yara_rules() {
+        // Synthetic markers only: the bytes of "SIGIL" in a binary member.
+        let outer = zip_bytes(&[
+            ("notes.txt", b"plain text\n"),
+            ("data.bin", b"\0\0SIGIL\0"),
+            ("latin1.txt", b"caf\xe9\n"),
+            ("same.bin", b"\0same\0"),
+        ]);
+        let (d, files) = tree(&[
+            ("skill/bundle.zip", outer),
+            ("skill/same.bin", b"\0same\0".to_vec()),
+        ]);
+
+        // Without YARA rules: text members only, as before.
+        let s = scan(d.path(), &files);
+        assert!(s.units.iter().all(|u| u.label == "archive member"));
+        assert!(s.units.iter().all(|u| u.raw.is_none()));
+
+        let s = scan_with(d.path(), &files, true);
+        let raw: Vec<&VirtualFile> = s
+            .units
+            .iter()
+            .filter(|u| u.label == RAW_MEMBER_LABEL)
+            .collect();
+        assert_eq!(raw.len(), 1, "{:?}", s.units);
+        assert_eq!(raw[0].rel_path, "skill/bundle.zip!/data.bin");
+        assert_eq!(raw[0].raw.as_deref(), Some(&b"\0\0SIGIL\0"[..]));
+        assert!(raw[0].text.is_empty() && raw[0].is_file);
+        // Invalid UTF-8 text keeps its exact bytes beside the lossy text.
+        let latin = s
+            .units
+            .iter()
+            .find(|u| u.rel_path.ends_with("latin1.txt"))
+            .expect("text member");
+        assert_eq!(latin.raw.as_deref(), Some(&b"caf\xe9\n"[..]));
+        // A member identical to the file beside the archive is evaluated on
+        // disk, not twice.
+        assert!(!s.units.iter().any(|u| u.rel_path.ends_with("same.bin")));
     }
 
     #[test]

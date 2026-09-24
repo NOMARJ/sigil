@@ -6,6 +6,84 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🧩 YARA rules as custom rules
+
+- **`--rules` accepts YARA rule files.** `.yar` and `.yara` files — and
+  directories holding them, next to JSON and YAML packs — load wherever a rule
+  pack does: `--rules`, a scan policy's `rule_packs`, the organisation policy.
+  `sigil rules list | show | validate | test | sign` work with them. Each rule
+  becomes the Sigil rule `YARA-<NAME>` (upper-cased, `_` to `-`), so inline
+  `sigil:ignore` markers, `disable_rules`, `severity_overrides` and baselines
+  address it like any other rule. Severity, phase and remediation come from
+  the rule's `meta:` (default medium, `code_patterns`, a generic remediation
+  naming the rule file). Details and the exact subset:
+  [docs/enterprise.md#yara-rules](docs/enterprise.md#yara-rules).
+- **Native, not libyara.** A parser and evaluator for the string-matching core
+  of YARA — text strings with `nocase`/`wide`/`ascii`/`fullword`/`private`,
+  hex strings with wildcards, nibbles, jumps and alternatives, regular
+  expressions with `i`/`s`, and conditions over `$a`, `#a`, `at`, `in`,
+  `of` sets, `filesize`, integer arithmetic and comparisons, `private` and
+  `global` rules and references to earlier rules — built on the
+  `regex-automata` engine `regex` already runs on (the only new direct
+  dependencies, `regex-automata` and `regex-syntax`, were already in the
+  build, with the same features). Strings match each file's **raw bytes**,
+  whole-file, binary files included; archive members are evaluated too (binary
+  members and document XML only when YARA rules are loaded), and a file over
+  10 MB is evaluated on its first and last 2 MB, said so on the finding and in
+  a `PROV-INCOMPLETE-001` note.
+- **Fail closed.** Modules and `import`, `include`, `for` loops,
+  `uint32()`-style reads, `@a[i]`/`!a[i]`, string operators, external
+  variables, `xor`/`base64` modifiers and the rest of YARA outside the subset
+  are refused with the construct named at its `file:line`; `sigil rules
+  validate` lists every problem (exit 1) and a scan exits 2 instead of running
+  without the rule. YARA's own compile errors (unreferenced strings, undefined
+  strings, duplicate rules) are enforced.
+- **Bounded on crafted input.** Evaluation shares the per-file budget, and
+  every search is chunked (64 KiB of start positions per automaton call, the
+  budget checked between calls), because the cap on width alone does not
+  bound the time: on 9.5 MB of high-complexity synthetic data
+  `{ 41 [0-511] 42 }` took 54 s as one search, and `/A.*B/s` on data crafted
+  so every start is an overlong match took over 200 s; a scan of either file
+  now stops at the 30 s budget and reports `PROV-BUDGET-001`. A rule whose
+  evaluation the budget cut short is not reported either way, so a truncated
+  search or count cannot fire `not $a` or `#a < N`. `sigil rules test` keeps
+  the budget too, and says when a sample ran out of it. Counted repetition per
+  string (hex jumps plus `{n,m}` counts) is capped at 512 positions, which
+  bounds the cost per byte. Matches of unbounded strings are limited to 4096
+  bytes (libyara 4.5.4 stops regex matches at about 1 KB and does not limit
+  unbounded hex jumps) and searched in windows; `#a` stops at 1,000,000.
+- **YARA's meaning, checked against libyara.** Regular expressions are
+  rewritten from YARA's dialect before Rust's parser sees them, so `\z`, `\A`,
+  `\<`, `\v`, `[[:alpha:]]`, `[a&&b]` and `[\w-z]` mean what they mean to YARA
+  (letters and plain byte lists) rather than Rust anchors and set syntax, and
+  `{,n}` and a literal `{` are accepted as YARA accepts them. `0 of them`
+  means none, a string named twice in a set counts twice and a computed
+  percentage over 100 is never met, as in libyara. The oversized-file head and
+  tail carry their neighbouring bytes, so `^`, `$`, `\b` and `fullword` at
+  their edges see the real file; an archive member cut at 4 MB has an
+  undefined `filesize`. Differential run against libyara 4.5.4 (yara-python)
+  on synthetic inputs: 127 rules × 60 inputs, 7,620 of 7,620 (rule, input)
+  results agree. Before these fixes, on the 118 of those rules it accepted,
+  76 of 7,080 disagreed (regex dialect, `0 of`, and the ascii and wide forms
+  of one string matching at one offset, which libyara counts once).
+- **Detached signatures.** `sigil rules sign acme.yar --key k.pem -o
+  acme.yar.sig` writes a base64 Ed25519 signature over the file's exact bytes
+  (domain-separated). With `SIGIL_PACK_PUBLIC_KEY` set, an unsigned, tampered
+  or wrongly keyed `.yar` is refused with a `[SECURITY]` error and exit 2, as
+  JSON and YAML packs are.
+- **Collisions.** Custom rule ids are now also checked against the ids of the
+  engine-implemented rules (`ARTIFACT-*`, `LPRIV-*`, `PAD-*`, ...), not only regex,
+  provenance and correlation rules; a custom rule reusing one was previously
+  accepted.
+- **Measured cost**, on this repository's self-scan (523 files; 5 interleaved
+  runs per configuration on a 4-core machine shared with other jobs; network
+  feeds excluded): median scan time 11.61 s before this change, 11.53 s with
+  no YARA rules, 11.46 s with one text rule, 11.31 s with one hex rule and
+  11.68 s with 100 rules of three strings each — all inside the run-to-run
+  spread (10.8–13.2 s). `SIGIL_TIMING=1` attributes 2.3 ms to the YARA stage
+  for one rule and 1.77 s for 300 strings, summed across scan threads (4.0%
+  of stage time). Findings were identical in every configuration.
+
 ### 🎯 Verdict
 
 - **HIGH RISK is no longer a score threshold.** It was `score >= 25`, and the score is a
