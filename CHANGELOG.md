@@ -96,30 +96,46 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `verify_ssl: false` or `insecure_skip_verify: true`. Each rule is Medium
   (behaviour `insecure_transport`): a package warns, and none is blocked by
   it alone. Comments, test files, `.jsonl` data, messages that only name a
-  setting, and commands against localhost are not reported. Details:
+  setting, lines that name a localhost URL, `jwt.decode(..., verify=False)`
+  (a signature switch, not TLS), and package sources in `pyproject.toml` /
+  `pdm.toml` (DEPSRC-004's) are not reported. Details:
   [docs/detection/insecure-transport.md](docs/detection/insecure-transport.md).
 - **TLS-CHAIN-001 (High).** A credential read from the environment or
   written into the code is used in the request whose verification is off
-  (behaviour `exposes_credentials_in_transit`).
-- **Correlation rules can look above the sink.** `sink_window_before` on a
-  correlation rule counts that many lines above the sink as its arguments,
-  so a `verify=False,` on the last line of a multi-line call links to the
-  headers above it. Existing chains do not set it and behave as before; a
-  custom pack may set at most 20.
+  (behaviour `exposes_credentials_in_transit`): in the same statement, or
+  through a `headers` dict, session or agent that statement uses. A key used
+  by another client on the neighbouring line, or two matches on one minified
+  line longer than 500 bytes, do not link.
+- **Correlation rules can read the sink's statement.** `sink_window_before`
+  on a correlation rule makes it read the sink's whole statement (up to that
+  many lines above the sink that continue into it, and the lines below its
+  call continues onto) plus the lines next to it that set up or use the same
+  object, so a `verify=False,` on the last line of a multi-line call links to
+  the headers above it and a source inside the call links directly.
+  `max_line_length` skips sources and sinks on longer lines. Existing chains
+  set neither and behave as before; a custom pack may set
+  `sink_window_before` to at most 20.
 - **Measured, in-sample** (the rules were calibrated on these corpora).
   Clean MCP servers: 39/169 blocked and 125/169 warned, unchanged; 9 servers
   carry 16 TLS findings, one moves from no finding to LOW. Skills: 173/204
   malicious blocked, 7/455 clean blocked and 71/455 clean warned, all
-  unchanged; 3 clean skills carry 4 TLS findings. 18 of the 20 clean findings
-  are code or instructions that really turn verification off; 2 are
-  documentation that names the setting. TLS-CHAIN-001 fired on no clean
-  sample. Recall on the 844-package Datadog selection is unchanged at every
+  unchanged; 3 clean skills carry 4 TLS line findings. 18 of the 20 clean
+  line findings are code or instructions that really turn verification off;
+  2 are documentation that names the setting. TLS-CHAIN-001 fired on one
+  clean skill (openai `render-deploy`: a Postgres pool's `DATABASE_URL` and
+  `rejectUnauthorized: false` in the same options, in reference
+  documentation; the skill stays MEDIUM). Recall on the 844-package Datadog selection is unchanged at every
   threshold (785 / 761 / 752 / 561). On SkillSpector's own tests, Sigil now flags 17 of its 20 TLS
   examples with a TLS rule (none before; 14 were flagged as downloads by
   NET-012), and the parity total moves from 623 to 626 of 1,796 at any
   severity (385 at High, unchanged). Of the three it misses, two split
   `verify=` and `False` across lines and the third is Docker's
   `--insecure-registry`, which is not covered.
+- **Measured out of sample.** 146 other popular MCP servers from the
+  registry, none of them used for calibration: 11 carry 28 TLS findings, and
+  no server changes level (80/146 blocked and 135/146 warned with and without
+  the pack). 21 of the 28 turn verification off; 7 are changelog or README
+  text that describes the setting. TLS-CHAIN-001 fired on none.
 
 ### 🧩 YARA rules as custom rules
 

@@ -195,8 +195,10 @@ rules:
 The full pack schema used by `cli/packs/core/v1/*.json` is accepted too, in
 JSON or YAML, including `correlation_rules` (a source finding whose value
 reaches a sink finding's arguments; see `CONTRIBUTING.md`). A correlation
-rule's `sink_window_before`, the number of lines above the sink that count as
-its arguments, may be at most 20. Custom packs are **additive**: a pack whose id matches a
+rule's `sink_window_before`, which makes the rule read the sink's whole
+statement and how many lines above the sink that statement may start, may be
+at most 20; `max_line_length` skips sources and sinks on longer lines
+(minified code). Custom packs are **additive**: a pack whose id matches a
 built-in pack, or a rule whose id matches any existing rule, is refused, so a
 file named at scan time can never replace a core pack and remove its
 detections. (Replacing a core pack remains possible, deliberately, only from
