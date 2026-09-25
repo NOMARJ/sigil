@@ -296,9 +296,12 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   pack, fold look-alike letters to ASCII and read the excerpt as one text.
   `DB_PASS`-style names, secrets in URL query strings and connection-string
   passwords are masked, more secret files (`.envrc`, Terraform state and
-  variables, `credentials.json`, ...) are never read, a key echoed in a
-  provider's error message is removed before it reaches the report, and an
-  endpoint's query string is kept.
+  variables, `credentials.json`, ...) are never read, a key echoed anywhere
+  in a provider's reply (an error message, a rationale, the model name) is
+  removed before it reaches the report, and an endpoint's query string is
+  kept. The checks read text compatibility-normalised (NFKC) first, so
+  Letterlike Symbols such as `ℛ` (script R), which the mathematical
+  alphabets borrow, fold like the rest.
 - **Text addressed to the reviewer is flagged in every scan.** Two new rules
   run on every file type, with or without the stage. `MANIP-012` (High) flags
   a note telling an AI or security reviewer what to conclude ("Note to the AI

@@ -196,12 +196,15 @@ talk the reviewer out of a finding. The stage is designed for that.
   - text hidden in Unicode tag characters (anything but an emoji tag
     sequence).
 
-  Every check reads the text with zero-width and other invisible characters
-  removed, tag characters decoded, and look-alike letters folded to the ASCII
-  they imitate (Cyrillic and Greek letters that look Latin, fullwidth forms,
-  the mathematical bold, italic, script and monospace alphabets, circled
-  letters). So a note split with zero-width spaces, or spelled `Nоte` with a
-  Cyrillic `о`, still matches. The folding applies to these checks only: the
+  Every check reads the text compatibility-normalised (NFKC), with zero-width
+  and other invisible characters removed, tag characters decoded, and
+  look-alike letters folded to the ASCII they imitate. NFKC reads fullwidth
+  forms, the mathematical alphabets and the Letterlike Symbols they borrow
+  (`ℛ` is script R), ligatures, Roman numerals and circled, parenthesised or
+  squared letters; a table adds the Cyrillic and Greek letters that look
+  Latin and the negative circled, negative squared and regional-indicator
+  letters. So a note split with zero-width spaces, or spelled `Nоte` with a
+  Cyrillic `о` or `ℛeviewer` with a script R, still matches. The folding applies to these checks only: the
   scan rules themselves do not fold, so such a note outside the text that is
   sent is not flagged (and the model does not see it).
 
@@ -220,10 +223,13 @@ talk the reviewer out of a finding. The stage is designed for that.
   `llm_review.incomplete_reasons`, and a warning on stderr). It is not
   incomplete coverage of the scan. `--fail-on-incomplete` does not fire on it,
   and the stage never changes the exit code on failure.
-- **Provider errors cannot leak the key.** An error message from the
-  endpoint goes into `incomplete_reasons` and onto stderr. The key that was
-  sent is removed from it first (some servers echo it back), and any other
-  secret-shaped value in it is masked like scanned content.
+- **Provider replies cannot leak the key.** The key that was sent is removed
+  from every string in the endpoint's reply before any of it is read: the
+  review text and its rationales, the model name, a refusal's details and an
+  error message (some servers echo the key back, and whatever answers at a
+  configured endpoint controls all of it). An error message goes into
+  `incomplete_reasons` and onto stderr with any other secret-shaped value in
+  it masked like scanned content.
 - **Redirects are not followed**, so the key and the code cannot be forwarded
   to a host you did not configure. An endpoint must use `https`. Plain `http`
   is accepted only for a loopback address, and a loopback endpoint is reached
@@ -445,9 +451,11 @@ Data Source: Synthetic probe trees built for this test, and a local mock provide
 Sample Size: 11 probe runs, one per build (the build before the second pass, and this one), and
              one timing run of each mode.
 Limitations: The mock dismisses everything, so this measures Sigil's own guards, not a real
-             model. Look-alike folding covers Cyrillic and Greek letters that look Latin,
-             fullwidth forms, the mathematical alphanumeric alphabets and circled letters; other
-             confusables, other languages and other phrasings are not matched. A note split so
+             model. Look-alike folding covers what NFKC maps (fullwidth, mathematical and
+             letterlike alphabets, ligatures, circled and squared letters) plus Cyrillic and
+             Greek letters that look Latin and negative circled, negative squared and
+             regional-indicator letters; other confusables, other languages and other
+             phrasings are not matched. A note split so
              that only part of it falls inside the 13-line excerpt is judged on the part the
              model sees.
 ```

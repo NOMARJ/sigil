@@ -276,6 +276,11 @@ fn fold_lookalike(c: char) -> Option<char> {
         // Circled letters.
         0x24B6..=0x24CF => from(u32::from(b'A') + v - 0x24B6),
         0x24D0..=0x24E9 => from(u32::from(b'a') + v - 0x24D0),
+        // Negative circled, negative squared and regional-indicator letters,
+        // which have no compatibility decomposition for NFKC to follow.
+        0x1F150..=0x1F169 => from(u32::from(b'A') + v - 0x1F150),
+        0x1F170..=0x1F189 => from(u32::from(b'A') + v - 0x1F170),
+        0x1F1E6..=0x1F1FF => from(u32::from(b'A') + v - 0x1F1E6),
         _ => {
             let ascii = match c {
                 // Cyrillic.
@@ -354,11 +359,19 @@ fn fold_lookalike(c: char) -> Option<char> {
     }
 }
 
-/// The text a pattern check should see: invisible characters removed, tag
-/// characters read as the ASCII they spell, and look-alike letters folded to
-/// the ASCII they imitate ([`fold_lookalike`]), so a note split with
-/// zero-width spaces, written in tag characters, or spelled with Cyrillic,
-/// fullwidth or mathematical letters reads as plain words.
+/// The text a pattern check should see: compatibility-normalised (NFKC),
+/// invisible characters removed, tag characters read as the ASCII they spell,
+/// and look-alike letters folded to the ASCII they imitate
+/// ([`fold_lookalike`]), so a note split with zero-width spaces, written in
+/// tag characters, or spelled with Cyrillic, fullwidth or mathematical
+/// letters reads as plain words.
+///
+/// NFKC comes first because the mathematical alphabets have holes where the
+/// letter already existed in Letterlike Symbols (`ℛ` U+211B is script R, `ℜ`
+/// fraktur R, `ℝ` double-struck R, and so on), and a table of the block
+/// alone misses them. NFKC also reads ligatures, super- and subscripts,
+/// Roman numerals and parenthesised or squared letters as the letters they
+/// stand for.
 ///
 /// Folding is for the checks only; it can turn a word in another script into
 /// a Latin-looking one, which errs towards flagging, never towards sending
@@ -367,8 +380,10 @@ pub fn plain_for_checks(s: &str) -> Cow<'_, str> {
     if s.is_ascii() {
         return Cow::Borrowed(s);
     }
+    let compat = icu_normalizer::ComposingNormalizerBorrowed::new_nfkc().normalize(s);
     Cow::Owned(
-        s.chars()
+        compat
+            .chars()
             .filter_map(|c| {
                 if is_tag(c) {
                     tag_ascii(c)

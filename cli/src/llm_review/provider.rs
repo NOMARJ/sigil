@@ -304,7 +304,18 @@ pub async fn send(
         Ok(b) => b,
         Err(e) => return failed(e),
     };
-    let doc: Option<Value> = serde_json::from_slice(&bytes).ok();
+    let mut doc: Option<Value> = serde_json::from_slice(&bytes).ok();
+    // Whatever answers at the endpoint controls every string in its reply:
+    // the review text, the model name, a refusal's details and an error
+    // message all reach the report or the logs. A server that echoes the key
+    // it was sent must not put it there, on the success path or the error
+    // path.
+    if let (Some(d), Some(key)) = (
+        doc.as_mut(),
+        endpoint.api_key.map(str::trim).filter(|k| !k.is_empty()),
+    ) {
+        redact_key(d, key);
+    }
     if !status.is_success() {
         let msg = doc
             .as_ref()
@@ -366,6 +377,18 @@ async fn read_capped(mut resp: reqwest::Response) -> Result<Vec<u8>, String> {
     }
 }
 
+const REDACTED_KEY: &str = "[REDACTED:api-key]";
+
+/// Replace `key` in every string of a provider's reply.
+fn redact_key(v: &mut Value, key: &str) {
+    match v {
+        Value::String(s) if s.contains(key) => *s = s.replace(key, REDACTED_KEY),
+        Value::Array(items) => items.iter_mut().for_each(|x| redact_key(x, key)),
+        Value::Object(fields) => fields.values_mut().for_each(|x| redact_key(x, key)),
+        _ => {}
+    }
+}
+
 /// `error.message` (with `error.type`) from an Anthropic or OpenAI error
 /// body, sanitized and shortened. The message lands in the report's
 /// `incomplete_reasons` and on stderr, so a server that echoes the key it was
@@ -383,7 +406,7 @@ fn error_message(doc: &Value, api_key: Option<&str>) -> Option<String> {
         None => msg.to_string(),
     };
     if let Some(key) = api_key.map(str::trim).filter(|k| !k.is_empty()) {
-        text = text.replace(key, "[REDACTED:api-key]");
+        text = text.replace(key, REDACTED_KEY);
     }
     let text = super::mask::Masker::builtin_only().mask_line(&text).0;
     Some(prompt::sanitize_rationale(&text))
