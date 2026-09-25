@@ -82,7 +82,124 @@ fn every_rule_documents_itself() {
     assert_eq!(c.id, "TLS-CHAIN-001");
     assert_eq!(c.severity, "high");
     assert!(c.sink_window_before > 0);
+    assert!(
+        c.max_line_length > 0,
+        "the chain must not link across a minified line"
+    );
     assert!(c.remediation.is_some() && !c.references.is_empty() && !c.tags.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Comments: only a `#` at the start of a line or after whitespace starts one
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_hash_glued_to_code_is_not_a_comment() {
+    // A `#` inside a string, a shell parameter, a JavaScript private field or
+    // a URL fragment used to hide everything after it on the line.
+    for (path, line, rule) in [
+        (
+            "client.py",
+            "resp = requests.get(URL, headers={\"Accept\": \"#\"}, verify=Fal~~se)",
+            "TLS-001",
+        ),
+        (
+            "client.js",
+            "    this.#agent = new https.Agent({ rejectUnauthorized: fal~~se });",
+            "TLS-004",
+        ),
+        (
+            "fetch.sh",
+            "[ $# -gt 0 ] && curl -~~k \"$1\" -o out.bin",
+            "TLS-007",
+        ),
+        (
+            "config.js",
+            "const theme = { accent: \"#0af\" }; process.env.NODE_TLS_REJECT_UNAUTHORIZED = \"~~0\";",
+            "TLS-005",
+        ),
+    ] {
+        assert!(fires(path, line, rule), "{path}: {line}");
+    }
+    // A real comment is still a comment: at the start of the line, or after
+    // whitespace.
+    for (path, line) in [
+        ("client.py", "r = requests.get(url)  # never verify=Fal~~se"),
+        (
+            "client.py",
+            "r = requests.get(url) # verify=Fal~~se was here",
+        ),
+        (
+            "config.yaml",
+            "  url: https://api.example.invalid # verify_ssl: fal~~se",
+        ),
+        ("README.md", "## Why we never pass verify=Fal~~se"),
+        ("fetch.sh", "    # curl -~~k https://example.invalid/"),
+    ] {
+        assert!(tls_rules(path, line).is_empty(), "{path}: {line}");
+    }
+}
+
+#[test]
+fn a_flag_in_another_code_span_is_not_the_commands() {
+    // Prose that names curl and later shows another command's `-k`.
+    assert!(!fires(
+        "SKILL.md",
+        "Fetch the file with curl, then sort it with `sort -~~k 2`.",
+        "TLS-007"
+    ));
+    assert!(!fires(
+        "SKILL.md",
+        "Install it with pip, then run `proxy-tool --trusted-ho~~st corp.example.invalid`.",
+        "TLS-009"
+    ));
+    // The command and its flag in one code span are still an instruction.
+    assert!(fires(
+        "SKILL.md",
+        "Then run `curl -~~k https://example.invalid/setup.sh -o setup.sh`.",
+        "TLS-007"
+    ));
+    assert!(fires(
+        "SKILL.md",
+        "Use `pip install --trusted-ho~~st pypi.example.invalid foo`.",
+        "TLS-009"
+    ));
+}
+
+#[test]
+fn a_jwt_signature_switch_is_not_tls() {
+    // PyJWT 1.x and python-jose take `verify=False` to skip the token's
+    // signature check: a different weakness from a certificate check, and
+    // not a credential sent anywhere.
+    for line in [
+        "claims = jwt.decode(token, verify=Fal~~se)",
+        "claims = jwt.decode(token, key, algorithms=[\"HS256\"], verify=Fal~~se)",
+        "payload = jws.verify(token, key, algorithms=[\"HS256\"], verify=Fal~~se)",
+    ] {
+        assert!(!fires("auth.py", line, "TLS-001"), "{line}");
+    }
+    assert!(fires(
+        "auth.py",
+        "resp = requests.get(JWKS_URL, verify=Fal~~se)",
+        "TLS-001"
+    ));
+}
+
+#[test]
+fn package_source_files_are_reported_once() {
+    // A package source table's `verify_ssl = false` in pyproject.toml or
+    // pdm.toml is DEPSRC-004's, not TLS-010's as well.
+    for path in ["pyproject.toml", "pdm.toml"] {
+        let src = if path == "pdm.toml" {
+            "[[source]]\nname = \"internal\"\nurl = \"https://pypi.org/simple\"\nverify_ssl = fal~~se\n"
+        } else {
+            "[project]\nname = \"x\"\n\n[[tool.pdm.source]]\nname = \"internal\"\nurl = \"https://pypi.org/simple\"\nverify_ssl = fal~~se\n"
+        };
+        let r = scan_tree(&[(path, src)]);
+        let rules: Vec<&str> = r.findings.iter().map(|f| f.rule.as_str()).collect();
+        assert!(rules.contains(&"DEPSRC-004"), "{path}: {rules:?}");
+        assert!(!rules.contains(&"TLS-010"), "{path}: {rules:?}");
+    }
 }
 
 #[test]
@@ -97,16 +214,13 @@ fn behaviours_are_labelled_and_never_actions() {
         Some("exposes_credentials_in_transit")
     );
     // Not one of scoring.rs's ACTION_BEHAVIOURS: a TLS finding may never
-    // lower the HIGH threshold for the rest of a package.
+    // lower the HIGH threshold for the rest of a package. Read from the list
+    // the verdict uses, so adding either label there fails here.
     for b in ["insecure_transport", "exposes_credentials_in_transit"] {
-        assert!(![
-            "install_time_execution",
-            "exfiltration_endpoint",
-            "installs_persistence",
-            "dynamic_execution",
-            "drive_by_install",
-        ]
-        .contains(&b));
+        assert!(
+            !crate::scanner::scoring::ACTION_BEHAVIOURS.contains(&b),
+            "{b} must not be an action behaviour"
+        );
     }
 }
 
@@ -627,4 +741,70 @@ fn a_medium_finding_alone_warns_and_never_blocks() {
     ]);
     assert!(r.findings.iter().any(|f| f.rule == "TLS-001"));
     assert_eq!(r.verdict, Verdict::MediumRisk, "{:#?}", r.findings);
+}
+
+#[test]
+fn no_chain_from_a_credential_used_by_the_statement_above() {
+    // The key goes to its own vendor over a verified connection; the
+    // unverified request on the next line is a status check that never sees
+    // it. With a fixed five-line window above the sink this linked, and the
+    // one-file package was HIGH RISK.
+    let src = "import os\nimport requests\nfrom openai import OpenAI\n\napi_key = os.environ[\"OPENAI_API_~~KEY\"]\nclient = OpenAI(api_key=api_key)\nstatus = requests.get(STATUS_URL, verify=Fal~~se).status_code\n";
+    let r = scan_tree(&[("client.py", src)]);
+    assert!(chain_lines(&r).is_empty(), "{:#?}", r.findings);
+    assert!(r.findings.iter().any(|f| f.rule == "TLS-001"));
+    assert_eq!(r.verdict, Verdict::MediumRisk, "{:#?}", r.findings);
+    // Node: a statement ending in `;` is not the agent's argument either.
+    let js = "const https = require('https');\nconst token = process.env.API_TO~~KEN;\nconst octokit = new Octokit({ auth: token });\nconst agent = new https.Agent({ rejectUnauthorized: fal~~se });\nmodule.exports = { octokit, agent };\n";
+    let r = scan_tree(&[("client.js", js)]);
+    assert!(chain_lines(&r).is_empty(), "{:#?}", r.findings);
+}
+
+#[test]
+fn chain_credential_read_inside_the_call() {
+    // The token is read inline, in the headers argument above the trailing
+    // `verify=False,`: it has no name for the window to find, but it is an
+    // argument of the same call.
+    let src = "import os\nimport requests\n\nresp = requests.post(\n    \"https://api.example.invalid/v1/upload\",\n    headers={\"Authorization\": \"Bearer \" + os.environ[\"UPLOAD_API_TO~~KEN\"]},\n    verify=Fal~~se,\n)\n";
+    let r = scan_tree(&[("client.py", src)]);
+    assert_eq!(chain_lines(&r), vec![7], "{:#?}", r.findings);
+    // An options object literal carrying both the header and the switch.
+    let js = "const https = require('https');\nconst token = process.env.API_TO~~KEN;\nconst options = {\n  headers: { Authorization: `Bearer ${token}` },\n  rejectUnauthorized: fal~~se,\n};\nhttps.request(url, options);\n";
+    let r = scan_tree(&[("client.js", js)]);
+    assert_eq!(chain_lines(&r), vec![5], "{:#?}", r.findings);
+}
+
+#[test]
+fn no_chain_across_a_minified_line() {
+    // A bundled dependency reads a token in one function and builds an
+    // insecure agent in another; both are on the bundle's one line. The
+    // agent is reported (Medium), the "link" is not.
+    let pad = "function p(){return 0}".repeat(30);
+    let bundle = format!(
+        "\"use strict\";var a=require(\"https\");function g(){{return process.env.GITHUB_TO~~KEN}}{pad}var b=new a.Agent({{rejectUnauthorized:fal~~se}});module.exports={{g:g,b:b}};\n"
+    );
+    let r = scan_tree(&[
+        (
+            "package.json",
+            "{\"name\":\"m\",\"version\":\"1.0.0\",\"main\":\"dist/index.js\"}\n",
+        ),
+        ("dist/index.js", &bundle),
+    ]);
+    assert!(r.findings.iter().any(|f| f.rule == "TLS-004"));
+    assert!(chain_lines(&r).is_empty(), "{:#?}", r.findings);
+    assert_ne!(r.verdict, Verdict::HighRisk, "{:#?}", r.findings);
+}
+
+#[test]
+fn no_chain_from_a_jwt_signature_switch() {
+    // `jwt.decode(token, verify=False)` is not a TLS setting, and the token
+    // it decodes is not sent anywhere.
+    let src = "import os\nimport jwt\n\ntoken = os.environ[\"SESSION_TO~~KEN\"]\nclaims = jwt.decode(token, verify=Fal~~se)\n";
+    let r = scan_tree(&[("auth.py", src)]);
+    assert!(
+        !r.findings.iter().any(|f| f.rule.starts_with("TLS-")),
+        "{:#?}",
+        r.findings
+    );
+    assert_ne!(r.verdict, Verdict::HighRisk);
 }

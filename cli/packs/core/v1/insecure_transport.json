@@ -13,7 +13,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:[(,]\\s*verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)verify\\s*=\\s*False\\s*(?:[,)]|$)|[\\\"']verify[\\\"']\\s*:\\s*False(?-u:\\b)|\\.verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)(?:TCPConnector|ClientSession|get|post|put|patch|delete|head|options|request|ws_connect)\\s*\\([^()\\n]*?(?-u:\\b)ssl\\s*=\\s*False(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:[(,]\\s*verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)verify\\s*=\\s*False\\s*(?:[,)]|$)|[\\\"']verify[\\\"']\\s*:\\s*False(?-u:\\b)|\\.verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)(?:TCPConnector|ClientSession|get|post|put|patch|delete|head|options|request|ws_connect)\\s*\\([^()\\n]*?(?-u:\\b)ssl\\s*=\\s*False(?-u:\\b))",
       "description": "Python HTTP client with certificate verification turned off (verify=False, aiohttp ssl=False)",
       "suppress": {
         "path_contains": [
@@ -35,6 +35,10 @@
           ".spec.js",
           ".spec.ts",
           ".jsonl"
+        ],
+        "line_contains": [
+          "jwt.decode(",
+          "jws.verify("
         ]
       },
       "remediation": "requests, httpx and aiohttp check the server's certificate by default; verify=False (or aiohttp's ssl=False) turns that off, so anyone on the network path — a hostile Wi-Fi, a compromised proxy, a cloud neighbour — can present their own certificate, read the traffic and change the response. It is usually added to get past a self-signed or corporate-proxy certificate. Point verify at that CA bundle instead (verify=\"/path/to/ca.pem\", or REQUESTS_CA_BUNDLE / SSL_CERT_FILE), or make the insecure mode an explicit, off-by-default option the user has to turn on.",
@@ -54,7 +58,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)(?:verify_mode|cert_reqs)\\s*=\\s*(?:ssl\\.|[\\\"'])?CERT_NONE(?-u:\\b)|(?-u:\\b)check_hostname\\s*=\\s*False(?-u:\\b)|(?-u:\\b)ssl\\._create_unverified_context(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)(?:verify_mode|cert_reqs)\\s*=\\s*(?:ssl\\.|[\\\"'])?CERT_NONE(?-u:\\b)|(?-u:\\b)check_hostname\\s*=\\s*False(?-u:\\b)|(?-u:\\b)ssl\\._create_unverified_context(?-u:\\b))",
       "description": "Python TLS context that does not verify the server (CERT_NONE, check_hostname=False, unverified context)",
       "suppress": {
         "path_contains": [
@@ -95,7 +99,7 @@
       "phase": "network_exfil",
       "severity": "low",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)disable_warnings\\s*\\(\\s*(?:[A-Za-z0-9_.]*\\.)?InsecureRequestWarning\\s*\\)|(?-u:\\b)urllib3\\.disable_warnings\\s*\\(\\s*\\)|(?-u:\\b)(?:filterwarnings|simplefilter)\\s*\\([^)\\n]*InsecureRequestWarning)",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)disable_warnings\\s*\\(\\s*(?:[A-Za-z0-9_.]*\\.)?InsecureRequestWarning\\s*\\)|(?-u:\\b)urllib3\\.disable_warnings\\s*\\(\\s*\\)|(?-u:\\b)(?:filterwarnings|simplefilter)\\s*\\([^)\\n]*InsecureRequestWarning)",
       "description": "Warning about unverified HTTPS requests silenced (InsecureRequestWarning)",
       "suppress": {
         "path_contains": [
@@ -136,7 +140,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:rejectUnauthorized|strictSSL)\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:rejectUnauthorized|strictSSL)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:rejectUnauthorized|strictSSL)\\s*=\\s*false[\\\"']|(?-u:\\b)checkServerIdentity\\s*[:=]\\s*(?:\\([^)\\n]*\\)\\s*=>\\s*(?:undefined|null|\\{\\s*\\})|function\\s*\\([^)\\n]*\\)\\s*\\{\\s*(?:return\\s*(?:undefined|null)?\\s*;?\\s*)?\\}))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:rejectUnauthorized|strictSSL)\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:rejectUnauthorized|strictSSL)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:rejectUnauthorized|strictSSL)\\s*=\\s*false[\\\"']|(?-u:\\b)checkServerIdentity\\s*[:=]\\s*(?:\\([^)\\n]*\\)\\s*=>\\s*(?:undefined|null|\\{\\s*\\})|function\\s*\\([^)\\n]*\\)\\s*\\{\\s*(?:return\\s*(?:undefined|null)?\\s*;?\\s*)?\\}))",
       "description": "Node.js TLS client that accepts any certificate (rejectUnauthorized: false)",
       "suppress": {
         "path_contains": [
@@ -176,7 +180,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[\\s;&(`{,:.])(?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?0(?-u:\\b)|[\\\"'`](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?0(?-u:\\b)|[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)=0[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"']\\s*,\\s*[\\\"']0[\\\"']|(?-u:\\b)environ\\s*\\[\\s*[\\\"'](?:CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE)[\\\"']\\s*\\]\\s*=\\s*(?:\\\"\\\"|''))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?:^|[\\s;&(`{,:.])(?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?0(?-u:\\b)|[\\\"'`](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?0(?-u:\\b)|[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)=0[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"']\\s*,\\s*[\\\"']0[\\\"']|(?-u:\\b)environ\\s*\\[\\s*[\\\"'](?:CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE)[\\\"']\\s*\\]\\s*=\\s*(?:\\\"\\\"|''))",
       "description": "Certificate verification turned off for the whole process (NODE_TLS_REJECT_UNAUTHORIZED=0, PYTHONHTTPSVERIFY=0)",
       "suppress": {
         "path_contains": [
@@ -216,7 +220,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)InsecureSkipVerify\\s*[:=]\\s*true(?-u:\\b)|(?-u:\\b)danger_accept_invalid_(?:certs|hostnames)\\s*\\(\\s*true\\s*\\)|(?-u:\\b)verify_mode\\s*(?:=|:)\\s*OpenSSL::SSL::VERIFY_NONE(?-u:\\b)|(?-u:\\b)ssl:\\s*\\{\\s*verify:\\s*false(?-u:\\b)|(?-u:\\b)(?:CURLOPT_|pycurl\\.)SSL_VERIFY(?:PEER|HOST)\\s*(?:=>|,)\\s*(?:false|False|FALSE|0L?)(?-u:\\b)|[\\\"']verify[\\\"']\\s*=>\\s*false(?-u:\\b)|(?-u:\\b)DangerousAcceptAnyServerCertificateValidator(?-u:\\b)|(?-u:\\b)(?:ServerCertificateCustomValidationCallback|ServerCertificateValidationCallback|RemoteCertificateValidationCallback)\\s*\\+?=\\s*(?:delegate\\s*(?:\\([^)\\n]*\\))?\\s*\\{\\s*return\\s+true|\\([^)\\n]*\\)\\s*=>\\s*(?:\\{\\s*return\\s+)?true)(?-u:\\b)|(?-u:\\b)NoopHostnameVerifier\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+NoopHostnameVerifier\\s*\\(|(?-u:\\b)ALLOW_ALL_HOSTNAME_VERIFIER(?-u:\\b)|(?-u:\\b)TrustAllStrategy\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+TrustAllStrategy\\s*\\(|(?-u:\\b)(?:setHostnameVerifier|setDefaultHostnameVerifier|hostnameVerifier)\\s*[({]\\s*\\(?\\s*[A-Za-z_][A-Za-z0-9_]*\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\)?\\s*->\\s*true(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)InsecureSkipVerify\\s*[:=]\\s*true(?-u:\\b)|(?-u:\\b)danger_accept_invalid_(?:certs|hostnames)\\s*\\(\\s*true\\s*\\)|(?-u:\\b)verify_mode\\s*(?:=|:)\\s*OpenSSL::SSL::VERIFY_NONE(?-u:\\b)|(?-u:\\b)ssl:\\s*\\{\\s*verify:\\s*false(?-u:\\b)|(?-u:\\b)(?:CURLOPT_|pycurl\\.)SSL_VERIFY(?:PEER|HOST)\\s*(?:=>|,)\\s*(?:false|False|FALSE|0L?)(?-u:\\b)|[\\\"']verify[\\\"']\\s*=>\\s*false(?-u:\\b)|(?-u:\\b)DangerousAcceptAnyServerCertificateValidator(?-u:\\b)|(?-u:\\b)(?:ServerCertificateCustomValidationCallback|ServerCertificateValidationCallback|RemoteCertificateValidationCallback)\\s*\\+?=\\s*(?:delegate\\s*(?:\\([^)\\n]*\\))?\\s*\\{\\s*return\\s+true|\\([^)\\n]*\\)\\s*=>\\s*(?:\\{\\s*return\\s+)?true)(?-u:\\b)|(?-u:\\b)NoopHostnameVerifier\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+NoopHostnameVerifier\\s*\\(|(?-u:\\b)ALLOW_ALL_HOSTNAME_VERIFIER(?-u:\\b)|(?-u:\\b)TrustAllStrategy\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+TrustAllStrategy\\s*\\(|(?-u:\\b)(?:setHostnameVerifier|setDefaultHostnameVerifier|hostnameVerifier)\\s*[({]\\s*\\(?\\s*[A-Za-z_][A-Za-z0-9_]*\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\)?\\s*->\\s*true(?-u:\\b))",
       "description": "TLS client code that skips certificate verification (Go, Rust, Java, .NET, Ruby, PHP)",
       "suppress": {
         "path_contains": [
@@ -256,7 +260,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)curl(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?[\\s\\\"'](?:--insecure|-[A-Za-z]*k[A-Za-z]*)(?:[\\s\\\"',]|$)|(?-u:\\b)wget(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?\\s--no-check-certificate(?-u:\\b)|(?i:(?-u:\\b)(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)(?-u:\\b)[^\\n|;&]*?\\s-SkipCertificateCheck)(?-u:\\b)|(?-u:\\b)(?:kubectl|helm)(?-u:\\b)[^\\n|;&]*?\\s--insecure-skip-tls-verify(?:=true)?(?:[\\s\\\"']|$)|(?-u:\\b)deno(?-u:\\b)[^\\n|;&]*?\\s--unsafely-ignore-certificate-errors(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)curl(?:\\.exe)?(?-u:\\b)[^\\n|;&`]*?[\\s\\\"'](?:--insecure|-[A-Za-z]*k[A-Za-z]*)(?:[\\s\\\"',]|$)|(?-u:\\b)wget(?:\\.exe)?(?-u:\\b)[^\\n|;&`]*?\\s--no-check-certificate(?-u:\\b)|(?i:(?-u:\\b)(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)(?-u:\\b)[^\\n|;&`]*?\\s-SkipCertificateCheck)(?-u:\\b)|(?-u:\\b)(?:kubectl|helm)(?-u:\\b)[^\\n|;&`]*?\\s--insecure-skip-tls-verify(?:=true)?(?:[\\s\\\"']|$)|(?-u:\\b)deno(?-u:\\b)[^\\n|;&`]*?\\s--unsafely-ignore-certificate-errors(?-u:\\b))",
       "description": "Command skips certificate verification (curl -k, wget --no-check-certificate, -SkipCertificateCheck)",
       "suppress": {
         "path_contains": [
@@ -287,7 +291,7 @@
           "://host.docker.internal"
         ]
       },
-      "remediation": "curl -k / --insecure, wget --no-check-certificate, PowerShell's -SkipCertificateCheck, kubectl or helm --insecure-skip-tls-verify and deno --unsafely-ignore-certificate-errors fetch from or talk to a server without checking its certificate. In a script or in instructions an agent follows (SKILL.md, AGENTS.md, an MCP server's setup steps) the command runs with whatever the network path returns — for a download, that is the file that gets installed or executed. Drop the flag and pass the CA that the host actually uses (curl --cacert, wget --ca-certificate, kubectl certificate-authority). Commands against localhost are not reported.",
+      "remediation": "curl -k / --insecure, wget --no-check-certificate, PowerShell's -SkipCertificateCheck, kubectl or helm --insecure-skip-tls-verify and deno --unsafely-ignore-certificate-errors fetch from or talk to a server without checking its certificate. In a script or in instructions an agent follows (SKILL.md, AGENTS.md, an MCP server's setup steps) the command runs with whatever the network path returns — for a download, that is the file that gets installed or executed. Drop the flag and pass the CA that the host actually uses (curl --cacert, wget --ca-certificate, kubectl certificate-authority). A line that names a localhost or 127.0.0.1 URL is not reported; the check reads the line's text, not the command's target.",
       "references": [
         "CWE-295",
         "MITRE T1557",
@@ -304,7 +308,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?i:(?-u:\\b)http\\.(?:[^\\s=\\\"']*\\.)?sslverify)(?:\\s*=\\s*|\\s+)[\\\"']?(?i:false|0|no|off)(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:GIT_SSL_NO_VERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'`](?:GIT_SSL_NO_VERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'](?:GIT_SSL_NO_VERIFY)=(?i:1|true|yes)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:GIT_SSL_NO_VERIFY)[\\\"']\\s*,\\s*[\\\"'](?i:1|true|yes)[\\\"'])",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?i:(?-u:\\b)http\\.(?:[^\\s=\\\"']*\\.)?sslverify)(?:\\s*=\\s*|\\s+)[\\\"']?(?i:false|0|no|off)(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:GIT_SSL_NO_VERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'`](?:GIT_SSL_NO_VERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'](?:GIT_SSL_NO_VERIFY)=(?i:1|true|yes)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:GIT_SSL_NO_VERIFY)[\\\"']\\s*,\\s*[\\\"'](?i:1|true|yes)[\\\"'])",
       "description": "git told not to verify the server's certificate (http.sslVerify=false, GIT_SSL_NO_VERIFY)",
       "suppress": {
         "path_contains": [
@@ -346,7 +350,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)pip[0-9.]*(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?\\s--trusted-host(?:[\\s=]|$)|(?-u:\\b)pip[0-9.]*\\s+config\\s+(?:--?[A-Za-z-]+\\s+)*set\\s+[\\\"']?(?:global|user|install|site)\\.trusted-host(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'`](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)=[A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"']\\s*,\\s*[\\\"'][A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)uv(?-u:\\b)[^\\n|;&]*?\\s--allow-insecure-host(?:[\\s=]|$)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&]*?(?i:strict-ssl|strictssl|enablestrictssl)(?:\\s*=\\s*|\\s+)[\\\"']?false(?-u:\\b)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&]*?\\s--no-strict-ssl(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:(?i:npm_config_strict_ssl))(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'`](?:(?i:npm_config_strict_ssl))[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'](?:(?i:npm_config_strict_ssl))=(?i:false|0)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:(?i:npm_config_strict_ssl))[\\\"']\\s*,\\s*[\\\"'](?i:false|0)[\\\"']|strict-ssl\\s*=\\s*false[^\\n]*npmrc|(?-u:\\b)conda(?-u:\\b)[^\\n|;&]*?\\s--set\\s+ssl_verify\\s+[\\\"']?(?i:false|no|0)(?-u:\\b)|(?-u:\\b)poetry\\s+config\\s+certificates\\.\\S+\\.cert\\s+[\\\"']?false(?-u:\\b)|maven\\.wagon\\.http\\.ssl\\.(?:insecure|allowall)=true(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)pip[0-9.]*(?:\\.exe)?(?-u:\\b)[^\\n|;&`]*?\\s--trusted-host(?:[\\s=]|$)|(?-u:\\b)pip[0-9.]*\\s+config\\s+(?:--?[A-Za-z-]+\\s+)*set\\s+[\\\"']?(?:global|user|install|site)\\.trusted-host(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'`](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)=[A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"']\\s*,\\s*[\\\"'][A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)uv(?-u:\\b)[^\\n|;&`]*?\\s--allow-insecure-host(?:[\\s=]|$)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&`]*?(?i:strict-ssl|strictssl|enablestrictssl)(?:\\s*=\\s*|\\s+)[\\\"']?false(?-u:\\b)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&`]*?\\s--no-strict-ssl(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:(?i:npm_config_strict_ssl))(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'`](?:(?i:npm_config_strict_ssl))[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'](?:(?i:npm_config_strict_ssl))=(?i:false|0)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:(?i:npm_config_strict_ssl))[\\\"']\\s*,\\s*[\\\"'](?i:false|0)[\\\"']|strict-ssl\\s*=\\s*false[^\\n]*npmrc|(?-u:\\b)conda(?-u:\\b)[^\\n|;&`]*?\\s--set\\s+ssl_verify\\s+[\\\"']?(?i:false|no|0)(?-u:\\b)|(?-u:\\b)poetry\\s+config\\s+certificates\\.\\S+\\.cert\\s+[\\\"']?false(?-u:\\b)|maven\\.wagon\\.http\\.ssl\\.(?:insecure|allowall)=true(?-u:\\b))",
       "description": "Package-manager command or setting turns off TLS verification (pip --trusted-host, npm strict-ssl false)",
       "suppress": {
         "path_contains": [
@@ -398,7 +402,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*=\\s*(?i:false|no|off|0)[\\\"']|(?:^|[^A-Za-z0-9_\\-\\\"'])(?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*=\\s*(?i:true|yes|on|1)[\\\"'])",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*=\\s*(?i:false|no|off|0)[\\\"']|(?:^|[^A-Za-z0-9_\\-\\\"'])(?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*=\\s*(?i:true|yes|on|1)[\\\"'])",
       "description": "Configuration turns TLS certificate verification off (verify_ssl: false, insecure_skip_verify: true)",
       "suppress": {
         "path_contains": [
@@ -425,7 +429,9 @@
           "pip.ini",
           ".npmrc",
           ".yarnrc",
-          ".yarnrc.yml"
+          ".yarnrc.yml",
+          "pyproject.toml",
+          "pdm.toml"
         ],
         "line_contains": [
           "http.sslVerify",
@@ -436,7 +442,7 @@
           "127.0.0.1"
         ]
       },
-      "remediation": "A setting named for TLS verification is set to off: verify_ssl / ssl_verify / verify_certs = false in code, YAML, JSON or TOML, or insecure_skip_verify / insecure-skip-tls-verify / tls_insecure = true (Prometheus, Traefik, kubeconfig, Helm values), or httplib2's disable_ssl_certificate_validation=True. Whatever client reads it will accept any certificate. If the setting exists for a self-signed internal endpoint, default it to verifying and let the user opt out, and prefer a CA-bundle setting to an on/off switch. A line that restricts the setting to loopback or localhost is not reported: nobody sits between a client and a server on the same machine.",
+      "remediation": "A setting named for TLS verification is set to off: verify_ssl / ssl_verify / verify_certs = false in code, YAML, JSON or TOML, or insecure_skip_verify / insecure-skip-tls-verify / tls_insecure = true (Prometheus, Traefik, kubeconfig, Helm values), or httplib2's disable_ssl_certificate_validation=True. Whatever client reads it will accept any certificate. If the setting exists for a self-signed internal endpoint, default it to verifying and let the user opt out, and prefer a CA-bundle setting to an on/off switch. A line that mentions loopback, localhost or 127.0.0.1 is not reported (nobody sits between a client and a server on the same machine); the check reads the line's text, not the target, so review such lines by hand.",
       "references": [
         "CWE-295",
         "MITRE T1557"
@@ -496,7 +502,8 @@
         ]
       },
       "window_lines": 60,
-      "sink_window_before": 5,
+      "sink_window_before": 10,
+      "max_line_length": 500,
       "sink_excludes": [],
       "remediation": "A secret — an API key or token read from the environment, or one written into the code — is used in a request or connection whose certificate check is turned off (the name bound on the source line appears in the arguments around the insecure setting). Anyone who can intercept that connection receives the credential, and can keep using it after the connection is gone. Restore verification (or point it at the right CA bundle) before the credential is sent, and rotate the credential if the code has already run on an untrusted network.",
       "references": [
