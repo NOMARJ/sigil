@@ -34,7 +34,18 @@
 //!
 //! A sigil invocation allows only its own segment. `sigil --version; npm
 //! install evil` is judged segment by segment, so prefixing an acquisition
-//! with a harmless sigil call does not launder it.
+//! with a harmless sigil call does not launder it. Only the bare `sigil` on
+//! PATH vets anything, a scan of a downloaded file counts only after the
+//! last download to that path, and a command that defines its own `sigil`
+//! (a function or alias) or changes PATH has no gates at all.
+//!
+//! Each stage is read the way the shell runs it
+//! ([`cmdline::command_words`]): grouping, redirections, assignments and
+//! wrapper commands (`sudo -u root`, `env -i`, `command`, `nohup`, ...) are
+//! set aside first, interpreter options are read per interpreter, each
+//! stage is also judged with the quoting inside its words removed, the
+//! string of `bash -c '…'` is judged as a command line of its own, and a
+//! backslash-newline continues the line.
 //!
 //! For `Write`/`Edit`/`MultiEdit` calls (when the hook is registered for
 //! them) it judges edits to the agent's own tooling: content that pipes a
@@ -288,14 +299,26 @@ fn with_branch(repo: String, branch: &Option<String>) -> String {
 
 /// A local path as the command would resolve it: `~`/`$HOME` expanded,
 /// relative paths joined to the current directory (which follows `cd`),
-/// `.` components and trailing slashes dropped.
+/// `.` components and trailing slashes dropped, `..` applied.
 fn canon_path(t: &str, ctx: &Context) -> String {
-    expand(unquote(t), ctx)
-        .components()
-        .filter(|c| *c != std::path::Component::CurDir)
-        .collect::<PathBuf>()
-        .to_string_lossy()
-        .to_string()
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in expand(unquote(t), ctx).components() {
+        match c {
+            Component::CurDir => {}
+            // `sub/../i.sh` is `i.sh`, read as text: symlinks are not
+            // followed.
+            Component::ParentDir => match out.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    out.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => out.push(".."),
+            },
+            other => out.push(other),
+        }
+    }
+    out.to_string_lossy().to_string()
 }
 
 /// A source argument (`npx skills add <src>`, `gemini extensions install
@@ -975,13 +998,15 @@ fn agent_acquisition(stage: &str) -> Option<Decision> {
     None
 }
 
-/// A package runner in command position: where [`RUNNER_PAT`] finds one,
-/// or as the command word once grouping and wrappers are removed
-/// (`sudo -u root npx …`, `(npx …)`, `timeout 60 uvx …`).
+/// A package runner in command position: the command word once grouping
+/// and wrappers are removed (`sudo -u root npx …`, `(npx …)`,
+/// `timeout 60 uvx …`), or where [`RUNNER_PAT`] finds one (inside a
+/// quoted string, after an argv `--`).
 fn runner_at(stage: &str) -> Option<cmdline::Runner> {
-    find_at(stage, RUNNER_PAT)
-        .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
-        .or_else(|| cmdline::parse_runner(&cmdline::command_words(stage).words))
+    cmdline::parse_runner(&cmdline::command_words(stage).words).or_else(|| {
+        find_at(stage, RUNNER_PAT)
+            .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
+    })
 }
 
 /// Remote package runners: fetch-and-execute in one step.
@@ -1451,7 +1476,8 @@ fn download(w: &cmdline::Words, stage: &str, ctx: &Context) -> Option<Download> 
             break;
         }
     }
-    // A bare file name lands in the output directory.
+    // A bare file name lands in the output directory (for wget, only a
+    // name taken from the URL: `-O` ignores `-P`).
     let join = |f: &str| match &dir {
         Some(d) if !f.contains('/') => format!("{}/{f}", d.trim_end_matches('/')),
         _ => f.to_string(),
@@ -1462,6 +1488,7 @@ fn download(w: &cmdline::Words, stage: &str, ctx: &Context) -> Option<Download> 
         match o.as_str() {
             "-" | "/dev/stdout" => body_to_stdout = true,
             _ if o.starts_with("/dev/") => {}
+            _ if wget => files.push(o.clone()),
             _ => files.push(join(o)),
         }
     }

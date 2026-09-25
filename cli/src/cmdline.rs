@@ -123,7 +123,7 @@ pub struct Redirect {
 /// (`<repo>/skills/x`), not a redirection.
 pub fn redirection(t: &str) -> Option<Redirect> {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let c = re(&RE, r"^([0-9]*|&)(<<<|<<-|<<|<>|<&|>&|>>|>\||<|>)(.*)$").captures(t)?;
+    let c = re(&RE, r"(?s)^([0-9]*|&)(<<<|<<-|<<|<>|<&|>&|>>|>\||<|>)(.*)$").captures(t)?;
     let fd = c.get(1).map_or("", |m| m.as_str());
     let op = c.get(2).map_or("", |m| m.as_str());
     let rest = c.get(3).map_or("", |m| m.as_str());
@@ -631,8 +631,12 @@ fn stage_end(tail: &str) -> usize {
 /// `curl … | python3 -c '…'`, `curl … | node script.js`,
 /// `curl … | bash -c 'jq …'` and `curl … | bash < other.sh` read the
 /// download as *data* or not at all. `rest` is the text after the
-/// interpreter word up to the end of its pipeline stage. Output
-/// redirections (`>/dev/null`, `2>&1`) and a `# comment` change nothing.
+/// interpreter word up to the end of its pipeline stage (so it has no
+/// quotes). Output redirections (`>/dev/null`, `2>&1`) and a `# comment`
+/// change nothing; a redirection of stdin (`< x.sh`, `<<'EOF'`) means the
+/// download is not what runs. Those are read from the words as written
+/// (`\#` and `\<` are ordinary characters); options after backslash
+/// removal (`\-s` is `-s`).
 fn executes_stdin(interp: &str, rest: &str) -> bool {
     let interp = interp.to_ascii_lowercase();
     if matches!(interp.as_str(), "iex" | "invoke-expression") {
@@ -643,28 +647,25 @@ fn executes_stdin(interp: &str, rest: &str) -> bool {
         "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" | "$shell" | "${shell}"
     );
     let pwsh = matches!(interp.as_str(), "pwsh" | "powershell");
-    let toks = tokenize(rest);
-    // A redirection of stdin anywhere in the stage (`python3 - <<'EOF'`,
-    // `bash -s < x.sh`) replaces the download.
-    for t in &toks {
-        if t.starts_with('#') {
-            break;
-        }
-        if redirection(t).is_some_and(|r| r.stdin) {
-            return false;
-        }
+    let mut raw: Vec<&str> = rest.split_whitespace().collect();
+    if let Some(c) = raw.iter().position(|w| w.starts_with('#')) {
+        raw.truncate(c); // a comment
     }
+    if raw
+        .iter()
+        .any(|w| w.starts_with('<') || w.starts_with("0<"))
+    {
+        return false; // stdin is a file or text, not the download
+    }
+    let toks: Vec<String> = raw
+        .iter()
+        .map(|w| tokenize(w).into_iter().next().unwrap_or_default())
+        .collect();
     let mut i = 0;
     while i < toks.len() {
         let t = toks[i].as_str();
         let lower = t.to_ascii_lowercase();
-        if t.starts_with('#') {
-            return true; // a comment: no arguments follow
-        }
-        if let Some(r) = redirection(t) {
-            if r.stdin {
-                return false; // stdin is a file or text, not the download
-            }
+        if let Some(r) = redirection(raw[i]) {
             i += if r.takes_next { 2 } else { 1 };
             continue;
         }
