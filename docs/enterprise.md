@@ -342,7 +342,7 @@ test on real rule libraries or real files.
 custom pack. `sigil rules validate` lists every problem with its `file:line`
 and exits `1`; a scan exits `2` rather than run without the rule, because a
 rule that silently does not run is a detection gap nobody notices. A file
-that needs an external engine where none is installed is the one case a scan
+that needs an external engine where none can be used is the one case a scan
 still runs: it is reported as not inspected (below), never passed over.
 
 **Limits**, so that no rule can hold a scan past its per-file budget, whatever
@@ -526,9 +526,11 @@ engine runs this way (each compiles the rules again) within the same time
 bound; files still left after that are reported once for the scan.
 
 **No engine installed.** Under `auto`, a YARA file that needs an engine where
-none is installed still loads: `sigil` warns on stderr, and every scan
+none can be used still loads: `sigil` warns on stderr, and every scan
 reports it with `PROV-INCOMPLETE-001` ("YARA rules in … were not evaluated"),
-so `summary.complete` is false and `--fail-on-incomplete` (or
+naming why each engine could not be used (not installed, found only inside
+the scanned tree, or installed but not usable, such as a YARA without
+`--scan-list`), so `summary.complete` is false and `--fail-on-incomplete` (or
 `fail_on_incomplete: true`) fails the gate on it. `sigil rules validate`
 exits `1` for such a file, and `sigil rules sign` will not sign it, because
 nothing on the machine has checked it. Lock `fail_on_incomplete` (and, if you

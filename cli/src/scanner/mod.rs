@@ -1168,7 +1168,8 @@ pub fn run_scan(
     let file_budget_limit = budget::configured_budget();
 
     // YARA files an external engine evaluates: one engine run over every
-    // file and archive member, before the per-file pass, so each unit's
+    // file and archive member (more only after a run that fails part-way),
+    // before the per-file pass, so each unit's
     // findings join that unit's own below (inline markers apply to them).
     let mut external_per_unit: Vec<Vec<Finding>> = if external_yara.is_empty() {
         Vec::new()

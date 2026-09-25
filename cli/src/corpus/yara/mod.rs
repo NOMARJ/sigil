@@ -175,11 +175,15 @@ pub enum FileEngine {
         engine: Arc<external::Engine>,
         source: Arc<[u8]>,
     },
-    /// Nothing: the file needs an external engine and none is installed.
-    /// Every scan reports it as incomplete coverage (`PROV-INCOMPLETE-001`).
+    /// Nothing: the file needs an external engine and none can be used
+    /// here. Every scan reports it as incomplete coverage
+    /// (`PROV-INCOMPLETE-001`).
     Unevaluated {
         /// Why the built-in engine cannot evaluate it, one line each.
         reasons: Vec<String>,
+        /// Why no external engine could take it (not installed, found only
+        /// inside the scanned tree, or not usable), one clause per engine.
+        unavailable: String,
     },
 }
 
@@ -593,6 +597,7 @@ pub fn analyze(src: &str, bytes: &[u8], path: &Path, sel: &external::Selection) 
                                     )
                                 })
                                 .collect(),
+                            unavailable: sel.unavailable(),
                         },
                     ),
                 }
@@ -823,10 +828,14 @@ pub fn sign_detached(path: &Path, key: &ed25519_dalek::SigningKey) -> Result<Str
     // Checked by the engine that will evaluate it, as a load would.
     let (file, _) = analyze(src, &bytes, path, &external::Selection::current())
         .map_err(|errs| located(path, errs).join("\n"))?;
-    if let FileEngine::Unevaluated { reasons } = &file.engine {
+    if let FileEngine::Unevaluated {
+        reasons,
+        unavailable,
+    } = &file.engine
+    {
         return Err(format!(
-            "{}: not signed: it needs an external YARA engine to be checked, and none is \
-             installed here ({})",
+            "{}: not signed: it needs an external YARA engine to be checked, and none can be \
+             used here ({unavailable}; {})",
             path.display(),
             reasons.first().map(String::as_str).unwrap_or("")
         ));

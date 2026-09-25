@@ -978,7 +978,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
-| `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds one run of an external YARA engine (`yr`, `yara`) may take; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
+| `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds an external YARA engine (`yr`, `yara`) may spend on one scan, every run of it included; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
 | `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 | `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |

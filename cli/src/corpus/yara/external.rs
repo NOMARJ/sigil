@@ -58,10 +58,11 @@ use super::{FileEngine, YaraFile, YaraRule};
 use crate::corpus::custom::CustomPack;
 use crate::scanner::{Finding, Phase};
 
-/// Environment variable bounding one engine run, in seconds (`0`: none).
+/// Environment variable bounding an external engine's work for one scan
+/// (every run of it), in seconds (`0`: none).
 pub const TIMEOUT_ENV: &str = "SIGIL_YARA_TIMEOUT_SECS";
 
-/// Default bound on one engine run.
+/// Default bound on that work.
 pub const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 /// Bound on `--version` and `--help` probes.
@@ -444,8 +445,19 @@ pub struct Selection {
     pub mode: EngineMode,
     /// Where the mode came from, for messages.
     pub source: String,
-    /// `None`: this machine's `PATH`; `Some`: exactly these engines.
-    fixed: Option<Vec<Arc<Engine>>>,
+    engines: Engines,
+}
+
+/// Where a [`Selection`] finds its engines.
+enum Engines {
+    /// This machine's `PATH`, searched once per process.
+    System,
+    /// Exactly these.
+    #[cfg(test)]
+    Fixed(Vec<Arc<Engine>>),
+    /// This `PATH` value, searched on each call.
+    #[cfg(test)]
+    Path(OsString),
 }
 
 impl Selection {
@@ -459,7 +471,7 @@ impl Selection {
         Selection {
             mode,
             source,
-            fixed: None,
+            engines: Engines::System,
         }
     }
 
@@ -469,22 +481,48 @@ impl Selection {
         Selection {
             mode,
             source: "test".to_string(),
-            fixed: Some(engines.into_iter().map(Arc::new).collect()),
+            engines: Engines::Fixed(engines.into_iter().map(Arc::new).collect()),
+        }
+    }
+
+    /// A mode with the engines found on this `PATH` value.
+    #[cfg(test)]
+    pub fn with_path(mode: EngineMode, path: OsString) -> Selection {
+        Selection {
+            mode,
+            source: "test".to_string(),
+            engines: Engines::Path(path),
         }
     }
 
     /// The engine of `kind`, or why there is none.
     pub fn engine(&self, kind: EngineKind) -> Result<Arc<Engine>, String> {
-        match &self.fixed {
-            None => system_engine(kind),
-            Some(engines) => engines
-                .iter()
-                .find(|e| e.kind == kind)
-                .cloned()
-                .ok_or_else(|| {
-                    format!("{} (`{}`) is not installed", kind.product(), kind.program())
-                }),
+        match &self.engines {
+            Engines::System => system_engine(kind),
+            #[cfg(test)]
+            Engines::Fixed(engines) => {
+                engines
+                    .iter()
+                    .find(|e| e.kind == kind)
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!("{} (`{}`) is not installed", kind.product(), kind.program())
+                    })
+            }
+            #[cfg(test)]
+            Engines::Path(path) => find(kind, Some(path.clone())).map(Arc::new),
         }
+    }
+
+    /// Why neither engine can be used, one clause per engine: not
+    /// installed, found only inside the scanned tree, or found but not
+    /// usable (it did not answer as the engine does, or lacks a flag).
+    pub fn unavailable(&self) -> String {
+        [EngineKind::YaraX, EngineKind::Yara]
+            .into_iter()
+            .filter_map(|k| self.engine(k).err())
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     /// What `auto` hands a file the built-in engine cannot evaluate to:
@@ -1223,11 +1261,14 @@ pub fn unevaluated_findings(
     files
         .iter()
         .filter_map(|f| match &f.engine {
-            FileEngine::Unevaluated { reasons } => Some((f, reasons)),
+            FileEngine::Unevaluated {
+                reasons,
+                unavailable,
+            } => Some((f, reasons, unavailable)),
             _ => None,
         })
-        .filter(|(f, _)| f.public_rules().any(|r| phase_enabled(r.phase)))
-        .map(|(f, reasons)| {
+        .filter(|(f, _, _)| f.public_rules().any(|r| phase_enabled(r.phase)))
+        .map(|(f, reasons, unavailable)| {
             let first = reasons.first().map(String::as_str).unwrap_or("");
             let more = match reasons.len() {
                 0 | 1 => String::new(),
@@ -1235,8 +1276,8 @@ pub fn unevaluated_findings(
             };
             not_evaluated_globally(format!(
                 "YARA rules in {} ({} rule{}) were not evaluated: they need an external YARA \
-                 engine and neither YARA-X (`yr`) nor YARA (`yara`) is installed — {first}{more}. \
-                 Install one, or pass --yara-engine builtin to refuse the file instead",
+                 engine and none can be used here ({unavailable}) — {first}{more}. Install \
+                 YARA-X or YARA, or pass --yara-engine builtin to refuse the file instead",
                 f.path.display(),
                 f.public_rules().count(),
                 if f.public_rules().count() == 1 {
@@ -1249,11 +1290,12 @@ pub fn unevaluated_findings(
         .collect()
 }
 
-/// Time limits of one engine run.
+/// Time limits of one evaluation.
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
-    /// The whole run ([`TIMEOUT_ENV`]); YARA-X is also given it as its own
-    /// `--timeout`, which bounds a whole run.
+    /// The whole evaluation, every run included ([`TIMEOUT_ENV`]); YARA-X is
+    /// given what is left of it as its own `--timeout`, which bounds a whole
+    /// run.
     pub total: Option<Duration>,
     /// Each file, for classic YARA, whose `--timeout` is per file: the
     /// per-file budget (`SIGIL_FILE_BUDGET_SECS`).

@@ -217,6 +217,12 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   switch the YARA rules off for the rest of a package under the default
   gate. (Found in review: classic YARA 4.5.0 buffers its output, so what a
   crashed or killed run printed cannot say which file stopped it.)
+- **"Not installed" only when it is not.** A file loaded unevaluated was
+  reported as "neither YARA-X nor YARA is installed" also when an engine was
+  installed but unusable (a YARA too old for `--scan-list`, a `yr` that is
+  another program) or found only inside the scanned tree; the warning, the
+  `PROV-INCOMPLETE-001` note, `rules validate` and `rules sign` now say why
+  each engine could not be used.
 - **The engine is never started in Sigil's working directory.** The
   `--version`/`--help` probe ran from the directory Sigil was started in,
   usually the tree being scanned; it runs from `/` now (scan runs already

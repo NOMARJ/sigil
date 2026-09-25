@@ -551,12 +551,20 @@ fn auto_without_an_engine_loads_the_file_unevaluated_with_its_reasons() {
     let sel = Selection::with_engines(EngineMode::Auto, Vec::new());
     let p = pack(MODULE_RULES, &sel).unwrap();
     let f = file_of(&p);
-    let FileEngine::Unevaluated { reasons } = &f.engine else {
+    let FileEngine::Unevaluated {
+        reasons,
+        unavailable,
+    } = &f.engine
+    else {
         panic!("{:?}", f.engine);
     };
     assert!(
         reasons[0].starts_with("line 2: `import \"math\"`"),
         "{reasons:?}"
+    );
+    assert_eq!(
+        unavailable,
+        "YARA-X (`yr`) is not installed; YARA (`yara`) is not installed"
     );
     assert!(!reasons[0].contains(super::super::parse::NEEDS_ENGINE));
     // Its rules are known, so ids, severities and policies apply.
@@ -569,7 +577,8 @@ fn auto_without_an_engine_loads_the_file_unevaluated_with_its_reasons() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].rule, crate::scanner::coverage::RULE_PARTIAL);
     assert!(
-        found[0].snippet.contains("were not evaluated"),
+        found[0].snippet.contains("were not evaluated")
+            && found[0].snippet.contains("YARA-X (`yr`) is not installed"),
         "{}",
         found[0].snippet
     );
@@ -577,6 +586,50 @@ fn auto_without_an_engine_loads_the_file_unevaluated_with_its_reasons() {
     assert!(unevaluated_findings(&[f], &|p| p != Phase::Obfuscation).is_empty());
     // A file the built-in engine evaluates is not affected.
     assert!(file_of(&pack(PLAIN_RULE, &sel).unwrap()).is_builtin());
+}
+
+#[cfg(unix)]
+#[test]
+fn an_installed_engine_that_cannot_be_used_is_named_with_the_reason() {
+    // Classic YARA is installed but too old for Sigil (no --scan-list), and
+    // there is no YARA-X: the file loads unevaluated, and what the scan and
+    // `rules validate` say names that YARA, not "not installed".
+    let old = stub(EngineKind::Yara, Variant::NoScanList);
+    let path = std::env::join_paths([old.bin.clone()]).unwrap();
+    let sel = Selection::with_path(EngineMode::Auto, path);
+    // Probed on each load here: retry the rare `Text file busy` of a stub
+    // another test's fork may still hold open (see `engine`).
+    let mut loaded = None;
+    for _ in 0..20 {
+        let f = file_of(&pack(MODULE_RULES, &sel).unwrap());
+        match &f.engine {
+            FileEngine::Unevaluated { unavailable, .. } if unavailable.contains("busy") => {
+                std::thread::sleep(Duration::from_millis(50))
+            }
+            _ => {
+                loaded = Some(f);
+                break;
+            }
+        }
+    }
+    let f = loaded.expect("probed without `Text file busy`");
+    let FileEngine::Unevaluated { unavailable, .. } = &f.engine else {
+        panic!("{:?}", f.engine);
+    };
+    assert!(
+        unavailable.starts_with("YARA-X (`yr`) is not installed: no `yr` in an absolute PATH"),
+        "{unavailable}"
+    );
+    assert!(
+        unavailable.contains("is YARA 4.5.0, which lacks --scan-list"),
+        "{unavailable}"
+    );
+    let found = unevaluated_findings(&[f], &|_| true);
+    assert!(
+        found[0].snippet.contains("lacks --scan-list"),
+        "{}",
+        found[0].snippet
+    );
 }
 
 #[test]

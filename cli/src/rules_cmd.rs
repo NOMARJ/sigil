@@ -517,10 +517,14 @@ fn validate(path: &Path, as_json: bool) -> i32 {
     // either: nothing here has checked its strings and conditions.
     for p in &packs {
         if let Some(file) = &p.pack.yara {
-            if let crate::corpus::yara::FileEngine::Unevaluated { reasons } = &file.engine {
+            if let crate::corpus::yara::FileEngine::Unevaluated {
+                reasons,
+                unavailable,
+            } = &file.engine
+            {
                 errors.push(format!(
-                    "{}: not checked: it needs an external YARA engine and neither YARA-X \
-                     (`yr`) nor YARA (`yara`) is installed ({}); a scan would not evaluate it",
+                    "{}: not checked: it needs an external YARA engine and none can be used \
+                     here ({unavailable}; {}); a scan would not evaluate it",
                     file.path.display(),
                     reasons.first().map(String::as_str).unwrap_or("")
                 ));

@@ -2220,11 +2220,15 @@ fn report_yara_engines(packs: &[corpus::custom::CustomPack]) {
         let Some(file) = &p.pack.yara else {
             continue;
         };
-        if let corpus::yara::FileEngine::Unevaluated { reasons } = &file.engine {
+        if let corpus::yara::FileEngine::Unevaluated {
+            reasons,
+            unavailable,
+        } = &file.engine
+        {
             eprintln!(
-                "{} {}: these YARA rules need an external engine and neither YARA-X (`yr`) nor \
-                 YARA (`yara`) is installed, so they will not be evaluated ({}); the scan \
-                 reports this as incomplete coverage",
+                "{} {}: these YARA rules need an external engine and none can be used here \
+                 ({unavailable}), so they will not be evaluated ({}); the scan reports this as \
+                 incomplete coverage",
                 "warning:".bold().yellow(),
                 file.path.display(),
                 reasons.first().map(String::as_str).unwrap_or("")

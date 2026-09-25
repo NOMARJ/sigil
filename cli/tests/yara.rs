@@ -765,11 +765,12 @@ fn an_engine_shipped_inside_the_scanned_tree_is_never_run() {
     );
     assert!(!fx.proj.join("yr.log").exists(), "the stub ran");
     let gap = findings(&o, "PROV-INCOMPLETE-001");
+    // Said as it is: an engine was found, inside the tree, and not used.
     assert!(
-        gap.iter().any(|f| f["snippet"]
-            .as_str()
-            .unwrap()
-            .contains("were not evaluated")),
+        gap.iter().any(|f| {
+            let s = f["snippet"].as_str().unwrap();
+            s.contains("were not evaluated") && s.contains("one inside it was not considered")
+        }),
         "{}",
         stdout(&o)
     );
