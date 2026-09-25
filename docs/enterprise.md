@@ -600,6 +600,27 @@ for its location on each platform; at the time of writing it is
 ask) or `off`. See the limitation on `SIGIL_BYPASS` below before relying on the
 guard as a hard control.
 
+The guard lets `sigil scan <file> && <run the file>` through only when the scan
+runs under the policy you set outside the command. A command that sets
+`SIGIL_POLICY_FILE` (or any other `SIGIL_…` variable) for the scan, exports
+one, or names a Sigil policy file (`.sigil.yml`, `.sigil.yaml`, `sigil.yml`)
+gets no credit for its scan: the organisation file is trusted whole and a
+`.sigil.yml` in the working directory as the project's, so either could raise
+`fail_on` for that one scan. The same holds for a command that sets or exports
+`LD_…`/`DYLD_…` (the loader would run code inside sigil), runs `sigil approve`
+or `sigil known-good` (approved or known-good content passes later scans), or
+writes into `~/.sigil/`. Set `SIGIL_POLICY_FILE` in the environment the
+agent inherits (a profile script or MDM), as above.
+
+The guard judges one Bash call at a time. A policy file, an approval or a
+file written by an earlier call is not seen: an agent that writes
+`.sigil.yml` in one call and scans in the next gets the credit. Where that
+matters, lock the gate keys in the organisation policy (`locked: [all]`, as
+above) and set `allow_project_policy: false`: then neither a project file
+nor a flag can loosen them. (Checked with real scans of a file with a High
+finding under such a policy: exit 1 as it stands, with a `.sigil.yml` that
+sets `fail_on: critical`, and with `--fail-on critical`.)
+
 ## Optional LLM review and data egress
 
 `sigil scan --llm-review` sends each finding at Medium or above to a language

@@ -65,6 +65,67 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   probes were synthetic, so this measures agreement, not detection; the
   remaining differences are listed in
   [docs/detection/ux.md](docs/detection/ux.md).
+  Both gates now read a command the way the shell runs it (grouping,
+  redirections, wrapper commands such as `sudo -u root` and `env -i`,
+  interpreter options per interpreter, quoting inside words, `bash -c`
+  strings, line continuations), which closes the shapes both used to let
+  through: `curl … 2>&1 | sh`, `curl … | "bash"`, `bash < <(curl …)`,
+  `curl -o i.sh … && sudo -E bash i.sh` / `. ./i.sh` / `cat i.sh | sh`,
+  `curl … | tee ~/.claude/skills/…`, `"npm" exec x`, a scan that ran before
+  the download, and `./sigil` or a `sigil` shell function satisfying the
+  gate. On 168 probes written for these shapes, main's native hook decided
+  56 as expected and the new one 168 (fallback: 59 and 168). Replayed on
+  the 43,869 shell lines and 7,649 shell blocks of the skill corpora, three
+  decisions change, all on clean skills: two new denies of a real download
+  and run, and one deny that becomes an ask (a continued `pip install -r`
+  line now read whole). Details: [docs/detection/ux.md §7](docs/detection/ux.md#7-closing-the-shapes-both-gates-missed).
+  Two verification passes then tried to get past that change. The first
+  wrote 462 probes; the change got 155 of them wrong in one gate or both,
+  and after the first pass's fixes both gates decided 432 as expected.
+  Among them: `curl … | bash
+  < /dev/stdin` (let through by the change's own here-document exemption),
+  `curl … | tr -d '\r' | bash`, `curl … | perl -I lib`, `eval "$(cat
+  i.sh)"`, `mv i.tmp i.sh && bash i.sh`, a scan with `--fail-on critical`
+  or under a policy the command sets (`SIGIL_POLICY_FILE=…`, or a
+  `.sigil.yml` it writes), `sigil scan i.sh | tee log && bash i.sh`, and a
+  `cd` inside `$( … )`. The second pass found more, in both gates: a shell
+  that `sudo -s`, `sudo -i` or `su` starts reads the pipe (`curl … | sudo
+  -s` was allowed); code that reads the pipe (`| bash -c "$(cat)"`, `|
+  xargs -0 bash -c`, `| python3 -c "exec(sys.stdin.read())"`, `| while
+  read l; do eval "$l"; done`; compiling or matching a regex against the
+  pipe does not count); `| tee >(bash)`; groups that hold or
+  receive the download (`{ curl …; echo; } | sh`, `| { echo; bash; }`);
+  `$(sigil --version) npm install evil`; a downloaded file run behind
+  `trap`, `watch`, `flock`, `chroot`, `strace`, `script -c` and others;
+  scan options that let a hostile file pass when attached or bundled
+  (`-pnetwork`, `-s=critical`, `-vh`: checked with real scans, which exit
+  0 where a plain scan of the same file exits 1); `LD_PRELOAD`, `sigil
+  approve`, `sigil known-good` or a write into `~/.sigil/` in the same
+  command; the scanned file edited or overwritten after the scan (`sed -i
+  … && bash i.sh`); a download still running in the background when the
+  scan reads it (`curl -o i.sh … & sigil scan i.sh && bash i.sh`); and a
+  package named beside a requirements file (`pip install -r req.txt
+  evil-pkg`), which was asked about as a requirements install and is now
+  denied like `pip install evil-pkg` (the fallback does this where awk is
+  available). The native hook also compiled each pattern for every stage: a
+  13.6 KB command took 14 s to judge, long enough, padded further, to pass
+  a hook's time limit; it now takes 0.08 s. The shell fallback is slower
+  than main's: 44 ms for `curl … | sh` and 83 ms for a download scanned
+  and run (main: 14 and 21 ms), and without awk it allows 112 of 1,778
+  generated pipes the native hook denies (`curl … | python3 -x -E`). Of the first
+  pass's 462 probes both gates now decide 443 as expected (main: 199
+  native, 198 fallback); of the second pass's 255, 253 natively and 250 in
+  the fallback (main: 151 and 135); of its 57 `pip` probes, 56 in both
+  (main: 34 and 32). On the skill corpora, against main, four decisions
+  change, all to deny and all on clean skills: the two download-and-run
+  commands above, a real `curl …/get-helm-3 | HELM_INSTALL_DIR=… bash`,
+  and `pip install -r requirements.txt pytest -q`; the continued `pip
+  install -r` block above is denied again, as in main. The `git clone`
+  deny names the repository instead of an option's value (`sigil clone 1`
+  for `--depth 1`). What still gets through (globs
+  and variables, files unpacked from a downloaded archive, a few
+  interpreters, anything spread over two Bash calls) is listed in
+  [docs/detection/ux.md §8](docs/detection/ux.md#8-verification-pass-what-still-got-through).
   `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
   `check_command`).
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
