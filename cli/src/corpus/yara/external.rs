@@ -314,10 +314,13 @@ pub fn probe(kind: EngineKind, path: &Path) -> Result<Engine, String> {
         .collect();
     if !missing.is_empty() {
         return Err(format!(
-            "{} is {} {version}, which lacks {}; Sigil needs {}",
+            // Any program can print a number for `--version`: what it
+            // printed is reported, not taken as proof of what it is.
+            "{} (`--version`: {version}) lacks {}, so it is not a {} Sigil can use; Sigil \
+             needs {}",
             path.display(),
-            kind.product(),
             missing.join(", "),
+            kind.product(),
             match kind {
                 EngineKind::YaraX => "YARA-X 1.0 or later",
                 EngineKind::Yara => "YARA 4.x with --scan-list",

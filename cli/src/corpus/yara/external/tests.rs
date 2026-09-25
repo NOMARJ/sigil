@@ -518,7 +518,8 @@ fn a_program_that_is_not_the_engine_or_lacks_its_flags_is_refused() {
     let old = stub(EngineKind::Yara, Variant::NoScanList);
     let e = probe(EngineKind::Yara, &old.path).unwrap_err();
     assert!(e.contains("lacks --scan-list"), "{e}");
-    assert!(e.contains("YARA 4.5.0"), "{e}");
+    assert!(e.contains("(`--version`: 4.5.0)"), "{e}");
+    assert!(e.contains("not a YARA Sigil can use"), "{e}");
     let other = stub(EngineKind::YaraX, Variant::NotAnEngine);
     let e = probe(EngineKind::YaraX, &other.path).unwrap_err();
     assert!(e.contains("does not look like YARA-X"), "{e}");
@@ -621,7 +622,7 @@ fn an_installed_engine_that_cannot_be_used_is_named_with_the_reason() {
         "{unavailable}"
     );
     assert!(
-        unavailable.contains("is YARA 4.5.0, which lacks --scan-list"),
+        unavailable.contains("(`--version`: 4.5.0) lacks --scan-list, so it is not a YARA"),
         "{unavailable}"
     );
     let found = unevaluated_findings(&[f], &|_| true);
