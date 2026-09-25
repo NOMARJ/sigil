@@ -38,7 +38,10 @@ use crate::scanner::budget::FileBudget;
 use crate::scanner::{Finding, Phase, Severity};
 
 use super::loader::load_all_packs;
-use super::schema::{CorrelationRule, Evidence, FileFilter, SignaturePack, SuppressionPredicates};
+use super::schema::{
+    CorrelationRule, Evidence, FileFilter, PackRule, ProvenanceRule, SignaturePack,
+    SuppressionPredicates,
+};
 use super::yara::YaraFile;
 
 /// A single rule with its phase, severity and weight already resolved.
@@ -348,6 +351,62 @@ pub struct CompiledCorpus {
     /// YARA rule files loaded as custom packs, compiled once at load and
     /// evaluated over each file's raw bytes by `scanner::run_scan`.
     yara: Vec<Arc<YaraFile>>,
+    /// See [`Self::digest`]; computed once, at compile time.
+    digest: String,
+}
+
+/// The parts of a content rule that can change a finding it produces:
+/// everything except the reader-facing text (remediation, references,
+/// tags), which is looked up at output time through [`RuleMeta`] and so
+/// never reaches a finding. `weight` is the resolved weight, phase default
+/// included.
+///
+/// Serialising the whole rule, rather than listing fields, means a field
+/// added to [`PackRule`] later is covered by default: the failure mode of
+/// forgetting one is a stale cached verdict, which is a security bug.
+fn content_rule_key(rule: &PackRule, weight: u32) -> String {
+    let mut r = rule.clone();
+    r.remediation = None;
+    r.references.clear();
+    r.tags.clear();
+    r.weight = Some(weight);
+    serde_json::to_string(&r).unwrap_or_default()
+}
+
+/// [`content_rule_key`] for a provenance rule: kind, pattern, severity,
+/// thresholds, prefixes and exclusions, description (it is the snippet).
+fn provenance_rule_key(rule: &ProvenanceRule) -> String {
+    let mut r = rule.clone();
+    r.remediation = None;
+    r.references.clear();
+    r.tags.clear();
+    serde_json::to_string(&r).unwrap_or_default()
+}
+
+/// [`content_rule_key`] for a correlation rule.
+fn correlation_rule_key(rule: &CorrelationRule) -> String {
+    let mut r = rule.clone();
+    r.remediation = None;
+    r.references.clear();
+    r.tags.clear();
+    serde_json::to_string(&r).unwrap_or_default()
+}
+
+/// Hash the sorted `(kind:id, definition)` entries together with the
+/// engine revision.
+fn hash_entries(engine_revision: u32, entries: &[(String, String)]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"engine-revision:");
+    hasher.update(engine_revision.to_le_bytes());
+    hasher.update([0u8]);
+    for (id, definition) in entries {
+        hasher.update(id.as_bytes());
+        hasher.update([0u8]);
+        hasher.update(definition.as_bytes());
+        hasher.update([0u8]);
+    }
+    format!("sha256:{:x}", hasher.finalize())
 }
 
 impl CompiledCorpus {
@@ -363,6 +422,8 @@ impl CompiledCorpus {
         let mut correlation_rules: Vec<CorrelationRule> = Vec::new();
         let mut engine_rule_ids: Vec<String> = Vec::new();
         let mut yara: Vec<Arc<YaraFile>> = Vec::new();
+        // Everything the digest covers, as `(kind:id, definition)`.
+        let mut digest_entries: Vec<(String, String)> = Vec::new();
 
         // Pack order then rule-within-pack order is preserved, because finding
         // output order is derived from it.
@@ -390,12 +451,14 @@ impl CompiledCorpus {
                         tags: rule.tags.clone(),
                     },
                 );
+                let weight = rule.weight.unwrap_or_else(|| phase.default_weight());
+                digest_entries.push((format!("rule:{}", rule.id), content_rule_key(rule, weight)));
                 by_phase.entry(phase).or_default().push(CompiledRule {
                     id: rule.id.clone(),
                     description: rule.description.clone(),
                     phase,
                     severity: parse_severity(&rule.severity),
-                    weight: rule.weight.unwrap_or_else(|| phase.default_weight()),
+                    weight,
                     file_filter: rule.file_filter.clone(),
                     suppress: rule.suppress.clone(),
                     evidence: rule.evidence,
@@ -416,9 +479,19 @@ impl CompiledCorpus {
                         tags: rule.tags.clone(),
                     },
                 );
+                digest_entries.push((
+                    format!("correlation:{}", rule.id),
+                    correlation_rule_key(rule),
+                ));
                 correlation_rules.push(rule.clone());
             }
             for rule in &pack.engine_rules {
+                // The engine owns an engine rule's detection; what the pack
+                // says about it is its phase, severity and evidence.
+                digest_entries.push((
+                    format!("engine:{}", rule.id),
+                    format!("{}\0{}\0{:?}", rule.phase, rule.severity, rule.evidence),
+                ));
                 meta_by_id.insert(
                     rule.id.clone(),
                     RuleMeta {
@@ -432,6 +505,9 @@ impl CompiledCorpus {
             }
             if let Some(file) = &pack.yara {
                 for rule in &file.rules {
+                    // A YARA rule is identified by its whole source (private
+                    // rules included: they change what the public ones match).
+                    digest_entries.push((format!("yara:{}", rule.id), rule.source.clone()));
                     meta_by_id.insert(
                         rule.id.clone(),
                         RuleMeta {
@@ -447,6 +523,7 @@ impl CompiledCorpus {
             // Provenance rules are not content rules and never enter a
             // RegexSet, but their metadata is looked up the same way.
             for rule in &pack.provenance_rules {
+                digest_entries.push((format!("provenance:{}", rule.id), provenance_rule_key(rule)));
                 meta_by_id.insert(
                     rule.id.clone(),
                     RuleMeta {
@@ -466,6 +543,8 @@ impl CompiledCorpus {
 
         engine_rule_ids.sort_unstable();
         engine_rule_ids.dedup();
+        digest_entries.sort_unstable();
+        let digest = hash_entries(crate::scanner::ENGINE_REVISION, &digest_entries);
         CompiledCorpus {
             per_phase,
             meta_by_id,
@@ -473,6 +552,7 @@ impl CompiledCorpus {
             engine_rule_ids,
             invalid_patterns,
             yara,
+            digest,
         }
     }
 
@@ -520,44 +600,28 @@ impl CompiledCorpus {
         ids
     }
 
-    /// A stable digest over the active corpus: every rule's id and pattern.
+    /// A stable digest over everything in the active corpus that can change a
+    /// finding, plus the engine's classification revision.
     ///
-    /// Two scans with the same digest ran the same detection logic, so any
-    /// difference between them is a difference in the scanned code.
+    /// Covered: every content rule's pattern, phase, severity, evidence,
+    /// resolved weight, description (it prefixes the snippet), file filter
+    /// and suppression predicates; every provenance rule's kind, pattern,
+    /// severity, thresholds and exclusions; every correlation rule; the
+    /// phase, severity and evidence a pack documents for each engine rule;
+    /// the full source of every YARA rule; and
+    /// [`crate::scanner::ENGINE_REVISION`], which is bumped whenever Rust
+    /// code that classifies or rewrites findings changes. Not covered: the
+    /// reader-facing text (remediation, references, tags), which is looked
+    /// up at output time and never reaches a finding.
+    ///
+    /// The scan cache refuses an entry whose digest differs (`cache.rs`), so
+    /// a severity, evidence or suppression change re-scans instead of
+    /// serving a stale verdict. Two scans with the same digest ran the same
+    /// rule definitions under the same engine revision; engine code that
+    /// changes without a revision bump is caught only by the binary version,
+    /// which the cache also checks.
     pub fn digest(&self) -> String {
-        use sha2::{Digest, Sha256};
-        // A YARA rule is identified by its whole source (private rules
-        // included: they change what the public ones match).
-        let yara_sources: Vec<(&str, &str)> = self
-            .yara
-            .iter()
-            .flat_map(|f| f.rules.iter().map(|r| (r.id.as_str(), r.source.as_str())))
-            .collect();
-        let mut entries: Vec<(&str, &str)> = self
-            .per_phase
-            .values()
-            .flat_map(|p| p.rules.iter().map(|r| (r.id.as_str(), r.regex.as_str())))
-            .chain(
-                self.correlation_rules
-                    .iter()
-                    .map(|r| (r.id.as_str(), r.description.as_str())),
-            )
-            .chain(
-                self.engine_rule_ids
-                    .iter()
-                    .map(|id| (id.as_str(), "engine")),
-            )
-            .chain(yara_sources)
-            .collect();
-        entries.sort_unstable();
-        let mut hasher = Sha256::new();
-        for (id, pattern) in entries {
-            hasher.update(id.as_bytes());
-            hasher.update([0u8]);
-            hasher.update(pattern.as_bytes());
-            hasher.update([0u8]);
-        }
-        format!("sha256:{:x}", hasher.finalize())
+        self.digest.clone()
     }
 
     /// Total number of compiled content rules across all phases, plus the
@@ -1096,6 +1160,197 @@ mod tests {
             stopped.is_empty(),
             "spent budget still scanned: {stopped:#?}"
         );
+    }
+
+    /// The scan cache serves a stored verdict whenever the digest matches, so
+    /// every field that can change a finding must move the digest. Before
+    /// this, only a rule's id and regex were hashed: a severity, evidence or
+    /// suppression edit kept serving the verdict computed under the old one.
+    #[test]
+    fn digest_covers_every_field_that_changes_a_finding() {
+        use crate::corpus::schema::{Evidence, ProvenanceKind};
+
+        fn flip(s: &mut String) {
+            *s = if s == "low" { "high" } else { "low" }.to_string();
+        }
+        fn other(e: Evidence) -> Evidence {
+            match e {
+                Evidence::Standalone => Evidence::Corroborate,
+                Evidence::Corroborate => Evidence::Standalone,
+            }
+        }
+
+        let full = all_packs();
+        assert_eq!(
+            CompiledCorpus::from_packs(&full).digest(),
+            CompiledCorpus::from_packs(&all_packs()).digest(),
+            "the digest must be stable across two loads"
+        );
+        // Each edit is checked on the smallest packs that between them carry
+        // every rule kind, so the test does not compile the whole corpus once
+        // per field (that took over a minute in a debug build).
+        let smallest = |has: fn(&SignaturePack) -> bool| {
+            (0..full.len())
+                .filter(|&i| has(&full[i]))
+                .min_by_key(|&i| full[i].rules.len())
+                .expect("a pack with this rule kind")
+        };
+        let mut picked = vec![
+            smallest(|p| !p.rules.is_empty()),
+            smallest(|p| !p.provenance_rules.is_empty()),
+            smallest(|p| !p.correlation_rules.is_empty()),
+            smallest(|p| !p.engine_rules.is_empty()),
+        ];
+        picked.sort_unstable();
+        picked.dedup();
+        let packs: Vec<SignaturePack> = picked.iter().map(|&i| full[i].clone()).collect();
+        let base = CompiledCorpus::from_packs(&packs).digest();
+        let digest_after = |change: &dyn Fn(&mut Vec<SignaturePack>)| {
+            let mut edited = packs.clone();
+            change(&mut edited);
+            CompiledCorpus::from_packs(&edited).digest()
+        };
+
+        let content = packs.iter().position(|p| !p.rules.is_empty()).unwrap();
+        let rule_changes: &[(&str, fn(&mut PackRule))] = &[
+            ("pattern", |r| r.pattern.push('x')),
+            ("severity", |r| flip(&mut r.severity)),
+            ("evidence", |r| r.evidence = other(r.evidence)),
+            ("weight", |r| r.weight = Some(97)),
+            ("description", |r| r.description.push('!')),
+            ("phase", |r| {
+                r.phase = if r.phase == "obfuscation" {
+                    "credentials"
+                } else {
+                    "obfuscation"
+                }
+                .to_string()
+            }),
+            ("file_filter.filename_exact", |r| {
+                r.file_filter.filename_exact.push("zz".into())
+            }),
+            ("file_filter.extensions", |r| {
+                r.file_filter.extensions.push("zz".into())
+            }),
+            ("file_filter.filename_suffix", |r| {
+                r.file_filter.filename_suffix.push(".zz".into())
+            }),
+            ("suppress.path_contains", |r| {
+                r.suppress.path_contains.push("zz/".into())
+            }),
+            ("suppress.filename_suffix", |r| {
+                r.suppress.filename_suffix.push(".zz".into())
+            }),
+            ("suppress.line_contains", |r| {
+                r.suppress.line_contains.push("zz".into())
+            }),
+            ("suppress.nearby_contains", |r| {
+                r.suppress.nearby_contains.push("zz".into())
+            }),
+            ("suppress.file_header_contains", |r| {
+                r.suppress.file_header_contains.push("zz".into())
+            }),
+            ("suppress.safe_domains", |r| {
+                r.suppress.safe_domains.push("zz.example".into())
+            }),
+        ];
+        for (what, change) in rule_changes {
+            assert_ne!(
+                digest_after(&|p| change(&mut p[content].rules[0])),
+                base,
+                "changing a content rule's {what} must change the corpus digest"
+            );
+        }
+
+        let prov = packs
+            .iter()
+            .position(|p| !p.provenance_rules.is_empty())
+            .unwrap();
+        let prov_changes: &[(&str, fn(&mut ProvenanceRule))] = &[
+            ("severity", |r| flip(&mut r.severity)),
+            ("kind", |r| {
+                r.kind = if r.kind == ProvenanceKind::HiddenFile {
+                    ProvenanceKind::BinaryExtension
+                } else {
+                    ProvenanceKind::HiddenFile
+                }
+            }),
+            ("pattern", |r| r.pattern = Some("zz".into())),
+            ("size threshold", |r| r.size_threshold = Some(7)),
+            ("allowed prefixes", |r| {
+                r.allowed_path_prefixes.push("zz/".into())
+            }),
+            ("excluded filenames", |r| {
+                r.excluded_filenames.push(".zz".into())
+            }),
+            ("description", |r| r.description.push('!')),
+        ];
+        for (what, change) in prov_changes {
+            assert_ne!(
+                digest_after(&|p| change(&mut p[prov].provenance_rules[0])),
+                base,
+                "changing a provenance rule's {what} must change the corpus digest"
+            );
+        }
+
+        let corr = packs
+            .iter()
+            .position(|p| !p.correlation_rules.is_empty())
+            .unwrap();
+        let corr_changes: &[(&str, fn(&mut CorrelationRule))] = &[
+            ("severity", |r| flip(&mut r.severity)),
+            ("weight", |r| r.weight = Some(97)),
+            ("window", |r| r.window_lines += 1),
+            ("sink excludes", |r| r.sink_excludes.push("zz".into())),
+            ("source", |r| r.source.rule_ids.push("ZZ-001".into())),
+            ("sink", |r| r.sink.rule_prefixes.push("ZZ-".into())),
+        ];
+        for (what, change) in corr_changes {
+            assert_ne!(
+                digest_after(&|p| change(&mut p[corr].correlation_rules[0])),
+                base,
+                "changing a correlation rule's {what} must change the corpus digest"
+            );
+        }
+
+        let engine = packs
+            .iter()
+            .position(|p| !p.engine_rules.is_empty())
+            .unwrap();
+        assert_ne!(
+            digest_after(&|p| flip(&mut p[engine].engine_rules[0].severity)),
+            base,
+            "changing an engine rule's severity must change the corpus digest"
+        );
+        assert_ne!(
+            digest_after(&|p| {
+                let r = &mut p[engine].engine_rules[0];
+                r.evidence = other(r.evidence);
+            }),
+            base,
+            "changing an engine rule's evidence must change the corpus digest"
+        );
+
+        // Reader-facing text is looked up at output time and never reaches a
+        // finding, so editing it must not throw every cached scan away.
+        assert_eq!(
+            digest_after(&|p| {
+                let r = &mut p[content].rules[0];
+                r.remediation = Some("reworded".into());
+                r.references.push("CWE-0".into());
+                r.tags.push("zz".into());
+                p[prov].provenance_rules[0].remediation = Some("reworded".into());
+            }),
+            base
+        );
+    }
+    /// The engine revision is part of the digest, so a change to the Rust
+    /// code that rewrites findings invalidates cached verdicts too.
+    #[test]
+    fn digest_covers_the_engine_revision() {
+        let entries = vec![("rule:X-1".to_string(), "{}".to_string())];
+        assert_ne!(hash_entries(1, &entries), hash_entries(2, &entries));
+        assert_eq!(hash_entries(1, &entries), hash_entries(1, &entries));
     }
 
     #[test]

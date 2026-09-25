@@ -28,6 +28,17 @@ use std::path::{Path, PathBuf};
 
 pub use crate::corpus::schema::Evidence;
 
+/// Revision of the Rust code that classifies or rewrites findings after the
+/// rule packs have run, or that decides how a pack's predicates are
+/// evaluated: anything that changes a finding's rule, severity, evidence or
+/// snippet without a pack edit.
+///
+/// It is hashed into the corpus digest (`CompiledCorpus::digest`), which the
+/// scan cache and `sigil diff` key on. **Bump it in the same change as any
+/// such logic**: a development build keeps its version string, so without a
+/// bump a cached verdict from the old logic would keep being served.
+pub const ENGINE_REVISION: u32 = 1;
+
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Phase {
