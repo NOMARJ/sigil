@@ -350,9 +350,12 @@ if [ $PIPE_CHECK = 1 ]; then
   tail_re "$PW_OK" "$PW_RUN" "$PW_LAST"; PW_TAIL=$R
 
   # `| tee file |` stages in between still hand the interpreter the
-  # download; `|&` pipes stderr as well. A group the download ends
-  # (`{ curl …; } | sh`, `( curl …; ) | sh`) pipes its output.
-  PIPE_HEAD="(^|[[:space:]$SOH;&|(\"'\`\$])($NWS*/)?$DL$ARGS(;$WS*[})]$ARGS)*([|]&?$WS*($WRAP)*($NWS*/)?$TEE$ARGS)*[|]&?$WS*($WRAP)*($NWS*/)?"
+  # download; `|&` pipes stderr as well. A group or compound command the
+  # download is in, with any commands after it (`{ curl …; } | sh`,
+  # `(curl …; true) | sh`, `for …; do curl …; done | sh`), pipes its
+  # output.
+  GROUP="(($WS*(;|&&|[|][|]?|$SOH)[^;&|$SOH]*)*$WS*;?$WS*([})]|(^|[[:space:]$SOH;&|])([fF][iI]|[dD][oO][nN][eE]|[eE][sS][aA][cC]))$ARGS)*"
+  PIPE_HEAD="(^|[[:space:]$SOH;&|(\"'\`\$])($NWS*/)?$DL$ARGS$GROUP([|]&?$WS*($WRAP)*($NWS*/)?$TEE$ARGS)*[|]&?$WS*($WRAP)*($NWS*/)?"
   PIPE_RE="$PIPE_HEAD($SH_I$SH_TAIL|$PL_I$PL_TAIL|$OT_I$OT_TAIL|$PW_I$PW_TAIL|$IEX_I([[:space:]$SOH\"')\`;&|<>]|\$))"
 
   INTERP='((sh|bash|zsh|dash|ksh|fish|ash|mksh|pdksh|oksh|yash|posh|rbash|csh|tcsh)[0-9.]*|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell|[$]shell|[$][{]shell[}]|[$]bash|[$][{]bash[}])'
@@ -409,29 +412,40 @@ fi
 # Lexer (POSIX awk). Records, one per line, fields separated by US:
 #   S op opens exec text words…
 #                           a list segment: op A (after &&), O (after ; ||
-#                           & or a newline), U (after $( <( >( ), B / b
-#                           (after an opening / closing backtick); the
-#                           number of `(` it opens; 1 when it opens a
-#                           substitution whose output runs as code
+#                           & or a newline), U (after $( <( ), u (after
+#                           >( ), B / b (after an opening / closing
+#                           backtick); the number of `(` it opens; 1 when it
+#                           opens a substitution whose output runs as code
 #                           (`eval "$(…)"`); its text; its command words
 #                           (for `cd`, `pushd`, `popd`)
 #   O f / I f / J           per stage: a stdout redirection target; stdin
 #                           from file f; stdin from a here-document
 #   X f / R                 the file the stage runs; it runs its stdin
+#                           (an interpreter, a shell `sudo -s` or `su`
+#                           starts, or inline code xargs fills in)
 #   V                       it sources a file (`.`, `source`)
+#   K                       it passes its stdin on (`cat`, `tr -d '\r'`)
+#   H                       its code runs what it reads on stdin
+#                           (`eval "$l"`, `python3 -c "exec(sys.stdin…)"`)
+#   G opens closes          the groups and compound commands it opens and
+#                           closes (`{`, `if`, `(`; `}`, `fi`, `)`)
 #   D f / F                 a file a curl/wget stage saves to; it writes
 #                           the download to stdout
 #   C f / Z f               a file argument (read); a file `tee` writes
 #   N f / Y f               the destination / a source of cp, mv, ln,
 #                           install, rsync
+#   M f                     a file it edits in place (`sed -i`, `perl -pi`)
 #   W words…                the stage's command words
 #   T k flags text dqtext toks…
 #                           the stage (index k in its pipeline), its flags
 #                           (q: it starts inside quotes, a comment or a
 #                           here-document; l: the last stage of its
-#                           pipeline), its text as written and dequoted,
-#                           and its tokens
-#   P / Q                   before / after a `bash -c` string's records
+#                           pipeline; t: the words after the ) of the
+#                           substitution the segment starts), its text as
+#                           written and dequoted, and its tokens
+#   P k inherits / Q        before / after a `bash -c` string's records:
+#                           the index of the stage that hands it over, and
+#                           1 when that stage's stdin is not redirected
 #   E closes                the end of a segment and the `)` it closes
 # A US in the command becomes STX first: to hook.rs it is an ordinary word
 # character, and left in place it would shift every field after it.
@@ -442,8 +456,8 @@ BEGIN {
   VT = sprintf("%c", 11); WSC = "[ \t\n\r\f" VT "]"
   n = split("( { ! if then else elif do while until", kw, " ")
   for (i = 1; i <= n; i++) KW[kw[i]] = 1
-  wr("sudo", "ugCDhprtTUR", "--user --group --close-from --chdir --host --prompt --role --type --command-timeout --other-user --chroot", "lveVK", 0, 1)
-  wr("doas", "u", "", "CL", 0, 0)
+  wr("sudo", "ugCDhprtTUR", "--user --group --close-from --chdir --host --prompt --role --type --command-timeout --other-user --chroot", "lveVK", 0, 1, "", "si")
+  wr("doas", "u", "", "CL", 0, 0, "", "s")
   wr("env", "uCS", "--unset --chdir --split-string", "", 0, 1)
   wr("command", "", "", "vV", 0, 0)
   wr("builtin", "", "", "", 0, 0); wr("nohup", "", "", "", 0, 0)
@@ -455,6 +469,18 @@ BEGIN {
   wr("stdbuf", "ioe", "--input --output --error", "", 0, 0)
   wr("ionice", "cnpPu", "--class --classdata --pid --pgid --uid", "", 0, 0)
   wr("xargs", "adEILnPs", "--arg-file --delimiter --eof --max-lines --max-args --max-procs --max-chars --process-slot-var", "", 0, 0)
+  wr("setpriv", "", "", "", 0, 0)
+  wr("flock", "wE", "--timeout --conflict-exit-code", "hV", 1, 0, "c")
+  wr("chroot", "", "--userspec --groups", "", 1, 0)
+  wr("taskset", "", "", "p", 1, 0)
+  wr("chrt", "T", "", "pm", 1, 0)
+  wr("unshare", "SGRw", "", "", 0, 0)
+  wr("strace", "eopsuEaIbOPSXnlwAL", "", "hV", 0, 0)
+  wr("ltrace", "eopsuEaIbOPSXnlwAL", "", "hV", 0, 0)
+  wr("watch", "n", "--interval", "hv", 0, 0)
+  wr("script", "EIOTBmo", "", "hV", 0, 0, "c")
+  wr("sg", "", "", "", 1, 0, "c")
+  wr("runuser", "ugGsw", "--user --group --supp-group --shell --whitelist-environment", "hV", 1, 0, "c")
   CURLV = "dHuXAebcFTxwmrCEKYyzUQtPD"; WGETV = "oaeiBtTwQUDRAIXl"
   PWV = " -ex -ep -executionpolicy -w -windowstyle -wd -workingdirectory -o -of -outputformat -if -inputformat -config -configurationname -v -version -settingsfile -psconsolefile -custompipename -configurationfile "
   URLRE = "https?://[^ \t\n\r\f" VT SQ DQ "|;&)<>`]+"
@@ -463,8 +489,10 @@ BEGIN {
 }
 # A wrapper command (cmdline::wrapper): short options that take a value,
 # long options that take the next word, short options after which nothing
-# runs, operands before the command, and whether VAR=value may follow.
-function wr(h, v, l, nc, o, a) { WV[h] = v; WL[h] = " " l " "; WN[h] = nc; WO[h] = o; WA[h] = a }
+# runs, operands before the command, whether VAR=value may follow, short
+# options whose value is a command line for a shell (flock -c), and short
+# options that start a shell when no command follows (sudo -s, doas -s).
+function wr(h, v, l, nc, o, a, so, sh) { WV[h] = v; WL[h] = " " l " "; WN[h] = nc; WO[h] = o; WA[h] = a; WSO[h] = so; WSH[h] = sh }
 function trim(s) { sub(/^[ \t\r\f\v]+/, "", s); sub(/[ \t\r\f\v]+$/, "", s); return s }
 function fld(s) { gsub(/\n/, STX, s); return s }
 function bname(t) { sub(/.*[\/\\]/, "", t); return t }
@@ -517,6 +545,7 @@ function dq(s,    out) {
 # file is the next word), RD_TARGET / RD_HAS (the file in the word) and
 # RD_DUP / RD_HASDUP (the descriptor it copies: 1 in 2>&1, 0 in <&0).
 function isstdinpath(p) { return p == "/dev/stdin" || p == "/dev/fd/0" || p == "/proc/self/fd/0" || p == "/proc/$$/fd/0" }
+function isstdoutpath(p) { return p == "-" || p == "/dev/stdout" || p == "/dev/fd/1" || p == "/proc/self/fd/1" || p == "/proc/$$/fd/1" }
 function rdop(r,    a) {
   a = substr(r, 1, 3); if (a == "<<<" || a == "<<-") return a
   a = substr(r, 1, 2); if (a == "<<" || a == "<>" || a == "<&" || a == ">&" || a == ">>" || a == ">|") return a
@@ -547,7 +576,7 @@ function isredir(t,    fd, r, op, rest, input, onstdin) {
 }
 # cmdline::command_words: W[1..NW], CW_IN ("" inherited, F file, I text),
 # CW_INF, CW_OUT[1..NO].
-function cwords(s,    A, B, C, S, n, i, j, k, m, q, x, t, tg, hastg, h, ops, step, L, c, att, val, nn, pk) {
+function cwords(s,    A, B, C, S, n, i, j, k, m, q, x, t, tg, hastg, h, ops, step, L, c, att, val, nn, pk, sh) {
   n = toka(s, A)
   i = 1
   while (i <= n) {
@@ -583,15 +612,40 @@ function cwords(s,    A, B, C, S, n, i, j, k, m, q, x, t, tg, hastg, h, ops, ste
   }
   m = n; for (i = 1; i <= m; i++) B[i] = A[i]
   i = 1
+  # CW_XARGS: behind xargs, which reads the words it appends from stdin (S)
+  # or the file CW_XARGSF (F: xargs -a f). sh: a sudo -s / doas -s seen.
+  CW_XARGS = ""; CW_XARGSF = ""; sh = 0
   while (1) {
     while (i <= m && isassign(B[i])) i++
     if (i > m) break
     h = tolower(bname(B[i]))
     if (!(h in WV)) break
     j = i + 1; ops = WO[h]
+    if (h == "xargs") CW_XARGS = "S"
+    if (h == "runuser") {
+      # With -u the command follows the options; without, the user is an
+      # operand and no command means a shell.
+      q = 0
+      for (x = j; x <= m; x++) if (B[x] == "-u" || B[x] == "--user" || substr(B[x], 1, 7) == "--user=") q = 1
+      if (q) ops = 0; else sh = 1
+    }
     while (j <= m) {
       t = B[j]
       if (t == "--") { j++; break }
+      if (h == "xargs") {
+        val = ""
+        if (t == "-a" || t == "--arg-file") { if (j + 1 <= m) val = B[j + 1] }
+        else if (substr(t, 1, 11) == "--arg-file=") val = substr(t, 12)
+        else if (substr(t, 1, 2) == "-a") val = substr(t, 3)
+        if (val != "") { CW_XARGS = "F"; CW_XARGSF = val }
+      }
+      if (h == "sudo" && (t == "--shell" || t == "--login")) sh = 1
+      if (WSO[h] != "" && (t == "--command" || substr(t, 1, 10) == "--command=")) {
+        # flock l --command "bash i.sh": a shell runs the string.
+        if (substr(t, 1, 10) == "--command=") val = substr(t, 11)
+        else val = (j + 1 <= m) ? B[j + 1] : ""
+        cw_string(val, pk); return
+      }
       if (h == "env" && (t == "--split-string" || substr(t, 1, 15) == "--split-string=")) {
         # env --split-string=VALUE i.sh, as -S.
         if (substr(t, 1, 15) == "--split-string=") { val = substr(t, 16); step = 1 }
@@ -612,6 +666,12 @@ function cwords(s,    A, B, C, S, n, i, j, k, m, q, x, t, tg, hastg, h, ops, ste
         for (k = 2; k <= L; k++) {
           c = substr(t, k, 1)
           if (index(WN[h], c)) { NW = 0; return }
+          if (WSH[h] != "" && index(WSH[h], c)) sh = 1
+          if (WSO[h] != "" && index(WSO[h], c)) {
+            att = substr(t, k + 1)
+            if (att == "") val = (j + 1 <= m) ? B[j + 1] : ""; else val = att
+            cw_string(val, pk); return
+          }
           if (!index(WV[h], c)) continue
           att = substr(t, k + 1)
           if (att == "") { step = 2; val = (j + 1 <= m) ? B[j + 1] : "" } else val = att
@@ -635,7 +695,93 @@ function cwords(s,    A, B, C, S, n, i, j, k, m, q, x, t, tg, hastg, h, ops, ste
     i = j
   }
   NW = 0; for (x = i; x <= m; x++) W[++NW] = B[x]
+  # sudo -s, sudo -i, doas -s with nothing to run, and su with no -c: a
+  # shell that reads its commands from stdin.
+  q = 0
+  if (NW >= 1 && bname(W[1]) == "su") {
+    q = 1
+    for (x = 2; x <= NW; x++) if (W[x] == "-c" || W[x] == "--command" || substr(W[x], 1, 10) == "--command=") q = 0
+  }
+  if ((NW == 0 && sh) || q) { NW = 1; W[1] = "sh" }
   if (pk) CW_IN = ""
+}
+# A wrapper that hands v to a shell as a command line (cmdline.rs
+# shell_string): the command is read as sh -c v.
+function cw_string(v, pk) {
+  NW = 3; W[1] = "sh"; W[2] = "-c"; W[3] = v
+  if (pk) CW_IN = ""
+}
+# cmdline::passes_stdin: does the stage (W, CW_IN) copy its stdin to its
+# stdout: a filter given no file of its own, or a bare < /dev/stdin?
+function passes(    h, x, t, f) {
+  if (CW_IN != "") return 0
+  if (NW < 1) return 1
+  h = bname(W[1]); f = 0
+  for (x = 2; x <= NW; x++) {
+    t = W[x]; sub(/^\++/, "", t)
+    if (substr(W[x], 1, 1) != "-" && !isstdinpath(W[x]) && t !~ /^[0-9]*$/) f++
+  }
+  if (h == "tr" || h == "tee") return 1
+  if (h ~ /^(cat|head|tail|tac|rev|nl|base64|base32|gunzip|gzip|zcat|bzcat|bzip2|xz|xzcat|unxz|zstd|zstdcat|xxd|sort|uniq|fold|expand|iconv)$/) return f == 0
+  if (h ~ /^(sed|awk|gawk|mawk|grep|egrep|fgrep|cut)$/) return f <= 1
+  if (h == "dd") { for (x = 2; x <= NW; x++) if (substr(W[x], 1, 3) == "if=") return 0; return 1 }
+  if (h == "openssl") { for (x = 2; x <= NW; x++) if (W[x] == "-in") return 0; return 1 }
+  return 0
+}
+# hook.rs xargs_code: where xargs gets the code it runs when it hands the
+# words it reads to inline code of no code of its own ("" when it does
+# not): S (stdin) or F (the file CW_XARGSF).
+function xcode(    fromin, c) {
+  if (CW_XARGS == "") return ""
+  runs(); if (RUNS != "I") return ""
+  inner()
+  if (HASINNER) { c = trim(INNER); fromin = index(INNER, "{}") || c == "$0" || c == "$1" || c == "$@" || c == "$*" }
+  else fromin = (substr(W[NW], 1, 1) == "-")
+  return fromin ? CW_XARGS : ""
+}
+# hook.rs runs_read_code on W: a variable run as code (eval "$l",
+# bash -c "$l"), or python/node/perl/ruby/php inline code that evaluates
+# what it reads on stdin.
+function rrc(    f, code, lc, x) {
+  inner()
+  if (HASINNER && trim(INNER) ~ /^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|[0-9@*])$/) return 1
+  if (NW < 1) return 0
+  f = family(W[1])
+  if (f != "py" && f != "node" && f != "perl" && f != "ruby" && f != "php") return 0
+  runs(); if (RUNS != "I") return 0
+  code = ""; for (x = 2; x <= NW; x++) code = code " " W[x]
+  if (code !~ /(^|[^A-Za-z0-9_])(exec|eval|compile|Function|instance_eval)[ \t\n\r\f\v]*[( \t\n\r\f\v]/) return 0
+  lc = tolower(code)
+  return lc ~ /stdin|readfilesync\([ \t\n\r\f\v]*0|<>|\$<|argf|php:\/\/input|(^|[^a-z0-9_])input\(/
+}
+# hook.rs compound_marks: the groups and compound commands t (at position
+# at of the command) opens (CM_O: {, if, while, until, for, case, select,
+# an unquoted () and closes (CM_C: }, fi, done, esac, an unquoted )).
+function cmarks(t, at, d,    A, n, x, c) {
+  n = toka(t, A)
+  CM_O = (n >= 1 && A[1] ~ /^(\{|if|while|until|for|case|select)$/)
+  CM_C = (n >= 1 && A[1] ~ /^(\}|fi|done|esac)$/)
+  for (x = 1; x <= length(t); x++) {
+    if (Q[d, at + x - 1] != "o") continue
+    c = substr(t, x, 1)
+    if (c == "(") CM_O++
+    else if (c == ")") CM_C++
+  }
+}
+# hook.rs overwrites, in part: the files sed -i, perl -i and ruby -i edit
+# in place (an -i before any option whose value is attached).
+function inplace(h, att,    x, t, k, c) {
+  for (x = 2; x <= NW; x++) {
+    t = W[x]
+    if (t == "--in-place" || substr(t, 1, 11) == "--in-place=") return 1
+    if (substr(t, 1, 1) != "-" || substr(t, 1, 2) == "--") continue
+    for (k = 2; k <= length(t); k++) {
+      c = substr(t, k, 1)
+      if (index(att, c)) break
+      if (c == "i") return 1
+    }
+  }
+  return 0
 }
 # cmdline::interpreter (SHELLS: the shells, a version suffix dropped).
 function family(w,    b) {
@@ -721,6 +867,12 @@ function inner(    b, i, t, flag, valued) {
     if (NW > 1) { INNER = W[2]; for (i = 3; i <= NW; i++) INNER = INNER " " W[i]; HASINNER = 1 }
     return
   }
+  # trap "bash i.sh" EXIT: the shell runs the string when the signal
+  # arrives.
+  if (b == "trap") {
+    if (NW > 2 && substr(W[2], 1, 1) != "-") { INNER = W[2]; HASINNER = 1 }
+    return
+  }
   if (b == "su" || b == "runuser") {
     for (i = 2; i <= NW; i++) {
       t = W[i]
@@ -760,7 +912,7 @@ function djoin(f, d, hd) { if (hd && index(f, "/") == 0) { sub(/\/+$/, "", d); r
 # (curl --output-dir applies to -o and -O, wget -P only to a name from the
 # URL; -O ignores it) (a
 # bare "." for the working directory), F when it writes to stdout.
-function dl(text,    h, wget, i, t, lg, eq, name, att, hasatt, valued, val, hasval, no, OUTS, dir, hasdir, remote, L, k, c, takes, rest, body, j, nm) {
+function dl(text,    h, wget, i, t, lg, eq, name, att, hasatt, valued, val, hasval, no, OUTS, dir, hasdir, remote, L, k, c, takes, rest, body, j, nm, nr) {
   if (NW < 1) return
   h = W[1]; sub(/.*\//, "", h)
   wget = (h == "wget"); if (!wget && h != "curl") return
@@ -798,7 +950,7 @@ function dl(text,    h, wget, i, t, lg, eq, name, att, hasatt, valued, val, hasv
   body = 0
   for (j = 1; j <= no; j++) {
     t = OUTS[j]
-    if (t == "-" || t == "/dev/stdout") body = 1
+    if (isstdoutpath(t)) body = 1
     else if (substr(t, 1, 5) != "/dev/") print "D" US fld(djoin(t, dir, hasdir && !wget))
   }
   if (remote || (wget && no == 0)) {
@@ -807,8 +959,9 @@ function dl(text,    h, wget, i, t, lg, eq, name, att, hasatt, valued, val, hasv
     else if (hasdir) print "D" US fld(dir)
     else print "D" US "."
   } else if (!wget && no == 0) body = 1
-  if (body) for (j = 1; j <= NO; j++) print "D" US fld(CW_OUT[j])
-  if (body && NO == 0) print "F"
+  nr = 0
+  for (j = 1; j <= NO; j++) if (!isstdoutpath(CW_OUT[j])) { nr++; if (body) print "D" US fld(CW_OUT[j]) }
+  if (body && nr == 0) print "F"
 }
 # hook.rs copies: for cp/mv/ln/install/rsync, N (the destination) and a Y
 # record per source file.
@@ -841,7 +994,7 @@ function uncom(s, p, d,    x, L, out) {
 # A stage: its records, then T with its flags (q: it starts inside quotes
 # or a comment; l: the last stage of its pipeline). What it runs is read
 # from tb, the stage without its # comment; the T record keeps it whole.
-function stage(t, tb, k, fl,    x, h) {
+function stage(t, tb, k, fl,    x, h, xc) {
   cwords(tb)
   inner()
   for (x = 1; x <= NO; x++) print "O" US fld(CW_OUT[x])
@@ -851,6 +1004,16 @@ function stage(t, tb, k, fl,    x, h) {
   else if (RUNS == "S") { if (CW_IN == "F") print "X" US fld(CW_INF); print "R" }
   else if (RUNS == "" && NW >= 1 && index(W[1], "/")) print "X" US fld(W[1])
   if (NW >= 1 && family(W[1]) == "src") print "V"
+  # xargs -0 bash -c, xargs -I{} sh -c "{}": the words xargs reads are the
+  # code (from stdin: it runs its stdin; from xargs -a f: it runs f).
+  xc = xcode()
+  if (xc == "S" && CW_IN == "") print "R"
+  else if (xc == "F") print "X" US fld(CW_XARGSF)
+  if (passes()) print "K"
+  # Code that runs what the stage reads on stdin: eval "$l", bash -c "$l",
+  # python3 -c "exec(sys.stdin.read())" (hook.rs runs_read_code), also as
+  # read whole when a separator in its quotes cut the stage short.
+  if (STAGE_RRC || rrc()) print "H"
   dl(t)
   h = W[1]; sub(/.*\//, "", h)
   # Every file argument is read (cat f, head f, base64 -d f); tee also
@@ -865,6 +1028,9 @@ function stage(t, tb, k, fl,    x, h) {
       else if (substr(W[x], 1, 3) == "of=") print "O" US fld(substr(W[x], 4))
     }
   if (NW >= 1) copies(h)
+  # Files edited in place: sed -i, perl -pi, ruby -i.
+  if (NW >= 1 && (((h == "sed" || h == "gsed") && inplace(h, "ef")) || (h == "perl" && inplace(h, "MmxFl0dIeEC")) || (h == "ruby" && inplace(h, "rIxFeE0C"))))
+    for (x = 2; x <= NW; x++) if (substr(W[x], 1, 1) != "-") print "M" US fld(W[x])
   printf "W"; for (x = 1; x <= NW; x++) printf "%s%s", US, fld(W[x]); printf "\n"
   printf "T%s%d%s%s%s%s%s%s%s\n", US, k, US, fl, US, t, US, dq(t), tok(t)
 }
@@ -942,9 +1108,11 @@ function instage(t, at, d,    lead) {
   lead = match(t, "^" WSC "+") ? RLENGTH : 0
   cwords(t); inner()
   if (HASINNER) INN[d, at + lead] = INNER
+  if (rrc()) INR[d, at + lead] = 1
 }
 function innerstr(cmd, d,    n, i, c, nx, pv, w, start, key, kk) {
   for (key in INN) { split(key, kk, SUBSEP); if (kk[1] == d) delete INN[key] }
+  for (key in INR) { split(key, kk, SUBSEP); if (kk[1] == d) delete INR[key] }
   n = length(cmd); start = 1; i = 1
   while (i <= n) {
     c = substr(cmd, i, 1); nx = substr(cmd, i + 1, 1); pv = (i > 1) ? substr(cmd, i - 1, 1) : ""
@@ -990,7 +1158,7 @@ function runsubst(b,    n, t, A, na, x, h) {
 # A segment: S op opens exec text words (exec: 1 when it opens a
 # substitution whose output runs as code), its stages, the bash -c strings
 # they hand over (P ... Q), then E and the ) it closes.
-function seg(s, op, start, depth, ex,    x, c, L, k, n, t, opens, closes, open, IN, ni, lead, at, fl, SS, SO2) {
+function seg(s, op, start, depth, ex,    x, c, L, k, n, t, opens, closes, open, IN, INK, INI, ni, lead, at, fl, SS, SO2, np, PT, PA, y) {
   L = length(s)
   opens = 0
   for (x = 1; x <= L; x++) {
@@ -1017,20 +1185,58 @@ function seg(s, op, start, depth, ex,    x, c, L, k, n, t, opens, closes, open, 
     at = start + SO2[k] - 1 + lead
     t = trim(t)
     if (t == "") continue
-    fl = "-"
-    if (Q[depth, at] != "o") fl = fl "q"
-    if (k == n) fl = fl "l"
-    stage(t, uncom(t, at, depth), k - 1, fl)
-    if (depth < 3) {
-      if ((depth, at) in INN) IN[++ni] = INN[depth, at]
-      else if (HASINNER) IN[++ni] = INNER
+    # A substitution ends at its ): >(bash) >/dev/null runs bash. What
+    # follows belongs to the command around it and is judged as a stage of
+    # its own, flagged t ($(true) npm install evil; hook.rs split_close).
+    np = 1; PT[1] = t; PA[1] = at
+    if (k == 1 && (op == "U" || op == "u")) {
+      splitclose(t, at, depth)
+      PT[1] = SC_HEAD
+      if (SC_TAIL != "") { np = 2; PT[2] = SC_TAIL; PA[2] = SC_TAT }
+    }
+    for (y = 1; y <= np; y++) {
+      if (PT[y] == "") continue
+      fl = "-"
+      if (Q[depth, PA[y]] != "o") fl = fl "q"
+      if (k == n) fl = fl "l"
+      if (y == 2) fl = fl "t"
+      # The groups it opens and closes (not the substitution it starts).
+      if (k == 1 && (op == "U" || op == "u") && y == 1) print "G" US 0 US 0
+      else { cmarks(PT[y], PA[y], depth); print "G" US CM_O US CM_C }
+      STAGE_RRC = ((depth, PA[y]) in INR)
+      stage(PT[y], uncom(PT[y], PA[y], depth), k - 1, fl)
+      if (depth < 3) {
+        # The index of the stage and whether its stdin is inherited, for
+        # the stdin of the string (P).
+        if ((depth, PA[y]) in INN) { IN[++ni] = INN[depth, PA[y]]; INK[ni] = k - 1; INI[ni] = (CW_IN == "") }
+        else if (HASINNER) { IN[++ni] = INNER; INK[ni] = k - 1; INI[ni] = (CW_IN == "") }
+      }
     }
   }
-  for (x = 1; x <= ni; x++) { print "P"; walk(IN[x], 1, depth + 1); print "Q" }
+  for (x = 1; x <= ni; x++) { print "P" US INK[x] US INI[x]; walk(IN[x], 1, depth + 1); print "Q" }
   printf "E%s%d\n", US, closes
 }
+# hook.rs split_close: t (at position at of the command) split at the first
+# ) outside quotes that closes nothing opened in it, into SC_HEAD and
+# SC_TAIL (trimmed; it starts at position SC_TAT).
+function splitclose(t, at, d,    x, c, open, rest, lead) {
+  open = 0; SC_HEAD = t; SC_TAIL = ""; SC_TAT = 0
+  for (x = 1; x <= length(t); x++) {
+    if (Q[d, at + x - 1] != "o") continue
+    c = substr(t, x, 1)
+    if (c == "(") open++
+    else if (c == ")") {
+      if (open > 0) { open--; continue }
+      SC_HEAD = trim(substr(t, 1, x - 1))
+      rest = substr(t, x + 1)
+      lead = match(rest, "^" WSC "+") ? RLENGTH : 0
+      SC_TAIL = trim(rest); SC_TAT = at + x + lead
+      return
+    }
+  }
+}
 # hook.rs pieces: the list segments, each with the operator in front of it
-# (A &&, G a single &, O other, U $( <( >(, B an opening backtick, b a
+# (A &&, G a single &, O other, U $( <(, u >(, B an opening backtick, b a
 # closing one) and
 # where it starts, then each segment.
 function walk(cmd, inherit, depth,    n, i, c, nx, pv, w, op, nop, start, ns, ST, SO, SST, k, ticks, ex) {
@@ -1048,7 +1254,8 @@ function walk(cmd, inherit, depth,    n, i, c, nx, pv, w, op, nop, start, ns, ST
       if (Q[depth, i] == "s" || Q[depth, i] == "c") nop = "O"
       else { ticks++; nop = (ticks % 2) ? "B" : "b" }
     }
-    else if ((c == "$" || c == "<" || c == ">") && nx == "(") { w = 2; nop = "U" }
+    else if ((c == "$" || c == "<") && nx == "(") { w = 2; nop = "U" }
+    else if (c == ">" && nx == "(") { w = 2; nop = "u" }
     if (w) { ST[++ns] = substr(cmd, start, i - start); SO[ns] = op; SST[ns] = start; op = nop; i += w; start = i } else i++
   }
   ST[++ns] = substr(cmd, start); SO[ns] = op; SST[ns] = start
@@ -1073,17 +1280,20 @@ SIGIL_RE='^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*(sudo([[:space:
 # Only the bare `sigil` found on PATH vets anything (hook.rs trusted_sigil):
 # not ./sigil or /tmp/x/sigil, and not with PATH reassigned for it.
 TRUSTED_SIGIL_RE='^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*(sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)?sigil(\.exe)?([[:space:]]|$)'
-# Nor with PATH, HOME or XDG_* (where its state and trust ledger live), or
-# any SIGIL_* setting (SIGIL_POLICY_FILE names a policy the scan trusts), set
-# for it.
-PATH_PREFIX_RE='^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*(PATH|HOME|SIGIL_[A-Z_]*|XDG_[A-Z_]*)[+]?='
+# Nor with PATH, HOME or XDG_* (where its state and trust ledger live), any
+# SIGIL_* setting (SIGIL_POLICY_FILE names a policy the scan trusts), or the
+# loader's LD_* / DYLD_* (LD_PRELOAD loads code into sigil itself), set for
+# it.
+PATH_PREFIX_RE='^[[:space:]]*([A-Za-z0-9_]+=[^[:space:]]*[[:space:]]+)*(PATH|HOME|SIGIL_[A-Z_]*|XDG_[A-Z_]*|LD_[A-Z_]*|DYLD_[A-Z_]*)[+]?='
 # The command can change what sigil runs or what its scan enforces (hook.rs
 # redefines_sigil): a sigil function or alias, a builtin named sigil, hash -p,
-# PATH, HOME or a SIGIL_* setting reassigned, or a Sigil policy file named
-# (.sigil.yml in the working directory is trusted). Then no sigil call in it
+# PATH, HOME, a SIGIL_* setting or LD_* / DYLD_* reassigned, a Sigil policy
+# file named (.sigil.yml in the working directory is trusted), `sigil
+# approve` or `sigil known-good` (both let content pass a later scan), or a
+# write into sigil's state directory (~/.sigil/). Then no sigil call in it
 # vets anything. (A sourced file can do
 # the same; that counts from the `source` on: the V record below.)
-REDEFINE_RE='(^|[[:space:];&|(){}])(function[[:space:]]+sigil([[:space:]]|[(]|$)|sigil[[:space:]]*[(][[:space:]]*[)]|alias([[:space:]]+[^[:space:];&|]+)*[[:space:]]+['\''"]?sigil['\''"]?=|hash[[:space:]]+-p[[:space:]]|enable([[:space:]]+[^[:space:];&|]+)*[[:space:]]+sigil([[:space:];&|]|$)|((export|declare|typeset|local|readonly)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*([^[:space:];&|]+[[:space:]]+)*)?(PATH|HOME|SIGIL_[A-Z_]*)[+]?=)|[sS][iI][gG][iI][lL][.][yY][aA]?[mM][lL]'
+REDEFINE_RE='(^|[[:space:];&|(){}])(function[[:space:]]+sigil([[:space:]]|[(]|$)|sigil[[:space:]]*[(][[:space:]]*[)]|alias([[:space:]]+[^[:space:];&|]+)*[[:space:]]+['\''"]?sigil['\''"]?=|hash[[:space:]]+-p[[:space:]]|enable([[:space:]]+[^[:space:];&|]+)*[[:space:]]+sigil([[:space:];&|]|$)|((export|declare|typeset|local|readonly)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*([^[:space:];&|]+[[:space:]]+)*)?(PATH|HOME|SIGIL_[A-Z_]*|LD_[A-Z_]*|DYLD_[A-Z_]*)[+]?=|([^[:space:]]*/)?sigil([.]exe)?([[:space:]]+-[^[:space:]]+)*[[:space:]]+(approve|known-good)([[:space:];&|)]|$))|[.]sigil/|[sS][iI][gG][iI][lL][.][yY][aA]?[mM][lL]'
 # Stages hook.rs classify_stage settles before the checks below: agent-CLI
 # acquisition, matched after any word boundary as agent_acquisition does,
 # and a package runner in command position (RUNNER_PAT: the start of the
@@ -1218,37 +1428,34 @@ github_url() {
   esac
 }
 
-# weak_vet TOKENS (after `sigil <sub>`): an option that lets a scan of
-# hostile code pass (hook.rs vetting_targets): help instead of a scan, a
-# threshold other than low/medium/high, a subset of phases, a policy file
-# or baseline of the command's choosing.
-weak_vet() {
-  while [ $# -gt 0 ]; do
-    wv_f=$1
-    shift
-    wv_v=${1-}
-    wv_has=0; [ $# -gt 0 ] && wv_has=1
-    case $wv_f in
-      --*=*) wv_v=${wv_f#*=}; wv_f=${wv_f%%=*}; wv_has=1 ;;
-    esac
-    case $wv_f in
-      -h|--help|--config|--baseline) return 0 ;;
-      --fail-on|-s|--severity)
-        [ $wv_has = 1 ] || return 0
-        case $wv_v in
-          [Ll][Oo][Ww]|[Mm][Ee][Dd][Ii][Uu][Mm]|[Hh][Ii][Gg][Hh]) ;;
-          *) return 0 ;;
-        esac ;;
-      -p|--phases)
-        [ $wv_has = 1 ] || return 0
-        case $wv_v in [Aa][Ll][Ll]) ;; *) return 0 ;; esac ;;
-    esac
-  done
+# vet_opt FLAG HAS VALUE: one option of a `sigil <sub>` call (a short one
+# named by its letter). Succeeds when it lets a scan of hostile code pass
+# (hook.rs vetting_targets): help instead of a scan, a threshold other than
+# low/medium/high, a subset of phases, a policy file or baseline of the
+# command's choosing. Records -V/--version and -b/--branch.
+vet_opt() {
+  case $1 in
+    h|--help|--config|--baseline) return 0 ;;
+    --fail-on|s|--severity)
+      [ "$2" = 1 ] || return 0
+      case $3 in
+        [Ll][Oo][Ww]|[Mm][Ee][Dd][Ii][Uu][Mm]|[Hh][Ii][Gg][Hh]) ;;
+        *) return 0 ;;
+      esac ;;
+    p|--phases)
+      [ "$2" = 1 ] || return 0
+      case $3 in [Aa][Ll][Ll]) ;; *) return 0 ;; esac ;;
+    V|--version) vt_ver=$3 ;;
+    b|--branch) vt_branch=$3 ;;
+  esac
   return 1
 }
 
 # vet_targets TOKENS: record what a `sigil scan|clone|pip|npm` stage vets,
-# typed as hook.rs Target (npm:, pypi:, repo:, path:).
+# typed as hook.rs Target (npm:, pypi:, repo:, path:). Options are read as
+# clap reads them: a short one's value attached (-pnetwork), after =
+# (-s=critical) or the next word, also at the end of a bundle (-vp x); a
+# long one's after = or the next word.
 vet_targets() {
   while [ $# -gt 0 ]; do
     vt_b=${1##*/}
@@ -1259,18 +1466,33 @@ vet_targets() {
   vt_sub=$2
   shift 2
   case $vt_sub in scan|clone|pip|npm) ;; *) return 0 ;; esac
-  weak_vet "$@" && return 0
-  vt_names=''; vt_ver=''; vt_branch=''
+  vt_names=''; vt_ver=''; vt_branch=''; vt_ops=0
   while [ $# -gt 0 ]; do
     vt_t=$1
     shift
+    if [ $vt_ops = 1 ]; then unquote "$vt_t"; vt_names=$vt_names$US$R; continue; fi
     case $vt_t in
-      -V|--version) vt_ver=''; [ $# -gt 0 ] && { vt_ver=$1; shift; } ;;
-      --version=*) vt_ver=${vt_t#*=} ;;
-      -b|--branch) vt_branch=''; [ $# -gt 0 ] && { vt_branch=$1; shift; } ;;
-      -f|--format|-p|--phases|-s|--severity|--fail-on|--baseline|-o|--output|--policy|--rules|--config)
-        [ $# -gt 0 ] && shift ;;
-      -*) ;;
+      --) vt_ops=1 ;;
+      --*=*) vet_opt "${vt_t%%=*}" 1 "${vt_t#*=}" && return 0 ;;
+      --format|--phases|--severity|--fail-on|--fail-on-verdict|--branch|--baseline|--output|--policy|--rules|--config|--version)
+        if [ $# -gt 0 ]; then vt_v=$1; shift; vet_opt "$vt_t" 1 "$vt_v" && return 0
+        else vet_opt "$vt_t" 0 '' && return 0; fi ;;
+      --*) vet_opt "$vt_t" 0 '' && return 0 ;;
+      -?*)
+        vt_bd=${vt_t#-}
+        while [ -n "$vt_bd" ]; do
+          vt_c=${vt_bd%"${vt_bd#?}"}
+          vt_bd=${vt_bd#?}
+          case $vt_c in
+            [psfobV])
+              vt_bd=${vt_bd#=}
+              if [ -n "$vt_bd" ]; then vet_opt "$vt_c" 1 "$vt_bd" && return 0
+              elif [ $# -gt 0 ]; then vt_v=$1; shift; vet_opt "$vt_c" 1 "$vt_v" && return 0
+              else vet_opt "$vt_c" 0 '' && return 0; fi
+              break ;;
+            *) vet_opt "$vt_c" 0 '' && return 0 ;;
+          esac
+        done ;;
       *) unquote "$vt_t"; vt_names=$vt_names$US$R ;;
     esac
   done
@@ -1658,14 +1880,19 @@ check_variant() {
 # runs remote code or writes into agent tooling and the && chain before it
 # did not vet it. Uses the stage's records (ST_*) and the segment's
 # (SEG_*). FLAGS: q, the stage starts inside quotes or a comment; l, it is
-# the last stage of its pipeline.
+# the last stage of its pipeline; t, it is what follows a substitution's ).
 judge_stage() {
   st_k=${1-0}; st_fl=${2-}; st_raw=${3-}; st_dq=${4-}
+  # The segment opens a substitution whose output runs as code; not for the
+  # words after its ) (flag t), which belong to the command around it.
+  st_exec=$SEG_EXEC
+  case $st_fl in *t*) st_exec=0 ;; esac
   if [ $# -ge 4 ]; then shift 4; else set --; fi
   case $st_raw in
     *sigil*)
       if has_in "$st_raw" "$SIGIL_RE"; then
         SIGIL_SEEN=1
+        JS_SIGIL=1
         # A vetting call gates what follows it with && only when it is the
         # real sigil, outside quotes and substitutions, and the pipeline's
         # exit status is its own (the last stage: `sigil scan x | tee log`
@@ -1734,12 +1961,21 @@ judge_stage() {
     if in_list "$DOWNLOADS" "$st_f"; then st_rdl=$st_f; break; fi
   done
   IFS=$IFS_DEFAULT
-  # An interpreter that runs what comes down the pipe, after a download
+  # A program that runs what comes down its stdin (an interpreter, a shell
+  # `sudo -s` or `su` starts, inline code xargs fills in), after a download
   # written to it: `curl … | base64 -d | sh`, `curl … | (bash)`,
-  # `curl … | node -r x`. Never gated.
+  # `curl … | node -r x`, `curl … | sudo -s`, `curl … | tee >(bash)`,
+  # `curl … | sh -c 'source /dev/stdin'`. Or a substitution that prints
+  # its stdin, the download, as code: `curl … | bash -c "$(cat)"`. Never
+  # gated.
+  st_runs=0
+  [ -z "$ST_INK" ] && { [ "$ST_R" = 1 ] || [ "$ST_H" = 1 ]; } && st_runs=1
   st_rpipe=0
-  [ "$st_k" -gt 0 ] && [ -z "$ST_INK" ] && [ "$ST_R" = 1 ] && st_rpipe=1
-  if [ -z "$ST_DENY" ] && [ $st_rpipe = 1 ] && [ "$SEG_FED" = 1 ]; then
+  [ "$st_k" -gt 0 ] && [ $st_runs = 1 ] && st_rpipe=1
+  st_pdeny=0
+  [ $st_runs = 1 ] && [ "$SEG_FED" = 1 ] && st_pdeny=1
+  [ "$st_exec" = 1 ] && [ "$st_k" = 0 ] && [ "$SEG_FED" = 1 ] && [ "$ST_K" = 1 ] && st_pdeny=1
+  if [ -z "$ST_DENY" ] && [ $st_pdeny = 1 ]; then
     first_url "$CMD"
     if [ -n "$R" ]; then
       ST_DENY="Piping a download into an interpreter executes unscanned code. Use: sigil scan $R — or download it (curl -fsSLo script.sh $R), run sigil scan script.sh, then run the file you scanned. $BYPASS_HINT"
@@ -1773,7 +2009,7 @@ judge_stage() {
   fi
   # `eval "$(cat i.sh)"`, `bash <(cat i.sh)`: a substitution whose output
   # runs as code, printing a downloaded file.
-  if [ "$SEG_EXEC" = 1 ] && [ -n "$st_rdl" ]; then
+  if [ "$st_exec" = 1 ] && [ -n "$st_rdl" ]; then
     if gated "path:$st_rdl"; then
       GATED_REASON="Gated by a preceding sigil check on the same target"
     else
@@ -1783,17 +2019,15 @@ judge_stage() {
   # The download, passed on: `curl … | tee f`, `curl … | sed … > f`,
   # `cat i.sh > j.sh`.
   st_carried=0
-  if [ "$st_k" -gt 0 ]; then
-    if [ "$SEG_FED" = 1 ]; then
-      st_carried=1
-    else
-      IFS=$NL
-      for st_f in $SEG_SOURCES; do
-        IFS=$IFS_DEFAULT
-        if in_list "$DOWNLOADS" "$st_f"; then st_carried=1; break; fi
-      done
+  if [ "$SEG_FED" = 1 ]; then
+    st_carried=1
+  elif [ "$st_k" -gt 0 ]; then
+    IFS=$NL
+    for st_f in $SEG_SOURCES; do
       IFS=$IFS_DEFAULT
-    fi
+      if in_list "$DOWNLOADS" "$st_f"; then st_carried=1; break; fi
+    done
+    IFS=$IFS_DEFAULT
   fi
   if [ $st_carried = 1 ] || [ -n "$st_rdl" ]; then
     st_piped=$ST_OUTS
@@ -1804,7 +2038,7 @@ judge_stage() {
       case $st_f in /dev/*) continue ;; esac
       canon "$st_f"
       st_p=$R
-      if [ -z "$ST_DENY" ] && [ "$SEG_FED" = 1 ] && [ "$st_k" -gt 0 ] && agent_path "$st_p"; then
+      if [ -z "$ST_DENY" ] && [ "$SEG_FED" = 1 ] && agent_path "$st_p"; then
         first_url "$SEG_TEXT"
         ST_DENY="Downloads into agent tooling ($st_p) with no scan. Use: sigil scan ${R:-<url>} — it downloads into quarantine and scans first. $BYPASS_HINT"
       fi
@@ -1830,6 +2064,32 @@ judge_stage() {
     done
     IFS=$IFS_DEFAULT
   fi
+  # A file downloaded earlier and written again — edited in place (sed -i,
+  # perl -pi), appended to, overwritten or replaced by a copy — holds other
+  # bytes than a scan of it read: the scan no longer vets it (hook.rs
+  # overwrites).
+  st_ow=$ST_OUTS$NL$ST_Z$NL$ST_M
+  if [ -n "$ST_N" ]; then
+    canon "$ST_N"
+    st_dest=$R
+    st_ow=$st_ow$NL$st_dest
+    IFS=$NL
+    for st_f in $ST_Y; do
+      IFS=$IFS_DEFAULT
+      [ -n "$st_f" ] || continue
+      canon "$st_f"
+      st_ow=$st_ow$NL${st_dest%/}/${R##*/}
+    done
+    IFS=$IFS_DEFAULT
+  fi
+  IFS=$NL
+  for st_f in $st_ow; do
+    IFS=$IFS_DEFAULT
+    case $st_f in ''|/dev/*) continue ;; esac
+    canon "$st_f"
+    in_list "$DOWNLOADS" "$R" && st_files=${st_files:+$st_files$NL}$R
+  done
+  IFS=$IFS_DEFAULT
   [ -n "$ST_DENY" ] && deny "$ST_DENY"
   [ "$ST_F" = 1 ] && SEG_FED=1
   [ -n "$st_reads" ] && SEG_SOURCES=${SEG_SOURCES:+$SEG_SOURCES$NL}$st_reads
@@ -1903,7 +2163,8 @@ legacy_targets() {
 
 st_reset() {
   ST_OUTS=''; ST_IN=''; ST_INK=''; ST_X=''; ST_R=0; ST_D=''; ST_F=0
-  ST_C=''; ST_Z=''; ST_W=''; ST_N=''; ST_Y=''; ST_V=0
+  ST_C=''; ST_Z=''; ST_W=''; ST_N=''; ST_Y=''; ST_V=0; ST_K=0; ST_M=''; ST_H=0
+  ST_OPENS=0; ST_CLOSES=0
 }
 
 # grp_pop: close a `( … )` group or a substitution (both subshells),
@@ -2000,6 +2261,7 @@ OLD_CWD=''; OLD_SET=0
 DEPTH=0
 NOVET=0
 SEG_TEXT=''; SEG_FED=0; SEG_SOURCES=''; SEG_EXEC=0; SEG_INSUB=0
+STDIN_FED=0; SEG_PFED=0; LAST_IN=0; LAST_OUT=0; SEG_FEDIN_K=' '; FED_DEPTH=''
 st_reset
 IFS=$NL
 for REC in $LEX; do
@@ -2021,9 +2283,19 @@ for REC in $LEX; do
       [ "${1-}" = G ] && CUR_CWD=$LIST_CWD
       case ${1-} in O|G) GATES=''; LIST_CWD=$CUR_CWD ;; esac
       case ${1-} in
-        U|B) GRP_STACK=$GRP_STACK$NL=$CUR_CWD ;;
+        U|u|B) GRP_STACK=$GRP_STACK$NL=$CUR_CWD ;;
         b) grp_pop ;;
       esac
+      # What the segment reads on stdin: a substitution reads what the
+      # command around it gives it (its stdin for $( <( and backticks, its
+      # output for >( ); anything else, the command line's own stdin (the
+      # download, for the string of a `bash -c` fed from one).
+      case ${1-} in
+        U|B) SEG_PFED=$LAST_IN ;;
+        u) SEG_PFED=$LAST_OUT ;;
+        *) SEG_PFED=$STDIN_FED; [ -n "$FED_DEPTH" ] && SEG_PFED=1 ;;
+      esac
+      LAST_IN=0; LAST_OUT=0; SEG_FEDIN_K=' '
       rc_n=${2-0}
       while [ "$rc_n" -gt 0 ]; do GRP_STACK=$GRP_STACK$NL+$CUR_CWD; rc_n=$((rc_n - 1)); done
       # Inside a substitution no sigil call vets: its status is not the
@@ -2031,7 +2303,7 @@ for REC in $LEX; do
       SEG_INSUB=$NOVET
       case "$NL$GRP_STACK" in *"$NL="*) SEG_INSUB=1 ;; esac
       SEG_EXEC=${3-0}
-      SEG_TEXT=${4-}; SEG_FED=0; SEG_SOURCES=''
+      SEG_TEXT=${4-}; SEG_FED=$SEG_PFED; SEG_SOURCES=''
       if [ $# -ge 4 ]; then shift 4; else set --; fi
       SKIP_SEG=0
       # `cd dir`, `pushd dir`, `popd`: where later segments run.
@@ -2050,22 +2322,51 @@ for REC in $LEX; do
     Y) ST_Y=$ST_Y$NL${1-} ;;
     W) ST_W=${REC#W"$US"}; [ "$REC" = W ] && ST_W='' ;;
     V) ST_V=1 ;;
+    K) ST_K=1 ;;
+    H) ST_H=1 ;;
+    G) ST_OPENS=${1-0}; ST_CLOSES=${2-0} ;;
+    M) ST_M=$ST_M$NL${1-} ;;
     T)
-      [ $SKIP_SEG = 1 ] || judge_stage "$@"
+      # Whether the stage's stdin carries a download, before judging it.
+      ST_FEDIN=0
+      [ "$SEG_FED" = 1 ] && [ -z "$ST_INK" ] && ST_FEDIN=1
+      ST_FEDB=$SEG_FED
+      JS_SIGIL=0
+      if [ $SKIP_SEG = 0 ]; then
+        judge_stage "$@"
+        if [ "$JS_SIGIL" = 0 ]; then
+          [ $ST_FEDIN = 1 ] && SEG_FEDIN_K="$SEG_FEDIN_K${1-} "
+          # A substitution that closes the segment opens in its last stage.
+          case ${2-} in *l*) LAST_IN=$ST_FEDIN; LAST_OUT=$SEG_FED ;; esac
+        fi
+        # A compound command whose stdin is a download (`curl … | { echo;
+        # bash; }`, `… | while read l; do eval "$l"; done`): every command
+        # in it reads that stdin, until it closes (FED_DEPTH: how many of
+        # the groups opened since are open).
+        if [ -n "$FED_DEPTH" ]; then
+          FED_DEPTH=$((FED_DEPTH + ST_OPENS - ST_CLOSES))
+          [ "$FED_DEPTH" -gt 0 ] || FED_DEPTH=''
+        elif [ "$ST_FEDB" = 1 ] && [ "$ST_OPENS" -gt "$ST_CLOSES" ]; then
+          FED_DEPTH=$((ST_OPENS - ST_CLOSES))
+        fi
+      fi
       # A sourced file can define a sigil function or change PATH: no sigil
       # call after it vets anything.
       [ "$ST_V" = 1 ] && [ $SKIP_SEG = 0 ] && UNTRUSTED=1
       st_reset ;;
     P)
-      # A `bash -c` string: its own `cd`s and groups end with it.
+      # A `bash -c` string: its own `cd`s and groups end with it. It reads
+      # the stdin of the stage that hands it over (P k inherits).
       DEPTH=$((DEPTH + 1))
       # A string handed over inside a substitution vets nothing either.
-      eval "FR_CWD_$DEPTH=\$CUR_CWD; FR_GRP_$DEPTH=\$GRP_STACK; FR_NOVET_$DEPTH=\$NOVET; FR_INSUB_$DEPTH=\$SEG_INSUB; FR_LIST_$DEPTH=\$LIST_CWD"
+      eval "FR_CWD_$DEPTH=\$CUR_CWD; FR_GRP_$DEPTH=\$GRP_STACK; FR_NOVET_$DEPTH=\$NOVET; FR_INSUB_$DEPTH=\$SEG_INSUB; FR_LIST_$DEPTH=\$LIST_CWD; FR_SFED_$DEPTH=\$STDIN_FED; FR_LIN_$DEPTH=\$LAST_IN; FR_LOUT_$DEPTH=\$LAST_OUT; FR_FEDK_$DEPTH=\$SEG_FEDIN_K; FR_FDEP_$DEPTH=\$FED_DEPTH"
       NOVET=$SEG_INSUB
       LIST_CWD=$CUR_CWD
+      STDIN_FED=0; FED_DEPTH=''
+      case "$SEG_FEDIN_K" in *" ${1-x} "*) [ "${2-0}" = 1 ] && STDIN_FED=1 ;; esac
       GRP_STACK='' ;;
     Q)
-      eval "CUR_CWD=\$FR_CWD_$DEPTH; GRP_STACK=\$FR_GRP_$DEPTH; NOVET=\$FR_NOVET_$DEPTH; SEG_INSUB=\$FR_INSUB_$DEPTH; LIST_CWD=\$FR_LIST_$DEPTH"
+      eval "CUR_CWD=\$FR_CWD_$DEPTH; GRP_STACK=\$FR_GRP_$DEPTH; NOVET=\$FR_NOVET_$DEPTH; SEG_INSUB=\$FR_INSUB_$DEPTH; LIST_CWD=\$FR_LIST_$DEPTH; STDIN_FED=\$FR_SFED_$DEPTH; LAST_IN=\$FR_LIN_$DEPTH; LAST_OUT=\$FR_LOUT_$DEPTH; SEG_FEDIN_K=\$FR_FEDK_$DEPTH; FED_DEPTH=\$FR_FDEP_$DEPTH"
       DEPTH=$((DEPTH - 1)) ;;
     E)
       rc_n=${1-0}

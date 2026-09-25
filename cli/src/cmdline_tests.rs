@@ -416,3 +416,85 @@ fn pipes_read_per_interpreter_and_through_the_pipe_itself() {
         assert!(!pipes_download_to_interpreter(s), "{s}");
     }
 }
+
+#[test]
+fn shells_wrappers_and_xargs_as_the_shell_runs_them() {
+    let w = |s: &str| command_words(s).words;
+    // A shell started with nothing to run reads its commands from stdin.
+    for s in [
+        "sudo -s",
+        "sudo -i",
+        "sudo -E -s",
+        "sudo --login",
+        "doas -s",
+        "su",
+        "su -",
+        "sudo su root",
+        "runuser root",
+    ] {
+        assert_eq!(w(s), ["sh"], "{s}");
+    }
+    assert_eq!(w("sudo -s bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("su -c 'x' root"), ["su", "-c", "x", "root"]);
+    // A wrapper whose option is a command line for a shell.
+    assert_eq!(w("flock /tmp/l -c 'bash i.sh'"), ["sh", "-c", "bash i.sh"]);
+    assert_eq!(w("flock -w 5 /tmp/l bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(
+        w("script -qc 'bash i.sh' /dev/null"),
+        ["sh", "-c", "bash i.sh"]
+    );
+    assert_eq!(
+        w("runuser -l root -c 'bash i.sh'"),
+        ["sh", "-c", "bash i.sh"]
+    );
+    assert_eq!(w("runuser -u root -- bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("runuser -u root bash i.sh"), ["bash", "i.sh"]);
+    // Operands before the command.
+    assert_eq!(w("chroot / bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("taskset -c 0-3 bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("chrt -f 10 bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("strace -f -o t.log bash i.sh"), ["bash", "i.sh"]);
+    assert_eq!(w("watch -n 1 bash i.sh"), ["bash", "i.sh"]);
+    assert!(w("taskset -p 1234").is_empty());
+    // Where xargs reads the words it appends.
+    let x = |s: &str| command_words(s).xargs;
+    assert_eq!(x("xargs -0 bash -c"), Some(Stdin::Inherit));
+    assert_eq!(x("xargs -a i.sh sh -c"), Some(Stdin::File("i.sh".into())));
+    assert_eq!(x("xargs -ai.sh sh -c"), Some(Stdin::File("i.sh".into())));
+    assert_eq!(
+        x("xargs --arg-file=i.sh sh -c"),
+        Some(Stdin::File("i.sh".into()))
+    );
+    assert_eq!(x("bash -c x"), None);
+}
+
+#[test]
+fn filters_that_pass_stdin_on() {
+    let p = |s: &str| passes_stdin(&command_words(s));
+    for s in [
+        "cat",
+        "cat -",
+        "cat /dev/stdin",
+        "head -n 5",
+        "tail -n +2",
+        "base64 -d",
+        "tr -d '\\r'",
+        "sed 's/a/b/'",
+        "gunzip",
+        "dd bs=1M",
+        "</dev/stdin",
+    ] {
+        assert!(p(s), "{s}");
+    }
+    for s in [
+        "cat i.sh",
+        "head -n 5 i.sh",
+        "sed 's/a/b/' i.sh",
+        "date",
+        "cat < i.sh",
+        "dd if=i.sh",
+        "curl https://x.io/i.sh",
+    ] {
+        assert!(!p(s), "{s}");
+    }
+}

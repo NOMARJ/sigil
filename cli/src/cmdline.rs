@@ -131,6 +131,15 @@ pub fn is_stdin_path(p: &str) -> bool {
     )
 }
 
+/// Paths that name a process's own stdout: writing to one writes to the
+/// pipe (`curl … -o /dev/fd/1 | …`, `curl … > /dev/stdout | …`).
+pub fn is_stdout_path(p: &str) -> bool {
+    matches!(
+        p,
+        "-" | "/dev/stdout" | "/dev/fd/1" | "/proc/self/fd/1" | "/proc/$$/fd/1"
+    )
+}
+
 /// Parse a word as a redirection: the operator starts the word, after an
 /// optional descriptor number (`2>`) or `&` (`&>`). A word with another `<`
 /// or `>` after the operator is a documentation placeholder
@@ -201,6 +210,11 @@ pub struct Words {
     pub stdin: Stdin,
     /// Files stdout is written to (`> f`, `>> f`, `1> f`, `&> f`).
     pub stdout: Vec<String>,
+    /// The command runs behind `xargs`, which reads the words it appends
+    /// from here: stdin, or the file of `-a f` / `--arg-file f`. With an
+    /// inline-code interpreter and no code of its own (`xargs -0 bash -c`,
+    /// `xargs -I{} sh -c '{}'`), those words are the code it runs.
+    pub xargs: Option<Stdin>,
 }
 
 fn is_assignment(t: &str) -> bool {
@@ -211,13 +225,19 @@ fn is_assignment(t: &str) -> bool {
 /// A command that runs its remaining arguments as another command: its
 /// short options that take a value, long options that take the next word
 /// as a value, short options after which no command runs, the operands it
-/// takes before the command, and whether `VAR=value` words may come first.
+/// takes before the command, whether `VAR=value` words may come first, the
+/// short options whose value is a command line for a shell (`flock -c
+/// '…'`, `script -c '…'`), and the short options that start a shell of
+/// their own when no command follows (`sudo -s`, `sudo -i`, `doas -s`),
+/// which then reads its commands from stdin.
 struct Wrapper {
     short_valued: &'static str,
     long_valued: &'static [&'static str],
     no_command: &'static str,
     operands: usize,
     assignments: bool,
+    string_opt: &'static str,
+    shell_opt: &'static str,
 }
 
 fn wrapper(head: &str) -> Option<Wrapper> {
@@ -227,29 +247,37 @@ fn wrapper(head: &str) -> Option<Wrapper> {
         no_command,
         operands,
         assignments,
+        string_opt: "",
+        shell_opt: "",
     };
     const NONE: &[&str] = &[];
     Some(match head {
-        "sudo" => w(
-            "ugCDhprtTUR",
-            &[
-                "--user",
-                "--group",
-                "--close-from",
-                "--chdir",
-                "--host",
-                "--prompt",
-                "--role",
-                "--type",
-                "--command-timeout",
-                "--other-user",
-                "--chroot",
-            ],
-            "lveVK",
-            0,
-            true,
-        ),
-        "doas" => w("u", NONE, "CL", 0, false),
+        "sudo" => Wrapper {
+            shell_opt: "si",
+            ..w(
+                "ugCDhprtTUR",
+                &[
+                    "--user",
+                    "--group",
+                    "--close-from",
+                    "--chdir",
+                    "--host",
+                    "--prompt",
+                    "--role",
+                    "--type",
+                    "--command-timeout",
+                    "--other-user",
+                    "--chroot",
+                ],
+                "lveVK",
+                0,
+                true,
+            )
+        },
+        "doas" => Wrapper {
+            shell_opt: "s",
+            ..w("u", NONE, "CL", 0, false)
+        },
         "env" => w(
             "uCS",
             &["--unset", "--chdir", "--split-string"],
@@ -258,7 +286,7 @@ fn wrapper(head: &str) -> Option<Wrapper> {
             true,
         ),
         "command" => w("", NONE, "vV", 0, false),
-        "builtin" | "nohup" | "busybox" | "setsid" => w("", NONE, "", 0, false),
+        "builtin" | "nohup" | "busybox" | "setsid" | "setpriv" => w("", NONE, "", 0, false),
         "exec" => w("a", NONE, "", 0, false),
         "time" => w("fo", &["--format", "--output"], "", 0, false),
         "nice" => w("n", &["--adjustment"], "", 0, false),
@@ -287,6 +315,48 @@ fn wrapper(head: &str) -> Option<Wrapper> {
             0,
             false,
         ),
+        // `flock /tmp/l bash i.sh`, `flock /tmp/l -c 'bash i.sh'`.
+        "flock" => Wrapper {
+            string_opt: "c",
+            ..w("wE", &["--timeout", "--conflict-exit-code"], "hV", 1, false)
+        },
+        // `chroot / bash i.sh`, `taskset -c 0 bash i.sh`, `chrt -f 9 bash
+        // i.sh`: an operand (the root, the CPU mask, the priority) first.
+        "chroot" => w("", &["--userspec", "--groups"], "", 1, false),
+        "taskset" => w("", NONE, "p", 1, false),
+        "chrt" => w("T", NONE, "pm", 1, false),
+        "unshare" => w("SGRw", NONE, "", 0, false),
+        "strace" | "ltrace" => w("eopsuEaIbOPSXnlwAL", NONE, "hV", 0, false),
+        // `watch -n 1 bash i.sh` runs its words as a command line.
+        "watch" => w("n", &["--interval"], "hv", 0, false),
+        // `script -qc 'bash i.sh' /dev/null`, `sg grp -c 'bash i.sh'`.
+        "script" => Wrapper {
+            string_opt: "c",
+            ..w("EIOTBmo", NONE, "hV", 0, false)
+        },
+        "sg" => Wrapper {
+            string_opt: "c",
+            ..w("", NONE, "", 1, false)
+        },
+        // `runuser -u root -- bash i.sh`, `runuser -l root -c 'bash i.sh'`;
+        // with no -u, the user is an operand, and with no command a shell
+        // runs, as for su.
+        "runuser" => Wrapper {
+            string_opt: "c",
+            ..w(
+                "ugGsw",
+                &[
+                    "--user",
+                    "--group",
+                    "--supp-group",
+                    "--shell",
+                    "--whitelist-environment",
+                ],
+                "hV",
+                1,
+                false,
+            )
+        },
         _ => return None,
     })
 }
@@ -363,6 +433,9 @@ pub fn command_words(stage: &str) -> Words {
     }
     // Assignments and wrapper commands.
     let mut i = 0;
+    // A `sudo -s`/`sudo -i`/`doas -s` seen: with no command after it, a
+    // shell runs, reading its commands from stdin.
+    let mut shell = false;
     loop {
         while words.get(i).is_some_and(|t| is_assignment(t)) {
             i += 1;
@@ -373,12 +446,41 @@ pub fn command_words(stage: &str) -> Words {
         let Some(w) = wrapper(&head) else {
             break;
         };
+        if head == "xargs" {
+            out.xargs = Some(Stdin::Inherit);
+        }
         let mut j = i + 1;
         let mut operands = w.operands;
+        if head == "runuser" {
+            let named = words[j..]
+                .iter()
+                .any(|t| t == "-u" || t == "--user" || t.starts_with("--user="));
+            if named {
+                operands = 0;
+            } else {
+                shell = true;
+            }
+        }
         while let Some(t) = words.get(j).cloned() {
             if t == "--" {
                 j += 1;
                 break;
+            }
+            if head == "xargs" {
+                // `xargs -a f`, `xargs -af`, `xargs --arg-file=f`.
+                let file = match t.as_str() {
+                    "-a" | "--arg-file" => words.get(j + 1).cloned(),
+                    _ => t
+                        .strip_prefix("--arg-file=")
+                        .or_else(|| t.strip_prefix("-a"))
+                        .map(str::to_string),
+                };
+                if let Some(f) = file.filter(|f| !f.is_empty()) {
+                    out.xargs = Some(Stdin::File(f));
+                }
+            }
+            if head == "sudo" && matches!(t.as_str(), "--shell" | "--login") {
+                shell = true;
             }
             if head == "env" && (t == "--split-string" || t.starts_with("--split-string=")) {
                 // `env --split-string='bash -e' i.sh`, as `-S`.
@@ -393,6 +495,14 @@ pub fn command_words(stage: &str) -> Words {
                 continue;
             }
             if t.starts_with("--") {
+                if !w.string_opt.is_empty() && (t == "--command" || t.starts_with("--command=")) {
+                    // `flock l --command 'bash i.sh'`: a shell runs the string.
+                    let value = match t.split_once('=') {
+                        Some((_, v)) => v.to_string(),
+                        None => words.get(j + 1).cloned().unwrap_or_default(),
+                    };
+                    return shell_string(out, pipe_kept, value);
+                }
                 let valued = !t.contains('=') && w.long_valued.contains(&t.as_str());
                 j += if valued { 2 } else { 1 };
                 continue;
@@ -403,6 +513,17 @@ pub fn command_words(stage: &str) -> Words {
                 for (k, c) in flags.iter().enumerate() {
                     if w.no_command.contains(*c) {
                         return out;
+                    }
+                    if w.shell_opt.contains(*c) {
+                        shell = true;
+                    }
+                    if w.string_opt.contains(*c) {
+                        let attached: String = flags[k + 1..].iter().collect();
+                        let value = match attached.as_str() {
+                            "" => words.get(j + 1).cloned().unwrap_or_default(),
+                            _ => attached,
+                        };
+                        return shell_string(out, pipe_kept, value);
                     }
                     if !w.short_valued.contains(*c) {
                         continue;
@@ -442,6 +563,63 @@ pub fn command_words(stage: &str) -> Words {
         i = j;
     }
     out.words = words.split_off(i.min(words.len()));
+    // `sudo -s`, `sudo -i`, `doas -s` with nothing to run, and `su` with no
+    // `-c`: a shell that reads its commands from stdin.
+    let su_shell = out.words.first().is_some_and(|h| basename(h) == "su")
+        && !out.words[1..]
+            .iter()
+            .any(|t| t == "-c" || t == "--command" || t.starts_with("--command="));
+    if out.words.is_empty() && shell || su_shell {
+        out.words = vec!["sh".to_string()];
+    }
+    if pipe_kept {
+        out.stdin = Stdin::Inherit;
+    }
+    out
+}
+
+/// Does this command (as [`command_words`] gives it) copy its stdin to its
+/// stdout, transformed or not: a filter given no file of its own (`cat`,
+/// `cat -`, `head -n 5`, `base64 -d`, `tr -d '\r'`, `sed 's/a/b/'`), or a
+/// bare `< /dev/stdin`. `$(cat)` in a stage fed from a download prints the
+/// download.
+pub fn passes_stdin(w: &Words) -> bool {
+    if w.stdin != Stdin::Inherit {
+        return false;
+    }
+    let Some(head) = w.words.first() else {
+        return true; // `$(</dev/stdin)`, or nothing at all
+    };
+    // Operands other than stdin itself and option values that are numbers
+    // (`head -n 5`).
+    let files = w.words[1..]
+        .iter()
+        .filter(|a| {
+            !a.starts_with('-')
+                && !is_stdin_path(a)
+                && !a
+                    .trim_start_matches('+')
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
+        })
+        .count();
+    match basename(head) {
+        "tr" | "tee" => true,
+        "cat" | "head" | "tail" | "tac" | "rev" | "nl" | "base64" | "base32" | "gunzip"
+        | "gzip" | "zcat" | "bzcat" | "bzip2" | "xz" | "xzcat" | "unxz" | "zstd" | "zstdcat"
+        | "xxd" | "sort" | "uniq" | "fold" | "expand" | "iconv" => files == 0,
+        // The first operand is the script or pattern.
+        "sed" | "awk" | "gawk" | "mawk" | "grep" | "egrep" | "fgrep" | "cut" => files <= 1,
+        "dd" => !w.words.iter().any(|a| a.starts_with("if=")),
+        "openssl" => !w.words.iter().any(|a| a == "-in"),
+        _ => false,
+    }
+}
+
+/// A wrapper that hands `value` to a shell as a command line (`flock l -c
+/// '…'`): the command is read as `sh -c '…'`.
+fn shell_string(mut out: Words, pipe_kept: bool, value: String) -> Words {
+    out.words = vec!["sh".to_string(), "-c".to_string(), value];
     if pipe_kept {
         out.stdin = Stdin::Inherit;
     }
@@ -781,13 +959,21 @@ fn pipes_to_interpreter(s: &str) -> bool {
     // `env -i`, `command`, `doas`, `busybox`, `timeout 60`, ...).
     // `VAR=value` words before the command (`| INSTALL_DIR=~/bin bash`).
     const WRAP: &str = r"([A-Za-z_][A-Za-z0-9_]*=\S*\s+|(\S*/)?(sudo|doas|env|command|builtin|exec|nohup|time|nice|timeout|stdbuf|setsid|ionice|busybox)(\s+(-\S+(\s+[^-\s|;&<>]\S*)?|[A-Za-z0-9_]+=\S*|[0-9.]+[smhd]?))*\s+)";
+    // The end of a group or compound command the download is in, with the
+    // commands after the download in it: `{ curl …; }`, `(curl …; true)`,
+    // `{ curl … && echo; }`, `if …; then curl …; fi`, `for …; do curl …;
+    // done`. Its output is what the pipe after it carries.
+    let group = format!(
+        r"((\s*(;|&&|\|\|?|\n)[^;&|\n]*?)*?\s*;?\s*([}})]|(^|[\s;&|])(fi|done|esac)){ARGS})*"
+    );
     let pipe = re(
         &PIPE,
         &format!(
             // `| tee file |` stages in between still hand the interpreter
             // the download; `|&` pipes stderr as well. A group the download
-            // ends (`{ curl …; } | sh`, `( curl …; ) | sh`) pipes its output.
-            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}{ARGS}(;\s*[}})]{ARGS})*(\|&?\s*({WRAP})*(\S*/)?tee{ARGS})*\|&?\s*({WRAP})*(\S*/)?(?P<interp>{INTERP})([\s"')`;&|<>]|$)"#
+            // is in (`{ curl …; } | sh`, `(curl …; true) | sh`) pipes its
+            // output.
+            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}{ARGS}{group}(\|&?\s*({WRAP})*(\S*/)?tee{ARGS})*\|&?\s*({WRAP})*(\S*/)?(?P<interp>{INTERP})([\s"')`;&|<>]|$)"#
         ),
     );
     let subst = re(

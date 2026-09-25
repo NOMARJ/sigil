@@ -62,7 +62,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use crate::cmdline;
 
@@ -106,17 +106,33 @@ const PKG: &str = r"\s+[^-\s]";
 // like `git -C /tmp clone`, `npm --prefix ./x install`, `go -C x install`.
 const MOD: &str = r"(\s+-\S+(\s+[^-\s]\S*)?)*";
 
+/// `pattern`, compiled once per process. Every stage of a command is
+/// checked against the same few dozen patterns; compiling them afresh for
+/// each stage made a command of a few thousand stages take longer than a
+/// hook's time limit (which a host may treat as an allow).
+fn compiled(pattern: &str) -> Option<Regex> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Regex>>> = OnceLock::new();
+    let mut cache = CACHE
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(re) = cache.get(pattern) {
+        return Some(re.clone());
+    }
+    let re = Regex::new(pattern).ok()?;
+    cache.insert(pattern.to_string(), re.clone());
+    Some(re)
+}
+
 fn has(cmd: &str, pattern: &str) -> bool {
     // Patterns are static and known-valid; a compile failure is a bug, and
     // failing open here matches the shell guard's fail-open posture.
-    Regex::new(pattern)
-        .map(|re| re.is_match(cmd))
-        .unwrap_or(false)
+    compiled(pattern).is_some_and(|re| re.is_match(cmd))
 }
 
 /// Where a pattern first matches, for re-tokenising from the command word.
 fn find_at(cmd: &str, pattern: &str) -> Option<usize> {
-    let re = Regex::new(pattern).ok()?;
+    let re = compiled(pattern)?;
     let m = re.captures(cmd)?;
     // Group 2 is the command word (group 1 is the left boundary).
     m.get(2).map(|g| g.start())
@@ -143,9 +159,12 @@ enum Op {
     /// After a single `&`: the piece before it ran in the background, in a
     /// subshell of its own. Otherwise as `Other`.
     Bg,
-    /// The piece after `$(`, `<(` or `>(`: a subshell, which its first
-    /// unmatched `)` ends.
+    /// The piece after `$(` or `<(`: a subshell, which its first unmatched
+    /// `)` ends. Its stdin is the stdin of the command around it.
     Subst,
+    /// The piece after `>(`: as `Subst`, but its stdin is what the command
+    /// around it writes there (`tee >(bash)`, `curl … > >(bash)`).
+    OutSubst,
     /// The piece after an opening backtick: a subshell, like `$(`.
     Tick,
     /// The piece after a closing backtick: the subshell has ended.
@@ -346,6 +365,60 @@ fn uncommented(text: &str, start: usize, q: &[Q]) -> String {
         .collect()
 }
 
+/// `stage` (which starts at char index `start` of the command) split at the
+/// first `)` outside quotes that closes nothing opened in it: the command of
+/// the substitution the stage starts, and what follows it, with the char
+/// index where that starts. `$(true) npm install evil` runs `true`, then
+/// `npm install evil`; `>(bash) >/dev/null` runs `bash`.
+fn split_close<'a>(stage: &'a str, start: usize, q: &[Q]) -> (&'a str, Option<(&'a str, usize)>) {
+    let mut open = 0usize;
+    for (n, (i, c)) in stage.char_indices().enumerate() {
+        if q.get(start + n) != Some(&Q::Out) {
+            continue;
+        }
+        match c {
+            '(' => open += 1,
+            ')' if open > 0 => open -= 1,
+            ')' => {
+                let rest = &stage[i + 1..];
+                let lead = rest.chars().take_while(|c| c.is_whitespace()).count();
+                let tail = rest.trim();
+                let tail = (!tail.is_empty()).then_some((tail, start + n + 1 + lead));
+                return (stage[..i].trim_end(), tail);
+            }
+            _ => {}
+        }
+    }
+    (stage, None)
+}
+
+/// The groups and compound commands a stage (which starts at char index
+/// `start` of the command) opens and closes: `{`, `if`, `while`, `until`,
+/// `for`, `case`, `select` and `(` open, `}`, `fi`, `done`, `esac` and `)`
+/// close. Quoted parentheses do not count.
+fn compound_marks(stage: &str, start: usize, q: &[Q]) -> (i32, i32) {
+    let first = cmdline::tokenize(stage)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    let mut opens = i32::from(matches!(
+        first.as_str(),
+        "{" | "if" | "while" | "until" | "for" | "case" | "select"
+    ));
+    let mut closes = i32::from(matches!(first.as_str(), "}" | "fi" | "done" | "esac"));
+    for (n, c) in stage.chars().enumerate() {
+        if q.get(start + n) != Some(&Q::Out) {
+            continue;
+        }
+        match c {
+            '(' => opens += 1,
+            ')' => closes += 1,
+            _ => {}
+        }
+    }
+    (opens, closes)
+}
+
 /// A list segment of a command line: the operator in front of it, its
 /// text, and the index (in chars) of the command line where the text
 /// starts.
@@ -398,7 +471,8 @@ fn pieces(chars: &[char], q: &[Q]) -> Vec<Piece> {
                 };
                 (1, op)
             }
-            ('$', Some('(')) | ('<', Some('(')) | ('>', Some('(')) => (2, Op::Subst),
+            ('$', Some('(')) | ('<', Some('(')) => (2, Op::Subst),
+            ('>', Some('(')) => (2, Op::OutSubst),
             _ => (0, op),
         };
         if width == 0 {
@@ -448,13 +522,23 @@ fn stage_spans(seg: &str) -> Vec<(usize, String)> {
     out
 }
 
-/// The strings that `bash -c '…'`, `su -c '…'` and `eval '…'` stages hand
-/// to a shell, read whole: quotes are honoured here (outside a quote, the
-/// usual separators and substitutions end a stage), so a separator inside
-/// the string does not cut it short. Keyed by the index of the stage's
-/// first character, which is where [`pieces`] starts the same stage.
-fn inner_strings(chars: &[char], q: &[Q]) -> HashMap<usize, String> {
-    let mut out = HashMap::new();
+/// Stages with quotes, read whole: quotes are honoured here (outside a
+/// quote, the usual separators and substitutions end a stage), so a
+/// separator inside a quoted string does not cut the stage short. Keyed by
+/// the index of the stage's first character, which is where [`pieces`]
+/// starts the same stage.
+#[derive(Default)]
+struct WholeStages {
+    /// The strings that `bash -c '…'`, `su -c '…'` and `eval '…'` stages
+    /// hand to a shell.
+    inner: HashMap<usize, String>,
+    /// Stages whose inline code runs what they read on stdin
+    /// ([`runs_read_code`]: `python3 -c "import sys; exec(sys.stdin.read())"`).
+    reads_code: std::collections::HashSet<usize>,
+}
+
+fn inner_strings(chars: &[char], q: &[Q]) -> WholeStages {
+    let mut out = WholeStages::default();
     let mut start = 0;
     let mut i = 0;
     let mut flush = |from: usize, to: usize| {
@@ -465,7 +549,10 @@ fn inner_strings(chars: &[char], q: &[Q]) -> HashMap<usize, String> {
         let lead = text.chars().take_while(|c| c.is_whitespace()).count();
         let words = cmdline::command_words(&text).words;
         if let Some(s) = inner_command(&words) {
-            out.insert(from + lead, s);
+            out.inner.insert(from + lead, s);
+        }
+        if runs_read_code(&words) {
+            out.reads_code.insert(from + lead);
         }
     };
     while i < chars.len() {
@@ -506,29 +593,36 @@ fn is_sigil(stage: &str) -> bool {
 /// A sigil call that can vet what follows it: the command word is the bare
 /// `sigil` found on PATH, not `./sigil` or `/tmp/x/sigil` (a file anyone can
 /// write), and neither PATH, where sigil keeps its state and trust ledger
-/// (`HOME`, `XDG_*`), nor any `SIGIL_*` setting (`SIGIL_POLICY_FILE` names
-/// an organisation policy the scan trusts) is set for it.
+/// (`HOME`, `XDG_*`), any `SIGIL_*` setting (`SIGIL_POLICY_FILE` names an
+/// organisation policy the scan trusts), nor the dynamic loader's
+/// `LD_*`/`DYLD_*` (`LD_PRELOAD` loads code into sigil itself) is set for
+/// it.
 fn trusted_sigil(stage: &str) -> bool {
     has(
         stage,
         r"^\s*([A-Za-z0-9_]+=\S*\s+)*(sudo(\s+-\S+)*\s+)?sigil(\.exe)?(\s|$)",
     ) && !has(
         stage,
-        r"^\s*([A-Za-z0-9_]+=\S*\s+)*(PATH|HOME|SIGIL_[A-Z_]*|XDG_[A-Z_]*)\+?=",
+        r"^\s*([A-Za-z0-9_]+=\S*\s+)*(PATH|HOME|SIGIL_[A-Z_]*|XDG_[A-Z_]*|LD_[A-Z_]*|DYLD_[A-Z_]*)\+?=",
     )
 }
 
 /// The command can change what `sigil` runs or what its scan enforces: it
 /// defines a `sigil` function or alias (`alias -- sigil=true` included),
 /// loads a builtin named sigil, pins a path with `hash -p`, reassigns PATH,
-/// HOME or a `SIGIL_*` setting, or names a Sigil policy file (`.sigil.yml`
-/// in the working directory is trusted and can raise `fail_on` past every
-/// High finding). Then no `sigil` call in it vets anything. (A sourced file
-/// can do the same; that counts from the `source` on, see [`Walk::stage`].)
+/// HOME, a `SIGIL_*` setting or the loader's `LD_*`/`DYLD_*`, or names a
+/// Sigil policy file (`.sigil.yml` in the working directory is trusted and
+/// can raise `fail_on` past every High finding). So does one that changes
+/// what a scan lets pass without a flag: `sigil approve` (an approved
+/// artifact's content is allowlisted by digest), `sigil known-good` (an
+/// installed index is recognised as published code), or a write into
+/// sigil's state directory (`~/.sigil/`: cache, ledger, known-good
+/// indexes). Then no `sigil` call in it vets anything. (A sourced file can
+/// do the same; that counts from the `source` on, see [`Walk::stage`].)
 fn redefines_sigil(cmd: &str) -> bool {
     has(
         cmd,
-        r#"(^|[\s;&|(){}])(function\s+sigil(\s|\(|$)|sigil\s*\(\s*\)|alias(\s+[^\s;&|]+)*\s+['"]?sigil['"]?=|hash\s+-p\s|enable(\s+[^\s;&|]+)*\s+sigil(\s|$|[;&|])|((export|declare|typeset|local|readonly)\s+(-\S+\s+)*([^\s;&|]+\s+)*)?(PATH|HOME|SIGIL_[A-Z_]*)\+?=)|(?i:sigil\.ya?ml)"#,
+        r#"(^|[\s;&|(){}])(function\s+sigil(\s|\(|$)|sigil\s*\(\s*\)|alias(\s+[^\s;&|]+)*\s+['"]?sigil['"]?=|hash\s+-p\s|enable(\s+[^\s;&|]+)*\s+sigil(\s|$|[;&|])|((export|declare|typeset|local|readonly)\s+(-\S+\s+)*([^\s;&|]+\s+)*)?(PATH|HOME|SIGIL_[A-Z_]*|LD_[A-Z_]*|DYLD_[A-Z_]*)\+?=|(\S*/)?sigil(\.exe)?(\s+-\S+)*\s+(approve|known-good)(\s|$|[;&|)]))|(?i:sigil\.ya?ml)|\.sigil/"#,
     )
 }
 
@@ -643,22 +737,24 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
     if !matches!(sub, "scan" | "clone" | "pip" | "npm") {
         return None;
     }
-    const VALUED: &[&str] = &[
-        "-f",
+    // Options that take a value, read as clap reads them: a short one's
+    // value attached (`-pnetwork`), after `=` (`-s=critical`) or the next
+    // word, also at the end of a bundle (`-vp network`); a long one's
+    // after `=` or the next word.
+    const SHORT_VALUED: &str = "psfobV";
+    const LONG_VALUED: &[&str] = &[
         "--format",
-        "-p",
         "--phases",
-        "-s",
         "--severity",
         "--fail-on",
-        "-b",
+        "--fail-on-verdict",
         "--branch",
         "--baseline",
-        "-o",
         "--output",
         "--policy",
         "--rules",
         "--config",
+        "--version",
     ];
     let mut names = Vec::new();
     // `sigil pip ruff -V 0.4.0` vets ruff==0.4.0, not whatever `ruff`
@@ -666,41 +762,72 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
     let mut version: Option<String> = None;
     // `sigil clone <url> -b dev` vets the dev branch, not the default one.
     let mut branch: Option<String> = None;
-    // Options that let a scan of hostile code pass: help instead of a scan,
-    // a threshold above the default, a report threshold that hides High
-    // findings, a subset of phases, a policy file or baseline of the
-    // command's choosing.
+    // Options that let a scan of hostile code pass: help instead of a scan
+    // (`-h`, also in a bundle: `-vh`), a threshold above the default, a
+    // report threshold that hides High findings, a subset of phases, a
+    // policy file or baseline of the command's choosing. Short options
+    // are named by their letter here.
     let weakens = |flag: &str, value: Option<&str>| match flag {
-        "-h" | "--help" | "--config" | "--baseline" => true,
-        "--fail-on" | "-s" | "--severity" => !matches!(
+        "h" | "--help" | "--config" | "--baseline" => true,
+        "--fail-on" | "s" | "--severity" => !matches!(
             value.map(str::to_ascii_lowercase).as_deref(),
             Some("low" | "medium" | "high")
         ),
-        "-p" | "--phases" => value.map(str::to_ascii_lowercase).as_deref() != Some("all"),
+        "p" | "--phases" => value.map(str::to_ascii_lowercase).as_deref() != Some("all"),
         _ => false,
     };
     let args = &toks[i + 2..];
-    for (j, t) in args.iter().enumerate() {
-        let (flag, value) = match t.split_once('=') {
-            Some((f, v)) if f.starts_with("--") => (f, Some(v)),
-            _ => (t.as_str(), args.get(j + 1).map(String::as_str)),
-        };
-        if weakens(flag, value) {
-            return None;
-        }
-    }
-    let mut it = args.iter();
-    while let Some(t) = it.next() {
-        if t == "-V" || t == "--version" {
-            version = it.next().cloned();
-        } else if let Some(v) = t.strip_prefix("--version=") {
-            version = Some(v.to_string());
-        } else if t == "-b" || t == "--branch" {
-            branch = it.next().cloned();
-        } else if VALUED.contains(&t.as_str()) {
-            it.next();
-        } else if !t.starts_with('-') {
+    let mut j = 0;
+    let mut operands_only = false;
+    while let Some(t) = args.get(j) {
+        j += 1;
+        if operands_only || t == "-" || !t.starts_with('-') {
             names.push(unquote(t).to_string());
+            continue;
+        }
+        if t == "--" {
+            operands_only = true;
+            continue;
+        }
+        // The options this word holds, each with its value.
+        let mut opts: Vec<(String, Option<String>)> = Vec::new();
+        if t.starts_with("--") {
+            match t.split_once('=') {
+                Some((f, v)) => opts.push((f.to_string(), Some(v.to_string()))),
+                None if LONG_VALUED.contains(&t.as_str()) => {
+                    opts.push((t.clone(), args.get(j).cloned()));
+                    j += 1;
+                }
+                None => opts.push((t.clone(), None)),
+            }
+        } else {
+            let bundle: Vec<char> = t[1..].chars().collect();
+            for (k, c) in bundle.iter().enumerate() {
+                if !SHORT_VALUED.contains(*c) {
+                    opts.push((c.to_string(), None));
+                    continue;
+                }
+                let rest: String = bundle[k + 1..].iter().collect();
+                let value = match rest.strip_prefix('=').unwrap_or(&rest) {
+                    "" => {
+                        j += 1;
+                        args.get(j - 1).cloned()
+                    }
+                    v => Some(v.to_string()),
+                };
+                opts.push((c.to_string(), value));
+                break;
+            }
+        }
+        for (flag, value) in opts {
+            if weakens(&flag, value.as_deref()) {
+                return None;
+            }
+            match flag.as_str() {
+                "V" | "--version" => version = value,
+                "b" | "--branch" => branch = value,
+                _ => {}
+            }
         }
     }
     Some(
@@ -1822,7 +1949,7 @@ fn download(w: &cmdline::Words, stage: &str, ctx: &Context) -> Option<Download> 
     let mut body_to_stdout = false;
     for o in &outs {
         match o.as_str() {
-            "-" | "/dev/stdout" => body_to_stdout = true,
+            o if cmdline::is_stdout_path(o) => body_to_stdout = true,
             _ if o.starts_with("/dev/") => {}
             _ if wget => files.push(o.clone()),
             _ => files.push(join(o)),
@@ -1841,13 +1968,19 @@ fn download(w: &cmdline::Words, stage: &str, ctx: &Context) -> Option<Download> 
     } else if !wget && outs.is_empty() {
         body_to_stdout = true;
     }
+    // A redirection to stdout itself (`> /dev/stdout`) leaves it the pipe.
+    let redirected: Vec<&String> = w
+        .stdout
+        .iter()
+        .filter(|f| !cmdline::is_stdout_path(f))
+        .collect();
     if body_to_stdout {
-        files.extend(w.stdout.iter().cloned());
+        files.extend(redirected.iter().map(|f| f.to_string()));
     }
     let files = files.iter().map(|f| canon_path(f, ctx)).collect();
     Some(Download {
         files,
-        stdout: body_to_stdout && w.stdout.is_empty(),
+        stdout: body_to_stdout && redirected.is_empty(),
     })
 }
 
@@ -1868,12 +2001,21 @@ fn executed_file(w: &cmdline::Words, ctx: &Context) -> Option<String> {
 }
 
 /// The command string a stage hands to a shell of its own:
-/// `bash -c '…'`, `su -c '…'`, `eval '…'`.
+/// `bash -c '…'`, `su -c '…'`, `eval '…'`, `trap '…' EXIT` (and, through
+/// [`cmdline::command_words`], `flock l -c '…'`, `script -c '…'`).
 fn inner_command(words: &[String]) -> Option<String> {
     let head = words.first()?;
     let base = head.rsplit('/').next().unwrap_or(head);
     if base == "eval" {
         return (words.len() > 1).then(|| words[1..].join(" "));
+    }
+    // `trap 'bash i.sh' EXIT`: the shell runs the string when the signal
+    // arrives (EXIT: when it ends).
+    if base == "trap" {
+        return words
+            .get(1)
+            .filter(|a| words.len() > 2 && !a.starts_with('-'))
+            .cloned();
     }
     if base == "su" || base == "runuser" {
         let mut it = words.iter().skip(1);
@@ -1963,6 +2105,11 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
         oldpwd: None,
         dirs: Vec::new(),
         in_subst: false,
+        stdin_fed: false,
+        piece_fed: false,
+        subst_in: false,
+        subst_out: false,
+        fed_compound: None,
     };
     walk.run(&cmd, false, 0);
     let decision = walk.decision;
@@ -2014,6 +2161,23 @@ struct Walk {
     /// call in it vets anything (`echo $(sigil scan x) && bash x` runs bash
     /// whatever the scan found: the status is echo's).
     in_subst: bool,
+    /// The stdin of the command line being walked carries a download: it is
+    /// the string of a `bash -c '…'` whose stage is fed from a download
+    /// (`curl … | sh -c 'source /dev/stdin'`).
+    stdin_fed: bool,
+    /// The stdin of the piece being judged carries a download: `stdin_fed`
+    /// for a list segment, or for a substitution what its command gives it.
+    piece_fed: bool,
+    /// For a substitution opened at the end of the segment just judged: its
+    /// stdin carries a download (`… | bash -c "$(cat)"`: the stage's stdin
+    /// is), or, for `>(…)`, what the stage writes there does
+    /// (`curl … | tee >(bash)`).
+    subst_in: bool,
+    subst_out: bool,
+    /// Inside a compound command that receives a download on stdin (`curl …
+    /// | { echo; bash; }`, `curl … | while read l; do eval "$l"; done`): how
+    /// many of the groups and compound commands opened since are open.
+    fed_compound: Option<i32>,
 }
 
 /// Does the text in front of a `$(`, `<(` or backtick run what the
@@ -2135,6 +2299,115 @@ fn copies(w: &cmdline::Words, files: &[String], ctx: &Context) -> Vec<(String, S
     out
 }
 
+/// Files a stage writes: its stdout redirections, `dd of=`, the files `tee`
+/// writes, where `cp`/`mv`/`ln`/`install`/`rsync` put what they copy, and
+/// the files `sed -i`, `perl -i` and `ruby -i` edit in place.
+fn overwrites(w: &cmdline::Words, dd_out: &[String], ctx: &Context) -> Vec<String> {
+    let mut out: Vec<String> = w
+        .stdout
+        .iter()
+        .chain(dd_out)
+        .filter(|f| !f.starts_with("/dev/"))
+        .map(|f| canon_path(f, ctx))
+        .collect();
+    let Some(head) = w.words.first().map(|h| h.rsplit('/').next().unwrap_or(h)) else {
+        return out;
+    };
+    let args = &w.words[1..];
+    let operands: Vec<String> = args
+        .iter()
+        .filter(|a| !a.starts_with('-'))
+        .map(|a| canon_path(a, ctx))
+        .collect();
+    // An `-i` in a bundle of short options, before any option whose value
+    // is attached (`perl -Mstrict` loads a module; its `i` is not -i).
+    let in_place = |attached: &str| {
+        args.iter().any(|a| {
+            a == "--in-place"
+                || a.starts_with("--in-place=")
+                || a.starts_with('-')
+                    && !a.starts_with("--")
+                    && a[1..]
+                        .chars()
+                        .take_while(|c| !attached.contains(*c))
+                        .any(|c| c == 'i')
+        })
+    };
+    match head {
+        "tee" => out.extend(operands),
+        "sed" | "gsed" if in_place("ef") => out.extend(operands),
+        "perl" if in_place("MmxFl0dIeEC") => out.extend(operands),
+        "ruby" if in_place("rIxFeE0C") => out.extend(operands),
+        "cp" | "mv" | "ln" | "install" | "rsync" => {
+            out.extend(copies(w, &operands, ctx).into_iter().map(|(_, dest)| dest));
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Where xargs gets the code it runs, when it hands the words it reads to
+/// inline code that has none of its own: `xargs -0 bash -c`, `xargs
+/// python3 -c`, or code built from them (`xargs -I{} sh -c '{}'`, `sh -c
+/// '$0'`). Stdin, or the file of `xargs -a f`.
+fn xargs_code(w: &cmdline::Words) -> Option<&cmdline::Stdin> {
+    let src = w.xargs.as_ref()?;
+    if cmdline::interpreter_runs(&w.words) != Some(cmdline::Runs::Inline) {
+        return None;
+    }
+    let from_input = match inner_command(&w.words) {
+        Some(code) => code.contains("{}") || matches!(code.trim(), "$0" | "$1" | "$@" | "$*"),
+        None => w.words.last().is_some_and(|t| t.starts_with('-')),
+    };
+    from_input.then_some(src)
+}
+
+/// Code that runs what the stage reads on stdin, though the stage is not an
+/// interpreter reading it as a script: a variable run as code (`eval
+/// "$l"`, `bash -c "$line"`, as in `… | while read l; do eval "$l";
+/// done`), or inline code that reads stdin and evaluates it (`python3 -c
+/// "exec(sys.stdin.read())"`, `node -e "eval(fs.readFileSync(0, …))"`,
+/// `perl -e 'eval join "", <STDIN>'`, `ruby -e 'eval STDIN.read'`).
+fn runs_read_code(words: &[String]) -> bool {
+    static VAR: OnceLock<Regex> = OnceLock::new();
+    static EXEC: OnceLock<Regex> = OnceLock::new();
+    static READ: OnceLock<Regex> = OnceLock::new();
+    if inner_command(words).is_some_and(|code| {
+        VAR.get_or_init(|| {
+            Regex::new(r"^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|[0-9@*])$").expect("static pattern")
+        })
+        .is_match(code.trim())
+    }) {
+        return true;
+    }
+    let Some(kind) = words.first().and_then(|h| cmdline::interpreter(h)) else {
+        return false;
+    };
+    if !matches!(
+        kind,
+        cmdline::Interp::Python
+            | cmdline::Interp::Node
+            | cmdline::Interp::Perl
+            | cmdline::Interp::Ruby
+            | cmdline::Interp::Php
+    ) || cmdline::interpreter_runs(words) != Some(cmdline::Runs::Inline)
+    {
+        return false;
+    }
+    let code = words[1..].join(" ");
+    EXEC.get_or_init(|| {
+        Regex::new(r"\b(exec|eval|compile|Function|instance_eval)\s*[\(\s]")
+            .expect("static pattern")
+    })
+    .is_match(&code)
+        && READ
+            .get_or_init(|| {
+                Regex::new(r"(?i)stdin|readFileSync\(\s*0|<>|\$<|ARGF|php://input|\binput\(")
+                    .expect("static pattern")
+            })
+            .is_match(&code)
+}
+
 impl Walk {
     /// A stage gated by the `&&` chain is allowed.
     fn gate(&self, d: Decision, targets: &[Target]) -> Decision {
@@ -2191,7 +2464,7 @@ impl Walk {
                 self.gates.clear();
             }
             match p.op {
-                Op::Subst | Op::Tick => groups.push((self.ctx.cwd.clone(), true)),
+                Op::Subst | Op::OutSubst | Op::Tick => groups.push((self.ctx.cwd.clone(), true)),
                 Op::Untick => {
                     if let Some((c, _)) = groups.pop() {
                         self.ctx.cwd = c;
@@ -2202,6 +2475,16 @@ impl Walk {
             let executed = matches!(p.op, Op::Subst | Op::Tick)
                 && n > 0
                 && runs_substitution(&pcs[n - 1].text);
+            // What the piece reads on stdin: a substitution reads what the
+            // command around it gives it; anything else, the command
+            // line's own stdin.
+            self.piece_fed = match p.op {
+                Op::Subst | Op::Tick => self.subst_in,
+                Op::OutSubst => self.subst_out,
+                _ => self.stdin_fed || self.fed_compound.is_some(),
+            };
+            self.subst_in = false;
+            self.subst_out = false;
             // Unquoted `(` at the start open groups; an unquoted `)` that
             // closes nothing opened in this piece closes one opened before.
             let text: Vec<char> = p.text.chars().collect();
@@ -2264,18 +2547,21 @@ impl Walk {
     /// Judge one list segment: its pipeline stages, then the command
     /// strings they hand to a shell of their own. `executed`: the segment
     /// opens a substitution whose output runs as code (`eval "$(…)"`).
-    fn segment(
-        &mut self,
-        p: &Piece,
-        q: &[Q],
-        inner_full: &HashMap<usize, String>,
-        depth: u8,
-        executed: bool,
-    ) {
-        let mut pipe = Pipe::default();
-        let mut inner: Vec<String> = Vec::new();
+    fn segment(&mut self, p: &Piece, q: &[Q], inner_full: &WholeStages, depth: u8, executed: bool) {
+        // A substitution's stdin, or the command line's (the string of a
+        // `bash -c` fed from a download), reaches the first stage.
+        let mut pipe = Pipe {
+            fed: self.piece_fed,
+            ..Pipe::default()
+        };
+        // Each string a stage hands to a shell, and whether the stage's
+        // stdin carries a download.
+        let mut inner: Vec<(String, bool)> = Vec::new();
         let spans = stage_spans(&p.text);
         let last = spans.len().saturating_sub(1);
+        // The stdin of the last stage, and what it writes: a substitution
+        // that closes the segment opens inside it.
+        let (mut last_in, mut last_out) = (false, false);
         for (k, (off, raw)) in spans.iter().enumerate() {
             let stage = raw.trim();
             if stage.is_empty() {
@@ -2283,49 +2569,135 @@ impl Walk {
             }
             let lead = raw.chars().take_while(|c| c.is_whitespace()).count();
             let at = p.start + off + lead;
-            // The command is going through sigil: that stage is allowed,
-            // and a vetting call gates what follows it with `&&` — when it
-            // is the real sigil, outside quotes and substitutions, and the
-            // pipeline's exit status is its own (the last stage: `sigil
-            // scan x | tee log` exits with tee's status).
-            if is_sigil(stage) {
-                if !self.untrusted_sigil
-                    && !self.in_subst
-                    && trusted_sigil(stage)
-                    && q.get(at) == Some(&Q::Out)
-                    && k == last
-                {
-                    if let Some(t) = vetting_targets(stage, &self.ctx) {
-                        self.gates.push(t);
-                    }
+            // A substitution ends at its `)`: `>(bash) >/dev/null` runs
+            // `bash`. What follows belongs to the command around it and is
+            // judged as a stage of its own (`$(true) npm install evil`,
+            // `$(sigil --version) npm install evil`).
+            let parts = match p.op {
+                Op::Subst | Op::OutSubst if k == 0 => match split_close(stage, at, q) {
+                    (head, Some(tail)) => vec![(head, at), tail],
+                    (head, None) => vec![(head, at)],
+                },
+                _ => vec![(stage, at)],
+            };
+            let subst_head = matches!(p.op, Op::Subst | Op::OutSubst) && k == 0;
+            for (n, (stage, at)) in parts.into_iter().enumerate() {
+                if stage.is_empty() {
+                    continue;
                 }
-                continue;
-            }
-            // What the stage runs is read without its `# comment`
-            // (`curl … | python3 -E # install`); the classifiers still see
-            // the whole text.
-            let w = cmdline::command_words(&uncommented(stage, at, q));
-            self.stage(stage, &p.text, &w, k, &mut pipe, executed);
-            if depth < MAX_INNER {
-                // The string read whole when a separator in it cut this
-                // stage short.
-                inner.extend(
-                    inner_full
-                        .get(&at)
-                        .cloned()
-                        .or_else(|| inner_command(&w.words)),
+                // Groups and compound commands this stage opens and closes
+                // (not the substitution it starts, which ends at its `)`).
+                let (opens, closes) = if subst_head && n == 0 {
+                    (0, 0)
+                } else {
+                    compound_marks(stage, at, q)
+                };
+                let fed_before = pipe.fed;
+                self.stage_part(
+                    stage,
+                    at,
+                    p,
+                    q,
+                    k,
+                    last,
+                    &mut pipe,
+                    executed && n == 0,
+                    depth,
+                    inner_full,
+                    &mut inner,
+                    &mut last_in,
+                    &mut last_out,
                 );
+                // A compound command whose stdin is a download: every command
+                // in it reads that stdin, until it closes.
+                self.fed_compound = match self.fed_compound {
+                    Some(d) if d + opens - closes > 0 => Some(d + opens - closes),
+                    Some(_) => None,
+                    None if fed_before && opens > closes => Some(opens - closes),
+                    None => None,
+                };
             }
         }
         // `bash -c '…'`: the string is a command line of its own, run in a
-        // child shell (a `cd` in it does not last).
-        for s in inner {
+        // child shell (a `cd` in it does not last) with the stage's stdin.
+        for (s, fed) in inner {
             let cwd = self.ctx.cwd.clone();
+            let outer = std::mem::replace(&mut self.stdin_fed, fed);
+            let compound = self.fed_compound.take();
             self.run(&s, true, depth + 1);
+            self.fed_compound = compound;
+            self.stdin_fed = outer;
             self.ctx.cwd = cwd;
+        }
+        self.subst_in = last_in;
+        self.subst_out = last_out;
+    }
+
+    /// One stage of a segment (or the part of one before or after the `)`
+    /// of a substitution): a sigil call's gate, the stage's judgement, the
+    /// segment's last-stage state and the strings it hands to a shell.
+    #[allow(clippy::too_many_arguments)]
+    fn stage_part(
+        &mut self,
+        stage: &str,
+        at: usize,
+        p: &Piece,
+        q: &[Q],
+        k: usize,
+        last: usize,
+        pipe: &mut Pipe,
+        executed: bool,
+        depth: u8,
+        inner_full: &WholeStages,
+        inner: &mut Vec<(String, bool)>,
+        last_in: &mut bool,
+        last_out: &mut bool,
+    ) {
+        // The command is going through sigil: that stage is allowed, and a
+        // vetting call gates what follows it with `&&` — when it is the real
+        // sigil, outside quotes and substitutions, and the pipeline's exit
+        // status is its own (the last stage: `sigil scan x | tee log` exits
+        // with tee's status).
+        if is_sigil(stage) {
+            if !self.untrusted_sigil
+                && !self.in_subst
+                && trusted_sigil(stage)
+                && q.get(at) == Some(&Q::Out)
+                && k == last
+            {
+                if let Some(t) = vetting_targets(stage, &self.ctx) {
+                    self.gates.push(t);
+                }
+            }
+            return;
+        }
+        // What the stage runs is read without its `# comment`
+        // (`curl … | python3 -E # install`); the classifiers still see the
+        // whole text.
+        let w = cmdline::command_words(&uncommented(stage, at, q));
+        let fed_in = pipe.fed && w.stdin == cmdline::Stdin::Inherit;
+        let reads_code = inner_full.reads_code.contains(&at);
+        self.stage(stage, &p.text, &w, k, pipe, executed, reads_code);
+        if k == last {
+            (*last_in, *last_out) = (fed_in, pipe.fed);
+        }
+        if depth < MAX_INNER {
+            // The string read whole when a separator in it cut this stage
+            // short.
+            inner.extend(
+                inner_full
+                    .inner
+                    .get(&at)
+                    .cloned()
+                    .or_else(|| inner_command(&w.words))
+                    .map(|s| (s, fed_in)),
+            );
         }
     }
 
+    /// Judge one stage. `reads_code`: read whole (a separator inside its
+    /// quotes cut `stage` short), its inline code runs its stdin.
+    #[allow(clippy::too_many_arguments)]
     fn stage(
         &mut self,
         stage: &str,
@@ -2334,6 +2706,7 @@ impl Walk {
         k: usize,
         pipe: &mut Pipe,
         executed: bool,
+        reads_code: bool,
     ) {
         let ctx = self.ctx.clone();
         // Judged as written and with word-internal quoting removed, as the
@@ -2375,19 +2748,40 @@ impl Walk {
         let dd_out = dd_arg("of=");
         reads.extend(dd_arg("if=").iter().map(|f| canon_path(f, &ctx)));
         let reads_download = reads.iter().find(|f| self.downloads.contains(f)).cloned();
-        // An interpreter that runs what comes down the pipe.
-        let reads_pipe = k > 0
-            && w.stdin == cmdline::Stdin::Inherit
-            && cmdline::interpreter_runs(&w.words) == Some(cmdline::Runs::Stdin);
-        if reads_pipe && pipe.fed {
-            // `curl … | base64 -d | sh`, `curl … | (bash)`, `curl … | node -r x`.
+        // `xargs -0 bash -c`, `xargs -I{} sh -c '{}'`: the words xargs reads
+        // are the code; `xargs -a f …` reads them from f.
+        let xargs = xargs_code(w);
+        // A program that runs what comes down its stdin: an interpreter
+        // (also a shell that `sudo -s` or `su` starts), or inline code that
+        // xargs fills in from stdin.
+        let runs_stdin = w.stdin == cmdline::Stdin::Inherit
+            && (cmdline::interpreter_runs(&w.words) == Some(cmdline::Runs::Stdin)
+                || xargs == Some(&cmdline::Stdin::Inherit)
+                || reads_code
+                || runs_read_code(&w.words));
+        let reads_pipe = k > 0 && runs_stdin;
+        if runs_stdin && pipe.fed {
+            // `curl … | base64 -d | sh`, `curl … | (bash)`, `curl … | node -r x`,
+            // `curl … | sudo -s`, `curl … | sh -c 'source /dev/stdin'`,
+            // `curl … | tee >(bash)`.
+            d = worse(d, pipe_deny(&self.top));
+        }
+        // `curl … | bash -c "$(cat)"`, `curl … | eval "$(cat)"`: a
+        // substitution that prints its stdin, the download, as code.
+        if executed && k == 0 && pipe.fed && cmdline::passes_stdin(w) {
             d = worse(d, pipe_deny(&self.top));
         }
         // Download to a file, then run that file: the same remote execution
         // as `curl … | sh`, one step removed. Unlike the pipe, this form can
         // be gated — the scan reads the bytes that run.
+        let xargs_file = match xargs {
+            Some(cmdline::Stdin::File(f)) => Some(canon_path(f, &ctx)),
+            _ => None,
+        };
         let ran = executed_file(w, &ctx)
-            .filter(|f| self.downloads.contains(f))
+            .into_iter()
+            .chain(xargs_file)
+            .find(|f| self.downloads.contains(f))
             .map(|f| (f, stage))
             .or_else(|| {
                 // `cat i.sh | sh`, `head i.sh | sh`: the file, read into an
@@ -2416,8 +2810,7 @@ impl Walk {
         if let Some(dl) = &dl {
             written.extend(dl.files.iter().cloned());
         }
-        let carried =
-            k > 0 && (pipe.fed || pipe.sources.iter().any(|f| self.downloads.contains(f)));
+        let carried = pipe.fed || k > 0 && pipe.sources.iter().any(|f| self.downloads.contains(f));
         if carried || reads_download.is_some() {
             // `curl … | tee f`, `curl … | sed … > f`, `cat i.sh > j.sh`: the
             // download, passed on.
@@ -2438,13 +2831,23 @@ impl Walk {
                 .filter(|f| !f.starts_with("/dev/"))
                 .map(|f| canon_path(f, &ctx))
                 .collect();
-            if pipe.fed && k > 0 {
+            if pipe.fed {
                 if let Some(dest) = piped.iter().find(|f| agent_path(f)) {
                     d = worse(d, tooling_download_deny(dest, seg));
                 }
             }
             written.extend(piped);
         }
+        // A file downloaded earlier and written again — edited in place
+        // (`sed -i`, `perl -pi`), appended to, overwritten or replaced by a
+        // copy — holds other bytes than a scan of it read: the scan no
+        // longer vets it (`sigil scan i.sh && sed -i 's/^#//' i.sh && bash
+        // i.sh` runs lines the scan saw as comments).
+        written.extend(
+            overwrites(w, &dd_out, &ctx)
+                .into_iter()
+                .filter(|f| self.downloads.contains(f)),
+        );
         // `cp i.sh j.sh`, `mv i.sh j.sh`: the copy is the download too; a
         // copy of a file the chain has scanned holds the scanned bytes
         // (`sigil scan i.sh && cp i.sh j.sh && bash j.sh`).
