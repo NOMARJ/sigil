@@ -503,6 +503,7 @@
       },
       "window_lines": 60,
       "sink_window_before": 10,
+      "name_uses": "value",
       "max_line_length": 500,
       "sink_excludes": [],
       "remediation": "A secret — an API key or token read from the environment, or one written into the code — is used in a request or connection whose certificate check is turned off (the name bound on the source line appears in the arguments around the insecure setting). Anyone who can intercept that connection receives the credential, and can keep using it after the connection is gone. Restore verification (or point it at the right CA bundle) before the credential is sent, and rotate the credential if the code has already run on an untrusted network.",

@@ -381,11 +381,17 @@ pub struct CorrelationRule {
     /// something else is never read. A source on a line of the statement that
     /// starts in the sink line's bracket group, or one nested inside or
     /// around it, is part of the same call and links without naming anything;
-    /// a sibling literal is not. In this mode a bound name links only where it
-    /// is used as a value, not as a keyword argument's name or an object key.
-    /// Default 0.
+    /// a sibling literal is not. Default 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub sink_window_before: usize,
+    /// How a name the source line binds is looked for in the sink's window:
+    /// `"value"` links only where the window uses it as a value, `"word"` on
+    /// any whole-word occurrence (see [`NameUses`]). Every built-in rule sets
+    /// it. Unset, a rule keeps the behaviour it had before the field existed:
+    /// `"value"` in the statement mode (`sink_window_before` > 0), `"word"`
+    /// otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_uses: Option<NameUses>,
     /// A source or sink on a line longer than this many bytes is not linked
     /// (0: no limit). On a minified bundle one line holds a whole program, so
     /// a credential read and an insecure setting on that line say nothing
@@ -402,6 +408,31 @@ pub struct CorrelationRule {
     pub references: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+}
+
+/// Which occurrences of a bound name in a sink's window link a correlation
+/// rule's source to its sink (`name_uses`).
+///
+/// The difference is the names a call gives its parameters. With `url` bound
+/// from a credential read (`url = os.environ[...]`) and a later
+/// `requests.get(url=base + "/ping")`, the word `url` is in the call, but
+/// only as the keyword argument's name: the value sent is `base + "/ping"`.
+/// `json={"token": "x"}` beside a bound `token` is the same, with an object
+/// key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NameUses {
+    /// Links only where the window uses the name as a value
+    /// (`scanner::correlate::uses_word`): an occurrence that is a keyword
+    /// argument's name, an assignment target or an object key (`name=` but
+    /// not `==`; `name:` after `{`, `,`, `(` or at the start of a line; a
+    /// quoted `"name":`) is skipped. `data=token`, `json={"k": token}`,
+    /// `f"...{token}"`, `token=token`, `{ token }` and a positional
+    /// `token` are uses.
+    Value,
+    /// Links on any whole-word occurrence (`scanner::correlate::contains_word`),
+    /// keyword names and keys included.
+    Word,
 }
 
 fn default_window() -> usize {

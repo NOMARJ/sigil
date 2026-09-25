@@ -74,6 +74,26 @@ const FULL_RULE_KEYS: &[&str] = &[
     "tags",
 ];
 
+/// Keys a correlation rule may carry. A misspelt `name_uses` would otherwise
+/// fall back to the default without a word.
+const CORRELATION_RULE_KEYS: &[&str] = &[
+    "id",
+    "phase",
+    "severity",
+    "description",
+    "weight",
+    "source",
+    "sink",
+    "window_lines",
+    "sink_window_before",
+    "name_uses",
+    "max_line_length",
+    "sink_excludes",
+    "remediation",
+    "references",
+    "tags",
+];
+
 /// Keys a compact rule may carry.
 const COMPACT_RULE_KEYS: &[&str] = &[
     "id",
@@ -428,6 +448,20 @@ fn full_to_pack(doc: &Value, errors: &mut Vec<String>) -> Option<SignaturePack> 
         }),
         None => Vec::new(),
     };
+    if let Some(list) = obj.get("correlation_rules").and_then(Value::as_array) {
+        for (i, raw) in list.iter().enumerate() {
+            let label = format!(
+                "correlation_rules[{i}] ({})",
+                raw.get("id").and_then(Value::as_str).unwrap_or("?")
+            );
+            for key in raw.as_object().map(|m| m.keys()).into_iter().flatten() {
+                if !CORRELATION_RULE_KEYS.contains(&key.as_str()) {
+                    errors.push(unknown_key(&label, key, CORRELATION_RULE_KEYS));
+                }
+            }
+        }
+    }
+    // An unknown `name_uses` value fails here, naming the values it accepts.
     let correlation_rules = match obj.get("correlation_rules") {
         Some(v) => serde_json::from_value(v.clone()).unwrap_or_else(|e| {
             errors.push(format!("correlation_rules: {e}"));
@@ -1125,6 +1159,59 @@ rules:
         assert_eq!(
             ok.pack.correlation_rules[0].sink_window_before,
             MAX_SINK_WINDOW_BEFORE
+        );
+    }
+
+    #[test]
+    fn a_correlation_rule_states_how_it_reads_names() {
+        use crate::corpus::schema::NameUses;
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let pack = |extra: &str| {
+            format!(
+                r#"{{"meta":{{"id":"p","name":"p","version":"1","updated_at":"","author":"","description":""}},
+                "correlation_rules":[{{"id":"P-CHAIN-1","phase":"network_exfil","severity":"high","description":"d",
+                "source":{{"rule_ids":["P-1"]}},"sink":{{"rule_ids":["P-2"]}}{extra}}}]}}"#
+            )
+        };
+        for (extra, want) in [
+            (r#","name_uses":"value""#, Some(NameUses::Value)),
+            (r#","name_uses":"word""#, Some(NameUses::Word)),
+            ("", None),
+        ] {
+            let ok = parse("p.json", &pack(extra)).expect("loads");
+            assert_eq!(ok.pack.correlation_rules[0].name_uses, want, "{extra}");
+        }
+        let yaml =
+            "meta: {id: p, name: p, version: '1', updated_at: '', author: '', description: ''}\n\
+            correlation_rules:\n\
+            \x20 - id: P-CHAIN-1\n\
+            \x20   phase: network_exfil\n\
+            \x20   severity: high\n\
+            \x20   description: d\n\
+            \x20   source: {rule_ids: [P-1]}\n\
+            \x20   sink: {rule_ids: [P-2]}\n\
+            \x20   name_uses: value\n";
+        let ok = parse("p.yaml", yaml).expect("YAML loads");
+        assert_eq!(
+            ok.pack.correlation_rules[0].name_uses,
+            Some(NameUses::Value)
+        );
+        // An unknown value is refused, naming the ones that exist.
+        let errs = parse("p.json", &pack(r#","name_uses":"values""#)).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("unknown variant `values`") && e.contains("`value`")),
+            "{errs:?}"
+        );
+        // So is a misspelt key, which would otherwise fall back to the
+        // default without a word.
+        let errs = parse("p.json", &pack(r#","name_use":"value""#)).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("correlation_rules[0] (P-CHAIN-1)")
+                    && e.contains("did you mean 'name_uses'")),
+            "{errs:?}"
         );
     }
 
