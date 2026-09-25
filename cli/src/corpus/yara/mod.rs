@@ -6,13 +6,24 @@
 //! runs on — no libyara, no FFI, no new dependency, and linear-time matching
 //! whatever the scanned bytes are.
 //!
-//! **Fail closed.** Anything outside the subset (modules and `import`,
-//! `include`, `for` loops, `uint32()` and friends, `@a[i]`/`!a[i]`, string
-//! operators, external variables, `xor`/`base64` modifiers, ...) is an error
-//! naming the construct and its `file:line`. A pack with any error is refused
-//! as a whole, exactly like a JSON or YAML pack: a rule that silently does not
-//! run is a detection gap nobody notices. The subset is documented in
-//! `docs/enterprise.md` ("YARA rules").
+//! **Full YARA** ([`external`]). A file that uses anything outside the
+//! subset (modules and `import`, `for` loops, `uint32()` and friends,
+//! `@a[i]`/`!a[i]`, string operators, `xor`/`base64` modifiers, ...) is
+//! evaluated by an installed YARA-X (`yr`) or YARA (`yara`), as
+//! `--yara-engine` selects ([`analyze`]); the built-in parser then reads only
+//! its declarations (names, tags, meta) for ids and reporting. Each such
+//! construct is a problem tagged `parse::NEEDS_ENGINE`, so it is told apart
+//! from a rule YARA itself refuses.
+//!
+//! **Fail closed.** A problem YARA itself refuses (an undefined string,
+//! `include`, an external variable), and under `--yara-engine builtin` any
+//! construct outside the subset, is an error naming the construct and its
+//! `file:line`. A pack with any error is refused as a whole, exactly like a
+//! JSON or YAML pack: a rule that silently does not run is a detection gap
+//! nobody notices. A file that needs an engine the machine does not have
+//! loads unevaluated and every scan reports it as incomplete coverage. The
+//! subset and the engines are documented in `docs/enterprise.md` ("YARA
+//! rules", "Full YARA: external engines").
 //!
 //! **Identity.** Each rule becomes Sigil rule `YARA-<NAME>`: the rule name
 //! upper-cased with `_` turned into `-`, so `sigil:ignore` markers, policy
@@ -30,6 +41,7 @@
 //! included; see `scanner::run_scan` for which units are evaluated.
 
 mod eval;
+pub mod external;
 mod parse;
 mod strings;
 #[cfg(test)]
@@ -136,12 +148,50 @@ pub enum Expr {
 pub struct YaraFile {
     pub path: PathBuf,
     pub rules: Vec<YaraRule>,
+    /// What evaluates it.
+    pub engine: FileEngine,
 }
 
 impl YaraFile {
     /// Rules that can produce a finding.
     pub fn public_rules(&self) -> impl Iterator<Item = &YaraRule> {
         self.rules.iter().filter(|r| !r.private)
+    }
+
+    /// Evaluated by the built-in engine ([`scan`]).
+    pub fn is_builtin(&self) -> bool {
+        matches!(self.engine, FileEngine::Builtin)
+    }
+}
+
+/// What evaluates a YARA file (see `--yara-engine`, [`external`]).
+#[derive(Debug, Clone)]
+pub enum FileEngine {
+    /// Sigil's built-in engine, over each file's bytes ([`eval`]).
+    Builtin,
+    /// An external engine, given the exact bytes Sigil verified and
+    /// validated at load, never the file on disk again.
+    External {
+        engine: Arc<external::Engine>,
+        source: Arc<[u8]>,
+    },
+    /// Nothing: the file needs an external engine and none is installed.
+    /// Every scan reports it as incomplete coverage (`PROV-INCOMPLETE-001`).
+    Unevaluated {
+        /// Why the built-in engine cannot evaluate it, one line each.
+        reasons: Vec<String>,
+    },
+}
+
+impl FileEngine {
+    /// A short description, for `sigil rules`, `sigil corpus` and the
+    /// corpus digest.
+    pub fn label(&self) -> String {
+        match self {
+            FileEngine::Builtin => "built-in".to_string(),
+            FileEngine::External { engine, .. } => engine.label(),
+            FileEngine::Unevaluated { .. } => "not evaluated (no external engine)".to_string(),
+        }
     }
 }
 
@@ -162,7 +212,10 @@ pub struct YaraRule {
     pub severity: Severity,
     pub phase: Phase,
     pub remediation: Option<String>,
+    /// Empty for a rule an external engine evaluates: its strings and
+    /// condition are the engine's (see [`YaraFile::engine`]).
     pub strings: Vec<CompiledString>,
+    /// `false` for a rule an external engine evaluates; never read then.
     pub condition: Expr,
     /// The rule as written, for `sigil rules show` and the corpus digest.
     pub source: String,
@@ -216,10 +269,158 @@ pub fn sigil_id(name: &str) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 /// A compiled file and its warnings, or every problem as `(line, message)`.
+/// Line 0 is a problem with the file as a whole.
 pub type Compiled = Result<(YaraFile, Vec<String>), Vec<(usize, String)>>;
 
-/// Parse and compile YARA source. Warnings are messages about rules that
-/// load but may not do what the author meant.
+/// What a rule's `meta:` section tells Sigil.
+struct RuleMeta {
+    description: Option<String>,
+    author: Option<String>,
+    references: Vec<String>,
+    severity: Option<Severity>,
+    phase: Option<Phase>,
+    remediation: Option<String>,
+}
+
+/// Read the meta keys Sigil uses. A severity or phase Sigil cannot read is an
+/// error whatever evaluates the rule; a near miss of a key is a warning.
+fn read_meta(
+    rule: &str,
+    entries: &[parse::MetaEntry],
+    path: &Path,
+    errors: &mut Vec<(usize, String)>,
+    warnings: &mut Vec<String>,
+) -> RuleMeta {
+    let mut m = RuleMeta {
+        description: None,
+        author: None,
+        references: Vec::new(),
+        severity: None,
+        phase: None,
+        remediation: None,
+    };
+    for e in entries {
+        let text = match &e.value {
+            parse::MetaValue::Str(s) => Some(s.clone()),
+            _ => None,
+        };
+        let key = e.key.to_ascii_lowercase();
+        match key.as_str() {
+            "description" => m.description = text.filter(|s| !s.trim().is_empty()),
+            "author" => m.author = text,
+            "reference" => m.references.extend(text),
+            "remediation" => m.remediation = text.filter(|s| !s.trim().is_empty()),
+            "severity" => match text.as_deref().map(|s| s.trim().to_ascii_lowercase()) {
+                Some(s) => match parse_severity(&s) {
+                    Some(v) => m.severity = Some(v),
+                    None => errors.push((
+                        e.line,
+                        format!(
+                            "rule `{rule}`: severity \"{s}\" is not one of critical, high, \
+                             medium, low"
+                        ),
+                    )),
+                },
+                None => errors.push((
+                    e.line,
+                    format!(
+                        "rule `{rule}`: severity must be a text value: \"critical\", \"high\", \
+                         \"medium\" or \"low\""
+                    ),
+                )),
+            },
+            "phase" => match text.as_deref().map(Phase::from_name) {
+                Some(Some(p)) => m.phase = Some(p),
+                _ => {
+                    let names: Vec<&str> = Phase::ALL.iter().map(|p| p.canonical_name()).collect();
+                    errors.push((
+                        e.line,
+                        format!("rule `{rule}`: phase must be one of {}", names.join(", ")),
+                    ));
+                }
+            },
+            other => {
+                // A near miss of a key Sigil reads is almost certainly a
+                // typo that would silently fall back to a default.
+                if let Some(k) = KNOWN_META
+                    .iter()
+                    .find(|k| other != **k && edit_distance_is_one(other, k))
+                {
+                    warnings.push(format!(
+                        "{}:{}: rule `{rule}`: meta `{}` is not read by Sigil (did you mean \
+                         `{k}`?)",
+                        path.display(),
+                        e.line,
+                        e.key
+                    ));
+                }
+            }
+        }
+    }
+    m
+}
+
+/// The parts of a rule both engines share: its declaration and meta.
+struct Declared {
+    name: String,
+    line: usize,
+    private: bool,
+    global: bool,
+    tags: Vec<String>,
+    source: String,
+}
+
+/// Turn a declaration into a rule, or record why it cannot be one.
+fn declare(
+    d: Declared,
+    meta: RuleMeta,
+    strings: Vec<CompiledString>,
+    condition: Expr,
+    rules: &[YaraRule],
+    errors: &mut Vec<(usize, String)>,
+) -> Option<YaraRule> {
+    let Some(id) = sigil_id(&d.name) else {
+        errors.push((
+            d.line,
+            format!(
+                "rule `{}` has no letters or digits to form a Sigil id from",
+                d.name
+            ),
+        ));
+        return None;
+    };
+    if let Some(prev) = rules.iter().find(|r| r.id == id) {
+        errors.push((
+            d.line,
+            format!(
+                "rules `{}` (line {}) and `{}` both become Sigil id {id}; rename one",
+                prev.name, prev.line, d.name
+            ),
+        ));
+    }
+    Some(YaraRule {
+        description: meta
+            .description
+            .unwrap_or_else(|| default_description(&d.name)),
+        name: d.name,
+        id,
+        line: d.line,
+        private: d.private,
+        global: d.global,
+        tags: d.tags,
+        author: meta.author,
+        references: meta.references,
+        severity: meta.severity.unwrap_or(DEFAULT_SEVERITY),
+        phase: meta.phase.unwrap_or(DEFAULT_PHASE),
+        remediation: meta.remediation,
+        strings,
+        condition,
+        source: d.source,
+    })
+}
+
+/// Parse and compile YARA source for the built-in engine. Warnings are
+/// messages about rules that load but may not do what the author meant.
 pub fn compile_rules(src: &str, path: &Path) -> Compiled {
     let parsed = parse::parse(src);
     let mut errors = parsed.errors;
@@ -234,119 +435,21 @@ pub fn compile_rules(src: &str, path: &Path) -> Compiled {
                 Err(e) => errors.push((s.line, e)),
             }
         }
-
-        let mut description: Option<String> = None;
-        let mut author: Option<String> = None;
-        let mut references: Vec<String> = Vec::new();
-        let mut severity: Option<Severity> = None;
-        let mut phase: Option<Phase> = None;
-        let mut remediation: Option<String> = None;
-        for m in &ast.meta {
-            let text = match &m.value {
-                parse::MetaValue::Str(s) => Some(s.clone()),
-                _ => None,
-            };
-            let key = m.key.to_ascii_lowercase();
-            match key.as_str() {
-                "description" => description = text.filter(|s| !s.trim().is_empty()),
-                "author" => author = text,
-                "reference" => references.extend(text),
-                "remediation" => remediation = text.filter(|s| !s.trim().is_empty()),
-                "severity" => match text.as_deref().map(|s| s.trim().to_ascii_lowercase()) {
-                    Some(s) => match parse_severity(&s) {
-                        Some(v) => severity = Some(v),
-                        None => errors.push((
-                            m.line,
-                            format!(
-                                "rule `{}`: severity \"{s}\" is not one of critical, high, \
-                                 medium, low",
-                                ast.name
-                            ),
-                        )),
-                    },
-                    None => errors.push((
-                        m.line,
-                        format!(
-                            "rule `{}`: severity must be a text value: \"critical\", \"high\", \
-                             \"medium\" or \"low\"",
-                            ast.name
-                        ),
-                    )),
-                },
-                "phase" => match text.as_deref().map(Phase::from_name) {
-                    Some(Some(p)) => phase = Some(p),
-                    _ => {
-                        let names: Vec<&str> =
-                            Phase::ALL.iter().map(|p| p.canonical_name()).collect();
-                        errors.push((
-                            m.line,
-                            format!(
-                                "rule `{}`: phase must be one of {}",
-                                ast.name,
-                                names.join(", ")
-                            ),
-                        ));
-                    }
-                },
-                other => {
-                    // A near miss of a key Sigil reads is almost certainly a
-                    // typo that would silently fall back to a default.
-                    if let Some(k) = KNOWN_META
-                        .iter()
-                        .find(|k| other != **k && edit_distance_is_one(other, k))
-                    {
-                        warnings.push(format!(
-                            "{}:{}: rule `{}`: meta `{}` is not read by Sigil (did you mean \
-                             `{k}`?)",
-                            path.display(),
-                            m.line,
-                            ast.name,
-                            m.key
-                        ));
-                    }
-                }
-            }
-        }
-
-        let Some(id) = sigil_id(&ast.name) else {
-            errors.push((
-                ast.line,
-                format!(
-                    "rule `{}` has no letters or digits to form a Sigil id from",
-                    ast.name
-                ),
-            ));
-            continue;
-        };
-        if let Some(prev) = rules.iter().find(|r| r.id == id) {
-            errors.push((
-                ast.line,
-                format!(
-                    "rules `{}` (line {}) and `{}` both become Sigil id {id}; rename one",
-                    prev.name, prev.line, ast.name
-                ),
-            ));
-        }
-        if strings.len() != ast.strings.len() {
-            continue;
-        }
-        rules.push(YaraRule {
-            description: description.unwrap_or_else(|| default_description(&ast.name)),
+        let meta = read_meta(&ast.name, &ast.meta, path, &mut errors, &mut warnings);
+        let complete = strings.len() == ast.strings.len();
+        let declared = Declared {
             name: ast.name,
-            id,
             line: ast.line,
             private: ast.private,
             global: ast.global,
             tags: ast.tags,
-            author,
-            references,
-            severity: severity.unwrap_or(DEFAULT_SEVERITY),
-            phase: phase.unwrap_or(DEFAULT_PHASE),
-            remediation,
-            strings,
-            condition: ast.condition,
             source: ast.source,
-        });
+        };
+        if let Some(rule) = declare(declared, meta, strings, ast.condition, &rules, &mut errors) {
+            if complete {
+                rules.push(rule);
+            }
+        }
     }
 
     if rules.is_empty() && errors.is_empty() {
@@ -378,9 +481,124 @@ pub fn compile_rules(src: &str, path: &Path) -> Compiled {
         YaraFile {
             path: path.to_path_buf(),
             rules,
+            engine: FileEngine::Builtin,
         },
         warnings,
     ))
+}
+
+/// A file whose strings and conditions another engine evaluates, or none
+/// can: its rules as declared, from [`parse::outline`]. `include` and a
+/// file that is not readable YARA are refused here, whatever the engine.
+fn declared_rules(src: &str, path: &Path, engine: FileEngine) -> Compiled {
+    let outline = parse::outline(src);
+    let mut errors = outline.errors;
+    let mut warnings = Vec::new();
+    let mut rules: Vec<YaraRule> = Vec::with_capacity(outline.rules.len());
+    for h in outline.rules {
+        let meta = read_meta(&h.name, &h.meta, path, &mut errors, &mut warnings);
+        let declared = Declared {
+            name: h.name,
+            line: h.line,
+            private: h.private,
+            global: h.global,
+            tags: h.tags,
+            source: h.source,
+        };
+        if let Some(rule) = declare(
+            declared,
+            meta,
+            Vec::new(),
+            Expr::Bool(false),
+            &rules,
+            &mut errors,
+        ) {
+            rules.push(rule);
+        }
+    }
+    if rules.is_empty() && errors.is_empty() {
+        errors.push((1, "no rules in this file".to_string()));
+    }
+    if !errors.is_empty() {
+        errors.sort_by_key(|(line, _)| *line);
+        return Err(errors);
+    }
+    Ok((
+        YaraFile {
+            path: path.to_path_buf(),
+            rules,
+            engine,
+        },
+        warnings,
+    ))
+}
+
+/// Compile a YARA file for the engine `sel` chooses (`--yara-engine`):
+///
+/// - `builtin`: the built-in engine, which refuses what it cannot evaluate;
+/// - `yara-x` / `yara`: that external engine, which must be installed;
+/// - `auto`: the built-in engine when it can evaluate the whole file; when
+///   every problem it has is valid YARA outside its subset, an installed
+///   external engine (YARA-X first), or, with none installed, the file is
+///   loaded unevaluated and every scan reports it as incomplete coverage. A
+///   file with any other problem is refused, as before.
+///
+/// An external engine's own check of the file runs afterwards, over every
+/// file of a load at once ([`external::validate_packs`]).
+pub fn analyze(src: &str, bytes: &[u8], path: &Path, sel: &external::Selection) -> Compiled {
+    let delegate = |engine: Arc<external::Engine>| {
+        declared_rules(
+            src,
+            path,
+            FileEngine::External {
+                engine,
+                source: Arc::from(bytes),
+            },
+        )
+    };
+    match sel.mode {
+        external::EngineMode::Builtin => compile_rules(src, path),
+        external::EngineMode::YaraX | external::EngineMode::Yara => {
+            let kind = if sel.mode == external::EngineMode::YaraX {
+                external::EngineKind::YaraX
+            } else {
+                external::EngineKind::Yara
+            };
+            let engine = sel.engine(kind).map_err(|e| {
+                vec![(
+                    0,
+                    format!("--yara-engine {} ({}): {e}", sel.mode.name(), sel.source),
+                )]
+            })?;
+            delegate(engine)
+        }
+        external::EngineMode::Auto => match compile_rules(src, path) {
+            Ok(compiled) => Ok(compiled),
+            Err(problems) => {
+                if problems.iter().any(|(_, m)| !parse::needs_engine(m)) {
+                    return Err(problems);
+                }
+                match sel.auto_engine() {
+                    Some(engine) => delegate(engine),
+                    None => declared_rules(
+                        src,
+                        path,
+                        FileEngine::Unevaluated {
+                            reasons: problems
+                                .iter()
+                                .map(|(line, m)| {
+                                    format!(
+                                        "line {line}: {}",
+                                        m.replace(parse::NEEDS_ENGINE, "").trim_end()
+                                    )
+                                })
+                                .collect(),
+                        },
+                    ),
+                }
+            }
+        },
+    }
 }
 
 /// The title of a rule whose meta has no `description`.
@@ -443,6 +661,19 @@ fn edit_distance_is_one(a: &str, b: &str) -> bool {
 // Loading as a custom pack
 // ---------------------------------------------------------------------------
 
+/// Problems as `path:line: message` (`path: message` for line 0).
+fn located(path: &Path, errs: Vec<(usize, String)>) -> Vec<String> {
+    errs.into_iter()
+        .map(|(line, msg)| {
+            if line == 0 {
+                format!("{}: {msg}", path.display())
+            } else {
+                format!("{}:{line}: {msg}", path.display())
+            }
+        })
+        .collect()
+}
+
 /// Where the detached signature of `path` lives: `<path>.sig`.
 pub fn signature_path(path: &Path) -> PathBuf {
     let mut s = path.as_os_str().to_owned();
@@ -452,16 +683,26 @@ pub fn signature_path(path: &Path) -> PathBuf {
 
 /// Verify, parse and compile one YARA file into a custom pack. Every error
 /// is `path:line: message`, or `path: message` when no line applies.
+///
+/// The engine is the one `--yara-engine` (or the policy's `yara_engine`)
+/// selects. A file handed to an external engine is not yet checked by it:
+/// [`external::validate_packs`] does that for every file of a load at once,
+/// and `custom::load_file`/`load_path` always call it.
 pub fn parse_pack(bytes: &[u8], path: &Path) -> Result<CustomPack, Vec<String>> {
+    parse_pack_with(bytes, path, &external::Selection::current())
+}
+
+/// [`parse_pack`] with an explicit engine selection.
+pub fn parse_pack_with(
+    bytes: &[u8],
+    path: &Path,
+    sel: &external::Selection,
+) -> Result<CustomPack, Vec<String>> {
     let here = path.display();
     let signature = signature_status(bytes, path).map_err(|e| vec![format!("{here}: {e}")])?;
     let src = std::str::from_utf8(bytes)
         .map_err(|e| vec![format!("{here}: a YARA file must be UTF-8 text: {e}")])?;
-    let (file, warnings) = compile_rules(src, path).map_err(|errs| {
-        errs.into_iter()
-            .map(|(line, msg)| format!("{here}:{line}: {msg}"))
-            .collect::<Vec<_>>()
-    })?;
+    let (file, warnings) = analyze(src, bytes, path, sel).map_err(|errs| located(path, errs))?;
 
     let stem = path
         .file_stem()
@@ -579,12 +820,18 @@ pub fn sign_detached(path: &Path, key: &ed25519_dalek::SigningKey) -> Result<Str
         .map_err(|e| format!("{}: cannot read rule file: {e}", path.display()))?;
     let src = std::str::from_utf8(&bytes)
         .map_err(|e| format!("{}: a YARA file must be UTF-8 text: {e}", path.display()))?;
-    compile_rules(src, path).map_err(|errs| {
-        errs.into_iter()
-            .map(|(line, msg)| format!("{}:{line}: {msg}", path.display()))
-            .collect::<Vec<_>>()
-            .join("\n")
-    })?;
+    // Checked by the engine that will evaluate it, as a load would.
+    let (file, _) = analyze(src, &bytes, path, &external::Selection::current())
+        .map_err(|errs| located(path, errs).join("\n"))?;
+    if let FileEngine::Unevaluated { reasons } = &file.engine {
+        return Err(format!(
+            "{}: not signed: it needs an external YARA engine to be checked, and none is \
+             installed here ({})",
+            path.display(),
+            reasons.first().map(String::as_str).unwrap_or("")
+        ));
+    }
+    external::validate_files(&[&file]).map_err(|errs| errs.join("\n"))?;
     let signature = key.sign(&signed_message(&bytes));
     Ok(format!("{}\n", BASE64.encode(signature.to_bytes())))
 }

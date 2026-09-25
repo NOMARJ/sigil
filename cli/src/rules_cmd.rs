@@ -81,6 +81,8 @@ struct RuleRow {
     remediation: Option<String>,
     references: Vec<String>,
     tags: Vec<String>,
+    /// What evaluates a YARA rule (built-in, an external engine, or none).
+    engine: Option<String>,
 }
 
 fn all_rules() -> Result<Vec<RuleRow>, String> {
@@ -104,6 +106,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
         for r in &pack.provenance_rules {
@@ -124,6 +127,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
         if let Some(file) = &pack.yara {
@@ -149,6 +153,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                     remediation: Some(r.remediation_or_default(&file.path)),
                     references: r.references.clone(),
                     tags: r.tags.clone(),
+                    engine: Some(file.engine.label()),
                 });
             }
         }
@@ -170,6 +175,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
     }
@@ -221,6 +227,7 @@ fn row_json(row: &RuleRow, policy: &EffectivePolicy) -> serde_json::Value {
         "references": row.references,
         "tags": row.tags,
         "behavior": crate::scanner::profile::behavior_for(&row.id),
+        "engine": row.engine,
     })
 }
 
@@ -371,6 +378,9 @@ fn show(id: &str, as_json: bool, policy: &EffectivePolicy) -> i32 {
         format!("{} {} ({})", row.pack_id, row.pack_version, row.origin),
     );
     field("kind", row.kind.to_string());
+    if let Some(e) = &row.engine {
+        field("engine", e.clone());
+    }
     let phase_label = Phase::from_name(&row.phase)
         .map(|p| format!("{} ({})", row.phase, p.display_name()))
         .unwrap_or_else(|| row.phase.clone());
@@ -488,6 +498,21 @@ fn validate(path: &Path, as_json: bool) -> i32 {
             }
         }
     }
+    // A YARA file no engine here can evaluate is not refused by a scan (it
+    // is reported as incomplete coverage), but it cannot be called valid
+    // either: nothing here has checked its strings and conditions.
+    for p in &packs {
+        if let Some(file) = &p.pack.yara {
+            if let crate::corpus::yara::FileEngine::Unevaluated { reasons } = &file.engine {
+                errors.push(format!(
+                    "{}: not checked: it needs an external YARA engine and neither YARA-X \
+                     (`yr`) nor YARA (`yara`) is installed ({}); a scan would not evaluate it",
+                    file.path.display(),
+                    reasons.first().map(String::as_str).unwrap_or("")
+                ));
+            }
+        }
+    }
     let ok = errors.is_empty();
     if as_json {
         let doc = json!({
@@ -499,6 +524,7 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                 "form": p.form.to_string(),
                 "rules": p.pack.rule_count(),
                 "signature": p.signature.to_string(),
+                "engine": p.pack.yara.as_ref().map(|y| y.engine.label()),
                 "warnings": p.warnings,
             })).collect::<Vec<_>>(),
         });
@@ -514,6 +540,9 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                 p.form,
                 p.signature
             );
+            if let Some(y) = &p.pack.yara {
+                println!("      engine: {}", y.engine.label());
+            }
             for w in &p.warnings {
                 println!("      {} {w}", "warning:".yellow());
             }
@@ -539,6 +568,8 @@ fn validate(path: &Path, as_json: bool) -> i32 {
 }
 
 fn test(pack: &Path, target: &Path) -> i32 {
+    // The samples are untrusted: no YARA engine is looked for among them.
+    crate::corpus::yara::external::exclude_from_search(target);
     let packs = match custom::load_path(pack) {
         Ok(p) => p,
         Err(e) => {
@@ -566,6 +597,52 @@ fn test(pack: &Path, target: &Path) -> i32 {
     };
     let files = crate::scanner::collect_files(target);
     let mut hits = 0usize;
+    let rel_of = |file: &Path| {
+        file.strip_prefix(base)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .to_string()
+    };
+    // Rules an external engine evaluates run once over every file.
+    let external: Vec<_> = compiled
+        .yara()
+        .iter()
+        .filter(|f| !f.is_builtin())
+        .cloned()
+        .collect();
+    if !external.is_empty() {
+        use crate::corpus::yara::external::{self, Source, Unit};
+        let units: Vec<Unit<'_>> = files
+            .iter()
+            .map(|f| Unit {
+                rel_path: rel_of(f),
+                source: Source::Disk(f),
+            })
+            .collect();
+        let mut found: Vec<crate::scanner::Finding> =
+            external::unevaluated_findings(&external, &|_| true);
+        let ev = external::evaluate(&external, &units, &|_| true, None);
+        found.extend(ev.global);
+        found.extend(ev.per_unit.into_iter().flatten());
+        for f in found {
+            let note = crate::scanner::coverage::is_coverage_rule(&f.rule);
+            if !note {
+                hits += 1;
+            }
+            println!(
+                "  {:<8} [{}] {}{}\n           {}",
+                if note {
+                    "note".to_string()
+                } else {
+                    f.severity.to_string()
+                },
+                f.rule,
+                f.file,
+                f.line.map(|l| format!(":{l}")).unwrap_or_default(),
+                f.snippet.dimmed()
+            );
+        }
+    }
     for file in &files {
         let Ok(bytes) = std::fs::read(file) else {
             continue;

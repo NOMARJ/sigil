@@ -48,6 +48,7 @@ ignore_paths: [tests/fixtures/, "*.snap"]   # .sigilignore (gitignore) syntax
 rule_packs: [.sigil/rules/]         # custom packs: files or directories
 trusted_domains: [api.openai.com]   # excuse network findings to these hosts
 baseline: .sigil-baseline.json      # accept the findings recorded here
+yara_engine: auto                   # auto | builtin | yara-x | yara
 # Organisation policy only:
 locked: [fail_on, disable_rules]    # or [all]
 allow_project_policy: true          # false = project files may only tighten
@@ -64,6 +65,7 @@ allow_project_policy: true          # false = project files may only tighten
 | `rule_packs` | list of paths | adds custom rule packs (relative to the policy file) |
 | `trusted_domains` | list of host names | a Network/Exfil finding up to High whose URLs all point at these hosts (or their subdomains) moves to `policy.suppressed`; never Critical findings, credential-flow chains, data-egress rules (`SKILL-017`, `NET-011`, `NET-018`), reverse shells, decoded or truncated lines, or a line with a URL whose host cannot be read with certainty (userinfo `@`, percent encoding, templates, shell quoting) |
 | `baseline` | path | findings recorded in the baseline move to `policy.suppressed` |
+| `yara_engine` | `auto`/`builtin`/`yara-x`/`yara` | what evaluates YARA rule files (same as `--yara-engine`); see [Full YARA: external engines](enterprise.md#full-yara-external-engines). Locked or in a tighten-only file, it cannot be changed at all |
 | `locked` | list of keys, or `all` | organisation only; see below |
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
 
@@ -116,7 +118,9 @@ a Critical pattern in a baseline, add a `sigil:ignore` marker for it.
 
 `--rules PATH` (repeatable, a file or a directory) and a policy's
 `rule_packs` add rule packs in JSON or YAML, and YARA rule files (`.yar`,
-`.yara`; see [YARA rules](enterprise.md#yara-rules)). Two JSON/YAML shapes are
+`.yara`; see [YARA rules](enterprise.md#yara-rules), and
+[Full YARA: external engines](enterprise.md#full-yara-external-engines) for
+rules that use modules). Two JSON/YAML shapes are
 accepted: the full pack schema used by `cli/packs/core/v1/`, and a compact
 form:
 

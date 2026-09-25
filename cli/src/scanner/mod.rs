@@ -639,7 +639,7 @@ const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
 
 /// Files larger than this are not read whole for content scanning. They are
 /// not skipped either: see [`oversized_excerpt`].
-const MAX_CONTENT_SCAN_BYTES: u64 = 10_000_000;
+pub(crate) const MAX_CONTENT_SCAN_BYTES: u64 = 10_000_000;
 
 /// How much of each end of an oversized file is still scanned. Padding a
 /// script past a scanner's size cap is a cheap evasion — the evaluation set
@@ -650,7 +650,7 @@ const OVERSIZED_EXCERPT_BYTES: usize = 2_000_000;
 
 /// Past this even the excerpt is skipped; the Provenance phase still sees the
 /// file's size.
-const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
+pub(crate) const OVERSIZED_MAX_BYTES: u64 = 512_000_000;
 
 /// How many of the slowest files `SIGIL_TIMING=1` lists.
 const TIMING_SLOWEST_FILES: usize = 15;
@@ -1021,7 +1021,7 @@ fn stray_nul_finding(rel_path: &str, n: usize, line: usize) -> Finding {
 }
 
 /// The finding that records a file whose analysis ran out of time.
-fn budget_finding(rel_path: &str, limit: Option<std::time::Duration>) -> Finding {
+pub(crate) fn budget_finding(rel_path: &str, limit: Option<std::time::Duration>) -> Finding {
     Finding {
         phase: Phase::Provenance,
         rule: budget::BUDGET_RULE_ID.to_string(),
@@ -1094,10 +1094,28 @@ pub fn run_scan(
         }
     };
 
-    // YARA rule files loaded as custom packs (`--rules x.yar`). When there
-    // are any, every file's bytes are kept for the byte-level pass below.
-    let yara_files = crate::corpus::compiled::corpus().yara();
+    // YARA rule files loaded as custom packs (`--rules x.yar`). Those the
+    // built-in engine evaluates run in the per-file pass below, over each
+    // file's bytes, so with any loaded every file's bytes are kept. Those an
+    // external engine evaluates (corpus::yara::external) run before that
+    // pass, over the same files and archive members; those no engine can
+    // evaluate here are reported as incomplete coverage.
+    let all_yara = crate::corpus::compiled::corpus().yara();
+    let yara_files: Vec<std::sync::Arc<crate::corpus::yara::YaraFile>> = all_yara
+        .iter()
+        .filter(|f| f.is_builtin())
+        .cloned()
+        .collect();
+    let external_yara: Vec<std::sync::Arc<crate::corpus::yara::YaraFile>> = all_yara
+        .iter()
+        .filter(|f| matches!(f.engine, crate::corpus::yara::FileEngine::External { .. }))
+        .cloned()
+        .collect();
     let yara_active = !yara_files.is_empty();
+    findings.extend(crate::corpus::yara::external::unevaluated_findings(
+        all_yara,
+        &should_run_phase,
+    ));
 
     let (files, unlisted) = timing::measure(timing::Stage::Walk, || collect_files_reporting(path));
     let files_scanned = files.len();
@@ -1126,7 +1144,8 @@ pub fn run_scan(
     // shipped source — is scanned below exactly like a file on disk.
     let virtual_files = timing::measure(timing::Stage::Provenance, || {
         let mut tree = bytecode::scan(path, strip_base);
-        let mut art = artifacts::scan_with(strip_base, &files, yara_active);
+        let mut art =
+            artifacts::scan_with(strip_base, &files, yara_active || !external_yara.is_empty());
         tree.findings.append(&mut art.findings);
         tree.units.append(&mut art.units);
         findings.extend(
@@ -1148,18 +1167,73 @@ pub fn run_scan(
     // environment variable, which is not something to do 2,794 times.
     let file_budget_limit = budget::configured_budget();
 
+    // YARA files an external engine evaluates: one engine run over every
+    // file and archive member, before the per-file pass, so each unit's
+    // findings join that unit's own below (inline markers apply to them).
+    let mut external_per_unit: Vec<Vec<Finding>> = if external_yara.is_empty() {
+        Vec::new()
+    } else {
+        timing::measure(timing::Stage::Yara, || {
+            use crate::corpus::yara::external::{self, Source, Unit};
+            let units: Vec<Unit<'_>> = files
+                .iter()
+                .map(|p| Unit {
+                    rel_path: p
+                        .strip_prefix(strip_base)
+                        .unwrap_or(p)
+                        .to_string_lossy()
+                        .to_string(),
+                    // A file past the size limit is reported as not
+                    // content-scanned by the per-file pass.
+                    source: match std::fs::metadata(p) {
+                        Ok(m) if m.len() <= OVERSIZED_MAX_BYTES => Source::Disk(p),
+                        _ => Source::Excluded,
+                    },
+                })
+                .chain(virtual_files.iter().map(|v| Unit {
+                    rel_path: v.rel_path.clone(),
+                    source: if !v.is_file {
+                        Source::Excluded
+                    } else if v.truncated {
+                        Source::NotEvaluated(
+                            "only the first part of this archive member was kept, and an \
+                             external engine needs the whole file"
+                                .to_string(),
+                        )
+                    } else {
+                        Source::Bytes(v.raw.as_deref().unwrap_or(v.text.as_bytes()))
+                    },
+                }))
+                .collect();
+            let ev =
+                external::evaluate(&external_yara, &units, &should_run_phase, Some(strip_base));
+            findings.extend(ev.global);
+            ev.per_unit
+        })
+    };
+
     // Content phases run per-file in parallel; collect() preserves file order
     // so results stay deterministic. Each file yields its active findings and
     // the ones an inline `sigil:ignore` marker set aside, with attribution.
     type FileOutcome = (Vec<Finding>, Vec<(Finding, String)>);
-    let units: Vec<ScanUnit<'_>> = files
+    let units: Vec<(ScanUnit<'_>, Vec<Finding>)> = files
         .iter()
         .map(ScanUnit::Disk)
         .chain(virtual_files.into_iter().map(ScanUnit::Virtual))
+        .enumerate()
+        .map(|(i, u)| {
+            (
+                u,
+                external_per_unit
+                    .get_mut(i)
+                    .map(std::mem::take)
+                    .unwrap_or_default(),
+            )
+        })
         .collect();
     let per_file: Vec<FileOutcome> = units
         .into_par_iter()
-        .map(|unit| {
+        .map(|(unit, external_findings)| {
             let file_start = std::time::Instant::now();
             let none: FileOutcome = (Vec::new(), Vec::new());
             // An oversized file yields its head as `contents` and its tail
@@ -1216,7 +1290,7 @@ pub fn run_scan(
             // whole file, binary files included (crate::corpus::yara). One
             // clock covers them and the content phases below.
             let yara_clock = yara_active.then(|| budget::FileBudget::start(file_budget_limit));
-            let yara_findings: Vec<Finding> = match &yara_clock {
+            let mut yara_findings: Vec<Finding> = match &yara_clock {
                 Some(clock) => timing::measure(timing::Stage::Yara, || {
                     use crate::corpus::yara;
                     let subject = match &yara_bytes {
@@ -1242,12 +1316,13 @@ pub fn run_scan(
                         }),
                     };
                     subject
-                        .map(|s| yara::scan(yara_files, &s, &rel_path, &should_run_phase, clock))
+                        .map(|s| yara::scan(&yara_files, &s, &rel_path, &should_run_phase, clock))
                         .unwrap_or_default()
                 }),
                 None => Vec::new(),
             };
             drop(yara_bytes);
+            yara_findings.extend(external_findings);
 
             let Some((contents, tail)) = read else {
                 // Nothing for the content phases (a binary file, a member kept

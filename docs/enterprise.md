@@ -234,12 +234,16 @@ message naming `sigil rules sign`.
 A security team that keeps its detections in YARA can point Sigil at them as
 they are. `.yar` and `.yara` files load wherever a rule pack does — `--rules`,
 a directory of packs, a scan policy's `rule_packs`, the organisation policy —
-next to JSON and YAML packs. Sigil parses and evaluates them itself (no
-libyara, no plug-in), and refuses what it cannot evaluate faithfully rather
-than skipping it. (The machine-level `~/.sigil/packs/` directory reads JSON
-packs only, and warns about a `.yar` file placed there; to deploy YARA files to
-every machine, list their directory under the organisation policy's
-`rule_packs`.)
+next to JSON and YAML packs. Sigil evaluates the string-matching core of YARA
+itself (no libyara, no plug-in, no new dependency), and hands every rule file
+that needs more — modules, loops, offset reads, `xor`/`base64` strings — to a
+YARA engine installed on the machine: YARA-X's `yr` or classic YARA's `yara`
+(see [Full YARA: external engines](#full-yara-external-engines)). A rule is
+never skipped silently: what no engine here can evaluate is refused or
+reported as not inspected. (The machine-level `~/.sigil/packs/` directory
+reads JSON packs only, and warns about a `.yar` file placed there; to deploy
+YARA files to every machine, list their directory under the organisation
+policy's `rule_packs`.)
 
 ```yara
 // acme.yar
@@ -292,7 +296,8 @@ one naming the rule file. What is evaluated:
 | Archive members (zip, tar, gzip, two levels deep) | text members; with YARA rules loaded, binary members and document XML too, 32 MB of them in total. A member past that cap is reported on its archive (`ARTIFACT-008`). A member over 4 MB is evaluated on its first 4 MB with `filesize` undefined (so a `filesize` comparison is false, negated or not), and the finding is marked `[first part of oversized member]` |
 | Bytecode string constants | not evaluated separately: the `.pyc` file itself is evaluated on disk |
 
-**The subset.**
+**The built-in subset.** What Sigil's own engine evaluates (an external
+engine evaluates everything YARA does):
 
 | | Supported |
 |---|---|
@@ -303,19 +308,27 @@ one naming the rule file. What is evaluated:
 | Regular expressions | `/.../` with the `i` and `s` flags; modifiers `nocase`, `ascii`, `fullword`, `private`. YARA's regex syntax with YARA's meaning, matched over bytes: an escape YARA gives no meaning is the character itself (`\z`, `\A`, `\<`, `\v` are letters, not anchors), `{,n}` is `{0,n}`, a `{` that starts no repetition is a literal, and a class is a list of bytes and ranges (`[[:alpha:]]`, `&&`, `--`, nested `[` are not class syntax). YARA's refusals are kept: `(?...)` groups, back-references, non-ASCII characters in a class |
 | Conditions | `true`, `false`, `$a`, `#a`, `$a at N`, `$a in (N..M)`, `any`/`all`/`none`/`N`/`N%` `of them` and `of ($a*, $b)`, `and`, `or`, `not`, parentheses, `filesize`, integers (decimal, `0x`, `0o`, `KB`, `MB`), `+ - * \ %`, `== != < <= > >=`. As in libyara: `0 of` means none of them, a string named twice in a set counts twice, a computed percentage over 100 is never met |
 
-Refused, with the construct named at its `file:line`: `import` and every
-module (`pe`, `elf`, `math`, `hash`, `dotnet`, …), `include`, `for` loops,
-`uint8()` … `int32be()`, `@a[i]` and `!a[i]`, `#a in (range)`, the string
-operators (`contains`, `matches`, `startswith`, …), external variables,
-`entrypoint`, `defined`, bitwise operators, floating-point numbers, `of` over
-rules or with `at`/`in`, the `xor`, `base64` and `base64wide` modifiers, `wide`
-regular expressions, and `~` in hex strings. YARA's own compile errors are
-enforced as well: a string the condition never uses, an undefined string, a
-rule defined twice, a reference to a rule not yet defined, a jump at either end
-of a hex alternative's branch, a constant range whose lower bound is above its
+Outside the built-in subset, named with its `file:line` and marked
+`[needs an external engine]`: `import` and every module (`pe`, `elf`, `math`,
+`hash`, `dotnet`, …), `for` loops, `uint8()` … `int32be()`, `@a[i]` and
+`!a[i]`, `#a in (range)`, the string operators (`contains`, `matches`,
+`startswith`, …), `entrypoint`, `defined`, `with`, bitwise operators,
+floating-point numbers and text values in conditions, function calls and
+indexing, `of` over rules or with `at`/`in`, the `xor`, `base64` and
+`base64wide` modifiers, `wide` regular expressions, `~` in hex strings, and
+Sigil's own size limits (below). A file using any of them goes to an external
+engine, or, under `--yara-engine builtin`, is refused. Refused whatever the
+engine: `include` (an included file is not covered by the including file's
+detached signature, and could be any file on the machine; pass each file with
+`--rules`, or a directory of them), external variables, and YARA's own compile
+errors: a string the condition never uses, an undefined string, a rule
+defined twice, a reference to a rule not yet defined, a jump at either end of
+a hex alternative's branch, a constant range whose lower bound is above its
 upper bound, a constant zero divisor, a constant percentage outside 1–100.
 One deliberate difference: a constant `N of` larger than its set, which can
-never match, is refused where YARA accepts it.
+never match, is refused where YARA accepts it. (The built-in parser stops at
+the first problem in a condition, so an error that follows a module call in
+the same condition is found by the engine that evaluates the file.)
 
 The subset was checked against libyara 4.5.4 (yara-python) on synthetic
 inputs: 127 rules × 60 inputs, every (rule, input) pair evaluated by both,
@@ -328,7 +341,9 @@ test on real rule libraries or real files.
 **Fail closed.** A YARA file with any problem is refused as a whole, like any
 custom pack. `sigil rules validate` lists every problem with its `file:line`
 and exits `1`; a scan exits `2` rather than run without the rule, because a
-rule that silently does not run is a detection gap nobody notices.
+rule that silently does not run is a detection gap nobody notices. A file
+that needs an external engine where none is installed is the one case a scan
+still runs: it is reported as not inspected (below), never passed over.
 
 **Limits**, so that no rule can hold a scan past its per-file budget, whatever
 the scanned bytes are:
@@ -399,6 +414,161 @@ without a valid signature — none, one from another key, or one for a file
 edited after signing — is refused with a `[SECURITY]` error and the scan exits
 `2`, exactly as an unsigned JSON or YAML pack is. Without the key, a `.sig`
 that is present is reported as "signed (not verified)".
+
+### Full YARA: external engines
+
+Rules that need more than the built-in subset — the `pe`, `elf`, `math`,
+`hash`, `dotnet` and other modules, loops, offset reads, `xor` and `base64`
+strings — are evaluated by a YARA engine installed on the machine. Sigil does
+not link libyara or YARA-X; it runs the engine's command-line tool:
+
+| Engine | Tool | Needs |
+|---|---|---|
+| YARA-X | `yr` | 1.0 or later (`--scan-list`, `--print-namespace`, `--print-strings`, `--timeout`) |
+| YARA (libyara) | `yara` | 4.x with `--scan-list` and `--print-string-length` |
+
+Choose with `--yara-engine` or the policy key `yara_engine`:
+
+| Value | YARA files the built-in engine can evaluate | YARA files it cannot |
+|---|---|---|
+| `auto` (default) | built-in engine | `yr` if installed, else `yara`; with neither, loaded but not evaluated, and every scan reports them as not inspected |
+| `builtin` | built-in engine | refused: the load fails and the scan exits `2` (the behaviour before external engines) |
+| `yara-x` | `yr` | `yr` |
+| `yara` | `yara` | `yara` |
+
+With `yara-x` or `yara`, every YARA file goes to that engine, and a machine
+without it fails the load (exit `2`) with a message naming the missing tool.
+Choose `yara` for a rule set written for libyara that YARA-X does not
+compile unchanged (YARA-X documents its differences; Sigil passes
+`--relaxed-re-syntax` to `yr` so libyara-style regular expressions are
+accepted). `yara_engine` is lockable in the organisation policy: a locked
+value cannot be changed by a project file or a flag, in either direction, and
+each attempt is listed under `policy.refused`.
+
+```bash
+sigil --yara-engine yara-x --rules ./yara/ scan .
+sigil rules validate ./yara/     # each file's engine, and the engine's own verdict
+sigil config --policy            # yara_engine and where it came from
+```
+
+**Which engine is run.** The tool is looked up on `PATH`, in absolute
+directories only (`.` or an empty entry would run a program from the current
+directory, which may be the code being scanned), and never inside the tree
+about to be scanned — not even to ask its version. Sigil asks it for
+`--version` and its flags once per run; a program that does not answer as the
+engine does, or lacks a flag Sigil needs, is refused with the reason.
+
+**Checked at load.** Every YARA file handed to an engine is compiled by it
+when the pack loads — all the files of one `--rules` path or `rule_packs`
+entry in one run. A file the engine refuses makes the load fail (exit `2`) with
+the engine's own message, naming the real file rather than a temporary copy;
+the other files are checked again without it, so every bad file is named at
+once. Sigil's own checks still apply first: the meta keys it reads
+(`severity`, `phase`, …), id collisions with any loaded rule, and the
+refusals above.
+
+**How a scan runs it.** One engine run per scan, before the per-file pass,
+over the same units the built-in engine evaluates: every file up to 512 MB
+(whole, where the built-in engine reads the first and last 2 MB of a file over
+10 MB) and every archive member (zip, tar, gzip, two levels deep). A member
+cut at the 4 MB member cap is not given to an engine — its `filesize` would be
+wrong — and is reported as not inspected. The run happens in a private
+temporary directory (mode `0700` on Unix, removed afterwards) holding the rule
+files as the exact bytes Sigil verified and checked at load (never the files
+on disk again), a link or copy of each file to scan under a neutral name
+(`t/<n>`), and a scan list; no shell is involved, and a path with spaces,
+quotes, line breaks or bytes that are not UTF-8 reaches the engine only as its
+neutral name. Each rule file is its own namespace, as it is its own pack. A
+rule of Sigil's own, in a namespace of its own, marks each file the engine
+finished; a file without the mark was not evaluated and is reported as such,
+never passed as clean, and whatever matched in it before the engine stopped is
+not reported either way (a cut-short evaluation can make `not $a` true).
+
+**Findings** are the same as the built-in engine's: rule id `YARA-<NAME>`;
+severity, phase, description and remediation from the rule's meta; the file
+(or archive member) and the line of the earliest string match (none for
+binary content, or for a rule that matched on its condition alone); a snippet
+with up to three matched strings, ending `(evaluated by YARA-X 1.20.0)` or the
+engine and version that ran. Inline `sigil:ignore` markers, `disable_rules`,
+`severity_overrides` and baselines apply to them like any rule, and the
+corpus digest (and so the scan cache) records which engine evaluated each
+rule.
+
+**Time limits.** One engine run is bounded by `SIGIL_YARA_TIMEOUT_SECS`
+(default 600; `0` for none). YARA-X is given the same bound as its own
+`--timeout`, which covers a whole run; classic YARA's `--timeout` is per file,
+so it is given the per-file budget (`SIGIL_FILE_BUDGET_SECS`), and a file it
+times out on is reported with `PROV-BUDGET-001`. A run that stops at its time
+limit, fails to start, or exits with an error is reported once for the scan
+(`PROV-INCOMPLETE-001`, naming how many files were left); the files it did
+finish keep their findings.
+
+**No engine installed.** Under `auto`, a YARA file that needs an engine where
+none is installed still loads: `sigil` warns on stderr, and every scan
+reports it with `PROV-INCOMPLETE-001` ("YARA rules in … were not evaluated"),
+so `summary.complete` is false and `--fail-on-incomplete` (or
+`fail_on_incomplete: true`) fails the gate on it. `sigil rules validate`
+exits `1` for such a file, and `sigil rules sign` will not sign it, because
+nothing on the machine has checked it. Lock `fail_on_incomplete` (and, if you
+require an engine, `yara_engine: yara-x` or `yara`) in the organisation policy
+to make a machine without the engine fail rather than pass.
+
+Measured end to end with the real tools, YARA-X 1.20.0 (`yara-x-cli` built
+from crates.io) and YARA 4.5.0 (the Ubuntu package): five rules using the
+`pe`, `elf`, `hash` and `math` modules and a `for` loop over match offsets,
+over a PE launcher, an ELF executable, a gzip stream, a text file and a zip
+holding an ELF. Both engines gave identical findings through Sigil: the five
+matches each tool reports when run directly on the files, plus the two
+archive members the tools do not open themselves (the ELF inside the zip, and
+the decompressed gzip). The cost, on this repository's self-scan (543 files,
+all eight phases named so the network enrichment feeds are skipped, a shared
+4-core machine, five interleaved runs, medians): the scan pass took 1.75 s
+without YARA rules, 1.89 s with the five rules on YARA-X and 1.98 s on YARA;
+the engine run itself (`SIGIL_TIMING=1`, stage `yara rules`) took 171 ms and
+247 ms. An engine run happens once per scan, before the per-file pass, so it
+adds to the scan's wall time rather than running beside it.
+
+```
+Data Source: Synthetic rules written for the check; real files from the test machine (a pip/distlib Windows launcher, /bin/true, gzip of /bin/ls) and this repository
+Sample Size: 5 files and 2 archive members (engine comparison); 5 runs per configuration over 543 files (cost)
+Limitations: One rule file of five rules, not a real rule library, so the cost of a large rule set's compilation is not measured. Timing on a shared machine (runs spanned 1.73-1.99 s without rules, 1.82-2.13 s with YARA-X, 1.95-2.10 s with YARA).
+```
+
+**Your organisation's or a community's rules.** Detection classes Sigil does
+not ship rules for can be covered by the YARA rules a security team already
+maintains, or by a community set it has vetted (for example a checkout of a
+public signature repository). Sigil adds no signatures of its own here; it
+loads yours:
+
+```bash
+# 1. Put the rule files you use in one directory (read one level deep).
+git clone <your rules repository> /opt/yara-rules
+# 2. Check them with the engine your machines will run.
+sigil --yara-engine yara-x rules validate /opt/yara-rules/yara/
+# 3. Sign each file you ship (a detached <file>.sig beside it).
+for f in /opt/yara-rules/yara/*.yar; do
+  sigil --yara-engine yara-x rules sign "$f" --key sigil-packs.pem -o "$f.sig"
+done
+```
+
+```yaml
+# /etc/sigil/policy.yml
+rule_packs:
+  - /opt/yara-rules/yara/
+yara_engine: yara-x           # or `yara` for a set written for libyara
+fail_on_incomplete: true      # a machine without the engine fails, not passes
+locked: [rule_packs, yara_engine, fail_on_incomplete]
+```
+
+Things to expect from a set written for another scanner. A rule without a
+`severity` meta reports at `medium` and in the `code_patterns` phase: add
+`severity` and `phase` meta (or `severity_overrides` in the policy, e.g.
+`YARA-*: high`) to rank them. A rule that uses an external variable some
+scanners define (a file name, path or type) is refused: Sigil defines none,
+so the rule could never mean what it says; leave those files out. A file with
+`include` is refused; list the included files instead. A rule that would
+match most files (a generic "any PE file" rule) is reported for each of them:
+disable it by id or glob in `disable_rules`.
 
 ## Adopting Sigil on an existing codebase: baselines
 
@@ -635,8 +805,9 @@ Stated plainly so nothing here is over-relied on:
   policy-suppressed findings; use JSON, SARIF or JUnit for that audit trail.
 - There is no central policy server; distribution is by file and environment
   variable through the tooling you already use.
-- **YARA support is a subset**: the string-matching core, without modules
-  (`pe`, `elf`, `math`, …), loops or offset reads. A rule that needs them is
-  refused with the construct named, not approximated, so a library that leans
-  on modules has to be split. Directories of rule files are read one level
-  deep.
+- **Full YARA needs an installed engine.** The built-in engine evaluates the
+  string-matching core; modules (`pe`, `elf`, `math`, …), loops and offset
+  reads need YARA-X (`yr`) or YARA (`yara`) on the machine. Without one those
+  files are reported as not inspected (or refused under `--yara-engine
+  builtin`), never approximated. External variables and `include` are refused
+  with any engine. Directories of rule files are read one level deep.

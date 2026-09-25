@@ -38,6 +38,7 @@ use serde_json::json;
 
 use crate::baseline::Baseline;
 use crate::corpus::custom;
+use crate::corpus::yara::external::EngineMode;
 use crate::scanner::{Finding, Phase, ScanResult, Severity, Verdict};
 
 /// File names discovered in the scan root, then in the current directory.
@@ -62,6 +63,7 @@ const KNOWN_KEYS: &[&str] = &[
     "rule_packs",
     "trusted_domains",
     "baseline",
+    "yara_engine",
     "locked",
     "allow_project_policy",
 ];
@@ -78,6 +80,7 @@ pub const LOCKABLE_KEYS: &[&str] = &[
     "rule_packs",
     "trusted_domains",
     "baseline",
+    "yara_engine",
 ];
 
 /// Where a policy layer came from.
@@ -114,6 +117,8 @@ pub struct PolicyDoc {
     pub trusted_domains: Vec<String>,
     /// Resolved against the policy file's directory.
     pub baseline: Option<PathBuf>,
+    /// What evaluates YARA rule files (`--yara-engine`).
+    pub yara_engine: Option<EngineMode>,
     pub locked: Vec<String>,
     pub allow_project_policy: Option<bool>,
 }
@@ -306,6 +311,18 @@ pub fn parse_policy(text: &str, base_dir: &Path, origin: Origin) -> Result<Polic
                     }
                 } else if !v.is_null() {
                     errors.push("baseline: must be a path".to_string());
+                }
+            }
+            "yara_engine" => {
+                if !v.is_null() {
+                    match v.as_str().and_then(EngineMode::parse) {
+                        Some(mode) => doc.yara_engine = Some(mode),
+                        None => errors.push(format!(
+                            "yara_engine: {} is not an engine (use {})",
+                            show(v),
+                            EngineMode::NAMES.join(", ")
+                        )),
+                    }
                 }
             }
             "locked" => {
@@ -634,6 +651,8 @@ pub struct EffectivePolicy {
     pub trusted_domains: Vec<Sourced<String>>,
     pub baselines: Vec<Sourced<PathBuf>>,
     pub rule_packs: Vec<Sourced<PathBuf>>,
+    /// What evaluates YARA rule files; `None` is `auto`.
+    pub yara_engine: Option<Sourced<EngineMode>>,
     pub locked: Vec<String>,
     pub sources: Vec<AppliedSource>,
     /// Loosening values a restricted layer asked for and did not get.
@@ -661,6 +680,7 @@ impl Default for EffectivePolicy {
             trusted_domains: Vec::new(),
             baselines: Vec::new(),
             rule_packs: Vec::new(),
+            yara_engine: None,
             locked: Vec::new(),
             sources: Vec::new(),
             refused: Vec::new(),
@@ -681,6 +701,8 @@ pub struct CliPolicy {
     pub min_severity: Option<String>,
     pub baseline: Option<PathBuf>,
     pub rules: Vec<PathBuf>,
+    /// `--yara-engine`.
+    pub yara_engine: Option<String>,
 }
 
 /// What to resolve a policy for.
@@ -838,6 +860,29 @@ fn merge(eff: &mut EffectivePolicy, doc: PolicyDoc, rules: &LayerRules) {
                 value: b,
                 source: src.clone(),
             }),
+        }
+    }
+    if let Some(v) = doc.yara_engine {
+        let current = eff
+            .yara_engine
+            .as_ref()
+            .map(|s| s.value)
+            .unwrap_or(EngineMode::Auto);
+        // Engines are not stricter or looser than one another, so a locked
+        // or tighten-only layer may not change it at all.
+        match rules.restricted("yara_engine") {
+            Some(why) if v != current => refuse(
+                eff,
+                "yara_engine",
+                format!("{} (currently {})", v.name(), current.name()),
+                why,
+            ),
+            _ => {
+                eff.yara_engine = Some(Sourced {
+                    value: v,
+                    source: src.clone(),
+                })
+            }
         }
     }
     if !doc.rule_packs.is_empty() {
@@ -1017,6 +1062,15 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             )),
         }
     }
+    if let Some(s) = &cli.yara_engine {
+        match EngineMode::parse(s) {
+            Some(v) => doc.yara_engine = Some(v),
+            None => errors.push(format!(
+                "invalid --yara-engine '{s}' (use {})",
+                EngineMode::NAMES.join(", ")
+            )),
+        }
+    }
     if !errors.is_empty() {
         return Err(errors.join("\n"));
     }
@@ -1061,6 +1115,12 @@ impl EffectivePolicy {
     /// the built-in corpus and each other first: a custom pack can add rules,
     /// never replace one.
     pub fn activate_rule_packs(&self) -> Result<Vec<custom::CustomPack>, String> {
+        // YARA files load for the engine this policy selects.
+        let (mode, source) = match &self.yara_engine {
+            Some(s) => (s.value, format!("yara_engine from {}", s.source)),
+            None => (EngineMode::Auto, "default".to_string()),
+        };
+        crate::corpus::yara::external::configure(mode, source);
         if self.rule_packs.is_empty() {
             return Ok(Vec::new());
         }
@@ -1382,6 +1442,7 @@ impl EffectivePolicy {
             "fail_on_verdict": self.fail_on_verdict.map(verdict_label),
             "fail_on_incomplete": self.fail_on_incomplete,
             "min_severity": self.min_severity.map(|s| s.to_string()),
+            "yara_engine": self.yara_engine.as_ref().map_or(EngineMode::Auto, |s| s.value).name(),
             "locked": self.locked,
             "refused": self.refused,
             "warnings": self.warnings,
@@ -1882,6 +1943,61 @@ baseline: .sigil-baseline.json
             .refused
             .iter()
             .any(|r| r.starts_with("fail_on: command line")));
+    }
+
+    #[test]
+    fn yara_engine_parses_merges_and_locks() {
+        let doc = parse_policy("yara_engine: yara-x\n", Path::new("/r"), Origin::Project).unwrap();
+        assert_eq!(doc.yara_engine, Some(EngineMode::YaraX));
+        let errs =
+            parse_policy("yara_engine: clamav\n", Path::new("/r"), Origin::Project).unwrap_err();
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("yara_engine") && e.contains("auto, builtin, yara-x, yara")),
+            "{errs:?}"
+        );
+
+        let _g = ENV_LOCK.lock().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join(".sigil.yml"), "yara_engine: builtin\n").unwrap();
+        // Unlocked: the project sets it, and a flag overrides the project.
+        let mut o = opts(root.path());
+        let eff = resolve_clean(&o).unwrap();
+        let v = eff.yara_engine.as_ref().unwrap();
+        assert_eq!(v.value, EngineMode::Builtin);
+        assert!(v.source.ends_with(".sigil.yml"), "{}", v.source);
+        assert_eq!(
+            eff.to_json(&PolicyOutcome::default())["yara_engine"],
+            "builtin"
+        );
+        o.cli.yara_engine = Some("yara".into());
+        assert_eq!(
+            resolve_clean(&o).unwrap().yara_engine.unwrap().value,
+            EngineMode::Yara
+        );
+        o.cli.yara_engine = Some("nope".into());
+        assert!(resolve_clean(&o)
+            .unwrap_err()
+            .contains("--yara-engine 'nope'"));
+
+        // Locked by the organisation: neither the project nor a flag moves
+        // it, in either direction, and each refusal is reported.
+        let org_dir = tempfile::tempdir().unwrap();
+        let org = org_dir.path().join("org.yml");
+        std::fs::write(&org, "yara_engine: yara-x\nlocked: [yara_engine]\n").unwrap();
+        std::env::set_var(ORG_POLICY_ENV, &org);
+        let mut o = opts(root.path());
+        o.cli.yara_engine = Some("auto".into());
+        let locked = resolve(&o);
+        std::env::remove_var(ORG_POLICY_ENV);
+        let locked = locked.unwrap();
+        assert_eq!(locked.yara_engine.unwrap().value, EngineMode::YaraX);
+        assert_eq!(locked.refused.len(), 2, "{:?}", locked.refused);
+        assert!(locked
+            .refused
+            .iter()
+            .all(|r| r.starts_with("yara_engine:")
+                && r.contains("locked by the organisation policy")));
     }
 
     #[test]

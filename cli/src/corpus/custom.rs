@@ -251,10 +251,15 @@ pub fn load_path(path: &Path) -> Result<Vec<CustomPack>, String> {
     let mut packs = Vec::with_capacity(files.len());
     let mut errors = Vec::new();
     for f in &files {
-        match load_file(f) {
+        match load_unchecked(f) {
             Ok(p) => packs.push(p),
             Err(e) => errors.push(e),
         }
+    }
+    // YARA files an external engine evaluates are checked by it, all of
+    // this directory's at once (one engine run, not one per file).
+    if let Err(mut e) = super::yara::external::validate_packs(&packs) {
+        errors.append(&mut e);
     }
     if errors.is_empty() {
         Ok(packs)
@@ -265,6 +270,14 @@ pub fn load_path(path: &Path) -> Result<Vec<CustomPack>, String> {
 
 /// Load, verify and validate one pack file.
 pub fn load_file(path: &Path) -> Result<CustomPack, String> {
+    let pack = load_unchecked(path)?;
+    super::yara::external::validate_packs(std::slice::from_ref(&pack)).map_err(|e| e.join("\n"))?;
+    Ok(pack)
+}
+
+/// [`load_file`], except that a YARA file an external engine evaluates is
+/// not yet checked by that engine (the caller does, for a batch).
+fn load_unchecked(path: &Path) -> Result<CustomPack, String> {
     let meta = std::fs::metadata(path)
         .map_err(|e| format!("{}: cannot read rule pack: {e}", path.display()))?;
     if meta.len() > MAX_PACK_BYTES {

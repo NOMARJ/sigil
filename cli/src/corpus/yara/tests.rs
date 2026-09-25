@@ -1422,16 +1422,30 @@ fn invalid_yara_is_refused_with_file_and_line() {
     std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("bad.yar");
+    // Invalid in any engine: refused whatever `--yara-engine` selects and
+    // whatever engines this machine has.
     std::fs::write(
         &path,
-        "rule ok { condition: true }\nrule bad {\n condition:\n  uint16(0) == 1\n}\n",
+        "rule ok { condition: true }\nrule bad {\n condition:\n  $b\n}\n",
     )
     .unwrap();
     let err = crate::corpus::custom::load_file(&path).unwrap_err();
     assert!(
+        err.contains(&format!("{}:4: string $b is not defined", path.display())),
+        "{err}"
+    );
+    // Valid YARA outside the subset: the built-in engine alone refuses it,
+    // with its line, and says an external engine could evaluate it.
+    let src = "rule ok { condition: true }\nrule bad {\n condition:\n  uint16(0) == 1\n}\n";
+    let builtin = external::Selection::with_engines(external::EngineMode::Builtin, Vec::new());
+    let err = parse_pack_with(src.as_bytes(), &path, &builtin)
+        .unwrap_err()
+        .join("\n");
+    assert!(
         err.contains(&format!("{}:4: `uint16()`", path.display())),
         "{err}"
     );
+    assert!(err.contains(parse::NEEDS_ENGINE), "{err}");
 }
 
 #[test]
@@ -1551,8 +1565,156 @@ fn detached_signatures_are_required_and_verified_when_keyed() {
 fn an_invalid_file_is_not_signed() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("bad.yar");
-    std::fs::write(&path, "rule r {\n condition:\n  uint8(0) == 1\n}\n").unwrap();
+    std::fs::write(&path, "rule r {\n condition:\n  $missing\n}\n").unwrap();
     let (sk, _) = keypair(3);
     let e = sign_detached(&path, &sk).unwrap_err();
-    assert!(e.contains(":3: `uint8()`"), "{e}");
+    assert!(e.contains(":3: string $missing is not defined"), "{e}");
+}
+
+// ---------------------------------------------------------------------------
+// What an external engine can take over
+// ---------------------------------------------------------------------------
+
+/// Every problem in `src` is valid YARA outside the built-in subset.
+fn all_need_an_engine(src: &str) {
+    let errs = errors(src);
+    assert!(
+        errs.iter().all(|(_, m)| parse::needs_engine(m)),
+        "expected only constructs an external engine evaluates in {src:?}, got {errs:?}"
+    );
+}
+
+/// Some problem in `src` is one YARA itself refuses.
+fn some_are_invalid(src: &str) {
+    let errs = errors(src);
+    assert!(
+        errs.iter().any(|(_, m)| !parse::needs_engine(m)),
+        "expected a problem YARA itself refuses in {src:?}, got {errs:?}"
+    );
+}
+
+#[test]
+fn constructs_outside_the_subset_are_told_apart_from_invalid_rules() {
+    let s = "strings:\n $a = \"SIGIL\"\n";
+    for cond in [
+        "for any of them : ( $ at 0 )",
+        "@a[1] == 0",
+        "!a[1] == 5",
+        "#a in (0..10) == 1",
+        "$a and filesize contains \"x\"",
+        "$a and entrypoint == 0",
+        "$a and defined filesize",
+        "$a and filesize & 1 == 1",
+        "$a and filesize > 1.5",
+        "any of ($a) in (0..10)",
+        "$a and uint32(0) == 1",
+        "$a and helper(1)",
+        "$a and \"text\" == \"text\"",
+    ] {
+        all_need_an_engine(&format!("rule r {{\n{s} condition:\n  {cond}\n}}"));
+    }
+    for src in [
+        "import \"pe\"\nrule r { condition: pe.is_pe }",
+        "import \"math\"\nrule r { condition: math.entropy(0, filesize) > 7 }",
+        "rule r { strings: $a = \"SIGIL\" xor(0x01-0xff) condition: $a }",
+        "rule r { strings: $a = \"SIGIL\" base64 condition: $a }",
+        "rule r { strings: $a = /sigil/ wide condition: $a }",
+        "rule r { strings: $a = { 53 ~49 } condition: $a }",
+        "rule r { strings: $a = { 53 [0-9999] 49 } condition: $a }",
+        "rule r { strings: $a = /S[a-z]{2,4096}I/ condition: $a }",
+        "rule a { condition: true }\nrule r { condition: any of (a) }",
+    ] {
+        all_need_an_engine(src);
+    }
+    for src in [
+        "rule r { condition: $b }",
+        "rule r { strings: $a = \"x\" $b = \"y\" condition: $a }",
+        "rule r { condition: true }\ninclude \"other.yar\"",
+        "rule r { strings: $a = /x/q condition: $a }",
+        "rule r { strings: $a = /(a)\\1/ condition: $a }",
+        "rule r { condition: unknown_thing }",
+        "rule r { meta: severity = \"urgent\" condition: true }",
+        "rule r { condition: true }\nrule r { condition: true }",
+        // A module in one rule, an undefined string in another: refused.
+        // (Within one condition parsing stops at the first problem, so an
+        // error behind a module call is the evaluating engine's to find.)
+        "import \"pe\"\nrule r { condition: pe.is_pe }\nrule s { condition: $b }",
+    ] {
+        some_are_invalid(src);
+    }
+}
+
+#[test]
+fn the_outline_reads_every_declaration_and_steps_over_bodies() {
+    let src = r#"
+import "pe"
+import "math"
+/* rule Not_A_Rule { condition: true } */
+private rule Helper : one two
+{
+    meta:
+        description = "Synthetic helper } with a brace"
+        severity = "low"
+        score = 70
+    strings:
+        $t = "brace } in text \" and an escaped quote"
+        $h = { 4D 5A /* } */ ?? [2-4] ( 90 | 91 ) }
+        $r = /x{2,3}\/[}]y/is
+        $x = "SIGIL" xor(0x01-0xff) base64("!@#$%^&*(){}[].,|ABCDEFGHIJ\x09LMNOPQRSTUVWXYZabcdefghijklmnopqrstu")
+    condition:
+        // a comment with a } brace
+        pe.is_pe and for any i in (0..pe.number_of_sections) : ( pe.sections[i].name == "}" )
+}
+
+global rule Second { condition: math.entropy(0, filesize) > 7.5 and Helper }
+rule Third { condition: true } rule Fourth : t { condition: false }
+"#;
+    let o = parse::outline(src);
+    assert!(o.errors.is_empty(), "{:?}", o.errors);
+    assert_eq!(
+        o.imports,
+        vec![(2, "pe".to_string()), (3, "math".to_string())]
+    );
+    let names: Vec<&str> = o.rules.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, vec!["Helper", "Second", "Third", "Fourth"]);
+    let h = &o.rules[0];
+    assert!(h.private && !h.global);
+    assert_eq!(h.tags, vec!["one", "two"]);
+    assert_eq!(h.line, 5);
+    assert_eq!(h.meta.len(), 3);
+    assert!(h.source.starts_with("private rule Helper") && h.source.ends_with('}'));
+    assert!(o.rules[1].global);
+    assert_eq!(o.rules[3].tags, vec!["t"]);
+
+    // Delegated, the same file keeps its meta.
+    let (file, _) = declared_rules(src, Path::new("x.yar"), FileEngine::Builtin).unwrap();
+    assert_eq!(file.rules[0].severity, Severity::Low);
+    assert_eq!(file.rules[0].id, "YARA-HELPER");
+
+    // What the outline refuses whatever the engine.
+    for (bad, want) in [
+        ("rule r { condition: true", "not closed"),
+        (
+            "rule r { strings: $a = \"open\n condition: $a }",
+            "not closed before the end of the line",
+        ),
+        ("rule r { strings: $a = { 41 42 condition: $a", "not closed"),
+        (
+            "include \"x.yar\"\nrule r { condition: true }",
+            "`include` is not supported",
+        ),
+        (
+            "import pe\nrule r { condition: true }",
+            "quoted module name",
+        ),
+        ("banana\nrule r { condition: true }", "expected `rule`"),
+        ("rule condition { condition: true }", "reserved word"),
+    ] {
+        let o = parse::outline(bad);
+        assert!(
+            o.errors.iter().any(|(_, m)| m.contains(want)),
+            "{bad:?}: expected {want:?}, got {:?}",
+            o.errors
+        );
+    }
 }
