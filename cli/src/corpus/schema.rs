@@ -378,8 +378,12 @@ pub struct CorrelationRule {
     /// call continues onto; the window adds nearby lines that set up or use
     /// the object the statement works with (see
     /// `scanner::correlate::statement_scope`). A complete statement about
-    /// something else is never read. A source on a line of the statement is
-    /// part of the same call and links without naming anything. Default 0.
+    /// something else is never read. A source on a line of the statement that
+    /// starts in the sink line's bracket group, or one nested inside or
+    /// around it, is part of the same call and links without naming anything;
+    /// a sibling literal is not. In this mode a bound name links only where it
+    /// is used as a value, not as a keyword argument's name or an object key.
+    /// Default 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub sink_window_before: usize,
     /// A source or sink on a line longer than this many bytes is not linked

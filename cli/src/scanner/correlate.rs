@@ -39,7 +39,13 @@
 //! credential used there does not link to an unrelated insecure call. A
 //! source finding on a line of the statement is inside the same call, and
 //! links without needing a name: `headers={"Authorization":
-//! os.environ["TOKEN"]},` above or below `verify=False,`.
+//! os.environ["TOKEN"]},` above or below `verify=False,` — as long as its
+//! line starts in the sink line's bracket group or one nested inside or
+//! around it (see [`group_paths`]); a sibling literal of the same statement
+//! (`openai: {...}` beside `db: { ssl: {...} }`) is another thing. Names are
+//! read with [`uses_word`] in this mode: a keyword argument's name or an
+//! object key that repeats a bound name (`headers={"Accept": ...}`,
+//! `token=role_token`) is not a use of it.
 //!
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
 //! linked, because on a minified bundle one line holds a whole program.
@@ -314,6 +320,66 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Does `ident` appear in `text` as a *value*: a whole word that is not only
+/// a name something else is given to?
+///
+/// A rule with `sink_window_before` links through this instead of
+/// [`contains_word`]. Keyword-argument names and object keys are the names a
+/// call's parameters have, whatever is passed: `headers={"Accept": "json"}`
+/// does not use a `headers` dict bound from a token two functions up,
+/// `hvac.Client(token=role_token)` does not use a `token` variable, and
+/// `{ token: "public" }` does not either. So an occurrence is skipped when it
+/// is followed by `=` (not `==`: a keyword argument, or an assignment target),
+/// or when it is a key: followed by `:` (not `::`), after `{`, `,`, `(` or at
+/// the start of the line, bare or quoted (`"token": ...`). The value side is
+/// still a use: `headers=headers`, `{ auth: token }`, `f"Bearer {token}"`,
+/// `{ agent, headers }`.
+fn uses_word(text: &str, ident: &str) -> bool {
+    if ident.is_empty() {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    let mut start = 0;
+    while let Some(pos) = text[start..].find(ident) {
+        let at = start + pos;
+        let end = at + ident.len();
+        start = at + 1;
+        let before_ok = at == 0 || !is_ident_byte(bytes[at - 1]);
+        let after_ok = end >= bytes.len() || !is_ident_byte(bytes[end]);
+        if before_ok && after_ok && !names_a_parameter(bytes, at, end) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Is the word at `bytes[at..end]` a keyword-argument name, an assignment
+/// target or an object key (see [`uses_word`])?
+fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
+    let is_blank = |b: u8| b == b' ' || b == b'\t';
+    // A quoted key: `"token": ...` / `'token': ...`.
+    let quote = at
+        .checked_sub(1)
+        .map(|i| bytes[i])
+        .filter(|&q| (q == b'"' || q == b'\'') && bytes.get(end) == Some(&q));
+    let mut j = if quote.is_some() { end + 1 } else { end };
+    while j < bytes.len() && is_blank(bytes[j]) {
+        j += 1;
+    }
+    let after = bytes.get(j + 1).copied();
+    match bytes.get(j) {
+        Some(b'=') if quote.is_none() => after != Some(b'='),
+        Some(b':') if after != Some(b':') => {
+            let mut i = if quote.is_some() { at - 1 } else { at };
+            while i > 0 && is_blank(bytes[i - 1]) {
+                i -= 1;
+            }
+            i == 0 || matches!(bytes[i - 1], b'{' | b',' | b'(' | b'\n')
+        }
+        _ => false,
+    }
+}
+
 /// Run every correlation rule over one file's findings.
 ///
 /// `lines` are the file's lines (already normalised for matching), used to
@@ -354,16 +420,13 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // A rule that looks above the sink reads the sink's statement and
             // the lines that set up or use the object it binds; every other
             // rule reads the sink line and the lines after it.
-            let scope = if file_only || rule.sink_window_before == 0 {
-                SinkScope {
-                    start: sink_line,
-                    end: sink_line,
-                    text: arg_window(lines, sink_line),
-                }
-            } else {
+            let statement_mode = !file_only && rule.sink_window_before > 0;
+            let scope = if statement_mode {
                 statement_scope(lines, sink_line, rule.sink_window_before)
+            } else {
+                SinkScope::line(sink_line, arg_window(lines, sink_line))
             };
-            let window = scope.text;
+            let window = scope.text.as_str();
             // A launch names its program on its own line (the launch rule
             // matches interpreter and operand together), so the lines after
             // it are not its program: `>/dev/null` or `input=data` there is
@@ -371,7 +434,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             let link_text: &str = if file_only {
                 lines.get(sink_line.wrapping_sub(1)).copied().unwrap_or("")
             } else {
-                &window
+                window
             };
             if rule
                 .sink_excludes
@@ -386,8 +449,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                 // call or literal it is an argument of, above or below it)
                 // is in that call: what it reads is one of the arguments,
                 // whatever name it is, or is not, bound to.
-                let in_same_call =
-                    source_line != sink_line && (scope.start..=scope.end).contains(&source_line);
+                let in_same_call = scope.same_call(source_line, sink_line);
                 if !in_same_call
                     && (source_line > sink_line || sink_line - source_line > rule.window_lines)
                 {
@@ -407,7 +469,15 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                         } else {
                             source_bindings(l)
                         };
-                        bound.iter().any(|ident| contains_word(link_text, ident))
+                        // The statement mode reads a whole call, whose
+                        // keyword names and keys are not values it sends.
+                        bound.iter().any(|ident| {
+                            if statement_mode {
+                                uses_word(link_text, ident)
+                            } else {
+                                contains_word(link_text, ident)
+                            }
+                        })
                     })
                 };
                 if !linked {
@@ -464,12 +534,164 @@ fn arg_window(lines: &[&str], sink_line: usize) -> String {
         .unwrap_or_default()
 }
 
-/// The sink's statement (1-based lines `start..=end`) and the text a link is
-/// read from.
+/// The sink's statement (1-based lines `start..=end`), the text a link is
+/// read from, and the bracket groups each statement line starts in (see
+/// [`group_paths`]; empty outside the statement mode).
 struct SinkScope {
     start: usize,
     end: usize,
     text: String,
+    groups: Vec<Vec<u32>>,
+}
+
+impl SinkScope {
+    /// A scope that is the sink line alone, read as `text`.
+    fn line(sink_line: usize, text: String) -> Self {
+        SinkScope {
+            start: sink_line,
+            end: sink_line,
+            text,
+            groups: Vec::new(),
+        }
+    }
+
+    /// Is `source_line`, another line of the statement, part of the same
+    /// call or literal as the sink line: in the group the sink line starts
+    /// in, in one nested inside it, or in one the sink's group is nested
+    /// inside? Two sibling literals of one statement (`openai: {...}` and
+    /// `db: { ssl: {...} }` in one exported config) are not.
+    fn same_call(&self, source_line: usize, sink_line: usize) -> bool {
+        if source_line == sink_line || !(self.start..=self.end).contains(&source_line) {
+            return false;
+        }
+        let path = |n: usize| self.groups.get(n - self.start).map(Vec::as_slice);
+        match (path(source_line), path(sink_line)) {
+            (Some(a), Some(b)) => a.starts_with(b) || b.starts_with(a),
+            _ => false,
+        }
+    }
+}
+
+/// For each line of `start..=end` (1-based), the bracket groups its first
+/// token sits in, outermost first: `[0, 2]` is inside group 2, which is
+/// inside group 0. Closing brackets at the start of a line close their
+/// groups before its first token (`}, verify=False)` is back in the call).
+/// Brackets inside a quoted string on the line, or after a trailing comment,
+/// are not counted, and a quote does not carry over to the next line.
+///
+/// A line that is one key and a literal it opens and closes (`"metrics":
+/// {"url": u, "verify_ssl": False},`, `headers={"Authorization": t},`) gets
+/// a group of its own on top: whatever that line matched is inside the
+/// literal, so two such lines are siblings, while the literal is still
+/// inside the call the lines around it belong to.
+fn group_paths(lines: &[&str], start: usize, end: usize) -> Vec<Vec<u32>> {
+    let mut stack: Vec<u32> = Vec::new();
+    let mut next = 0u32;
+    let mut out = Vec::new();
+    for n in start..=end {
+        let code = lines
+            .get(n.wrapping_sub(1))
+            .map_or("", |l| strip_trailing_comment(l))
+            .as_bytes();
+        let mut i = 0;
+        while i < code.len() && (code[i].is_ascii_whitespace() || b")]}".contains(&code[i])) {
+            if !code[i].is_ascii_whitespace() {
+                stack.pop();
+            }
+            i += 1;
+        }
+        let mut path = stack.clone();
+        if is_keyed_literal(&code[i..]) {
+            path.push(next);
+            next += 1;
+        }
+        out.push(path);
+        for (_, b) in brackets(&code[i..]) {
+            if b"([{".contains(&b) {
+                stack.push(next);
+                next += 1;
+            } else {
+                stack.pop();
+            }
+        }
+    }
+    out
+}
+
+/// The brackets of `code` outside quoted strings, with their offsets. A
+/// quote left open runs to the end of `code`.
+fn brackets(code: &[u8]) -> Vec<(usize, u8)> {
+    let mut out = Vec::new();
+    let mut quote: Option<u8> = None;
+    let mut i = 0;
+    while i < code.len() {
+        let b = code[i];
+        match quote {
+            Some(_) if b == b'\\' => i += 1,
+            Some(q) if b == q => quote = None,
+            Some(_) => {}
+            None if b"\"'`".contains(&b) => quote = Some(b),
+            None if b"([{)]}".contains(&b) => out.push((i, b)),
+            None => {}
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Is `code` (a line from its first token) one key and a literal it opens
+/// and closes: `name: {...},`, `"name": [...]`, `name={...},`?
+fn is_keyed_literal(code: &[u8]) -> bool {
+    let mut i = 0;
+    match code.first() {
+        Some(&q) if q == b'"' || q == b'\'' => {
+            let Some(close) = code[1..].iter().position(|&b| b == q) else {
+                return false;
+            };
+            i = close + 2;
+        }
+        Some(b) if b.is_ascii_alphabetic() || *b == b'_' || *b == b'$' => {
+            while i < code.len() && (is_ident_byte(code[i]) || code[i] == b'$') {
+                i += 1;
+            }
+        }
+        _ => return false,
+    }
+    let blank = |b: &u8| *b == b' ' || *b == b'\t';
+    while code.get(i).is_some_and(blank) {
+        i += 1;
+    }
+    match (code.get(i), code.get(i + 1)) {
+        (Some(b':'), Some(b':')) | (Some(b'='), Some(b'=' | b'>')) => return false,
+        (Some(b':' | b'='), _) => i += 1,
+        _ => return false,
+    }
+    while code.get(i).is_some_and(blank) {
+        i += 1;
+    }
+    if !code.get(i).is_some_and(|b| b"([{".contains(b)) {
+        return false;
+    }
+    // The bracket that opens the literal closes last, and nothing but a
+    // separator follows it.
+    let mut depth = 0usize;
+    let mut closed_at = None;
+    for (at, b) in brackets(&code[i..]) {
+        if b"([{".contains(&b) {
+            depth += 1;
+        } else {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                closed_at = Some(i + at);
+                break;
+            }
+        }
+    }
+    closed_at.is_some_and(|c| {
+        code[c + 1..]
+            .iter()
+            .all(|b| b.is_ascii_whitespace() || *b == b',' || *b == b';')
+    })
 }
 
 /// The window of a rule with `sink_window_before`: the statement the sink
@@ -497,11 +719,7 @@ struct SinkScope {
 /// line above an unrelated insecure request is not sent by that request.
 fn statement_scope(lines: &[&str], sink_line: usize, before: usize) -> SinkScope {
     if sink_line == 0 || sink_line > lines.len() {
-        return SinkScope {
-            start: sink_line,
-            end: sink_line,
-            text: String::new(),
-        };
+        return SinkScope::line(sink_line, String::new());
     }
     let line = |n: usize| lines[n - 1];
     let start = continuation_start(lines, sink_line, before);
@@ -519,18 +737,19 @@ fn statement_scope(lines: &[&str], sink_line: usize, before: usize) -> SinkScope
     let mut keep: Vec<usize> = (top..start)
         .filter(|&n| {
             leading_name(line(n)).is_some_and(|(name, attr)| {
-                (attr || locals.contains(&name)) && contains_word(&statement, name)
+                (attr || locals.contains(&name)) && uses_word(&statement, name)
             })
         })
         .collect();
     keep.extend(start..=end);
     if let Some((bound, _)) = assigned_name(line(start)) {
-        keep.extend((end + 1..=last).filter(|&n| contains_word(line(n), bound)));
+        keep.extend((end + 1..=last).filter(|&n| uses_word(line(n), bound)));
     }
     SinkScope {
         start,
         end,
         text: keep.into_iter().map(line).collect::<Vec<_>>().join("\n"),
+        groups: group_paths(lines, start, end),
     }
 }
 
@@ -1199,5 +1418,179 @@ mod tests {
         assert!(contains_word("json={\"k\": api_key}", "api_key"));
         assert!(!contains_word("json={\"k\": api_key2}", "api_key"));
         assert!(!contains_word("my_api_key", "api_key"));
+    }
+
+    #[test]
+    fn uses_word_skips_parameter_names_and_keys() {
+        // Values.
+        for (text, ident) in [
+            ("get(u, headers=headers, flag=off)", "headers"),
+            ("get(u, auth=(user, token))", "token"),
+            ("{ auth: token }", "token"),
+            ("{ agent, headers }", "agent"),
+            ("f\"Bearer {token}\"", "token"),
+            ("x = cond ? token : other", "token"),
+            ("if token == other:", "token"),
+            ("print(api_key[:4])", "api_key"),
+            ("session.get(url)", "session"),
+            ("  token,", "token"),
+        ] {
+            assert!(uses_word(text, ident), "{text}");
+        }
+        // Names given to something else.
+        for (text, ident) in [
+            (
+                "get(u, headers={\"Accept\": \"json\"}, flag=off)",
+                "headers",
+            ),
+            ("Client(url=U, token=role_token)", "token"),
+            ("Client(url = U, token = role_token)", "token"),
+            ("new Agent({ token: \"public\" })", "token"),
+            ("params={\"token\": \"public\"}", "token"),
+            ("{'token': 1}", "token"),
+            ("    token=role_token,", "token"),
+            ("  token: 'x',", "token"),
+            ("token = other", "token"),
+            ("const f = token => 1", "token"),
+            ("my_token = 1", "token"),
+        ] {
+            assert!(!uses_word(text, ident), "{text}");
+        }
+        // One use among the names is enough.
+        assert!(uses_word("post(u, token=token)", "token"));
+        assert!(!uses_word("anything", ""));
+        // A Rust path is not a key.
+        assert!(uses_word("let c = token::parse(s);", "token"));
+    }
+
+    #[test]
+    fn keyed_literals_and_group_paths() {
+        for line in [
+            "\"metrics\": {\"url\": u, \"verify_ssl\": off},",
+            "headers={\"Authorization\": token},",
+            "ssl: { rejectUnauthorized: off },",
+            "'x': [1, 2]",
+            "key = (a, b);",
+        ] {
+            assert!(is_keyed_literal(line.as_bytes()), "{line}");
+        }
+        for line in [
+            "headers={\"A\": t}, flag=off,",
+            "ssl: cond ? { flag: off } : off,",
+            "connectionString: read_secret(),",
+            "agent: new Agent({ flag: off }),",
+            "a == {b}",
+            "f => {x}",
+            "{ a: 1 },",
+            "SERVICES = {",
+            "\"unclosed: {",
+            "",
+        ] {
+            assert!(!is_keyed_literal(line.as_bytes()), "{line}");
+        }
+        let call = [
+            "resp = post(",                  // [] then opens 0
+            "    url,",                      // [0]
+            "    headers={",                 // [0] then opens 1
+            "        \"A\": read_secret(),", // [0, 1]
+            "    },",                        // closes 1: [0]
+            "    body={\"a\": \"(\"},  # (", // keyed literal: [0, 3]
+            "    flag=off,",                 // [0]
+            ")",                             // []
+        ];
+        assert_eq!(
+            group_paths(&call, 1, 8),
+            vec![
+                vec![],
+                vec![0],
+                vec![0],
+                vec![0, 1],
+                vec![0],
+                vec![0, 3],
+                vec![0],
+                vec![]
+            ]
+        );
+        let scope = SinkScope {
+            start: 1,
+            end: 8,
+            text: String::new(),
+            groups: group_paths(&call, 1, 8),
+        };
+        // The headers literal is inside the call the sink is an argument of.
+        assert!(scope.same_call(4, 7));
+        assert!(scope.same_call(1, 7));
+        // Two keyed literals are siblings; the sink line itself is not
+        // "another line"; a line outside the statement is not in it.
+        assert!(!scope.same_call(4, 6));
+        assert!(!scope.same_call(7, 7));
+        assert!(!scope.same_call(9, 7));
+        // Outside the statement mode there is no group, and nothing links
+        // by being in the call.
+        assert!(!SinkScope::line(7, String::new()).same_call(6, 7));
+    }
+
+    #[test]
+    fn keyword_names_do_not_link_in_the_statement_mode() {
+        // `headers` is bound from the key; the insecure call has its own
+        // `headers=` literal, and `headers = {...}` two lines up joined the
+        // window only because the statement named a `headers` keyword.
+        let src = "headers = {\"A\": read_secret()}\nr1 = get(api, headers=headers)\nr2 = get(status, headers={\"Accept\": \"json\"}, flag=off)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 3)];
+        assert!(apply(&[above_rule()], &findings, &lines).is_empty());
+        // The same file under a rule without the statement mode still links
+        // the old way (a name anywhere in the argument window).
+        let legacy = CorrelationRule {
+            sink_window_before: 0,
+            ..above_rule()
+        };
+        assert_eq!(apply(&[legacy], &findings, &lines).len(), 1);
+        // Passed as a value, it links.
+        let used =
+            "headers = {\"A\": read_secret()}\nr2 = get(status, headers=headers, flag=off)\n";
+        let lines_u: Vec<&str> = used.lines().collect();
+        let findings_u = vec![f("CRED-012", 1), f("KWARG-001", 2)];
+        assert_eq!(apply(&[above_rule()], &findings_u, &lines_u).len(), 1);
+    }
+
+    #[test]
+    fn sibling_literals_of_one_statement_do_not_link() {
+        let config = [
+            "module.exports = {",
+            "  vendor: {",
+            "    apiKey: read_secret(),",
+            "  },",
+            "  db: {",
+            "    ssl: { flag: off },",
+            "  },",
+            "};",
+        ];
+        let findings = vec![f("CRED-012", 3), f("KWARG-001", 6)];
+        assert!(apply(&[above_rule()], &findings, &config).is_empty());
+        // The credential in the object whose nested options turn the check
+        // off is one connection's configuration.
+        let pool = [
+            "const pool = new Pool({",
+            "  connectionString: read_secret(),",
+            "  ssl: {",
+            "    flag: off,",
+            "  },",
+            "});",
+        ];
+        let findings = vec![f("CRED-012", 2), f("KWARG-001", 4)];
+        assert_eq!(apply(&[above_rule()], &findings, &pool).len(), 1);
+        // The cost: an options object whose headers and TLS options are
+        // sibling literals (got's `https: { rejectUnauthorized: false }`
+        // beside `headers: {...}`) is one request, and is not linked either.
+        // The TLS finding itself is still reported.
+        let got = [
+            "const options = {",
+            "  headers: { A: read_secret() },",
+            "  https: { flag: off },",
+            "};",
+        ];
+        let findings = vec![f("CRED-012", 2), f("KWARG-001", 3)];
+        assert!(apply(&[above_rule()], &findings, &got).is_empty());
     }
 }

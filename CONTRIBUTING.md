@@ -187,7 +187,13 @@ a local name the statement uses (a `headers` dict, a session's headers);
 below, a line that uses the name the statement assigns (the agent it builds).
 A complete statement about something else is not read, so a key passed to
 another client on the line above does not link. A source on a line of the
-statement itself links without needing a name, and may sit below the sink.
+statement itself links without needing a name, and may sit below the sink,
+when its line starts in the sink line's bracket group or in one nested inside
+or around it; two sibling literals of one statement (`openai: {...}` beside
+`db: {...}`) do not link, and a line that is one key and a literal it opens
+and closes counts as a literal of its own. In this mode a bound name links
+only where the window uses it as a value: a keyword argument's name or an
+object key (`headers={...}`, `token=other`, `{ token: "x" }`) is not a use.
 `max_line_length` (default 0, no limit) skips a source or sink on a longer
 line: on a minified bundle two matches on one line say nothing about each
 other. `TLS-CHAIN-001` in `insecure_transport.json` uses both.
