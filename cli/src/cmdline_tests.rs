@@ -498,3 +498,52 @@ fn filters_that_pass_stdin_on() {
         assert!(!p(s), "{s}");
     }
 }
+
+#[test]
+fn pip_install_naming_a_package_besides_a_requirements_file() {
+    let p = |s: &str| pip_names_package(&command_words(s).words);
+    for s in [
+        "pip install -r req.txt evil",
+        "pip install evil -r req.txt",
+        "pip3.11 install -r req.txt 'evil==1.0'",
+        "python3 -m pip install -r req.txt evil",
+        "uv pip install -r req.txt evil",
+        "sudo -H pip install -r req.txt evil",
+        "pip install -Ur req.txt evil",
+        "pip install -rreq.txt evil",
+        "pip install --requirement=req.txt evil",
+        "pip install -r req.txt --no-deps evil",
+        "pip install -r req.txt -- evil",
+        "/usr/bin/pip install -r req.txt evil",
+        "pip -q install -r req.txt evil",
+        "pip install \\\n  -r req.txt \\\n  evil",
+        "pip install -r req.txt -e git+https://github.com/x/evil.git",
+        "pip install -r req.txt --editable=git+https://github.com/x/evil.git",
+        "pip install -r req.txt --editable git+ssh://git@github.com/x/evil.git",
+        "pip install -r req.txt -egit+https://github.com/x/evil.git",
+        "pip install -r req.txt -Ue hg+https://x.io/evil",
+    ] {
+        assert!(p(s), "{s}");
+    }
+    for s in [
+        "pip install -r req.txt",
+        "pip install -r req.txt -c constraints.txt",
+        "pip install -r req.txt -e .",
+        "pip install -r req.txt -e ./local-pkg --editable=../other",
+        "pip install -r req.txt -i https://mirror.example/simple",
+        "pip install -r req.txt --index-url https://mirror.example/simple",
+        "pip install -r req.txt --target vendor --no-deps",
+        "pip install -r req.txt > install.log 2>&1",
+        "uv pip install -r req.txt -p 3.12",
+        "pip install -Ur req.txt",
+        "pip install -r req.txt --",
+        "pip install \\\n  -r req.txt \\\n  --no-deps",
+        "pip install -r req.txt  # other dependencies",
+        "pip install -r req.txt -- # other dependencies",
+        "pipx install -r req.txt evil",
+        "npm install -r req.txt evil",
+        "echo pip install -r req.txt evil",
+    ] {
+        assert!(!p(s), "{s}");
+    }
+}

@@ -1750,12 +1750,15 @@ fn package_managers(stage: &str, ctx: &Context) -> Decision {
         );
     }
 
-    // pip / uv: -r requirements -> ask; explicit package -> deny.
+    // pip / uv: -r requirements -> ask, unless a package is named besides
+    // it; explicit package -> deny.
     let pip_install = format!(
         r"{WB}(pip[0-9.]*{MOD}\s+install|python[0-9.]*\s+-m\s+pip\s+install|uv\s+pip\s+install)"
     );
     if has(stage, &format!(r"{pip_install}(\s|$)")) {
-        return if has(stage, r"(^|\s)(-r|--requirement)(\s|$)") {
+        return if has(stage, r"(^|\s)(-r|--requirement)(\s|$)")
+            && !cmdline::pip_names_package(&cmdline::command_words(stage).words)
+        {
             Decision::Ask(
                 "pip install -r installs every pinned dependency, any of which can run setup.py code. Confirm the requirements file is trusted.".into(),
             )

@@ -1338,6 +1338,45 @@ fn a_download_in_the_background_is_not_vetted_until_a_wait() {
 }
 
 #[test]
+fn a_package_named_besides_a_requirements_file_is_denied() {
+    // `-r` used to win over the named package: the whole command was asked
+    // about as a requirements install, and `evil` came from the index
+    // unscanned once the user confirmed "the requirements file".
+    for cmd in [
+        "pip install -r requirements.txt evil-pkg",
+        "pip install evil-pkg -r requirements.txt",
+        "python3 -m pip install -r requirements.txt 'transformers==4.46.3'",
+        "uv pip install -r requirements.txt evil-pkg",
+        "pip install -r requirements.txt --no-deps -- evil-pkg",
+        "\"$VENV/bin/python\" -m pip install \\\n  -r \"$REQUIREMENTS\" \\\n  \"transformers==4.46.3\" \\\n  \"typer>=0.9\"",
+        "cd /work/app && pip install -r requirements.txt evil-pkg",
+        "pip install -r requirements.txt -e git+https://github.com/x/evil.git",
+    ] {
+        assert_eq!(decision(cmd), "deny", "expected deny: {cmd}");
+        assert!(
+            reason(cmd).contains("sigil pip <pkg>"),
+            "{cmd}: {}",
+            reason(cmd)
+        );
+    }
+    for cmd in [
+        "pip install -r requirements.txt",
+        "pip install -r requirements.txt -e .",
+        "pip install -r requirements.txt -c constraints.txt",
+        "pip install -r requirements.txt -i https://mirror.example/simple",
+        "pip install -r requirements.txt --target vendor",
+        "pip install -r requirements.txt > install.log 2>&1",
+        "python3 -m pip install --upgrade -r requirements.txt",
+        "\"$VENV/bin/python\" -m pip install \\\n  -r \"$REQUIREMENTS\"",
+        // A comment names nothing (a corpus line; an early draft of this
+        // check read `# other dependencies` as three packages).
+        "pip install -r requirements.txt  # other dependencies",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
+    }
+}
+
+#[test]
 fn a_command_of_thousands_of_stages_is_judged_quickly() {
     // Each pattern is compiled once per process: compiled per stage, a
     // padded command took seconds per thousand stages, and a host may treat

@@ -578,6 +578,162 @@ pub fn command_words(stage: &str) -> Words {
     out
 }
 
+/// `pip install`, `python -m pip install` or `uv pip install` (as
+/// [`command_words`] gives it) naming a package of its own besides any
+/// requirements file: `pip install -r req.txt evil` installs `evil` from the
+/// index. The values of the options that take one (`-r req.txt`,
+/// `-i <url>`, `-e .`, `--target dir`) are not packages, except an editable
+/// install from a repository (`-e git+https://…`); every other word after
+/// `install` that is not an option is, up to a comment. An unlisted option
+/// that takes a value makes its value read as a package.
+pub fn pip_names_package(words: &[String]) -> bool {
+    const SHORT_VALUED: &str = "rcetifpPbC";
+    const LONG_VALUED: &[&str] = &[
+        "--requirement",
+        "--requirements",
+        "--constraint",
+        "--constraints",
+        "--override",
+        "--overrides",
+        "--build-constraint",
+        "--build-constraints",
+        "--editable",
+        "--target",
+        "--platform",
+        "--python-platform",
+        "--python-version",
+        "--implementation",
+        "--abi",
+        "--root",
+        "--prefix",
+        "--src",
+        "--upgrade-strategy",
+        "--config-settings",
+        "--config-setting",
+        "--config-settings-package",
+        "--global-option",
+        "--build-option",
+        "--install-option",
+        "--no-binary",
+        "--only-binary",
+        "--no-binary-package",
+        "--no-build-package",
+        "--no-build-isolation-package",
+        "--progress-bar",
+        "--root-user-action",
+        "--report",
+        "--index-url",
+        "--extra-index-url",
+        "--index",
+        "--default-index",
+        "--index-strategy",
+        "--find-links",
+        "--group",
+        "--extra",
+        "--python",
+        "--log",
+        "--log-file",
+        "--keyring-provider",
+        "--proxy",
+        "--retries",
+        "--timeout",
+        "--exists-action",
+        "--trusted-host",
+        "--allow-insecure-host",
+        "--cert",
+        "--client-cert",
+        "--cache-dir",
+        "--use-feature",
+        "--use-deprecated",
+        "--resume-retries",
+        "--upgrade-package",
+        "--reinstall-package",
+        "--refresh-package",
+        "--resolution",
+        "--prerelease",
+        "--fork-strategy",
+        "--exclude-newer",
+        "--exclude-newer-package",
+        "--link-mode",
+        "--config-file",
+        "--directory",
+        "--project",
+        "--color",
+        "--torch-backend",
+    ];
+    let word = |i: usize| words.get(i).map_or("", |w| w.as_str());
+    let head = basename(word(0));
+    let p = if head
+        .strip_prefix("pip")
+        .is_some_and(|v| v.chars().all(|c| c.is_ascii_digit() || c == '.'))
+    {
+        0
+    } else if head.starts_with("python") && word(1) == "-m" && word(2) == "pip" {
+        2
+    } else if head == "uv" && word(1) == "pip" {
+        1
+    } else {
+        return false;
+    };
+    let Some(i) = words.iter().skip(p + 1).position(|w| w == "install") else {
+        return false;
+    };
+    let mut rest = words.iter().skip(p + 2 + i).map(|w| w.as_str());
+    while let Some(t) = rest.next() {
+        if t.trim().is_empty() {
+            continue;
+        }
+        // A comment: `pip install -r req.txt  # other dependencies`.
+        if t.starts_with('#') {
+            return false;
+        }
+        if t == "--" {
+            return rest
+                .find(|w| !w.trim().is_empty())
+                .is_some_and(|w| !w.starts_with('#'));
+        }
+        if let Some(long) = t.strip_prefix("--") {
+            if let Some((name, value)) = long.split_once('=') {
+                if name == "editable" && remote_editable(value) {
+                    return true;
+                }
+            } else if LONG_VALUED.contains(&t) {
+                let value = rest.next();
+                if t == "--editable" && value.is_some_and(remote_editable) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        if let Some(short) = t.strip_prefix('-').filter(|s| !s.is_empty()) {
+            // A bundle (`-Ur req.txt`, `-rreq.txt`): the first option that
+            // takes a value takes the rest of the word, or the next word.
+            if let Some(at) = short.find(|c| SHORT_VALUED.contains(c)) {
+                let value = if at + 1 == short.len() {
+                    rest.next()
+                } else {
+                    Some(&short[at + 1..])
+                };
+                if short[at..].starts_with('e') && value.is_some_and(remote_editable) {
+                    return true;
+                }
+            }
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+/// An editable install fetched from a repository (`-e git+https://…`,
+/// `-e hg+…`), not a local directory: a package of its own.
+fn remote_editable(v: &str) -> bool {
+    v.contains("://")
+        || ["git+", "hg+", "svn+", "bzr+"]
+            .iter()
+            .any(|p| v.starts_with(p))
+}
+
 /// Does this command (as [`command_words`] gives it) copy its stdin to its
 /// stdout, transformed or not: a filter given no file of its own (`cat`,
 /// `cat -`, `head -n 5`, `base64 -d`, `tr -d '\r'`, `sed 's/a/b/'`), or a

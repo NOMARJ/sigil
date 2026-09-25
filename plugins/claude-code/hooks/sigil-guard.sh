@@ -2111,14 +2111,27 @@ judge_stage() {
   # stages no sigil call vets (hook.rs judges each stage and gates it on
   # its own targets): record this one unless the && chain vetted all of
   # them.
+  st_kept=1
   if [ "$RESID_ON" = 1 ]; then
     legacy_targets "$st_raw" "$@"
     if gated "$R"; then
       GATED_REASON="Gated by a preceding sigil check on the same target"
+      st_kept=0
     else
       RESID=$RESID$NL$st_raw
     fi
   fi
+  # `pip install -r req.txt evil` names a package besides the requirements
+  # file: the pip rule at the end denies it (hook.rs reads each stage's
+  # words with cmdline::pip_names_package).
+  case $st_kept$st_raw in
+    1*pip*install*)
+      IFS=$US
+      # shellcheck disable=SC2086 # the command words, US-separated
+      set -- $ST_W
+      IFS=$IFS_DEFAULT
+      pip_named "$@" && PIP_NAMED=1 ;;
+  esac
   return 0
 }
 
@@ -2166,6 +2179,97 @@ legacy_targets() {
       fi ;;
     *) pm_targets "$@" ;;
   esac
+}
+
+# pip_named WORDS: cmdline::pip_names_package — `pip install`,
+# `python -m pip install` or `uv pip install` naming a package besides any
+# requirements file (`pip install -r req.txt evil`). The values of the
+# options that take one are not packages, except an editable install from
+# a repository (-e git+https://…); a comment ends the words.
+pip_named() {
+  [ $# -gt 0 ] || return 1
+  unquote "${1##*/}"; pn_b=$R
+  case $pn_b in
+    pip*[!0-9.]*) return 1 ;;
+    pip*) shift ;;
+    python*)
+      [ "${2-}" = -m ] && [ "${3-}" = pip ] || return 1
+      shift 3 ;;
+    uv)
+      [ "${2-}" = pip ] || return 1
+      shift 2 ;;
+    *) return 1 ;;
+  esac
+  while [ $# -gt 0 ] && [ "$1" != install ]; do shift; done
+  [ $# -gt 0 ] || return 1
+  shift
+  while [ $# -gt 0 ]; do
+    unquote "$1"; pn_t=$R
+    shift
+    case $pn_t in
+      '') ;;
+      \#*) return 1 ;;
+      --)
+        for pn_t; do
+          unquote "$pn_t"
+          case $R in
+            '') ;;
+            \#*) return 1 ;;
+            *) return 0 ;;
+          esac
+        done
+        return 1 ;;
+      --editable=*) pn_remote "${pn_t#--editable=}" && return 0 ;;
+      --*=*) ;;
+      --editable)
+        if [ $# -gt 0 ]; then
+          unquote "$1"; shift
+          pn_remote "$R" && return 0
+        fi ;;
+      --requirement|--requirements|--constraint|--constraints|--override|--overrides|\
+      --build-constraint|--build-constraints|--target|--platform|\
+      --python-platform|--python-version|--implementation|--abi|--root|--prefix|\
+      --src|--upgrade-strategy|--config-settings|--config-setting|\
+      --config-settings-package|--global-option|--build-option|--install-option|\
+      --no-binary|--only-binary|--no-binary-package|--no-build-package|\
+      --no-build-isolation-package|--progress-bar|--root-user-action|--report|\
+      --index-url|--extra-index-url|--index|--default-index|--index-strategy|\
+      --find-links|--group|--extra|--python|--log|--log-file|--keyring-provider|\
+      --proxy|--retries|--timeout|--exists-action|--trusted-host|\
+      --allow-insecure-host|--cert|--client-cert|--cache-dir|--use-feature|\
+      --use-deprecated|--resume-retries|--upgrade-package|--reinstall-package|\
+      --refresh-package|--resolution|--prerelease|--fork-strategy|--exclude-newer|\
+      --exclude-newer-package|--link-mode|--config-file|--directory|--project|\
+      --color|--torch-backend)
+        [ $# -gt 0 ] && shift ;;
+      --*) ;;
+      -?*)
+        # A bundle (-Ur req.txt, -rreq.txt): the first option that takes a
+        # value takes the rest of the word, or the next word.
+        pn_s=${pn_t#-}
+        pn_v=${pn_s%%[rcetifpPbC]*}
+        if [ "$pn_v" != "$pn_s" ]; then
+          pn_o=${pn_s#"$pn_v"}
+          pn_rest=${pn_o#?}
+          pn_o=${pn_o%"$pn_rest"}
+          if [ -z "$pn_rest" ] && [ $# -gt 0 ]; then
+            unquote "$1"; pn_rest=$R; shift
+          fi
+          [ "$pn_o" = e ] && pn_remote "$pn_rest" && return 0
+        fi ;;
+      *) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# pn_remote VALUE: cmdline::remote_editable — an editable install fetched
+# from a repository (-e git+https://…), a package of its own.
+pn_remote() {
+  case $1 in
+    *://*|git+*|hg+*|svn+*|bzr+*) return 0 ;;
+  esac
+  return 1
 }
 
 st_reset() {
@@ -2266,6 +2370,7 @@ UNSETTLED=''
 GATED_REASON=''
 SIGIL_SEEN=0
 RESID=''
+PIP_NAMED=0
 SKIP_SEG=0
 GRP_STACK=''
 DIR_STACK=''
@@ -2448,11 +2553,13 @@ has "${WB}(pnpm|yarn)${MOD}[[:space:]]+dlx[[:space:]]" \
 has "${WB}(yarn|pnpm)${MOD}[[:space:]]+install([[:space:]]|\$)" \
   && emit ask "Lockfile restore can still run install scripts from unreviewed dependencies. Confirm the lockfile is trusted."
 
-# ── pip / uv: -r requirements -> ask; explicit package -> deny ─────────────
+# ── pip / uv: -r requirements -> ask, unless a package is named besides it
+# (PIP_NAMED, from the lexer's stages; without awk, -r asks); explicit
+# package -> deny ────────────────────────────────────────────────────────────
 
 PIP_INSTALL="${WB}(pip[0-9.]*${MOD}[[:space:]]+install|python[0-9.]*[[:space:]]+-m[[:space:]]+pip[[:space:]]+install|uv[[:space:]]+pip[[:space:]]+install)"
 if has "${PIP_INSTALL}([[:space:]]|\$)"; then
-  if has "(^|[[:space:]])(-r|--requirement)([[:space:]]|\$)"; then
+  if has "(^|[[:space:]])(-r|--requirement)([[:space:]]|\$)" && [ "$PIP_NAMED" != 1 ]; then
     emit ask "pip install -r installs every pinned dependency, any of which can run setup.py code. Confirm the requirements file is trusted."
   elif has "${PIP_INSTALL}${FLAGS}${PKG}"; then
     deny "pip install with a package installs unscanned code. Use: sigil pip <pkg> (quarantine + scan first). Bypass: SIGIL_BYPASS=1"
