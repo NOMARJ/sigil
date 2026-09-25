@@ -79,6 +79,48 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   completely in 1.9 s. Median scan time per skill: 1.48 s (SkillSpector,
   measured on the same machine in the baseline run: 26.82 s).
 
+### 🔒 Disabled TLS verification
+
+- **New pack `insecure_transport.json` (TLS-001..010).** Reports code,
+  configuration and agent instructions that turn off certificate
+  verification: requests/httpx `verify=False` and aiohttp `ssl=False`,
+  `ssl.CERT_NONE` / `check_hostname = False` / `_create_unverified_context`,
+  a silenced `InsecureRequestWarning` (Low observation), Node
+  `rejectUnauthorized: false`, `NODE_TLS_REJECT_UNAUTHORIZED=0` and
+  `PYTHONHTTPSVERIFY=0` in code, shells, Dockerfiles and MCP `env` blocks, Go
+  `InsecureSkipVerify`, reqwest, Ruby, PHP/curl, .NET and Java equivalents,
+  `curl -k` / `wget --no-check-certificate` / `-SkipCertificateCheck` /
+  `kubectl --insecure-skip-tls-verify`, `git -c http.sslVerify=false` and
+  `GIT_SSL_NO_VERIFY`, `pip --trusted-host`, `npm config set strict-ssl
+  false` and similar package-manager switches, and configuration keys such as
+  `verify_ssl: false` or `insecure_skip_verify: true`. Each rule is Medium
+  (behaviour `insecure_transport`): a package warns, and none is blocked by
+  it alone. Comments, test files, `.jsonl` data, messages that only name a
+  setting, and commands against localhost are not reported. Details:
+  [docs/detection/insecure-transport.md](docs/detection/insecure-transport.md).
+- **TLS-CHAIN-001 (High).** A credential read from the environment or
+  written into the code is used in the request whose verification is off
+  (behaviour `exposes_credentials_in_transit`).
+- **Correlation rules can look above the sink.** `sink_window_before` on a
+  correlation rule counts that many lines above the sink as its arguments,
+  so a `verify=False,` on the last line of a multi-line call links to the
+  headers above it. Existing chains do not set it and behave as before; a
+  custom pack may set at most 20.
+- **Measured, in-sample** (the rules were calibrated on these corpora).
+  Clean MCP servers: 39/169 blocked and 125/169 warned, unchanged; 9 servers
+  carry 16 TLS findings, one moves from no finding to LOW. Skills: 173/204
+  malicious blocked, 7/455 clean blocked and 71/455 clean warned, all
+  unchanged; 3 clean skills carry 4 TLS findings. 18 of the 20 clean findings
+  are code or instructions that really turn verification off; 2 are
+  documentation that names the setting. TLS-CHAIN-001 fired on no clean
+  sample. Recall on the 844-package Datadog selection is unchanged at every
+  threshold (785 / 761 / 752 / 561). On SkillSpector's own tests, Sigil now flags 17 of its 20 TLS
+  examples with a TLS rule (none before; 14 were flagged as downloads by
+  NET-012), and the parity total moves from 623 to 626 of 1,796 at any
+  severity (385 at High, unchanged). Of the three it misses, two split
+  `verify=` and `False` across lines and the third is Docker's
+  `--insecure-registry`, which is not covered.
+
 ### 🧩 YARA rules as custom rules
 
 - **`--rules` accepts YARA rule files.** `.yar` and `.yara` files — and

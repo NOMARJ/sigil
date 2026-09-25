@@ -173,6 +173,16 @@ substrings that disqualify the link. `EXFIL-CHAIN-001` in `network_exfil.json`
 one place a pack can say "line 9 feeds line 10" without the engine executing
 anything: the link is a text identity check, not taint analysis.
 
+The sink's argument window is the sink line and the four lines after it.
+`sink_window_before` (default 0, at most 20 in a custom pack) extends it
+upward, for a sink matched on a keyword argument a formatter puts on its own
+line at the end of a call: the insecure `verify` argument as the last line of
+a multi-line `requests.post(` call, with the header that carries the token
+three lines above. The source line itself is
+left out of the text the link is read from, so a source inside that window
+still needs another line to use the name it binds. `TLS-CHAIN-001` in
+`insecure_transport.json` uses it.
+
 ### Fixtures
 
 Every rule ships with two fixtures:

@@ -1,0 +1,517 @@
+{
+  "meta": {
+    "id": "sigil-core-insecure-transport",
+    "name": "Sigil Core — Insecure Transport",
+    "version": "1.0.0",
+    "updated_at": "2026-09-25",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Disabled TLS certificate verification: Python (requests/httpx/aiohttp verify=False, ssl.CERT_NONE, unverified contexts), Node.js (rejectUnauthorized: false, NODE_TLS_REJECT_UNAUTHORIZED=0), Go, Rust, Java, .NET, Ruby and PHP client switches, curl -k / wget --no-check-certificate and other commands, git http.sslVerify=false, package-manager TLS overrides, and configuration keys that turn verification off. Configuration hygiene rather than an attack shape: Medium on its own (the verification-warning silencer is a Low observation), High (TLS-CHAIN-001) when a credential is sent over the unverified connection. Matches in comments and in test files are not reported."
+  },
+  "rules": [
+    {
+      "id": "TLS-001",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:[(,]\\s*verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)verify\\s*=\\s*False\\s*(?:[,)]|$)|[\\\"']verify[\\\"']\\s*:\\s*False(?-u:\\b)|\\.verify\\s*=\\s*False(?-u:\\b)|(?-u:\\b)(?:TCPConnector|ClientSession|get|post|put|patch|delete|head|options|request|ws_connect)\\s*\\([^()\\n]*?(?-u:\\b)ssl\\s*=\\s*False(?-u:\\b))",
+      "description": "Python HTTP client with certificate verification turned off (verify=False, aiohttp ssl=False)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "requests, httpx and aiohttp check the server's certificate by default; verify=False (or aiohttp's ssl=False) turns that off, so anyone on the network path — a hostile Wi-Fi, a compromised proxy, a cloud neighbour — can present their own certificate, read the traffic and change the response. It is usually added to get past a self-signed or corporate-proxy certificate. Point verify at that CA bundle instead (verify=\"/path/to/ca.pem\", or REQUESTS_CA_BUNDLE / SSL_CERT_FILE), or make the insecure mode an explicit, off-by-default option the user has to turn on.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557",
+        "Bandit B501"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "python"
+      ]
+    },
+    {
+      "id": "TLS-002",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)(?:verify_mode|cert_reqs)\\s*=\\s*(?:ssl\\.|[\\\"'])?CERT_NONE(?-u:\\b)|(?-u:\\b)check_hostname\\s*=\\s*False(?-u:\\b)|(?-u:\\b)ssl\\._create_unverified_context(?-u:\\b))",
+      "description": "Python TLS context that does not verify the server (CERT_NONE, check_hostname=False, unverified context)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "ssl.CERT_NONE and check_hostname=False make a TLS context accept any certificate for any host, and ssl._create_unverified_context() is the same thing packaged as a function (assigned to ssl._create_default_https_context it switches verification off for every urllib request in the process). The connection is still encrypted, but to whoever answered. Build the context with ssl.create_default_context(cafile=...) for a private CA, and keep verify_mode and check_hostname at their defaults.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557",
+        "Bandit B323"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "python"
+      ]
+    },
+    {
+      "id": "TLS-003",
+      "phase": "network_exfil",
+      "severity": "low",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)disable_warnings\\s*\\(\\s*(?:[A-Za-z0-9_.]*\\.)?InsecureRequestWarning\\s*\\)|(?-u:\\b)urllib3\\.disable_warnings\\s*\\(\\s*\\)|(?-u:\\b)(?:filterwarnings|simplefilter)\\s*\\([^)\\n]*InsecureRequestWarning)",
+      "description": "Warning about unverified HTTPS requests silenced (InsecureRequestWarning)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "An observation: urllib3 warns on every request made with verify=False, and this line silences that warning. It is almost always written next to a request that skips certificate verification, so look for the verify=False it is hiding (TLS-001) and fix that; removing the warning without restoring verification only hides the problem from the person running the code.",
+      "references": [
+        "CWE-295",
+        "CWE-778"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "python",
+        "observation"
+      ]
+    },
+    {
+      "id": "TLS-004",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:rejectUnauthorized|strictSSL)\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:rejectUnauthorized|strictSSL)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:rejectUnauthorized|strictSSL)\\s*=\\s*false[\\\"']|(?-u:\\b)checkServerIdentity\\s*[:=]\\s*(?:\\([^)\\n]*\\)\\s*=>\\s*(?:undefined|null|\\{\\s*\\})|function\\s*\\([^)\\n]*\\)\\s*\\{\\s*(?:return\\s*(?:undefined|null)?\\s*;?\\s*)?\\}))",
+      "description": "Node.js TLS client that accepts any certificate (rejectUnauthorized: false)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "rejectUnauthorized: false (on an https.Agent, a tls.connect call, a WebSocket, an undici Agent's connect options, or the request library's strictSSL: false) makes Node accept any certificate, and a no-op checkServerIdentity accepts any host name. Whoever can intercept the connection can then read and rewrite it. For a private or self-signed CA pass it as the agent's ca option (or NODE_EXTRA_CA_CERTS) and leave rejectUnauthorized at its default of true.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "javascript"
+      ]
+    },
+    {
+      "id": "TLS-005",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[\\s;&(`{,:.])(?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?0(?-u:\\b)|[\\\"'`](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?0(?-u:\\b)|[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)=0[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:NODE_TLS_REJECT_UNAUTHORIZED|PYTHONHTTPSVERIFY)[\\\"']\\s*,\\s*[\\\"']0[\\\"']|(?-u:\\b)environ\\s*\\[\\s*[\\\"'](?:CURL_CA_BUNDLE|REQUESTS_CA_BUNDLE)[\\\"']\\s*\\]\\s*=\\s*(?:\\\"\\\"|''))",
+      "description": "Certificate verification turned off for the whole process (NODE_TLS_REJECT_UNAUTHORIZED=0, PYTHONHTTPSVERIFY=0)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "NODE_TLS_REJECT_UNAUTHORIZED=0 turns off certificate checking for every HTTPS and TLS connection the Node process makes, including those of every dependency; PYTHONHTTPSVERIFY=0 does the same for Python's urllib, and an empty CURL_CA_BUNDLE or REQUESTS_CA_BUNDLE makes requests skip verification. Set in code, in a Dockerfile, in an MCP server's env block or in instructions to the agent, it exposes every connection — including the ones that carry API keys — to interception. Install the CA the connection needs (NODE_EXTRA_CA_CERTS, SSL_CERT_FILE) instead.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "environment"
+      ]
+    },
+    {
+      "id": "TLS-006",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)InsecureSkipVerify\\s*[:=]\\s*true(?-u:\\b)|(?-u:\\b)danger_accept_invalid_(?:certs|hostnames)\\s*\\(\\s*true\\s*\\)|(?-u:\\b)verify_mode\\s*(?:=|:)\\s*OpenSSL::SSL::VERIFY_NONE(?-u:\\b)|(?-u:\\b)ssl:\\s*\\{\\s*verify:\\s*false(?-u:\\b)|(?-u:\\b)(?:CURLOPT_|pycurl\\.)SSL_VERIFY(?:PEER|HOST)\\s*(?:=>|,)\\s*(?:false|False|FALSE|0L?)(?-u:\\b)|[\\\"']verify[\\\"']\\s*=>\\s*false(?-u:\\b)|(?-u:\\b)DangerousAcceptAnyServerCertificateValidator(?-u:\\b)|(?-u:\\b)(?:ServerCertificateCustomValidationCallback|ServerCertificateValidationCallback|RemoteCertificateValidationCallback)\\s*\\+?=\\s*(?:delegate\\s*(?:\\([^)\\n]*\\))?\\s*\\{\\s*return\\s+true|\\([^)\\n]*\\)\\s*=>\\s*(?:\\{\\s*return\\s+)?true)(?-u:\\b)|(?-u:\\b)NoopHostnameVerifier\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+NoopHostnameVerifier\\s*\\(|(?-u:\\b)ALLOW_ALL_HOSTNAME_VERIFIER(?-u:\\b)|(?-u:\\b)TrustAllStrategy\\.INSTANCE(?-u:\\b)|(?-u:\\b)new\\s+TrustAllStrategy\\s*\\(|(?-u:\\b)(?:setHostnameVerifier|setDefaultHostnameVerifier|hostnameVerifier)\\s*[({]\\s*\\(?\\s*[A-Za-z_][A-Za-z0-9_]*\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\)?\\s*->\\s*true(?-u:\\b))",
+      "description": "TLS client code that skips certificate verification (Go, Rust, Java, .NET, Ruby, PHP)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "Each of these is the language's switch for accepting any certificate or any host name: Go's tls.Config InsecureSkipVerify, reqwest's danger_accept_invalid_certs, Ruby's OpenSSL::SSL::VERIFY_NONE (and Faraday's ssl: { verify: false }), PHP and pycurl's CURLOPT_SSL_VERIFYPEER/VERIFYHOST set to 0 (and Guzzle's 'verify' => false), .NET's DangerousAcceptAnyServerCertificateValidator or a validation callback that returns true, and Apache HttpClient's NoopHostnameVerifier / TrustAllStrategy or a hostname verifier lambda that returns true. Trust the specific CA the connection needs (a RootCAs pool, add_root_certificate, a truststore) instead of turning checking off.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557",
+        "gosec G402"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport"
+      ]
+    },
+    {
+      "id": "TLS-007",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)curl(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?[\\s\\\"'](?:--insecure|-[A-Za-z]*k[A-Za-z]*)(?:[\\s\\\"',]|$)|(?-u:\\b)wget(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?\\s--no-check-certificate(?-u:\\b)|(?i:(?-u:\\b)(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)(?-u:\\b)[^\\n|;&]*?\\s-SkipCertificateCheck)(?-u:\\b)|(?-u:\\b)(?:kubectl|helm)(?-u:\\b)[^\\n|;&]*?\\s--insecure-skip-tls-verify(?:=true)?(?:[\\s\\\"']|$)|(?-u:\\b)deno(?-u:\\b)[^\\n|;&]*?\\s--unsafely-ignore-certificate-errors(?-u:\\b))",
+      "description": "Command skips certificate verification (curl -k, wget --no-check-certificate, -SkipCertificateCheck)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ],
+        "line_contains": [
+          "://localhost",
+          "://127.0.0.1",
+          "://0.0.0.0",
+          "://[::1]",
+          "://host.docker.internal"
+        ]
+      },
+      "remediation": "curl -k / --insecure, wget --no-check-certificate, PowerShell's -SkipCertificateCheck, kubectl or helm --insecure-skip-tls-verify and deno --unsafely-ignore-certificate-errors fetch from or talk to a server without checking its certificate. In a script or in instructions an agent follows (SKILL.md, AGENTS.md, an MCP server's setup steps) the command runs with whatever the network path returns — for a download, that is the file that gets installed or executed. Drop the flag and pass the CA that the host actually uses (curl --cacert, wget --ca-certificate, kubectl certificate-authority). Commands against localhost are not reported.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557",
+        "MITRE T1105"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "command"
+      ]
+    },
+    {
+      "id": "TLS-008",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?i:(?-u:\\b)http\\.(?:[^\\s=\\\"']*\\.)?sslverify)(?:\\s*=\\s*|\\s+)[\\\"']?(?i:false|0|no|off)(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:GIT_SSL_NO_VERIFY)(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'`](?:GIT_SSL_NO_VERIFY)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:1|true|yes)(?-u:\\b)|[\\\"'](?:GIT_SSL_NO_VERIFY)=(?i:1|true|yes)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:GIT_SSL_NO_VERIFY)[\\\"']\\s*,\\s*[\\\"'](?i:1|true|yes)[\\\"'])",
+      "description": "git told not to verify the server's certificate (http.sslVerify=false, GIT_SSL_NO_VERIFY)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ]
+      },
+      "remediation": "git -c http.sslVerify=false, git config http.sslVerify false and GIT_SSL_NO_VERIFY=1 make git clone, fetch and pull accept any certificate, so the repository contents — code that is about to be built or run — come from whoever can intercept the connection. Configure the CA instead (http.sslCAInfo, or GIT_SSL_CAINFO) and leave sslVerify on.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557",
+        "MITRE T1195"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "git",
+        "supply-chain"
+      ]
+    },
+    {
+      "id": "TLS-009",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?-u:\\b)pip[0-9.]*(?:\\.exe)?(?-u:\\b)[^\\n|;&]*?\\s--trusted-host(?:[\\s=]|$)|(?-u:\\b)pip[0-9.]*\\s+config\\s+(?:--?[A-Za-z-]+\\s+)*set\\s+[\\\"']?(?:global|user|install|site)\\.trusted-host(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'`](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?[A-Za-z0-9][A-Za-z0-9.:-]*(?-u:\\b)|[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)=[A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:PIP_TRUSTED_HOST|UV_INSECURE_HOST)[\\\"']\\s*,\\s*[\\\"'][A-Za-z0-9][A-Za-z0-9.:-]*[\\\"']|(?-u:\\b)uv(?-u:\\b)[^\\n|;&]*?\\s--allow-insecure-host(?:[\\s=]|$)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&]*?(?i:strict-ssl|strictssl|enablestrictssl)(?:\\s*=\\s*|\\s+)[\\\"']?false(?-u:\\b)|(?-u:\\b)(?:npm|pnpm|yarn)(?-u:\\b)[^\\n|;&]*?\\s--no-strict-ssl(?-u:\\b)|(?:^|[\\s;&(`{,:.])(?:(?i:npm_config_strict_ssl))(?:\\s*[=:]\\s*|\\s+)[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'`](?:(?i:npm_config_strict_ssl))[\\\"'`]\\s*\\]?\\s*[=:]\\s*[\\\"'`]?(?i:false|0)(?-u:\\b)|[\\\"'](?:(?i:npm_config_strict_ssl))=(?i:false|0)[\\\"']|(?-u:\\b)(?:setdefault|putenv)\\s*\\(\\s*[\\\"'](?:(?i:npm_config_strict_ssl))[\\\"']\\s*,\\s*[\\\"'](?i:false|0)[\\\"']|strict-ssl\\s*=\\s*false[^\\n]*npmrc|(?-u:\\b)conda(?-u:\\b)[^\\n|;&]*?\\s--set\\s+ssl_verify\\s+[\\\"']?(?i:false|no|0)(?-u:\\b)|(?-u:\\b)poetry\\s+config\\s+certificates\\.\\S+\\.cert\\s+[\\\"']?false(?-u:\\b)|maven\\.wagon\\.http\\.ssl\\.(?:insecure|allowall)=true(?-u:\\b))",
+      "description": "Package-manager command or setting turns off TLS verification (pip --trusted-host, npm strict-ssl false)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl"
+        ],
+        "line_contains": [
+          "://localhost",
+          "://127.0.0.1",
+          "://0.0.0.0",
+          "://[::1]",
+          "://host.docker.internal",
+          "--trusted-host localhost",
+          "--trusted-host 127.0.0.1"
+        ]
+      },
+      "remediation": "pip --trusted-host, uv --allow-insecure-host, npm/yarn/pnpm strict-ssl false, conda ssl_verify false, a poetry certificate set to false and maven.wagon.http.ssl.insecure make the package manager accept any certificate from the index, so anyone on the network path can substitute the packages it installs. It is usually a workaround for a corporate TLS proxy; that belongs in the user's own configuration with the proxy's CA installed (pip --cert, npm cafile, conda ssl_verify: /path/to/ca.pem), not in a skill, a script or a Dockerfile. Shipped config files (pip.conf, .npmrc, Pipfile) are reported by DEPSRC-004.",
+      "references": [
+        "CWE-295",
+        "CWE-494",
+        "MITRE T1557",
+        "MITRE T1195.001"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "supply-chain",
+        "command"
+      ]
+    },
+    {
+      "id": "TLS-010",
+      "phase": "network_exfil",
+      "severity": "medium",
+      "weight": 2,
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n])*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:false|no|off|0)[\\\"'`]|(?i:false|no|off|0)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:(?i:verify_?ssl|ssl_?verify|verify_?tls|tls_?verify|verify_?certs?|ssl_?verification|verify_?server_?cert(?:ificate)?|ssl_?cert_?verify))\\s*=\\s*(?i:false|no|off|0)[\\\"']|(?:^|[^A-Za-z0-9_\\-\\\"'])(?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`](?i:true|yes|on|1)[\\\"'`]|(?i:true|yes|on|1)(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:insecure_skip_verify|insecureSkipVerify|insecure-skip-tls-verify|skip_tls_verify|skip-tls-verify|skipTlsVerify|tls_skip_verify|tlsSkipVerify|tls_insecure|tlsInsecure|disable_ssl_certificate_validation)\\s*=\\s*(?i:true|yes|on|1)[\\\"'])",
+      "description": "Configuration turns TLS certificate verification off (verify_ssl: false, insecure_skip_verify: true)",
+      "suppress": {
+        "path_contains": [
+          "tests/",
+          "/test/",
+          "__tests__/",
+          "/spec/",
+          "fixtures/",
+          "testdata/",
+          "conftest.py",
+          "/test_"
+        ],
+        "filename_suffix": [
+          "_test.go",
+          "_test.py",
+          ".test.js",
+          ".test.ts",
+          ".test.mjs",
+          ".spec.js",
+          ".spec.ts",
+          ".jsonl",
+          "Pipfile",
+          "pip.conf",
+          "pip.ini",
+          ".npmrc",
+          ".yarnrc",
+          ".yarnrc.yml"
+        ],
+        "line_contains": [
+          "http.sslVerify",
+          "http.sslverify",
+          "loopback",
+          "Loopback",
+          "localhost",
+          "127.0.0.1"
+        ]
+      },
+      "remediation": "A setting named for TLS verification is set to off: verify_ssl / ssl_verify / verify_certs = false in code, YAML, JSON or TOML, or insecure_skip_verify / insecure-skip-tls-verify / tls_insecure = true (Prometheus, Traefik, kubeconfig, Helm values), or httplib2's disable_ssl_certificate_validation=True. Whatever client reads it will accept any certificate. If the setting exists for a self-signed internal endpoint, default it to verifying and let the user opt out, and prefer a CA-bundle setting to an on/off switch. A line that restricts the setting to loopback or localhost is not reported: nobody sits between a client and a server on the same machine.",
+      "references": [
+        "CWE-295",
+        "MITRE T1557"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "configuration"
+      ]
+    }
+  ],
+  "provenance_rules": [],
+  "correlation_rules": [
+    {
+      "id": "TLS-CHAIN-001",
+      "phase": "network_exfil",
+      "severity": "high",
+      "description": "Credential sent over a connection that does not verify the server's certificate",
+      "weight": 3,
+      "source": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "CRED-001",
+          "CRED-002",
+          "CRED-MCP-001",
+          "CRED-004",
+          "CRED-007",
+          "CRED-008",
+          "CRED-010",
+          "CRED-011",
+          "CRED-013",
+          "CRED-015",
+          "CRED-017",
+          "CRED-018",
+          "CRED-019",
+          "CRED-020",
+          "CRED-021",
+          "CRED-022",
+          "CRED-024",
+          "CRED-025",
+          "CRED-026",
+          "CRED-027",
+          "CRED-028",
+          "CRED-029"
+        ]
+      },
+      "sink": {
+        "rule_prefixes": [],
+        "rule_ids": [
+          "TLS-001",
+          "TLS-002",
+          "TLS-004",
+          "TLS-005",
+          "TLS-006",
+          "TLS-007",
+          "TLS-010"
+        ]
+      },
+      "window_lines": 60,
+      "sink_window_before": 5,
+      "sink_excludes": [],
+      "remediation": "A secret — an API key or token read from the environment, or one written into the code — is used in a request or connection whose certificate check is turned off (the name bound on the source line appears in the arguments around the insecure setting). Anyone who can intercept that connection receives the credential, and can keep using it after the connection is gone. Restore verification (or point it at the right CA bundle) before the credential is sent, and rotate the credential if the code has already run on an untrusted network.",
+      "references": [
+        "CWE-295",
+        "CWE-319",
+        "CWE-522",
+        "MITRE T1557",
+        "MITRE T1040"
+      ],
+      "tags": [
+        "tls",
+        "insecure-transport",
+        "credentials",
+        "chain"
+      ]
+    }
+  ]
+}

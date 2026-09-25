@@ -38,6 +38,9 @@ const EMBEDDED_PACKS: &[&str] = &[
     include_str!("../../packs/core/v1/multilingual_injection.json"),
     include_str!("../../packs/core/v1/agent_supply_chain.json"),
     include_str!("../../packs/core/v1/agent_instructions.json"),
+    // Disabled TLS certificate verification (TLS-*): configuration hygiene,
+    // Medium on its own, High when a credential rides the connection.
+    include_str!("../../packs/core/v1/insecure_transport.json"),
     // Metadata for the structural checks implemented in Rust
     // (scanner::bytecode, artifacts, padding, lpriv); no regex rules.
     include_str!("../../packs/core/v1/structural.json"),
