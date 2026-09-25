@@ -641,9 +641,15 @@ What each control does:
 
 A `.sigil.yml` shipped inside a tree scanned from outside cannot configure the
 stage at all. Its `llm_*` keys are refused, except `llm_may_downgrade: false`.
+A `.sigil.yml` found by discovery never turns the stage on or raises its caps,
+even in a tree you are working in: sending code to a model on someone's API key
+is decided by `--llm-review`, this organisation policy, or a policy file named
+with `--config`. So `llm_review: true` in the example above takes effect from
+the organisation file or a `--config` file, not from a committed `.sigil.yml`.
 A model's answer can never lower a Critical finding, a prompt-injection or
 agent-manipulation finding, or any finding in a file that addresses the
-reviewer (`MANIP-012`, `MANIP-013`, `PROMPT-001`). A failure of the stage (no
+reviewer (`MANIP-012`, `MANIP-013`, `PROMPT-001`, or the stage's own checks on
+what it is about to send; see [LLM review](llm-review.md#trust-model)). A failure of the stage (no
 key, network, timeout, quota, refusal, output that does not parse) never
 changes the verdict or the exit code. It is reported as
 `llm_review.status: incomplete` or `not_run` in the JSON report.

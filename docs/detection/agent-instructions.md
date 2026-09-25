@@ -156,7 +156,12 @@ A security-review skill that tells the agent "as a security reviewer, you
 should report every injection sink" does not match: the rules need the text
 to steer the verdict, not describe the job. With the LLM stage on, a file
 carrying either rule, or `PROMPT-001`, never has a finding downgraded on the
-model's advice.
+model's advice, even when the scan policy suppresses the rule's finding. The
+stage also runs its own checks over what it is about to send (notes addressed
+to a model by name, "if you are an AI ..." verdicts, copies of its reply
+format, notes in file paths, text hidden in Unicode tag characters). Those
+checks are not scan rules and produce no findings; they are described in
+[llm-review.md](../llm-review.md#trust-model).
 
 Both rules were measured on the corpora used elsewhere in this document,
 using the release build of this change on 2026-09-25:

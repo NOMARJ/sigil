@@ -371,6 +371,15 @@ fn error_message(doc: &Value) -> Option<String> {
     Some(prompt::sanitize_rationale(&text))
 }
 
+/// The model the provider says served the reply, made safe to print: it is
+/// the provider's text, not Sigil's.
+fn served_model(doc: &Value) -> Option<String> {
+    doc.get("model")
+        .and_then(Value::as_str)
+        .map(|m| prompt::sanitize_rationale(&m.chars().take(128).collect::<String>()))
+        .filter(|m| !m.is_empty())
+}
+
 fn interpret_anthropic(doc: &Value) -> CallOutcome {
     let usage = doc.get("usage");
     let n = |k: &str| usage.and_then(|u| u.get(k)).and_then(Value::as_u64);
@@ -386,7 +395,7 @@ fn interpret_anthropic(doc: &Value) -> CallOutcome {
     let mut out = CallOutcome::new(Err(String::new()));
     out.input_tokens = input;
     out.output_tokens = n("output_tokens");
-    out.served_model = doc.get("model").and_then(Value::as_str).map(str::to_string);
+    out.served_model = served_model(doc);
     let stop = doc.get("stop_reason").and_then(Value::as_str).unwrap_or("");
     out.text = match stop {
         "refusal" => {
@@ -428,7 +437,7 @@ fn interpret_openai(doc: &Value) -> CallOutcome {
     let mut out = CallOutcome::new(Err(String::new()));
     out.input_tokens = n("prompt_tokens");
     out.output_tokens = n("completion_tokens");
-    out.served_model = doc.get("model").and_then(Value::as_str).map(str::to_string);
+    out.served_model = served_model(doc);
     let choice = doc
         .get("choices")
         .and_then(Value::as_array)

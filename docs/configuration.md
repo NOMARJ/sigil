@@ -74,7 +74,7 @@ llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends 
 | `baseline` | path | findings recorded in the baseline move to `policy.suppressed` |
 | `locked` | list of keys, or `all` | organisation only; see below |
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
-| `llm_review` | bool | run the optional LLM review stage on `sigil scan` (as `--llm-review`); see [llm-review.md](llm-review.md) |
+| `llm_review` | bool | run the optional LLM review stage on `sigil scan` (as `--llm-review`); `true` takes effect from the organisation policy or a `--config` file, not a discovered `.sigil.yml`; see [llm-review.md](llm-review.md) |
 | `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level; never a Critical, prompt-injection or agent-manipulation finding, or a finding in a file that addresses the reviewer |
 | `llm_provider` | `anthropic`/`openai-compatible` | which API the stage speaks (default: Anthropic, or OpenAI-compatible when an endpoint is set) |
 | `llm_model` | model id | the model (as `--llm-model`) |
@@ -83,7 +83,12 @@ llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends 
 | `llm_max_tokens` | 10,000–10,000,000 | per-scan cap on input + output tokens (default 200,000) |
 
 The LLM keys cannot be set by a policy file inside a tree scanned from
-outside it: such a file may only set `llm_may_downgrade: false`. A locked
+outside it: such a file may only set `llm_may_downgrade: false`. A project
+file found by discovery cannot turn the stage on or raise `llm_max_calls` or
+`llm_max_tokens`, even when you work inside its tree: that takes
+`--llm-review`, the organisation policy, or naming the file with `--config`,
+because the stage sends code off the machine on the API key of whoever runs
+the scan. A locked
 `llm_review`, `llm_provider` or `llm_model` is fixed at the organisation's
 value, a locked `llm_may_downgrade` can only be switched off, and locked caps
 can only be lowered. API keys are read from the environment only.

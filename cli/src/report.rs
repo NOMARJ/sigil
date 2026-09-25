@@ -304,10 +304,12 @@ fn print_text(result: &ScanResult, target: &str, view: Option<PolicyView>) {
         println!("  {gate_line}");
     }
     if let Some(llm) = llm_of(view) {
+        // Paths come from the scanned tree: no control characters reach the
+        // terminal.
         let (head, rows) = llm_lines(llm);
-        println!("  {} {}", "[*]".cyan(), head);
+        println!("  {} {}", "[*]".cyan(), clean(&head));
         for row in rows {
-            println!("       {}", row.dimmed());
+            println!("       {}", clean(&row).dimmed());
         }
     }
     output::print_verdict(

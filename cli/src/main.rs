@@ -2463,6 +2463,14 @@ async fn cmd_scan(
         }
     };
 
+    // Files that address a reviewer, noted before the policy can move their
+    // findings out of the result: the LLM stage never acts on a dismissal
+    // in one of them.
+    let reviewer_files = if policy.llm.review == Some(true) {
+        llm_review::reviewer_files(&result)
+    } else {
+        Default::default()
+    };
     // Policy: severity overrides, min_severity, disabled rules, ignored
     // paths, trusted domains, baselines. Suppressed findings stay in the
     // report, attributed; they leave score, verdict and exit code.
@@ -2494,7 +2502,7 @@ async fn cmd_scan(
                     settings.model
                 ),
             );
-            let r = llm_review::run(&mut result, path, &settings).await;
+            let r = llm_review::run_with(&mut result, path, &settings, &reviewer_files).await;
             if r.status != "complete" {
                 eprintln!("{} {}", "warning:".bold().yellow(), r.summary_line());
             }

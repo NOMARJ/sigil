@@ -69,17 +69,21 @@ available for that code.
 
 ## 4. Optional LLM review (`sigil scan --llm-review`)
 
-Off unless `--llm-review` or a scan policy (`llm_review: true`) turns it on;
-an organisation policy can lock it off. When on, `llm_review::run`
+Off unless `--llm-review`, the organisation policy or a policy file named with
+`--config` (`llm_review: true`) turns it on; a `.sigil.yml` found by discovery
+cannot. An organisation policy can lock it off. When on, `llm_review::run`
 (`cli/src/llm_review/mod.rs`) sends, for each active finding at Medium or
 above: the rule id, title and remediation text, the severity and phase, the
 file path and line, the matched text, and up to 6 lines on each side of the
 line. Everything taken from the scanned tree is masked first
-(`cli/src/llm_review/mask.rs`): private-key blocks, every match of a
-credential or secret rule, common token shapes, `Authorization` values, URL
-passwords, secret-named assignments and high-entropy strings. Secret files
-(`.env*`, private keys, `.npmrc`, `.netrc`, cloud credential files), symbolic
-links and paths outside the scanned tree are never read. The request goes
+(`cli/src/llm_review/mask.rs`): private-key blocks (tracked from the top of
+the file), every match of a credential or secret rule, common token shapes,
+`Authorization` values, URL passwords, the values of secret-named keys (quoted
+or not, in code, env, INI and YAML files) and high-entropy strings; invisible
+characters are shown as visible markers. Secret files (`.env*`, private keys,
+`.npmrc`, `.netrc`, cloud credential files), symbolic links, paths outside the
+scanned tree, and in a single-file scan every other file, are never read. The
+request goes
 straight from the CLI to the endpoint you configure: the Anthropic Messages
 API (`ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`) or an OpenAI-compatible
 endpoint (`SIGIL_LLM_ENDPOINT`, or `llm_endpoint` in the organisation

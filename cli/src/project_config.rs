@@ -830,6 +830,13 @@ struct LayerRules<'a> {
     /// Tighten-only for every key, and why.
     restricted_all: Option<String>,
     locked: &'a [String],
+    /// Whether this layer speaks for whoever runs the scan, and so may turn
+    /// on the LLM review stage (which sends code off the machine and spends
+    /// the runner's API key) and raise its caps: the organisation policy,
+    /// a file named with `--config`, and the flags. A project file found by
+    /// discovery may not, even in a tree you are working in: it arrives with
+    /// the repository.
+    llm_consent: bool,
 }
 
 impl LayerRules<'_> {
@@ -1032,12 +1039,17 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
         format!("{why}; a policy in the scanned tree cannot configure the LLM stage, which sends code off the machine")
     });
     let locked = |k: &str| rules.locked.iter().any(|l| l == k);
+    const NO_CONSENT: &str = "a policy file found in the tree cannot turn on the LLM stage or \
+         raise its caps: the stage sends code off the machine and spends the API key of \
+         whoever runs the scan. Pass --llm-review, or name the file with --config";
 
     if let Some(v) = doc.review {
         if let Some(why) = &untrusted {
             refuse(eff, "llm_review", v.to_string(), why);
         } else if locked("llm_review") && eff.llm.review.unwrap_or(false) != v {
             refuse(eff, "llm_review", v.to_string(), LOCK);
+        } else if v && !rules.llm_consent && eff.llm.review != Some(true) {
+            refuse(eff, "llm_review", v.to_string(), NO_CONSENT);
         } else {
             eff.llm.review = Some(v);
         }
@@ -1094,6 +1106,13 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
                 format!("{n} (higher than {current})"),
                 LOCK,
             );
+        } else if !rules.llm_consent && n > current {
+            refuse(
+                eff,
+                "llm_max_calls",
+                format!("{n} (higher than {current})"),
+                NO_CONSENT,
+            );
         } else {
             eff.llm.max_calls = Some(n);
         }
@@ -1108,6 +1127,13 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
                 "llm_max_tokens",
                 format!("{n} (higher than {current})"),
                 LOCK,
+            );
+        } else if !rules.llm_consent && n > current {
+            refuse(
+                eff,
+                "llm_max_tokens",
+                format!("{n} (higher than {current})"),
+                NO_CONSENT,
             );
         } else {
             eff.llm.max_tokens = Some(n);
@@ -1157,6 +1183,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
                 source,
                 restricted_all: None,
                 locked: &[],
+                llm_consent: true,
             },
         );
         eff.locked = locked;
@@ -1227,7 +1254,13 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             Err(e) => return Err(e),
         }
     }
-    if let Some((path, restricted_all, doc)) = project_doc {
+    if let Some((path, restricted_all, mut doc)) = project_doc {
+        // `--llm-review` / `--no-llm-review` decide the stage over any
+        // project file, so the file's own `llm_review` is moot (and is not
+        // reported as refused when the flag agrees with it).
+        if opts.cli.llm_review.is_some() {
+            doc.llm_review = None;
+        }
         let locked = eff.locked.clone();
         merge(
             &mut eff,
@@ -1236,6 +1269,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
                 source: path.display().to_string(),
                 restricted_all: restricted_all.clone(),
                 locked: &locked,
+                llm_consent: !discovered,
             },
         );
         eff.sources.push(AppliedSource {
@@ -1299,6 +1333,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             source: "command line".to_string(),
             restricted_all: None,
             locked: &locked,
+            llm_consent: true,
         },
     );
 
@@ -2107,6 +2142,7 @@ baseline: .sigil-baseline.json
                 source: ".sigil.yml".to_string(),
                 restricted_all: None,
                 locked: &locked,
+                llm_consent: false,
             },
         );
         assert_eq!(eff.severity_overrides.len(), 2);
@@ -2467,15 +2503,57 @@ baseline: .sigil-baseline.json
         assert_eq!(eff.llm.may_downgrade, Some(false));
         assert!(eff.refused.is_empty(), "{:?}", eff.refused);
 
-        // Working inside the tree, the same file is yours and applies.
+        // Working inside the tree, the same file is yours for everything that
+        // stays on this machine (llm_may_downgrade applies once the stage is
+        // on), but a discovered file still cannot turn on a stage that sends
+        // the code away and spends the runner's key, or raise its caps.
         std::fs::write(
             root.path().join(".sigil.yml"),
-            "llm_review: true\nllm_may_downgrade: true\n",
+            "llm_review: true\nllm_may_downgrade: true\nllm_max_calls: 1000\n\
+             llm_max_tokens: 10000000\nllm_model: claude-fable-5-1\n",
         )
         .unwrap();
         let eff = resolve_clean(&opts(root.path())).unwrap();
-        assert_eq!(eff.llm.review, Some(true));
+        assert_eq!(eff.llm.review, None, "{:?}", eff.refused);
         assert_eq!(eff.llm.may_downgrade, Some(true));
+        assert_eq!(eff.llm.max_calls, None);
+        assert_eq!(eff.llm.max_tokens, None);
+        for key in ["llm_review", "llm_max_calls", "llm_max_tokens"] {
+            assert!(
+                eff.refused
+                    .iter()
+                    .any(|r| r.starts_with(key) && r.contains("--llm-review")),
+                "{key} must be refused: {:?}",
+                eff.refused
+            );
+        }
+
+        // The flag turns it on, and the discovered file may still lower the
+        // caps and pick the model.
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_max_calls: 3\nllm_model: claude-fable-5-1\n",
+        )
+        .unwrap();
+        let mut o = opts(root.path());
+        o.cli.llm_review = Some(true);
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.review, Some(true));
+        assert_eq!(eff.llm.max_calls, Some(3));
+        assert_eq!(eff.llm.model.as_deref(), Some("claude-fable-5-1"));
+        assert!(eff.refused.is_empty(), "{:?}", eff.refused);
+
+        // Naming the file with --config is how you vouch for it.
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_max_calls: 100\n",
+        )
+        .unwrap();
+        let mut o = opts(root.path());
+        o.explicit_config = Some(root.path().join(".sigil.yml"));
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.review, Some(true));
+        assert_eq!(eff.llm.max_calls, Some(100));
     }
 
     #[test]

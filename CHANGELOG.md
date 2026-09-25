@@ -82,7 +82,8 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
 - **A second opinion from a model you choose.** `--llm-review` (or
-  `llm_review: true` in a scan policy) sends each finding at Medium or above
+  `llm_review: true` in the organisation policy or a `--config` policy file)
+  sends each finding at Medium or above
   to the Anthropic Messages API or to any OpenAI-compatible chat-completions
   endpoint. The Anthropic key comes from `ANTHROPIC_API_KEY` and the default
   model is `claude-opus-5`, changed with `--llm-model` or `SIGIL_LLM_MODEL`.
@@ -124,9 +125,27 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `llm_model`, `llm_max_calls` and `llm_max_tokens` can all be locked by the
   organisation. `llm_endpoint` is accepted only in the organisation policy,
   which pins where code may go. A `.sigil.yml` inside a tree scanned from
-  outside cannot configure the stage. `--no-llm-review` forces it off unless
-  the organisation locks it. `sigil config --validate --org` now reports an
-  unlocked `llm_may_downgrade` as a gap under a locked gate.
+  outside cannot configure the stage. A `.sigil.yml` found by discovery cannot
+  turn the stage on or raise its caps even in a tree you work in: a cloned
+  repository must not be able to send its code to a model on your API key.
+  `--no-llm-review` forces it off unless the organisation locks it.
+  `sigil config --validate --org` now reports an unlocked `llm_may_downgrade`
+  as a gap under a locked gate.
+- **Hardened before release by an adversarial pass** (mock provider only; see
+  [docs/llm-review.md](docs/llm-review.md#adversarial-verification-mock-provider)).
+  Private-key blocks are tracked from the top of the file, so an excerpt that
+  starts inside a key is masked (a key body line had been sent in clear).
+  Secret-named values are masked whole, quoted or not (`password: ...` in
+  YAML and multi-word passphrases had been sent). Invisible characters are
+  shown as markers, and text hidden in Unicode tag characters is decoded and
+  treated as a note to the reviewer. Besides `MANIP-012`/`MANIP-013`/
+  `PROMPT-001`, the stage checks what it sends for notes addressed to a model
+  by name, "if you are an AI ..." verdicts, copies of its reply format and
+  notes in file paths, and a file stays flagged when the scan policy drops
+  the rule's finding. Findings beyond what the call cap can carry are not
+  read, each file is read once, and a long line is cut around the match
+  (40,000 findings in one file: 63.0 s before, 2.8 s after, against a mock).
+  A single-file scan reads only that file.
 - **Text addressed to the reviewer is flagged in every scan.** Two new rules
   run on every file type, with or without the stage. `MANIP-012` (High) flags
   a note telling an AI or security reviewer what to conclude ("Note to the AI
