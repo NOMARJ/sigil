@@ -120,7 +120,7 @@
       "id": "OBFUSC-CHAIN-009",
       "phase": "obfuscation",
       "severity": "medium",
-      "pattern": "[\\u0430-\\u044F\\u0451].*\\.(com|org|net|gov|edu)",
+      "pattern": "[\\u0430-\\u044F\\u0451][^\\s\"'`]{0,60}\\.(com|org|net|gov|edu)\\b",
       "description": "Potential Unicode homograph attack in domain — Cyrillic characters",
       "remediation": "Copy the domain out of the flagged line and run it through a punycode converter — an IDN that becomes xn-- is not the ASCII domain it resembles. Russian-language comments or translations that mention a site are harmless; a Cyrillic letter inside a host name the code connects to sends traffic somewhere other than where the reviewer thinks, which is an exfiltration or C2 destination.",
       "references": ["CWE-1007", "MITRE T1583.001"],
@@ -148,7 +148,7 @@
       "id": "OBFUSC-CHAIN-011",
       "phase": "obfuscation",
       "severity": "critical",
-      "pattern": "Function\\s*\\.\\s*constructor\\s*\\(.*\\.join\\s*\\(|new\\s+Function\\s*\\([^)]*\\.join\\s*\\(|new\\s+Function\\s*\\(\\s*[\\w\\[\\]\\.]+\\s*\\+",
+      "pattern": "Function\\s*\\.\\s*constructor\\s*\\(.*\\.join\\s*\\(|(?P<anchor>new\\s+Function\\s*\\()[^)]*\\.join\\s*\\(|new\\s+Function\\s*\\(\\s*[\\w\\[\\]\\.]+\\s*\\+",
       "description": "Dynamic Function constructor with string building",
       "suppress": {
         "path_contains": [
@@ -156,9 +156,16 @@
         ],
         "file_header_contains": [
           "Function('return this')()"
+        ],
+        "match_context": [
+          {
+            "before": "(?P<gen>[\\w$]+)\\.push\\(\"a\"\\s*\\+\\s*\\(\\+\\+[\\w$]+\\)\\.toString\\(36\\)\\)\\s*;?\\s*return\\s+",
+            "after": "\"fn\",\\s*\"return function \\(\"\\s*\\+\\s*(?P<joined>[\\w$]+)\\.join\\(\",\\s*\"\\)\\s*\\+\\s*\"\\) \\{ return fn\\.apply\\(this, arguments\\); \\};\"\\)",
+            "same": [["gen", "joined"]]
+          }
         ]
       },
-      "remediation": "new Function over a string built with join or + is JavaScript code generation. Template engines (lodash.template, Handlebars precompile, Vue's runtime compiler) and some bundler runtimes do this deliberately and are recognisable by name; in any other package, print the assembled source and read it, because code built this way never exists as plain text until it runs — reject if it touches the network, the filesystem or child processes.",
+      "remediation": "new Function over a string built with join or + is JavaScript code generation. Template engines (lodash.template, Handlebars precompile, Vue's runtime compiler) and some bundler runtimes do this deliberately and are recognisable by name; in any other package, print the assembled source and read it, because code built this way never exists as plain text until it runs — reject if it touches the network, the filesystem or child processes. One shape is exempt because its source is fixed: the function-arity wrapper bundled by several polyfills, which builds `return function (a1, a2, ...) { return fn.apply(this, arguments); }` from parameter names it generated itself on the same line.",
       "references": ["CWE-95", "MITRE T1059.007", "MITRE T1027"],
       "tags": ["execution", "javascript", "function-constructor", "string-building"]
     },

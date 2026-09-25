@@ -316,7 +316,22 @@ pub fn load_pack_from_file(path: &Path) -> Result<SignaturePack, String> {
     // Verify before deserialising — a tampered pack must be rejected before
     // its rules reach the engine, not after.
     verify_pack_if_keyed(&raw)?;
-    serde_json::from_str::<SignaturePack>(&raw).map_err(|e| format!("parse error: {e}"))
+    let pack =
+        serde_json::from_str::<SignaturePack>(&raw).map_err(|e| format!("parse error: {e}"))?;
+    validate_exemptions(&pack)?;
+    Ok(pack)
+}
+
+/// Refuse a pack whose match-local suppression predicates cannot be
+/// evaluated as written (see [`super::exempt::validate`]): a `value_matches`
+/// with no `value` group to read, or a `same` pair naming a group that does
+/// not exist, would otherwise silently never exempt anything.
+pub fn validate_exemptions(pack: &SignaturePack) -> Result<(), String> {
+    for rule in &pack.rules {
+        super::exempt::validate(&rule.pattern, &rule.suppress)
+            .map_err(|e| format!("rule {}: suppress: {e}", rule.id))?;
+    }
+    Ok(())
 }
 
 /// Returns `~/.sigil/packs/` when the home directory can be determined.

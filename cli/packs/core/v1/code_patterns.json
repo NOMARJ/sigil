@@ -12,9 +12,15 @@
       "id": "CODE-001",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?:^|[^$\\w])eval\\s*\\(\\s*(?:[^\\s\\w)]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
+      "pattern": "(?:^|[^$\\w])(?P<anchor>eval\\s*\\()\\s*(?:[^\\s\\w)]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
       "description": "eval() call — arbitrary code execution",
-      "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected.",
+      "suppress": {
+        "match_context": [
+          {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
+          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()]*\\)\\s*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+        ]
+      },
+      "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected. Defining a function or method named eval (def eval(, function eval(, or a JavaScript class or object method `eval(x) {`) is not a call and is not reported; a call on the same line still is.",
       "references": ["CWE-95", "MITRE T1059"],
       "tags": ["execution", "eval", "dynamic-code"]
     },
@@ -22,9 +28,15 @@
       "id": "CODE-002",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(?m)(^|[^.\\w$])exec\\s*\\(\\s*(?:[^\\s\\w)\\[]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
+      "pattern": "(?m)(^|[^.\\w$])(?P<anchor>exec\\s*\\()\\s*(?:[^\\s\\w)\\[]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
       "description": "exec() call — arbitrary code execution",
-      "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject.",
+      "suppress": {
+        "match_context": [
+          {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
+          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()]*\\)\\s*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+        ]
+      },
+      "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject. Defining a function or method named exec (def exec(, function exec(, or a JavaScript class or object method `async exec(fn) {`) is not a call and is not reported; a call on the same line still is.",
       "references": ["CWE-95", "CWE-78", "MITRE T1059"],
       "tags": ["execution", "exec", "dynamic-code"]
     },
@@ -32,10 +44,13 @@
       "id": "CODE-003",
       "phase": "code_patterns",
       "severity": "medium",
-      "pattern": "(?m)(^|[^.\\w])compile\\s*\\(",
+      "pattern": "(?m)(^|[^.\\w])(?P<anchor>compile\\s*\\()",
       "description": "compile() call — dynamic code compilation",
       "suppress": {
-        "filename_suffix": [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts", ".html", ".htm", ".vue", ".svelte"]
+        "filename_suffix": [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts", ".html", ".htm", ".vue", ".svelte"],
+        "match_context": [
+          {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"}
+        ]
       },
       "remediation": "Python's compile() turns a string into a code object for exec or eval, so judge the source it receives. AST tooling, linters, test frameworks and template engines compile files they can name; a string that is decoded, joined from fragments or fetched is code that never exists as plain text until it runs, so print it and read it, or reject the package. JavaScript-family files are not checked: JavaScript has no global compile(), a bare compile( there is a template, regex or schema compiler, and the ways JavaScript does turn a string into code (eval, Function, vm) have rules of their own.",
       "references": ["CWE-95", "MITRE T1059.006"],

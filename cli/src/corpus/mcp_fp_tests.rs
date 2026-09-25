@@ -979,3 +979,281 @@ fn skill006_leaves_package_json_to_install003() {
     }
     assert!(fires("SKILL.md", "on_install: ./setup.sh", "SKILL-006"));
 }
+
+// ---------------------------------------------------------------------------
+// Match-local exemptions (suppress.match_context / value_matches)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn credential_values_that_are_names_are_quiet() {
+    // com.tracklution: an auth *field name*, not a token.
+    assert_quiet(
+        "package/src/payload.js",
+        "CRED-011",
+        &["    bearer: 'data.laravel_auth_token',"],
+    );
+    // ai.reka: a local-mode placeholder made of words.
+    assert_quiet(
+        "src/client.py",
+        "CRED-007",
+        &[
+            "    \"api_key\": \"local-static-key\",",
+            "client = RekaClient(api_url=BASE_URL, api_key=\"local-static-key\")",
+        ],
+    );
+    // com.apideck: an enum whose value is the field name.
+    assert_quiet(
+        "src/models/connector.ts",
+        "CRED-008",
+        &[
+            "  Password: \"password\",",
+            "  password: \"password\",",
+            "  dbPassword: \"db_password\",",
+        ],
+    );
+    // TypeScript declarations carry types, not values.
+    assert_quiet(
+        "esm/src/models/connector.d.ts",
+        "CRED-008",
+        &["  readonly Password: \"hunter2hunter2\";"],
+    );
+}
+
+#[test]
+fn real_credential_values_still_fire() {
+    assert_fires(
+        "src/client.js",
+        "CRED-011",
+        &[
+            "Authorization: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig'",
+            "bearer: \"ghp_abcdefghijklmnopqrstuvwxyz0123\"",
+            "authorization: \"live-token-8f3a9c2d1e7b\"",
+        ],
+    );
+    assert_fires(
+        "src/client.js",
+        "CRED-007",
+        &[
+            "apiKey: \"sk_live_51H8abcdefGHIJKLmnop\"",
+            "access_token: \"ghp_abcdefghijklmnop8f3a9c2d1e\"",
+            "api_key = \"Local-Static-Key\"",
+        ],
+    );
+    assert_fires(
+        "src/db.js",
+        "CRED-008",
+        &[
+            "password: \"hunter2hunter2\",",
+            "password: \"PASSWORD_FIELD\",",
+        ],
+    );
+}
+
+#[test]
+fn definitions_named_eval_exec_or_compile_are_not_calls() {
+    // io.qase: a circuit breaker's method.
+    assert_quiet(
+        "build/cache/circuit-breaker.js",
+        "CODE-002",
+        &[
+            "  async exec(fn) {",
+            "  exec(fn) {",
+            "  static exec(cmd) {",
+            "function exec(cmd) {",
+            "function* exec(cmd) {",
+            "  get exec() {",
+        ],
+    );
+    assert_quiet("src/a.ts", "CODE-001", &["  eval(input: string) {"]);
+    assert_quiet("lib/db.py", "CODE-002", &["    def exec(self, sql):"]);
+    assert_quiet("lib/calc.py", "CODE-001", &["    def eval(self, expr):"]);
+    assert_quiet(
+        "lib/tpl.py",
+        "CODE-003",
+        &["    def compile(self, source):"],
+    );
+}
+
+#[test]
+fn calls_named_eval_exec_or_compile_still_fire() {
+    assert_fires(
+        "a.js",
+        "CODE-002",
+        &[
+            "exec(payload)",
+            "}exec(payload)",
+            "x ? exec(a) : b",
+            "exec(cmd, () => {",
+            "exec(cmd, function () {",
+            "exec(cmd, x => {",
+            // A definition and a real call on one line.
+            "class A { exec(fn) { return exec(payload) } }",
+        ],
+    );
+    // Outside JavaScript `name(args) {` is a call with a trailing lambda.
+    assert_fires("build.gradle.kts", "CODE-002", &["exec(cmd) {"]);
+    assert_fires("App.kt", "CODE-002", &["exec(cmd) {"]);
+    assert_fires("a.py", "CODE-001", &["eval(expr)", "x = eval(source)"]);
+    assert_fires(
+        "a.py",
+        "CODE-003",
+        &["code = compile(src, '<string>', 'exec')"],
+    );
+}
+
+/// The function-arity wrapper bundled by several polyfills (reduced from the
+/// lighthouse bundle in io.github.ChromeDevTools/chrome-devtools-mcp).
+const ARITY_WRAPPER: &str = r#"for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
+
+#[test]
+fn the_function_arity_wrapper_is_exempt() {
+    assert_quiet("dist/bundle.js", "OBFUSC-CHAIN-011", &[ARITY_WRAPPER]);
+}
+
+#[test]
+fn function_constructor_string_building_still_fires() {
+    let other_array = ARITY_WRAPPER.replace("+t.join(", "+u.join(");
+    let appended = format!("{ARITY_WRAPPER};new Function(p.join(''))()");
+    let prefixed = format!("new Function(p.join(''))();{ARITY_WRAPPER}");
+    assert_fires(
+        "dist/bundle.js",
+        "OBFUSC-CHAIN-011",
+        &[
+            "new Function(parts.join(''))()",
+            &other_array,
+            &appended,
+            &prefixed,
+        ],
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Bounded spans: proximity rules match tokens that are near each other
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bounded_proximity_rules_still_fire_on_their_shapes() {
+    for (rule, line) in [
+        ("SUPPLY-007", "module.exports = require(target)"),
+        (
+            "SUPPLY-007",
+            "Module._load = function (request) { return fake }",
+        ),
+        ("SUPPLY-007", "require.cache[key] = { exports: fake }"),
+        ("SUPPLY-008", "const f = new Function(`return ${body}`)"),
+        ("SUPPLY-008", "const t = template(src); child.exec(t())"),
+        (
+            "SUPPLY-011",
+            "const ast = acorn.parse(src); walk(ast, n => n.node.type)",
+        ),
+        (
+            "SUPPLY-011",
+            "AST.body.forEach(n => { node.type = 'Literal' })",
+        ),
+        (
+            "SUPPLY-011",
+            "transform(ast, { CallExpression(p) { eval(p.code) } })",
+        ),
+        (
+            "SUPPLY-013",
+            "babel.transform(code, { plugins: [{ visitor: { Program() { eval(x) } } }] })",
+        ),
+        (
+            "SUPPLY-013",
+            "transformSync(code, { plugins: [p] }); eval(out)",
+        ),
+        (
+            "SUPPLY-016",
+            "const lib = ffi.Library('libc', { system: ['int', ['string']] })",
+        ),
+        ("SUPPLY-016", "lib = ctypes.CDLL(None); os.system(cmd)"),
+        ("OBFUSC-CHAIN-009", "fetch('https://\u{430}pple.com/login')"),
+        (
+            "INFER-004",
+            "const p = process.env.OPENAI_API_KEY + ` ${userInput}`",
+        ),
+        (
+            "INFER-005",
+            "const prompt = `Use this key: ${process.env.OPENAI_API_KEY}`;",
+        ),
+    ] {
+        let path = if rule == "SUPPLY-016" && line.contains("ctypes") {
+            "tool.py"
+        } else {
+            "src/index.js"
+        };
+        assert!(fires(path, line, rule), "{rule} must fire: {line}");
+    }
+}
+
+/// The documented limitation of a span bound: tokens further apart than the
+/// bound on one line are not linked, exactly as tokens split across two
+/// lines never were. What the bound removes is a match across a whole
+/// minified bundle.
+#[test]
+fn tokens_padded_beyond_the_span_bound_are_not_linked() {
+    let pad = " ".repeat(400);
+    for (rule, line) in [
+        ("SUPPLY-016", format!("ffi.Library('libc'){pad}system")),
+        ("SUPPLY-011", format!("AST.body{pad}node.type = 'x'")),
+        (
+            "SUPPLY-007",
+            format!("module.exports = {{}};{pad}require(name)"),
+        ),
+        (
+            "OBFUSC-CHAIN-009",
+            format!("// \u{43f}\u{440}\u{438}\u{432}\u{435}\u{442}{pad}x.com"),
+        ),
+    ] {
+        assert!(
+            !fires("src/index.js", &line, rule),
+            "{rule}: {}",
+            &line[..40]
+        );
+    }
+    // A comparison is not an assignment.
+    assert!(!fires(
+        "src/index.js",
+        "if (AST && node.type === 'Program') {}",
+        "SUPPLY-011"
+    ));
+    // `evaluate(` is not `eval(`.
+    assert!(!fires(
+        "src/index.js",
+        "babel.transform(code, { plugins: [{ visitor: v }] }); evaluate(x)",
+        "SUPPLY-013"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// HYGIENE-001/002: a shipped source map is an observation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn shipped_source_maps_are_low_observations() {
+    let dir = tempfile::tempdir().unwrap();
+    for (rel, body) in [
+        ("package.json", "{\"name\":\"x\",\"version\":\"1.0.0\"}\n"),
+        ("dist/index.js", "console.log('hi')\n"),
+        ("dist/index.js.map", "{\"version\":3,\"mappings\":\"\"}\n"),
+        ("dist/style.css.map", "{\"version\":3,\"mappings\":\"\"}\n"),
+    ] {
+        let p = dir.path().join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    }
+    let r = crate::scanner::run_scan(dir.path(), None, None);
+    let hygiene: Vec<&Finding> = r
+        .findings
+        .iter()
+        .filter(|f| f.rule == "HYGIENE-001" || f.rule == "HYGIENE-002")
+        .collect();
+    assert_eq!(hygiene.len(), 2, "{:?}", r.findings);
+    assert!(hygiene.iter().all(|f| f.severity == Severity::Low));
+    assert_eq!(
+        r.verdict,
+        crate::scanner::Verdict::LowRisk,
+        "{:?}",
+        r.findings
+    );
+}

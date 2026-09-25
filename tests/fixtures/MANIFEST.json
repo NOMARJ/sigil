@@ -150,8 +150,8 @@
     {
       "path": "provenance/hygiene/bundle.js.map",
       "expect_phase": "Provenance",
-      "expect_min_severity": "Medium",
-      "source": "source map in published artifact (Claude Code npm leak, 2026-03-31)",
+      "expect_min_severity": "Low",
+      "source": "source map in published artifact (Claude Code npm leak, 2026-03-31); a Low observation since HYGIENE-001 was lowered: it exposes the publisher's source, not the installer",
       "synthetic": true
     },
     {

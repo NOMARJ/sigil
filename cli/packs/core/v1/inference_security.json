@@ -175,7 +175,7 @@
       "id": "INFER-004",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*\\b.*(` |\\$\\{)",
+      "pattern": "process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*\\b[^\\n;]{0,120}(` |\\$\\{)",
       "description": "Inference security — process.env in template literal prompt",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
@@ -191,7 +191,7 @@
       "id": "INFER-005",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "(`|\\$\\{).*process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
+      "pattern": "(`|\\$\\{)[^\\n;`]{0,120}process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
       "description": "Inference security — template literal with process.env",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
