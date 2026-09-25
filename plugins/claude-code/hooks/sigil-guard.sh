@@ -751,7 +751,7 @@ function rrc(    f, code, lc, x) {
   if (f != "py" && f != "node" && f != "perl" && f != "ruby" && f != "php") return 0
   runs(); if (RUNS != "I") return 0
   code = ""; for (x = 2; x <= NW; x++) code = code " " W[x]
-  if (code !~ /(^|[^A-Za-z0-9_])(exec|eval|compile|Function|instance_eval)[ \t\n\r\f\v]*[( \t\n\r\f\v]/) return 0
+  if (code !~ /(^|[^.A-Za-z0-9_]|[^\/][.])(exec|eval|Function|instance_eval)[ \t\n\r\f\v]*[( \t\n\r\f\v]/) return 0
   lc = tolower(code)
   return lc ~ /stdin|readfilesync\([ \t\n\r\f\v]*0|<>|\$<|argf|php:\/\/input|(^|[^a-z0-9_])input\(/
 }

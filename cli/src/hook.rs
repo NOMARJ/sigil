@@ -2411,8 +2411,11 @@ fn runs_read_code(words: &[String]) -> bool {
         return false;
     }
     let code = words[1..].join(" ");
+    // Not the compile builtin (compiling a regex runs nothing) and not the
+    // exec method of a JavaScript regex literal (a match): both denied
+    // ordinary parsing of a downloaded page.
     EXEC.get_or_init(|| {
-        Regex::new(r"\b(exec|eval|compile|Function|instance_eval)\s*[\(\s]")
+        Regex::new(r"(^|[^.\w]|[^/]\.)(exec|eval|Function|instance_eval)\s*[\(\s]")
             .expect("static pattern")
     })
     .is_match(&code)
