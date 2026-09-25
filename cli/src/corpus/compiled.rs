@@ -545,15 +545,25 @@ impl CompiledCorpus {
             .iter()
             .flat_map(|f| f.rules.iter().map(|r| (r.id.as_str(), r.source.as_str())))
             .collect();
+        // A chain links through different occurrences of a name when its
+        // `name_uses` changes, so the reading is part of its entry.
+        let correlation: Vec<(&str, String)> = self
+            .correlation_rules
+            .iter()
+            .map(|r| {
+                let reading = match r.name_uses {
+                    Some(super::schema::NameUses::Value) => "value",
+                    Some(super::schema::NameUses::Word) => "word",
+                    None => "",
+                };
+                (r.id.as_str(), format!("{}\0{reading}", r.description))
+            })
+            .collect();
         let mut entries: Vec<(&str, &str)> = self
             .per_phase
             .values()
             .flat_map(|p| p.rules.iter().map(|r| (r.id.as_str(), r.regex.as_str())))
-            .chain(
-                self.correlation_rules
-                    .iter()
-                    .map(|r| (r.id.as_str(), r.description.as_str())),
-            )
+            .chain(correlation.iter().map(|(id, e)| (*id, e.as_str())))
             .chain(
                 self.engine_rule_ids
                     .iter()
@@ -1115,5 +1125,29 @@ mod tests {
         let a = corpus() as *const CompiledCorpus;
         let b = corpus() as *const CompiledCorpus;
         assert_eq!(a, b, "corpus() must return the same cached instance");
+    }
+
+    /// A chain's `name_uses` changes which findings it produces, so a cached
+    /// scan made under one reading must not be served under another.
+    #[test]
+    fn the_digest_moves_with_a_chains_name_reading() {
+        use crate::corpus::schema::NameUses;
+        let packs = all_packs();
+        let base = CompiledCorpus::from_packs(&packs).digest();
+        for reading in [Some(NameUses::Word), None] {
+            let mut edited = packs.clone();
+            let rule = edited
+                .iter_mut()
+                .flat_map(|p| p.correlation_rules.iter_mut())
+                .find(|r| r.id == "EXFIL-CHAIN-001")
+                .expect("EXFIL-CHAIN-001 is built in");
+            assert_eq!(rule.name_uses, Some(NameUses::Value));
+            rule.name_uses = reading;
+            assert_ne!(
+                CompiledCorpus::from_packs(&edited).digest(),
+                base,
+                "{reading:?}"
+            );
+        }
     }
 }
