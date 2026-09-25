@@ -173,6 +173,26 @@ substrings that disqualify the link. `EXFIL-CHAIN-001` in `network_exfil.json`
 one place a pack can say "line 9 feeds line 10" without the engine executing
 anything: the link is a text identity check, not taint analysis.
 
+`name_uses` says what counts as the name appearing there, and every
+built-in chain sets it to `"value"`: the name must be *used* in the window,
+not only repeated as a keyword argument's name, an assignment target or an
+object key (`name=` but not `==`; `name:` after `{`, `,`, `(` or at the start
+of a line; a quoted `"name":`). With `url` bound from a credential read, a
+later `requests.get(url=base + "/ping")` sends `base + "/ping"` and does not
+link, and neither does `requests.post(u, json={"token": "x"})` beside a bound
+`token`; `data=token`, `json={"k": token}`, `f"...{token}"`, `token=token`, a
+positional `token` and JavaScript's `{ body: token }` or `{ token }` do. Two
+f-string forms send the value but read as a name, and do not link: Python's
+self-documenting `f"{token=}"` (an assignment) and a format spec such as
+`f"{token:>40}"` (a key after `{`). `"word"` links on any whole-word
+occurrence, keyword names included, which is how every chain but
+`TLS-CHAIN-001` linked before the field existed. A rule that leaves
+`name_uses` out keeps its old behaviour: `"value"` with `sink_window_before`
+set, `"word"` without it. Any other value, or a misspelt key in a custom
+pack's correlation rule, is refused when the pack loads. Set it on every new
+chain; `docs/detection/correlation-chains.md` lists each built-in chain and
+what it links through.
+
 The sink's argument window is the sink line and the four lines after it.
 `sink_window_before` (default 0, at most 20 in a custom pack) switches a rule
 to the sink's *statement* instead, for a sink matched on a keyword argument a
@@ -191,9 +211,9 @@ statement itself links without needing a name, and may sit below the sink,
 when its line starts in the sink line's bracket group or in one nested inside
 or around it; two sibling literals of one statement (`openai: {...}` beside
 `db: {...}`) do not link, and a line that is one key and a literal it opens
-and closes counts as a literal of its own. In this mode a bound name links
-only where the window uses it as a value: a keyword argument's name or an
-object key (`headers={...}`, `token=other`, `{ token: "x" }`) is not a use.
+and closes counts as a literal of its own. A whole call is where keyword
+names and keys live (`headers={...}`, `token=other`, `{ token: "x" }`), so
+this mode reads names as values when `name_uses` is left out.
 `max_line_length` (default 0, no limit) skips a source or sink on a longer
 line: on a minified bundle two matches on one line say nothing about each
 other. `TLS-CHAIN-001` in `insecure_transport.json` uses both.

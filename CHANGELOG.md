@@ -211,6 +211,56 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
+### 🔗 Correlation chains read names as values
+
+- **A keyword name or an object key no longer links a chain.** EXFIL-CHAIN-001,
+  DROPPER-CHAIN-001, AGENTSC-CHAIN-001, AGENTSC-CHAIN-002 and DESER-CHAIN-001
+  linked a source to a sink on any whole-word occurrence of the name the source
+  binds, so a clean file with `url = os.environ["DATABASE_URL"]` handed to
+  `create_engine(url)`, and a later `requests.get(url=base + "/ping")`, was
+  CRITICAL RISK on EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`).
+  Every chain now links only where the sink's window uses the name as a value,
+  the reading TLS-CHAIN-001 already had: `url=`, `json={"token": "x"}` and `{
+  token: "x" }` are names something else is given; `data=token`, `json={"k":
+  api_key}`, `f"...{token}"`, `token=token`, a positional `token`, `{ body:
+  token }` and `{ token }` are uses. DROPPER-CHAIN-001, which links only
+  through a written file named on the launch line, was switched too: a download
+  written to `open(PATH, 'wb')` linked to an unrelated launch that sets
+  `env={"PATH": ...}`. Two f-string forms that do send the value now read as a
+  name and do not link: `f"{token=}"` and `f"{token:>40}"`.
+- **`name_uses` on correlation rules.** `"value"` (every built-in chain) or
+  `"word"` (any whole-word occurrence, the old reading). Left out, a rule keeps
+  the behaviour it had before the key existed: `"value"` with
+  `sink_window_before`, `"word"` without, so custom packs link as they did.
+  An unknown value, or a misspelt key on a custom pack's correlation rule, is
+  refused when the pack loads. Details:
+  [docs/detection/correlation-chains.md](docs/detection/correlation-chains.md).
+- **Measured** (real runs, the cff3fa2 release build against this change,
+  sample by sample). No sample in any corpus changes its verdict level or its
+  highest severity. Clean MCP servers: 39/169 blocked and 125/169 warned with
+  both; unseen MCP servers: 80/146 blocked and 135/146 warned with both; skills:
+  173/204 malicious and 7/455 clean blocked with both, every sample with the
+  same findings; SkillSpector's 1,796 test examples 626 flagged (385 at High)
+  with both, each with the same rules. On the Datadog selection (844
+  packages) recall is unchanged at every threshold (785 / 761 / 752 / 561,
+  also from `scripts/run_eval.py` itself with the final build),
+  but EXFIL-CHAIN-001 now fires on 23 packages instead of 40: the 17 it
+  dropped are one family (artifact-lab-3-package and renamed copies), which
+  encodes `dict(os.environ)` into another name before `Request(url,
+  data=encoded_data)` and was linked only because the keyword `data=` shared
+  the variable's name. They stay Critical on NET-007 (the webhook
+  host) and INSTALL-001; a constructed variant with an ordinary host drops
+  from CRITICAL to LOW RISK. No clean MCP server or skill carried a chain this
+  change removes, so these corpora show nothing else moved, not how often the
+  removed false positive occurs; the reported file and 38 hand-written probes
+  are that evidence (ten keyword-name or key links removed across the five
+  chains, 23 value-side links kept, two f-string forms lost).
+- **The corpus digest covers `name_uses`.** It keyed correlation rules by id
+  and description only, so a cached scan made before the switch was served
+  after it (the same digest, the same package version): the reported file
+  stayed CRITICAL RISK from the cache. The digest now changes with a chain's
+  reading.
+
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
 - **A second opinion from a model you choose.** `--llm-review` (or

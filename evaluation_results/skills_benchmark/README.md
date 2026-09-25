@@ -24,5 +24,7 @@ Limitations: Static analysis only (SkillSpector --no-llm). "Clean" is published,
 | `parity_sigil_7826ea1.{json,md}` | Sigil, final build of this change, on `scripts/skillspector_parity.py run` | 1,796 examples from SkillSpector's own test suite | 2026-09-24 |
 | `sigil_tls.{json,md}`, `mcp_sigil_tls.{json,md}`, `parity_sigil_tls.{json,md}` | Sigil with the insecure-transport pack (TLS-*), final build after the second adversarial review, [docs/detection/insecure-transport.md](../../docs/detection/insecure-transport.md). The runs of the two earlier builds (the pack's first commit and the first review) are in the commits that published them; the verdict level of every sample, and the result of every parity example, is the same in all three | the same skills, MCP servers and parity examples | 2026-09-25 |
 
+| `sigil_exfilchain.{json,md}`, `mcp_sigil_exfilchain.{json,md}`, `mcp_holdout_sigil_exfilchain.{json,md}`, `parity_sigil_exfilchain.{json,md}`, `datadog_exfilchain_diff.json` | Sigil with every correlation chain reading names as values (`name_uses`), [docs/detection/correlation-chains.md](../../docs/detection/correlation-chains.md). Compared sample by sample with the release build of cff3fa2: no verdict level changes in any corpus; the Datadog file lists the 17 packages that lose EXFIL-CHAIN-001 (none changes its highest severity) | the same skills, MCP servers and parity examples; 146 unseen MCP servers; 844 Datadog packages | 2026-09-25 |
+
 SkillSpector's 455-skill figures are the sum of the baseline run (411) and the
 openai run (44).

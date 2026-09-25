@@ -202,10 +202,15 @@ JSON or YAML, including `correlation_rules` (a source finding whose value
 reaches a sink finding's arguments; see `CONTRIBUTING.md`). A correlation
 rule's `sink_window_before`, which makes the rule read the sink's whole
 statement and how many lines above the sink that statement may start, may be
-at most 20 (in that mode a name links only where it is used as a value, not as
-a keyword argument's name or an object key); `max_line_length` skips sources and sinks on longer lines
-(minified code). Custom packs are **additive**: a pack whose id matches a
-built-in pack, or a rule whose id matches any existing rule, is refused, so a
+at most 20. `name_uses: value` links a bound name only where the sink's window
+uses it as a value, not where it is only a keyword argument's name or an object
+key; `name_uses: word` links on any whole-word occurrence. Left out, a rule
+reads names as values with `sink_window_before` and as words without it (the
+behaviour before the key existed); every built-in chain sets `value`. Any
+other value, or a misspelt key in a correlation rule, is refused.
+`max_line_length` skips sources and sinks on longer lines (minified code).
+Custom packs are **additive**: a pack whose id matches a built-in pack, or a
+rule whose id matches any existing rule, is refused, so a
 file named at scan time can never replace a core pack and remove its
 detections. (Replacing a core pack remains possible, deliberately, only from
 the machine-level `~/.sigil/packs/` directory.) Rule ids must look like

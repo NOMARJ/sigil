@@ -1,0 +1,781 @@
+{
+ "note": "Per-sample Datadog comparison: run_eval.py's selection (--limit 204), extraction, phases and reduction, scanned with the release build of cff3fa2 (base) and of ws/exfilchain (new), each with an empty HOME. Only the samples whose findings differ are listed.",
+ "selected": 844,
+ "extract_failed": 0,
+ "aggregate": {
+  "base": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561,
+   "scanned": 844,
+   "scan_errors": 0
+  },
+  "new": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561,
+   "scanned": 844,
+   "scan_errors": 0
+  }
+ },
+ "changed": [
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 8,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+   "base": {
+    "max": "Critical",
+    "count": 8,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+   "base": {
+    "max": "Critical",
+    "count": 8,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 5,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 4,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+   "base": {
+    "max": "Critical",
+    "count": 8,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+   "base": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 5,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 8,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007",
+     "NET-014"
+    ]
+   }
+  },
+  {
+   "sample": "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+   "base": {
+    "max": "Critical",
+    "count": 7,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [
+     "EXFIL-CHAIN-001"
+    ],
+    "rules": [
+     "CRED-ENV-001",
+     "EXFIL-CHAIN-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   },
+   "new": {
+    "max": "Critical",
+    "count": 6,
+    "error": null,
+    "detected": {
+     "any": true,
+     "Medium": true,
+     "High": true,
+     "Critical": true
+    },
+    "chains": [],
+    "rules": [
+     "CRED-ENV-001",
+     "INSTALL-001",
+     "INSTALL-NET-001",
+     "NET-002",
+     "NET-007"
+    ]
+   }
+  }
+ ]
+}

@@ -150,9 +150,9 @@ implementations with empty `checkServerTrusted` bodies, and `.wgetrc` /
 
 The chain is a correlation rule (see `CONTRIBUTING.md`) that reads the
 *statement* the TLS finding belongs to, not a fixed band of lines around it
-(`sink_window_before: 10`, `max_line_length: 500`). A credential finding
-(CRED-001 `token = os.getenv("GITHUB_TOKEN")`, a hardcoded key) links to the
-TLS finding when, within 60 lines:
+(`sink_window_before: 10`, `max_line_length: 500`, `name_uses: value`). A
+credential finding (CRED-001 `token = os.getenv("GITHUB_TOKEN")`, a hardcoded
+key) links to the TLS finding when, within 60 lines:
 
 1. **It is in the same call or literal.** The statement is the TLS line, the
    lines above it that continue into it (the call's opening line and earlier
@@ -288,6 +288,11 @@ Limitations: Constructed to probe the rules, so they show which shapes change,
 | A minified bundle's `new a.Agent({keepAlive:!0,rejectUnauthorized:!1})` | not reported, LOW RISK | TLS-004, MEDIUM RISK |
 | `checkServerIdentity: () => void 0` (esbuild's `undefined`) | not reported | TLS-004 |
 | `ctx.verify_mode = ssl.VerifyMode.CERT_NONE` | not reported | TLS-002 |
+
+The `DATABASE_URL` row is the TLS lane's result. EXFIL-CHAIN-001 has since
+been switched to read names as values too (`"name_uses": "value"`, see
+[correlation-chains.md](correlation-chains.md)), and that file is now MEDIUM
+RISK on TLS-001 alone.
 
 The sibling rule has a cost: got's options, written with the headers and the
 TLS switch as sibling literals (`headers: { Authorization: ... }` beside
