@@ -142,10 +142,14 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `PROMPT-001`, the stage checks what it sends for notes addressed to a model
   by name, "if you are an AI ..." verdicts, copies of its reply format and
   notes in file paths, and a file stays flagged when the scan policy drops
-  the rule's finding. Findings beyond what the call cap can carry are not
-  read, each file is read once, and a long line is cut around the match
-  (40,000 findings in one file: 63.0 s before, 2.8 s after, against a mock).
-  A single-file scan reads only that file.
+  the rule's finding. A note in one file used to protect only that file,
+  though the model reads a whole request at once: now no dismissal from a
+  request that carried such a note (or a custom pack's guidance that
+  addresses the reviewer) is applied. Findings beyond what the call cap can
+  carry are not read, each file is read once, and a long line is cut around
+  the match (40,000 findings in one file: 63.0 s before, 2.8 to 3.6 s after,
+  against a mock, single runs on a shared machine). A single-file scan reads
+  only that file.
 - **Text addressed to the reviewer is flagged in every scan.** Two new rules
   run on every file type, with or without the stage. `MANIP-012` (High) flags
   a note telling an AI or security reviewer what to conclude ("Note to the AI

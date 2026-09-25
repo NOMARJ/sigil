@@ -555,7 +555,13 @@ struct Packet {
     value: Value,
     masked: usize,
     withheld: bool,
+    /// Text from the finding's file (matched text, excerpt or path)
+    /// addresses a reviewer or a model.
     reviewer_text: bool,
+    /// Something in this packet addresses a reviewer or a model: the
+    /// above, or the guidance of a rule from a custom pack (a repository
+    /// can add packs even to a tighten-only policy).
+    steers: bool,
 }
 
 /// Is this path a file whose content is secret by its nature? Its lines are
@@ -835,6 +841,7 @@ fn build_packet(
     settings: &LlmSettings,
     reads: &mut Reads,
     reviewer: &ReviewerText,
+    custom_rules: &HashSet<String>,
 ) -> Packet {
     let masker = reads.masker;
     let mut masked = 0usize;
@@ -849,11 +856,15 @@ fn build_packet(
         .into_iter()
         .find(|r| r.id == f.rule);
     let title = m(&crate::scanner::profile::title_of(f));
-    let guidance = corpus
+    let raw_guidance = corpus
         .rule_meta(&f.rule)
         .and_then(|meta| meta.remediation.clone())
-        .map(|g| m(&truncate_chars(&g, MAX_GUIDANCE_CHARS)))
+        .map(|g| truncate_chars(&g, MAX_GUIDANCE_CHARS))
         .unwrap_or_default();
+    // Sigil's own guidance is fixed text (and describes these very notes);
+    // a custom pack's is not.
+    let guidance_steers = custom_rules.contains(&f.rule) && reviewer.text(&raw_guidance);
+    let guidance = m(&raw_guidance);
     let file = m(&f.file);
     let snippet = f.snippet.trim();
     // Mask first, then cut: a cut through a secret could leave a piece that
@@ -936,6 +947,7 @@ fn build_packet(
         masked,
         withheld: withheld.is_some() && withheld != Some("no line number"),
         reviewer_text,
+        steers: reviewer_text || guidance_steers,
     }
 }
 
@@ -965,6 +977,10 @@ struct Batch {
     ids: Vec<String>,
     packets: Vec<usize>,
     user: String,
+    /// A packet in this request addresses a reviewer or a model. The model
+    /// read that text while it judged every finding in the request, so no
+    /// dismissal from this request is acted on.
+    steered: bool,
 }
 
 /// Findings the stage reviews, highest severity first.
@@ -1004,8 +1020,17 @@ pub fn reviewer_files(result: &ScanResult) -> HashSet<String> {
         .collect()
 }
 
+/// What the stage saw around one review.
+#[derive(Debug, Clone, Copy, Default)]
+struct Trust {
+    /// Text addressed to a reviewer was seen in the finding's file.
+    reviewer_file: bool,
+    /// The request that carried the finding carried such text.
+    steered_request: bool,
+}
+
 /// Is this finding one the model may never talk down?
-fn protected_reason(f: &Finding, reviewer_file: bool) -> Option<&'static str> {
+fn protected_reason(f: &Finding, trust: Trust) -> Option<&'static str> {
     if f.severity == Severity::Critical {
         Some("Critical findings are never downgraded")
     } else if f.phase == Phase::PromptInjection
@@ -1016,8 +1041,10 @@ fn protected_reason(f: &Finding, reviewer_file: bool) -> Option<&'static str> {
         Some("prompt-injection and agent-manipulation findings are never downgraded")
     } else if f.severity <= Severity::Low {
         Some("nothing is downgraded below Low")
-    } else if reviewer_file {
+    } else if trust.reviewer_file {
         Some("the file contains text addressed to a reviewer or a model")
+    } else if trust.steered_request {
+        Some("the same request carried text addressed to a reviewer or a model")
     } else {
         None
     }
@@ -1077,6 +1104,10 @@ pub async fn run_with(
     let (picked, beyond_cap) = order.split_at(sendable);
     let masker = Masker::from_corpus();
     let reviewer = ReviewerText::from_corpus();
+    let custom_rules: HashSet<String> = crate::corpus::custom::registered()
+        .iter()
+        .flat_map(|p| p.pack.rules.iter().map(|r| r.id.clone()))
+        .collect();
     let mut reads = Reads::load(result, picked, scan_root, settings.context_lines, &masker);
     let packets: Vec<Packet> = picked
         .iter()
@@ -1090,6 +1121,7 @@ pub async fn run_with(
                 settings,
                 &mut reads,
                 &reviewer,
+                &custom_rules,
             )
         })
         .collect();
@@ -1116,6 +1148,7 @@ pub async fn run_with(
                     .collect(),
                 packets: chunk.to_vec(),
                 user: prompt::user_message(&values),
+                steered: chunk.iter().any(|&p| packets[p].steers),
             }
         })
         .collect();
@@ -1238,9 +1271,11 @@ pub async fn run_with(
                     };
                     let packet = &packets[batch.packets[pos]];
                     let f = &mut result.findings[packet.finding];
-                    let reviewer_file = manipulation_files.contains(&f.file);
-                    let mut entry =
-                        apply_review(f, &r, reviewer_file, settings.may_downgrade, &mut report);
+                    let trust = Trust {
+                        reviewer_file: manipulation_files.contains(&f.file),
+                        steered_request: batch.steered,
+                    };
+                    let mut entry = apply_review(f, &r, trust, settings.may_downgrade, &mut report);
                     changed |= entry.original_severity.is_some();
                     entry.model = model.clone();
                     report.reviews.push(entry);
@@ -1301,7 +1336,7 @@ fn sorted(set: HashSet<String>) -> Vec<String> {
 fn apply_review(
     f: &mut Finding,
     r: &ParsedReview,
-    reviewer_file: bool,
+    trust: Trust,
     may_downgrade: bool,
     report: &mut LlmReport,
 ) -> ReviewEntry {
@@ -1316,7 +1351,7 @@ fn apply_review(
         not_applied_reason: None,
         severity: f.severity.to_string(),
         original_severity: None,
-        manipulation_suspected: reviewer_file,
+        manipulation_suspected: trust.reviewer_file,
         model: None,
         key: finding_key(f),
     };
@@ -1331,7 +1366,7 @@ fn apply_review(
             let blocked = if !may_downgrade {
                 Some("advisory mode (llm_may_downgrade is off)")
             } else {
-                protected_reason(f, reviewer_file)
+                protected_reason(f, trust)
             };
             match blocked {
                 Some(why) => {

@@ -647,9 +647,10 @@ is decided by `--llm-review`, this organisation policy, or a policy file named
 with `--config`. So `llm_review: true` in the example above takes effect from
 the organisation file or a `--config` file, not from a committed `.sigil.yml`.
 A model's answer can never lower a Critical finding, a prompt-injection or
-agent-manipulation finding, or any finding in a file that addresses the
+agent-manipulation finding, any finding in a file that addresses the
 reviewer (`MANIP-012`, `MANIP-013`, `PROMPT-001`, or the stage's own checks on
-what it is about to send; see [LLM review](llm-review.md#trust-model)). A failure of the stage (no
+what it is about to send), or any finding reviewed in the same request as such
+text; see [LLM review](llm-review.md#trust-model). A failure of the stage (no
 key, network, timeout, quota, refusal, output that does not parse) never
 changes the verdict or the exit code. It is reported as
 `llm_review.status: incomplete` or `not_run` in the JSON report.
