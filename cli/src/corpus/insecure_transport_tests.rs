@@ -268,9 +268,17 @@ fn tls_002_ssl_contexts() {
         "ssl._create_default_https_context = ssl._create_unverified_con~~text",
         "http = urllib3.PoolManager(cert_reqs=\"CERT_N~~ONE\")",
         "sock = ssl.wrap_socket(raw, cert_reqs=ssl.CERT_N~~ONE)",
+        // The enum spelling of the same constant.
+        "ctx.verify_mode = ssl.VerifyMode.CERT_N~~ONE",
+        "ctx.verify_mode = VerifyMode.CERT_N~~ONE",
     ] {
         assert!(fires("fetch.py", line, "TLS-002"), "{line}");
     }
+    assert!(!fires(
+        "fetch.py",
+        "ctx.verify_mode = ssl.VerifyMode.CERT_REQUIRED",
+        "TLS-002"
+    ));
     for line in [
         "ctx.verify_mode = ssl.CERT_REQUIRED",
         "if ctx.verify_mode == ssl.CERT_N~~ONE:",
@@ -316,8 +324,21 @@ fn tls_004_node_agents() {
         "  \"rejectUnauthorized\": fal~~se,",
         "request({ url, strictSSL: fal~~se }, cb);",
         "const opts = { checkServerIdentity: () => undef~~ined };",
+        // What a minifier writes for `false` and `undefined` (esbuild,
+        // terser): the forms a bundled dist/ file carries.
+        "var b=new a.Agent({keepAlive:!0,rejectUnauthorized:!~~1});module.exports=b;",
+        "t.connect({host:h,port:p,rejectUnauthorized:!~~1},cb)",
+        "sslConfig.checkServerIdentity = () => vo~~id 0;",
+        "const o={checkServerIdentity:function(){return vo~~id 0}};",
     ] {
         assert!(fires("client.js", line, "TLS-004"), "{line}");
+    }
+    for line in [
+        // `!0` is `true`.
+        "var b=new a.Agent({keepAlive:!0,rejectUnauthorized:!0});",
+        "const opts = { checkServerIdentity: () => void check(host) };",
+    ] {
+        assert!(!fires("client.js", line, "TLS-004"), "{line}");
     }
     for line in [
         "const agent = new https.Agent({ ca, rejectUnauthorized: true });",
@@ -807,4 +828,100 @@ fn no_chain_from_a_jwt_signature_switch() {
         r.findings
     );
     assert_ne!(r.verdict, Verdict::HighRisk);
+}
+
+#[test]
+fn no_chain_through_a_keyword_or_key_that_shares_the_name() {
+    // A keyword argument or an object key is the name of a parameter, not
+    // the value passed: each of these one-file packages reads a secret into
+    // a name, and makes an unrelated insecure call that has a parameter of
+    // the same name. Each linked, at High, and made the file HIGH RISK.
+    for (path, src) in [
+        (
+            // `headers={...}` is not the module's `headers` dict.
+            "client.py",
+            "import os\nimport requests\n\nheaders = {\"Authorization\": \"Bearer \" + os.environ[\"SERVICE_API_TO~~KEN\"]}\n\n\ndef call_api(url):\n    return requests.get(url, headers=headers, timeout=10)\n\n\ndef healthy(url):\n    r = requests.get(url + \"/health\", headers={\"Accept\": \"application/json\"}, verify=Fal~~se)\n    return r.ok\n",
+        ),
+        (
+            // `token=role_token` is not the `token` read from the environment.
+            "vault.py",
+            "import os\nimport hvac\n\ntoken = os.environ[\"GITHUB_TO~~KEN\"]\ngithub = Github(token)\n\n\ndef local_vault(role_token):\n    return hvac.Client(url=VAULT_URL, token=role_token, verify=Fal~~se)\n",
+        ),
+        (
+            // `{ token: "public" }` is a key.
+            "client.js",
+            "const https = require(\"https\");\nconst token = process.env.GITHUB_TO~~KEN;\nconst gh = new Octokit({ auth: token });\nconst agent = new https.Agent({ token: \"public\", rejectUnauthorized: fal~~se });\n",
+        ),
+        (
+            // `self.headers` (built from the key) joined the statement only
+            // because the insecure call has a `headers=` keyword.
+            "acme.py",
+            "import os\nimport requests\n\n\nclass Client:\n    def __init__(self):\n        self.api_key = os.environ[\"ACME_API_~~KEY\"]\n        self.headers = {\"X-Api-Key\": self.api_key}\n\n    def get(self, path):\n        return requests.get(BASE + path, headers=self.headers)\n\n    def probe(self, host):\n        return requests.head(host, headers={\"User-Agent\": \"probe\"}, verify=Fal~~se)\n",
+        ),
+    ] {
+        let r = scan_tree(&[(path, src)]);
+        assert!(chain_lines(&r).is_empty(), "{path}: {:#?}", r.findings);
+        assert!(
+            r.findings.iter().any(|f| f.rule.starts_with("TLS-0")),
+            "{path}"
+        );
+        assert_ne!(r.verdict, Verdict::HighRisk, "{path}: {:#?}", r.findings);
+    }
+    // `url=` is a keyword; the secret `url` goes to create_engine. (The file
+    // is still judged on EXFIL-CHAIN-001, which reads names the old way.)
+    let db = "import os\nimport requests\n\nurl = os.environ[\"DATABASE_U~~RL\"]\nengine = create_engine(url)\n\n\ndef ping(base):\n    return requests.get(url=base + \"/ping\", verify=Fal~~se)\n";
+    let r = scan_tree(&[("db.py", db)]);
+    assert!(chain_lines(&r).is_empty(), "{:#?}", r.findings);
+}
+
+#[test]
+fn chain_still_links_a_name_passed_as_a_value() {
+    // The same names on the value side are uses.
+    for (path, src, line) in [
+        (
+            "c.py",
+            "import os\nimport requests\n\nuser = \"bot\"\ntoken = os.environ[\"GITHUB_TO~~KEN\"]\nr = requests.get(API, auth=(user, token), verify=Fal~~se)\n",
+            6,
+        ),
+        (
+            "c.py",
+            "import os\nimport hvac\n\ntoken = os.environ[\"VAULT_TO~~KEN\"]\nclient = hvac.Client(url=VAULT_URL, token=token, verify=Fal~~se)\n",
+            5,
+        ),
+        (
+            "c.py",
+            "import os\nimport requests\n\nheaders = {\"Authorization\": os.environ[\"API_TO~~KEN\"]}\nr = requests.get(API, headers=headers, verify=Fal~~se)\n",
+            5,
+        ),
+        (
+            "c.js",
+            "const https = require(\"https\");\nconst token = process.env.API_TO~~KEN;\nconst agent = new https.Agent({ rejectUnauthorized: fal~~se });\nhttps.get(url, { agent, headers: { token } });\n",
+            3,
+        ),
+    ] {
+        let r = scan_tree(&[(path, src)]);
+        assert_eq!(chain_lines(&r), vec![line], "{src}\n{:#?}", r.findings);
+    }
+}
+
+#[test]
+fn no_chain_between_sibling_literals_of_one_statement() {
+    // One exported configuration: an API key for one service, TLS off for
+    // another. The two are literals side by side in one statement, not one
+    // call's arguments; each linked at High.
+    let js = "module.exports = {\n  openai: {\n    apiKey: process.env.OPENAI_API_~~KEY,\n  },\n  db: {\n    ssl: { rejectUnauthorized: fal~~se },\n  },\n};\n";
+    let py = "import os\n\nSERVICES = {\n    \"openai\": {\"api_key\": os.environ[\"OPENAI_API_~~KEY\"], \"base_url\": \"https://api.openai.com/v1\"},\n    \"metrics\": {\"url\": \"https://metrics.example.invalid\", \"verify_ssl\": Fal~~se},\n}\n";
+    for (path, src) in [("config.js", js), ("settings.py", py)] {
+        let r = scan_tree(&[(path, src)]);
+        assert!(chain_lines(&r).is_empty(), "{path}: {:#?}", r.findings);
+        assert_ne!(r.verdict, Verdict::HighRisk, "{path}: {:#?}", r.findings);
+    }
+    // The credential and the switch in one literal still link, whether the
+    // switch is nested below the credential or the credential below it.
+    let pool = "const { Pool } = require('pg');\nconst pool = new Pool({\n  connectionString: process.env.DATABASE_~~URL,\n  ssl: {\n    rejectUnauthorized: fal~~se,\n  },\n});\n";
+    let r = scan_tree(&[("db.js", pool)]);
+    assert_eq!(chain_lines(&r), vec![5], "{:#?}", r.findings);
+    let call = "import os\nimport requests\n\nresp = requests.post(\n    URL,\n    headers={\n        \"Authorization\": os.environ[\"UPLOAD_API_TO~~KEN\"],\n    },\n    verify=Fal~~se,\n)\n";
+    let r = scan_tree(&[("up.py", call)]);
+    assert_eq!(chain_lines(&r), vec![9], "{:#?}", r.findings);
 }

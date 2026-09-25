@@ -58,7 +58,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)(?:verify_mode|cert_reqs)\\s*=\\s*(?:ssl\\.|[\\\"'])?CERT_NONE(?-u:\\b)|(?-u:\\b)check_hostname\\s*=\\s*False(?-u:\\b)|(?-u:\\b)ssl\\._create_unverified_context(?-u:\\b))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?-u:\\b)(?:verify_mode|cert_reqs)\\s*=\\s*(?:(?:ssl\\.)?VerifyMode\\.|ssl\\.|[\\\"'])?CERT_NONE(?-u:\\b)|(?-u:\\b)check_hostname\\s*=\\s*False(?-u:\\b)|(?-u:\\b)ssl\\._create_unverified_context(?-u:\\b))",
       "description": "Python TLS context that does not verify the server (CERT_NONE, check_hostname=False, unverified context)",
       "suppress": {
         "path_contains": [
@@ -140,7 +140,7 @@
       "phase": "network_exfil",
       "severity": "medium",
       "weight": 2,
-      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:rejectUnauthorized|strictSSL)\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'`](?:rejectUnauthorized|strictSSL)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$))|[\\\"'](?:rejectUnauthorized|strictSSL)\\s*=\\s*false[\\\"']|(?-u:\\b)checkServerIdentity\\s*[:=]\\s*(?:\\([^)\\n]*\\)\\s*=>\\s*(?:undefined|null|\\{\\s*\\})|function\\s*\\([^)\\n]*\\)\\s*\\{\\s*(?:return\\s*(?:undefined|null)?\\s*;?\\s*)?\\}))",
+      "pattern": "^(?:\\*[ \\t]+|\\*\\*|[ \\t]*)(?:(?:[^#/*\\s]#*|/[^/*\\n])(?:[^#/\\n]|:/+|/[^/\\n]|[^\\s#/]#+)*?)?(?:(?:^|[^A-Za-z0-9_\\-\\\"'])(?:rejectUnauthorized|strictSSL)\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$)|!1(?:[^0-9A-Za-z_]|$))|[\\\"'`](?:rejectUnauthorized|strictSSL)[\\\"'`]\\s*[:=]\\s*(?:[\\\"'`]false[\\\"'`]|false(?:[^\\\"'A-Za-z0-9_]|$)|!1(?:[^0-9A-Za-z_]|$))|[\\\"'](?:rejectUnauthorized|strictSSL)\\s*=\\s*false[\\\"']|(?-u:\\b)checkServerIdentity\\s*[:=]\\s*(?:\\([^)\\n]*\\)\\s*=>\\s*(?:undefined|null|void\\s+0|\\{\\s*\\})|function\\s*\\([^)\\n]*\\)\\s*\\{\\s*(?:return\\s*(?:undefined|null|void\\s+0)?\\s*;?\\s*)?\\}))",
       "description": "Node.js TLS client that accepts any certificate (rejectUnauthorized: false)",
       "suppress": {
         "path_contains": [
@@ -164,7 +164,7 @@
           ".jsonl"
         ]
       },
-      "remediation": "rejectUnauthorized: false (on an https.Agent, a tls.connect call, a WebSocket, an undici Agent's connect options, or the request library's strictSSL: false) makes Node accept any certificate, and a no-op checkServerIdentity accepts any host name. Whoever can intercept the connection can then read and rewrite it. For a private or self-signed CA pass it as the agent's ca option (or NODE_EXTRA_CA_CERTS) and leave rejectUnauthorized at its default of true.",
+      "remediation": "rejectUnauthorized: false (or a minifier's rejectUnauthorized:!1; on an https.Agent, a tls.connect call, a WebSocket, an undici Agent's connect options, or the request library's strictSSL: false) makes Node accept any certificate, and a no-op checkServerIdentity accepts any host name. Whoever can intercept the connection can then read and rewrite it. For a private or self-signed CA pass it as the agent's ca option (or NODE_EXTRA_CA_CERTS) and leave rejectUnauthorized at its default of true.",
       "references": [
         "CWE-295",
         "MITRE T1557"

@@ -25,16 +25,16 @@ say so:
 | Rule | Severity | Catches |
 |---|---|---|
 | `TLS-001` | Medium | Python HTTP clients: `verify=False` on requests / httpx calls and clients, `session.verify = False`, `{"verify": False}`, aiohttp `ssl=False` on a connector or request |
-| `TLS-002` | Medium | Python `ssl`: `verify_mode = ssl.CERT_NONE`, `cert_reqs=CERT_NONE`, `check_hostname = False`, `ssl._create_unverified_context` |
+| `TLS-002` | Medium | Python `ssl`: `verify_mode = ssl.CERT_NONE` (or `ssl.VerifyMode.CERT_NONE`), `cert_reqs=CERT_NONE`, `check_hostname = False`, `ssl._create_unverified_context` |
 | `TLS-003` | Low | urllib3's `InsecureRequestWarning` silenced (`disable_warnings(...)`, `filterwarnings`/`simplefilter`): the warning `verify=False` triggers. An observation that points at the TLS-001 it hides |
-| `TLS-004` | Medium | Node.js: `rejectUnauthorized: false` (https.Agent, tls.connect, WebSocket, undici `connect`), request's `strictSSL: false`, a no-op `checkServerIdentity` |
+| `TLS-004` | Medium | Node.js: `rejectUnauthorized: false` (https.Agent, tls.connect, WebSocket, undici `connect`), request's `strictSSL: false`, a no-op `checkServerIdentity`; also the minified forms a bundled `dist/` file carries (`rejectUnauthorized:!1`, `() => void 0`) |
 | `TLS-005` | Medium | Verification off for the whole process: `NODE_TLS_REJECT_UNAUTHORIZED=0` and `PYTHONHTTPSVERIFY=0` set in code (`process.env`, `os.environ`), a shell, a Dockerfile, a `.env` file, an MCP server's `env` block or a docker `-e` argument; an empty `CURL_CA_BUNDLE` / `REQUESTS_CA_BUNDLE` in Python |
 | `TLS-006` | Medium | Other languages: Go `InsecureSkipVerify: true`, Rust reqwest `danger_accept_invalid_certs(true)`, Ruby `VERIFY_NONE` and Faraday `ssl: { verify: false }`, PHP / C / pycurl `CURLOPT_SSL_VERIFYPEER`/`VERIFYHOST` 0 and Guzzle `'verify' => false`, .NET `DangerousAcceptAnyServerCertificateValidator` or a validation callback returning `true`, Apache HttpClient `NoopHostnameVerifier` / `TrustAllStrategy` and hostname-verifier lambdas returning `true` |
 | `TLS-007` | Medium | Commands: `curl -k` / `--insecure` (also combined flags such as `-sSLk`, and `["curl", "-k", ...]` argument lists), `wget --no-check-certificate`, PowerShell `-SkipCertificateCheck`, `kubectl`/`helm --insecure-skip-tls-verify`, `deno --unsafely-ignore-certificate-errors`, in scripts and in instructions an agent follows (SKILL.md, AGENTS.md, MCP setup steps) |
 | `TLS-008` | Medium | git: `git -c http.sslVerify=false`, `git config http.sslVerify false`, `GIT_SSL_NO_VERIFY=1` |
 | `TLS-009` | Medium | Package managers, as commands or environment: `pip install --trusted-host`, `pip config set global.trusted-host`, `PIP_TRUSTED_HOST`, `uv --allow-insecure-host` / `UV_INSECURE_HOST`, `npm`/`yarn`/`pnpm` `strict-ssl false` or `--no-strict-ssl`, `npm_config_strict_ssl=false`, `echo "strict-ssl=false" >> ~/.npmrc`, `conda config --set ssl_verify false`, a poetry certificate set to `false`, `maven.wagon.http.ssl.insecure=true` |
 | `TLS-010` | Medium | A configuration key named for verification set to off, in code, YAML, JSON or TOML: `verify_ssl` / `ssl_verify` / `verify_certs` / `tls_verify` = false; `insecure_skip_verify` / `insecureSkipVerify` / `insecure-skip-tls-verify` / `tls_insecure` = true; httplib2 `disable_ssl_certificate_validation=True` |
-| `TLS-CHAIN-001` | High | A credential (CRED-001/002 secret-named environment reads, CRED-MCP-001, or a hardcoded key or token rule) that is part of the statement a TLS-001, 002, 004, 005, 006, 007 or 010 finding belongs to, or whose bound name that statement (or the set-up and use lines next to it) uses, within 60 lines; see [the chain](#the-credential-chain-tls-chain-001) |
+| `TLS-CHAIN-001` | High | A credential (CRED-001/002 secret-named environment reads, CRED-MCP-001, or a hardcoded key or token rule) that is part of the call or literal a TLS-001, 002, 004, 005, 006, 007 or 010 finding belongs to, or whose bound name that statement (or the set-up and use lines next to it) uses as a value, within 60 lines; see [the chain](#the-credential-chain-tls-chain-001) |
 
 Shipped package-manager configuration files (`.npmrc`, `.yarnrc`,
 `.yarnrc.yml`, `pip.conf`, `pip.ini`, `requirements.txt`, `Pipfile`,
@@ -104,6 +104,26 @@ SkillSpector's five TLS examples are that shape. For the same reason:
 - A loopback host on another line of the same object (`host: '127.0.0.1'`
   above `verifySsl: false`) does not suppress TLS-010.
 
+The chain has blind spots of its own:
+
+- Only Python and JavaScript environment reads (CRED-001, CRED-002), the MCP
+  credential names (CRED-MCP-001) and hardcoded keys are credentials to it. A
+  shell `curl -k -H "Authorization: Bearer $GITHUB_TOKEN" ...`, or a Go
+  `os.Getenv("TOKEN")` beside `InsecureSkipVerify: true`, is reported as the
+  TLS finding alone.
+- A credential used *after* the statement that builds the insecure object
+  (`socket.write(process.env.REDIS_PASSWORD)` below `tls.connect({...,
+  rejectUnauthorized: false })`) is not linked: the lines below the statement
+  are read only for a name bound above it.
+- Sibling literals of one options object are not linked (got's
+  `https: { rejectUnauthorized: false }` beside `headers: {...}`; see
+  "What a second review changed").
+- A line longer than 500 bytes is not linked, so a long trailing comment on
+  the TLS line hides the chain (the TLS finding is still reported).
+- In Markdown prose, a sentence line that ends with a comma continues into
+  the next line like an argument list does, so a credential named in the
+  sentence that leads into a TLS instruction links.
+
 The comment and command-span rules trade some shapes for others:
 
 - An indented Markdown bullet that starts with `*` (`  * run curl -k ...`)
@@ -115,6 +135,10 @@ The comment and command-span rules trade some shapes for others:
 - The command rules stop at a backtick between the command and its flag, so
   prose such as "run `curl` with `-k`" is not reported, while
   `` `curl -k https://...` `` in one code span is.
+- A `#` after whitespace, or a `//`, starts a comment even inside a string, so
+  `requests.get("https://host/page #top", verify=False)` is not reported.
+- The test-path suppression matches substrings: `tests/` also matches a
+  `contests/` directory, and `/test_` a `test_utils/` module.
 
 Browser automation flags (`--ignore-certificate-errors`, Puppeteer
 `ignoreHTTPSErrors`, WebDriver `acceptInsecureCerts`), Docker's
@@ -130,14 +154,23 @@ The chain is a correlation rule (see `CONTRIBUTING.md`) that reads the
 (CRED-001 `token = os.getenv("GITHUB_TOKEN")`, a hardcoded key) links to the
 TLS finding when, within 60 lines:
 
-1. **It is in the same statement.** The statement is the TLS line, the lines
-   above it that continue into it (the call's opening line and earlier
+1. **It is in the same call or literal.** The statement is the TLS line, the
+   lines above it that continue into it (the call's opening line and earlier
    arguments, each ending with `(`, `[`, `,`, `\` or an object literal's `{`;
    at most 10), and the lines below it that its call continues onto. A
    credential read inline in the headers argument of the call whose last
-   argument is `verify=False,` is in that call.
-2. **Or the name it binds is used there.** The name must appear in the
-   statement, or in the lines next to it that work with the same object:
+   argument is `verify=False,` is in that call, and so is a
+   `connectionString: process.env.DATABASE_URL` beside the `ssl: {
+   rejectUnauthorized: false }` of the same `new Pool({...})`. Brackets
+   decide what belongs together: the credential's line and the TLS line must
+   start in the same bracket group, or one inside the other. Two sibling
+   literals of one statement are not one call: an `openai: {...}` entry with
+   an API key and a `db: { ssl: {...} }` entry beside it in one exported
+   configuration are two services. A line that is one key and a literal it
+   opens and closes (`"metrics": {"url": u, "verify_ssl": False},`) counts as
+   a literal of its own.
+2. **Or the name it binds is used there, as a value.** The name must appear in
+   the statement, or in the lines next to it that work with the same object:
    above, a line that assigns to or calls a method on a local name the
    statement uses (`headers = {"Authorization": ...}` above `get(url,
    headers=headers, verify=False)`, `session.headers.update(...)` above
@@ -146,7 +179,12 @@ TLS finding when, within 60 lines:
    `const agent = new https.Agent({ rejectUnauthorized: false })`). "Local"
    means assigned in the window, or an attribute of `self` / `this`, so an
    imported module (`requests.post(...)` above `requests.get(...,
-   verify=False)`) does not connect two unrelated calls.
+   verify=False)`) does not connect two unrelated calls. A keyword-argument
+   name or an object key is not a use: `headers={"Accept": "json"}` does not
+   use a `headers` dict built from the token elsewhere, and
+   `hvac.Client(token=role_token)` does not use a `token` variable; the
+   value side (`headers=headers`, `{ auth: token }`, `f"Bearer {token}"`)
+   is.
 
 ```python
 token = os.getenv("GITHUB_TOKEN")          # CRED-001 binds `token`
@@ -215,6 +253,48 @@ TLS line still link: a `headers` dict built from the token above the call, a
 `requests.Session()` configured with the token above `session.get(...,
 verify=False)`, `self.session` configured in `__init__`, and an agent used
 with the token on the next line.
+
+### What a second review changed
+
+A second adversarial review of the reviewed chain built 29 more one-file
+cases. The statement window still linked through the *name* of a parameter
+and across sibling literals, and six clean files went from LOW to HIGH RISK
+on TLS-CHAIN-001 alone. Three disabling forms were not reported. Each row is
+a unit test in `cli/src/corpus/insecure_transport_tests.rs` or
+`cli/src/scanner/correlate.rs`.
+
+```
+Data Source: Synthetic test cases written for the second review (not real packages).
+Sample Size: 29 probe files (one file each), scanned with the first review's
+             build and with this one. 11 changed: the 10 rows below, and the
+             got-style options described after the table (a lost chain). 18 did
+             not, 5 of them genuine chains that still link: a token passed as
+             auth=(user, token), as headers=headers, as params={"token": token},
+             in a headers literal above verify=False, and in an aiohttp
+             session's headers above its insecure connector.
+Limitations: Constructed to probe the rules, so they show which shapes change,
+             not how often each occurs in real code.
+```
+
+| Case | First review | This version |
+|---|---|---|
+| `headers = {"Authorization": ... os.environ[...]}` at module level; an unrelated `requests.get(..., headers={"Accept": ...}, verify=False)` | TLS-CHAIN-001, HIGH RISK | TLS-001 only, MEDIUM RISK |
+| `token = os.environ["GITHUB_TOKEN"]` used by `Github(token)`; `hvac.Client(url=..., token=role_token, verify=False)` | TLS-CHAIN-001, HIGH RISK | TLS-001 only, MEDIUM RISK |
+| `const token = process.env.GITHUB_TOKEN` used by Octokit; `new https.Agent({ token: "public", rejectUnauthorized: false })` | TLS-CHAIN-001, HIGH RISK | TLS-004 only, MEDIUM RISK |
+| `self.headers` built from `self.api_key`; `requests.head(host, headers={"User-Agent": ...}, verify=False)` in another method | TLS-CHAIN-001, HIGH RISK | TLS-001 only, MEDIUM RISK |
+| `url = os.environ["DATABASE_URL"]`; `requests.get(url=base + "/ping", verify=False)` | TLS-CHAIN-001; CRITICAL RISK from EXFIL-CHAIN-001, which predates this pack and reads names the old way | TLS-001 only; still CRITICAL RISK from EXFIL-CHAIN-001 |
+| `module.exports = { openai: { apiKey: process.env.OPENAI_API_KEY }, db: { ssl: { rejectUnauthorized: false } } }`, one key per line | TLS-CHAIN-001, HIGH RISK | TLS-004 only, MEDIUM RISK |
+| A `SERVICES` dict with one line per service: `"openai": {"api_key": os.environ[...]}` above `"metrics": {..., "verify_ssl": False}` | TLS-CHAIN-001, HIGH RISK | TLS-010 only, MEDIUM RISK |
+| A minified bundle's `new a.Agent({keepAlive:!0,rejectUnauthorized:!1})` | not reported, LOW RISK | TLS-004, MEDIUM RISK |
+| `checkServerIdentity: () => void 0` (esbuild's `undefined`) | not reported | TLS-004 |
+| `ctx.verify_mode = ssl.VerifyMode.CERT_NONE` | not reported | TLS-002 |
+
+The sibling rule has a cost: got's options, written with the headers and the
+TLS switch as sibling literals (`headers: { Authorization: ... }` beside
+`https: { rejectUnauthorized: false }`), are one request, and that chain is
+no longer linked (TLS-004 still reports the switch, and the package is still
+MEDIUM RISK). The rule prefers missing that High to raising a configuration
+file with two services to HIGH RISK.
 
 ## Measurements
 
