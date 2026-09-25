@@ -790,3 +790,177 @@ fn function_constructor_literal_reaching_for_process_still_fires() {
         &["new Function('return require')()('child_process').exec(c);"],
     );
 }
+
+// ---------------------------------------------------------------------------
+// INSTALL-004 / INSTALL-009: prepublishOnly runs on publish only
+// ---------------------------------------------------------------------------
+
+#[test]
+fn prepublish_only_is_a_low_publish_time_observation() {
+    let manifest = "{\n  \"scripts\": {\n    \"prepublishOnly\": \"npm run typecheck && npm test && npm run build\"\n  }\n}\n";
+    assert_eq!(
+        severity_of("package.json", manifest, "INSTALL-009"),
+        Some(Severity::Low)
+    );
+    assert!(
+        !fires("package.json", manifest, "INSTALL-004"),
+        "prepublishOnly is no longer an INSTALL-004 finding"
+    );
+}
+
+#[test]
+fn install_time_lifecycle_keys_keep_their_severity() {
+    // A postinstall that runs the publish-only script runs it on install.
+    assert_eq!(
+        severity_of(
+            "package.json",
+            r#"{"scripts":{"postinstall":"npm run prepublishOnly","prepublishOnly":"node x.js"}}"#,
+            "INSTALL-003"
+        ),
+        Some(Severity::Critical)
+    );
+    for key in ["prepare", "prepublish"] {
+        let line = format!("    \"{key}\": \"node x.js\",");
+        assert_eq!(
+            severity_of("package.json", &line, "INSTALL-004"),
+            Some(Severity::Medium),
+            "{key} runs on a git-dependency or checkout install"
+        );
+        // Key-anchored: the same word as a value is not a lifecycle key.
+        let value = format!("    \"build:all\": \"npm run {key}\",");
+        assert!(!fires("package.json", &value, "INSTALL-004"), "{value}");
+        let bare = format!("    \"x\": \"{key}\",");
+        assert!(!fires("package.json", &bare, "INSTALL-004"), "{bare}");
+    }
+    // One-line manifests keep matching.
+    assert!(fires(
+        "package.json",
+        r#"{"name":"x","scripts":{"prepare":"husky install"}}"#,
+        "INSTALL-004"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// CODE-003: compile() is a Python primitive, not a JavaScript one
+// ---------------------------------------------------------------------------
+
+#[test]
+fn compile_in_javascript_family_files_is_quiet() {
+    for path in [
+        "dist/index.js",
+        "src/schema.ts",
+        "lib/x.mjs",
+        "lib/x.cjs",
+        "src/App.jsx",
+        "src/App.tsx",
+        "src/x.mts",
+        "src/x.cts",
+        "public/index.html",
+        "public/page.htm",
+        "src/App.vue",
+        "src/App.svelte",
+    ] {
+        assert_quiet(
+            path,
+            "CODE-003",
+            &[
+                "const validate = compile(schema);",
+                "  const tpl = compile(source, { noEscape: true });",
+            ],
+        );
+    }
+}
+
+#[test]
+fn compile_outside_javascript_still_fires() {
+    let line = "code = compile(src, '<string>', 'exec')";
+    // Python, agent-skill markdown (a fenced block is scanned line by line),
+    // notebooks and extensionless scripts stay covered.
+    for path in ["tool.py", "SKILL.md", "analysis.ipynb", "bin/run"] {
+        assert_eq!(
+            severity_of(path, line, "CODE-003"),
+            Some(Severity::Medium),
+            "{path}"
+        );
+    }
+    // exec(compile(...)) is still an exec call.
+    assert!(fires(
+        "tool.py",
+        "exec(compile(src, '<string>', 'exec'))",
+        "CODE-002"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// CODE-009: a duplicate of CODE-008, which carries the severity
+// ---------------------------------------------------------------------------
+
+/// Every line CODE-009 matches is also matched by CODE-008 at High, so
+/// lowering CODE-009 to a Low observation loses no High finding. Checked over
+/// the fixtures in this file and every line of the detection docs, which
+/// quote each rule's positive examples.
+#[test]
+fn every_code009_match_is_also_a_high_code008_match() {
+    let mut lines: Vec<String> = [
+        "new Function(payload)();",
+        "const f = new Function(atob(blob));",
+        "new Function('a', decoded)(1);",
+        "return new Function(\"return \" + source)();",
+        "return new Function(`return ${template}`)()(comparator);",
+        "new Function('return require')()('child_process').exec(c);",
+        "x=new   Function(String.fromCharCode(101,118,97,108))",
+        "(new Function(parts.join('')))()",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    for dir in ["docs/detection", "cli/tests/fixtures"] {
+        let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            if let Ok(text) = std::fs::read_to_string(e.path()) {
+                lines.extend(
+                    text.lines()
+                        .filter(|l| l.contains("Function"))
+                        .map(str::to_string),
+                );
+            }
+        }
+    }
+    let mut checked = 0usize;
+    for line in &lines {
+        let found = scan_at("index.js", line);
+        let Some(c9) = found.iter().find(|f| f.rule == "CODE-009") else {
+            continue;
+        };
+        checked += 1;
+        assert_eq!(c9.severity, Severity::Low, "{line}");
+        assert!(
+            found
+                .iter()
+                .any(|f| f.rule == "CODE-008" && f.severity == Severity::High),
+            "CODE-009 matched without a High CODE-008 on the same line: {line}"
+        );
+    }
+    assert!(checked >= 8, "only {checked} CODE-009 lines checked");
+}
+
+// ---------------------------------------------------------------------------
+// INFER-007: a literal client key corroborates; it does not gate alone
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_literal_client_key_is_a_corroborating_critical() {
+    let found = scan_at(
+        "src/client.ts",
+        "const client = new OpenAI({ apiKey: \"sk_proj_a1b2c3d4e5f6g7h8i9j0k1l2\" });",
+    );
+    let key = found
+        .iter()
+        .find(|f| f.rule == "INFER-007")
+        .expect("INFER-007 must still fire");
+    assert_eq!(key.severity, Severity::Critical);
+    assert_eq!(key.evidence, crate::scanner::Evidence::Corroborate);
+}

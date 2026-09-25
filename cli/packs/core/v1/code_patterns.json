@@ -34,7 +34,10 @@
       "severity": "medium",
       "pattern": "(?m)(^|[^.\\w])compile\\s*\\(",
       "description": "compile() call — dynamic code compilation",
-      "remediation": "Python's compile() turns a string into a code object for exec or eval (a bare compile() in JavaScript build tooling raises the same question), so judge the source it receives. AST tooling, linters, test frameworks and template engines compile files they can name; a string that is decoded, joined from fragments or fetched is code that never exists as plain text until it runs, so print it and read it, or reject the package.",
+      "suppress": {
+        "filename_suffix": [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts", ".html", ".htm", ".vue", ".svelte"]
+      },
+      "remediation": "Python's compile() turns a string into a code object for exec or eval, so judge the source it receives. AST tooling, linters, test frameworks and template engines compile files they can name; a string that is decoded, joined from fragments or fetched is code that never exists as plain text until it runs, so print it and read it, or reject the package. JavaScript-family files are not checked: JavaScript has no global compile(), a bare compile( there is a template, regex or schema compiler, and the ways JavaScript does turn a string into code (eval, Function, vm) have rules of their own.",
       "references": ["CWE-95", "MITRE T1059.006"],
       "tags": ["execution", "compile", "python", "dynamic-code"]
     },
@@ -119,7 +122,7 @@
     {
       "id": "CODE-009",
       "phase": "code_patterns",
-      "severity": "high",
+      "severity": "low",
       "pattern": "new\\s+Function\\s*\\(\\s*(?:(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*,\\s*)*(?:[A-Za-z_$`(\\[.]|(?:\"[^\"\\n]*\"|'[^'\\n]*')\\s*\\+|[\"'][^\"'\\n]*\\b(?:process|require|child_process|mainModule|fromCharCode|atob)\\b)",
       "description": "new Function() — dynamic code execution",
       "suppress": {
@@ -135,7 +138,7 @@
           "Function(...this?.args"
         ]
       },
-      "remediation": "new Function(args, body) is the JavaScript compiler exposed at runtime, and the usual way a downloaded or decoded payload is run. Template engines (lodash.template, doT), schema compilers such as ajv and serializer generators build code from data shipped in the package and are recognisable by name; for anything else read the body string and reject if it is Base64- or charCode-decoded, joined from fragments or fetched over the network.",
+      "remediation": "new Function(args, body) is the JavaScript compiler exposed at runtime, and the usual way a downloaded or decoded payload is run. This rule is a Low observation because every line it matches is also matched by CODE-008 (the Function constructor, with or without new) at High, which carries the severity; counting both scored the same call twice. Template engines (lodash.template, doT), schema compilers such as ajv and serializer generators build code from data shipped in the package and are recognisable by name; for anything else read the body string and reject if it is Base64- or charCode-decoded, joined from fragments or fetched over the network.",
       "references": ["CWE-95", "MITRE T1059.007"],
       "tags": ["execution", "function-constructor", "javascript", "dynamic-code"]
     },
