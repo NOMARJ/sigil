@@ -479,6 +479,8 @@ fn finding_key(f: &Finding) -> String {
 /// hidden in tag characters counts on its own.
 struct ReviewerText {
     regexes: Vec<Regex>,
+    /// Rules from custom packs, whose guidance is not Sigil's own text.
+    custom_rules: HashSet<String>,
 }
 
 /// Words that steer a verdict towards clearing the code.
@@ -520,7 +522,21 @@ impl ReviewerText {
             .map(|r| r.regex.clone())
             .collect();
         regexes.extend(stage_reviewer_patterns());
-        ReviewerText { regexes }
+        let custom_rules = crate::corpus::custom::registered()
+            .iter()
+            .flat_map(|p| p.pack.rules.iter().map(|r| r.id.clone()))
+            .collect();
+        ReviewerText {
+            regexes,
+            custom_rules,
+        }
+    }
+
+    /// Does the guidance of `rule` address a reviewer? Sigil's own guidance
+    /// is fixed text (and quotes the very notes it describes), so only a
+    /// custom pack's is checked.
+    fn guidance(&self, rule: &str, text: &str) -> bool {
+        self.custom_rules.contains(rule) && self.text(text)
     }
 
     /// Does `s` address a reviewer, or hide text in tag characters?
@@ -841,7 +857,6 @@ fn build_packet(
     settings: &LlmSettings,
     reads: &mut Reads,
     reviewer: &ReviewerText,
-    custom_rules: &HashSet<String>,
 ) -> Packet {
     let masker = reads.masker;
     let mut masked = 0usize;
@@ -861,9 +876,7 @@ fn build_packet(
         .and_then(|meta| meta.remediation.clone())
         .map(|g| truncate_chars(&g, MAX_GUIDANCE_CHARS))
         .unwrap_or_default();
-    // Sigil's own guidance is fixed text (and describes these very notes);
-    // a custom pack's is not.
-    let guidance_steers = custom_rules.contains(&f.rule) && reviewer.text(&raw_guidance);
+    let guidance_steers = reviewer.guidance(&f.rule, &raw_guidance);
     let guidance = m(&raw_guidance);
     let file = m(&f.file);
     let snippet = f.snippet.trim();
@@ -1104,10 +1117,6 @@ pub async fn run_with(
     let (picked, beyond_cap) = order.split_at(sendable);
     let masker = Masker::from_corpus();
     let reviewer = ReviewerText::from_corpus();
-    let custom_rules: HashSet<String> = crate::corpus::custom::registered()
-        .iter()
-        .flat_map(|p| p.pack.rules.iter().map(|r| r.id.clone()))
-        .collect();
     let mut reads = Reads::load(result, picked, scan_root, settings.context_lines, &masker);
     let packets: Vec<Packet> = picked
         .iter()
@@ -1121,7 +1130,6 @@ pub async fn run_with(
                 settings,
                 &mut reads,
                 &reviewer,
-                &custom_rules,
             )
         })
         .collect();
