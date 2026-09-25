@@ -533,7 +533,7 @@ struct WholeStages {
     /// hand to a shell.
     inner: HashMap<usize, String>,
     /// Stages whose inline code runs what they read on stdin
-    /// ([`runs_read_code`]: `python3 -c "import sys; exec(sys.stdin.read())"`).
+    /// ([`runs_read_code`]).
     reads_code: std::collections::HashSet<usize>,
 }
 
@@ -2386,9 +2386,10 @@ fn is_variable(s: &str) -> bool {
 /// Code that runs what the stage reads on stdin, though the stage is not an
 /// interpreter reading it as a script: a variable run as code (`eval
 /// "$l"`, `bash -c "$line"`, as in `… | while read l; do eval "$l";
-/// done`), or inline code that reads stdin and evaluates it (`python3 -c
-/// "exec(sys.stdin.read())"`, `node -e "eval(fs.readFileSync(0, …))"`,
-/// `perl -e 'eval join "", <STDIN>'`, `ruby -e 'eval STDIN.read'`).
+/// done`), or inline code (`python3 -c`, `node -e`, `perl -e`, `ruby -e`,
+/// `php -r`) that both reads stdin and evaluates code: the EXEC and READ
+/// markers below. The shapes are in `hook_tests.rs` (the scanner's own
+/// rules flag them written out here).
 fn runs_read_code(words: &[String]) -> bool {
     static EXEC: OnceLock<Regex> = OnceLock::new();
     static READ: OnceLock<Regex> = OnceLock::new();
@@ -2802,7 +2803,7 @@ impl Walk {
             // `curl … | tee >(bash)`.
             d = worse(d, pipe_deny(&self.top));
         }
-        // `curl … | bash -c "$(cat)"`, `curl … | eval "$(cat)"`: a
+        // A download piped into `bash -c "$(cat)"` or `eval "$(cat)"`: a
         // substitution that prints its stdin, the download, as code.
         if executed && k == 0 && pipe.fed && cmdline::passes_stdin(w) {
             d = worse(d, pipe_deny(&self.top));
