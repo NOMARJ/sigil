@@ -47,6 +47,16 @@
 //! object key that repeats a bound name (`headers={"Accept": ...}`,
 //! `token=role_token`) is not a use of it.
 //!
+//! A rule may set `name_uses: value` to read names that way in the ordinary
+//! window too. Every built-in chain does: `requests.get(url=base + "/ping")`
+//! passes a keyword argument that happens to be called `url`, and a `url`
+//! bound from `os.environ["DATABASE_URL"]` two lines up is not what it
+//! sends. The cost is a flow that only linked by that coincidence of names:
+//! `data = dict(os.environ)`, `encoded = urlencode(data)`, then
+//! `Request(url, data=encoded)` sends the environment in two hops, and the
+//! link through the keyword `data=` was never a reading of that flow (the
+//! same code with the variable called `env` did not link either).
+//!
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
 //! linked, because on a minified bundle one line holds a whole program.
 //!
@@ -88,7 +98,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::corpus::schema::CorrelationRule;
+use crate::corpus::schema::{CorrelationRule, NameUses};
 
 use super::{Finding, Phase, Severity};
 
@@ -411,6 +421,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             .collect();
 
         let mut emitted: Vec<(usize, usize)> = Vec::new();
+        let value_uses = rule.name_uses == NameUses::Value;
         for sink in &sinks {
             let sink_line = sink.line.unwrap_or(0);
             if too_long(lines, sink_line, rule.max_line_length) {
@@ -421,6 +432,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // the lines that set up or use the object it binds; every other
             // rule reads the sink line and the lines after it.
             let statement_mode = !file_only && rule.sink_window_before > 0;
+            let by_value = statement_mode || value_uses;
             let scope = if statement_mode {
                 statement_scope(lines, sink_line, rule.sink_window_before)
             } else {
@@ -470,9 +482,11 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                             source_bindings(l)
                         };
                         // The statement mode reads a whole call, whose
-                        // keyword names and keys are not values it sends.
+                        // keyword names and keys are not values it sends;
+                        // a rule with `name_uses: value` reads its window
+                        // the same way.
                         bound.iter().any(|ident| {
-                            if statement_mode {
+                            if by_value {
                                 uses_word(link_text, ident)
                             } else {
                                 contains_word(link_text, ident)
@@ -889,7 +903,7 @@ fn parse_severity(s: &str) -> Severity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::corpus::schema::FindingSelector;
+    use crate::corpus::schema::{FindingSelector, NameUses};
 
     fn rule() -> CorrelationRule {
         CorrelationRule {
@@ -909,6 +923,7 @@ mod tests {
             window_lines: 20,
             sink_window_before: 0,
             max_line_length: 0,
+            name_uses: NameUses::Word,
             sink_excludes: vec!["headers".to_string(), "Authorization".to_string()],
             remediation: None,
             references: vec![],
@@ -1411,6 +1426,38 @@ mod tests {
             strip_trailing_comment("this.#agent = x,"),
             "this.#agent = x,"
         );
+    }
+
+    /// `name_uses: value`: a keyword argument's name, an assignment target
+    /// or an object key that repeats a bound name is not a use of it; the
+    /// value side of each still is. The default reading links on any whole
+    /// word.
+    #[test]
+    fn value_uses_skip_names_that_only_repeat_the_binding() {
+        let value = CorrelationRule {
+            name_uses: NameUses::Value,
+            ..rule()
+        };
+        let findings = vec![f("CRED-012", 1), f("NET-001", 2)];
+        for (sink, by_value) in [
+            ("send(dest, conn=other)", false),
+            ("conn = other_thing(dest)", false),
+            ("send(dest, json={\"conn\": 1})", false),
+            ("send(dest, json={ conn: 1 })", false),
+            ("send(dest, body=conn)", true),
+            ("send(dest, json={\"k\": conn})", true),
+            ("send(dest, data=f\"{conn}\")", true),
+            ("send(dest, conn=conn)", true),
+        ] {
+            let src = format!("conn = read_setting()\n{sink}\n");
+            let lines: Vec<&str> = src.lines().collect();
+            assert_eq!(apply(&[rule()], &findings, &lines).len(), 1, "{sink}");
+            assert_eq!(
+                apply(std::slice::from_ref(&value), &findings, &lines).len(),
+                usize::from(by_value),
+                "{sink}"
+            );
+        }
     }
 
     #[test]
