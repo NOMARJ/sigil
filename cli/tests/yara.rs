@@ -775,6 +775,106 @@ fn an_engine_shipped_inside_the_scanned_tree_is_never_run() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_single_file_scanned_beside_the_engine_is_evaluated_by_it() {
+    // `sigil scan ~/.cargo/bin/tool` with `yr` installed in the same
+    // directory: what is judged is the one file, so the engine beside it
+    // runs (before, the file's directory counted as the scanned tree and
+    // the rules were reported as not evaluated).
+    let fx = fixture();
+    let bin = stub_yr(&fx.root);
+    let tool = bin.join("tool.txt");
+    std::fs::write(&tool, format!("first\n{MARKER}\n")).unwrap();
+    let rules = fx.root.join("module.yar");
+    std::fs::write(&rules, MODULE_RULE).unwrap();
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &[
+            "--rules",
+            rules.to_str().unwrap(),
+            "scan",
+            tool.to_str().unwrap(),
+            "--no-cache",
+            "-f",
+            "json",
+        ],
+        &[("PATH", bin.to_str().unwrap())],
+    );
+    let found = findings(&o, "YARA-SIGIL-MODULE-MARKER");
+    assert_eq!(found.len(), 1, "{}\n{}", stdout(&o), stderr(&o));
+    assert_eq!(found[0]["line"], 2);
+    assert!(
+        findings(&o, "PROV-INCOMPLETE-001").is_empty(),
+        "{}",
+        stdout(&o)
+    );
+    assert_eq!(json(&o)["summary"]["complete"], true);
+}
+
+#[cfg(unix)]
+#[test]
+fn rules_validate_uses_the_engine_the_scan_policy_selects() {
+    let fx = fixture();
+    let bin = stub_yr(&fx.root);
+    let path = bin.to_str().unwrap();
+    let rules = fx.root.join("module.yar");
+    std::fs::write(&rules, MODULE_RULE).unwrap();
+    let rules = rules.to_str().unwrap();
+    // No policy: `auto` hands the file to the installed YARA-X.
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &["rules", "validate", rules],
+        &[("PATH", path)],
+    );
+    assert_eq!(code(&o), 0, "{}", stdout(&o));
+    assert!(
+        stdout(&o).contains("engine: YARA-X 1.20.0"),
+        "{}",
+        stdout(&o)
+    );
+    // A project policy here that says `builtin` is what a scan here would
+    // use, so validate and sign say what that scan would do: refuse it.
+    std::fs::write(fx.proj.join(".sigil.yml"), "yara_engine: builtin\n").unwrap();
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &["rules", "validate", rules],
+        &[("PATH", path)],
+    );
+    assert_eq!(code(&o), 1, "{}", stdout(&o));
+    assert!(
+        stdout(&o).contains("[needs an external engine]"),
+        "{}",
+        stdout(&o)
+    );
+    // The flag overrides an unlocked project file, as for a scan.
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &["--yara-engine", "yara-x", "rules", "validate", rules],
+        &[("PATH", path)],
+    );
+    assert_eq!(code(&o), 0, "{}", stdout(&o));
+    // Locked by the organisation, the flag is refused, and said so.
+    let org = fx.root.join("org.yml");
+    std::fs::write(&org, "yara_engine: builtin\nlocked: [yara_engine]\n").unwrap();
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &["--yara-engine", "yara-x", "rules", "validate", rules],
+        &[("PATH", path), ("SIGIL_POLICY_FILE", org.to_str().unwrap())],
+    );
+    assert_eq!(code(&o), 1, "{}", stdout(&o));
+    assert!(
+        stderr(&o).contains("yara_engine") && stderr(&o).contains("locked"),
+        "{}",
+        stderr(&o)
+    );
+}
+
 #[test]
 fn a_yara_rule_cannot_redefine_an_existing_rule_id() {
     let fx = fixture();

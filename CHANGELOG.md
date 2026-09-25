@@ -70,10 +70,11 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
   organisation file (`SIGIL_POLICY_FILE`) with locked keys and tighten-only
   project files; custom rule packs in JSON, YAML or YARA (a built-in subset,
-  full YARA through an installed engine), Ed25519 signed; baselines; `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and
-  JUnit reports; `sigil rules`, `sigil baseline`, `sigil config --policy /
-  --validate`; a GitHub Action with a verdict-based gate, a GitLab template, a
-  pre-commit hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
+  full YARA through an installed engine), Ed25519 signed; baselines;
+  `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and JUnit reports;
+  `sigil rules`, `sigil baseline`, `sigil config --policy / --validate`; a
+  GitHub Action with a verdict-based gate, a GitLab template, a pre-commit
+  hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
 - **Speed.** Rules gate on a word-boundary-free, larger-cache form of their
   pattern: a 3 MB minified bundle that exhausted its 30 s scan budget now scans
   completely in 1.9 s. Median scan time per skill: 1.48 s (SkillSpector,
@@ -203,14 +204,35 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   confuse the engine or its output. A rule of Sigil's own marks every file
   the engine finished; a file without the mark is reported as not inspected,
   never passed as clean. Output is streamed line by line, keeping a few
-  matches per rule. Each run is bounded by `SIGIL_YARA_TIMEOUT_SECS` (default
-  600; `0` for none); classic YARA also gets the per-file budget as its
-  per-file timeout (`PROV-BUDGET-001`); an engine that leaves a child holding
-  its pipes cannot hold the scan.
+  matches per rule. The engine's work for a scan is bounded by
+  `SIGIL_YARA_TIMEOUT_SECS` (default 600; `0` for none); classic YARA also
+  gets the per-file budget as its per-file timeout (`PROV-BUDGET-001`); an
+  engine that leaves a child holding its pipes cannot hold the scan.
+- **A file that crashes the engine costs only itself.** A run that crashes or
+  exits with an error is followed by runs over halves of the files it did
+  not finish, until the file the engine cannot get through runs alone; that
+  file is reported on its own path (`PROV-INCOMPLETE-001`) and the others
+  are evaluated (at most 16 engine runs per scan). Before, every file after
+  it went unevaluated behind one scan-wide note, so a crafted file could
+  switch the YARA rules off for the rest of a package under the default
+  gate. (Found in review: classic YARA 4.5.0 buffers its output, so what a
+  crashed or killed run printed cannot say which file stopped it.)
+- **The engine is never started in Sigil's working directory.** The
+  `--version`/`--help` probe ran from the directory Sigil was started in,
+  usually the tree being scanned; it runs from `/` now (scan runs already
+  used their private directory).
+- **A single file scanned beside the engine is evaluated.** `sigil scan
+  ~/.cargo/bin/tool` with `yr` in the same directory treated that directory
+  as the scanned tree and reported the rules as not evaluated; the file
+  alone is what is judged now.
 - **Checked at load, in one run.** Every file handed to an engine is
   compiled by it when its pack loads, all the files of one `--rules` path or
   `rule_packs` entry together; a file the engine refuses fails the load with
-  the engine's message, naming the real file.
+  the engine's message, naming the real file (one problem per refused file
+  in `sigil rules validate`, which had counted each line of the engine's
+  message as a problem). `sigil rules validate`, `test` and `sign` use the
+  engine a scan from the same directory would, the policy's `yara_engine`
+  and its locks included; they had read only `--yara-engine`.
 - **Measured end to end** with YARA-X 1.20.0 (`yara-x-cli` from crates.io)
   and YARA 4.5.0 (Ubuntu package) on five synthetic rules using the `pe`,
   `elf`, `hash` and `math` modules and a `for` loop, over real files (a

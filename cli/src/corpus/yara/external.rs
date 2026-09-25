@@ -39,9 +39,12 @@
 //! pack. Output is read line by line as it streams (`ns:rule t/<n>`, then
 //! `0x<offset>:<length>:<string>: <data>` per match, which both engines
 //! print), keeping a few matches per rule, so a rule that matches a million
-//! times cannot exhaust memory. A run is bounded by
+//! times cannot exhaust memory. An evaluation is bounded by
 //! [`TIMEOUT_ENV`] (default [`DEFAULT_TIMEOUT_SECS`]); classic YARA also
-//! gets the per-file budget as its per-file timeout.
+//! gets the per-file budget as its per-file timeout. A run that crashes or
+//! exits with an error is followed by runs over halves of the files it did
+//! not finish, so the one file an engine cannot get through is reported and
+//! the others are still evaluated.
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -333,6 +336,15 @@ pub fn probe(kind: EngineKind, path: &Path) -> Result<Engine, String> {
     })
 }
 
+/// A working directory for a probe that no untrusted party can write to.
+fn neutral_dir() -> PathBuf {
+    if cfg!(unix) {
+        PathBuf::from("/")
+    } else {
+        std::env::temp_dir()
+    }
+}
+
 /// Run a short command and return its standard output and error, or why it
 /// failed.
 fn run_capture(path: &Path, args: &[&str], timeout: Duration) -> Result<String, String> {
@@ -340,9 +352,14 @@ fn run_capture(path: &Path, args: &[&str], timeout: Duration) -> Result<String, 
     cmd.args(args);
     let out: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let collect = Arc::clone(&out);
+    // Never from Sigil's own working directory, which is often the tree
+    // about to be scanned: a program resolves some things against its
+    // working directory (a dynamic loader given an empty or `.` entry in
+    // LD_LIBRARY_PATH loads libraries from it). Scan runs use their private
+    // directory; a probe uses one no one else can write to.
     let ran = run(
         cmd,
-        None,
+        Some(&neutral_dir()),
         Some(timeout),
         Arc::new(Mutex::new(move |line: &[u8]| {
             if let Ok(mut o) = collect.lock() {
@@ -1258,7 +1275,9 @@ impl Limits {
 }
 
 /// Evaluate the externally evaluated YARA `files` over `units`, one engine
-/// run per engine. `scan_root`: an engine inside it is never run.
+/// run per engine (more only after a run that fails part-way; see
+/// [`run_group`]). `scan_root` is the scan target, a directory or a single
+/// file: an engine inside it, or that is it, is never run.
 pub fn evaluate(
     files: &[Arc<YaraFile>],
     units: &[Unit<'_>],
@@ -1397,17 +1416,13 @@ fn run_group(engine: &Engine, group: &[&YaraFile], ctx: &RunContext<'_, '_>, ev:
 
     // Stage the targets: target n is unit `staged[n]`.
     let mut staged: Vec<usize> = Vec::new();
-    let mut list = String::new();
     for (i, u) in units.iter().enumerate() {
         if !matches!(u.source, Source::Disk(_) | Source::Bytes(_)) {
             continue;
         }
         let n = staged.len();
         match dir.stage(n, &u.source) {
-            Ok(()) => {
-                staged.push(i);
-                list.push_str(&format!("t/{n}\n"));
-            }
+            Ok(()) => staged.push(i),
             Err(e) => ev.per_unit[i].push(crate::scanner::coverage::partial_finding(
                 &u.rel_path,
                 format!("not evaluated by the external YARA rules: could not be staged ({e})"),
@@ -1417,174 +1432,162 @@ fn run_group(engine: &Engine, group: &[&YaraFile], ctx: &RunContext<'_, '_>, ev:
     if staged.is_empty() {
         return;
     }
-    if let Err(e) = std::fs::write(dir.path.join("list"), &list) {
-        ev.global.push(not_evaluated_globally(format!(
-            "YARA rules ({what}) were not evaluated: could not write the scan list ({e})"
-        )));
-        return;
-    }
 
-    let total = ctx.limits.total;
-    let per_file = ctx.limits.per_file;
-    let mut cmd = Command::new(&engine.path);
-    match engine.kind {
-        EngineKind::YaraX => {
-            cmd.args([
-                "scan",
-                "--print-namespace",
-                "--print-strings=48",
-                "--scan-list",
-            ]);
-            for f in [
-                "--disable-console-logs",
-                "--disable-warnings",
-                "--relaxed-re-syntax",
-            ] {
-                if engine.has(f) {
-                    cmd.arg(f);
-                }
-            }
-            // YARA-X's timeout bounds the whole run.
-            if let Some(t) = total {
-                cmd.arg(format!("--timeout={}", t.as_secs().max(1)));
+    // The first run covers every target. A run that ends early without
+    // being out of time (the engine crashed, or exited with an error) is
+    // followed by runs over the targets it did not finish, split in halves,
+    // so that one file an engine cannot get through costs the other files
+    // nothing: a half that completes is evaluated, a half that fails is
+    // split again, and a single file that fails is the one reported. (What
+    // an engine printed before it failed is not enough to find that file:
+    // classic YARA buffers its output, so the results of files it finished
+    // last are lost with it.)
+    let started = Instant::now();
+    let mut done = Output::new(staged.len());
+    let mut errors: HashMap<usize, String> = HashMap::new();
+    let mut failed_on: HashMap<usize, String> = HashMap::new();
+    let mut abandoned: Vec<usize> = Vec::new();
+    let mut given_up: Option<String> = None;
+    let mut last_failure: Option<String> = None;
+    let mut runs = 0usize;
+    let mut queue: std::collections::VecDeque<Vec<usize>> =
+        std::collections::VecDeque::from([(0..staged.len()).collect::<Vec<usize>>()]);
+    while let Some(batch) = queue.pop_front() {
+        if given_up.is_some() {
+            abandoned.extend(batch);
+            continue;
+        }
+        if runs >= MAX_RUNS {
+            given_up = Some(format!(
+                "{} (gave up after {MAX_RUNS} runs)",
+                last_failure.clone().unwrap_or_default()
+            ));
+            abandoned.extend(batch);
+            continue;
+        }
+        let left = ctx
+            .limits
+            .total
+            .map(|t| t.saturating_sub(started.elapsed()));
+        if left.is_some_and(|l| l.is_zero()) {
+            given_up = Some(time_limit_reached(ctx.limits.total));
+            abandoned.extend(batch);
+            continue;
+        }
+        runs += 1;
+        let mut pass = run_once(engine, &dir, &rule_args, &batch, staged.len(), left, ctx);
+        for &n in &batch {
+            if pass.output.evaluated[n] {
+                done.evaluated[n] = true;
+                done.hits[n] = std::mem::take(&mut pass.output.hits[n]);
+            } else if let Some(m) = pass.errors.remove(&n) {
+                errors.entry(n).or_insert(m);
             }
         }
-        EngineKind::Yara => {
-            cmd.args([
-                "--print-namespace",
-                "--print-strings",
-                "--print-string-length",
-                "--scan-list",
-            ]);
-            for f in ["--disable-console-logs", "--no-warnings"] {
-                if engine.has(f) {
-                    cmd.arg(f);
-                }
+        let unfinished = |errors: &HashMap<usize, String>| -> Vec<usize> {
+            batch
+                .iter()
+                .copied()
+                .filter(|n| !done.evaluated[*n] && !errors.contains_key(n))
+                .collect()
+        };
+        match pass.failure {
+            None => {}
+            Some(RunFailure::Final(why)) => {
+                // Out of time (or not started): what the batch left, errors
+                // included, is said once for the scan.
+                given_up = Some(why);
+                abandoned.extend(batch.iter().copied().filter(|n| !done.evaluated[*n]));
             }
-            // Classic YARA's timeout is per file: the per-file budget.
-            if let Some(b) = per_file {
-                cmd.arg(format!(
-                    "--timeout={}",
-                    b.as_secs_f64().ceil().max(1.0) as u64
-                ));
+            Some(RunFailure::Retry(why)) => {
+                let left = unfinished(&errors);
+                match left.len() {
+                    0 => {}
+                    1 => {
+                        failed_on.insert(left[0], why);
+                    }
+                    k => {
+                        let (a, b) = left.split_at(k / 2);
+                        queue.push_back(a.to_vec());
+                        queue.push_back(b.to_vec());
+                        last_failure = Some(why);
+                    }
+                }
             }
         }
     }
-    cmd.args(&rule_args).arg("list");
-    let output = Arc::new(Mutex::new(Output::new(staged.len())));
-    let sink = Arc::clone(&output);
-    // A little past the engine's own bound, so its own message comes first.
-    let watchdog = total.map(|t| t + ctx.limits.grace);
-    let ran = run(
-        cmd,
-        Some(&dir.path),
-        watchdog,
-        Arc::new(Mutex::new(move |line: &[u8]| {
-            if let Ok(mut o) = sink.lock() {
-                o.line(line);
-            }
-        })),
-    );
-    // What the engine said so far (all of it, unless a reader was left
-    // behind on a pipe some child of the engine still holds).
-    let output = match output.lock() {
-        Ok(mut o) => std::mem::take(&mut *o),
-        Err(_) => Output::new(staged.len()),
-    };
-    let errors = errors_by_target(&ran.stderr);
-    let first_error = ran
-        .stderr
-        .lines()
-        .map(str::trim)
-        .find(|l| l.starts_with("error"))
-        .map(str::to_string);
-    let seen = output.evaluated.iter().filter(|e| **e).count();
-    let missing = staged.len() - seen;
 
-    // A run that failed as a whole: one finding for the scan, naming how
-    // much was left, rather than one per file.
-    let yara_x_timed_out = engine.kind == EngineKind::YaraX
-        && errors
-            .values()
-            .any(|m| m.to_ascii_lowercase().contains("timeout"));
-    let failure: Option<String> = if let Some(e) = &ran.spawn_error {
-        Some(format!("could not be started ({e})"))
-    } else if ran.timed_out || yara_x_timed_out {
-        Some(format!(
-            "stopped at its time limit of {} s ({TIMEOUT_ENV}; 0 for none)",
-            total.map(|t| t.as_secs()).unwrap_or(0)
-        ))
-    } else if !ran.status.is_some_and(|s| s.success()) {
-        Some(format!(
-            "failed (exit status {}){}",
-            ran.status
-                .and_then(|s| s.code())
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "none: killed by a signal".into()),
-            first_error
-                .as_deref()
-                .map(|e| format!(": {e}"))
-                .unwrap_or_default()
-        ))
-    } else {
-        None
-    };
-    if let Some(why) = &failure {
-        if missing > 0 {
+    if let Some(why) = &given_up {
+        if !abandoned.is_empty() {
             ev.global.push(not_evaluated_globally(format!(
-                "YARA rules ({what}) were not evaluated on {missing} of {} file(s): {} ({}) {why}",
+                "YARA rules ({what}) were not evaluated on {} of {} file(s): {} ({}) {why}",
+                abandoned.len(),
                 staged.len(),
                 engine.label(),
                 engine.path.display()
             )));
         }
     }
+    let abandoned: std::collections::HashSet<usize> = abandoned.into_iter().collect();
 
-    let per_file_timeout = per_file.filter(|_| engine.kind == EngineKind::Yara);
+    let per_file_timeout = ctx
+        .limits
+        .per_file
+        .filter(|_| engine.kind == EngineKind::Yara);
     let rules: Vec<HashMap<&str, &YaraRule>> = group
         .iter()
         .map(|f| f.rules.iter().map(|r| (r.name.as_str(), r)).collect())
         .collect();
     for (n, unit_idx) in staged.iter().enumerate() {
         let unit = &units[*unit_idx];
-        if !output.evaluated[n] {
+        if !done.evaluated[n] {
             // A file the engine did not finish: its matches, if any, are
             // not reported either way (a cut-short evaluation can make
             // `not $a` true), and the file is reported as not fully
-            // inspected. After a whole-run failure that is said once, above.
-            if failure.is_some() {
+            // inspected. Files left when the engine was given up on are
+            // said once, above.
+            if abandoned.contains(&n) {
                 continue;
             }
-            let why = errors
-                .get(&n)
-                .map(|m| m.replace(&format!("t/{n}"), &unit.rel_path));
-            let finding = match &why {
-                Some(m) if m.to_ascii_lowercase().contains("timed out") => {
-                    crate::scanner::budget_finding(&unit.rel_path, per_file_timeout)
-                }
-                _ => crate::scanner::coverage::partial_finding(
+            let finding = if let Some(why) = failed_on.get(&n) {
+                crate::scanner::coverage::partial_finding(
                     &unit.rel_path,
                     format!(
-                        "not evaluated by the external YARA rules ({}): {}",
+                        "not evaluated by the external YARA rules: {} ({}) {why} on this file, \
+                         run on its own",
                         engine.label(),
-                        why.unwrap_or_else(|| "the engine returned no result for it".into())
+                        engine.path.display()
                     ),
-                ),
+                )
+            } else {
+                let why = errors
+                    .get(&n)
+                    .map(|m| m.replace(&format!("t/{n}"), &unit.rel_path));
+                match &why {
+                    Some(m) if m.to_ascii_lowercase().contains("timed out") => {
+                        crate::scanner::budget_finding(&unit.rel_path, per_file_timeout)
+                    }
+                    _ => crate::scanner::coverage::partial_finding(
+                        &unit.rel_path,
+                        format!(
+                            "not evaluated by the external YARA rules ({}): {}",
+                            engine.label(),
+                            why.unwrap_or_else(|| "the engine returned no result for it".into())
+                        ),
+                    ),
+                }
             };
             ev.per_unit[*unit_idx].push(finding);
             continue;
         }
         // The unit's bytes are read once for all its matches' lines.
-        let offsets: Vec<u64> = output.hits[n]
-            .iter()
-            .filter_map(|h| h.first_offset)
-            .collect();
+        let offsets: Vec<u64> = done.hits[n].iter().filter_map(|h| h.first_offset).collect();
         let lines: HashMap<u64, usize> = if offsets.is_empty() {
             HashMap::new()
         } else {
             lines_at(&unit.source, &offsets)
         };
-        for hit in &output.hits[n] {
+        for hit in &done.hits[n] {
             let Some(file_rules) = rules.get(hit.file) else {
                 continue;
             };
@@ -1605,6 +1608,178 @@ fn run_group(engine: &Engine, group: &[&YaraFile], ctx: &RunContext<'_, '_>, ev:
             let line = hit.first_offset.and_then(|o| lines.get(&o).copied());
             ev.per_unit[*unit_idx].push(finding(engine, rule, hit, &unit.rel_path, line));
         }
+    }
+}
+
+/// Most engine runs one evaluation makes: the first over every file, then,
+/// after a run that fails part-way, runs over halves of what it left (see
+/// [`run_group`]). Bounded because each run compiles the rules again.
+const MAX_RUNS: usize = 16;
+
+/// Why one run did not complete.
+enum RunFailure {
+    /// It could not be started, or ran out of time: nothing more is tried.
+    Final(String),
+    /// It crashed or exited with an error: what it left is tried again.
+    Retry(String),
+}
+
+/// What one run over a batch of targets produced.
+struct Pass {
+    output: Output,
+    /// Per-target errors from its standard error, for targets of the batch.
+    errors: HashMap<usize, String>,
+    failure: Option<RunFailure>,
+}
+
+/// The message for a run stopped by [`TIMEOUT_ENV`].
+fn time_limit_reached(total: Option<Duration>) -> String {
+    format!(
+        "stopped at its time limit of {} s ({TIMEOUT_ENV}; 0 for none)",
+        total.map(|t| t.as_secs()).unwrap_or(0)
+    )
+}
+
+/// Run `engine` once over the targets `batch` (`t/<n>`), with `left` of the
+/// evaluation's time.
+fn run_once(
+    engine: &Engine,
+    dir: &Workdir,
+    rule_args: &[String],
+    batch: &[usize],
+    targets: usize,
+    left: Option<Duration>,
+    ctx: &RunContext<'_, '_>,
+) -> Pass {
+    let failed = |why: RunFailure| Pass {
+        output: Output::new(targets),
+        errors: HashMap::new(),
+        failure: Some(why),
+    };
+    let list: String = batch.iter().map(|n| format!("t/{n}\n")).collect();
+    if let Err(e) = std::fs::write(dir.path.join("list"), &list) {
+        return failed(RunFailure::Final(format!(
+            "could not be given its scan list ({e})"
+        )));
+    }
+    let mut cmd = Command::new(&engine.path);
+    match engine.kind {
+        EngineKind::YaraX => {
+            cmd.args([
+                "scan",
+                "--print-namespace",
+                "--print-strings=48",
+                "--scan-list",
+            ]);
+            for f in [
+                "--disable-console-logs",
+                "--disable-warnings",
+                "--relaxed-re-syntax",
+            ] {
+                if engine.has(f) {
+                    cmd.arg(f);
+                }
+            }
+            // YARA-X's timeout bounds the whole run: what is left of the
+            // evaluation's, in whole seconds rounded up (the watchdog below
+            // still stops it at the bound plus the grace).
+            if let Some(t) = left {
+                cmd.arg(format!(
+                    "--timeout={}",
+                    t.as_secs_f64().ceil().max(1.0) as u64
+                ));
+            }
+        }
+        EngineKind::Yara => {
+            cmd.args([
+                "--print-namespace",
+                "--print-strings",
+                "--print-string-length",
+                "--scan-list",
+            ]);
+            for f in ["--disable-console-logs", "--no-warnings"] {
+                if engine.has(f) {
+                    cmd.arg(f);
+                }
+            }
+            // Classic YARA's timeout is per file: the per-file budget.
+            if let Some(b) = ctx.limits.per_file {
+                cmd.arg(format!(
+                    "--timeout={}",
+                    b.as_secs_f64().ceil().max(1.0) as u64
+                ));
+            }
+        }
+    }
+    cmd.args(rule_args).arg("list");
+    let output = Arc::new(Mutex::new(Output::new(targets)));
+    let sink = Arc::clone(&output);
+    // A little past the engine's own bound, so its own message comes first.
+    let watchdog = left.map(|t| t + ctx.limits.grace);
+    let ran = run(
+        cmd,
+        Some(&dir.path),
+        watchdog,
+        Arc::new(Mutex::new(move |line: &[u8]| {
+            if let Ok(mut o) = sink.lock() {
+                o.line(line);
+            }
+        })),
+    );
+    // What the engine said so far (all of it, unless a reader was left
+    // behind on a pipe some child of the engine still holds).
+    let mut output = match output.lock() {
+        Ok(mut o) => std::mem::take(&mut *o),
+        Err(_) => Output::new(targets),
+    };
+    // Only this batch's targets count (an engine prints nothing else).
+    let mut in_batch = vec![false; targets];
+    for &n in batch {
+        in_batch[n] = true;
+    }
+    for (n, wanted) in in_batch.iter().enumerate() {
+        if !wanted {
+            output.evaluated[n] = false;
+            output.hits[n].clear();
+        }
+    }
+    let errors: HashMap<usize, String> = errors_by_target(&ran.stderr)
+        .into_iter()
+        .filter(|(n, _)| in_batch.get(*n).copied().unwrap_or(false))
+        .collect();
+    let first_error = ran
+        .stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("error"))
+        .map(str::to_string);
+    let yara_x_timed_out = engine.kind == EngineKind::YaraX
+        && errors
+            .values()
+            .any(|m| m.to_ascii_lowercase().contains("timeout"));
+    let failure = if let Some(e) = &ran.spawn_error {
+        Some(RunFailure::Final(format!("could not be started ({e})")))
+    } else if ran.timed_out || yara_x_timed_out {
+        Some(RunFailure::Final(time_limit_reached(ctx.limits.total)))
+    } else if !ran.status.is_some_and(|s| s.success()) {
+        Some(RunFailure::Retry(format!(
+            "failed (exit status {}){}",
+            ran.status
+                .and_then(|s| s.code())
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "none: killed by a signal".into()),
+            first_error
+                .as_deref()
+                .map(|e| format!(": {e}"))
+                .unwrap_or_default()
+        )))
+    } else {
+        None
+    };
+    Pass {
+        output,
+        errors,
+        failure,
     }
 }
 

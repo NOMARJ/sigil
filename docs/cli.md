@@ -496,8 +496,12 @@ and [YARA rules](enterprise.md#yara-rules).
 For a YARA file, `validate` names the engine that will evaluate it
 (`built-in`, `YARA-X 1.20.0`, `YARA 4.5.0`, …) and, for an external engine,
 compiles it with that engine; a file that needs an engine the machine does
-not have is reported as not checked (exit 1). `test`, `list` and `show` use
-the same engine as a scan (`--yara-engine`), and `show` prints it.
+not have is reported as not checked (exit 1). `validate`, `test`, `sign`,
+`list` and `show` use the engine a scan run from the same directory would:
+`--yara-engine`, or the organisation policy's and the project file's
+`yara_engine`, a locked value included (a refused flag is reported on
+stderr). `show` prints it. When the engine refuses files, each refused file
+is one problem, with the engine's message quoted under it.
 
 ### sigil diff
 

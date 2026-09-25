@@ -808,7 +808,12 @@ async fn main() {
                         }
                     }
                 }
-                _ => project_config::EffectivePolicy::default(),
+                _ => {
+                    // validate, test and sign load YARA files for the
+                    // engine a scan here would use.
+                    configure_yara_engine_from_policy(cli.config.clone(), cli.yara_engine.clone());
+                    project_config::EffectivePolicy::default()
+                }
             };
             rules_cmd::cmd_rules(action, &cli.format, &policy)
         }
@@ -2160,6 +2165,51 @@ fn load_policy(
     report_policy(&policy, &packs, verbose);
     report_yara_engines(&packs);
     Ok(policy)
+}
+
+/// For `rules validate`, `rules test` and `rules sign`, which load YARA
+/// files without scanning: select the YARA engine a scan run here would use
+/// — the organisation policy, the project file and `--yara-engine`, locks
+/// included — without loading the policy's rule packs. A policy that does
+/// not resolve leaves the flag's choice (default `auto`), with a warning.
+fn configure_yara_engine_from_policy(config: Option<PathBuf>, yara_engine: Option<String>) {
+    let env_off = std::env::var(project_config::NO_PROJECT_POLICY_ENV)
+        .is_ok_and(|v| !v.is_empty() && v != "0");
+    let opts = project_config::ResolveOptions {
+        scan_root: None,
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        explicit_config: config,
+        discover: !env_off,
+        cli: project_config::CliPolicy {
+            yara_engine,
+            ..Default::default()
+        },
+    };
+    match project_config::resolve(&opts) {
+        Ok(policy) => {
+            for r in policy
+                .refused
+                .iter()
+                .filter(|r| r.starts_with("yara_engine"))
+            {
+                eprintln!("{} policy: {r}", "warning:".bold().yellow());
+            }
+            // As `activate_rule_packs` does for a scan: a flag the policy
+            // refused (a locked key) must not stay in effect.
+            let (mode, source) = match &policy.yara_engine {
+                Some(s) => (s.value, format!("yara_engine from {}", s.source)),
+                None => (
+                    corpus::yara::external::EngineMode::Auto,
+                    "default".to_string(),
+                ),
+            };
+            corpus::yara::external::configure(mode, source);
+        }
+        Err(e) => eprintln!(
+            "{} the scan policy could not be read, so its yara_engine does not apply here: {e}",
+            "warning:".bold().yellow()
+        ),
+    }
 }
 
 /// Say, on stderr, which YARA files no engine here can evaluate (always:

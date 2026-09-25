@@ -454,9 +454,16 @@ sigil config --policy            # yara_engine and where it came from
 **Which engine is run.** The tool is looked up on `PATH`, in absolute
 directories only (`.` or an empty entry would run a program from the current
 directory, which may be the code being scanned), and never inside the tree
-about to be scanned — not even to ask its version. Sigil asks it for
-`--version` and its flags once per run; a program that does not answer as the
-engine does, or lacks a flag Sigil needs, is refused with the reason.
+about to be scanned — not even to ask its version. When the target is a single
+file, that file is what is judged: an engine installed in the same directory
+(`sigil scan ~/.cargo/bin/tool`, with `yr` beside it) runs, and only an engine
+that is the file itself does not. Sigil asks it for `--version` and its flags
+once per run; a program that does not answer as the engine does, or lacks a
+flag Sigil needs, is refused with the reason. The engine never runs in the
+directory Sigil was started in, which is often the tree being scanned (a
+dynamic loader given an empty `LD_LIBRARY_PATH` entry would load libraries
+from it): the probe runs from `/`, and every other run from its private
+directory.
 
 **Checked at load.** Every YARA file handed to an engine is compiled by it
 when the pack loads — all the files of one `--rules` path or `rule_packs`
@@ -467,7 +474,8 @@ once. Sigil's own checks still apply first: the meta keys it reads
 (`severity`, `phase`, …), id collisions with any loaded rule, and the
 refusals above.
 
-**How a scan runs it.** One engine run per scan, before the per-file pass,
+**How a scan runs it.** One engine run per scan (more only after a failure,
+below), before the per-file pass,
 over the same units the built-in engine evaluates: every file up to 512 MB
 (whole, where the built-in engine reads the first and last 2 MB of a file over
 10 MB) and every archive member (zip, tar, gzip, two levels deep). A member
@@ -494,14 +502,28 @@ engine and version that ran. Inline `sigil:ignore` markers, `disable_rules`,
 corpus digest (and so the scan cache) records which engine evaluated each
 rule.
 
-**Time limits.** One engine run is bounded by `SIGIL_YARA_TIMEOUT_SECS`
-(default 600; `0` for none). YARA-X is given the same bound as its own
-`--timeout`, which covers a whole run; classic YARA's `--timeout` is per file,
-so it is given the per-file budget (`SIGIL_FILE_BUDGET_SECS`), and a file it
-times out on is reported with `PROV-BUDGET-001`. A run that stops at its time
-limit, fails to start, or exits with an error is reported once for the scan
-(`PROV-INCOMPLETE-001`, naming how many files were left); the files it did
-finish keep their findings.
+**Time limits.** The engine's work for one scan is bounded by
+`SIGIL_YARA_TIMEOUT_SECS` (default 600; `0` for none). YARA-X is given what is
+left of that bound as its own `--timeout`, which covers a whole run rather
+than each file, so one file that is slow to evaluate can use the run's whole
+bound; classic YARA's `--timeout` is per file, so it is given the per-file
+budget (`SIGIL_FILE_BUDGET_SECS`), and a file it times out on is reported
+with `PROV-BUDGET-001`. A run that stops at the time limit, or cannot be
+started, is reported once for the scan (`PROV-INCOMPLETE-001`, naming how
+many files were left); the files whose results it had written keep their
+findings. (Classic YARA buffers what it writes, so the results of the files
+it finished last are lost when it is stopped, and those files are counted as
+not evaluated.)
+
+**An engine that fails on a file.** A run that crashes or exits with an
+error is not the end: the files it did not finish are run again, split in
+halves — a half that completes is evaluated, a half that fails is split
+again — until the one file the engine cannot get through is run alone. That
+file is reported on its own path (`PROV-INCOMPLETE-001`, with the engine's
+exit status and first error), and every other file is evaluated as usual, so
+a file crafted to crash the engine costs only itself. A scan makes at most 16
+engine runs this way (each compiles the rules again) within the same time
+bound; files still left after that are reported once for the scan.
 
 **No engine installed.** Under `auto`, a YARA file that needs an engine where
 none is installed still loads: `sigil` warns on stderr, and every scan

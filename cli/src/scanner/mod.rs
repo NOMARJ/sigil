@@ -1205,8 +1205,10 @@ pub fn run_scan(
                     },
                 }))
                 .collect();
-            let ev =
-                external::evaluate(&external_yara, &units, &should_run_phase, Some(strip_base));
+            // The code under judgement is `path`: for a single file that is
+            // the file, not the directory it sits in (which may be where the
+            // engine is installed, as for `sigil scan ~/.cargo/bin/tool`).
+            let ev = external::evaluate(&external_yara, &units, &should_run_phase, Some(path));
             findings.extend(ev.global);
             ev.per_unit
         })

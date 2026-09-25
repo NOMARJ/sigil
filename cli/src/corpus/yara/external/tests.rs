@@ -234,6 +234,17 @@ impl Stub {
             .map(str::to_string)
             .collect()
     }
+
+    /// Each invocation's working directory and first argument.
+    fn working_dirs(&self) -> Vec<String> {
+        let mut log = self.log.clone().into_os_string();
+        log.push(".cwd");
+        std::fs::read_to_string(log)
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
 }
 
 /// Write a stub `yr` or `yara`. It refuses a rule file containing
@@ -243,7 +254,12 @@ impl Stub {
 /// finished with the sentinel rule, fails a target containing
 /// `SIGIL_STUB_FAIL`, times out on one containing `SIGIL_STUB_SLOW`, and
 /// hangs on one containing `SIGIL_STUB_HANG` (`exec sleep`) or
-/// `SIGIL_STUB_ORPHAN` (a child that keeps the output pipe open).
+/// `SIGIL_STUB_ORPHAN` (a child that keeps the output pipe open). It
+/// crashes (SIGSEGV) on reaching a target containing `SIGIL_STUB_SEGV`,
+/// after printing the results before it, as YARA-X's line-buffered output
+/// would; and it crashes at once, printing nothing, when any target of its
+/// list contains `SIGIL_STUB_LOSSY`, as classic YARA loses its block-buffered
+/// output (recorded with YARA 4.5.0 killed mid-run).
 #[cfg(unix)]
 fn stub(kind: EngineKind, variant: Variant) -> Stub {
     use std::os::unix::fs::PermissionsExt;
@@ -307,6 +323,7 @@ exit 0; fi
 # Stub of {name} for Sigil's tests (see external/tests.rs).
 PATH=/usr/bin:/bin; export PATH
 echo "$*" >> '{log}'
+echo "$(pwd -P) $1" >> '{log}.cwd'
 case "$1" in
   --version) {version_line} ;;
   --help) cat <<'EOF'
@@ -335,6 +352,10 @@ done
 if [ "$bad" = yes ]; then {count_line}; exit 1; fi
 [ "$scanlist" = yes ] || exit 0
 while IFS= read -r t; do
+  if grep -q SIGIL_STUB_LOSSY "$t"; then kill -SEGV $$; fi
+done < "$list"
+while IFS= read -r t; do
+  if grep -q SIGIL_STUB_SEGV "$t"; then kill -SEGV $$; fi
   if grep -q SIGIL_STUB_HANG "$t"; then exec sleep 30; fi
   if grep -q SIGIL_STUB_ORPHAN "$t"; then sleep 20; fi
   if grep -q SIGIL_STUB_FAIL "$t"; then {fail_line}; continue; fi
@@ -923,13 +944,174 @@ fn an_engine_inside_the_scanned_tree_is_never_run() {
         rel_path: "target.txt".into(),
         source: Source::Disk(&target),
     }];
-    let ev = evaluate_with(&[f], &units, &|_| true, Some(&root), limits());
+    let ev = evaluate_with(&[Arc::clone(&f)], &units, &|_| true, Some(&root), limits());
     assert_eq!(s.invocations().len(), before, "the stub was not run");
     assert!(
         ev.global[0].snippet.contains("inside the scanned tree"),
         "{}",
         ev.global[0].snippet
     );
+    // Nor when the target is the engine itself.
+    let ev = evaluate_with(
+        &[Arc::clone(&f)],
+        &units,
+        &|_| true,
+        Some(&s.path),
+        limits(),
+    );
+    assert_eq!(s.invocations().len(), before, "the stub was not run");
+    assert!(ev.global[0].snippet.contains("inside the scanned tree"));
+    // A single file scanned is the whole of what is judged: an engine in
+    // the same directory (`sigil scan ~/.cargo/bin/tool`, `yr` beside it)
+    // is not part of it, and runs.
+    let beside = s.bin.join("tool");
+    std::fs::write(&beside, "SIGIL_STUB_MARKER").unwrap();
+    let units = vec![Unit {
+        rel_path: "tool".into(),
+        source: Source::Disk(&beside),
+    }];
+    let ev = evaluate_with(&[f], &units, &|_| true, Some(&beside), limits());
+    assert!(ev.global.is_empty(), "{:?}", ev.global);
+    assert_eq!(ev.per_unit[0][0].rule, "YARA-STUB-MODULE-RULE");
+}
+
+#[cfg(unix)]
+#[test]
+fn an_engine_never_runs_in_the_working_directory_sigil_was_started_in() {
+    // Sigil is usually started inside the tree it scans. The probe
+    // (`--version`, `--help`) runs from `/`, the compile check and the scan
+    // from the run's private directory; none from Sigil's own directory.
+    let s = stub(EngineKind::YaraX, Variant::Full);
+    let sel = Selection::with_engines(EngineMode::Auto, vec![engine(&s, EngineKind::YaraX)]);
+    let p = pack(MODULE_RULES, &sel).unwrap();
+    validate_packs(std::slice::from_ref(&p)).unwrap();
+    let t = tree(&[("a.txt", b"SIGIL_STUB_MARKER")]);
+    let paths = crate::scanner::collect_files(&t.root);
+    let ev = evaluate_with(
+        &[file_of(&p)],
+        &disk_units(&t, &paths),
+        &|_| true,
+        None,
+        limits(),
+    );
+    assert_eq!(ev.per_unit[0][0].rule, "YARA-STUB-MODULE-RULE");
+    let here = std::env::current_dir()
+        .unwrap()
+        .canonicalize()
+        .unwrap()
+        .display()
+        .to_string();
+    let private = std::env::temp_dir()
+        .canonicalize()
+        .unwrap()
+        .join("sigil-yara-")
+        .display()
+        .to_string();
+    let dirs = s.working_dirs();
+    assert!(dirs.len() >= 4, "{dirs:?}");
+    for line in &dirs {
+        let (dir, first) = line.rsplit_once(' ').unwrap_or((line, ""));
+        match first {
+            "--version" | "scan" if dir == "/" => {}
+            "scan" if dir.starts_with(&private) => {}
+            _ => panic!("ran from {dir:?} ({first}); Sigil's is {here:?}: {dirs:?}"),
+        }
+        assert_ne!(dir, here);
+    }
+}
+
+/// How many scan runs (not probes or compile checks) a stub has made.
+#[cfg(unix)]
+fn scan_runs(s: &Stub) -> usize {
+    s.invocations()
+        .iter()
+        .filter(|l| l.contains("--scan-list"))
+        .count()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_the_engine_crashes_on_costs_the_other_files_nothing() {
+    for kind in [EngineKind::YaraX, EngineKind::Yara] {
+        let s = stub(kind, Variant::Full);
+        let sel = Selection::with_engines(EngineMode::Auto, vec![engine(&s, kind)]);
+        let f = file_of(&pack(MODULE_RULES, &sel).unwrap());
+        // The engine crashes on b.txt after printing what came before it
+        // (line-buffered output, as YARA-X's): a.txt is not run again, b.txt
+        // is run alone to confirm it, and c.txt and d.txt run without it.
+        let t = tree(&[
+            ("a.txt", b"SIGIL_STUB_MARKER"),
+            ("b.txt", b"SIGIL_STUB_SEGV"),
+            ("c.txt", b"x SIGIL_STUB_MARKER"),
+            ("d.txt", b"clean"),
+        ]);
+        let mut paths = crate::scanner::collect_files(&t.root);
+        paths.sort();
+        let units = disk_units(&t, &paths);
+        let before = scan_runs(&s);
+        let ev = evaluate_with(&[Arc::clone(&f)], &units, &|_| true, None, limits());
+        assert_eq!(scan_runs(&s) - before, 3, "{:?}", s.invocations());
+        assert!(ev.global.is_empty(), "{:?}", ev.global);
+        assert_eq!(ev.per_unit[0][0].rule, "YARA-STUB-MODULE-RULE");
+        assert_eq!(ev.per_unit[2][0].rule, "YARA-STUB-MODULE-RULE");
+        assert!(ev.per_unit[3].is_empty());
+        let crashed = &ev.per_unit[1];
+        assert_eq!(crashed.len(), 1, "{crashed:?}");
+        assert_eq!(crashed[0].rule, crate::scanner::coverage::RULE_PARTIAL);
+        assert!(
+            crashed[0]
+                .snippet
+                .contains("failed (exit status none: killed by a signal) on this file"),
+            "{}",
+            crashed[0].snippet
+        );
+
+        // The engine crashes printing nothing (block-buffered output, as
+        // classic YARA's): the file is found by halving what is left.
+        let t = tree(&[
+            ("a.txt", b"SIGIL_STUB_MARKER"),
+            ("b.txt", b"SIGIL_STUB_LOSSY"),
+            ("c.txt", b"x SIGIL_STUB_MARKER"),
+            ("d.txt", b"clean"),
+        ]);
+        let mut paths = crate::scanner::collect_files(&t.root);
+        paths.sort();
+        let units = disk_units(&t, &paths);
+        let before = scan_runs(&s);
+        let ev = evaluate_with(&[f], &units, &|_| true, None, limits());
+        // [a b c d] fails; [a b] fails, [c d] runs; [a] runs, [b] fails.
+        assert_eq!(scan_runs(&s) - before, 5, "{:?}", s.invocations());
+        assert!(ev.global.is_empty(), "{:?}", ev.global);
+        assert_eq!(ev.per_unit[0][0].rule, "YARA-STUB-MODULE-RULE");
+        assert_eq!(ev.per_unit[2][0].rule, "YARA-STUB-MODULE-RULE");
+        assert!(ev.per_unit[3].is_empty());
+        assert!(ev.per_unit[1][0].snippet.contains("on this file"));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn an_engine_that_keeps_failing_is_given_up_on_after_a_bounded_number_of_runs() {
+    let s = stub(EngineKind::Yara, Variant::Full);
+    let sel = Selection::with_engines(EngineMode::Auto, vec![engine(&s, EngineKind::Yara)]);
+    let f = file_of(&pack(MODULE_RULES, &sel).unwrap());
+    let names: Vec<String> = (0..40).map(|i| format!("f{i:02}.txt")).collect();
+    let files: Vec<(&str, &[u8])> = names
+        .iter()
+        .map(|n| (n.as_str(), &b"SIGIL_STUB_LOSSY"[..]))
+        .collect();
+    let t = tree(&files);
+    let mut paths = crate::scanner::collect_files(&t.root);
+    paths.sort();
+    let units = disk_units(&t, &paths);
+    let before = scan_runs(&s);
+    let ev = evaluate_with(&[f], &units, &|_| true, None, limits());
+    assert_eq!(scan_runs(&s) - before, MAX_RUNS, "{:?}", s.invocations());
+    assert_eq!(ev.global.len(), 1, "{:?}", ev.global);
+    let g = &ev.global[0].snippet;
+    assert!(g.contains("not evaluated on 40 of 40 file(s)"), "{g}");
+    assert!(g.contains(&format!("gave up after {MAX_RUNS} runs")), "{g}");
+    assert!(ev.per_unit.iter().all(|f| f.is_empty()));
 }
 
 #[cfg(unix)]

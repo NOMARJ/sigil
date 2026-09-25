@@ -469,6 +469,23 @@ fn show(id: &str, as_json: bool, policy: &EffectivePolicy) -> i32 {
     write_out(&s)
 }
 
+/// The problems in a load error, one per entry: a line indented under the
+/// line before it (an external engine's message, quoted under the file it
+/// refused) belongs to that problem rather than counting as another.
+fn problems(error: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in error.lines() {
+        match out.last_mut() {
+            Some(last) if line.starts_with(char::is_whitespace) => {
+                last.push('\n');
+                last.push_str(line);
+            }
+            _ => out.push(line.to_string()),
+        }
+    }
+    out
+}
+
 fn validate(path: &Path, as_json: bool) -> i32 {
     if !path.exists() {
         eprintln!(
@@ -481,10 +498,7 @@ fn validate(path: &Path, as_json: bool) -> i32 {
     let loaded = custom::load_path(path);
     let (packs, mut errors) = match loaded {
         Ok(p) => (p, Vec::new()),
-        Err(e) => (
-            Vec::new(),
-            e.lines().map(str::to_string).collect::<Vec<_>>(),
-        ),
+        Err(e) => (Vec::new(), problems(&e)),
     };
     if errors.is_empty() {
         match loader::load_base_packs() {
@@ -548,7 +562,11 @@ fn validate(path: &Path, as_json: bool) -> i32 {
             }
         }
         for e in &errors {
-            println!("  {} {e}", "✗".red());
+            let mut lines = e.lines();
+            println!("  {} {}", "✗".red(), lines.next().unwrap_or(""));
+            for more in lines {
+                println!("  {more}");
+            }
         }
         if ok {
             println!("  {} valid", "sigil:".bold().green());
@@ -621,7 +639,8 @@ fn test(pack: &Path, target: &Path) -> i32 {
             .collect();
         let mut found: Vec<crate::scanner::Finding> =
             external::unevaluated_findings(&external, &|_| true);
-        let ev = external::evaluate(&external, &units, &|_| true, None);
+        // As for a scan: an engine inside the samples is never run.
+        let ev = external::evaluate(&external, &units, &|_| true, Some(target));
         found.extend(ev.global);
         found.extend(ev.per_unit.into_iter().flatten());
         for f in found {
@@ -783,5 +802,31 @@ fn write_out(text: &str) -> i32 {
             print!("{text}");
             0
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::problems;
+
+    #[test]
+    fn an_engine_refusal_quoted_over_several_lines_is_one_problem() {
+        // Two files an external engine refused (the shape of
+        // `external::refusal`, as YARA-X 1.20.0 prints it), then a problem
+        // of Sigil's own: three problems, not one per line of the excerpts
+        // (which `rules validate` counted as 12 for two refused files).
+        let e = "rules/b.yar: refused by YARA-X 1.20.0 (/opt/bin/yr):\n    \
+                 error[E008]: unknown field or method `no_such_field`\n     \
+                 --> rules/b.yar:2:30\n      |\n\
+                 rules/c.yar: refused by YARA-X 1.20.0 (/opt/bin/yr):\n    \
+                 error[E009]: unknown identifier `nosuchmodule`\n\
+                 rules/d.yar:3: string $b is not defined";
+        let p = problems(e);
+        assert_eq!(p.len(), 3, "{p:?}");
+        assert!(p[0].starts_with("rules/b.yar: refused") && p[0].contains("E008"));
+        assert!(p[0].ends_with("      |"), "{:?}", p[0]);
+        assert!(p[1].starts_with("rules/c.yar: refused") && p[1].contains("E009"));
+        assert_eq!(p[2], "rules/d.yar:3: string $b is not defined");
+        assert!(problems("").is_empty());
     }
 }
