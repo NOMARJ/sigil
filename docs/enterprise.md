@@ -536,9 +536,10 @@ Limitations: One rule file of five rules, not a real rule library, so the cost o
 
 **Your organisation's or a community's rules.** Detection classes Sigil does
 not ship rules for can be covered by the YARA rules a security team already
-maintains, or by a community set it has vetted (for example a checkout of a
-public signature repository). Sigil adds no signatures of its own here; it
-loads yours:
+maintains, or by a community set it has vetted (for example a checkout of the
+public signature-base repository, many of whose rules import modules such as
+`pe` and so need an external engine). Sigil adds no signatures of its own
+here; it loads yours:
 
 ```bash
 # 1. Put the rule files you use in one directory (read one level deep).
