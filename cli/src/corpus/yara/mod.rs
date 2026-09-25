@@ -576,33 +576,51 @@ pub fn analyze(src: &str, bytes: &[u8], path: &Path, sel: &external::Selection) 
             })?;
             delegate(engine)
         }
-        external::EngineMode::Auto => match compile_rules(src, path) {
-            Ok(compiled) => Ok(compiled),
-            Err(problems) => {
-                if problems.iter().any(|(_, m)| !parse::needs_engine(m)) {
-                    return Err(problems);
-                }
-                match sel.auto_engine() {
-                    Some(engine) => delegate(engine),
-                    None => declared_rules(
-                        src,
-                        path,
-                        FileEngine::Unevaluated {
-                            reasons: problems
-                                .iter()
-                                .map(|(line, m)| {
-                                    format!(
-                                        "line {line}: {}",
-                                        m.replace(parse::NEEDS_ENGINE, "").trim_end()
-                                    )
-                                })
-                                .collect(),
-                            unavailable: sel.unavailable(),
-                        },
-                    ),
+        external::EngineMode::Auto | external::EngineMode::BestEffort => {
+            match compile_rules(src, path) {
+                Ok(compiled) => Ok(compiled),
+                Err(problems) => {
+                    if problems.iter().any(|(_, m)| !parse::needs_engine(m)) {
+                        return Err(problems);
+                    }
+                    match sel.auto_engine() {
+                        Some(engine) => delegate(engine),
+                        // Fail closed: rules an organisation wrote must not stop
+                        // running because this machine has no engine for them.
+                        None if sel.mode == external::EngineMode::Auto => {
+                            let mut refused = problems;
+                            refused.push((
+                                0,
+                                format!(
+                                "these rules need an external YARA engine and none can be used \
+                                 here ({}). Install YARA-X or YARA, or set yara_engine: \
+                                 best-effort (--yara-engine best-effort) to load them \
+                                 unevaluated and report every scan as not fully inspected",
+                                sel.unavailable()
+                            ),
+                            ));
+                            Err(refused)
+                        }
+                        None => declared_rules(
+                            src,
+                            path,
+                            FileEngine::Unevaluated {
+                                reasons: problems
+                                    .iter()
+                                    .map(|(line, m)| {
+                                        format!(
+                                            "line {line}: {}",
+                                            m.replace(parse::NEEDS_ENGINE, "").trim_end()
+                                        )
+                                    })
+                                    .collect(),
+                                unavailable: sel.unavailable(),
+                            },
+                        ),
+                    }
                 }
             }
-        },
+        }
     }
 }
 

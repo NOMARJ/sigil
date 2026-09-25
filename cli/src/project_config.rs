@@ -2296,8 +2296,8 @@ baseline: .sigil-baseline.json
         let errs =
             parse_policy("yara_engine: clamav\n", Path::new("/r"), Origin::Project).unwrap_err();
         assert!(
-            errs.iter()
-                .any(|e| e.contains("yara_engine") && e.contains("auto, builtin, yara-x, yara")),
+            errs.iter().any(|e| e.contains("yara_engine")
+                && e.contains("auto, best-effort, builtin, yara-x, yara")),
             "{errs:?}"
         );
 

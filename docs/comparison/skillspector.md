@@ -225,7 +225,7 @@ unknown.
 | Fails closed on incomplete coverage | `--fail-on-incomplete`, lockable in an organisation policy | `--fail-on-incomplete` |
 | Output formats | text, JSON, SARIF 2.1.0, HTML, Markdown, JUnit | terminal, JSON, Markdown, SARIF |
 | Baseline of accepted findings | Content fingerprints plus glob rules; stale entries reported | Glob rules or fingerprints |
-| Custom rules | JSON/YAML packs and YARA rule files, Ed25519-signed; `sigil rules validate/test/sign`. YARA's string-matching core runs on a built-in engine; modules, loops and the rest of YARA run on an installed YARA-X (`yr`) or YARA (`yara`), chosen with `--yara-engine` / `yara_engine`. With neither installed those rules are reported as not inspected, or refused under `--yara-engine builtin` | A YARA rules directory (full YARA via yara-python) |
+| Custom rules | JSON/YAML packs and YARA rule files, Ed25519-signed; `sigil rules validate/test/sign`. YARA's string-matching core runs on a built-in engine; modules, loops and the rest of YARA run on an installed YARA-X (`yr`) or YARA (`yara`), chosen with `--yara-engine` / `yara_engine`. With neither installed those rule files are refused (exit 2), or under `--yara-engine best-effort` reported as not inspected | A YARA rules directory (full YARA via yara-python) |
 | Organisation policy (file pushed by MDM, locked keys, tighten-only project files) | `SIGIL_POLICY_FILE` | No |
 | Built-in MCP server | `sigil mcp` (`scan`, `scan_package`, `check_command`) | `skillspector mcp` |
 | IDE and agent integrations | Claude Code plugin, VS Code / Cursor / Windsurf, JetBrains | OpenCode and Pi extensions |
@@ -237,9 +237,9 @@ linked library: rules its built-in engine cannot evaluate go to YARA-X or
 YARA, over the same files and archive members its own rules see, with the
 engine's findings attributed to file and line and ranked by the rule's meta.
 The difference is the dependency: SkillSpector installs libyara with itself,
-while Sigil uses the engine the machine already has, and without one reports
-those rules as not evaluated (`PROV-INCOMPLETE-001`, so
-`--fail-on-incomplete` fails the gate) instead of shipping a copy. Checked end
+while Sigil uses the engine the machine already has, and without one refuses
+those rule files (exit 2; `--yara-engine best-effort` reports them as not
+evaluated instead, `PROV-INCOMPLETE-001`) rather than shipping a copy. Checked end
 to end with YARA-X 1.20.0 and YARA 4.5.0 on rules using the `pe`, `elf`,
 `hash` and `math` modules
 ([method and results](../enterprise.md#full-yara-external-engines)); Sigil

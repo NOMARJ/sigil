@@ -548,8 +548,29 @@ fn builtin_refuses_what_it_cannot_evaluate_and_says_an_engine_could() {
 }
 
 #[test]
-fn auto_without_an_engine_loads_the_file_unevaluated_with_its_reasons() {
+fn auto_without_an_engine_refuses_a_file_that_needs_one() {
+    // Fail closed: rules an organisation wrote must not silently stop
+    // running because this machine has no engine for them.
     let sel = Selection::with_engines(EngineMode::Auto, Vec::new());
+    let errs = pack(MODULE_RULES, &sel).unwrap_err();
+    assert!(
+        errs.iter().any(|e| e.contains(":2: `import \"math\"`")),
+        "{errs:?}"
+    );
+    assert!(
+        errs.iter()
+            .any(|e| e.contains("need an external YARA engine")
+                && e.contains("YARA-X (`yr`) is not installed")
+                && e.contains("best-effort")),
+        "{errs:?}"
+    );
+    // A file the built-in engine evaluates is not affected.
+    assert!(file_of(&pack(PLAIN_RULE, &sel).unwrap()).is_builtin());
+}
+
+#[test]
+fn best_effort_without_an_engine_loads_the_file_unevaluated_with_its_reasons() {
+    let sel = Selection::with_engines(EngineMode::BestEffort, Vec::new());
     let p = pack(MODULE_RULES, &sel).unwrap();
     let f = file_of(&p);
     let FileEngine::Unevaluated {
@@ -597,7 +618,7 @@ fn an_installed_engine_that_cannot_be_used_is_named_with_the_reason() {
     // `rules validate` say names that YARA, not "not installed".
     let old = stub(EngineKind::Yara, Variant::NoScanList);
     let path = std::env::join_paths([old.bin.clone()]).unwrap();
-    let sel = Selection::with_path(EngineMode::Auto, path);
+    let sel = Selection::with_path(EngineMode::BestEffort, path);
     // Probed on each load here: retry the rare `Text file busy` of a stub
     // another test's fork may still hold open (see `engine`).
     let mut loaded = None;
@@ -635,7 +656,7 @@ fn an_installed_engine_that_cannot_be_used_is_named_with_the_reason() {
 
 #[test]
 fn a_rule_yara_itself_refuses_is_refused_whatever_the_engine() {
-    let sel = Selection::with_engines(EngineMode::Auto, Vec::new());
+    let sel = Selection::with_engines(EngineMode::BestEffort, Vec::new());
     // An undefined string, next to a module: the module alone would load
     // unevaluated; the undefined string refuses the file.
     let src = "import \"pe\"\nrule r {\n strings:\n  $a = \"x\"\n condition:\n  $a and $b\n}\n";
@@ -1183,7 +1204,7 @@ fn the_digest_changes_with_the_engine() {
     let external = Selection::with_engines(EngineMode::Yara, e());
     assert_eq!(digest(PLAIN_RULE, &builtin), digest(PLAIN_RULE, &builtin));
     assert_ne!(digest(PLAIN_RULE, &builtin), digest(PLAIN_RULE, &external));
-    let none = Selection::with_engines(EngineMode::Auto, Vec::new());
+    let none = Selection::with_engines(EngineMode::BestEffort, Vec::new());
     let auto = Selection::with_engines(EngineMode::Auto, e());
     assert_ne!(digest(MODULE_RULES, &none), digest(MODULE_RULES, &auto));
 }

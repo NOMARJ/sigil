@@ -328,7 +328,8 @@ floating-point numbers and text values in conditions, function calls and
 indexing, `of` over rules or with `at`/`in`, the `xor`, `base64` and
 `base64wide` modifiers, `wide` regular expressions, `~` in hex strings, and
 Sigil's own size limits (below). A file using any of them goes to an external
-engine, or, under `--yara-engine builtin`, is refused. Refused whatever the
+engine; with no usable engine, or under `--yara-engine builtin`, it is
+refused (under `best-effort` it loads unevaluated instead). Refused whatever the
 engine: `include` (an included file is not covered by the including file's
 detached signature, and could be any file on the machine; pass each file with
 `--rules`, or a directory of them), external variables, and YARA's own compile
@@ -442,7 +443,8 @@ Choose with `--yara-engine` or the policy key `yara_engine`:
 
 | Value | YARA files the built-in engine can evaluate | YARA files it cannot |
 |---|---|---|
-| `auto` (default) | built-in engine | `yr` if installed, else `yara`; with neither, loaded but not evaluated, and every scan reports them as not inspected |
+| `auto` (default) | built-in engine | `yr` if installed, else `yara`; with neither usable, refused: the load fails and the scan exits `2` |
+| `best-effort` | built-in engine | `yr` if installed, else `yara`; with neither usable, loaded but not evaluated, and every scan reports them as not inspected |
 | `builtin` | built-in engine | refused: the load fails and the scan exits `2` (the behaviour before external engines) |
 | `yara-x` | `yr` | `yr` |
 | `yara` | `yara` | `yara` |
@@ -536,8 +538,11 @@ a file crafted to crash the engine costs only itself. A scan makes at most 16
 engine runs this way (each compiles the rules again) within the same time
 bound; files still left after that are reported once for the scan.
 
-**No engine installed.** Under `auto`, a YARA file that needs an engine where
-none can be used still loads: `sigil` warns on stderr, and every scan
+**No engine installed.** Under `auto` (the default), a YARA file that needs an
+engine where none can be used is refused: the load fails and the scan exits
+`2`, with a message naming why each engine could not be used. Rules an
+organisation wrote never silently stop running because one machine lacks an
+engine. Under `best-effort` such a file still loads: `sigil` warns on stderr, and every scan
 reports it with `PROV-INCOMPLETE-001` ("YARA rules in … were not evaluated"),
 naming why each engine could not be used (not installed, found only inside
 the scanned tree, or installed but not usable, such as a YARA without
@@ -942,6 +947,6 @@ Stated plainly so nothing here is over-relied on:
 - **Full YARA needs an installed engine.** The built-in engine evaluates the
   string-matching core; modules (`pe`, `elf`, `math`, …), loops and offset
   reads need YARA-X (`yr`) or YARA (`yara`) on the machine. Without one those
-  files are reported as not inspected (or refused under `--yara-engine
-  builtin`), never approximated. External variables and `include` are refused
+  files are refused (exit 2), or under `--yara-engine best-effort` reported as
+  not inspected, never approximated. External variables and `include` are refused
   with any engine. Directories of rule files are read one level deep.

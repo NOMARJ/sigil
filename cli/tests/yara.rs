@@ -533,7 +533,32 @@ fn without_an_engine_rules_that_need_one_are_reported_as_not_evaluated() {
     let module = fx.root.join("module.yar");
     std::fs::write(&module, NEEDS_ENGINE).unwrap();
     let module = module.to_str().unwrap();
-    let args = ["--rules", module, "scan", ".", "--no-cache", "-f", "json"];
+    // By default the file is refused: the scan stops rather than run
+    // without rules it was given.
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &["--rules", module, "scan", ".", "--no-cache"],
+        &[],
+    );
+    assert_eq!(code(&o), 2, "{}", stderr(&o));
+    assert!(
+        stderr(&o).contains("need an external YARA engine") && stderr(&o).contains("best-effort"),
+        "{}",
+        stderr(&o)
+    );
+    // best-effort loads it unevaluated and says so on every scan.
+    let args = [
+        "--yara-engine",
+        "best-effort",
+        "--rules",
+        module,
+        "scan",
+        ".",
+        "--no-cache",
+        "-f",
+        "json",
+    ];
     let o = sigil(&fx, &fx.proj, &args, &[]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     assert!(
@@ -556,7 +581,12 @@ fn without_an_engine_rules_that_need_one_are_reported_as_not_evaluated() {
     strict.push("--fail-on-incomplete");
     assert_eq!(code(&sigil(&fx, &fx.proj, &strict, &[])), 1);
     // It cannot be called valid either.
-    let o = sigil(&fx, &fx.root, &["rules", "validate", module], &[]);
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &["--yara-engine", "best-effort", "rules", "validate", module],
+        &[],
+    );
     assert_eq!(code(&o), 1, "{}", stdout(&o));
     assert!(stdout(&o).contains("not checked"), "{}", stdout(&o));
 }
@@ -749,10 +779,32 @@ fn an_engine_shipped_inside_the_scanned_tree_is_never_run() {
     let bin = stub_yr(&fx.proj);
     let rules = fx.root.join("module.yar");
     std::fs::write(&rules, MODULE_RULE).unwrap();
+    // By default the rules are refused, and the refusal says why.
     let o = sigil(
         &fx,
         &fx.proj,
         &[
+            "--rules",
+            rules.to_str().unwrap(),
+            "scan",
+            ".",
+            "--no-cache",
+        ],
+        &[("PATH", bin.to_str().unwrap())],
+    );
+    assert!(!fx.proj.join("yr.log").exists(), "the stub ran");
+    assert_eq!(code(&o), 2, "{}", stderr(&o));
+    assert!(
+        stderr(&o).contains("one inside it was not considered"),
+        "{}",
+        stderr(&o)
+    );
+    let o = sigil(
+        &fx,
+        &fx.proj,
+        &[
+            "--yara-engine",
+            "best-effort",
             "--rules",
             rules.to_str().unwrap(),
             "scan",

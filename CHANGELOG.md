@@ -413,18 +413,21 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   strings, Sigil's own size limits — now run on YARA-X (`yr`, 1.0 or later)
   or classic YARA (`yara`, 4.x) when either is installed. Sigil runs the
   engine's command-line tool; it links neither, and the default build gains
-  no dependency. Choose with `--yara-engine auto|builtin|yara-x|yara` or the
-  policy key `yara_engine` (lockable): `auto` (default) keeps the built-in
-  engine for every file it can evaluate whole and hands the rest to `yr`,
-  else `yara`; `builtin` refuses them as before; `yara-x`/`yara` send every
+  no dependency. Choose with `--yara-engine auto|best-effort|builtin|yara-x|yara`
+  or the policy key `yara_engine` (lockable): `auto` (default) keeps the
+  built-in engine for every file it can evaluate whole and hands the rest to
+  `yr`, else `yara`, and with neither usable refuses those files (exit 2) as
+  before; `best-effort` loads them unevaluated instead; `builtin` refuses them; `yara-x`/`yara` send every
   file to that engine and fail the load if it is missing. See
   [docs/enterprise.md#full-yara-external-engines](docs/enterprise.md#full-yara-external-engines).
-- **Behaviour change.** Under the default `auto`, a rule file that uses a
-  module (or anything else outside the built-in subset) no longer stops the
-  scan with exit 2 when no engine is installed: it loads, `sigil` warns on
-  stderr, and every scan reports it as not inspected (`PROV-INCOMPLETE-001`,
-  "YARA rules in … were not evaluated"), which `--fail-on-incomplete` fails
-  on. `--yara-engine builtin` restores the refusal. A file with a problem
+- **Fails closed by default.** Under the default `auto`, a rule file that
+  uses a module (or anything else outside the built-in subset) on a machine
+  with no usable engine is refused and the scan exits 2, as before external
+  engines: rules an organisation wrote never silently stop running. Opt in
+  to `--yara-engine best-effort` (`yara_engine: best-effort`) to load such a
+  file unevaluated instead: `sigil` warns on stderr and every scan reports it
+  as not inspected (`PROV-INCOMPLETE-001`, "YARA rules in … were not
+  evaluated"), which `--fail-on-incomplete` fails on. A file with a problem
   YARA itself refuses (an undefined string, `include`, an external variable,
   a meta `severity` Sigil cannot read) is still refused under any engine.
   `sigil rules validate` exits 1 for a file no engine here can check, and

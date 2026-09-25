@@ -91,7 +91,13 @@ const SNIPPET_CHARS: usize = 48;
 /// `--yara-engine`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineMode {
+    /// The built-in engine, and an installed external engine for a file it
+    /// cannot evaluate. With no usable external engine such a file is
+    /// refused: rules an organisation wrote never silently stop running.
     Auto,
+    /// As `Auto`, except that with no usable external engine such a file
+    /// loads unevaluated and every scan reports it as incomplete coverage.
+    BestEffort,
     Builtin,
     YaraX,
     Yara,
@@ -99,11 +105,13 @@ pub enum EngineMode {
 
 impl EngineMode {
     /// The values `--yara-engine` and `yara_engine` accept.
-    pub const NAMES: &'static [&'static str] = &["auto", "builtin", "yara-x", "yara"];
+    pub const NAMES: &'static [&'static str] =
+        &["auto", "best-effort", "builtin", "yara-x", "yara"];
 
     pub fn parse(s: &str) -> Option<Self> {
         Some(match s.trim().to_ascii_lowercase().as_str() {
             "auto" => EngineMode::Auto,
+            "best-effort" | "besteffort" => EngineMode::BestEffort,
             "builtin" | "built-in" => EngineMode::Builtin,
             "yara-x" | "yarax" | "yr" => EngineMode::YaraX,
             "yara" | "libyara" => EngineMode::Yara,
@@ -114,6 +122,7 @@ impl EngineMode {
     pub fn name(self) -> &'static str {
         match self {
             EngineMode::Auto => "auto",
+            EngineMode::BestEffort => "best-effort",
             EngineMode::Builtin => "builtin",
             EngineMode::YaraX => "yara-x",
             EngineMode::Yara => "yara",
@@ -1280,7 +1289,8 @@ pub fn unevaluated_findings(
             not_evaluated_globally(format!(
                 "YARA rules in {} ({} rule{}) were not evaluated: they need an external YARA \
                  engine and none can be used here ({unavailable}) — {first}{more}. Install \
-                 YARA-X or YARA, or pass --yara-engine builtin to refuse the file instead",
+                 YARA-X or YARA, or drop yara_engine: best-effort so the file is refused \
+                 instead",
                 f.path.display(),
                 f.public_rules().count(),
                 if f.public_rules().count() == 1 {

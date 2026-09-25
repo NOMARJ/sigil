@@ -63,13 +63,16 @@ struct Cli {
     rules: Vec<PathBuf>,
 
     /// What evaluates YARA rule files: auto (the built-in engine, and an
-    /// installed YARA-X `yr` or YARA `yara` for rules it cannot evaluate),
-    /// builtin, yara-x or yara. Policy key: yara_engine
+    /// installed YARA-X `yr` or YARA `yara` for rules it cannot evaluate; a
+    /// file that needs an engine none is installed for is refused),
+    /// best-effort (as auto, but such a file loads unevaluated and every
+    /// scan reports incomplete coverage), builtin, yara-x or yara. Policy
+    /// key: yara_engine
     #[arg(
         long = "yara-engine",
         global = true,
         value_name = "ENGINE",
-        value_parser = ["auto", "builtin", "yara-x", "yara"]
+        value_parser = ["auto", "best-effort", "builtin", "yara-x", "yara"]
     )]
     yara_engine: Option<String>,
 
