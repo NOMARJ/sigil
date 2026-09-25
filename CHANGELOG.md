@@ -79,6 +79,23 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   decisions change, all on clean skills: two new denies of a real download
   and run, and one deny that becomes an ask (a continued `pip install -r`
   line now read whole). Details: [docs/detection/ux.md §7](docs/detection/ux.md#7-closing-the-shapes-both-gates-missed).
+  A verification pass then wrote 462 probes to get past that change; 125
+  of them were decided wrongly by it, in one gate or both, and both gates
+  now decide them as expected. Among them: `curl … | bash < /dev/stdin`
+  (let through by the change's own here-document exemption),
+  `curl … | tr -d '\r' | bash`, `curl … | perl -I lib`, `eval "$(cat
+  i.sh)"`, `mv i.tmp i.sh && bash i.sh`, a scan with `--fail-on critical`
+  or under a policy the command sets (`SIGIL_POLICY_FILE=…`, or a
+  `.sigil.yml` it writes: confirmed with a real scan that fails without
+  it and passes with it), `sigil scan i.sh | tee log && bash i.sh`, and a
+  `cd` inside `$( … )`. Of the 462, main's native hook decides 199 as
+  expected, the change as first written 316 and the gate now 432 (fallback:
+  198, 307, 432). On the skill corpora one more decision changes, a real
+  `curl …/get-helm-3 | HELM_INSTALL_DIR=… bash` line in a clean skill, now
+  denied; the `git clone` deny names the repository instead of an option's
+  value (`sigil clone 1` for `--depth 1`). The 30 probes still let through
+  (`xargs`, globs and variables, files unpacked from a downloaded archive,
+  …) are listed in [docs/detection/ux.md §8](docs/detection/ux.md#8-verification-pass-what-still-got-through).
   `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
   `check_command`).
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an

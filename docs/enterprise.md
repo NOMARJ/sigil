@@ -589,6 +589,15 @@ for its location on each platform; at the time of writing it is
 ask) or `off`. See the limitation on `SIGIL_BYPASS` below before relying on the
 guard as a hard control.
 
+The guard lets `sigil scan <file> && <run the file>` through only when the scan
+runs under the policy you set outside the command. A command that sets
+`SIGIL_POLICY_FILE` (or any other `SIGIL_…` variable) for the scan, exports
+one, or names a Sigil policy file (`.sigil.yml`, `.sigil.yaml`, `sigil.yml`)
+gets no credit for its scan: the organisation file is trusted whole and a
+`.sigil.yml` in the working directory as the project's, so either could raise
+`fail_on` for that one scan. Set `SIGIL_POLICY_FILE` in the environment the
+agent inherits (a profile script or MDM), as above.
+
 ## Air-gapped and offline operation
 
 - The detection corpus is compiled into the binary, so scanning needs no

@@ -68,9 +68,9 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
-| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>` |
-| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)` | deny | `sigil scan i.sh && bash i.sh` |
-| downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`) | deny | `sigil scan <src> && <original>` |
+| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; } \| sh`) | deny | `sigil scan <url>` |
+| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
+| downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
 
 The gate reads a command the way the shell runs it: grouping (`( … )`,
 `{ …; }`, `if`), redirections, `VAR=value` words and wrappers (`sudo -u
@@ -79,8 +79,10 @@ root`, `env -i`, `command`, `exec`, `nohup`, `time`, `timeout`, `xargs`,
 inside a word does not hide it (`"npm" exec x`, `de''no run npm:x`); an
 interpreter's options are read per interpreter (`bash -e i.sh` runs `i.sh`,
 `python3 -X dev i.py` runs `i.py`); the string of `bash -c '…'`, `su -c '…'`
-and `eval '…'` is judged as a command of its own; and a backslash at the end
-of a line continues the command.
+and `eval '…'` is judged as a command of its own, read whole; a `cd` in a
+subshell, a substitution or a list sent to the background (`cd /tmp &`)
+ends with it, and `cd -`, `pushd`/`popd`, `$HOME` and `$PWD` are followed;
+and a backslash at the end of a line continues the command.
 
 The `sigil … && <original>` form is allowed: the second command only runs if
 the scan of the same target passed. "Same" includes the kind of target: an
@@ -89,11 +91,20 @@ repository by `sigil clone` (branch included), a local path by `sigil scan`
 — so `sigil scan evil && npm install evil` is still denied. A scan of a
 downloaded file counts only when it runs after the last download to that
 path, and only the `sigil` found on PATH vets anything: `./sigil`,
-`vendor/bin/sigil`, `PATH=… sigil`, or any sigil call in a command that defines
-a `sigil` function or alias or changes PATH, vets nothing. A sigil call no
-longer allows the rest of
-a command line — `sigil --version; npm install x` is denied. `npx tsc` is
-allowed when the project has `node_modules/.bin/tsc`.
+`vendor/bin/sigil`, `PATH=… sigil` (or `HOME=…`, or any `SIGIL_…=`
+setting such as `SIGIL_POLICY_FILE`), any sigil call in a command that
+defines a `sigil` function or alias, changes PATH, or names a Sigil policy
+file (`.sigil.yml` in the working directory is trusted), and any after a
+sourced file, vet nothing. A copy of a scanned file made later in the same
+`&&` chain is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
+~/bin/t`). Nor does a call that is not a
+real scan (`--help`, `--fail-on critical`, `--severity critical`, a subset
+of `--phases`, `--config`, `--baseline`), or whose exit status `&&` does not
+test: `sigil scan i.sh | tee log && bash i.sh`, `echo $(sigil scan i.sh) &&
+…`, or a sigil call inside quotes or a comment. A sigil call no longer
+allows the rest of a command line — `sigil --version; npm install x` and
+`sigil npm x | npm install x` are denied. `npx tsc` is allowed when the
+project has `node_modules/.bin/tsc`.
 
 Register the hook for `Write|Edit|MultiEdit` too (matcher
 `"Bash|Write|Edit|MultiEdit"`, command `sigil hook pretooluse`) and it also

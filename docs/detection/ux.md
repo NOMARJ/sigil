@@ -186,9 +186,9 @@ run instead:
 | `npx`/`bunx`/`pnpm dlx`/`yarn dlx`/`npm exec`/`uvx`/`uv tool run`/`pipx run` of a registry package | deny | `sigil npm <spec> && <original>` / `sigil pip <spec> && …` |
 | `pipx install <pkg>`, `uv tool install <pkg>` | deny | `sigil pip <pkg> && <original>` |
 | `deno run\|x\|install\|serve` of an `npm:` / `jsr:` / `https://` module | deny | `sigil npm <spec> && <original>` for `npm:`; otherwise download, scan, run the local file |
-| `curl … \| sh`, `curl … \| bash -s stable`, `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `curl … 2>&1 \| sh`, `curl … \|& sh`, `curl … \| bash >/dev/null`, `curl … \| "bash"`, `curl … \| env -i bash` (also `command`, `doas`, `busybox`, `$SHELL`), `` `curl … \| bash` ``, `bash <(curl …)`, `bash < <(curl …)`, `bash <<< "$(curl …)"`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
-| Download to a file, then run that file in the same command: `curl -o i.sh … && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`, `curl -O …/setup.py && python3 setup.py`, and through wrappers, groups and redirections: `sudo -E bash i.sh`, `bash -e i.sh`, `python3 -X dev i.py`, `. ./i.sh`, `(bash i.sh)`, `bash < i.sh`, `cat i.sh \| sh`, after `curl -oi.sh …`, `curl … 1> i.sh` or `curl … \| tee i.sh` | deny | `sigil scan <file> && <run>` after the download |
-| `curl -o ~/.claude/skills/…`, `curl … > .mcp.json`, `curl … \| tee ~/.claude/skills/…`, `wget -P …`, `unzip … -d ~/.claude/skills`, `tar -x … -C ~/.gemini/extensions`, `cp -r x ~/.codex/skills/`, `git clone <url> ~/.claude/skills/x`, `cp x .mcp.json` (also after `cd` into those directories, behind `sudo -E`/`env`/`command`, in a `( … )` subshell or a `bash -c '…'` string) | deny | `sigil scan <src> && <original>` / `sigil clone <url> && <original>` |
+| `curl … \| sh`, `curl … \| bash -s stable`, `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `curl … 2>&1 \| sh`, `curl … \|& sh`, `curl … \| bash >/dev/null`, `curl … \| "bash"`, `curl … \| env -i bash` (also `command`, `doas`, `busybox`, `$SHELL`), `curl … \| INSTALL_DIR=~/bin bash`, `` `curl … \| bash` ``, `bash <(curl …)`, `bash < <(curl …)`, `bash <<< "$(curl …)"`, `sh -c "$(curl …)"`, `iwr … \| iex`, and through any filter or group: `curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; } \| sh`, `curl … \| bash < /dev/stdin`, `curl … \| node -r x`, `curl … \| perl -I lib` | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
+| Download to a file, then run that file in the same command: `curl -o i.sh … && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`, `curl -O …/setup.py && python3 setup.py`, and through wrappers, groups and redirections: `sudo -E bash i.sh`, `bash -e i.sh`, `python3 -X dev i.py`, `. ./i.sh`, `(bash i.sh)`, `bash < i.sh`, `cat i.sh \| sh`, `head i.sh \| sh`, after `curl -oi.sh …`, `curl … 1> i.sh`, `curl … \| tee i.sh` or `curl … \| dd of=i.sh`; through a substitution: `eval "$(cat i.sh)"`, `bash -c "$(cat i.sh)"`, `bash <(cat i.sh)`; and through a copy: `mv i.tmp i.sh && bash i.sh`, `cp -t /tmp i.sh`, `cat i.sh > j.sh`, `dd if=i.sh of=j.sh` | deny | `sigil scan <file> && <run>` after the download |
+| `curl -o ~/.claude/skills/…`, `curl … > .mcp.json`, `curl … \| tee ~/.claude/skills/…`, `wget -P …`, `unzip … -d ~/.claude/skills`, `tar -x … -C ~/.gemini/extensions`, `cp -r x ~/.codex/skills/`, `git clone <url> ~/.claude/skills/x`, `cp x .mcp.json` (also after `cd` into those directories, behind `sudo -E`/`env`/`command`, in a `( … )` subshell or a `bash -c '…'` string, and in any case: `~/.CLAUDE/skills` is `~/.claude/skills` on the default macOS and Windows file systems) | deny | `sigil scan <src> && <original>` / `sigil clone <url> && <original>` |
 
 **How a command is read.** Each pipeline stage is read the way the shell
 runs it (`cmdline::command_words`): grouping (`( … )`, `{ …; }`, `if`,
@@ -198,14 +198,28 @@ words and wrapper commands (`sudo` with its options, `env -i`/`-u`/`-S`,
 `setsid`, `ionice`, `xargs`, `doas`, `busybox`) are set aside before the
 command word is judged. An interpreter's options are read per interpreter
 family: `-e` is errexit to bash and inline code to node, `-X`/`-W` take a
-value for python, `-o`/`-O` (also last in a bundle, `-euo pipefail`) for
-shells, `-ExecutionPolicy` for PowerShell. Each stage is also judged with
+value for python, `-I` for perl, `-o`/`-O` (also last in a bundle,
+`-euo pipefail`) for shells, `-ExecutionPolicy` for PowerShell. Each stage is also judged with
 the quoting inside its words removed (`"npm" exec x`, `de''no run npm:x`,
 `pip''x install x`), the string of `bash -c '…'`, `su -c '…'` and
-`eval '…'` is judged as a command line of its own, a `cd` inside `( … )`
-lasts until the `)`, and a backslash at the end of a line continues the
-command. A stdin redirection or here-document after the interpreter
-(`curl … | python3 - <<'EOF'`) means the download is not what runs.
+`eval '…'` is judged as a command line of its own (read whole, quotes and
+all, so a separator inside it does not cut it short), a `cd` inside `( … )`
+or a substitution (`$( … )`, `<( … )`, backticks) lasts until it closes,
+and one in a list that `&` sends to the background (`cd /tmp & …`,
+`cd /tmp && make &`) lasts until the `&`,
+`cd -P dir`, `cd -- dir`, `cd -`, `pushd dir` and `popd` are followed, `~`,
+`$HOME` and `$PWD` are expanded and a path that starts with another
+variable (`$TMPDIR/i.sh`) is taken to be absolute under it, a `# comment`
+is not read as part of what a stage runs, and a backslash at the end of a
+line continues the command. A stdin redirection or here-document after the interpreter
+(`curl … | python3 - <<'EOF'`) means the download is not what runs, unless
+it reads the pipe itself (`< /dev/stdin`, `<&0`) or the pipe is copied to
+another descriptor (`3<&0`). Whatever a stage reads from a download is
+passed on: every later stage of the pipeline that runs its stdin
+(`… | tr -d '\r' | bash`) runs the download, and a file written from it
+(`cp`, `mv`, `ln`, `install`, `cat i.sh > j.sh`, `| tee j.sh`,
+`dd if=i.sh of=j.sh`) is a download too. A group whose last command is a
+download (`{ echo; curl …; } | sh`) pipes the download.
 
 Allowed look-alikes include `npx tsc` when the project has
 `node_modules/.bin/tsc` (found up the tree, as npx does), `npx ./local.js`,
@@ -240,13 +254,34 @@ server can serve the scanner and the shell different bytes. A download saved
 to a file *can* be: `curl -o i.sh URL && sigil scan i.sh && bash i.sh` is
 allowed, because the scan reads the bytes that run — as long as the scan
 runs after the last download to that path (`sigil scan i.sh && curl -o i.sh
-URL && bash i.sh` is denied). Only the `sigil` found on PATH vets: `./sigil`,
-`vendor/bin/sigil` and `PATH=… sigil` do not, and neither does any sigil call in
-a command that defines a `sigil` function or alias or changes PATH.
+URL && bash i.sh` is denied). A copy of the scanned file made later in the
+same `&&` chain (`cp`, `mv`, `ln`, `install`, `rsync`) holds the scanned
+bytes and is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
+~/bin/t`). Only the `sigil` found on PATH vets: `./sigil`,
+`vendor/bin/sigil` and `PATH=… sigil` (or `HOME=` and `XDG_…=`, which move
+its state and trust ledger, or any `SIGIL_…=` setting) do not, and neither
+does any sigil call in a command that defines a `sigil` function or alias
+(`alias -- sigil=true` included), loads a builtin named sigil, pins a path
+with `hash -p`, changes PATH, HOME or a `SIGIL_…` setting, or names a Sigil
+policy file (`.sigil.yml`, `.sigil.yaml`, `sigil.yml`), nor one after a
+sourced file (`. ./env; sigil …`). The scan's policy must not be the
+command's own: `SIGIL_POLICY_FILE` names an organisation policy the scan
+trusts whole, and a `.sigil.yml` in the working directory is trusted too,
+so a command that sets or writes one could raise `fail_on` past every High
+finding. The call must be a real scan: `-h`/`--help`, `--fail-on` or
+`--severity` other than `low`/`medium`/`high`, `--phases` other than `all`,
+`--config` and `--baseline` all let a hostile file pass, so such a call
+vets nothing. And its exit status must be what `&&` tests: a sigil call
+that is not the last stage of its pipeline (`sigil scan i.sh | tee log &&
+bash i.sh` tests tee), that sits inside a substitution (`echo $(sigil scan
+i.sh) && …` tests echo), or that is only text inside quotes or a comment
+vets nothing.
 
 **No laundering.** A sigil invocation allows only its own segment:
-`sigil --version; npm install evil`, `sigil help | npm install evil` and
-`sigil scan $(npm install evil)` are judged segment by segment and denied.
+`sigil --version; npm install evil`, `sigil help | npm install evil`,
+`sigil npm evil | npm install evil` and `sigil scan $(npm install evil)` are
+judged segment by segment and denied (by the shell fallback too, when awk
+is available).
 
 **Edits.** Registered for `Write|Edit|MultiEdit` as well, the hook judges
 edits to agent tooling: content that pipes a download into a shell or ships
@@ -523,23 +558,29 @@ denied (3); and its legacy `npx` rule, which also matches `# npx …`,
 `$ npx …` and `~/.npm/_npx` (8). 784 commands get the same decision with a
 different reason, the same 784 before and after.
 
-**Still open.** Found in this pass (80 hand-written edge cases, on which
-the two gates agree) and not changed:
+**Left open by this pass.** Found in it (80 hand-written edge cases, on
+which the two gates agree) and not changed here. The verification pass
+(§8) closed the first, second and fifth, and showed that the fourth was an
+allow as well as a deny:
 
 - A downloaded file run through a substitution: `eval "$(cat i.sh)"`,
-  `bash -c "$(cat i.sh)"`.
+  `bash -c "$(cat i.sh)"`. *Closed in §8.*
 - The pipe check reads the options of non-shell interpreters with one
   shared list, so an option that takes a value is read as a script name:
   `curl … | node --require x` is allowed (the download-then-run check reads
-  them per interpreter).
+  them per interpreter). *Closed in §8.*
 - The `pip install -r` precedence in the third row: `pip install -r req.txt
-  evil-pkg` asks instead of denying, in both gates.
+  evil-pkg` asks instead of denying, in both gates. *Still open.*
 - Segmentation ignores quotes, so a separator inside a quoted string splits
   the command: `bash -c 'cd build && curl -o i.sh …' && bash i.sh` is
   judged as if the download landed in the working directory (a deny, as in
-  main).
+  main). *§8: the same cut let `… && bash build/i.sh` through; the string
+  is now also read whole, which denies that; the deny of `bash i.sh`
+  stays.*
 - The fallback shortcut above (a segment starting with `sigil` allows the
-  whole command), in the fallback only.
+  whole command), in the fallback only. *Closed in §8 where awk is
+  available.*
 - As before: the gate is stateless across Bash calls, `SIGIL_BYPASS=1`
   inside the command bypasses it, and the fallback does not implement
-  agent-CLI acquisition or copies and unpacks into agent tooling.
+  agent-CLI acquisition or copies and unpacks into agent tooling. *Still
+  open.*
