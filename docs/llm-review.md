@@ -380,6 +380,35 @@ Limitations: The mock dismisses everything, so this measures Sigil's own guards 
              shared 4-core machine.
 ```
 
+### The reviewer gate on real samples (mock provider)
+
+How often does the gate hold back a dismissal on a real package? Every
+sample of the benchmark corpora was scanned with `--llm-review` against the
+local mock, and the report's `manipulation_files` was counted:
+
+| Corpus | Samples with a file flagged | Flagged by | Findings eligible / reviewed at the default caps |
+|---|---:|---|---:|
+| Clean vendor skills | 0 of 455 | none | 177 / 177 |
+| Clean MCP servers (official registry) | 1 of 169 | `PROMPT-001` in the server's own sanitiser tests | 12,965 / 5,190 |
+| Malicious skills (Datadog ai-skills) | 4 of 204 | `PROMPT-001` in each | 845 / 845 |
+
+Run with the first version of the stage, the MCP and malicious sets flag the
+same samples (the clean skills were not re-run with it; its checks are a
+subset of the current ones, so it cannot flag more than zero there). The
+stage-only checks added no flag on these 828 samples. The MCP row also shows the call cap at
+work: 14 of the 169 servers have more than 200 eligible findings (up to
+3,466), so at the default 25 calls most of their findings are not reviewed
+and the report says so.
+
+```
+Data Source: Real samples (the benchmark corpora above), scanned against a local mock provider.
+Sample Size: 455 + 169 + 204 = 828 samples.
+Limitations: Counts what Sigil's gate flags before anything is sent; says nothing about a real
+             model's answers. One MCP server's eligible count differed between two runs (867
+             vs 928 findings) because a time-budgeted provenance check (PROV-BUDGET-001) ran out
+             under load in one of them; its verdict was the same.
+```
+
 ## Limitations
 
 - The stage has not been measured on a live model (see above). Treat its
