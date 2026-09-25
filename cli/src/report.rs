@@ -19,6 +19,7 @@ use std::sync::OnceLock;
 
 use colored::Colorize;
 
+use crate::llm_review::LlmReport;
 use crate::project_config::{EffectivePolicy, PolicyOutcome, SuppressionKind};
 use crate::scanner::{profile, Finding, ScanResult, Severity, Verdict};
 
@@ -48,17 +49,24 @@ pub fn validate_format(format: &str) -> Result<(), String> {
     }
 }
 
-/// The policy a report was produced under, when there is one.
+/// The policy a report was produced under, when there is one, and the LLM
+/// review stage's result when it ran.
 #[derive(Clone, Copy)]
 pub struct PolicyView<'a> {
     pub policy: &'a EffectivePolicy,
     pub outcome: &'a PolicyOutcome,
+    pub llm: Option<&'a LlmReport>,
 }
 
 impl PolicyView<'_> {
     fn active(&self) -> bool {
         self.policy.is_active() || !self.outcome.suppressed.is_empty()
     }
+}
+
+/// The LLM review of a report, if the stage ran.
+fn llm_of<'a>(view: Option<PolicyView<'a>>) -> Option<&'a LlmReport> {
+    view.and_then(|v| v.llm)
 }
 
 /// The exit gate a report describes: `fail_on` and `fail_on_verdict`.
@@ -82,9 +90,10 @@ pub fn emit(
             Ok(())
         }
         None => {
-            // With no policy in play and a single skill (or none), the machine
-            // formats go through exactly the printers they always did.
-            let active = view.is_some_and(|v| v.active());
+            // With no policy in play, no LLM review and a single skill (or
+            // none), the machine formats go through exactly the printers they
+            // always did.
+            let active = view.is_some_and(|v| v.active() || v.llm.is_some());
             let multi_skill = format == "json"
                 && !crate::skillmap::breakdown(result, std::path::Path::new(target))
                     .skills
@@ -138,7 +147,10 @@ pub fn render(result: &ScanResult, target: &str, format: &str, view: Option<Poli
                         .collect()
                 })
                 .unwrap_or_default();
-            let doc = crate::output::scan_sarif_document(result, target, &external);
+            let mut doc = crate::output::scan_sarif_document(result, target, &external);
+            if let Some(llm) = llm_of(view) {
+                annotate_sarif(&mut doc, result, llm);
+            }
             format!(
                 "{}\n",
                 serde_json::to_string_pretty(&doc).unwrap_or_default()
@@ -167,7 +179,50 @@ pub fn json_document(result: &ScanResult, view: Option<PolicyView>) -> serde_jso
             "pass"
         });
     }
+    if let Some(llm) = llm_of(view) {
+        // `llm_review` sorts after `findings`, so the findings array stays
+        // the first `[` in the document. Each reviewed finding also carries
+        // its own review.
+        if let Some(items) = doc["findings"].as_array_mut() {
+            for (item, f) in items.iter_mut().zip(result.findings.iter()) {
+                if let Some(r) = llm.review_for(f) {
+                    item["llm_review"] = serde_json::json!(r);
+                }
+            }
+        }
+        doc["llm_review"] = serde_json::json!(llm);
+    }
     doc
+}
+
+/// Add the LLM review to a SARIF document: each reviewed result gets
+/// `properties.llmReview`, and the invocation gets the stage summary.
+fn annotate_sarif(doc: &mut serde_json::Value, result: &ScanResult, llm: &LlmReport) {
+    let by_fp: std::collections::HashMap<&str, &Finding> = result
+        .findings
+        .iter()
+        .filter(|f| !f.fingerprint.is_empty())
+        .map(|f| (f.fingerprint.as_str(), f))
+        .collect();
+    if let Some(results) = doc["runs"][0]["results"].as_array_mut() {
+        for r in results.iter_mut() {
+            // Only active results: a suppressed one carries `suppressions`.
+            if r.get("suppressions").is_some() {
+                continue;
+            }
+            let fp = r["partialFingerprints"]["sigilFingerprint/v1"]
+                .as_str()
+                .unwrap_or_default();
+            if let Some(review) = by_fp.get(fp).and_then(|f| llm.review_for(f)) {
+                r["properties"]["llmReview"] = serde_json::json!(review);
+            }
+        }
+    }
+    let mut summary = serde_json::json!(llm);
+    if let Some(obj) = summary.as_object_mut() {
+        obj.remove("reviews");
+    }
+    doc["runs"][0]["invocations"][0]["properties"]["llmReview"] = summary;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +302,13 @@ fn print_text(result: &ScanResult, target: &str, view: Option<PolicyView>) {
                 .to_string()
         };
         println!("  {gate_line}");
+    }
+    if let Some(llm) = llm_of(view) {
+        let (head, rows) = llm_lines(llm);
+        println!("  {} {}", "[*]".cyan(), head);
+        for row in rows {
+            println!("       {}", row.dimmed());
+        }
     }
     output::print_verdict(
         &result.verdict,
@@ -450,7 +512,48 @@ fn render_plain(result: &ScanResult, target: &str, view: Option<PolicyView>) -> 
             }
         );
     }
+    if let Some(llm) = llm_of(view) {
+        let (head, rows) = llm_lines(llm);
+        let _ = writeln!(s, "\n{}", clean(&head));
+        for row in rows {
+            let _ = writeln!(s, "  {}", clean(&row));
+        }
+    }
     s
+}
+
+/// Most LLM reviews listed in the text and Markdown reports; JSON and SARIF
+/// carry all of them.
+const MAX_LLM_ROWS: usize = 50;
+
+/// The LLM stage in the text reports: the summary line, then one row per
+/// dismissal or escalation (confirmations are counted, not listed).
+fn llm_lines(llm: &LlmReport) -> (String, Vec<String>) {
+    let rows = llm
+        .reviews
+        .iter()
+        .filter(|r| r.verdict != "confirm")
+        .take(MAX_LLM_ROWS)
+        .map(|r| {
+            let loc = match r.line {
+                Some(l) => format!("{}:{l}", r.file),
+                None => r.file.clone(),
+            };
+            let action = match (r.action.as_str(), &r.original_severity) {
+                ("downgraded", Some(orig)) => format!("downgraded {orig} -> {}", r.severity),
+                ("not_applied", _) => format!(
+                    "not applied: {}",
+                    r.not_applied_reason.as_deref().unwrap_or("")
+                ),
+                (a, _) => a.to_string(),
+            };
+            format!(
+                "{} {} {} [{}] {}",
+                r.verdict, r.rule, loc, action, r.rationale
+            )
+        })
+        .collect();
+    (llm.summary_line(), rows)
 }
 
 fn rule_remediation(rule: &str) -> Option<String> {
@@ -626,6 +729,53 @@ fn render_markdown(result: &ScanResult, target: &str, view: Option<PolicyView>) 
             }
         }
         let _ = writeln!(s);
+    }
+    if let Some(llm) = llm_of(view) {
+        let _ = writeln!(s, "### LLM review\n");
+        let _ = writeln!(s, "{}\n", md_text(&llm.summary_line()));
+        let rows: Vec<_> = llm
+            .reviews
+            .iter()
+            .filter(|r| r.verdict != "confirm")
+            .take(MAX_LLM_ROWS)
+            .collect();
+        if !rows.is_empty() {
+            let _ = writeln!(s, "| Verdict | Rule | Location | Action | Rationale |");
+            let _ = writeln!(s, "|---|---|---|---|---|");
+            for r in rows {
+                let loc = match r.line {
+                    Some(l) => format!("{}:{l}", r.file),
+                    None => r.file.clone(),
+                };
+                let action = match (r.action.as_str(), &r.original_severity) {
+                    ("downgraded", Some(orig)) => format!("downgraded {orig} → {}", r.severity),
+                    ("not_applied", _) => format!(
+                        "not applied: {}",
+                        r.not_applied_reason.as_deref().unwrap_or("")
+                    ),
+                    (a, _) => a.to_string(),
+                };
+                let _ = writeln!(
+                    s,
+                    "| {} | {} | {} | {} | {} |",
+                    md_text(&r.verdict),
+                    md_code(&r.rule),
+                    md_code(&loc),
+                    md_text(&action),
+                    md_text(&r.rationale)
+                );
+            }
+            let _ = writeln!(s);
+        }
+        let _ = writeln!(
+            s,
+            "_The model's verdicts are advice. The findings above keep the scanner's severities{}._\n",
+            if llm.downgraded > 0 {
+                ", except the downgrades listed, which the scan policy allowed"
+            } else {
+                ""
+            }
+        );
     }
     let _ = writeln!(
         s,
@@ -916,6 +1066,7 @@ mod tests {
             Some(PolicyView {
                 policy: &policy,
                 outcome: &outcome,
+                llm: None,
             }),
         );
         assert!(
@@ -974,6 +1125,7 @@ mod tests {
             Some(PolicyView {
                 policy: &policy,
                 outcome: &outcome,
+                llm: None,
             }),
         );
         assert_eq!(doc["summary"]["policy_suppressed_count"], 0);
@@ -1002,6 +1154,7 @@ mod tests {
             Some(PolicyView {
                 policy: &policy,
                 outcome: &outcome,
+                llm: None,
             }),
         );
         let doc: serde_json::Value = serde_json::from_str(&text).unwrap();

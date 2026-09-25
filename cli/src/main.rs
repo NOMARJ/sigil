@@ -13,6 +13,7 @@ mod ingest;
 mod inventory;
 mod knowngood;
 mod ledger;
+mod llm_review;
 mod mcp;
 mod mcp_registry;
 mod output;
@@ -183,6 +184,25 @@ enum Commands {
         /// Also enabled by SIGIL_FOLLOW_REFS=1.
         #[arg(long)]
         follow_refs: bool,
+
+        /// Send each Medium-or-above finding (rule, title, path, masked
+        /// matched line and surrounding lines) to a language model for a
+        /// second opinion. Off by default; advisory unless the scan policy
+        /// sets llm_may_downgrade. Anthropic by default (ANTHROPIC_API_KEY),
+        /// or an OpenAI-compatible endpoint (SIGIL_LLM_ENDPOINT,
+        /// SIGIL_LLM_API_KEY). See docs/llm-review.md
+        #[arg(long, conflicts_with = "no_llm_review")]
+        llm_review: bool,
+
+        /// Do not run the LLM review stage, even if a policy turns it on
+        /// (refused when the organisation policy locks llm_review)
+        #[arg(long)]
+        no_llm_review: bool,
+
+        /// Model for --llm-review (also SIGIL_LLM_MODEL). Default for
+        /// Anthropic: claude-opus-5; required for an OpenAI-compatible endpoint
+        #[arg(long, value_name = "MODEL")]
+        llm_model: Option<String>,
     },
 
     /// Record the current findings as accepted, so later scans fail only on
@@ -685,6 +705,9 @@ async fn main() {
             no_project_config,
             ignore_ledger,
             follow_refs,
+            llm_review,
+            no_llm_review,
+            llm_model,
         } => {
             // `sigil scan <git url>` is the clone workflow: quarantine, then
             // scan. Routing it here means the obvious command does the right
@@ -694,6 +717,18 @@ async fn main() {
                 follow_refs || std::env::var("SIGIL_FOLLOW_REFS").as_deref() == Ok("1");
             let fail_on_incomplete = fail_on_incomplete
                 || std::env::var("SIGIL_FAIL_ON_INCOMPLETE").as_deref() == Ok("1");
+            let llm_review_flag = if llm_review {
+                Some(true)
+            } else if no_llm_review {
+                Some(false)
+            } else {
+                None
+            };
+            let llm_model = llm_model.or_else(|| {
+                std::env::var("SIGIL_LLM_MODEL")
+                    .ok()
+                    .filter(|v| !v.trim().is_empty())
+            });
             let policy_args = ScanPolicyArgs {
                 fail_on,
                 fail_on_verdict,
@@ -702,6 +737,8 @@ async fn main() {
                 no_project_config,
                 config: cli.config.clone(),
                 rules: cli.rules.clone(),
+                llm_review: llm_review_flag,
+                llm_model,
             };
             // Archives (.zip/.skill/.tar.gz/...), file and archive URLs, and
             // GitHub /tree/ links are unpacked into quarantine first (see
@@ -731,6 +768,12 @@ async fn main() {
                 )
                 .await
             } else if looks_like_git_url(&target) {
+                if llm_review {
+                    eprintln!(
+                        "{} --llm-review applies to `sigil scan <path>`; the clone workflow runs without it",
+                        "warning:".bold().yellow()
+                    );
+                }
                 cmd_clone(&target, None, false, &cli.format, cli.verbose).await
             } else {
                 cmd_scan(
@@ -2090,6 +2133,8 @@ struct ScanPolicyArgs {
     no_project_config: bool,
     config: Option<PathBuf>,
     rules: Vec<PathBuf>,
+    llm_review: Option<bool>,
+    llm_model: Option<String>,
 }
 
 /// Resolve the scan policy (organisation file, project file, flags) and
@@ -2116,6 +2161,8 @@ fn load_policy(
             min_severity,
             baseline: args.baseline.clone(),
             rules: args.rules.clone(),
+            llm_review: args.llm_review,
+            llm_model: args.llm_model.clone(),
         },
     };
     let policy = project_config::resolve(&opts)?;
@@ -2427,9 +2474,38 @@ async fn cmd_scan(
             outcome.count(project_config::SuppressionKind::Baseline)
         );
     }
+    // --- Optional LLM review (off unless --llm-review or a policy asks) ----
+    // Runs on the policy-applied result so suppressed findings are never
+    // sent, and after the cache so its advisory output is never cached.
+    let env = |k: &str| std::env::var(k).ok();
+    let llm = match llm_review::resolve(&policy.llm, &env) {
+        llm_review::Resolution::Off => None,
+        llm_review::Resolution::Misconfigured(r) => {
+            eprintln!("{} {}", "warning:".bold().yellow(), r.summary_line());
+            Some(*r)
+        }
+        llm_review::Resolution::Ready(settings) => {
+            print_progress(
+                format,
+                format!(
+                    "{} LLM review: sending findings to {} ({})...",
+                    "sigil:".bold().cyan(),
+                    llm_review::provider::display_url(&settings.url),
+                    settings.model
+                ),
+            );
+            let r = llm_review::run(&mut result, path, &settings).await;
+            if r.status != "complete" {
+                eprintln!("{} {}", "warning:".bold().yellow(), r.summary_line());
+            }
+            Some(r)
+        }
+    };
+
     let view = report::PolicyView {
         policy: &policy,
         outcome: &outcome,
+        llm: llm.as_ref(),
     };
     if let Err(e) = report::emit(&result, &path.to_string_lossy(), format, Some(view)) {
         eprintln!("{} {e}", "error:".bold().red());
@@ -3022,6 +3098,33 @@ fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 
         ),
     );
     show("locked", list(policy.locked.clone()));
+    let l = &policy.llm;
+    show(
+        "llm_review",
+        if l.review == Some(true) {
+            format!(
+                "on ({}; provider {}, model {}, max {} calls / {} tokens)",
+                if l.may_downgrade == Some(true) {
+                    "llm_may_downgrade: true"
+                } else {
+                    "advisory"
+                },
+                l.provider
+                    .map(|p| p.label().to_string())
+                    .unwrap_or_else(|| "from the environment".to_string()),
+                l.model
+                    .clone()
+                    .unwrap_or_else(|| "provider default".to_string()),
+                l.max_calls.unwrap_or(llm_review::DEFAULT_MAX_CALLS),
+                l.max_tokens.unwrap_or(llm_review::DEFAULT_MAX_TOKENS),
+            )
+        } else {
+            "off (no code leaves the machine)".to_string()
+        },
+    );
+    if let Some(e) = &l.endpoint {
+        show("llm_endpoint", llm_review::provider::display_url(e));
+    }
     for r in &policy.refused {
         println!("  {} {r}", "refused:".yellow());
     }

@@ -346,8 +346,15 @@ errors. Largest file read: 1 MiB.
 | `rule_packs` | list of strings | paths relative to the policy file |
 | `trusted_domains` | list of strings | host names; at least two labels; a leading `*.` is accepted and means the same |
 | `baseline` | string | path relative to the policy file |
+| `llm_review` | bool | run the optional LLM review stage ([llm-review.md](llm-review.md)) |
+| `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level |
+| `llm_provider` | string | `anthropic` \| `openai-compatible` (also `openai`) |
+| `llm_model` | string | model id: letters, digits and `. - _ : / @`, at most 128 characters |
+| `llm_max_calls` | integer | 1 to 1000 |
+| `llm_max_tokens` | integer | 10,000 to 10,000,000 |
 | `locked` | list of strings | organisation file only: any of the keys above except `version`, or `all` |
 | `allow_project_policy` | bool | organisation file only |
+| `llm_endpoint` | string | organisation file only: an `https` URL, or `http` to a loopback address; no credentials in the URL; not combinable with `llm_provider: anthropic` |
 
 ### Baseline file
 

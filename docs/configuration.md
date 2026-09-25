@@ -31,7 +31,8 @@ A scan policy is a YAML file. Sigil reads, in order:
    current directory (skip discovery with `--no-project-config` or
    `SIGIL_NO_PROJECT_CONFIG=1`);
 3. **flags**: `--fail-on`, `--fail-on-verdict`, `--severity`, `--baseline`,
-   `--rules`.
+   `--rules`, and for the LLM stage `--llm-review`, `--no-llm-review` and
+   `--llm-model` (or `SIGIL_LLM_MODEL`).
 
 Later layers override earlier ones, except that a key the organisation policy
 lists under `locked:` can afterwards only be made stricter.
@@ -48,9 +49,16 @@ ignore_paths: [tests/fixtures/, "*.snap"]   # .sigilignore (gitignore) syntax
 rule_packs: [.sigil/rules/]         # custom packs: files or directories
 trusted_domains: [api.openai.com]   # excuse network findings to these hosts
 baseline: .sigil-baseline.json      # accept the findings recorded here
+llm_review: false                   # optional LLM review stage (sends masked code to a model)
+llm_may_downgrade: false            # let a model's dismissal lower a finding by one level
+llm_provider: anthropic             # or openai-compatible
+llm_model: claude-opus-5
+llm_max_calls: 25                   # per scan
+llm_max_tokens: 200000              # per scan, input + output
 # Organisation policy only:
 locked: [fail_on, disable_rules]    # or [all]
 allow_project_policy: true          # false = project files may only tighten
+llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends code
 ```
 
 | Key | Type | Effect |
@@ -66,6 +74,19 @@ allow_project_policy: true          # false = project files may only tighten
 | `baseline` | path | findings recorded in the baseline move to `policy.suppressed` |
 | `locked` | list of keys, or `all` | organisation only; see below |
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
+| `llm_review` | bool | run the optional LLM review stage on `sigil scan` (as `--llm-review`); see [llm-review.md](llm-review.md) |
+| `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level; never a Critical, prompt-injection or agent-manipulation finding, or a finding in a file that addresses the reviewer |
+| `llm_provider` | `anthropic`/`openai-compatible` | which API the stage speaks (default: Anthropic, or OpenAI-compatible when an endpoint is set) |
+| `llm_model` | model id | the model (as `--llm-model`) |
+| `llm_endpoint` | URL | organisation only; the OpenAI-compatible endpoint the stage sends code to (`https`, or `http` to localhost) |
+| `llm_max_calls` | 1–1000 | per-scan cap on requests (default 25) |
+| `llm_max_tokens` | 10,000–10,000,000 | per-scan cap on input + output tokens (default 200,000) |
+
+The LLM keys cannot be set by a policy file inside a tree scanned from
+outside it: such a file may only set `llm_may_downgrade: false`. A locked
+`llm_review`, `llm_provider` or `llm_model` is fixed at the organisation's
+value, a locked `llm_may_downgrade` can only be switched off, and locked caps
+can only be lowered. API keys are read from the environment only.
 
 Validation is strict: an unknown key, a misspelt severity, a URL where a host
 name belongs, or a single-label trusted domain such as `com` is an error
@@ -88,9 +109,9 @@ severities, but may not add to a locked `disable_rules`, `ignore_paths`,
 Refusals are warnings on stderr and entries in `policy.refused`. Locking the
 gate (`fail_on`, `fail_on_verdict`) is not enough on its own: every unlocked
 key among `min_severity`, `severity_overrides`, `baseline`, `disable_rules`,
-`ignore_paths` and `trusted_domains` can still take findings out from under
-it. `sigil config --validate FILE --org` lists each one; `locked: [all]`
-closes them all.
+`ignore_paths`, `trusted_domains` and `llm_may_downgrade` can still take
+findings out from under it. `sigil config --validate FILE --org` lists each
+one; `locked: [all]` closes them all.
 
 **The scanned-tree guard.** A project file found in the scan root is trusted
 only when you run Sigil from inside that tree. Scanning a tree from outside

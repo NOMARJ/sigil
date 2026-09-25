@@ -130,6 +130,63 @@ output; `sigil corpus` shows that the pack is loaded.
 | MP1 | PROMPT-014 / PROMPT-017 (writes to agent settings, hooks, skills) | writes to the global *memory* files, "remember this for all future sessions" |
 | TP3 | PROMPT-001 … PROMPT-011 already scan `mcp.json`, `tool.json`, `plugin.json`, `manifest.json` | the INSTR prose rules also scan those manifest names and `server.json` / `skill.json` |
 
+### Text addressed to the reviewer (MANIP-012, MANIP-013)
+
+These two rules came with the optional LLM review stage
+([llm-review.md](../llm-review.md)). An LLM triage step introduces a reviewer
+that the scanned content can talk to, so text written for that reviewer is
+flagged in every scan and on every file type, code comments included.
+
+- **MANIP-012 (High)** flags a note to an AI or security reviewer that tells
+  it what to conclude. It matches four shapes:
+  - a note or greeting addressed to an AI, automated or security reviewer,
+    scanner, auditor or analyzer, followed on the same line by a verdict or
+    an instruction ("safe", "false positive", "ignore", "do not flag");
+  - a sentence that casts the reader as the reviewer and tells it to mark,
+    dismiss or not flag this file;
+  - `Scanner:` or `LLM:` followed by "mark/classify this ... as safe";
+  - "do not flag this as malicious".
+- **MANIP-013 (Low, an observation)** flags self-vouching: "this finding is a
+  false positive", "the code is not malicious", "this package is safe to
+  install", "antivirus may flag this; it is a false positive". Developers
+  write these in suppression comments and README notes, so the rule does not
+  move the verdict.
+
+A security-review skill that tells the agent "as a security reviewer, you
+should report every injection sink" does not match: the rules need the text
+to steer the verdict, not describe the job. With the LLM stage on, a file
+carrying either rule, or `PROMPT-001`, never has a finding downgraded on the
+model's advice.
+
+Both rules were measured on the corpora used elsewhere in this document,
+using the release build of this change on 2026-09-25:
+
+```
+Data Source: Real samples: 204 malicious skills (Datadog ai-skills), 455 clean vendor skills,
+             169 clean MCP servers (official registry), plus the 844-package Datadog npm/PyPI
+             selection and the 1,796 de-duplicated SkillSpector test positives.
+Sample Size: 204 + 455 + 169 + 844 + 1,796.
+Limitations: The rules target a shape (text for an automated reviewer) that none of these
+             corpora was collected for. Zero hits on the malicious sets means no measured recall,
+             not that the shape does not occur in the wild.
+```
+
+| Corpus | Samples with MANIP-012 | Samples with MANIP-013 | Verdict changes |
+|---|---:|---:|---:|
+| Malicious skills | 0 of 204 | 0 of 204 | 0 |
+| Clean vendor skills | 0 of 455 | 0 of 455 | 0 |
+| Clean MCP servers | 0 of 169 | 0 of 169 | 0 |
+| SkillSpector test positives | 0 of 1,796 | 0 of 1,796 | 0 (623 flagged, 385 at High or above, as before) |
+| Datadog npm/PyPI selection | not recorded per rule | not recorded per rule | recall unchanged at every threshold: 785 / 761 / 752 / 561 of 844 at any / Medium / High / Critical |
+
+The rules add no false positives on the clean sets, and no measured recall:
+none of the malicious samples talks to its reviewer. (`scripts/run_eval.py`
+records verdicts, not rule ids, so the Datadog row shows only that no
+sample's detection changed.) The unit tests
+(`manip012_text_addressed_to_the_reviewer`,
+`manip013_self_vouching_is_an_observation` in `cli/src/corpus/engine.rs`)
+pin the shapes each rule must and must not match.
+
 ## Measurements
 
 All numbers below come from commands run against real corpora on 2026-09-24,

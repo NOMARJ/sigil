@@ -2,10 +2,10 @@
   "meta": {
     "id": "sigil-core-agent-manipulation",
     "name": "Sigil Core — Agent Manipulation",
-    "version": "1.2.0",
-    "updated_at": "2026-09-03",
+    "version": "1.3.0",
+    "updated_at": "2026-09-25",
     "author": "NOMARJ <hello@sigilsec.ai>",
-    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading. v1.2 adds the agency families measured on the Datadog ai-skills corpus: concealment, execution without confirmation, unconditional auto-invocation, compelled irreversible publishes and safety-guideline suspension."
+    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading. v1.2 adds the agency families measured on the Datadog ai-skills corpus: concealment, execution without confirmation, unconditional auto-invocation, compelled irreversible publishes and safety-guideline suspension. v1.3 adds text addressed to a reviewer: notes to an AI or security reviewer that tell it what to conclude (MANIP-012) and self-vouching claims such as 'this finding is a false positive' (MANIP-013, an observation)."
   },
   "rules": [
     {
@@ -573,6 +573,40 @@
         "manipulation",
         "jailbreak",
         "safety-bypass"
+      ]
+    },
+    {
+      "id": "MANIP-012",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:dear|hey|hello|hi|attention|(?:note|message|instructions?|notice|memo)\\s+(?:to|for))\\s+(?:the\\s+|any\\s+|all\\s+|our\\s+)?(?:(?:ai|llm|gpt|claude|automated|automatic)\\s+(?:security\\s+|code\\s+|malware\\s+)?(?:reviewers?|scanners?|auditors?|analy[sz]ers?)|(?:security|malware)\\s+(?:reviewers?|scanners?|auditors?|analy[sz]ers?))\\b[^\\n]{0,160}?\\b(?:safe|benign|harmless|false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|ignore|disregard|dismiss|approve|whitelist|allowlist|(?:do\\s+not|don'?t|never)\\s+(?:flag|report|raise|escalate|mark))\\b|\\bas\\s+(?:the|an?|our)\\s+(?:ai\\s+|llm\\s+|automated\\s+)?(?:security\\s+|code\\s+|malware\\s+)?(?:reviewer|auditor|scanner|analy[sz]er)\\s*,\\s*you\\s+(?:must|should|will|shall|need\\s+to|are\\s+(?:required|instructed|expected)\\s+to)\\s+(?:(?:mark|classify|treat|report|consider|rate|label)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b[^\\n]{0,40}?\\bas\\s+(?:safe|benign|harmless|clean|(?:an?\\s+)?false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|low[\\s-]risk)|(?:dismiss|approve|ignore|skip)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b|not\\s+(?:flag|report|raise)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b)|\\b(?:(?:ai|llm|automated)\\s+)?(?:security\\s+)?(?:reviewers?|scanners?|auditors?|analy[sz]ers?|llms?)\\s*[:,]\\s*(?:please\\s+)?(?:mark|classify|treat|report|label|rate|consider)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b[^\\n]{0,40}?\\bas\\s+(?:safe|benign|harmless|clean|(?:an?\\s+)?false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|low[\\s-]risk)|\\b(?:do\\s+not|don'?t|never|must\\s+not|should\\s+not)\\s+(?:flag|report|raise|escalate)\\s+(?:this|these|it|the\\s+(?:following|above|below)(?:\\s+(?:code|lines?|file))?)\\s+as\\s+(?:malicious|suspicious|malware|a\\s+(?:threat|vulnerability|finding|security\\s+(?:issue|risk|finding)))\\b",
+      "description": "Agent manipulation — text addressed to an AI or security reviewer that tells it what to conclude",
+      "remediation": "The file speaks to whoever reviews it — an AI reviewer, a scanner, a security auditor — and tells it the code is safe, that a finding is a false positive, or not to flag something. Code that works has no reason to address its reviewer; text like this exists to talk an automated reviewer (an LLM triage stage above all) out of a finding. Read the code the note sits next to as if the note were not there, and treat the note itself as evidence of intent. Sigil's own LLM review stage never downgrades a finding in a file that carries this text. If this is red-team or test material, keep it in a fixture path and mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "reviewer-manipulation",
+        "prompt-injection"
+      ]
+    },
+    {
+      "id": "MANIP-013",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)\\b(?:this|these|the\\s+(?:following|above|below))\\s+(?:findings?|alerts?|detections?|matches|warnings?)\\s+(?:is|are|was|were)\\s+(?:(?:a|an|all|just|only)\\s+)?(?:false[\\s-]positives?|benign|harmless|safe\\s+to\\s+ignore)\\b|\\b(?:this|the)\\s+(?:code|file|script|package|skill|server|module|payload|binary)\\s+is\\s+(?:not\\s+(?:malicious|malware|a\\s+(?:virus|trojan|backdoor))|safe\\s+to\\s+(?:run|install|approve|execute))\\b|\\b(?:security\\s+|antivirus\\s+)?(?:scanners?|antivirus|defender)\\s+(?:may|might|will|often|can|could|sometimes)\\s+(?:flag|report|detect|mark)\\s+(?:this|these|it)\\b[^\\n]{0,80}?\\b(?:false[\\s-]positives?|benign|harmless)\\b",
+      "description": "Observation — the text vouches for itself to a reviewer (claims a finding is a false positive, or the code is not malicious)",
+      "remediation": "Informational. The file claims, in its own words, that a scanner finding is a false positive, that the code is not malicious or is safe to run, or that security tools will flag it wrongly. Developers do write this in suppression comments and README notes about antivirus detections, so on its own it does not change the verdict. It is also exactly what malicious code says to an automated reviewer: judge the code, not the claim. Sigil's LLM review stage never downgrades a finding in a file that carries this text.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051"
+      ],
+      "tags": [
+        "manipulation",
+        "reviewer-manipulation"
       ]
     }
   ],

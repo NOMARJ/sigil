@@ -499,6 +499,18 @@ impl CompiledCorpus {
         self.per_phase.get(&phase)
     }
 
+    /// Every content rule, sorted by id so callers that apply several rules
+    /// in turn (the LLM stage's secret masking) behave the same on every run.
+    pub fn content_rules_sorted(&self) -> Vec<&CompiledRule> {
+        let mut rules: Vec<&CompiledRule> = self
+            .per_phase
+            .values()
+            .flat_map(|p| p.rules.iter())
+            .collect();
+        rules.sort_by(|a, b| a.id.cmp(&b.id));
+        rules
+    }
+
     /// Every active rule ID, sorted.
     ///
     /// Recorded in scan output so `sigil diff` can tell a finding that is new

@@ -14,6 +14,7 @@
 | Offline / unauthenticated CLI (default) | **No** | Nothing | Nowhere |
 | Authenticated (`sigil login`) scan submission | **Flagged lines only** | Finding metadata + the source-line excerpts shown in scan output | Sigil API |
 | Pro enhanced scan / AI investigation | **Yes — relevant files** | Full contents of files relevant to a finding | Sigil API → LLM provider |
+| Optional LLM review (`sigil scan --llm-review`, off by default) | **Yes — masked excerpts** | Per finding at Medium or above: rule, title, path, masked matched line and up to 6 masked lines on each side | The model endpoint you configure (Anthropic, or an OpenAI-compatible endpoint), directly, not via Sigil |
 
 ## 1. Offline / unauthenticated CLI (Open Source tier)
 
@@ -66,14 +67,35 @@ provider is subject to that provider's data-usage terms.
 to share with a third-party processor. The free tier's offline scan remains
 available for that code.
 
+## 4. Optional LLM review (`sigil scan --llm-review`)
+
+Off unless `--llm-review` or a scan policy (`llm_review: true`) turns it on;
+an organisation policy can lock it off. When on, `llm_review::run`
+(`cli/src/llm_review/mod.rs`) sends, for each active finding at Medium or
+above: the rule id, title and remediation text, the severity and phase, the
+file path and line, the matched text, and up to 6 lines on each side of the
+line. Everything taken from the scanned tree is masked first
+(`cli/src/llm_review/mask.rs`): private-key blocks, every match of a
+credential or secret rule, common token shapes, `Authorization` values, URL
+passwords, secret-named assignments and high-entropy strings. Secret files
+(`.env*`, private keys, `.npmrc`, `.netrc`, cloud credential files), symbolic
+links and paths outside the scanned tree are never read. The request goes
+straight from the CLI to the endpoint you configure: the Anthropic Messages
+API (`ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`) or an OpenAI-compatible
+endpoint (`SIGIL_LLM_ENDPOINT`, or `llm_endpoint` in the organisation
+policy). Nothing goes to the Sigil API on this path. Masking is pattern-based
+and can miss a secret that matches no pattern. What is sent is subject to the
+provider's data-usage terms. Full detail: [llm-review.md](llm-review.md).
+
 ## Rules for copy and docs (enforced by review)
 
 1. "No code leaves your machine" / "fully offline" / "no source code is
-   transmitted" — only when explicitly scoped to the unauthenticated CLI.
+   transmitted" — only when explicitly scoped to the unauthenticated CLI
+   without `--llm-review`.
 2. Any surface that sells or enables Pro must disclose that Pro uploads
    relevant source files for AI analysis.
 3. Statements about the authenticated tier must mention flagged-line
    excerpts, not claim "metadata only".
 4. Changes to `Finding`, `submit_scan`, `submit_enhanced_scan`,
-   `finding_investigator`, or `context_expander` require re-verifying this
-   document in the same PR.
+   `finding_investigator`, `context_expander`, or `cli/src/llm_review/`
+   require re-verifying this document in the same PR.

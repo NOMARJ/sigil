@@ -240,6 +240,13 @@ cli/src/hook_tests.rs
 cli/src/inventory_tests.rs
 cli/src/cmdline_tests.rs
 cli/src/ingest_tests.rs
+# cli/src/llm_review/tests.rs: the unit tests of the optional LLM review stage.
+# Its fixtures are what the stage must withstand: a note addressed to an AI
+# security reviewer (MANIP-012 must flag it and the stage must refuse to act on
+# a dismissal next to it) and an exec() line beside it. Secret-shaped values
+# are assembled at run time and are not in the file. The stage's production
+# code (mod.rs, mask.rs, prompt.rs, provider.rs) stays scanned.
+cli/src/llm_review/tests.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.
