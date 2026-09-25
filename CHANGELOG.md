@@ -65,6 +65,20 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   probes were synthetic, so this measures agreement, not detection; the
   remaining differences are listed in
   [docs/detection/ux.md](docs/detection/ux.md).
+  Both gates now read a command the way the shell runs it (grouping,
+  redirections, wrapper commands such as `sudo -u root` and `env -i`,
+  interpreter options per interpreter, quoting inside words, `bash -c`
+  strings, line continuations), which closes the shapes both used to let
+  through: `curl … 2>&1 | sh`, `curl … | "bash"`, `bash < <(curl …)`,
+  `curl -o i.sh … && sudo -E bash i.sh` / `. ./i.sh` / `cat i.sh | sh`,
+  `curl … | tee ~/.claude/skills/…`, `"npm" exec x`, a scan that ran before
+  the download, and `./sigil` or a `sigil` shell function satisfying the
+  gate. On 168 probes written for these shapes, main's native hook decided
+  56 as expected and the new one 168 (fallback: 59 and 168). Replayed on
+  the 43,869 shell lines and 7,649 shell blocks of the skill corpora, three
+  decisions change, all on clean skills: two new denies of a real download
+  and run, and one deny that becomes an ask (a continued `pip install -r`
+  line now read whole). Details: [docs/detection/ux.md §7](docs/detection/ux.md#7-closing-the-shapes-both-gates-missed).
   `sigil mcp` is a built-in MCP server (`scan`, `scan_package`,
   `check_command`).
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
