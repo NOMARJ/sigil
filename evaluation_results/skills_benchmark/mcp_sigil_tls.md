@@ -1,6 +1,6 @@
 # Skill scanner head-to-head
 
-_Generated 2026-09-25T09:06:26+00:00 by `scripts/benchmark_skills.py`._
+_Generated 2026-09-25T14:11:06+00:00 by `scripts/benchmark_skills.py`._
 
 ```
 Data Source: Real samples. Malicious: 
@@ -20,7 +20,7 @@ Limitations: Static analysis only for every tool (SkillSpector --no-llm, Sigil o
 
 | Tool | Malicious blocked (≥ HIGH) | Malicious warned (≥ MEDIUM) | Clean blocked (FP) | Clean warned (FP) | Errors | Scan time |
 |---|---:|---:|---:|---:|---:|---:|
-| sigil | 0/0 (n/a) | 0/0 (n/a) | 39/169 (23.1%) | 125/169 (74.0%) | 0 | 505s |
+| sigil | 0/0 (n/a) | 0/0 (n/a) | 39/169 (23.1%) | 125/169 (74.0%) | 0 | 352s |
 
 ## Clean samples blocked
 
@@ -47,7 +47,7 @@ Limitations: Static analysis only for every tool (SkillSpector --no-llm, Sigil o
 - sigil: `corpora/mcp_clean/io.github.ChromeDevTools__chrome-devtools-mcp` — CRITICAL ['CODE-001', 'CODE-002', 'CODE-003', 'CODE-007', 'CODE-008', 'CODE-009', 'CODE-012', 'CODE-014'] (High/Critical: ['CODE-001', 'CODE-002', 'CODE-008', 'CODE-009', 'CODE-014', 'CRED-007', 'CRED-018', 'OBFUSC-CHAIN-010', 'OBFUSC-CHAIN-011', 'SUPPLY-008', 'SUPPLY-014'])
 - sigil: `corpora/mcp_clean/io.github.NVIDIA__elements` — HIGH ['CODE-003', 'CODE-006', 'CODE-007', 'CODE-008', 'CODE-009', 'CODE-014', 'CODE-RUNFILE-001', 'CRED-008'] (High/Critical: ['CODE-008', 'CODE-009', 'CODE-014', 'CRED-008', 'NET-RCE-001', 'OBFUSC-CHAIN-006', 'PROMPT-004', 'SUPPLY-008'])
 - sigil: `corpora/mcp_clean/io.github.SAP-samples__hana-cli` — CRITICAL ['ARTIFACT-007', 'ARTIFACT-008', 'ARTIFACT-011', 'CODE-001', 'CODE-002', 'CODE-003', 'CODE-007', 'CODE-008'] (High/Critical: ['ARTIFACT-011', 'CODE-001', 'CODE-002', 'CODE-008', 'CODE-009', 'CODE-014', 'CRED-008', 'CRED-011', 'CRED-033', 'DEPSRC-005', 'GHSA-28wg-ghj8-5hjv', 'GHSA-2v37-7h3g-55p8', 'GHSA-4r6h-8v6p-xvw6', 'GHSA-5pgg-2g8v-p4x9', 'GHSA-8r6m-32jq-jx6q', 'GHSA-r28c-9q8g-f849', 'INSTALL-003', 'MANIP-004', 'NET-RCE-001', 'OBFUSC-006', 'OBFUSC-CHAIN-006', 'OBFUSC-CHAIN-010', 'PERSIST-005', 'PROMPT-004', 'PROMPT-014', 'SKILL-006', 'SUPPLY-001', 'SUPPLY-007', 'SUPPLY-008', 'SUPPLY-014'])
-- sigil: `corpora/mcp_clean/io.github.SAP__fiori-mcp-server` — HIGH ['CODE-003', 'CODE-008', 'CODE-009', 'CODE-012', 'CRED-ENV-001', 'INFER-010', 'INFER-011', 'NET-012'] (High/Critical: ['CODE-008', 'CODE-009', 'NET-013', 'OBFUSC-CHAIN-015', 'PERSIST-005', 'SUPPLY-008', 'SUPPLY-014'])
+- sigil: `corpora/mcp_clean/io.github.SAP__fiori-mcp-server` — HIGH ['CODE-003', 'CODE-008', 'CODE-009', 'CODE-012', 'CRED-008', 'CRED-ENV-001', 'INFER-010', 'INFER-011'] (High/Critical: ['CODE-008', 'CODE-009', 'CRED-008', 'NET-013', 'OBFUSC-CHAIN-015', 'PERSIST-005', 'SUPPLY-008', 'SUPPLY-014'])
 - sigil: `corpora/mcp_clean/io.github.awslabs__mcp-server-for-oscal` — CRITICAL ['ARTIFACT-007', 'CODE-010', 'CODE-011', 'CODE-013', 'CODE-MCP-001', 'CRED-001', 'CRED-ENV-001', 'GHSA-4q5v-7g7x-j79w'] (High/Critical: ['GHSA-4q5v-7g7x-j79w', 'GHSA-537c-gmf6-5ccf', 'GHSA-5rvq-cxj2-64vf', 'GHSA-82r6-8w77-94w6', 'GHSA-82w8-qh3p-5jfq', 'GHSA-g3vg-vx23-3858', 'GHSA-g6cj-pr64-35w5', 'GHSA-gg2g-p7xc-qqmm', 'GHSA-h47f-gmjp-m7rr', 'GHSA-hvrp-rf83-w775', 'GHSA-jpw9-pfvf-9f58', 'GHSA-jw39-3688-r4rx', 'GHSA-jwv3-5hgf-82ww', 'GHSA-mf9v-mfxr-j63j', 'GHSA-mr95-65j8-9mxp', 'GHSA-pp6c-gr5w-3c5g', 'GHSA-qccp-gfcp-xxvc', 'GHSA-r4vp-3vw6-r2x5', 'GHSA-vj7q-gjh5-988w', 'GHSA-wqp7-x3pw-xc5r', 'GHSA-xgmm-8j9v-c9wx', 'OBFUSC-CHAIN-017', 'PYSEC-2026-142', 'PYSEC-2026-161', 'PYSEC-2026-179', 'PYSEC-2026-2132', 'PYSEC-2026-2281', 'PYSEC-2026-2423', 'PYSEC-2026-2424', 'PYSEC-2026-2425', 'PYSEC-2026-2426', 'PYSEC-2026-249', 'PYSEC-2026-3036', 'PYSEC-2026-3039', 'PYSEC-2026-3481', 'PYSEC-2026-3482', 'PYSEC-2026-3483', 'PYSEC-2026-3552', 'PYSEC-2026-3553', 'PYSEC-2026-3554', 'PYSEC-2026-36', 'PYSEC-2026-3659', 'PYSEC-2026-3817'])
 - sigil: `corpora/mcp_clean/io.github.cloudinary__asset-management-mcp` — HIGH ['CODE-003', 'CODE-012', 'CODE-MCP-001', 'CRED-002', 'CRED-007', 'HYGIENE-001', 'INFER-011', 'INSTALL-004'] (High/Critical: ['CRED-007', 'OBFUSC-006', 'OBFUSC-CHAIN-006', 'SUPPLY-007', 'SUPPLY-008'])
 - sigil: `corpora/mcp_clean/io.github.dynatrace-oss__Dynatrace-mcp` — HIGH ['CODE-001', 'CODE-003', 'CODE-007', 'CODE-012', 'CODE-MCP-001', 'CRED-002', 'NET-012', 'OBFUSC-002'] (High/Critical: ['CODE-001', 'PERSIST-001'])

@@ -22,7 +22,7 @@ Limitations: Static analysis only (SkillSpector --no-llm). "Clean" is published,
 | `mcp_sigil_7826ea1.{json,md}` | Sigil, final build of this change | 169 clean MCP servers | 2026-09-24 |
 | `mcp_skillspector-2.11.2.{json,md}` | SkillSpector 2.11.2, `--timeout 600` | 169 clean MCP servers (156 finished, 13 timed out) | 2026-09-24 |
 | `parity_sigil_7826ea1.{json,md}` | Sigil, final build of this change, on `scripts/skillspector_parity.py run` | 1,796 examples from SkillSpector's own test suite | 2026-09-24 |
-| `sigil_tls.{json,md}`, `mcp_sigil_tls.{json,md}`, `parity_sigil_tls.{json,md}` | Sigil with the insecure-transport pack (TLS-*), final build after the adversarial review, [docs/detection/insecure-transport.md](../../docs/detection/insecure-transport.md). The first build's runs are in the commit that added the pack; re-run with that build, they reproduced sample for sample | the same skills, MCP servers and parity examples | 2026-09-25 |
+| `sigil_tls.{json,md}`, `mcp_sigil_tls.{json,md}`, `parity_sigil_tls.{json,md}` | Sigil with the insecure-transport pack (TLS-*), final build after the second adversarial review, [docs/detection/insecure-transport.md](../../docs/detection/insecure-transport.md). The runs of the two earlier builds (the pack's first commit and the first review) are in the commits that published them; the verdict level of every sample, and the result of every parity example, is the same in all three | the same skills, MCP servers and parity examples | 2026-09-25 |
 
 SkillSpector's 455-skill figures are the sum of the baseline run (411) and the
 openai run (44).

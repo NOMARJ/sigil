@@ -141,11 +141,13 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   NET-012), and the parity total moves from 623 to 626 of 1,796 at any
   severity (385 at High, unchanged). Of the three it misses, two split
   `verify=` and `False` across lines and the third is Docker's
-  `--insecure-registry`, which is not covered.
+  `--insecure-registry`, which is not covered. The pack's first build, the
+  first review's build and the final build give every one of these samples
+  the same verdict level, and every parity example the same result.
 - **Measured out of sample.** 146 other popular MCP servers from the
-  registry, none of them used for calibration: 11 carry 28 TLS findings, and
+  registry, none of them used for calibration: 11 carry 29 TLS findings, and
   no server changes level (80/146 blocked and 135/146 warned with and without
-  the pack). 21 of the 28 turn verification off; 7 are changelog or README
+  the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
 ### 🧩 YARA rules as custom rules
