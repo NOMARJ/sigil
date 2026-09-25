@@ -130,11 +130,12 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `check_command`).
 - **Customisation and enterprise.** Scan policy in `.sigil.yml` or an
   organisation file (`SIGIL_POLICY_FILE`) with locked keys and tighten-only
-  project files; custom rule packs in JSON, YAML or a YARA subset, Ed25519
-  signed; baselines; `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and
-  JUnit reports; `sigil rules`, `sigil baseline`, `sigil config --policy /
-  --validate`; a GitHub Action with a verdict-based gate, a GitLab template, a
-  pre-commit hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
+  project files; custom rule packs in JSON, YAML or YARA (a built-in subset,
+  full YARA through an installed engine), Ed25519 signed; baselines;
+  `--fail-on-verdict`, `--fail-on-incomplete`; Markdown and JUnit reports;
+  `sigil rules`, `sigil baseline`, `sigil config --policy / --validate`; a
+  GitHub Action with a verdict-based gate, a GitLab template, a pre-commit
+  hook and a Dockerfile. See [docs/enterprise.md](docs/enterprise.md).
 - **Speed.** Rules gate on a word-boundary-free, larger-cache form of their
   pattern: a 3 MB minified bundle that exhausted its 30 s scan budget now scans
   completely in 1.9 s. Median scan time per skill: 1.48 s (SkillSpector,
@@ -349,13 +350,15 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   members and document XML only when YARA rules are loaded), and a file over
   10 MB is evaluated on its first and last 2 MB, said so on the finding and in
   a `PROV-INCOMPLETE-001` note.
-- **Fail closed.** Modules and `import`, `include`, `for` loops,
-  `uint32()`-style reads, `@a[i]`/`!a[i]`, string operators, external
-  variables, `xor`/`base64` modifiers and the rest of YARA outside the subset
-  are refused with the construct named at its `file:line`; `sigil rules
+- **Fail closed.** The built-in engine names each construct outside its
+  subset — modules and `import`, `for` loops, `uint32()`-style reads,
+  `@a[i]`/`!a[i]`, string operators, `xor`/`base64` modifiers — at its
+  `file:line`; such a file now goes to an installed external engine (next
+  section), and is refused under `--yara-engine builtin`. `include`, external
+  variables and YARA's own compile errors (unreferenced strings, undefined
+  strings, duplicate rules) are refused with any engine: `sigil rules
   validate` lists every problem (exit 1) and a scan exits 2 instead of running
-  without the rule. YARA's own compile errors (unreferenced strings, undefined
-  strings, duplicate rules) are enforced.
+  without the rule.
 - **Bounded on crafted input.** Evaluation shares the per-file budget, and
   every search is chunked (64 KiB of start positions per automaton call, the
   budget checked between calls), because the cap on width alone does not
@@ -401,6 +404,101 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   spread (10.8–13.2 s). `SIGIL_TIMING=1` attributes 2.3 ms to the YARA stage
   for one rule and 1.77 s for 300 strings, summed across scan threads (4.0%
   of stage time). Findings were identical in every configuration.
+
+### 🧬 Full YARA through an installed engine
+
+- **Modules, loops and the rest of YARA.** Rule files the built-in engine
+  cannot evaluate — `import "pe"`/`elf`/`math`/`hash`/`dotnet`/…, `for`
+  loops, `uint32()`-style reads, `@a[i]`, string operators, `xor`/`base64`
+  strings, Sigil's own size limits — now run on YARA-X (`yr`, 1.0 or later)
+  or classic YARA (`yara`, 4.x) when either is installed. Sigil runs the
+  engine's command-line tool; it links neither, and the default build gains
+  no dependency. Choose with `--yara-engine auto|builtin|yara-x|yara` or the
+  policy key `yara_engine` (lockable): `auto` (default) keeps the built-in
+  engine for every file it can evaluate whole and hands the rest to `yr`,
+  else `yara`; `builtin` refuses them as before; `yara-x`/`yara` send every
+  file to that engine and fail the load if it is missing. See
+  [docs/enterprise.md#full-yara-external-engines](docs/enterprise.md#full-yara-external-engines).
+- **Behaviour change.** Under the default `auto`, a rule file that uses a
+  module (or anything else outside the built-in subset) no longer stops the
+  scan with exit 2 when no engine is installed: it loads, `sigil` warns on
+  stderr, and every scan reports it as not inspected (`PROV-INCOMPLETE-001`,
+  "YARA rules in … were not evaluated"), which `--fail-on-incomplete` fails
+  on. `--yara-engine builtin` restores the refusal. A file with a problem
+  YARA itself refuses (an undefined string, `include`, an external variable,
+  a meta `severity` Sigil cannot read) is still refused under any engine.
+  `sigil rules validate` exits 1 for a file no engine here can check, and
+  `sigil rules sign` will not sign it.
+- **Same findings, same controls.** Engine matches become `YARA-<NAME>`
+  findings with the rule's meta severity, phase and remediation, on the file
+  or archive member, at the line of the earliest string match, with the
+  matched strings and the engine that evaluated them in the snippet
+  (`(evaluated by YARA-X 1.20.0)`). Inline markers, `disable_rules`,
+  `severity_overrides` and baselines apply. The engine sees the same units
+  the built-in engine does, archive members included (written to a private
+  directory; a member cut at the 4 MB cap is reported instead), and whole
+  files up to 512 MB. `sigil rules list/show/validate` and `sigil corpus`
+  name each file's engine, and the corpus digest (so the scan cache) records
+  it.
+- **Run safely.** No shell: an argument vector, from an absolute path found
+  on `PATH` in absolute directories only, never inside the tree being
+  scanned (not even to probe `--version`), and probed for the flags Sigil
+  needs. Each run gets a private temporary directory holding the rule files
+  as the exact bytes Sigil verified and checked (never re-read from disk), a
+  link to each file under a neutral name, and a scan list, so no path can
+  confuse the engine or its output. A rule of Sigil's own marks every file
+  the engine finished; a file without the mark is reported as not inspected,
+  never passed as clean. Output is streamed line by line, keeping a few
+  matches per rule. The engine's work for a scan is bounded by
+  `SIGIL_YARA_TIMEOUT_SECS` (default 600; `0` for none); classic YARA also
+  gets the per-file budget as its per-file timeout (`PROV-BUDGET-001`); an
+  engine that leaves a child holding its pipes cannot hold the scan.
+- **A file that crashes the engine costs only itself.** A run that crashes or
+  exits with an error is followed by runs over halves of the files it did
+  not finish, until the file the engine cannot get through runs alone; that
+  file is reported on its own path (`PROV-INCOMPLETE-001`) and the others
+  are evaluated (at most 16 engine runs per scan). Before, every file after
+  it went unevaluated behind one scan-wide note, so a crafted file could
+  switch the YARA rules off for the rest of a package under the default
+  gate. (Found in review: classic YARA 4.5.0 buffers its output, so what a
+  crashed or killed run printed cannot say which file stopped it.)
+- **"Not installed" only when it is not.** A file loaded unevaluated was
+  reported as "neither YARA-X nor YARA is installed" also when an engine was
+  installed but unusable (a YARA too old for `--scan-list`, a `yr` that is
+  another program) or found only inside the scanned tree; the warning, the
+  `PROV-INCOMPLETE-001` note, `rules validate` and `rules sign` now say why
+  each engine could not be used.
+- **The engine is never started in Sigil's working directory.** The
+  `--version`/`--help` probe ran from the directory Sigil was started in,
+  usually the tree being scanned; it runs from `/` now (scan runs already
+  used their private directory).
+- **A single file scanned beside the engine is evaluated.** `sigil scan
+  ~/.cargo/bin/tool` with `yr` in the same directory treated that directory
+  as the scanned tree and reported the rules as not evaluated; the file
+  alone is what is judged now.
+- **Checked at load, in one run.** Every file handed to an engine is
+  compiled by it when its pack loads, all the files of one `--rules` path or
+  `rule_packs` entry together; a file the engine refuses fails the load with
+  the engine's message, naming the real file (one problem per refused file
+  in `sigil rules validate`, which had counted each line of the engine's
+  message as a problem). `sigil rules validate`, `test` and `sign` use the
+  engine a scan from the same directory would, the policy's `yara_engine`
+  and its locks included; they had read only `--yara-engine`.
+- **Measured end to end** with YARA-X 1.20.0 (`yara-x-cli` from crates.io)
+  and YARA 4.5.0 (Ubuntu package) on five synthetic rules using the `pe`,
+  `elf`, `hash` and `math` modules and a `for` loop, over real files (a
+  pip/distlib Windows launcher, `/bin/true`, a gzip of `/bin/ls`, a text
+  file and a zip holding an ELF): both engines gave identical findings
+  through Sigil — the five each tool reports when run directly, plus the two
+  archive members the tools do not open (reproduced in review). On this
+  repository's self-scan (543 files, 5 interleaved runs, medians, on a shared
+  machine under load) the scan pass took 2.15 s without YARA rules, 2.77 s
+  with YARA-X and 3.22 s with YARA; a 2,000-rule synthetic set added 0.55 s
+  (YARA-X) and 0.22 s (YARA) to an 85-file scan. Sigil ships no rules for
+  these engines; organisations load their own or a vetted community set
+  through `--rules`/`rule_packs` (documented in the same section). The tests
+  use stub engines that print the recorded formats, so CI needs neither
+  engine.
 
 ### 🎯 Verdict
 

@@ -123,12 +123,12 @@ pub(super) fn build(s: &StringAst) -> Result<CompiledString, String> {
             .map_err(|e| format!("string {label}: {}", last_line(&e.to_string())))?;
         let unrolled = counted(&hir);
         if unrolled > MAX_COUNTED_REPETITION {
-            return Err(format!(
+            return Err(super::parse::outside_msg(format!(
                 "string {label}: its counted repetition (hex jumps and {{n,m}} counts) unrolls \
                  to {unrolled} positions; Sigil's limit is {MAX_COUNTED_REPETITION}, past which \
                  crafted input can stall the matcher — use an unbounded jump `[n-]` or `{{n,}}`, \
                  or split the string"
-            ));
+            )));
         }
         let props = hir.properties();
         if props.minimum_len() == Some(0) {
@@ -149,7 +149,11 @@ pub(super) fn build(s: &StringAst) -> Result<CompiledString, String> {
                     .which_captures(WhichCaptures::Implicit),
             )
             .build_from_hir(&hir)
-            .map_err(|e| format!("string {label}: {}", last_line(&e.to_string())))?;
+            // The pattern parsed; what failed is the built-in engine's own
+            // automaton size limit.
+            .map_err(|e| {
+                super::parse::outside_msg(format!("string {label}: {}", last_line(&e.to_string())))
+            })?;
         variants.push(Variant { re, wide });
     }
     Ok(CompiledString {

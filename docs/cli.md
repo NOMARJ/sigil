@@ -274,6 +274,7 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--fail-on-incomplete` | off | Also exit 1 when part of the target could not be fully inspected. Also `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete: true` in a policy. See [Incomplete coverage](#incomplete-coverage) |
 | `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
 | `--rules` | | Add a custom rule pack: a JSON or YAML pack, a YARA `.yar`/`.yara` rule file, or a directory of them. Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) and [YARA rules](enterprise.md#yara-rules) |
+| `--yara-engine` | `auto`, or the policy's `yara_engine` | What evaluates YARA rule files: `auto` (the built-in engine, and an installed YARA-X `yr` or YARA `yara` for files that need modules, loops or other YARA it does not evaluate), `builtin` (refuse those files), `yara-x` or `yara` (that engine for every file; it must be installed). Global flag. See [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
 | `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
 | `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
 | `--phases` | `all` | Comma-separated phase filter |
@@ -530,6 +531,16 @@ detached `<file>.sig` beside it; an unsigned or badly signed pack stops the
 scan with exit 2 rather than being skipped. See
 [Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing)
 and [YARA rules](enterprise.md#yara-rules).
+
+For a YARA file, `validate` names the engine that will evaluate it
+(`built-in`, `YARA-X 1.20.0`, `YARA 4.5.0`, …) and, for an external engine,
+compiles it with that engine; a file that needs an engine the machine does
+not have is reported as not checked (exit 1). `validate`, `test`, `sign`,
+`list` and `show` use the engine a scan run from the same directory would:
+`--yara-engine`, or the organisation policy's and the project file's
+`yara_engine`, a locked value included (a refused flag is reported on
+stderr). `show` prints it. When the engine refuses files, each refused file
+is one problem, with the engine's message quoted under it.
 
 ### sigil diff
 
@@ -1006,6 +1017,7 @@ All configuration can be overridden via environment variables.
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+| `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds an external YARA engine (`yr`, `yara`) may spend on one scan, every run of it included; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
 | `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 | `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |

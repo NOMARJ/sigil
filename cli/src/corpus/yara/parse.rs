@@ -16,6 +16,28 @@ use super::{ArithOp, CmpOp, Expr, Quant};
 pub(super) type Problem = (usize, String);
 type PResult<T> = Result<T, Problem>;
 
+/// Ends the message of a problem that is valid YARA outside the subset the
+/// built-in engine evaluates (a module, a loop, a Sigil-specific limit), as
+/// opposed to a rule YARA itself refuses. `--yara-engine auto` hands a file
+/// whose every problem carries it to an external engine
+/// (`super::external`); any other problem refuses the file.
+pub(super) const NEEDS_ENGINE: &str = "[needs an external engine]";
+
+/// A problem that is valid YARA outside the built-in subset.
+fn outside(line: usize, msg: impl Into<String>) -> Problem {
+    (line, outside_msg(msg))
+}
+
+/// [`outside`], for a message without a line.
+pub(super) fn outside_msg(msg: impl Into<String>) -> String {
+    format!("{} {NEEDS_ENGINE}", msg.into())
+}
+
+/// Is this problem valid YARA that an external engine can evaluate?
+pub(super) fn needs_engine(msg: &str) -> bool {
+    msg.contains(NEEDS_ENGINE)
+}
+
 /// Largest bounded hex jump, `[0-N]`: the per-string limit on counted
 /// repetition ([`super::strings::MAX_COUNTED_REPETITION`]), checked here too
 /// so the error names the jump and its line.
@@ -200,6 +222,129 @@ pub(super) enum HexToken {
 pub(super) struct Parsed {
     pub rules: Vec<RuleAst>,
     pub errors: Vec<Problem>,
+}
+
+/// A rule's declaration up to and including its `meta:` section.
+struct Head {
+    name: String,
+    line: usize,
+    /// Byte offset of its first modifier or `rule`.
+    start: usize,
+    private: bool,
+    global: bool,
+    tags: Vec<String>,
+    meta: Vec<MetaEntry>,
+    /// Its index among the rules declared so far.
+    this: usize,
+}
+
+/// A rule as an external engine will evaluate it: everything Sigil needs to
+/// name, rank and report it, without its strings or condition.
+#[derive(Debug)]
+pub(super) struct RuleHeader {
+    pub name: String,
+    pub line: usize,
+    pub private: bool,
+    pub global: bool,
+    pub tags: Vec<String>,
+    pub meta: Vec<MetaEntry>,
+    /// The rule's source text, from its first modifier to its closing brace.
+    pub source: String,
+}
+
+/// What [`outline`] read: the imports and every rule's declaration.
+#[derive(Debug, Default)]
+pub(super) struct Outline {
+    /// `(line, module)` for each `import`.
+    pub imports: Vec<(usize, String)>,
+    pub rules: Vec<RuleHeader>,
+    /// Problems that make the file unreadable as YARA, or refused whatever
+    /// the engine (`include`).
+    pub errors: Vec<Problem>,
+}
+
+/// Read the declarations of a YARA file whose strings and conditions an
+/// external engine evaluates (`super::external`): the rule names, tags and
+/// meta Sigil reports under, and the imports. The body of each rule is
+/// skipped lexically — text strings, regular expressions, hex strings and
+/// comments are stepped over whole, so a brace inside one cannot end the
+/// rule early — and is left for the engine to judge.
+pub(super) fn outline(src: &str) -> Outline {
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
+    let mut p = Parser {
+        lx: Lexer {
+            src: src.as_bytes(),
+            pos: 0,
+            line: 1,
+        },
+        out: Parsed::default(),
+        declared: Vec::new(),
+    };
+    let mut out = Outline::default();
+    loop {
+        let tok = match p.lx.peek() {
+            Ok(t) => t,
+            Err(e) => {
+                out.errors.push(e);
+                if p.lx.resync() {
+                    continue;
+                }
+                break;
+            }
+        };
+        let result = match &tok.tok {
+            Tok::Eof => break,
+            Tok::Ident(k) if k == "import" => p.lx.next().and_then(|_| {
+                let arg = p.lx.next()?;
+                match arg.tok {
+                    Tok::Text(b) => {
+                        out.imports
+                            .push((tok.line, String::from_utf8_lossy(&b).into_owned()));
+                        Ok(())
+                    }
+                    other => Err((
+                        arg.line,
+                        format!(
+                            "expected a quoted module name after `import`, found {}",
+                            describe(&other)
+                        ),
+                    )),
+                }
+            }),
+            Tok::Ident(k) if k == "include" => p.refused_directive(k),
+            Tok::Ident(k) if k == "rule" || k == "private" || k == "global" => {
+                p.rule_head().and_then(|head| {
+                    p.lx.skip_body(head.line)?;
+                    out.rules.push(RuleHeader {
+                        source: String::from_utf8_lossy(&p.lx.src[head.start..p.lx.pos])
+                            .into_owned(),
+                        name: head.name,
+                        line: head.line,
+                        private: head.private,
+                        global: head.global,
+                        tags: head.tags,
+                        meta: head.meta,
+                    });
+                    Ok(())
+                })
+            }
+            other => Err((
+                tok.line,
+                format!("expected `rule`, found {}", describe(other)),
+            )),
+        };
+        if let Err(e) = result {
+            out.errors.push(e);
+            if !p.lx.resync() {
+                break;
+            }
+        }
+    }
+    // What the shared declaration code recorded (a repeated tag or rule
+    // name, the `include` refusal) belongs to the outline too.
+    out.errors.append(&mut p.out.errors);
+    out.errors.sort_by_key(|(line, _)| *line);
+    out
 }
 
 /// Parse a whole YARA source file.
@@ -617,7 +762,7 @@ impl Lexer<'_> {
                 }
                 Some(b'(') => {
                     if depth >= MAX_HEX_NESTING {
-                        return Err((
+                        return Err(outside(
                             line,
                             format!("hex alternatives are nested deeper than {MAX_HEX_NESTING}"),
                         ));
@@ -671,9 +816,10 @@ impl Lexer<'_> {
                     out.push(parse_jump(&body).map_err(|m| (line, m))?);
                 }
                 Some(b'~') => {
-                    return Err((
+                    return Err(outside(
                         line,
-                        "the `~` (not) operator in hex strings is not supported".into(),
+                        "the `~` (not) operator in hex strings is not supported by the built-in \
+                         engine",
                     ))
                 }
                 Some(c) if is_hex_nibble(c) => {
@@ -732,6 +878,89 @@ impl Lexer<'_> {
     fn skip_line(&mut self) {
         while self.at(0).is_some_and(|c| c != b'\n') {
             self.pos += 1;
+        }
+    }
+
+    /// Skip the rest of a rule's body, up to and including the `}` that
+    /// closes it, stepping over comments, text strings, regular expressions
+    /// and hex strings whole so a brace inside one cannot end the rule. For
+    /// [`outline`]: what the body means is the evaluating engine's to judge.
+    /// (YARA divides with `\`, so a `/` always opens a comment or a regular
+    /// expression, and braces appear in a body only around hex strings.)
+    fn skip_body(&mut self, rule_line: usize) -> PResult<()> {
+        loop {
+            self.skip_trivia()?;
+            match self.at(0) {
+                None => {
+                    return Err((
+                        rule_line,
+                        "the rule is not closed (missing `}` at the end of the file)".into(),
+                    ))
+                }
+                Some(b'}') => {
+                    self.pos += 1;
+                    return Ok(());
+                }
+                Some(b'"') => self.skip_delimited(b'"', "text string")?,
+                Some(b'/') => {
+                    self.skip_delimited(b'/', "regular expression")?;
+                    while self
+                        .at(0)
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                    {
+                        self.pos += 1;
+                    }
+                }
+                Some(b'{') => {
+                    let line = self.line;
+                    self.pos += 1;
+                    loop {
+                        self.skip_trivia()?;
+                        match self.at(0) {
+                            None => {
+                                return Err((line, "hex string is not closed (missing `}`)".into()))
+                            }
+                            Some(b'}') => {
+                                self.pos += 1;
+                                break;
+                            }
+                            Some(_) => self.pos += 1,
+                        }
+                    }
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+    }
+
+    /// Skip a one-line literal opened by `delim` (the cursor is on it), with
+    /// `\` escaping the next character.
+    fn skip_delimited(&mut self, delim: u8, what: &str) -> PResult<()> {
+        let line = self.line;
+        self.pos += 1;
+        loop {
+            match self.at(0) {
+                None | Some(b'\n') => {
+                    return Err((
+                        line,
+                        format!("{what} is not closed before the end of the line"),
+                    ))
+                }
+                Some(b'\\') => {
+                    if matches!(self.at(1), None | Some(b'\n')) {
+                        return Err((
+                            line,
+                            format!("{what} is not closed before the end of the line"),
+                        ));
+                    }
+                    self.pos += 2;
+                }
+                Some(c) if c == delim => {
+                    self.pos += 1;
+                    return Ok(());
+                }
+                Some(_) => self.pos += 1,
+            }
         }
     }
 
@@ -804,18 +1033,18 @@ fn parse_jump(body: &str) -> Result<HexToken, String> {
             return Err(format!("hex jump `[{body}]` has its bounds reversed"));
         }
         if max > MAX_HEX_JUMP {
-            return Err(format!(
+            return Err(outside_msg(format!(
                 "hex jump `[{body}]` is wider than Sigil's limit of {MAX_HEX_JUMP} bytes; \
                  split the string, or use an unbounded jump `[{min}-]`"
-            ));
+            )));
         }
         if max == 0 {
             return Err("hex jump `[0]` skips nothing".into());
         }
     } else if min > MAX_HEX_JUMP {
-        return Err(format!(
+        return Err(outside_msg(format!(
             "hex jump `[{body}]` starts past Sigil's limit of {MAX_HEX_JUMP} bytes"
-        ));
+        )));
     }
     Ok(HexToken::Jump { min, max })
 }
@@ -909,16 +1138,37 @@ impl Parser<'_> {
         let arg = self.lx.next()?;
         let what = match &arg.tok {
             Tok::Text(b) => format!("{keyword} \"{}\"", String::from_utf8_lossy(b)),
-            _ => keyword.to_string(),
+            other => {
+                return Err((
+                    arg.line,
+                    format!(
+                        "expected a quoted name after `{keyword}`, found {}",
+                        describe(other)
+                    ),
+                ))
+            }
         };
-        let why = if keyword == "import" {
-            "modules (pe, elf, math, hash, dotnet, magic, cuckoo, console, ...) are not \
-             supported; Sigil evaluates the string-matching core of YARA"
+        if keyword == "import" {
+            self.out.errors.push(outside(
+                t.line,
+                format!(
+                    "`{what}`: modules (pe, elf, math, hash, dotnet, magic, cuckoo, console, \
+                     ...) are not supported by the built-in engine, which evaluates the \
+                     string-matching core of YARA"
+                ),
+            ));
         } else {
-            "`include` is not supported; pass each rule file with --rules, or a directory \
-             of them"
-        };
-        self.err(t.line, format!("`{what}`: {why}"));
+            // Refused whatever the engine: an included file is not covered
+            // by the including file's detached signature, and could be any
+            // file on the machine.
+            self.err(
+                t.line,
+                format!(
+                    "`{what}`: `include` is not supported; pass each rule file with --rules, \
+                     or a directory of them"
+                ),
+            );
+        }
         Ok(())
     }
 
@@ -939,7 +1189,9 @@ impl Parser<'_> {
         }
     }
 
-    fn rule(&mut self) -> PResult<()> {
+    /// A rule's declaration: its modifiers, name and tags, the opening brace,
+    /// and its `meta:` section. Shared by the full parse and the outline.
+    fn rule_head(&mut self) -> PResult<Head> {
         self.lx.skip_trivia()?;
         let start = self.lx.pos;
         let mut private = false;
@@ -1028,12 +1280,35 @@ impl Parser<'_> {
         self.expect_punct("{", &format!("to open rule `{name}`"))?;
 
         let mut meta = Vec::new();
-        let mut strings = Vec::new();
         if self.at_section("meta")? {
             self.lx.next()?;
             self.lx.next()?;
             meta = self.meta()?;
         }
+        Ok(Head {
+            name,
+            line: rule_line,
+            start,
+            private,
+            global,
+            tags,
+            meta,
+            this,
+        })
+    }
+
+    fn rule(&mut self) -> PResult<()> {
+        let Head {
+            name,
+            line: rule_line,
+            start,
+            private,
+            global,
+            tags,
+            meta,
+            this,
+        } = self.rule_head()?;
+        let mut strings = Vec::new();
         if self.at_section("strings")? {
             self.lx.next()?;
             self.lx.next()?;
@@ -1214,14 +1489,20 @@ impl Parser<'_> {
                 StringValue::Hex(_) if mods.nocase || mods.wide || mods.ascii || mods.fullword => {
                     Some("is a hex string, which only takes the `private` modifier")
                 }
-                StringValue::Regex { .. } if mods.wide => Some(
-                    "is a regular expression with `wide`, which is not supported \
-                     (write the UTF-16 bytes into the expression, or use a text string)",
-                ),
                 _ => None,
             };
             if let Some(p) = problem {
                 self.err(t.line, format!("string ${name} {p}"));
+            }
+            if matches!(value, StringValue::Regex { .. }) && mods.wide {
+                self.out.errors.push(outside(
+                    t.line,
+                    format!(
+                        "string ${name} is a regular expression with `wide`, which is not \
+                         supported by the built-in engine (write the UTF-16 bytes into the \
+                         expression, or use a text string)"
+                    ),
+                ));
             }
             out.push(StringAst {
                 name,
@@ -1266,13 +1547,14 @@ impl Parser<'_> {
                     if self.lx.peek()?.tok == Tok::Punct("(") {
                         self.skip_parens()?;
                     }
-                    self.err(
+                    self.out.errors.push(outside(
                         a.line,
                         format!(
-                            "string ${name}: the `{m}` modifier is not supported (supported: {})",
+                            "string ${name}: the `{m}` modifier is not supported by the built-in \
+                             engine (supported: {})",
                             SUPPORTED_MODIFIERS.join(", ")
                         ),
-                    );
+                    ));
                 }
                 None => {
                     let hint = super::super::custom::closest(&m, SUPPORTED_MODIFIERS)
@@ -1349,7 +1631,7 @@ impl CondParser<'_, '_> {
     fn term(&mut self, line: usize) -> PResult<()> {
         self.terms += 1;
         if self.terms > MAX_CONDITION_TERMS {
-            return Err((
+            return Err(outside(
                 line,
                 format!(
                     "the condition has more than {MAX_CONDITION_TERMS} terms; use `any of`/`N of` \
@@ -1364,7 +1646,7 @@ impl CondParser<'_, '_> {
     fn nest(&mut self, line: usize) -> PResult<()> {
         self.nesting += 1;
         if self.nesting > MAX_CONDITION_NESTING {
-            return Err((
+            return Err(outside(
                 line,
                 format!("the condition is nested deeper than {MAX_CONDITION_NESTING} levels"),
             ));
@@ -1397,17 +1679,17 @@ impl CondParser<'_, '_> {
 
     fn unexpected(&self, t: &Token) -> Problem {
         match &t.tok {
-            Tok::Ident(w) if STRING_OPERATORS.contains(&w.as_str()) => (
+            Tok::Ident(w) if STRING_OPERATORS.contains(&w.as_str()) => outside(
                 t.line,
-                format!("the string operator `{w}` is not supported"),
+                format!("the string operator `{w}` is not supported by the built-in engine"),
             ),
-            Tok::Punct(p @ ("&" | "|" | "^" | "<<" | ">>" | "~")) => (
+            Tok::Punct(p @ ("&" | "|" | "^" | "<<" | ">>" | "~")) => outside(
                 t.line,
-                format!("the bitwise operator `{p}` is not supported"),
+                format!("the bitwise operator `{p}` is not supported by the built-in engine"),
             ),
-            Tok::Punct("[") => (
+            Tok::Punct("[") => outside(
                 t.line,
-                "indexing (`@a[i]`, `!a[i]`, arrays) is not supported".into(),
+                "indexing (`@a[i]`, `!a[i]`, arrays) is not supported by the built-in engine",
             ),
             other => (
                 t.line,
@@ -1561,12 +1843,14 @@ impl CondParser<'_, '_> {
         match t.tok {
             Tok::Ident(w) => self.word(w, line),
             Tok::Int(n) => self.after_number((Expr::Int(n), Ty::Int), line),
-            Tok::Float => Err((line, "floating-point numbers are not supported".into())),
-            Tok::Text(_) => Err((
+            Tok::Float => Err(outside(
                 line,
-                "text values are not supported in conditions (string comparisons and \
-                 external string variables are refused)"
-                    .into(),
+                "floating-point numbers are not supported by the built-in engine",
+            )),
+            Tok::Text(_) => Err(outside(
+                line,
+                "text values are not supported in conditions by the built-in engine (string \
+                 comparisons and external string variables)",
             )),
             Tok::Punct("(") => {
                 self.nest(line)?;
@@ -1598,17 +1882,24 @@ impl CondParser<'_, '_> {
             Tok::StrCount(n) => {
                 let i = self.resolve(&n, line)?;
                 if self.peek_ident("in")? {
-                    return Err((line, format!("`#{n} in (range)` is not supported")));
+                    return Err(outside(
+                        line,
+                        format!("`#{n} in (range)` is not supported by the built-in engine"),
+                    ));
                 }
                 Ok((Expr::Count(i), Ty::Int))
             }
-            Tok::StrOffset(n) => Err((
+            Tok::StrOffset(n) => Err(outside(
                 line,
                 format!(
-                    "`@{n}` (match offsets) is not supported; use `${n} at N` or `${n} in (N..M)`"
+                    "`@{n}` (match offsets) is not supported by the built-in engine; use \
+                     `${n} at N` or `${n} in (N..M)`"
                 ),
             )),
-            Tok::StrLength(n) => Err((line, format!("`!{n}` (match lengths) is not supported"))),
+            Tok::StrLength(n) => Err(outside(
+                line,
+                format!("`!{n}` (match lengths) is not supported by the built-in engine"),
+            )),
             Tok::Eof => Err((line, "the condition ends unexpectedly".into())),
             other => Err(self.unexpected(&Token { tok: other, line })),
         }
@@ -1636,20 +1927,34 @@ impl CondParser<'_, '_> {
                 line,
                 "`them` can only follow `of`, as in `any of them`".into(),
             )),
-            "for" => Err((
+            "for" => Err(outside(
                 line,
-                "`for` loops (`for any of ...`, `for all i in ...`) are not supported".into(),
+                "`for` loops (`for any of ...`, `for all i in ...`) are not supported by the \
+                 built-in engine",
             )),
-            "entrypoint" => Err((line, "`entrypoint` is not supported".into())),
-            "defined" => Err((line, "`defined` is not supported".into())),
-            "with" => Err((line, "`with` declarations are not supported".into())),
-            _ if INT_READERS.contains(&w.as_str()) => Err((
+            "entrypoint" => Err(outside(
                 line,
-                format!("`{w}()` (reading integers from the file) is not supported"),
+                "`entrypoint` is not supported by the built-in engine",
             )),
-            _ if STRING_OPERATORS.contains(&w.as_str()) => {
-                Err((line, format!("the string operator `{w}` is not supported")))
-            }
+            "defined" => Err(outside(
+                line,
+                "`defined` is not supported by the built-in engine",
+            )),
+            "with" => Err(outside(
+                line,
+                "`with` declarations are not supported by the built-in engine",
+            )),
+            _ if INT_READERS.contains(&w.as_str()) => Err(outside(
+                line,
+                format!(
+                    "`{w}()` (reading integers from the file) is not supported by the built-in \
+                     engine"
+                ),
+            )),
+            _ if STRING_OPERATORS.contains(&w.as_str()) => Err(outside(
+                line,
+                format!("the string operator `{w}` is not supported by the built-in engine"),
+            )),
             _ if KEYWORDS.contains(&w.as_str()) => {
                 Err((line, format!("unexpected `{w}` in condition")))
             }
@@ -1657,16 +1962,25 @@ impl CondParser<'_, '_> {
                 let next = self.lx.peek()?;
                 match next.tok {
                     Tok::Punct(".") => {
-                        return Err((
+                        return Err(outside(
                             line,
-                            format!("`{w}.`: modules are not supported (there is no `import`)"),
+                            format!("`{w}.`: modules are not supported by the built-in engine"),
                         ))
                     }
                     Tok::Punct("(") => {
-                        return Err((line, format!("function call `{w}(...)` is not supported")))
+                        return Err(outside(
+                            line,
+                            format!(
+                                "function call `{w}(...)` is not supported by the built-in \
+                                 engine"
+                            ),
+                        ))
                     }
                     Tok::Punct("[") => {
-                        return Err((line, format!("`{w}[...]`: indexing is not supported")))
+                        return Err(outside(
+                            line,
+                            format!("`{w}[...]`: indexing is not supported by the built-in engine"),
+                        ))
                     }
                     _ => {}
                 }
@@ -1801,7 +2115,7 @@ impl CondParser<'_, '_> {
     /// more than [`MAX_SET_ENTRIES`] strings in total.
     fn check_set_entries(&self, pending: usize, line: usize) -> PResult<()> {
         if self.set_entries.saturating_add(pending) > MAX_SET_ENTRIES {
-            return Err((
+            return Err(outside(
                 line,
                 format!(
                     "the sets in this condition name more than {MAX_SET_ENTRIES} strings in total"
@@ -1845,9 +2159,12 @@ impl CondParser<'_, '_> {
                         }
                     }
                     Tok::Ident(r) => {
-                        return Err((
+                        return Err(outside(
                             item.line,
-                            format!("sets of rules (`of ({r}, ...)`) are not supported"),
+                            format!(
+                                "sets of rules (`of ({r}, ...)`) are not supported by the \
+                                 built-in engine"
+                            ),
                         ))
                     }
                     other => {
@@ -1888,9 +2205,9 @@ impl CondParser<'_, '_> {
         self.check_set_entries(out.len(), line)?;
         self.set_entries += out.len();
         if self.peek_ident("at")? || self.peek_ident("in")? {
-            return Err((
+            return Err(outside(
                 line,
-                "`of ... at N` and `of ... in (range)` are not supported".into(),
+                "`of ... at N` and `of ... in (range)` are not supported by the built-in engine",
             ));
         }
         Ok(out)

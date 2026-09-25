@@ -62,6 +62,17 @@ struct Cli {
     #[arg(long = "rules", global = true, value_name = "PATH")]
     rules: Vec<PathBuf>,
 
+    /// What evaluates YARA rule files: auto (the built-in engine, and an
+    /// installed YARA-X `yr` or YARA `yara` for rules it cannot evaluate),
+    /// builtin, yara-x or yara. Policy key: yara_engine
+    #[arg(
+        long = "yara-engine",
+        global = true,
+        value_name = "ENGINE",
+        value_parser = ["auto", "builtin", "yara-x", "yara"]
+    )]
+    yara_engine: Option<String>,
+
     /// Scan policy file to use instead of discovering .sigil.yml
     #[arg(long, global = true, value_name = "FILE")]
     config: Option<PathBuf>,
@@ -640,6 +651,16 @@ async fn main() {
     }
 
     report::set_output_path(cli.output.clone());
+    // For the commands that load YARA files without resolving a scan policy
+    // (`rules validate`, `rules test`, `rules sign`); a resolved policy sets
+    // it again, with the flag merged into it.
+    if let Some(mode) = cli
+        .yara_engine
+        .as_deref()
+        .and_then(corpus::yara::external::EngineMode::parse)
+    {
+        corpus::yara::external::configure(mode, "--yara-engine");
+    }
     if let Some(code) = prepare_command(&cli) {
         process::exit(code);
     }
@@ -739,6 +760,8 @@ async fn main() {
                 rules: cli.rules.clone(),
                 llm_review: llm_review_flag,
                 llm_model,
+                yara_engine: cli.yara_engine.clone(),
+                scans_root: true,
             };
             // Archives (.zip/.skill/.tar.gz/...), file and archive URLs, and
             // GitHub /tree/ links are unpacked into quarantine first (see
@@ -803,6 +826,8 @@ async fn main() {
                 no_project_config,
                 config: cli.config.clone(),
                 rules: cli.rules.clone(),
+                yara_engine: cli.yara_engine.clone(),
+                scans_root: true,
                 ..Default::default()
             };
             cmd_baseline(&path, reason, policy_args, &cli.format, cli.verbose).await
@@ -815,6 +840,7 @@ async fn main() {
                     let args = ScanPolicyArgs {
                         config: cli.config.clone(),
                         rules: cli.rules.clone(),
+                        yara_engine: cli.yara_engine.clone(),
                         ..Default::default()
                     };
                     match load_policy(&cwd, &args, None, cli.verbose) {
@@ -825,7 +851,12 @@ async fn main() {
                         }
                     }
                 }
-                _ => project_config::EffectivePolicy::default(),
+                _ => {
+                    // validate, test and sign load YARA files for the
+                    // engine a scan here would use.
+                    configure_yara_engine_from_policy(cli.config.clone(), cli.yara_engine.clone());
+                    project_config::EffectivePolicy::default()
+                }
             };
             rules_cmd::cmd_rules(action, &cli.format, &policy)
         }
@@ -880,6 +911,7 @@ async fn main() {
                 let args = ScanPolicyArgs {
                     config: cli.config.clone(),
                     rules: cli.rules.clone(),
+                    yara_engine: cli.yara_engine.clone(),
                     ..Default::default()
                 };
                 cmd_config_policy(&args, &cli.format, cli.verbose)
@@ -1404,6 +1436,7 @@ fn cmd_corpus(format: &str) -> i32 {
                 "rules": p.rules.len(),
                 "provenance_rules": p.provenance_rules.len(),
                 "yara_rules": p.yara.as_ref().map_or(0, |y| y.rules.len()),
+                "yara_engine": p.yara.as_ref().map(|y| y.engine.label()),
             })).collect::<Vec<_>>(),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
@@ -2135,6 +2168,10 @@ struct ScanPolicyArgs {
     rules: Vec<PathBuf>,
     llm_review: Option<bool>,
     llm_model: Option<String>,
+    yara_engine: Option<String>,
+    /// `scan_root` is the tree about to be scanned (not just where policy
+    /// discovery starts): no YARA engine is looked for inside it.
+    scans_root: bool,
 }
 
 /// Resolve the scan policy (organisation file, project file, flags) and
@@ -2163,12 +2200,88 @@ fn load_policy(
             rules: args.rules.clone(),
             llm_review: args.llm_review,
             llm_model: args.llm_model.clone(),
+            yara_engine: args.yara_engine.clone(),
         },
     };
     let policy = project_config::resolve(&opts)?;
+    // A YARA engine is never looked for in the tree about to be scanned.
+    if args.scans_root {
+        corpus::yara::external::exclude_from_search(scan_root);
+    }
     let packs = policy.activate_rule_packs()?;
     report_policy(&policy, &packs, verbose);
+    report_yara_engines(&packs);
     Ok(policy)
+}
+
+/// For `rules validate`, `rules test` and `rules sign`, which load YARA
+/// files without scanning: select the YARA engine a scan run here would use
+/// — the organisation policy, the project file and `--yara-engine`, locks
+/// included — without loading the policy's rule packs. A policy that does
+/// not resolve leaves the flag's choice (default `auto`), with a warning.
+fn configure_yara_engine_from_policy(config: Option<PathBuf>, yara_engine: Option<String>) {
+    let env_off = std::env::var(project_config::NO_PROJECT_POLICY_ENV)
+        .is_ok_and(|v| !v.is_empty() && v != "0");
+    let opts = project_config::ResolveOptions {
+        scan_root: None,
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        explicit_config: config,
+        discover: !env_off,
+        cli: project_config::CliPolicy {
+            yara_engine,
+            ..Default::default()
+        },
+    };
+    match project_config::resolve(&opts) {
+        Ok(policy) => {
+            for r in policy
+                .refused
+                .iter()
+                .filter(|r| r.starts_with("yara_engine"))
+            {
+                eprintln!("{} policy: {r}", "warning:".bold().yellow());
+            }
+            // As `activate_rule_packs` does for a scan: a flag the policy
+            // refused (a locked key) must not stay in effect.
+            let (mode, source) = match &policy.yara_engine {
+                Some(s) => (s.value, format!("yara_engine from {}", s.source)),
+                None => (
+                    corpus::yara::external::EngineMode::Auto,
+                    "default".to_string(),
+                ),
+            };
+            corpus::yara::external::configure(mode, source);
+        }
+        Err(e) => eprintln!(
+            "{} the scan policy could not be read, so its yara_engine does not apply here: {e}",
+            "warning:".bold().yellow()
+        ),
+    }
+}
+
+/// Say, on stderr, which YARA files no engine here can evaluate (always:
+/// the scan will report them as not fully inspected) and, with `--verbose`
+/// in `report_policy`, which engine each file uses.
+fn report_yara_engines(packs: &[corpus::custom::CustomPack]) {
+    for p in packs {
+        let Some(file) = &p.pack.yara else {
+            continue;
+        };
+        if let corpus::yara::FileEngine::Unevaluated {
+            reasons,
+            unavailable,
+        } = &file.engine
+        {
+            eprintln!(
+                "{} {}: these YARA rules need an external engine and none can be used here \
+                 ({unavailable}), so they will not be evaluated ({}); the scan reports this as \
+                 incomplete coverage",
+                "warning:".bold().yellow(),
+                file.path.display(),
+                reasons.first().map(String::as_str).unwrap_or("")
+            );
+        }
+    }
 }
 
 /// What a resolved policy did, on stderr so a JSON or SARIF stdout stays one
@@ -2203,11 +2316,16 @@ fn report_policy(
     }
     for p in packs {
         eprintln!(
-            "policy: rule pack '{}' from {} — {} rule(s), signature {}",
+            "policy: rule pack '{}' from {} — {} rule(s), signature {}{}",
             p.pack.meta.id,
             p.path.display(),
             p.pack.rule_count(),
-            p.signature
+            p.signature,
+            p.pack
+                .yara
+                .as_ref()
+                .map(|y| format!(", evaluated by {}", y.engine.label()))
+                .unwrap_or_default()
         );
     }
     let mut known: Vec<String> = corpus::compiled::corpus().rule_ids();
@@ -2725,6 +2843,7 @@ fn prepare_command(cli: &Cli) -> Option<i32> {
         no_project_config: true,
         config: cli.config.clone(),
         rules: cli.rules.clone(),
+        yara_engine: cli.yara_engine.clone(),
         ..Default::default()
     };
     match load_policy(&cwd, &args, None, cli.verbose) {
@@ -2861,6 +2980,12 @@ fn cmd_config_validate(file: &Path, org: bool, format: &str) -> i32 {
     match project_config::load_policy_file(file, origin) {
         Ok(doc) => {
             notes.extend(project_config::lock_gaps(&doc));
+            if let Some(mode) = doc.yara_engine {
+                corpus::yara::external::configure(
+                    mode,
+                    format!("yara_engine in {}", file.display()),
+                );
+            }
             for p in &doc.rule_packs {
                 match corpus::custom::load_path(p) {
                     Ok(packs) => notes.push(format!(
@@ -2989,6 +3114,13 @@ fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 
                 "rule_packs".into(),
                 serde_json::json!(policy.rule_packs.iter().map(|d| serde_json::json!({"path": d.value.display().to_string(), "source": d.source})).collect::<Vec<_>>()),
             );
+            obj.insert(
+                "yara_engine".into(),
+                match &policy.yara_engine {
+                    Some(s) => serde_json::json!({"engine": s.value.name(), "source": s.source}),
+                    None => serde_json::json!({"engine": "auto", "source": "default"}),
+                },
+            );
         }
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
         return EXIT_CLEAN;
@@ -3104,6 +3236,13 @@ fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 
                 .map(|d| d.value.display().to_string())
                 .collect(),
         ),
+    );
+    show(
+        "yara_engine",
+        match &policy.yara_engine {
+            Some(s) => format!("{} ({})", s.value.name(), s.source),
+            None => "auto (default)".to_string(),
+        },
     );
     show("locked", list(policy.locked.clone()));
     let l = &policy.llm;

@@ -429,10 +429,13 @@ serialisation of the pack without that field.
 
 ### YARA rule file (`.yar`, `.yara`)
 
-UTF-8 YARA source in the subset described in
-[YARA rules](enterprise.md#yara-rules); one file is one pack with id
-`yara.<file stem>`. Largest file read: 8 MiB. How each rule maps to a Sigil
-rule:
+UTF-8 YARA source: the subset described in
+[YARA rules](enterprise.md#yara-rules) for the built-in engine, or any YARA
+an installed engine compiles (see
+[Full YARA: external engines](enterprise.md#full-yara-external-engines));
+one file is one pack with id `yara.<file stem>`. Largest file read: 8 MiB.
+`include` and external variables are refused with any engine. How each rule
+maps to a Sigil rule:
 
 | YARA | Sigil rule |
 |---|---|
@@ -444,6 +447,7 @@ rule:
 | `meta: reference` (repeatable) | `references` |
 | tags | `tags` |
 | `private` rule | evaluated and referable, never reported; listed with kind `yara-private` |
+| the file's engine | `engine` in `sigil rules list --json` / `show --json` and in `sigil rules validate --format json`, and `yara_engine` per pack in `sigil corpus --format json`: `built-in`, the external engine and its version (`YARA-X 1.20.0`, `YARA 4.5.0`), or `not evaluated (no external engine)` |
 
 Detached signature: `<file>.sig` beside the rule file, one line of base64
 holding the 64-byte Ed25519 signature over the bytes
