@@ -84,11 +84,12 @@ llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends 
 
 The LLM keys cannot be set by a policy file inside a tree scanned from
 outside it: such a file may only set `llm_may_downgrade: false`. A project
-file found by discovery cannot turn the stage on or raise `llm_max_calls` or
-`llm_max_tokens`, even when you work inside its tree: that takes
-`--llm-review`, the organisation policy, or naming the file with `--config`,
-because the stage sends code off the machine on the API key of whoever runs
-the scan. A locked
+file found by discovery cannot turn the stage on, raise `llm_max_calls` or
+`llm_max_tokens`, or choose `llm_provider` or `llm_model`, even when you work
+inside its tree: that takes `--llm-review`, `--llm-model`, the environment
+(`SIGIL_LLM_ENDPOINT`, `SIGIL_LLM_MODEL`), the organisation policy, or naming
+the file with `--config`, because the stage sends code off the machine on the
+API key of whoever runs the scan. A locked
 `llm_review`, `llm_provider` or `llm_model` is fixed at the organisation's
 value, a locked `llm_may_downgrade` can only be switched off, and locked caps
 can only be lowered. API keys are read from the environment only.

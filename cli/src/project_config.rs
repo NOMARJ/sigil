@@ -1022,7 +1022,10 @@ impl PolicyDoc {
 ///
 /// The stage sends scanned code off the machine, so a policy shipped inside
 /// the scanned tree (a tighten-only layer) cannot configure it at all; it may
-/// only turn `llm_may_downgrade` off. A locked `llm_review`, `llm_provider` or
+/// only turn `llm_may_downgrade` off. A project file found by discovery, even
+/// in a tree you work in, cannot turn the stage on, raise its caps, or choose
+/// its provider or model: those decide whether and where code is sent and
+/// what the runner's key pays for. A locked `llm_review`, `llm_provider` or
 /// `llm_model` is fixed at the organisation's value in both directions; a
 /// locked `llm_may_downgrade` can only be switched off, and locked caps can
 /// only be lowered. When the organisation sets `llm_endpoint`, no later layer
@@ -1042,6 +1045,13 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
     const NO_CONSENT: &str = "a policy file found in the tree cannot turn on the LLM stage or \
          raise its caps: the stage sends code off the machine and spends the API key of \
          whoever runs the scan. Pass --llm-review, or name the file with --config";
+    // The provider decides where the code goes (the Anthropic API, or the
+    // endpoint in SIGIL_LLM_ENDPOINT), and the model decides what the key is
+    // spent on (and, behind a gateway, which vendor serves it). Both belong
+    // to whoever runs the scan, like turning the stage on.
+    const NO_CONSENT_DEST: &str = "a policy file found in the tree cannot choose where the LLM \
+         stage sends code or which model it pays for: that belongs to whoever runs the scan. \
+         Pass --llm-model, set SIGIL_LLM_ENDPOINT, or name the file with --config";
 
     if let Some(v) = doc.review {
         if let Some(why) = &untrusted {
@@ -1078,6 +1088,8 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
                 p.label().to_string(),
                 "the organisation policy sets llm_endpoint",
             );
+        } else if !rules.llm_consent && eff.llm.provider != Some(p) {
+            refuse(eff, "llm_provider", p.label().to_string(), NO_CONSENT_DEST);
         } else {
             eff.llm.provider = Some(p);
         }
@@ -1087,6 +1099,8 @@ fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
             refuse(eff, "llm_model", m.clone(), why);
         } else if locked("llm_model") && eff.llm.model.as_ref() != Some(m) {
             refuse(eff, "llm_model", m.clone(), LOCK);
+        } else if !rules.llm_consent && eff.llm.model.as_ref() != Some(m) {
+            refuse(eff, "llm_model", m.clone(), NO_CONSENT_DEST);
         } else {
             eff.llm.model = Some(m.clone());
         }
@@ -2518,21 +2532,25 @@ baseline: .sigil-baseline.json
         assert_eq!(eff.llm.may_downgrade, Some(true));
         assert_eq!(eff.llm.max_calls, None);
         assert_eq!(eff.llm.max_tokens, None);
-        for key in ["llm_review", "llm_max_calls", "llm_max_tokens"] {
+        assert_eq!(eff.llm.model, None);
+        for key in ["llm_review", "llm_max_calls", "llm_max_tokens", "llm_model"] {
             assert!(
-                eff.refused
-                    .iter()
-                    .any(|r| r.starts_with(key) && r.contains("--llm-review")),
+                eff.refused.iter().any(|r| r.starts_with(key)
+                    && (r.contains("--llm-review") || r.contains("--llm-model"))),
                 "{key} must be refused: {:?}",
                 eff.refused
             );
         }
 
         // The flag turns it on, and the discovered file may still lower the
-        // caps and pick the model.
+        // caps. It may not pick the provider or the model: a runner who keeps
+        // code on a model of their own (SIGIL_LLM_ENDPOINT) must not find it
+        // sent to the Anthropic API because the repository said so, or their
+        // key spent on a pricier model.
         std::fs::write(
             root.path().join(".sigil.yml"),
-            "llm_review: true\nllm_max_calls: 3\nllm_model: claude-fable-5-1\n",
+            "llm_review: true\nllm_max_calls: 3\nllm_model: claude-fable-5-1\n\
+             llm_provider: anthropic\n",
         )
         .unwrap();
         let mut o = opts(root.path());
@@ -2540,13 +2558,27 @@ baseline: .sigil-baseline.json
         let eff = resolve_clean(&o).unwrap();
         assert_eq!(eff.llm.review, Some(true));
         assert_eq!(eff.llm.max_calls, Some(3));
-        assert_eq!(eff.llm.model.as_deref(), Some("claude-fable-5-1"));
-        assert!(eff.refused.is_empty(), "{:?}", eff.refused);
+        assert_eq!(eff.llm.model, None, "{:?}", eff.refused);
+        assert_eq!(eff.llm.provider, None, "{:?}", eff.refused);
+        for key in ["llm_model", "llm_provider"] {
+            assert!(
+                eff.refused
+                    .iter()
+                    .any(|r| r.starts_with(key) && r.contains("cannot choose where")),
+                "{key} must be refused: {:?}",
+                eff.refused
+            );
+        }
+        // The runner's own --llm-model still applies.
+        o.cli.llm_model = Some("local-model".to_string());
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.model.as_deref(), Some("local-model"));
 
         // Naming the file with --config is how you vouch for it.
         std::fs::write(
             root.path().join(".sigil.yml"),
-            "llm_review: true\nllm_max_calls: 100\n",
+            "llm_review: true\nllm_max_calls: 100\nllm_provider: openai-compatible\n\
+             llm_model: qwen2.5-coder:32b\n",
         )
         .unwrap();
         let mut o = opts(root.path());
@@ -2554,6 +2586,12 @@ baseline: .sigil-baseline.json
         let eff = resolve_clean(&o).unwrap();
         assert_eq!(eff.llm.review, Some(true));
         assert_eq!(eff.llm.max_calls, Some(100));
+        assert_eq!(
+            eff.llm.provider,
+            Some(crate::llm_review::Provider::OpenAiCompatible)
+        );
+        assert_eq!(eff.llm.model.as_deref(), Some("qwen2.5-coder:32b"));
+        assert!(eff.refused.is_empty(), "{:?}", eff.refused);
     }
 
     #[test]

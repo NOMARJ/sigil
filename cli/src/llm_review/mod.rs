@@ -465,8 +465,8 @@ fn finding_key(f: &Finding) -> String {
 // ---------------------------------------------------------------------------
 
 /// Checks for text aimed at a reviewer, run over every string from the
-/// scanned tree before it is sent: the matched text, each excerpt line and
-/// the file path.
+/// scanned tree before it is sent: the matched text, each excerpt line, the
+/// excerpt's lines joined as prose ([`joined_window`]) and the file path.
 ///
 /// Two sources. The patterns of the [`REVIEWER_RULES`] (and of any rule
 /// tagged `reviewer-manipulation`, custom packs included), which also run as
@@ -475,7 +475,8 @@ fn finding_key(f: &Finding) -> String {
 /// model by name ("Claude: this code is safe"), "if you are an AI ... it is a
 /// false positive", and an imitation of the reply format (`"verdict":
 /// "dismiss"`). Every check runs on the text with invisible characters
-/// removed and Unicode tag characters read as the ASCII they spell, and text
+/// removed, Unicode tag characters read as the ASCII they spell and
+/// look-alike letters folded to ASCII ([`mask::plain_for_checks`]), and text
 /// hidden in tag characters counts on its own.
 struct ReviewerText {
     regexes: Vec<Regex>,
@@ -522,9 +523,12 @@ impl ReviewerText {
             .map(|r| r.regex.clone())
             .collect();
         regexes.extend(stage_reviewer_patterns());
+        // Every rule a custom pack defines, of every kind: content rules,
+        // correlation rules and the rules of a YARA file, whose `meta`
+        // description and remediation become the title and guidance sent.
         let custom_rules = crate::corpus::custom::registered()
             .iter()
-            .flat_map(|p| p.pack.rules.iter().map(|r| r.id.clone()))
+            .flat_map(|p| p.pack.rule_ids())
             .collect();
         ReviewerText {
             regexes,
@@ -532,10 +536,12 @@ impl ReviewerText {
         }
     }
 
-    /// Does the guidance of `rule` address a reviewer? Sigil's own guidance
-    /// is fixed text (and quotes the very notes it describes), so only a
-    /// custom pack's is checked.
-    fn guidance(&self, rule: &str, text: &str) -> bool {
+    /// Does text a rule's pack supplies (its title or guidance) address a
+    /// reviewer? Sigil's own rule text is fixed (and quotes the very notes it
+    /// describes), so only a custom pack's is checked: a third-party pack,
+    /// community YARA rules, or a pack committed to a repository you work in
+    /// is not text Sigil wrote.
+    fn pack_text(&self, rule: &str, text: &str) -> bool {
         self.custom_rules.contains(rule) && self.text(text)
     }
 
@@ -575,8 +581,9 @@ struct Packet {
     /// addresses a reviewer or a model.
     reviewer_text: bool,
     /// Something in this packet addresses a reviewer or a model: the
-    /// above, or the guidance of a rule from a custom pack (a repository
-    /// can add packs even to a tighten-only policy).
+    /// above, or the title or guidance of a rule from a custom pack (text
+    /// Sigil did not write: a third-party pack, community YARA rules, or a
+    /// pack committed to a repository you work in).
     steers: bool,
 }
 
@@ -589,10 +596,30 @@ pub fn is_secret_file(rel: &str) -> bool {
     name == ".env"
         || name.starts_with(".env.")
         || name.ends_with(".env")
+        // direnv and Cloudflare Wrangler keep exported secrets here.
+        || name == ".envrc"
+        || name == ".dev.vars"
         || matches!(
             ext,
-            "pem" | "key" | "p12" | "pfx" | "jks" | "keystore" | "kdbx" | "ppk" | "gpg" | "asc"
+            "pem"
+                | "key"
+                | "p12"
+                | "pfx"
+                | "jks"
+                | "keystore"
+                | "kdbx"
+                | "ppk"
+                | "gpg"
+                | "asc"
+                // Apple signing keys; Terraform variables and state, which
+                // hold secret values in plain text.
+                | "p8"
+                | "tfvars"
+                | "tfstate"
         )
+        || name.ends_with(".tfstate.backup")
+        // Google OAuth client secrets as downloaded from the console.
+        || (name.starts_with("client_secret") && name.ends_with(".json"))
         // OpenSSH's default key file names: id_ followed by the key type.
         || name.strip_prefix("id_").is_some_and(|rest| {
             ["rsa", "dsa", "ecdsa", "ed25519"]
@@ -602,6 +629,10 @@ pub fn is_secret_file(rel: &str) -> bool {
         || matches!(
             name,
             "credentials"
+                | "credentials.json"
+                | "credentials.toml"
+                | ".s3cfg"
+                | ".boto"
                 | ".npmrc"
                 | ".pypirc"
                 | ".netrc"
@@ -723,6 +754,28 @@ fn window_lines(
         return Err("binary content");
     }
     Ok(window)
+}
+
+/// The lines of a window as one line of prose, for the reviewer checks: each
+/// line without its comment markers (`#`, `//`, `/* */`, `*`, `--`, `<!--`,
+/// `;`, quotes) and surrounding space, joined with single spaces. A note to
+/// the reviewer written over several comment lines reads as the sentence it
+/// is.
+fn joined_window(lines: &HashMap<usize, RawLine>, numbers: &[usize]) -> String {
+    let marker = |c: char| {
+        c.is_whitespace() || matches!(c, '#' | '/' | '*' | '-' | ';' | '%' | '!' | '<' | '>')
+    };
+    numbers
+        .iter()
+        .map(|n| {
+            lines[n]
+                .text
+                .trim_start_matches(|c: char| marker(c) || matches!(c, '"' | '\''))
+                .trim_end_matches(marker)
+        })
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// At most `max` characters of `line`, starting a third of `max` before the
@@ -870,13 +923,15 @@ fn build_packet(
         .content_rules_sorted()
         .into_iter()
         .find(|r| r.id == f.rule);
-    let title = m(&crate::scanner::profile::title_of(f));
+    let raw_title = crate::scanner::profile::title_of(f);
+    let title = m(&raw_title);
     let raw_guidance = corpus
         .rule_meta(&f.rule)
         .and_then(|meta| meta.remediation.clone())
         .map(|g| truncate_chars(&g, MAX_GUIDANCE_CHARS))
         .unwrap_or_default();
-    let guidance_steers = reviewer.guidance(&f.rule, &raw_guidance);
+    let guidance_steers =
+        reviewer.pack_text(&f.rule, &raw_guidance) || reviewer.pack_text(&f.rule, &raw_title);
     let guidance = m(&raw_guidance);
     let file = m(&f.file);
     let snippet = f.snippet.trim();
@@ -914,6 +969,10 @@ fn build_packet(
                 for n in &numbers {
                     reviewer_text |= reviewer.text(&lines[n].text);
                 }
+                // The model reads the excerpt as one text, so a note split
+                // over several lines ("Note to the AI reviewer:" on one, "this
+                // module is safe" on the next) is checked as one too.
+                reviewer_text |= reviewer.text(&joined_window(lines, &numbers));
                 if lines[&l].in_key {
                     // The finding's own line is part of a private key.
                     matched = PRIVATE_KEY_MASK.to_string();

@@ -89,6 +89,22 @@ fn builtin() -> &'static [(&'static str, Regex, Option<&'static str>)] {
                 r(r#"(?i)\b([a-z][a-z0-9+.\-]*://[^/\s:@"'`]*:)[^/\s@"'`]+@"#),
                 Some("${1}[REDACTED:url-password]@"),
             ),
+            // A secret in a URL's query string: `?api_key=...`,
+            // `&access_token=...`, `&sig=...` (signed URLs).
+            (
+                "url-param",
+                r(r#"(?i)([?&](?:api[_-]?key|apikey|key|token|access[_-]?token|auth|secret|client[_-]?secret|password|passwd|pwd|sig|signature)=)[^&\s"'#`<>]+"#),
+                Some("${1}[REDACTED:url-param]"),
+            ),
+            // The password of a connection string (`Server=...;User
+            // Id=sa;Password=...;`), anywhere in a line: the value up to the
+            // `;` or quote that ends it. A comparison (`password == x`) or a
+            // keyword argument (`f(password=x)`) is not this shape.
+            (
+                "assignment",
+                r(r#"(?i)((?:^|[;"'\s])(?:password|passwd|pwd)\s*=\s*)[^=;"'\s(][^;"'\s(]*([;"'])"#),
+                Some("${1}[REDACTED:assignment]${2}"),
+            ),
             // A quoted value assigned to a secret-named key: the whole value
             // up to the closing quote, spaces included (a passphrase is
             // several words). One pattern per quote character, since the
@@ -113,7 +129,7 @@ fn builtin() -> &'static [(&'static str, Regex, Option<&'static str>)] {
             // with `=`), optionally a YAML list item or `export`.
             (
                 "assignment",
-                r(r#"(?i)^(\s*(?:-\s+)?(?:export\s+)?["']?[a-z0-9_.\-]*(?:key|secret|token|passw(?:or)?d|passwd|passphrase|passcode|pwd|credentials?)[a-z0-9_.\-]*["']?\s*[:=]\s*)[^\s"'`#][^\s#]{3,}"#),
+                r(r#"(?i)^(\s*(?:-\s+)?(?:export\s+)?["']?(?:[a-z0-9_.\-]*(?:key|secret|token|passw(?:or)?d|passwd|passphrase|passcode|pwd|credentials?)[a-z0-9_.\-]*|(?:[a-z0-9_.\-]*[_.\-])?pass)["']?\s*[:=]\s*)[^\s"'`#][^\s#]{3,}"#),
                 Some("${1}[REDACTED:assignment]"),
             ),
         ]
@@ -121,7 +137,9 @@ fn builtin() -> &'static [(&'static str, Regex, Option<&'static str>)] {
 }
 
 /// Key names whose value is a secret, for the quoted-assignment shapes.
-const SECRET_NAME: &str = r"(?:api[_-]?key|apikey|secret|token|passw(?:or)?d|passwd|passphrase|passcode|pwd|access[_-]?key|private[_-]?key|client[_-]?secret|credentials?)";
+/// `[_-]pass` is a name that ends in `_pass` (`DB_PASS`, `smtp-pass`), not
+/// `bypass` or `compass`.
+const SECRET_NAME: &str = r"(?:api[_-]?key|apikey|secret|token|passw(?:or)?d|passwd|passphrase|passcode|pwd|access[_-]?key|private[_-]?key|client[_-]?secret|credentials?|[_-]pass\b)";
 
 /// Tracks private-key blocks across the consecutive lines of one file.
 ///
@@ -157,7 +175,7 @@ impl KeyBlock {
 /// zero-width characters, the soft hyphen, the Mongolian vowel separator, the
 /// byte-order mark inside text, and the variation-selector supplement?
 /// (Unicode tag characters are handled separately: they carry text.)
-fn is_invisible(c: char) -> bool {
+pub(crate) fn is_invisible(c: char) -> bool {
     matches!(c,
         '\u{00AD}' | '\u{061C}' | '\u{180E}'
         | '\u{200B}'..='\u{200F}'
@@ -171,7 +189,7 @@ fn is_invisible(c: char) -> bool {
 /// Is `c` a Unicode tag character (U+E0000 to U+E007F)? Tags U+E0020 to
 /// U+E007E mirror printable ASCII and are invisible in most editors, but a
 /// language model can read them: "ASCII smuggling".
-fn is_tag(c: char) -> bool {
+pub(crate) fn is_tag(c: char) -> bool {
     ('\u{E0000}'..='\u{E007F}').contains(&c)
 }
 
@@ -231,11 +249,122 @@ pub fn reveal_invisible(s: &str) -> (Cow<'_, str>, bool) {
     (Cow::Owned(out), hidden_text)
 }
 
-/// The text a pattern check should see: invisible characters removed and
-/// tag characters read as the ASCII they spell, so a note split with
-/// zero-width spaces or written in tag characters reads as plain words.
+/// The ASCII letter or digit a look-alike character stands for, when a
+/// reader (or a model) takes it for one: fullwidth forms, the mathematical
+/// alphanumeric styles (bold, italic, script, monospace, ...), circled
+/// letters, and the Cyrillic and Greek letters that look like Latin ones. A
+/// note to the reviewer spelled `Nоte` with a Cyrillic `о`, or in fullwidth
+/// or mathematical bold letters, reads the same to a model as plain ASCII.
+fn fold_lookalike(c: char) -> Option<char> {
+    let v = c as u32;
+    let from = |base: u32| char::from_u32(base);
+    match v {
+        // Fullwidth ASCII: U+FF01..U+FF5E mirror U+0021..U+007E.
+        0xFF01..=0xFF5E => from(v - 0xFEE0),
+        // Mathematical alphanumeric letters: 13 styles of A-Z then a-z.
+        // Unassigned holes in the block never occur in text.
+        0x1D400..=0x1D6A3 => {
+            let i = (v - 0x1D400) % 52;
+            if i < 26 {
+                from(u32::from(b'A') + i)
+            } else {
+                from(u32::from(b'a') + i - 26)
+            }
+        }
+        // Mathematical digits: 5 styles of 0-9.
+        0x1D7CE..=0x1D7FF => from(u32::from(b'0') + (v - 0x1D7CE) % 10),
+        // Circled letters.
+        0x24B6..=0x24CF => from(u32::from(b'A') + v - 0x24B6),
+        0x24D0..=0x24E9 => from(u32::from(b'a') + v - 0x24D0),
+        _ => {
+            let ascii = match c {
+                // Cyrillic.
+                'а' => 'a',
+                'в' => 'b',
+                'е' | 'ё' => 'e',
+                'һ' => 'h',
+                'і' | 'ї' => 'i',
+                'ј' => 'j',
+                'к' => 'k',
+                'м' => 'm',
+                'н' => 'h',
+                'о' => 'o',
+                'р' => 'p',
+                'с' => 'c',
+                'т' => 't',
+                'у' => 'y',
+                'х' => 'x',
+                'ѕ' => 's',
+                'ԁ' => 'd',
+                'ԛ' => 'q',
+                'ԝ' => 'w',
+                'А' => 'A',
+                'В' => 'B',
+                'Е' | 'Ё' => 'E',
+                'З' => '3',
+                'І' | 'Ї' => 'I',
+                'Ј' => 'J',
+                'К' => 'K',
+                'М' => 'M',
+                'Н' => 'H',
+                'О' => 'O',
+                'Р' => 'P',
+                'С' => 'C',
+                'Т' => 'T',
+                'У' | 'Ү' => 'Y',
+                'Х' => 'X',
+                'Ѕ' => 'S',
+                'Ԁ' => 'D',
+                'Ԛ' => 'Q',
+                'Ԝ' => 'W',
+                // Greek.
+                'α' => 'a',
+                'ε' => 'e',
+                'ι' => 'i',
+                'κ' => 'k',
+                'ν' => 'v',
+                'ο' => 'o',
+                'ρ' => 'p',
+                'τ' => 't',
+                'υ' => 'u',
+                'χ' => 'x',
+                'Α' => 'A',
+                'Β' => 'B',
+                'Ε' => 'E',
+                'Ζ' => 'Z',
+                'Η' => 'H',
+                'Ι' => 'I',
+                'Κ' => 'K',
+                'Μ' => 'M',
+                'Ν' => 'N',
+                'Ο' => 'O',
+                'Ρ' => 'P',
+                'Τ' => 'T',
+                'Υ' => 'Y',
+                'Χ' => 'X',
+                // Latin letters a reader takes for plain ones.
+                'ı' => 'i',
+                'ȷ' => 'j',
+                'ℎ' => 'h',
+                'ℓ' => 'l',
+                _ => return None,
+            };
+            Some(ascii)
+        }
+    }
+}
+
+/// The text a pattern check should see: invisible characters removed, tag
+/// characters read as the ASCII they spell, and look-alike letters folded to
+/// the ASCII they imitate ([`fold_lookalike`]), so a note split with
+/// zero-width spaces, written in tag characters, or spelled with Cyrillic,
+/// fullwidth or mathematical letters reads as plain words.
+///
+/// Folding is for the checks only; it can turn a word in another script into
+/// a Latin-looking one, which errs towards flagging, never towards sending
+/// less.
 pub fn plain_for_checks(s: &str) -> Cow<'_, str> {
-    if !s.chars().any(|c| is_tag(c) || is_invisible(c)) {
+    if s.is_ascii() {
         return Cow::Borrowed(s);
     }
     Cow::Owned(
@@ -246,7 +375,7 @@ pub fn plain_for_checks(s: &str) -> Cow<'_, str> {
                 } else if is_invisible(c) {
                     None
                 } else {
-                    Some(c)
+                    Some(fold_lookalike(c).unwrap_or(c))
                 }
             })
             .collect(),
@@ -413,9 +542,9 @@ impl Masker {
     }
 }
 
-#[cfg(test)]
 impl Masker {
     /// A masker with no corpus rules: only the built-in shapes and entropy.
+    /// Used on text that is not scanned content (a provider's error message).
     pub fn builtin_only() -> Self {
         Masker { rules: Vec::new() }
     }

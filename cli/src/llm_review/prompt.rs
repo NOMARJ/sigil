@@ -173,13 +173,16 @@ fn strip_fence(s: &str) -> &str {
 }
 
 /// A model's rationale, made safe to print in a terminal, Markdown and JSON:
-/// control characters (terminal escapes included) removed, whitespace
-/// collapsed to single spaces, and at most [`MAX_RATIONALE_CHARS`] kept.
+/// control characters (terminal escapes included) removed, invisible
+/// characters (zero-width, bidirectional controls, Unicode tag characters,
+/// variation selectors) dropped, whitespace collapsed to single spaces, and at
+/// most [`MAX_RATIONALE_CHARS`] kept. The same cleaning applies to every
+/// other string a provider returns that reaches a report.
 pub fn sanitize_rationale(s: &str) -> String {
     let cleaned: String = s
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
-        .filter(|c| !matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}'))
+        .filter(|c| !(super::mask::is_invisible(*c) || super::mask::is_tag(*c)))
         .collect();
     let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
     if collapsed.chars().count() > MAX_RATIONALE_CHARS {

@@ -97,15 +97,26 @@ pub fn anthropic_url(base: &str) -> String {
 }
 
 /// The chat-completions URL for an OpenAI-compatible endpoint: used as given
-/// when it already ends in `/chat/completions`, otherwise treated as the API
-/// base (`http://localhost:11434/v1`).
+/// when its path already ends in `/chat/completions`, otherwise treated as
+/// the API base (`http://localhost:11434/v1`). A query string (a gateway's
+/// `?api-version=...`) stays a query string: the path is extended, not the
+/// end of the URL.
 pub fn openai_url(endpoint: &str) -> String {
-    let e = endpoint.trim().trim_end_matches('/');
-    if e.ends_with("/chat/completions") {
-        e.to_string()
-    } else {
-        format!("{e}/chat/completions")
+    let e = endpoint.trim();
+    let Ok(mut u) = reqwest::Url::parse(e) else {
+        // Not a URL: check_endpoint refuses it with its own message.
+        let e = e.trim_end_matches('/');
+        return if e.ends_with("/chat/completions") {
+            e.to_string()
+        } else {
+            format!("{e}/chat/completions")
+        };
+    };
+    let path = u.path().trim_end_matches('/').to_string();
+    if !path.ends_with("/chat/completions") {
+        u.set_path(&format!("{path}/chat/completions"));
     }
+    u.to_string()
 }
 
 /// An endpoint as it is shown in reports: no credentials, query string or
@@ -297,7 +308,7 @@ pub async fn send(
     if !status.is_success() {
         let msg = doc
             .as_ref()
-            .and_then(error_message)
+            .and_then(|d| error_message(d, endpoint.api_key))
             .unwrap_or_else(|| "no error message".to_string());
         let mut out = CallOutcome::new(Err(format!("HTTP {}: {}", status.as_u16(), msg)));
         out.retryable = matches!(status.as_u16(), 429 | 500 | 502 | 503 | 504 | 529);
@@ -356,18 +367,25 @@ async fn read_capped(mut resp: reqwest::Response) -> Result<Vec<u8>, String> {
 }
 
 /// `error.message` (with `error.type`) from an Anthropic or OpenAI error
-/// body, sanitized and shortened.
-fn error_message(doc: &Value) -> Option<String> {
+/// body, sanitized and shortened. The message lands in the report's
+/// `incomplete_reasons` and on stderr, so a server that echoes the key it was
+/// sent ("invalid key sk-...") has the key removed first, and any other
+/// secret-shaped value in it is masked like scanned content.
+fn error_message(doc: &Value, api_key: Option<&str>) -> Option<String> {
     let err = doc.get("error")?;
     let msg = err
         .get("message")
         .and_then(Value::as_str)
         .or_else(|| err.as_str())?;
     let kind = err.get("type").and_then(Value::as_str);
-    let text = match kind {
+    let mut text = match kind {
         Some(k) => format!("{k}: {msg}"),
         None => msg.to_string(),
     };
+    if let Some(key) = api_key.map(str::trim).filter(|k| !k.is_empty()) {
+        text = text.replace(key, "[REDACTED:api-key]");
+    }
+    let text = super::mask::Masker::builtin_only().mask_line(&text).0;
     Some(prompt::sanitize_rationale(&text))
 }
 

@@ -641,10 +641,12 @@ What each control does:
 
 A `.sigil.yml` shipped inside a tree scanned from outside cannot configure the
 stage at all. Its `llm_*` keys are refused, except `llm_may_downgrade: false`.
-A `.sigil.yml` found by discovery never turns the stage on or raises its caps,
-even in a tree you are working in: sending code to a model on someone's API key
-is decided by `--llm-review`, this organisation policy, or a policy file named
-with `--config`. So `llm_review: true` in the example above takes effect from
+A `.sigil.yml` found by discovery never turns the stage on, raises its caps,
+or chooses its provider or model, even in a tree you are working in: whether
+code goes to a model, which one and on whose API key is decided by
+`--llm-review`, `--llm-model`, the environment (`SIGIL_LLM_ENDPOINT`), this
+organisation policy, or a policy file named with `--config`. A repository
+cannot redirect code you keep on a model you host to the Anthropic API. So `llm_review: true` in the example above takes effect from
 the organisation file or a `--config` file, not from a committed `.sigil.yml`.
 A model's answer can never lower a Critical finding, a prompt-injection or
 agent-manipulation finding, any finding in a file that addresses the

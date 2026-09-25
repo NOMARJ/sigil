@@ -126,8 +126,10 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   organisation. `llm_endpoint` is accepted only in the organisation policy,
   which pins where code may go. A `.sigil.yml` inside a tree scanned from
   outside cannot configure the stage. A `.sigil.yml` found by discovery cannot
-  turn the stage on or raise its caps even in a tree you work in: a cloned
-  repository must not be able to send its code to a model on your API key.
+  turn the stage on, raise its caps, or choose its provider or model, even in
+  a tree you work in: a cloned repository must not be able to send its code
+  to a model on your API key, or send code you keep on a model you host
+  (`SIGIL_LLM_ENDPOINT`) to the Anthropic API instead.
   `--no-llm-review` forces it off unless the organisation locks it.
   `sigil config --validate --org` now reports an unlocked `llm_may_downgrade`
   as a gap under a locked gate.
