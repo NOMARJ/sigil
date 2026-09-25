@@ -152,6 +152,21 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the match (40,000 findings in one file: 63.0 s before, 2.8 to 3.6 s after,
   against a mock, single runs on a shared machine). A single-file scan reads
   only that file.
+- **A second adversarial pass** (mock provider only; same section of
+  [docs/llm-review.md](docs/llm-review.md#adversarial-verification-mock-provider)).
+  A repository's own `.sigil.yml` could set `llm_provider: anthropic` and
+  send code you keep on a model you host to the Anthropic API; a discovered
+  file can no longer choose the provider or the model. A YARA rule's `meta`
+  remediation reached the model unchecked, and a note to the reviewer spelled
+  with look-alike letters (Cyrillic, fullwidth, mathematical bold) or split
+  over two comment lines passed every check; each let a dismissal lower a
+  High `eval` finding to Medium. The checks now cover every rule of a custom
+  pack, fold look-alike letters to ASCII and read the excerpt as one text.
+  `DB_PASS`-style names, secrets in URL query strings and connection-string
+  passwords are masked, more secret files (`.envrc`, Terraform state and
+  variables, `credentials.json`, ...) are never read, a key echoed in a
+  provider's error message is removed before it reaches the report, and an
+  endpoint's query string is kept.
 - **Text addressed to the reviewer is flagged in every scan.** Two new rules
   run on every file type, with or without the stage. `MANIP-012` (High) flags
   a note telling an AI or security reviewer what to conclude ("Note to the AI

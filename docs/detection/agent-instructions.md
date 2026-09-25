@@ -187,9 +187,12 @@ Limitations: The rules target a shape (text for an automated reviewer) that none
 | Datadog npm/PyPI selection | not recorded per rule | not recorded per rule | recall unchanged at every threshold: 785 / 761 / 752 / 561 of 844 at any / Medium / High / Critical |
 
 The rules add no false positives on the clean sets, and no measured recall:
-none of the malicious samples talks to its reviewer. (`scripts/run_eval.py`
-records verdicts, not rule ids, so the Datadog row shows only that no
-sample's detection changed.) The unit tests
+none of the malicious samples talks to its reviewer. All five rows were run
+again with the build that includes the LLM stage's second adversarial pass,
+with the same results: no per-sample change on the four corpora whose runs
+record one, and the same Datadog recall at every threshold. (`scripts/run_eval.py`
+records aggregate recall, not rule ids or per-sample results, so the Datadog
+row shows only that recall at each threshold is unchanged.) The unit tests
 (`manip012_text_addressed_to_the_reviewer`,
 `manip013_self_vouching_is_an_observation` in `cli/src/corpus/engine.rs`)
 pin the shapes each rule must and must not match.

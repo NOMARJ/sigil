@@ -76,8 +76,8 @@ llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends 
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
 | `llm_review` | bool | run the optional LLM review stage on `sigil scan` (as `--llm-review`); `true` takes effect from the organisation policy or a `--config` file, not a discovered `.sigil.yml`; see [llm-review.md](llm-review.md) |
 | `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level; never a Critical, prompt-injection or agent-manipulation finding, or a finding in a file that addresses the reviewer |
-| `llm_provider` | `anthropic`/`openai-compatible` | which API the stage speaks (default: Anthropic, or OpenAI-compatible when an endpoint is set) |
-| `llm_model` | model id | the model (as `--llm-model`) |
+| `llm_provider` | `anthropic`/`openai-compatible` | which API the stage speaks (default: Anthropic, or OpenAI-compatible when an endpoint is set); not from a discovered `.sigil.yml` |
+| `llm_model` | model id | the model (as `--llm-model`); not from a discovered `.sigil.yml` |
 | `llm_endpoint` | URL | organisation only; the OpenAI-compatible endpoint the stage sends code to (`https`, or `http` to localhost) |
 | `llm_max_calls` | 1–1000 | per-scan cap on requests (default 25) |
 | `llm_max_tokens` | 10,000–10,000,000 | per-scan cap on input + output tokens (default 200,000) |
