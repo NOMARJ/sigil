@@ -89,11 +89,13 @@ Limitations: The rows include findings SkillSpector's later stages filter out as
 |---|---:|---:|
 | Sigil before this change (`dc82a94`) | 416/1,796 (23.2%) | 275 (15.3%) |
 | **Sigil, this change** | **623/1,796 (34.7%)** | **385 (21.4%)** |
+| Sigil with the insecure-transport pack (TLS-*) | 626/1,796 (34.9%) | 385 (21.4%) |
 
 Agreement is high where the examples are attacks: SkillSpector's agent-rogue
 (AR, 81%), taint-tracking (TT, 88%), supply-chain (SC, 61%) and code-AST
 (AST, 58%) families. It is low in the two largest families, tool misuse (TM,
-9% of 406) and privilege escalation (PE, 15% of 277):
+40 of 406, or 43 with the insecure-transport pack) and privilege escalation
+(PE, 15% of 277):
 
 - **Destructive commands** (`rm -rf` of the root or the home directory and
   their variants) make up most of the tool-misuse rows. Sigil has no rule for
@@ -103,7 +105,16 @@ Agreement is high where the examples are attacks: SkillSpector's agent-rogue
   something reads or sends it; a bare mention is not flagged. That choice is a
   large part of why Sigil blocks 1.5% of clean skills and SkillSpector 25.9%.
 - **Container privileges** (`--privileged`, `hostNetwork`, the Docker socket)
-  and disabled TLS verification are not covered by Sigil either.
+  are not covered by Sigil either.
+- **Disabled TLS verification** is covered since the insecure-transport pack
+  (TLS-001..010, TLS-CHAIN-001; see
+  [`docs/detection/insecure-transport.md`](../detection/insecure-transport.md)).
+  SkillSpector's tests hold 20 TLS examples (14 `curl -k` lines in TM1, 5 in
+  TM3, one `--insecure-registry` in SC7). Sigil flagged 14 of them before,
+  all by NET-012 as a download and none for the missing verification; it now
+  flags 17, all with a TLS rule, at Medium. The three it misses are two
+  `verify=` / `False` calls split across lines (its rules read one line at a
+  time) and the Docker `--insecure-registry` flag.
 
 The per-rule table is in
 [`evaluation_results/skills_benchmark/parity_sigil_7826ea1.md`](../../evaluation_results/skills_benchmark/parity_sigil_7826ea1.md).
@@ -179,8 +190,10 @@ show. `figma` is borderline and `vercel-optimize` is a false positive.
 
 **Not covered.** Sigil has no rule for recursive deletion of the root or home
 directory, or for disk wipes beyond `dd` to a device and the classic fork bomb
-(SKILL-012 catches those two). It has none for container-privilege settings or
-disabled TLS verification either. SkillSpector covers all three.
+(SKILL-012 catches those two). It has none for container-privilege settings
+either. SkillSpector covers both. (Disabled TLS verification, the third gap
+this page listed, is now covered by the TLS-* rules: Medium on its own, High
+when a credential travels over the unverified connection.)
 
 **LLM adjudication.** SkillSpector can send findings to a model you choose
 (OpenAI, Anthropic, Bedrock, NVIDIA, a local Claude or Codex CLI, and others).

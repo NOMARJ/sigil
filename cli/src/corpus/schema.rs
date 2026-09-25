@@ -367,6 +367,27 @@ pub struct CorrelationRule {
     /// Maximum lines from source to sink (source first, or the same line).
     #[serde(default = "default_window")]
     pub window_lines: usize,
+    /// Non-zero switches the sink's window from "the sink line and the lines
+    /// after it" to the sink's *statement*, and bounds how far above the sink
+    /// that statement (and its set-up lines) may reach. That is for a sink
+    /// matched on a keyword argument that sits on its own line at the end of
+    /// a call (`verify=False,` under `requests.post(`), whose other arguments
+    /// — the headers that carry the token — are above it. The statement is
+    /// the lines above that continue into the sink line (each ends with `(`,
+    /// `[`, `,`, `\` or a literal's `{`), the sink line, and the lines its
+    /// call continues onto; the window adds nearby lines that set up or use
+    /// the object the statement works with (see
+    /// `scanner::correlate::statement_scope`). A complete statement about
+    /// something else is never read. A source on a line of the statement is
+    /// part of the same call and links without naming anything. Default 0.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub sink_window_before: usize,
+    /// A source or sink on a line longer than this many bytes is not linked
+    /// (0: no limit). On a minified bundle one line holds a whole program, so
+    /// a credential read and an insecure setting on that line say nothing
+    /// about each other.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub max_line_length: usize,
     /// Substrings whose presence in the sink's argument window disqualifies
     /// the link — an auth header is where a key legitimately goes.
     #[serde(default)]
@@ -381,6 +402,10 @@ pub struct CorrelationRule {
 
 fn default_window() -> usize {
     20
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 // ---------------------------------------------------------------------------

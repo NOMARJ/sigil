@@ -209,7 +209,7 @@ fn has_attack_evidence(findings: &[Finding]) -> bool {
 /// one malicious skill to HIGH (a 97-file skill whose file-share installer
 /// link and download-and-run lines were diluted below the point terms) and no
 /// clean skill; see docs/detection/fp-calibration.md, "Reconciliation".
-const ACTION_BEHAVIOURS: &[&str] = &[
+pub(crate) const ACTION_BEHAVIOURS: &[&str] = &[
     "install_time_execution",
     "exfiltration_endpoint",
     "installs_persistence",

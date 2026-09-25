@@ -1,6 +1,6 @@
 {
   "data_source": "Synthetic — hand-authored, modeled on published advisories and the reverse-shell-generator corpus",
-  "sample_size": 33,
+  "sample_size": 36,
   "limitations": "Synthetic fixtures only; not drawn from live malware. Real-malware corpus (Datadog dataset) is wired in US-G3. Each case asserts expected phase+severity, not real-world prevalence. LOLBin (GTFOBins/LOLBAS) detection is covered by corpus engine unit tests instead — those packs ship as an optional GPL-3.0 bundle (packs/lolbin/v1/) and are not loaded by a default scan.",
   "cases": [
     {
@@ -36,6 +36,20 @@
       "expect_phase": "NetworkExfil",
       "expect_min_severity": "High",
       "source": "reverse-shell-generator bash /dev/tcp (revshells.com)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/insecure_transport/token_client.py",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "High",
+      "source": "API token sent in a request with verify=False (SkillSpector TM3 shape, Bandit B501; TLS-001 + TLS-CHAIN-001)",
+      "synthetic": true
+    },
+    {
+      "path": "network_exfil/insecure_transport/agent.js",
+      "expect_phase": "NetworkExfil",
+      "expect_min_severity": "Medium",
+      "source": "https.Agent rejectUnauthorized: false and NODE_TLS_REJECT_UNAUTHORIZED=0 (SkillSpector TM3 shape; TLS-004, TLS-005)",
       "synthetic": true
     },
     {
@@ -228,6 +242,12 @@
       "path": "clean/requirements-vendor.txt",
       "expect_clean": true,
       "source": "Vendor index (PyTorch) control for DEPSRC",
+      "synthetic": true
+    },
+    {
+      "path": "clean/tls_private_ca.py",
+      "expect_clean": true,
+      "source": "Private CA trusted explicitly with verification on: control for TLS-002",
       "synthetic": true
     }
   ]

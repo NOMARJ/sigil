@@ -24,6 +24,26 @@
 //! `Authorization` are where a key legitimately goes, and excluding them is
 //! what keeps every ordinary API client from lighting up.
 //!
+//! A rule may also set `sink_window_before`, which makes the window the
+//! sink's *statement* (see [`statement_scope`]). That is for sinks matched on
+//! a keyword argument that a formatter puts on its own line at the end of a
+//! call (`verify=False,` under `requests.post(`), where the arguments that
+//! carry the value are above the sink, not below it. The statement is the
+//! lines that *continue into* the sink line — the call's opening line and
+//! its earlier arguments, each ending with `(`, `[`, `,`, `\` or an object
+//! literal's `{` (see [`continuation_start`]) — the sink line, and the lines
+//! its call continues onto. The window adds the nearby lines that set up or
+//! use the object the statement works with (a `headers` dict above it, the
+//! `agent` it builds used below it). A complete statement about something
+//! else (`client = OpenAI(api_key=key)` on the line above) is not read, so a
+//! credential used there does not link to an unrelated insecure call. A
+//! source finding on a line of the statement is inside the same call, and
+//! links without needing a name: `headers={"Authorization":
+//! os.environ["TOKEN"]},` above or below `verify=False,`.
+//!
+//! A rule may set `max_line_length`: a source or sink on a longer line is not
+//! linked, because on a minified bundle one line holds a whole program.
+//!
 //! A line binds a name by assigning to it (`key = os.getenv(...)`), by the
 //! `as` name of a `with` item that *yields* data (`with open(KEY_PATH) as
 //! keyfile`, `with urlopen(req) as response` — see [`with_handles`]), or by
@@ -327,8 +347,23 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
         let mut emitted: Vec<(usize, usize)> = Vec::new();
         for sink in &sinks {
             let sink_line = sink.line.unwrap_or(0);
-            let window = arg_window(lines, sink_line);
+            if too_long(lines, sink_line, rule.max_line_length) {
+                continue;
+            }
             let file_only = runs_a_file(&sink.rule);
+            // A rule that looks above the sink reads the sink's statement and
+            // the lines that set up or use the object it binds; every other
+            // rule reads the sink line and the lines after it.
+            let scope = if file_only || rule.sink_window_before == 0 {
+                SinkScope {
+                    start: sink_line,
+                    end: sink_line,
+                    text: arg_window(lines, sink_line),
+                }
+            } else {
+                statement_scope(lines, sink_line, rule.sink_window_before)
+            };
+            let window = scope.text;
             // A launch names its program on its own line (the launch rule
             // matches interpreter and operand together), so the lines after
             // it are not its program: `>/dev/null` or `input=data` there is
@@ -347,10 +382,23 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             }
             for source in &sources {
                 let source_line = source.line.unwrap_or(0);
-                if source_line > sink_line || sink_line - source_line > rule.window_lines {
+                // A source on another line of the sink's own statement (the
+                // call or literal it is an argument of, above or below it)
+                // is in that call: what it reads is one of the arguments,
+                // whatever name it is, or is not, bound to.
+                let in_same_call =
+                    source_line != sink_line && (scope.start..=scope.end).contains(&source_line);
+                if !in_same_call
+                    && (source_line > sink_line || sink_line - source_line > rule.window_lines)
+                {
                     continue;
                 }
-                let linked = if source_line == sink_line {
+                if too_long(lines, source_line, rule.max_line_length) {
+                    continue;
+                }
+                // Any other source is linked through a name it binds that
+                // the window uses.
+                let linked = if source_line == sink_line || in_same_call {
                     true
                 } else {
                     lines.get(source_line.wrapping_sub(1)).is_some_and(|l| {
@@ -402,7 +450,8 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
     out
 }
 
-/// The sink line plus the lines that can still carry its arguments.
+/// The sink line plus the lines that can still carry its arguments: the
+/// [`SINK_ARG_WINDOW`] lines from the sink (1-based) down.
 fn arg_window(lines: &[&str], sink_line: usize) -> String {
     if sink_line == 0 {
         return String::new();
@@ -413,6 +462,186 @@ fn arg_window(lines: &[&str], sink_line: usize) -> String {
         .get(start..end)
         .map(|w| w.join("\n"))
         .unwrap_or_default()
+}
+
+/// The sink's statement (1-based lines `start..=end`) and the text a link is
+/// read from.
+struct SinkScope {
+    start: usize,
+    end: usize,
+    text: String,
+}
+
+/// The window of a rule with `sink_window_before`: the statement the sink
+/// line belongs to, and the nearby lines that set up or use the object that
+/// statement works with.
+///
+/// - **The statement**: the lines above that continue into the sink line
+///   (at most `before`, see [`continuation_start`]), the sink line, and the
+///   lines below it that its call continues onto (within
+///   [`SINK_ARG_WINDOW`]).
+/// - **Set-up above** (within `before` lines of the sink): a line that
+///   assigns to or calls a method on a local name the statement uses —
+///   `headers = {"Authorization": ...}` above `get(url, headers=headers,
+///   verify=False)`, `session.headers.update(...)` above
+///   `session.get(url, verify=False)`. "Local" means assigned on one of
+///   those lines, or an attribute of `self` / `this`, so an imported module
+///   (`requests.post(...)` above `requests.get(..., verify=False)`) does not
+///   connect two unrelated calls.
+/// - **Use below** (within [`SINK_ARG_WINDOW`] lines of the sink): a line
+///   that uses the name the statement assigns — `fetch(url, { agent, ... })`
+///   after `const agent = new https.Agent({ rejectUnauthorized: false })`.
+///
+/// Any other line near the sink is a different statement about something
+/// else, and is not read: a key used by `client = OpenAI(api_key=key)` on the
+/// line above an unrelated insecure request is not sent by that request.
+fn statement_scope(lines: &[&str], sink_line: usize, before: usize) -> SinkScope {
+    if sink_line == 0 || sink_line > lines.len() {
+        return SinkScope {
+            start: sink_line,
+            end: sink_line,
+            text: String::new(),
+        };
+    }
+    let line = |n: usize| lines[n - 1];
+    let start = continuation_start(lines, sink_line, before);
+    let last = lines.len().min(sink_line + SINK_ARG_WINDOW - 1);
+    let mut end = sink_line;
+    while end < last && continues_into_next(line(end)) {
+        end += 1;
+    }
+    let statement = (start..=end).map(line).collect::<Vec<_>>().join("\n");
+
+    let top = sink_line.saturating_sub(before).max(1);
+    let locals: Vec<&str> = (top..=end)
+        .filter_map(|n| assigned_name(line(n)).map(|(name, _)| name))
+        .collect();
+    let mut keep: Vec<usize> = (top..start)
+        .filter(|&n| {
+            leading_name(line(n)).is_some_and(|(name, attr)| {
+                (attr || locals.contains(&name)) && contains_word(&statement, name)
+            })
+        })
+        .collect();
+    keep.extend(start..=end);
+    if let Some((bound, _)) = assigned_name(line(start)) {
+        keep.extend((end + 1..=last).filter(|&n| contains_word(line(n), bound)));
+    }
+    SinkScope {
+        start,
+        end,
+        text: keep.into_iter().map(line).collect::<Vec<_>>().join("\n"),
+    }
+}
+
+/// Declaration keywords before the name a line starts with, and an optional
+/// `self.` / `this.` / `@` / `$`.
+const NAME_HEAD: &str = r"^\s*(?:(?:const|let|mut|var|export|local|my|our|final|val|auto|readonly)\s+)*[$@]?((?:self|this)\.)?([A-Za-z_][A-Za-z0-9_]*)";
+
+fn leading_name_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(NAME_HEAD).expect("leading-name regex compiles"))
+}
+
+fn assigned_name_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // The name, then attribute or subscript steps (`session.verify`,
+        // `session.headers["Authorization"]`), an optional type annotation,
+        // and an assignment operator that is not a comparison.
+        Regex::new(&format!(
+            r"{NAME_HEAD}(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*|\[[^\]\n]*\])*\s*(?::\s*[A-Za-z0-9_\[\]<>|,. ]+)?\s*(?::=|\+=|=)(?:[^=]|$)"
+        ))
+        .expect("assigned-name regex compiles")
+    })
+}
+
+/// The first name on a line (after declaration keywords), and whether it is
+/// an attribute of `self` / `this`.
+fn leading_name(line: &str) -> Option<(&str, bool)> {
+    let c = leading_name_re().captures(line)?;
+    Some((c.get(2)?.as_str(), c.get(1).is_some()))
+}
+
+/// The object a line assigns to: `agent` in `const agent = ...`, `session`
+/// in `session.verify = False` and `self.session.headers["A"] = ...`.
+fn assigned_name(line: &str) -> Option<(&str, bool)> {
+    let c = assigned_name_re().captures(line)?;
+    Some((c.get(2)?.as_str(), c.get(1).is_some()))
+}
+
+/// The first line (1-based) of the run of lines directly above `sink_line`
+/// that continue into it, at most `before` lines up; `sink_line` itself when
+/// the line above does not continue, or `before` is 0.
+///
+/// A line continues into the next when it ends inside an open argument
+/// list or literal: with `(`, `[`, `,`, a backslash, or a `{` that opens an
+/// object or struct literal rather than a block (see [`continues_into_next`]).
+/// So the run is the opening line and the earlier arguments of the
+/// multi-line call whose last argument is the sink, and it stops at the
+/// first complete statement above it.
+fn continuation_start(lines: &[&str], sink_line: usize, before: usize) -> usize {
+    let mut start = sink_line;
+    while start > 1 && sink_line - (start - 1) <= before {
+        match lines.get(start - 2) {
+            Some(above) if continues_into_next(above) => start -= 1,
+            _ => break,
+        }
+    }
+    start
+}
+
+/// Does this line end inside an argument list or literal that the next line
+/// continues? Trailing `#` and `//` comments are ignored.
+fn continues_into_next(line: &str) -> bool {
+    let code = strip_trailing_comment(line).trim_end();
+    let Some(last) = code.chars().last() else {
+        return false;
+    };
+    match last {
+        '(' | '[' | ',' | '\\' => true,
+        '{' => {
+            let head = &code[..code.len() - 1];
+            let before = head.trim_end();
+            let spaced = before.len() < head.len();
+            match before.chars().last() {
+                // A `{` alone on its line (an Allman-style initializer or
+                // block) carries nothing a name could be read from.
+                None => true,
+                // An object literal: `= {`, `({`, `[{`, `, {`, `key: {`,
+                // `? {`, `{ {`.
+                Some('=' | '(' | '[' | ',' | ':' | '?' | '{' | '|' | '&') => true,
+                // A block: `f(token) {`, `() => {`.
+                Some(')' | '>') => false,
+                // `return {` returns an object literal.
+                Some(_) if before.ends_with("return") => true,
+                // `tls.Config{` / `Transport{` (a struct literal glued to its
+                // type) against `class A {`, `else {`, `func f() *T {`.
+                Some(_) => !spaced,
+            }
+        }
+        _ => false,
+    }
+}
+
+/// The line up to a trailing comment: a `#` or `//` that follows whitespace
+/// (so `://` in a URL and `this.#field` are kept).
+fn strip_trailing_comment(line: &str) -> &str {
+    let bytes = line.as_bytes();
+    for (i, w) in bytes.windows(2).enumerate() {
+        if w[0].is_ascii_whitespace() && (w[1] == b'#' || line[i + 1..].starts_with("//")) {
+            return &line[..i];
+        }
+    }
+    line
+}
+
+/// Is 1-based line `n` longer than `limit` bytes (`limit` 0: never)?
+fn too_long(lines: &[&str], n: usize, limit: usize) -> bool {
+    limit > 0
+        && lines
+            .get(n.wrapping_sub(1))
+            .is_some_and(|l| l.len() > limit)
 }
 
 fn truncate(s: &str) -> String {
@@ -459,6 +688,8 @@ mod tests {
                 rule_ids: vec!["NET-001".to_string(), "NET-004".to_string()],
             },
             window_lines: 20,
+            sink_window_before: 0,
+            max_line_length: 0,
             sink_excludes: vec!["headers".to_string(), "Authorization".to_string()],
             remediation: None,
             references: vec![],
@@ -718,6 +949,249 @@ mod tests {
         let handle = "with urlopen(req) as response:\n    pass\nrun([interp, helper_script], input=response.read())\n";
         let lines_h: Vec<&str> = handle.lines().collect();
         assert!(apply(&[launch_rule()], &findings_d, &lines_h).is_empty());
+    }
+
+    /// A rule whose sink is a keyword argument on its own line at the end of
+    /// a multi-line call, like the insecure-transport chain.
+    fn above_rule() -> CorrelationRule {
+        CorrelationRule {
+            id: "ABOVE-CHAIN".to_string(),
+            severity: "high".to_string(),
+            sink: FindingSelector {
+                rule_prefixes: vec![],
+                rule_ids: vec!["KWARG-001".to_string()],
+            },
+            sink_window_before: 5,
+            sink_excludes: vec![],
+            ..rule()
+        }
+    }
+
+    #[test]
+    fn a_window_above_the_sink_reaches_the_call_arguments() {
+        // The token is bound on line 1 and used on line 4; the sink is the
+        // keyword argument on line 6. Only a window above the sink sees it:
+        // lines 2-5 continue into line 6 (the call's opening line and its
+        // earlier arguments), line 1 is a complete statement.
+        let src = "token = read_secret()\nresp = client.post(\n    url,\n    headers=auth(token),\n    timeout=5,\n    flag=off,\n)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 6)];
+        let chains = apply(&[above_rule()], &findings, &lines);
+        assert_eq!(chains.len(), 1, "{chains:#?}");
+        assert_eq!(chains[0].line, Some(6));
+        // With the default window (nothing above the sink) there is no link.
+        let below_only = CorrelationRule {
+            sink_window_before: 0,
+            ..above_rule()
+        };
+        assert!(apply(&[below_only], &findings, &lines).is_empty());
+    }
+
+    #[test]
+    fn a_statement_above_the_sink_is_not_one_of_its_arguments() {
+        // The source line sits a few lines above the sink and repeats its own
+        // binding; nothing else uses the name.
+        let src = "token = read_secret()\nlog(\"start\")\nping(status_url, flag=off)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 3)];
+        assert!(apply(&[above_rule()], &findings, &lines).is_empty());
+        // The key is used on the line above, but by a different, complete
+        // call: the insecure call below never sees it. (This linked, at
+        // High, while the window above was a fixed five lines.)
+        let other_call =
+            "api_key = read_secret()\nclient = Vendor(api_key=api_key)\nstatus = ping(status_url, flag=off)\n";
+        let lines_o: Vec<&str> = other_call.lines().collect();
+        assert!(apply(&[above_rule()], &findings, &lines_o).is_empty());
+        // The same for a JavaScript statement ending in `;`.
+        let js = "const token = readSecret();\nconst gh = new Octokit({ auth: token });\nconst agent = makeAgent({ flag: off });\n";
+        let lines_j: Vec<&str> = js.lines().collect();
+        assert!(apply(&[above_rule()], &findings, &lines_j).is_empty());
+    }
+
+    #[test]
+    fn a_source_inside_the_call_links_without_a_name() {
+        // The credential is read inline, in the headers argument of the call
+        // whose last argument is the sink: no name to carry, same call.
+        let src = "resp = client.post(\n    url,\n    headers={\"Authorization\": read_secret()},\n    flag=off,\n)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 3), f("KWARG-001", 4)];
+        let chains = apply(&[above_rule()], &findings, &lines);
+        assert_eq!(chains.len(), 1, "{chains:#?}");
+        assert!(chains[0]
+            .snippet
+            .contains("CRED-012 (@L3) reaches KWARG-001 (@L4)"));
+        // A source line above the call is not inside it.
+        let above = "headers = {\"Authorization\": read_secret()}\nresp = client.post(\n    url,\n    flag=off,\n)\n";
+        let lines_a: Vec<&str> = above.lines().collect();
+        let findings_a = vec![f("CRED-012", 1), f("KWARG-001", 4)];
+        assert!(apply(&[above_rule()], &findings_a, &lines_a).is_empty());
+        // Without a window above, the call's other arguments are not read.
+        let below_only = CorrelationRule {
+            sink_window_before: 0,
+            ..above_rule()
+        };
+        assert!(apply(&[below_only], &findings, &lines).is_empty());
+    }
+
+    #[test]
+    fn set_up_above_and_use_below_join_the_statement() {
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 3)];
+        // A headers dict built from the key, then passed to the call.
+        let dict = "token = read_secret()\nheaders = {\"Authorization\": token}\nresp = get(url, headers=headers, flag=off)\n";
+        let lines: Vec<&str> = dict.lines().collect();
+        assert_eq!(apply(&[above_rule()], &findings, &lines).len(), 1);
+        // A session configured with the key, then used for the call.
+        let session = "token = read_secret()\nsession.headers.update({\"Authorization\": token})\nr = session.get(url, flag=off)\n";
+        let lines: Vec<&str> = session.lines().collect();
+        // `session` is not assigned in the window: an unknown name, maybe a
+        // module, and not read.
+        assert!(apply(&[above_rule()], &findings, &lines).is_empty());
+        let session = "token = read_secret()\nsession = Session()\nsession.headers.update({\"Authorization\": token})\nr = session.get(url, flag=off)\n";
+        let lines: Vec<&str> = session.lines().collect();
+        let findings_s = vec![f("CRED-012", 1), f("KWARG-001", 4)];
+        assert_eq!(apply(&[above_rule()], &findings_s, &lines).len(), 1);
+        // An attribute of `self` is the object's own state.
+        let attr = "self.token = read_secret()\nself.session.headers[\"A\"] = self.token\nself.session.flag = off\n";
+        let lines: Vec<&str> = attr.lines().collect();
+        assert_eq!(apply(&[above_rule()], &findings, &lines).len(), 1);
+        // A module used for another call above is not the insecure call's
+        // set-up.
+        let module = "token = read_secret()\nhttp.post(api, headers={\"A\": token})\nhttp.get(status_url, flag=off)\n";
+        let lines: Vec<&str> = module.lines().collect();
+        assert!(apply(&[above_rule()], &findings, &lines).is_empty());
+        // Below: the agent the statement builds is used with the key.
+        let agent = "const token = readSecret();\nconst agent = makeAgent({ flag: off });\nfetch(url, { agent, headers: { A: token } });\n";
+        let lines: Vec<&str> = agent.lines().collect();
+        let findings_a = vec![f("CRED-012", 1), f("KWARG-001", 2)];
+        assert_eq!(apply(&[above_rule()], &findings_a, &lines).len(), 1);
+        // ... but a line below that does not use the agent is another
+        // statement.
+        let other = "const token = readSecret();\nconst agent = makeAgent({ flag: off });\nconst gh = new Octokit({ auth: token });\n";
+        let lines: Vec<&str> = other.lines().collect();
+        assert!(apply(&[above_rule()], &findings_a, &lines).is_empty());
+        // A source below the sink inside the same call.
+        let below =
+            "resp = post(\n    url,\n    flag=off,\n    headers={\"A\": read_secret()},\n)\n";
+        let lines: Vec<&str> = below.lines().collect();
+        let findings_b = vec![f("CRED-012", 4), f("KWARG-001", 3)];
+        assert_eq!(apply(&[above_rule()], &findings_b, &lines).len(), 1);
+        // For a rule without a window above, the order rule still applies.
+        let legacy = CorrelationRule {
+            sink_window_before: 0,
+            ..above_rule()
+        };
+        assert!(apply(&[legacy], &findings_b, &lines).is_empty());
+    }
+
+    #[test]
+    fn leading_and_assigned_names() {
+        assert_eq!(leading_name("const agent = x;"), Some(("agent", false)));
+        assert_eq!(
+            leading_name("    self.session.headers.update(h)"),
+            Some(("session", true))
+        );
+        assert_eq!(leading_name("  requests.get(u)"), Some(("requests", false)));
+        assert_eq!(leading_name("  )"), None);
+        assert_eq!(
+            assigned_name("session.headers[\"A\"] = t"),
+            Some(("session", false))
+        );
+        assert_eq!(assigned_name("tr := &http.Transport{"), Some(("tr", false)));
+        assert_eq!(
+            assigned_name("let mut c: Client = build();"),
+            Some(("c", false))
+        );
+        assert_eq!(assigned_name("this.agent = a;"), Some(("agent", true)));
+        assert_eq!(assigned_name("if session.verify == False:"), None);
+        assert_eq!(assigned_name("requests.get(url, flag=off)"), None);
+    }
+
+    #[test]
+    fn a_long_line_is_not_linked_when_the_rule_caps_it() {
+        // One minified line holds a credential read and the insecure flag
+        // far apart: a same-line link says nothing there.
+        let bundle = format!(
+            "var t=read_secret();{}var a=makeAgent({{flag:off}});",
+            "function p(){return 0}".repeat(40)
+        );
+        let lines = vec![bundle.as_str()];
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 1)];
+        assert_eq!(apply(&[above_rule()], &findings, &lines).len(), 1);
+        let capped = CorrelationRule {
+            max_line_length: 500,
+            ..above_rule()
+        };
+        assert!(apply(std::slice::from_ref(&capped), &findings, &lines).is_empty());
+        // A short line under the cap still links on the same line.
+        let short = ["resp = client.post(url, headers=auth(read_secret()), flag=off)"];
+        assert_eq!(apply(&[capped], &findings, &short).len(), 1);
+    }
+
+    #[test]
+    fn continuation_block_and_window() {
+        // A black-formatted call: the run above the sink is the call.
+        let call = [
+            "token = read_secret()",
+            "resp = client.get(",
+            "    url,  # the endpoint",
+            "    headers=auth(token),",
+            "    flag=off,",
+            ")",
+            "after()",
+        ];
+        assert_eq!(continuation_start(&call, 5, 10), 2);
+        assert_eq!(continuation_start(&call, 5, 2), 3, "bounded by `before`");
+        assert_eq!(continuation_start(&call, 5, 0), 5);
+        let s = statement_scope(&call, 5, 10);
+        assert_eq!((s.start, s.end), (2, 6));
+        // Line 1 assigns `token`, a local the call uses: set-up, kept.
+        assert_eq!(
+            s.text,
+            "token = read_secret()\nresp = client.get(\n    url,  # the endpoint\n    headers=auth(token),\n    flag=off,\n)"
+        );
+        // `after()` does not use `resp`, the name the statement binds.
+        assert!(!s.text.contains("after"));
+        assert_eq!(arg_window(&call, 5), "    flag=off,\n)\nafter()");
+        assert_eq!(arg_window(&call, 0), "");
+        assert_eq!(arg_window(&call, 20), "");
+        assert_eq!(statement_scope(&call, 0, 5).text, "");
+        assert_eq!(statement_scope(&call, 20, 5).text, "");
+        // Object literals continue; blocks do not.
+        for open in [
+            "const options = {",
+            "  headers: {",
+            "new https.Agent({",
+            "tr := &http.Transport{",
+            "  return {",
+            "{",
+            "items = [",
+            "x = f(a, \\",
+        ] {
+            assert!(continues_into_next(open), "{open}");
+        }
+        for stmt in [
+            "function makeAgent(token) {",
+            "const f = () => {",
+            "class Client {",
+            "} else {",
+            "func newClient() *http.Client {",
+            "client = Vendor(api_key=api_key)",
+            "const gh = new Octokit({ auth: token });",
+            "def fetch(url, token):",
+            "",
+            "headers = {\"X\": \"a\"}  # trailing, comment,",
+        ] {
+            assert!(!continues_into_next(stmt), "{stmt}");
+        }
+        assert_eq!(strip_trailing_comment("a,  // b,"), "a, ");
+        assert_eq!(
+            strip_trailing_comment("u = \"https://x/#y\","),
+            "u = \"https://x/#y\","
+        );
+        assert_eq!(
+            strip_trailing_comment("this.#agent = x,"),
+            "this.#agent = x,"
+        );
     }
 
     #[test]
