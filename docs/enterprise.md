@@ -15,6 +15,7 @@ not available yet is marked **not available**.
 - [CI gates](#ci-gates)
 - [Reports: SARIF, JUnit, Markdown, JSON for a SIEM](#reports)
 - [Claude Code: enforce the guard with managed settings](#claude-code-enforce-the-guard-with-managed-settings)
+- [Optional LLM review and data egress](#optional-llm-review-and-data-egress)
 - [Air-gapped and offline operation](#air-gapped-and-offline-operation)
 - [Limitations](#limitations)
 
@@ -35,6 +36,7 @@ specified in [configuration.md](configuration.md#scan-policy-sigilyml) and
 | Project policy | `.sigil.yml` (or `--config FILE`) | repository owners | scans of that repository |
 | Per-line exceptions | `# sigil:ignore RULE-ID -- reason` | developers | one line or file |
 | Accepted findings | `.sigil-baseline.json` (`sigil baseline`) | repository owners | scans that name it |
+| LLM review (sends masked code to a model) | `llm_*` policy keys, `--llm-review`; the endpoint only in the organisation policy or the environment | security team decides, and can lock it | `sigil scan`; off by default |
 
 Precedence for a scan is: organisation policy, then project policy, then
 command-line flags — with locked keys only ever tightened. `sigil config
@@ -66,13 +68,16 @@ locked:                     # project files and flags can only tighten these
   - ignore_paths
   - trusted_domains
   - rule_packs
+  - llm_may_downgrade       # else a project can let a model lower severities
 allow_project_policy: true  # false = every project file is tighten-only
 ```
 
 Locking `fail_on` alone does not hold the gate: an unlocked `min_severity`,
-`severity_overrides`, `baseline`, `disable_rules`, `ignore_paths` or
-`trusted_domains` each lets a project take findings out from under it. The
-example locks all of them (`locked: [all]` is the short form). Leave
+`severity_overrides`, `baseline`, `disable_rules`, `ignore_paths`,
+`trusted_domains` or `llm_may_downgrade` each lets a project take findings out
+from under it. The example locks all of them (`locked: [all]` is the short
+form, and also locks the LLM review keys described in
+[Optional LLM review](#optional-llm-review-and-data-egress)). Leave
 `baseline` unlocked only if projects may adopt Sigil with a baseline of
 their own, and know that it can accept anything present today. `sigil config
 --validate FILE --org` lists every unlocked key that can undo a locked gate.
@@ -595,6 +600,72 @@ for its location on each platform; at the time of writing it is
 ask) or `off`. See the limitation on `SIGIL_BYPASS` below before relying on the
 guard as a hard control.
 
+## Optional LLM review and data egress
+
+`sigil scan --llm-review` sends each finding at Medium or above to a language
+model for an advisory second opinion ([LLM review](llm-review.md)). It is
+**off by default**, and the scanner never opens a connection for it unless the
+flag or a policy turns it on. When it is on, **scanned code leaves the
+machine**: for each finding, the rule, title, path, matched line and up to 6
+lines on each side, after secrets and high-entropy strings are masked. Secret
+files (`.env*`, private keys, `.npmrc`, `.netrc`, cloud credential files) are
+never read, and neither is a symbolic link or a path outside the scanned tree.
+The masking is pattern-based. Decide on egress as you would for any tool that
+uploads source code.
+
+Policy keys (organisation or project file):
+
+```yaml
+llm_review: true            # run the stage on every sigil scan
+llm_may_downgrade: false    # true lets a model's dismissal lower a finding by one level
+llm_provider: openai-compatible
+llm_model: your-model-name
+llm_endpoint: https://llm.internal.example.com/v1   # organisation policy only
+llm_max_calls: 25           # per scan
+llm_max_tokens: 200000      # per scan, input + output
+locked: [llm_review, llm_may_downgrade, llm_provider, llm_model, llm_max_calls, llm_max_tokens]
+```
+
+What each control does:
+
+- **Forbid egress.** Set `llm_review: false` and lock it. `--llm-review` and any
+  project file are then refused with a warning, and the scan stays offline.
+  `locked: [all]` has the same effect when `llm_review` is not set.
+- **Require review.** Set `llm_review: true` and lock it. Every `sigil scan`
+  then runs the stage, and `--no-llm-review` is refused.
+- **Pin the destination.** `llm_endpoint` is accepted only in the organisation
+  policy, which is how you keep code on a model you host. A project file that
+  sets it is rejected. While it is set, no project or flag can switch the
+  provider back to Anthropic. The key for it comes from the environment
+  (`SIGIL_LLM_API_KEY`), never from a policy file.
+- **Keep the stage advisory.** Lock `llm_may_downgrade` (with the value
+  `false`). Unlocked, a project can let a model's advice lower severities under
+  your `fail_on` gate. `sigil config --validate --org` reports it as a gap
+  when the gate is locked.
+- **Bound cost.** Locked `llm_max_calls` and `llm_max_tokens` can only be
+  lowered by a project.
+
+A `.sigil.yml` shipped inside a tree scanned from outside cannot configure the
+stage at all. Its `llm_*` keys are refused, except `llm_may_downgrade: false`.
+A `.sigil.yml` found by discovery never turns the stage on, raises its caps,
+or chooses its provider or model, even in a tree you are working in: whether
+code goes to a model, which one and on whose API key is decided by
+`--llm-review`, `--llm-model`, the environment (`SIGIL_LLM_ENDPOINT`), this
+organisation policy, or a policy file named with `--config`. A repository
+cannot redirect code you keep on a model you host to the Anthropic API. So `llm_review: true` in the example above takes effect from
+the organisation file or a `--config` file, not from a committed `.sigil.yml`.
+A model's answer can never lower a Critical finding, a prompt-injection or
+agent-manipulation finding, any finding in a file that addresses the
+reviewer (`MANIP-012`, `MANIP-013`, `PROMPT-001`, or the stage's own checks on
+what it is about to send), or any finding reviewed in the same request as such
+text; see [LLM review](llm-review.md#trust-model). A failure of the stage (no
+key, network, timeout, quota, refusal, output that does not parse) never
+changes the verdict or the exit code. It is reported as
+`llm_review.status: incomplete` or `not_run` in the JSON report.
+
+The stage has not been measured on a live model; see the disclosure in
+[llm-review.md](llm-review.md#measurement).
+
 ## Air-gapped and offline operation
 
 - The detection corpus is compiled into the binary, so scanning needs no
@@ -611,6 +682,9 @@ guard as a hard control.
   `--phases` set to anything but `all` skips them.
 - `--enrich`, `--submit`, `--enhanced`, `sigil login`, `sigil fetch` and
   `sigil explain` need the Sigil cloud and are not for air-gapped use.
+- `--llm-review` needs a model endpoint. Behind an air gap, point it at a
+  model you host inside the boundary (`llm_endpoint` in the organisation
+  policy), or lock `llm_review: false`.
 
 ## Limitations
 

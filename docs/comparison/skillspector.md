@@ -195,11 +195,22 @@ either. SkillSpector covers both. (Disabled TLS verification, the third gap
 this page listed, is now covered by the TLS-* rules: Medium on its own, High
 when a credential travels over the unverified connection.)
 
-**LLM adjudication.** SkillSpector can send findings to a model you choose
-(OpenAI, Anthropic, Bedrock, NVIDIA, a local Claude or Codex CLI, and others).
-Sigil's LLM analysis (`--enhanced`) runs on Sigil's own service. If you need
-model review on your own infrastructure, SkillSpector has it and Sigil does
-not.
+**LLM adjudication.** Both tools can now send findings to a model you choose.
+SkillSpector supports more providers directly: OpenAI, Anthropic, Bedrock,
+NVIDIA, a local Claude or Codex CLI, and others. Sigil's `--llm-review`
+supports two: the Anthropic Messages API, and any OpenAI-compatible
+chat-completions endpoint, which includes self-hosted servers such as vLLM,
+Ollama and llama.cpp, and vendors with a compatible API. Bedrock and the local
+agent CLIs are reachable only through an OpenAI-compatible gateway. Sigil's
+stage is advisory by default. It masks secrets and high-entropy strings before
+sending, never reads secret files, and parses the model's answer strictly. A
+dismissal can lower a finding only when the scan policy allows it, and never
+for Critical, prompt-injection or agent-manipulation findings, or in a file
+that addresses the reviewer ([details](../llm-review.md)). **Neither tool's
+LLM stage was measured here.** Sigil's stage has been tested only against a
+local mock server, because no provider credentials were available when it was
+built. Whether it improves Sigil's numbers, and at what cost per scan, is
+unknown.
 
 ## Features
 
@@ -218,7 +229,7 @@ not.
 | Organisation policy (file pushed by MDM, locked keys, tighten-only project files) | `SIGIL_POLICY_FILE` | No |
 | Built-in MCP server | `sigil mcp` (`scan`, `scan_package`, `check_command`) | `skillspector mcp` |
 | IDE and agent integrations | Claude Code plugin, VS Code / Cursor / Windsurf, JetBrains | OpenCode and Pi extensions |
-| LLM adjudication with your own model | No | Yes |
+| LLM adjudication with your own model | `--llm-review`: Anthropic or any OpenAI-compatible endpoint (self-hosted included); advisory unless the policy allows downgrades; secrets masked; not measured on a live model | Yes, more providers built in (OpenAI, Anthropic, Bedrock, NVIDIA, local Claude/Codex CLI, ...) |
 
 SkillSpector runs full YARA through libyara, including modules; Sigil's YARA
 support is a documented subset that refuses anything outside it rather than

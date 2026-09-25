@@ -112,7 +112,7 @@ sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation po
 | `--list`, `-l` | Print the whole configuration file |
 | `--policy` | Show which policy files apply (organisation `SIGIL_POLICY_FILE`, project `.sigil.yml`, or `--config FILE`), the merged values, locked keys, and any loosening the organisation policy refused |
 | `--validate FILE` | Validate a policy file. Exit 0 valid, 1 invalid (every problem listed), 2 unreadable |
-| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked` and `allow_project_policy` |
+| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked`, `allow_project_policy` and `llm_endpoint` |
 
 The policy format, precedence and lock rules are in
 [Rolling Sigil out across an organisation](enterprise.md).
@@ -246,6 +246,9 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--no-cache` | | Force a fresh scan even if the content is unchanged |
 | `--ignore-ledger` | | Report findings even when the content matches a trust-ledger approval |
 | `--follow-refs` | off | Also download what the scanned files tell someone to fetch, install or run, into quarantine, and scan it (never executed). Also enabled by `SIGIL_FOLLOW_REFS=1`. See [Following references](#following-references) |
+| `--llm-review` | off | Send each finding at Medium or above to a language model you choose, for an advisory second opinion. The rule, title, path, masked matched line and surrounding lines are sent; secrets are masked first. Anthropic by default (`ANTHROPIC_API_KEY`), or any OpenAI-compatible endpoint (`SIGIL_LLM_ENDPOINT`). The stage never changes a severity unless the scan policy sets `llm_may_downgrade: true`, and a failure never changes the verdict or exit code. Also `llm_review: true` in the organisation policy or a `--config` file; a `.sigil.yml` found by discovery cannot turn it on. See [LLM review](llm-review.md) |
+| `--no-llm-review` | | Do not run the LLM review stage even if a policy turns it on. Refused when the organisation policy locks `llm_review` |
+| `--llm-model` | `claude-opus-5` for Anthropic | Model for `--llm-review` (also `SIGIL_LLM_MODEL`). Required for an OpenAI-compatible endpoint |
 
 **Behavior:**
 
@@ -289,6 +292,7 @@ sigil scan . --format junit -o sigil-junit.xml  # CI test-report view
 sigil scan . --baseline .sigil-baseline.json    # Fail only on findings added since the baseline
 sigil scan . --rules ./acme-rules.yaml          # Add your organisation's rules
 sigil scan ./vendor --fail-on-incomplete        # Fail closed if anything could not be inspected
+sigil scan ./skill --llm-review                 # Advisory second opinion from a model (sends masked excerpts)
 ```
 
 #### Incomplete coverage
@@ -970,6 +974,12 @@ All configuration can be overridden via environment variables.
 | `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 | `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |
+| `ANTHROPIC_API_KEY` | unset | Key for `--llm-review` with the Anthropic provider. Read only when the stage is on — see [LLM review](llm-review.md) |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic API base URL for `--llm-review`, as the official SDKs read it |
+| `SIGIL_LLM_ENDPOINT` | unset | OpenAI-compatible endpoint for `--llm-review` (a base URL such as `http://localhost:11434/v1`, or the full `/chat/completions` URL). Setting it selects that provider. `https` is required except for localhost |
+| `SIGIL_LLM_API_KEY` | unset | Bearer key for `SIGIL_LLM_ENDPOINT`, if it needs one |
+| `SIGIL_LLM_MODEL` | provider default | Model for `--llm-review` (as `--llm-model`) |
+| `SIGIL_LLM_TIMEOUT_SECS` | `120` | Per-request timeout for `--llm-review`, 1 to 3600 |
 
 ---
 

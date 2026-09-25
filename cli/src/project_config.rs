@@ -64,6 +64,13 @@ const KNOWN_KEYS: &[&str] = &[
     "baseline",
     "locked",
     "allow_project_policy",
+    "llm_review",
+    "llm_may_downgrade",
+    "llm_provider",
+    "llm_model",
+    "llm_endpoint",
+    "llm_max_calls",
+    "llm_max_tokens",
 ];
 
 /// Keys an organisation policy may lock.
@@ -78,7 +85,18 @@ pub const LOCKABLE_KEYS: &[&str] = &[
     "rule_packs",
     "trusted_domains",
     "baseline",
+    "llm_review",
+    "llm_may_downgrade",
+    "llm_provider",
+    "llm_model",
+    "llm_max_calls",
+    "llm_max_tokens",
 ];
+
+/// Bounds on `llm_max_calls`.
+const LLM_MAX_CALLS_RANGE: std::ops::RangeInclusive<u64> = 1..=1000;
+/// Bounds on `llm_max_tokens`.
+const LLM_MAX_TOKENS_RANGE: std::ops::RangeInclusive<u64> = 10_000..=10_000_000;
 
 /// Where a policy layer came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +134,23 @@ pub struct PolicyDoc {
     pub baseline: Option<PathBuf>,
     pub locked: Vec<String>,
     pub allow_project_policy: Option<bool>,
+    /// The optional LLM review stage (see [`crate::llm_review`]).
+    pub llm_review: Option<bool>,
+    pub llm_may_downgrade: Option<bool>,
+    pub llm_provider: Option<crate::llm_review::Provider>,
+    pub llm_model: Option<String>,
+    /// Organisation policy only.
+    pub llm_endpoint: Option<String>,
+    pub llm_max_calls: Option<u32>,
+    pub llm_max_tokens: Option<u64>,
+}
+
+/// Is `s` a plausible model id? Letters, digits and `.-_:/@`, 1–128 chars.
+pub fn valid_model_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 128
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ':' | '/' | '@'))
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +369,76 @@ pub fn parse_policy(text: &str, base_dir: &Path, origin: Origin) -> Result<Polic
                     }
                 }
             }
+            "llm_review" | "llm_may_downgrade" => match v {
+                serde_yaml::Value::Null => {}
+                serde_yaml::Value::Bool(b) => {
+                    if key == "llm_review" {
+                        doc.llm_review = Some(*b);
+                    } else {
+                        doc.llm_may_downgrade = Some(*b);
+                    }
+                }
+                _ => errors.push(format!(
+                    "{key}: {} is not a boolean (use true or false)",
+                    show(v)
+                )),
+            },
+            "llm_provider" => {
+                if !v.is_null() {
+                    match v.as_str().and_then(crate::llm_review::Provider::parse) {
+                        Some(p) => doc.llm_provider = Some(p),
+                        None => errors.push(format!(
+                            "llm_provider: {} is not a provider (use anthropic or openai-compatible)",
+                            show(v)
+                        )),
+                    }
+                }
+            }
+            "llm_model" => {
+                if !v.is_null() {
+                    match v.as_str().map(str::trim) {
+                        Some(s) if valid_model_id(s) => doc.llm_model = Some(s.to_string()),
+                        _ => errors.push(format!(
+                            "llm_model: {} is not a model id (letters, digits and . - _ : / @)",
+                            show(v)
+                        )),
+                    }
+                }
+            }
+            "llm_endpoint" => {
+                if origin != Origin::Org {
+                    errors.push(format!(
+                        "llm_endpoint: only the organisation policy ({ORG_POLICY_ENV}) or SIGIL_LLM_ENDPOINT can say where scanned code is sent"
+                    ));
+                } else if !v.is_null() {
+                    match v.as_str() {
+                        Some(s) => match crate::llm_review::provider::check_endpoint(s) {
+                            Ok(_) => doc.llm_endpoint = Some(s.trim().to_string()),
+                            Err(e) => errors.push(format!("llm_endpoint: {e}")),
+                        },
+                        None => errors.push("llm_endpoint: must be a URL".to_string()),
+                    }
+                }
+            }
+            "llm_max_calls" | "llm_max_tokens" => {
+                if !v.is_null() {
+                    let range = if key == "llm_max_calls" {
+                        LLM_MAX_CALLS_RANGE
+                    } else {
+                        LLM_MAX_TOKENS_RANGE
+                    };
+                    match v.as_u64().filter(|n| range.contains(n)) {
+                        Some(n) if key == "llm_max_calls" => doc.llm_max_calls = Some(n as u32),
+                        Some(n) => doc.llm_max_tokens = Some(n),
+                        None => errors.push(format!(
+                            "{key}: {} is not a whole number from {} to {}",
+                            show(v),
+                            range.start(),
+                            range.end()
+                        )),
+                    }
+                }
+            }
             "allow_project_policy" => {
                 if origin != Origin::Org {
                     errors.push(format!(
@@ -356,6 +461,14 @@ pub fn parse_policy(text: &str, base_dir: &Path, origin: Origin) -> Result<Polic
                 ),
             }),
         }
+    }
+    if doc.llm_endpoint.is_some()
+        && doc.llm_provider == Some(crate::llm_review::Provider::Anthropic)
+    {
+        errors.push(
+            "llm_endpoint names an OpenAI-compatible endpoint; it cannot be combined with llm_provider: anthropic"
+                .to_string(),
+        );
     }
     if errors.is_empty() {
         Ok(doc)
@@ -387,9 +500,17 @@ pub fn lock_gaps(doc: &PolicyDoc) -> Vec<String> {
         ("disable_rules", "switch rules off"),
         ("ignore_paths", "exclude paths from the verdict"),
         ("trusted_domains", "excuse network findings"),
+        (
+            "llm_may_downgrade",
+            "lower severities on a language model's advice",
+        ),
     ]
     .iter()
     .filter(|(k, _)| !locked(k))
+    // With the LLM stage locked off, a model never gets to advise anything.
+    .filter(|(k, _)| {
+        *k != "llm_may_downgrade" || !(locked("llm_review") && doc.llm_review != Some(true))
+    })
     .map(|(k, what)| {
         format!(
             "the gate is locked but `{k}` is not: a project policy or flag can still {what} \
@@ -646,6 +767,8 @@ pub struct EffectivePolicy {
     /// baselines (canonical). A policy or baseline you committed is not a
     /// finding in the tree it configures; see [`SuppressionKind::ConfigFile`].
     pub config_files: Vec<PathBuf>,
+    /// The LLM review stage's keys, merged.
+    pub llm: crate::llm_review::LlmPolicy,
 }
 
 impl Default for EffectivePolicy {
@@ -667,6 +790,7 @@ impl Default for EffectivePolicy {
             warnings: Vec::new(),
             scan_root: None,
             config_files: Vec::new(),
+            llm: crate::llm_review::LlmPolicy::default(),
         }
     }
 }
@@ -681,6 +805,10 @@ pub struct CliPolicy {
     pub min_severity: Option<String>,
     pub baseline: Option<PathBuf>,
     pub rules: Vec<PathBuf>,
+    /// `--llm-review` (true) or `--no-llm-review` (false).
+    pub llm_review: Option<bool>,
+    /// `--llm-model`, or `SIGIL_LLM_MODEL`.
+    pub llm_model: Option<String>,
 }
 
 /// What to resolve a policy for.
@@ -702,6 +830,13 @@ struct LayerRules<'a> {
     /// Tighten-only for every key, and why.
     restricted_all: Option<String>,
     locked: &'a [String],
+    /// Whether this layer speaks for whoever runs the scan, and so may turn
+    /// on the LLM review stage (which sends code off the machine and spends
+    /// the runner's API key) and raise its caps: the organisation policy,
+    /// a file named with `--config`, and the flags. A project file found by
+    /// discovery may not, even in a tree you are working in: it arrives with
+    /// the repository.
+    llm_consent: bool,
 }
 
 impl LayerRules<'_> {
@@ -717,6 +852,7 @@ impl LayerRules<'_> {
 }
 
 fn merge(eff: &mut EffectivePolicy, doc: PolicyDoc, rules: &LayerRules) {
+    let llm_fields = doc.llm_fields();
     let src = &rules.source;
     let refuse = |eff: &mut EffectivePolicy, key: &str, what: String, why: String| {
         eff.refused
@@ -854,6 +990,169 @@ fn merge(eff: &mut EffectivePolicy, doc: PolicyDoc, rules: &LayerRules) {
                 })),
         }
     }
+    merge_llm(eff, &llm_fields, rules);
+}
+
+/// The LLM keys of one policy layer.
+struct LlmFields {
+    review: Option<bool>,
+    may_downgrade: Option<bool>,
+    provider: Option<crate::llm_review::Provider>,
+    model: Option<String>,
+    endpoint: Option<String>,
+    max_calls: Option<u32>,
+    max_tokens: Option<u64>,
+}
+
+impl PolicyDoc {
+    fn llm_fields(&self) -> LlmFields {
+        LlmFields {
+            review: self.llm_review,
+            may_downgrade: self.llm_may_downgrade,
+            provider: self.llm_provider,
+            model: self.llm_model.clone(),
+            endpoint: self.llm_endpoint.clone(),
+            max_calls: self.llm_max_calls,
+            max_tokens: self.llm_max_tokens,
+        }
+    }
+}
+
+/// Merge the LLM keys of one layer.
+///
+/// The stage sends scanned code off the machine, so a policy shipped inside
+/// the scanned tree (a tighten-only layer) cannot configure it at all; it may
+/// only turn `llm_may_downgrade` off. A project file found by discovery, even
+/// in a tree you work in, cannot turn the stage on, raise its caps, or choose
+/// its provider or model: those decide whether and where code is sent and
+/// what the runner's key pays for. A locked `llm_review`, `llm_provider` or
+/// `llm_model` is fixed at the organisation's value in both directions; a
+/// locked `llm_may_downgrade` can only be switched off, and locked caps can
+/// only be lowered. When the organisation sets `llm_endpoint`, no later layer
+/// can switch the provider to Anthropic and send the code elsewhere.
+fn merge_llm(eff: &mut EffectivePolicy, doc: &LlmFields, rules: &LayerRules) {
+    use crate::llm_review::{Provider, DEFAULT_MAX_CALLS, DEFAULT_MAX_TOKENS};
+    const LOCK: &str = "locked by the organisation policy";
+    let src = &rules.source;
+    let refuse = |eff: &mut EffectivePolicy, key: &str, what: String, why: &str| {
+        eff.refused
+            .push(format!("{key}: {src} asked for {what}; refused ({why})"));
+    };
+    let untrusted = rules.restricted_all.as_ref().map(|why| {
+        format!("{why}; a policy in the scanned tree cannot configure the LLM stage, which sends code off the machine")
+    });
+    let locked = |k: &str| rules.locked.iter().any(|l| l == k);
+    const NO_CONSENT: &str = "a policy file found in the tree cannot turn on the LLM stage or \
+         raise its caps: the stage sends code off the machine and spends the API key of \
+         whoever runs the scan. Pass --llm-review, or name the file with --config";
+    // The provider decides where the code goes (the Anthropic API, or the
+    // endpoint in SIGIL_LLM_ENDPOINT), and the model decides what the key is
+    // spent on (and, behind a gateway, which vendor serves it). Both belong
+    // to whoever runs the scan, like turning the stage on.
+    const NO_CONSENT_DEST: &str = "a policy file found in the tree cannot choose where the LLM \
+         stage sends code or which model it pays for: that belongs to whoever runs the scan. \
+         Pass --llm-model, set SIGIL_LLM_ENDPOINT, or name the file with --config";
+
+    if let Some(v) = doc.review {
+        if let Some(why) = &untrusted {
+            refuse(eff, "llm_review", v.to_string(), why);
+        } else if locked("llm_review") && eff.llm.review.unwrap_or(false) != v {
+            refuse(eff, "llm_review", v.to_string(), LOCK);
+        } else if v && !rules.llm_consent && eff.llm.review != Some(true) {
+            refuse(eff, "llm_review", v.to_string(), NO_CONSENT);
+        } else {
+            eff.llm.review = Some(v);
+        }
+    }
+    if let Some(v) = doc.may_downgrade {
+        let loosening = v && !eff.llm.may_downgrade.unwrap_or(false);
+        match rules.restricted("llm_may_downgrade") {
+            Some(why) if loosening => refuse(
+                eff,
+                "llm_may_downgrade",
+                "true (would let a model's advice lower severities)".to_string(),
+                &why,
+            ),
+            _ => eff.llm.may_downgrade = Some(v),
+        }
+    }
+    if let Some(p) = doc.provider {
+        if let Some(why) = &untrusted {
+            refuse(eff, "llm_provider", p.label().to_string(), why);
+        } else if locked("llm_provider") && eff.llm.provider != Some(p) {
+            refuse(eff, "llm_provider", p.label().to_string(), LOCK);
+        } else if p == Provider::Anthropic && eff.llm.endpoint.is_some() {
+            refuse(
+                eff,
+                "llm_provider",
+                p.label().to_string(),
+                "the organisation policy sets llm_endpoint",
+            );
+        } else if !rules.llm_consent && eff.llm.provider != Some(p) {
+            refuse(eff, "llm_provider", p.label().to_string(), NO_CONSENT_DEST);
+        } else {
+            eff.llm.provider = Some(p);
+        }
+    }
+    if let Some(m) = &doc.model {
+        if let Some(why) = &untrusted {
+            refuse(eff, "llm_model", m.clone(), why);
+        } else if locked("llm_model") && eff.llm.model.as_ref() != Some(m) {
+            refuse(eff, "llm_model", m.clone(), LOCK);
+        } else if !rules.llm_consent && eff.llm.model.as_ref() != Some(m) {
+            refuse(eff, "llm_model", m.clone(), NO_CONSENT_DEST);
+        } else {
+            eff.llm.model = Some(m.clone());
+        }
+    }
+    if let Some(e) = &doc.endpoint {
+        // Parsing accepts llm_endpoint from the organisation policy only.
+        eff.llm.endpoint = Some(e.clone());
+    }
+    if let Some(n) = doc.max_calls {
+        let current = eff.llm.max_calls.unwrap_or(DEFAULT_MAX_CALLS);
+        if let Some(why) = &untrusted {
+            refuse(eff, "llm_max_calls", n.to_string(), why);
+        } else if locked("llm_max_calls") && n > current {
+            refuse(
+                eff,
+                "llm_max_calls",
+                format!("{n} (higher than {current})"),
+                LOCK,
+            );
+        } else if !rules.llm_consent && n > current {
+            refuse(
+                eff,
+                "llm_max_calls",
+                format!("{n} (higher than {current})"),
+                NO_CONSENT,
+            );
+        } else {
+            eff.llm.max_calls = Some(n);
+        }
+    }
+    if let Some(n) = doc.max_tokens {
+        let current = eff.llm.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
+        if let Some(why) = &untrusted {
+            refuse(eff, "llm_max_tokens", n.to_string(), why);
+        } else if locked("llm_max_tokens") && n > current {
+            refuse(
+                eff,
+                "llm_max_tokens",
+                format!("{n} (higher than {current})"),
+                LOCK,
+            );
+        } else if !rules.llm_consent && n > current {
+            refuse(
+                eff,
+                "llm_max_tokens",
+                format!("{n} (higher than {current})"),
+                NO_CONSENT,
+            );
+        } else {
+            eff.llm.max_tokens = Some(n);
+        }
+    }
 }
 
 /// Find a project policy file in `dir`.
@@ -898,6 +1197,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
                 source,
                 restricted_all: None,
                 locked: &[],
+                llm_consent: true,
             },
         );
         eff.locked = locked;
@@ -968,7 +1268,13 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             Err(e) => return Err(e),
         }
     }
-    if let Some((path, restricted_all, doc)) = project_doc {
+    if let Some((path, restricted_all, mut doc)) = project_doc {
+        // `--llm-review` / `--no-llm-review` decide the stage over any
+        // project file, so the file's own `llm_review` is moot (and is not
+        // reported as refused when the flag agrees with it).
+        if opts.cli.llm_review.is_some() {
+            doc.llm_review = None;
+        }
         let locked = eff.locked.clone();
         merge(
             &mut eff,
@@ -977,6 +1283,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
                 source: path.display().to_string(),
                 restricted_all: restricted_all.clone(),
                 locked: &locked,
+                llm_consent: !discovered,
             },
         );
         eff.sources.push(AppliedSource {
@@ -1017,6 +1324,16 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             )),
         }
     }
+    doc.llm_review = cli.llm_review;
+    if let Some(m) = &cli.llm_model {
+        if valid_model_id(m.trim()) {
+            doc.llm_model = Some(m.trim().to_string());
+        } else {
+            errors.push(format!(
+                "invalid --llm-model / SIGIL_LLM_MODEL '{m}' (letters, digits and . - _ : / @)"
+            ));
+        }
+    }
     if !errors.is_empty() {
         return Err(errors.join("\n"));
     }
@@ -1030,6 +1347,7 @@ pub fn resolve(opts: &ResolveOptions) -> Result<EffectivePolicy, String> {
             source: "command line".to_string(),
             restricted_all: None,
             locked: &locked,
+            llm_consent: true,
         },
     );
 
@@ -1371,6 +1689,30 @@ impl EffectivePolicy {
 
     /// The JSON `policy` block.
     pub fn to_json(&self, outcome: &PolicyOutcome) -> serde_json::Value {
+        let mut doc = self.to_json_base(outcome);
+        let l = &self.llm;
+        if l.review.is_some()
+            || l.may_downgrade.is_some()
+            || l.provider.is_some()
+            || l.model.is_some()
+            || l.endpoint.is_some()
+            || l.max_calls.is_some()
+            || l.max_tokens.is_some()
+        {
+            doc["llm"] = json!({
+                "review": l.review.unwrap_or(false),
+                "may_downgrade": l.may_downgrade.unwrap_or(false),
+                "provider": l.provider.map(|p| p.label()),
+                "model": l.model,
+                "endpoint": l.endpoint.as_deref().map(crate::llm_review::provider::display_url),
+                "max_calls": l.max_calls.unwrap_or(crate::llm_review::DEFAULT_MAX_CALLS),
+                "max_tokens": l.max_tokens.unwrap_or(crate::llm_review::DEFAULT_MAX_TOKENS),
+            });
+        }
+        doc
+    }
+
+    fn to_json_base(&self, outcome: &PolicyOutcome) -> serde_json::Value {
         json!({
             "sources": self.sources.iter().map(|s| json!({
                 "path": s.path,
@@ -1790,7 +2132,8 @@ baseline: .sigil-baseline.json
         }
         // The documented example in enterprise.md, and `all`, close them.
         let example = "locked: [fail_on, fail_on_verdict, min_severity, severity_overrides, \
-                       baseline, disable_rules, ignore_paths, trusted_domains, rule_packs]\n";
+                       baseline, disable_rules, ignore_paths, trusted_domains, rule_packs, \
+                       llm_may_downgrade]\n";
         assert!(lock_gaps(&org(example)).is_empty());
         assert!(lock_gaps(&org("locked: [all]\n")).is_empty());
     }
@@ -1813,6 +2156,7 @@ baseline: .sigil-baseline.json
                 source: ".sigil.yml".to_string(),
                 restricted_all: None,
                 locked: &locked,
+                llm_consent: false,
             },
         );
         assert_eq!(eff.severity_overrides.len(), 2);
@@ -2063,6 +2407,270 @@ baseline: .sigil-baseline.json
             !eff.fails(&clean),
             "a Low observation is not a coverage gap"
         );
+    }
+
+    #[test]
+    fn llm_keys_parse_and_validate() {
+        let doc = parse_policy(
+            "llm_review: true\nllm_may_downgrade: false\nllm_provider: openai\n\
+             llm_model: qwen2.5-coder:32b\nllm_max_calls: 10\nllm_max_tokens: 50000\n",
+            Path::new("."),
+            Origin::Project,
+        )
+        .unwrap();
+        assert_eq!(doc.llm_review, Some(true));
+        assert_eq!(doc.llm_may_downgrade, Some(false));
+        assert_eq!(
+            doc.llm_provider,
+            Some(crate::llm_review::Provider::OpenAiCompatible)
+        );
+        assert_eq!(doc.llm_model.as_deref(), Some("qwen2.5-coder:32b"));
+        assert_eq!(doc.llm_max_calls, Some(10));
+        assert_eq!(doc.llm_max_tokens, Some(50_000));
+
+        let errs = parse_policy(
+            "llm_review: yes please\nllm_provider: skynet\nllm_model: 'a b'\n\
+             llm_max_calls: 0\nllm_max_tokens: 5\nllm_endpoint: https://llm.example.com/v1\n",
+            Path::new("."),
+            Origin::Project,
+        )
+        .unwrap_err();
+        for key in [
+            "llm_review",
+            "llm_provider",
+            "llm_model",
+            "llm_max_calls",
+            "llm_max_tokens",
+        ] {
+            assert!(errs.iter().any(|e| e.starts_with(key)), "{key}: {errs:?}");
+        }
+        assert!(
+            errs.iter()
+                .any(|e| e.starts_with("llm_endpoint: only the organisation policy")),
+            "a project file must not choose where code is sent: {errs:?}"
+        );
+
+        // The organisation may, over https or to a loopback address only.
+        let org = parse_policy(
+            "llm_endpoint: http://127.0.0.1:8000/v1\n",
+            Path::new("."),
+            Origin::Org,
+        )
+        .unwrap();
+        assert_eq!(
+            org.llm_endpoint.as_deref(),
+            Some("http://127.0.0.1:8000/v1")
+        );
+        let errs = parse_policy(
+            "llm_endpoint: http://llm.example.com/v1\n",
+            Path::new("."),
+            Origin::Org,
+        )
+        .unwrap_err();
+        assert!(errs[0].contains("https"), "{errs:?}");
+        let errs = parse_policy(
+            "llm_endpoint: https://llm.example.com/v1\nllm_provider: anthropic\n",
+            Path::new("."),
+            Origin::Org,
+        )
+        .unwrap_err();
+        assert!(errs[0].contains("cannot be combined"), "{errs:?}");
+    }
+
+    #[test]
+    fn llm_stage_cannot_be_configured_from_the_scanned_tree() {
+        // You are not working inside the tree, so its policy is tighten-only.
+        let root = tempfile::tempdir().unwrap();
+        let cwd = tempfile::tempdir().unwrap();
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_may_downgrade: true\nllm_model: evil-model\n\
+             llm_provider: openai-compatible\nllm_max_calls: 1\n",
+        )
+        .unwrap();
+        let _g = ENV_LOCK.lock().unwrap();
+        let mut o = opts(root.path());
+        o.cwd = cwd.path().to_path_buf();
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.review, None, "{:?}", eff.refused);
+        assert_eq!(eff.llm.may_downgrade, None);
+        assert_eq!(eff.llm.model, None);
+        assert_eq!(eff.llm.provider, None);
+        assert_eq!(eff.llm.max_calls, None);
+        for key in [
+            "llm_review",
+            "llm_may_downgrade",
+            "llm_model",
+            "llm_provider",
+            "llm_max_calls",
+        ] {
+            assert!(
+                eff.refused.iter().any(|r| r.starts_with(key)),
+                "{key} must be refused: {:?}",
+                eff.refused
+            );
+        }
+
+        // Turning downgrades off is a tightening, and allowed.
+        std::fs::write(root.path().join(".sigil.yml"), "llm_may_downgrade: false\n").unwrap();
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.may_downgrade, Some(false));
+        assert!(eff.refused.is_empty(), "{:?}", eff.refused);
+
+        // Working inside the tree, the same file is yours for everything that
+        // stays on this machine (llm_may_downgrade applies once the stage is
+        // on), but a discovered file still cannot turn on a stage that sends
+        // the code away and spends the runner's key, or raise its caps.
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_may_downgrade: true\nllm_max_calls: 1000\n\
+             llm_max_tokens: 10000000\nllm_model: claude-fable-5-1\n",
+        )
+        .unwrap();
+        let eff = resolve_clean(&opts(root.path())).unwrap();
+        assert_eq!(eff.llm.review, None, "{:?}", eff.refused);
+        assert_eq!(eff.llm.may_downgrade, Some(true));
+        assert_eq!(eff.llm.max_calls, None);
+        assert_eq!(eff.llm.max_tokens, None);
+        assert_eq!(eff.llm.model, None);
+        for key in ["llm_review", "llm_max_calls", "llm_max_tokens", "llm_model"] {
+            assert!(
+                eff.refused.iter().any(|r| r.starts_with(key)
+                    && (r.contains("--llm-review") || r.contains("--llm-model"))),
+                "{key} must be refused: {:?}",
+                eff.refused
+            );
+        }
+
+        // The flag turns it on, and the discovered file may still lower the
+        // caps. It may not pick the provider or the model: a runner who keeps
+        // code on a model of their own (SIGIL_LLM_ENDPOINT) must not find it
+        // sent to the Anthropic API because the repository said so, or their
+        // key spent on a pricier model.
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_max_calls: 3\nllm_model: claude-fable-5-1\n\
+             llm_provider: anthropic\n",
+        )
+        .unwrap();
+        let mut o = opts(root.path());
+        o.cli.llm_review = Some(true);
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.review, Some(true));
+        assert_eq!(eff.llm.max_calls, Some(3));
+        assert_eq!(eff.llm.model, None, "{:?}", eff.refused);
+        assert_eq!(eff.llm.provider, None, "{:?}", eff.refused);
+        for key in ["llm_model", "llm_provider"] {
+            assert!(
+                eff.refused
+                    .iter()
+                    .any(|r| r.starts_with(key) && r.contains("cannot choose where")),
+                "{key} must be refused: {:?}",
+                eff.refused
+            );
+        }
+        // The runner's own --llm-model still applies.
+        o.cli.llm_model = Some("local-model".to_string());
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.model.as_deref(), Some("local-model"));
+
+        // Naming the file with --config is how you vouch for it.
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_review: true\nllm_max_calls: 100\nllm_provider: openai-compatible\n\
+             llm_model: qwen2.5-coder:32b\n",
+        )
+        .unwrap();
+        let mut o = opts(root.path());
+        o.explicit_config = Some(root.path().join(".sigil.yml"));
+        let eff = resolve_clean(&o).unwrap();
+        assert_eq!(eff.llm.review, Some(true));
+        assert_eq!(eff.llm.max_calls, Some(100));
+        assert_eq!(
+            eff.llm.provider,
+            Some(crate::llm_review::Provider::OpenAiCompatible)
+        );
+        assert_eq!(eff.llm.model.as_deref(), Some("qwen2.5-coder:32b"));
+        assert!(eff.refused.is_empty(), "{:?}", eff.refused);
+    }
+
+    #[test]
+    fn locked_llm_keys_hold_against_project_and_flags() {
+        let _g = ENV_LOCK.lock().unwrap();
+        let org_dir = tempfile::tempdir().unwrap();
+        let org = org_dir.path().join("org.yml");
+        std::fs::write(
+            &org,
+            "llm_review: false\nllm_may_downgrade: false\nllm_max_calls: 5\n\
+             llm_endpoint: https://llm.internal.example.com/v1\n\
+             locked: [llm_review, llm_may_downgrade, llm_max_calls, llm_provider]\n",
+        )
+        .unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            root.path().join(".sigil.yml"),
+            "llm_may_downgrade: true\nllm_max_calls: 50\nllm_provider: anthropic\n",
+        )
+        .unwrap();
+        std::env::set_var(ORG_POLICY_ENV, &org);
+        let mut o = opts(root.path());
+        o.cli.llm_review = Some(true);
+        let eff = resolve(&o);
+        std::fs::write(root.path().join(".sigil.yml"), "llm_max_calls: 2\n").unwrap();
+        let lowered = resolve(&opts(root.path()));
+        std::env::remove_var(ORG_POLICY_ENV);
+
+        let eff = eff.unwrap();
+        assert_eq!(
+            eff.llm.review,
+            Some(false),
+            "the flag cannot override a lock"
+        );
+        assert_eq!(eff.llm.may_downgrade, Some(false));
+        assert_eq!(eff.llm.max_calls, Some(5));
+        assert_eq!(eff.llm.provider, None);
+        assert_eq!(
+            eff.llm.endpoint.as_deref(),
+            Some("https://llm.internal.example.com/v1")
+        );
+        for key in [
+            "llm_review: command line",
+            "llm_may_downgrade",
+            "llm_max_calls",
+            "llm_provider",
+        ] {
+            assert!(
+                eff.refused.iter().any(|r| r.starts_with(key)),
+                "{key}: {:?}",
+                eff.refused
+            );
+        }
+        assert_eq!(
+            lowered.unwrap().llm.max_calls,
+            Some(2),
+            "a locked cap can still be lowered"
+        );
+
+        // A locked gate with llm_may_downgrade unlocked is reported as a gap.
+        let doc = parse_policy(
+            "fail_on: high\nlocked: [fail_on]\n",
+            Path::new("."),
+            Origin::Org,
+        )
+        .unwrap();
+        assert!(lock_gaps(&doc)
+            .iter()
+            .any(|g| g.contains("llm_may_downgrade")));
+        // ...unless the stage itself is locked off.
+        let doc = parse_policy(
+            "fail_on: high\nllm_review: false\nlocked: [fail_on, llm_review]\n",
+            Path::new("."),
+            Origin::Org,
+        )
+        .unwrap();
+        assert!(!lock_gaps(&doc)
+            .iter()
+            .any(|g| g.contains("llm_may_downgrade")));
     }
 
     #[test]
