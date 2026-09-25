@@ -132,6 +132,15 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         // `install_time_execution`, an action that lowers the HIGH bar, for a
         // script that cannot run on the installer's machine.
         "INSTALL-009" => Some("publish_time_script"),
+        // Lifecycle findings rewritten by scanner::lifecycle. An inert
+        // postinstall still runs on install (an action); a package-manager
+        // guard, a build-only `prepare` and a launcher that installs its own
+        // platform package are not actions, and each needs its arm because
+        // the "INSTALL-" and "CODE-" family defaults are.
+        "INSTALL-010" => Some("install_time_execution"),
+        "INSTALL-011" => Some("install_time_guard"),
+        "INSTALL-012" => Some("build_step"),
+        "CODE-016" => Some("executes_shell"),
         // Concealment from the user is manipulation of the agent, not an
         // instruction override: same split as MANIP-007 vs PROMPT-001.
         "INTL-003" => Some("manipulates_agent"),
@@ -522,7 +531,12 @@ mod tests {
     #[test]
     fn non_executing_lifecycle_rules_are_not_action_behaviours() {
         use crate::scanner::scoring::ACTION_BEHAVIOURS;
-        for (id, expected) in [("INSTALL-009", "publish_time_script")] {
+        for (id, expected) in [
+            ("INSTALL-009", "publish_time_script"),
+            ("INSTALL-011", "install_time_guard"),
+            ("INSTALL-012", "build_step"),
+            ("CODE-016", "executes_shell"),
+        ] {
             let b = behavior_for(id).unwrap_or_else(|| panic!("{id} has no behaviour"));
             assert_eq!(b, expected, "{id}");
             assert!(
@@ -531,8 +545,10 @@ mod tests {
             );
         }
         // INSTALL-004 (prepare/prepublish) still runs on a git-dependency
-        // install and stays an action.
+        // install and stays an action, and so does an inert postinstall
+        // (INSTALL-010): it still runs on every install.
         assert!(ACTION_BEHAVIOURS.contains(&behavior_for("INSTALL-004").unwrap()));
+        assert_eq!(behavior_for("INSTALL-010"), Some("install_time_execution"));
     }
 
     #[test]

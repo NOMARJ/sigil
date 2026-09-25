@@ -202,6 +202,13 @@ cli/src/corpus/agent_supply_chain_tests.rs
 # attack line the same rule must still report (an embedded base64 payload, a
 # URL-shortener cradle piped to iex, a live PEM key). Test fixtures, not payloads.
 cli/src/corpus/mcp_fp_tests.rs
+# cli/src/scanner/lifecycle_tests.rs: lifecycle-classifier tests. Same category
+# as mcp_fp_tests.rs — each test pairs a benign package.json / launcher shape
+# from a registry MCP server with the attack variants that must keep INSTALL-003,
+# INSTALL-004 or CODE-014 (a postinstall that loads child_process or reads
+# process.env, npx only-allow chained to curl | sh, a launcher that installs a
+# foreign package). Test fixtures, not payloads.
+cli/src/scanner/lifecycle_tests.rs
 # cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
 # signature patterns ("curl") and boundary-case match lines to pin the
 # multi-byte truncation fix and the phase-resolution contract.

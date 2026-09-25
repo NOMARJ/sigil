@@ -1169,6 +1169,8 @@ mod tests {
     #[test]
     fn digest_covers_every_field_that_changes_a_finding() {
         use crate::corpus::schema::{Evidence, ProvenanceKind};
+        /// A named edit to one field of a rule.
+        type Edit<T> = (&'static str, fn(&mut T));
 
         fn flip(s: &mut String) {
             *s = if s == "low" { "high" } else { "low" }.to_string();
@@ -1212,7 +1214,7 @@ mod tests {
         };
 
         let content = packs.iter().position(|p| !p.rules.is_empty()).unwrap();
-        let rule_changes: &[(&str, fn(&mut PackRule))] = &[
+        let rule_changes: &[Edit<PackRule>] = &[
             ("pattern", |r| r.pattern.push('x')),
             ("severity", |r| flip(&mut r.severity)),
             ("evidence", |r| r.evidence = other(r.evidence)),
@@ -1266,7 +1268,7 @@ mod tests {
             .iter()
             .position(|p| !p.provenance_rules.is_empty())
             .unwrap();
-        let prov_changes: &[(&str, fn(&mut ProvenanceRule))] = &[
+        let prov_changes: &[Edit<ProvenanceRule>] = &[
             ("severity", |r| flip(&mut r.severity)),
             ("kind", |r| {
                 r.kind = if r.kind == ProvenanceKind::HiddenFile {
@@ -1297,7 +1299,7 @@ mod tests {
             .iter()
             .position(|p| !p.correlation_rules.is_empty())
             .unwrap();
-        let corr_changes: &[(&str, fn(&mut CorrelationRule))] = &[
+        let corr_changes: &[Edit<CorrelationRule>] = &[
             ("severity", |r| flip(&mut r.severity)),
             ("weight", |r| r.weight = Some(97)),
             ("window", |r| r.window_lines += 1),

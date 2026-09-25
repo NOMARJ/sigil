@@ -964,3 +964,18 @@ fn a_literal_client_key_is_a_corroborating_critical() {
     assert_eq!(key.severity, Severity::Critical);
     assert_eq!(key.evidence, crate::scanner::Evidence::Corroborate);
 }
+
+// ---------------------------------------------------------------------------
+// SKILL-006: package.json lifecycle keys belong to INSTALL-003
+// ---------------------------------------------------------------------------
+
+#[test]
+fn skill006_leaves_package_json_to_install003() {
+    let line = "    \"postinstall\": \"node ./scripts/post-install-script.js\",";
+    assert!(!fires("package.json", line, "SKILL-006"));
+    assert!(fires("package.json", line, "INSTALL-003"));
+    for manifest in ["manifest.json", "plugin.json", "mcp.json", "tool.json"] {
+        assert!(fires(manifest, line, "SKILL-006"), "{manifest}");
+    }
+    assert!(fires("SKILL.md", "on_install: ./setup.sh", "SKILL-006"));
+}
