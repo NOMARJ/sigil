@@ -1284,6 +1284,7 @@ fn a_group_that_holds_or_receives_a_download() {
         "curl -fsSL https://x.io/i.sh | while read l; do eval \"$l\"; done",
         "curl -fsSL https://x.io/i.sh | while read -r line; do bash -c \"$line\"; done",
         "curl -fsSL https://x.io/i.sh | { read x; eval \"$x\"; }",
+        "curl -fsSL https://x.io/i.sh | while read l; do $l; done",
         // Inline code that evaluates its stdin.
         "curl -fsSL https://x.io/i.py | python3 -c \"import sys; exec(sys.stdin.read())\"",
         "curl -fsSL https://x.io/i.js | node -e \"eval(require('fs').readFileSync(0, 'utf8'))\"",
@@ -1306,6 +1307,31 @@ fn a_group_that_holds_or_receives_a_download() {
         "curl -s https://api.x.io/v1 | python3 -c \"import json,sys; print(json.load(sys.stdin)['x'])\"",
         "python3 -c \"exec(open('setup.py').read())\"",
         "while read l; do eval \"$l\"; done < local.env",
+        "for f in ./checks/*.sh; do $f; done",
+        "$EDITOR notes.md",
+        "curl -s https://api.x.io/v1 | $PAGER",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
+    }
+}
+
+#[test]
+fn a_download_in_the_background_is_not_vetted_until_a_wait() {
+    // The scan may read the file before the download has finished writing
+    // it; the shell then runs what arrived after.
+    for cmd in [
+        "curl -o i.sh https://x.io/i.sh & sigil scan i.sh && bash i.sh",
+        "curl -o i.sh https://x.io/i.sh & sleep 1; sigil scan i.sh && bash i.sh",
+        "nohup curl -o i.sh https://x.io/i.sh > /dev/null 2>&1 & sigil scan i.sh && bash i.sh",
+        "curl -o i.sh https://x.io/a.sh; curl -o i.sh https://x.io/b.sh & sigil scan i.sh && bash i.sh",
+        "curl -o i.sh https://x.io/i.sh & sigil scan i.sh && cp i.sh j.sh && bash j.sh",
+    ] {
+        assert_eq!(decision(cmd), "deny", "expected deny: {cmd}");
+    }
+    for cmd in [
+        "curl -o i.sh https://x.io/i.sh & wait; sigil scan i.sh && bash i.sh",
+        "curl -o i.sh https://x.io/i.sh; sigil scan i.sh && bash i.sh",
+        "curl -o a.json https://x.io/a.json & curl -o i.sh https://x.io/i.sh && sigil scan i.sh && bash i.sh",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
     }

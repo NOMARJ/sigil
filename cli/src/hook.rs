@@ -2110,6 +2110,8 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
         subst_in: false,
         subst_out: false,
         fed_compound: None,
+        list_downloads: Vec::new(),
+        unsettled: Vec::new(),
     };
     walk.run(&cmd, false, 0);
     let decision = walk.decision;
@@ -2178,6 +2180,12 @@ struct Walk {
     /// | { echo; bash; }`, `curl … | while read l; do eval "$l"; done`): how
     /// many of the groups and compound commands opened since are open.
     fed_compound: Option<i32>,
+    /// Files downloaded in the current and-or list, and those downloaded in
+    /// a list that `&` sent to the background (`curl -o i.sh … & sigil scan
+    /// i.sh && bash i.sh`): a scan may read one before the download ends,
+    /// so no scan vets it until a `wait`.
+    list_downloads: Vec<String>,
+    unsettled: Vec<String>,
 }
 
 /// Does the text in front of a `$(`, `<(` or backtick run what the
@@ -2362,6 +2370,16 @@ fn xargs_code(w: &cmdline::Words) -> Option<&cmdline::Stdin> {
     from_input.then_some(src)
 }
 
+/// A word that is one parameter expansion and nothing else: `$l`, `${l}`,
+/// `$1`, `$@`.
+fn is_variable(s: &str) -> bool {
+    static VAR: OnceLock<Regex> = OnceLock::new();
+    VAR.get_or_init(|| {
+        Regex::new(r"^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|[0-9@*])$").expect("static pattern")
+    })
+    .is_match(s.trim())
+}
+
 /// Code that runs what the stage reads on stdin, though the stage is not an
 /// interpreter reading it as a script: a variable run as code (`eval
 /// "$l"`, `bash -c "$line"`, as in `… | while read l; do eval "$l";
@@ -2369,15 +2387,9 @@ fn xargs_code(w: &cmdline::Words) -> Option<&cmdline::Stdin> {
 /// "exec(sys.stdin.read())"`, `node -e "eval(fs.readFileSync(0, …))"`,
 /// `perl -e 'eval join "", <STDIN>'`, `ruby -e 'eval STDIN.read'`).
 fn runs_read_code(words: &[String]) -> bool {
-    static VAR: OnceLock<Regex> = OnceLock::new();
     static EXEC: OnceLock<Regex> = OnceLock::new();
     static READ: OnceLock<Regex> = OnceLock::new();
-    if inner_command(words).is_some_and(|code| {
-        VAR.get_or_init(|| {
-            Regex::new(r"^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|[0-9@*])$").expect("static pattern")
-        })
-        .is_match(code.trim())
-    }) {
+    if inner_command(words).is_some_and(|code| is_variable(&code)) {
         return true;
     }
     let Some(kind) = words.first().and_then(|h| cmdline::interpreter(h)) else {
@@ -2411,11 +2423,20 @@ fn runs_read_code(words: &[String]) -> bool {
 impl Walk {
     /// A stage gated by the `&&` chain is allowed.
     fn gate(&self, d: Decision, targets: &[Target]) -> Decision {
-        if d.rank() > 0 && gated(&self.gates, targets) {
+        if d.rank() > 0 && self.vetted(targets) {
             Decision::Allow("Gated by a preceding sigil check on the same target".into())
         } else {
             d
         }
+    }
+
+    /// The `&&` chain vetted every target, and none is a file still being
+    /// downloaded in the background.
+    fn vetted(&self, targets: &[Target]) -> bool {
+        gated(&self.gates, targets)
+            && !targets
+                .iter()
+                .any(|t| matches!(t, Target::Path(p) if self.unsettled.contains(p)))
     }
 
     /// A download replaces the file: a scan of it that ran earlier read
@@ -2424,6 +2445,9 @@ impl Walk {
         let t = Target::Path(f.clone());
         for g in &mut self.gates {
             g.retain(|x| *x != t);
+        }
+        if !self.list_downloads.contains(&f) {
+            self.list_downloads.push(f.clone());
         }
         if !self.downloads.contains(&f) {
             self.downloads.push(f);
@@ -2453,9 +2477,14 @@ impl Walk {
         for (n, p) in pcs.iter().enumerate() {
             if p.op == Op::Bg {
                 self.ctx.cwd = list_cwd.clone();
+                // The list before the `&` runs in the background: what it
+                // downloads may still be arriving when later commands run.
+                let bg = std::mem::take(&mut self.list_downloads);
+                self.unsettled.extend(bg);
             }
             if matches!(p.op, Op::Other | Op::Bg) {
                 list_cwd = self.ctx.cwd.clone();
+                self.list_downloads.clear();
             }
             // `;`, `||`, `&` and newlines end the `&&` chain. A substitution
             // runs as part of the command around it, so it neither ends the
@@ -2758,7 +2787,11 @@ impl Walk {
             && (cmdline::interpreter_runs(&w.words) == Some(cmdline::Runs::Stdin)
                 || xargs == Some(&cmdline::Stdin::Inherit)
                 || reads_code
-                || runs_read_code(&w.words));
+                || runs_read_code(&w.words)
+                // `… | while read l; do $l; done`: a variable as the whole
+                // command, inside a compound command that reads the
+                // download (not `… | $PAGER`, whose program is unknown).
+                || self.fed_compound.is_some() && w.words.len() == 1 && is_variable(&w.words[0]));
         let reads_pipe = k > 0 && runs_stdin;
         if runs_stdin && pipe.fed {
             // `curl … | base64 -d | sh`, `curl … | (bash)`, `curl … | node -r x`,
@@ -2854,7 +2887,7 @@ impl Walk {
         let copied = copies(w, &self.downloads, &ctx);
         let vetted: Vec<Target> = copied
             .iter()
-            .filter(|(src, _)| gated(&self.gates, &[Target::Path(src.clone())]))
+            .filter(|(src, _)| self.vetted(&[Target::Path(src.clone())]))
             .map(|(_, dest)| Target::Path(dest.clone()))
             .collect();
         written.extend(copied.into_iter().map(|(_, dest)| dest));
@@ -2872,6 +2905,10 @@ impl Walk {
         // sigil call after it vets anything.
         if w.words.first().map(|h| cmdline::interpreter(h)) == Some(Some(cmdline::Interp::Source)) {
             self.untrusted_sigil = true;
+        }
+        // `wait`: the background downloads have ended.
+        if w.words.first().is_some_and(|h| h == "wait") {
+            self.unsettled.clear();
         }
         self.judge(d);
     }

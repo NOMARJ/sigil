@@ -427,6 +427,7 @@ fi
 #   K                       it passes its stdin on (`cat`, `tr -d '\r'`)
 #   H                       its code runs what it reads on stdin
 #                           (`eval "$l"`, `python3 -c "exec(sys.stdin…)"`)
+#   L                       its whole command is a variable (`$l`)
 #   G opens closes          the groups and compound commands it opens and
 #                           closes (`{`, `if`, `(`; `}`, `fi`, `)`)
 #   D f / F                 a file a curl/wget stage saves to; it writes
@@ -1014,6 +1015,7 @@ function stage(t, tb, k, fl,    x, h, xc) {
   # python3 -c "exec(sys.stdin.read())" (hook.rs runs_read_code), also as
   # read whole when a separator in its quotes cut the stage short.
   if (STAGE_RRC || rrc()) print "H"
+  if (NW == 1 && trim(W[1]) ~ /^\$(\{?[A-Za-z_][A-Za-z0-9_]*\}?|[0-9@*])$/) print "L"
   dl(t)
   h = W[1]; sub(/.*\//, "", h)
   # Every file argument is read (cat f, head f, base64 -d f); tee also
@@ -1521,6 +1523,7 @@ gated() {
   for gt_t in $1; do
     IFS=$IFS_DEFAULT
     [ "$gt_t" = '!' ] && return 1
+    case $gt_t in path:*) in_list "$UNSETTLED" "${gt_t#path:}" && return 1 ;; esac
     in_list "$GATES" "$gt_t" || return 1
   done
   IFS=$IFS_DEFAULT
@@ -1531,6 +1534,7 @@ gated() {
 # that path earlier in the chain read other bytes, so it no longer vets it.
 record_download() {
   in_list "$DOWNLOADS" "$1" || DOWNLOADS=${DOWNLOADS:+$DOWNLOADS$NL}$1
+  in_list "$LIST_DL" "$1" || LIST_DL=${LIST_DL:+$LIST_DL$NL}$1
   in_list "$GATES" "path:$1" || return 0
   rd_new=''
   IFS=$NL
@@ -1970,6 +1974,9 @@ judge_stage() {
   # gated.
   st_runs=0
   [ -z "$ST_INK" ] && { [ "$ST_R" = 1 ] || [ "$ST_H" = 1 ]; } && st_runs=1
+  # `… | while read l; do $l; done`: a variable as the whole command, inside
+  # a compound command that reads the download (not `… | $PAGER`).
+  [ -z "$ST_INK" ] && [ "$ST_L" = 1 ] && [ -n "$FED_DEPTH" ] && st_runs=1
   st_rpipe=0
   [ "$st_k" -gt 0 ] && [ $st_runs = 1 ] && st_rpipe=1
   st_pdeny=0
@@ -2164,7 +2171,7 @@ legacy_targets() {
 st_reset() {
   ST_OUTS=''; ST_IN=''; ST_INK=''; ST_X=''; ST_R=0; ST_D=''; ST_F=0
   ST_C=''; ST_Z=''; ST_W=''; ST_N=''; ST_Y=''; ST_V=0; ST_K=0; ST_M=''; ST_H=0
-  ST_OPENS=0; ST_CLOSES=0
+  ST_OPENS=0; ST_CLOSES=0; ST_L=0
 }
 
 # grp_pop: close a `( … )` group or a substitution (both subshells),
@@ -2251,6 +2258,11 @@ if [ -n "$LEX" ]; then
 fi
 GATES=''
 DOWNLOADS=''
+# Files downloaded in the current and-or list, and those downloaded in a list
+# that & sent to the background: a scan may read one before its download
+# ends, so no scan vets it until a `wait` (hook.rs Walk::unsettled).
+LIST_DL=''
+UNSETTLED=''
 GATED_REASON=''
 SIGIL_SEEN=0
 RESID=''
@@ -2280,7 +2292,8 @@ for REC in $LEX; do
       # subshell (= on the group stack), which a closing backtick (b) or its
       # `)` (E) ends; so is a `( … )` group (+). A list that `&` ends ran in
       # a background subshell (`cd /tmp & …`): its cd ends with it.
-      [ "${1-}" = G ] && CUR_CWD=$LIST_CWD
+      [ "${1-}" = G ] && { CUR_CWD=$LIST_CWD; UNSETTLED=$UNSETTLED$NL$LIST_DL; }
+      case ${1-} in O|G) LIST_DL='' ;; esac
       case ${1-} in O|G) GATES=''; LIST_CWD=$CUR_CWD ;; esac
       case ${1-} in
         U|u|B) GRP_STACK=$GRP_STACK$NL=$CUR_CWD ;;
@@ -2324,6 +2337,7 @@ for REC in $LEX; do
     V) ST_V=1 ;;
     K) ST_K=1 ;;
     H) ST_H=1 ;;
+    L) ST_L=1 ;;
     G) ST_OPENS=${1-0}; ST_CLOSES=${2-0} ;;
     M) ST_M=$ST_M$NL${1-} ;;
     T)
@@ -2334,6 +2348,8 @@ for REC in $LEX; do
       JS_SIGIL=0
       if [ $SKIP_SEG = 0 ]; then
         judge_stage "$@"
+        # `wait`: the background downloads have ended.
+        case $ST_W in wait|"wait$US"*) UNSETTLED='' ;; esac
         if [ "$JS_SIGIL" = 0 ]; then
           [ $ST_FEDIN = 1 ] && SEG_FEDIN_K="$SEG_FEDIN_K${1-} "
           # A substitution that closes the segment opens in its last stage.
