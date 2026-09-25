@@ -463,5 +463,9 @@ When a policy is active the scan document gains, after `findings`:
 | `policy.hidden_below_min_severity`, `policy.severity_overridden` | counts |
 | `summary.gate` | `pass` \| `fail` |
 | `summary.policy_suppressed_count`, `summary.baseline_suppressed_count` | counts |
+| `policy.llm` | present when any LLM key is set: `{review, may_downgrade, provider, model, endpoint, max_calls, max_tokens}` (`endpoint` without credentials or query) |
+| `llm_review` | present when the optional LLM review stage was requested: `status` (`complete` \| `incomplete` \| `not_run`), `mode`, `provider`, `endpoint`, `model`, `served_models`, call and token counts and caps, `eligible`/`reviewed`/`not_reviewed`/`confirmed`/`dismissed`/`escalated`/`downgraded`, `incomplete_reasons`, `manipulation_files`, `sent`, `reviews[]`; see [llm-review.md](llm-review.md#output) |
+| `findings[].llm_review` | the model's review of that finding: `verdict`, `rationale`, `action` (`none` \| `note` \| `downgraded` \| `not_applied`), `not_applied_reason`, `severity`, `original_severity`, `manipulation_suspected`, `model` |
 
-With no policy file and no policy flag, the document is unchanged.
+With no policy file, no policy flag and no `--llm-review`, the document is
+unchanged.
