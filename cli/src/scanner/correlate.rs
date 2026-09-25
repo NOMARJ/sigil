@@ -24,6 +24,13 @@
 //! `Authorization` are where a key legitimately goes, and excluding them is
 //! what keeps every ordinary API client from lighting up.
 //!
+//! A rule may also set `sink_window_before`, which extends the window upward
+//! from the sink line. That is for sinks matched on a keyword argument that a
+//! formatter puts on its own line at the end of a call (`verify=False,` under
+//! `requests.post(`), where the arguments that carry the value are above the
+//! sink, not below it. The source line is left out of that text, so a source
+//! inside the window does not link by repeating its own binding.
+//!
 //! A line binds a name by assigning to it (`key = os.getenv(...)`), by the
 //! `as` name of a `with` item that *yields* data (`with open(KEY_PATH) as
 //! keyfile`, `with urlopen(req) as response` — see [`with_handles`]), or by
@@ -327,7 +334,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
         let mut emitted: Vec<(usize, usize)> = Vec::new();
         for sink in &sinks {
             let sink_line = sink.line.unwrap_or(0);
-            let window = arg_window(lines, sink_line);
+            let window = arg_window(lines, sink_line, rule.sink_window_before, None);
             let file_only = runs_a_file(&sink.rule);
             // A launch names its program on its own line (the launch rule
             // matches interpreter and operand together), so the lines after
@@ -350,6 +357,20 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                 if source_line > sink_line || sink_line - source_line > rule.window_lines {
                     continue;
                 }
+                // A window that reaches above the sink can contain the source
+                // line, and a source line trivially repeats the name it binds;
+                // the link is read from the other lines only.
+                let own_line_in_window = !file_only
+                    && rule.sink_window_before > 0
+                    && source_line.saturating_add(rule.sink_window_before) >= sink_line;
+                let without_source;
+                let link_text: &str = if own_line_in_window {
+                    without_source =
+                        arg_window(lines, sink_line, rule.sink_window_before, Some(source_line));
+                    &without_source
+                } else {
+                    link_text
+                };
                 let linked = if source_line == sink_line {
                     true
                 } else {
@@ -402,16 +423,25 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
     out
 }
 
-/// The sink line plus the lines that can still carry its arguments.
-fn arg_window(lines: &[&str], sink_line: usize) -> String {
+/// The sink line plus the lines that can still carry its arguments: the
+/// [`SINK_ARG_WINDOW`] lines from the sink down, and `before` lines above it
+/// (a rule's `sink_window_before`). `skip` leaves one line out (1-based).
+fn arg_window(lines: &[&str], sink_line: usize, before: usize, skip: Option<usize>) -> String {
     if sink_line == 0 {
         return String::new();
     }
-    let start = sink_line - 1;
-    let end = lines.len().min(start + SINK_ARG_WINDOW);
+    let start = (sink_line - 1).saturating_sub(before);
+    let end = lines.len().min(sink_line - 1 + SINK_ARG_WINDOW);
     lines
         .get(start..end)
-        .map(|w| w.join("\n"))
+        .map(|w| {
+            w.iter()
+                .enumerate()
+                .filter(|(i, _)| skip != Some(start + i + 1))
+                .map(|(_, l)| *l)
+                .collect::<Vec<&str>>()
+                .join("\n")
+        })
         .unwrap_or_default()
 }
 
@@ -459,6 +489,7 @@ mod tests {
                 rule_ids: vec!["NET-001".to_string(), "NET-004".to_string()],
             },
             window_lines: 20,
+            sink_window_before: 0,
             sink_excludes: vec!["headers".to_string(), "Authorization".to_string()],
             remediation: None,
             references: vec![],
@@ -718,6 +749,65 @@ mod tests {
         let handle = "with urlopen(req) as response:\n    pass\nrun([interp, helper_script], input=response.read())\n";
         let lines_h: Vec<&str> = handle.lines().collect();
         assert!(apply(&[launch_rule()], &findings_d, &lines_h).is_empty());
+    }
+
+    /// A rule whose sink is a keyword argument on its own line at the end of
+    /// a multi-line call, like the insecure-transport chain.
+    fn above_rule() -> CorrelationRule {
+        CorrelationRule {
+            id: "ABOVE-CHAIN".to_string(),
+            severity: "high".to_string(),
+            sink: FindingSelector {
+                rule_prefixes: vec![],
+                rule_ids: vec!["KWARG-001".to_string()],
+            },
+            sink_window_before: 5,
+            sink_excludes: vec![],
+            ..rule()
+        }
+    }
+
+    #[test]
+    fn a_window_above_the_sink_reaches_the_call_arguments() {
+        // The token is bound on line 1 and used on line 4; the sink is the
+        // keyword argument on line 6. Only a window above the sink sees it.
+        let src = "token = read_secret()\nresp = client.post(\n    url,\n    headers=auth(token),\n    timeout=5,\n    flag=off,\n)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 6)];
+        let chains = apply(&[above_rule()], &findings, &lines);
+        assert_eq!(chains.len(), 1, "{chains:#?}");
+        assert_eq!(chains[0].line, Some(6));
+        // With the default window (nothing above the sink) there is no link.
+        let below_only = CorrelationRule {
+            sink_window_before: 0,
+            ..above_rule()
+        };
+        assert!(apply(&[below_only], &findings, &lines).is_empty());
+    }
+
+    #[test]
+    fn the_source_line_alone_does_not_link_through_a_window_above() {
+        // The source line sits inside the window above the sink, and it
+        // repeats its own binding; nothing else uses the name.
+        let src = "token = read_secret()\nlog(\"start\")\nping(status_url, flag=off)\n";
+        let lines: Vec<&str> = src.lines().collect();
+        let findings = vec![f("CRED-012", 1), f("KWARG-001", 3)];
+        assert!(apply(&[above_rule()], &findings, &lines).is_empty());
+        // A use on another line inside the window does link.
+        let used = "token = read_secret()\nsession.auth = token\nping(status_url, flag=off)\n";
+        let lines_u: Vec<&str> = used.lines().collect();
+        assert_eq!(apply(&[above_rule()], &findings, &lines_u).len(), 1);
+    }
+
+    #[test]
+    fn arg_window_bounds_and_skip() {
+        let lines = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        assert_eq!(arg_window(&lines, 3, 0, None), "c\nd\ne\nf\ng");
+        assert_eq!(arg_window(&lines, 3, 5, None), "a\nb\nc\nd\ne\nf\ng");
+        assert_eq!(arg_window(&lines, 3, 1, Some(3)), "b\nd\ne\nf\ng");
+        assert_eq!(arg_window(&lines, 8, 1, None), "g\nh");
+        assert_eq!(arg_window(&lines, 0, 1, None), "");
+        assert_eq!(arg_window(&lines, 20, 1, None), "");
     }
 
     #[test]

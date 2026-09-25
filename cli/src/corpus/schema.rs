@@ -367,6 +367,15 @@ pub struct CorrelationRule {
     /// Maximum lines from source to sink (source first, or the same line).
     #[serde(default = "default_window")]
     pub window_lines: usize,
+    /// Lines *above* the sink line that also count as the sink's argument
+    /// window. For a sink matched on a keyword argument that sits on its own
+    /// line at the end of a multi-line call (`verify=False,` under
+    /// `requests.post(`), the call's other arguments — the headers that carry
+    /// the token — are on the lines above it. The source line itself is never
+    /// part of the text a link is read from, so a name is only linked when
+    /// another line uses it. Default 0: the window starts at the sink line.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub sink_window_before: usize,
     /// Substrings whose presence in the sink's argument window disqualifies
     /// the link — an auth header is where a key legitimately goes.
     #[serde(default)]
@@ -381,6 +390,10 @@ pub struct CorrelationRule {
 
 fn default_window() -> usize {
     20
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 // ---------------------------------------------------------------------------

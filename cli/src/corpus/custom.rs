@@ -744,8 +744,20 @@ fn validate_pack(pack: &SignaturePack, errors: &mut Vec<String>, warnings: &mut 
         if Phase::from_name(&rule.phase).is_none() {
             errors.push(format!("{label}: unknown phase '{}'", rule.phase));
         }
+        if rule.sink_window_before > MAX_SINK_WINDOW_BEFORE {
+            errors.push(format!(
+                "{label}: sink_window_before {} is too large (at most {MAX_SINK_WINDOW_BEFORE}; \
+                 it is the height of one call's argument list)",
+                rule.sink_window_before
+            ));
+        }
     }
 }
+
+/// Largest `sink_window_before` a custom correlation rule may set. The window
+/// above a sink stands for the rest of one call's argument list; a window
+/// the size of the file would link any use of a name anywhere above the sink.
+pub const MAX_SINK_WINDOW_BEFORE: usize = 20;
 
 /// Largest `weight` a custom rule may carry. Built-in rules use 1-10; the
 /// score multiplies weight by a severity factor in `u32`, so an unbounded
@@ -1090,6 +1102,30 @@ rules:
             "rules:\n  - {{id: ACME-1, pattern: 'eval', severity: high, description: d, weight: {MAX_CUSTOM_WEIGHT}}}\n"
         );
         assert!(parse("w.yaml", &ok).is_ok());
+    }
+
+    #[test]
+    fn a_correlation_window_above_the_sink_is_bounded() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let pack = |before: usize| {
+            format!(
+                r#"{{"meta":{{"id":"p","name":"p","version":"1","updated_at":"","author":"","description":""}},
+                "correlation_rules":[{{"id":"P-CHAIN-1","phase":"network_exfil","severity":"high","description":"d",
+                "source":{{"rule_ids":["P-1"]}},"sink":{{"rule_ids":["P-2"]}},"sink_window_before":{before}}}]}}"#
+            )
+        };
+        let errs = parse("p.json", &pack(100_000)).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("sink_window_before 100000 is too large")),
+            "{errs:?}"
+        );
+        let ok = parse("p.json", &pack(MAX_SINK_WINDOW_BEFORE)).expect("the limit loads");
+        assert_eq!(
+            ok.pack.correlation_rules[0].sink_window_before,
+            MAX_SINK_WINDOW_BEFORE
+        );
     }
 
     #[test]
