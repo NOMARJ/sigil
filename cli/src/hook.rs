@@ -128,6 +128,9 @@ enum Op {
     Start,
     And,
     Other,
+    /// The piece after `$(`, `<(` or `>(`: its closing `)` ends a
+    /// substitution, not a `( … )` group.
+    Subst,
 }
 
 /// Split a command line into list segments on `;`, `&&`, `||`, `&`,
@@ -158,8 +161,9 @@ fn segments(cmd: &str) -> Vec<(Op, String)> {
                 op = Op::Other;
                 i += 2;
             }
-            // `2>&1`, `&>file`, `>&2` are redirections, not background.
-            ('&', n) if prev != Some('>') && n != Some('>') => {
+            // `2>&1`, `&>file`, `>&2` are redirections, not background, and
+            // `|&` is a pipe.
+            ('&', n) if prev != Some('>') && prev != Some('|') && n != Some('>') => {
                 push(&mut out, &mut cur, op);
                 op = Op::Other;
                 i += 1;
@@ -171,7 +175,7 @@ fn segments(cmd: &str) -> Vec<(Op, String)> {
             }
             ('$', Some('(')) | ('<', Some('(')) | ('>', Some('(')) => {
                 push(&mut out, &mut cur, op);
-                op = Op::Other;
+                op = Op::Subst;
                 i += 2;
             }
             _ => {
@@ -184,15 +188,36 @@ fn segments(cmd: &str) -> Vec<(Op, String)> {
     out
 }
 
-/// Pipeline stages of one segment.
+/// Pipeline stages of one segment (`|&` pipes stderr too).
 fn stages(seg: &str) -> Vec<&str> {
-    seg.split('|').collect()
+    seg.split('|')
+        .map(|p| p.strip_prefix('&').unwrap_or(p))
+        .collect()
 }
 
 fn is_sigil(stage: &str) -> bool {
     has(
         stage,
         r"^\s*(\w+=\S*\s+)*(sudo(\s+-\S+)*\s+)?(\S*/)?sigil(\.exe)?(\s|$)",
+    )
+}
+
+/// A sigil call that can vet what follows it: the command word is the bare
+/// `sigil` found on PATH, not `./sigil` or `/tmp/x/sigil` (a file anyone can
+/// write), and PATH is not reassigned for it.
+fn trusted_sigil(stage: &str) -> bool {
+    has(
+        stage,
+        r"^\s*([A-Za-z0-9_]+=\S*\s+)*(sudo(\s+-\S+)*\s+)?sigil(\.exe)?(\s|$)",
+    ) && !has(stage, r"^\s*([A-Za-z0-9_]+=\S*\s+)*PATH\+?=")
+}
+
+/// The command defines its own `sigil` (a function or an alias) or changes
+/// PATH, so no `sigil` call in it vets anything.
+fn redefines_sigil(cmd: &str) -> bool {
+    has(
+        cmd,
+        r"(^|[\s;&|(){}])(function\s+sigil(\s|\(|$)|sigil\s*\(\s*\)|alias\s+sigil=|hash\s+-p\s|((export|declare|typeset|local|readonly)\s+(-\S+\s+)*)?PATH\+?=)",
     )
 }
 
@@ -460,9 +485,7 @@ fn stage_targets(stage: &str, ctx: &Context) -> Vec<Target> {
             .into_iter()
             .collect();
     }
-    if let Some(r) = find_at(stage, RUNNER_PAT)
-        .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
-    {
+    if let Some(r) = runner_at(stage) {
         return vec![runner_target(&r)];
     }
     if let Some(m) = deno_module(stage) {
@@ -472,13 +495,7 @@ fn stage_targets(stage: &str, ctx: &Context) -> Vec<Target> {
             None => Target::Unvettable,
         }];
     }
-    let mut toks = cmdline::tokenize(stage);
-    while toks
-        .first()
-        .is_some_and(|t| t == "sudo" || (t.contains('=') && !t.starts_with('-')))
-    {
-        toks.remove(0);
-    }
+    let toks = cmdline::command_words(stage).words;
     let Some(head) = toks
         .first()
         .map(|h| h.rsplit('/').next().unwrap_or(h).to_string())
@@ -642,9 +659,10 @@ fn expand(path: &str, ctx: &Context) -> PathBuf {
     }
 }
 
-/// `cd dir` / `pushd dir`: where later segments run.
+/// `cd dir` / `pushd dir`: where later segments run. Read as the command
+/// words, so grouping (`(cd dir && …)`) and redirections do not hide it.
 fn cd_target(seg: &str, ctx: &Context) -> Option<Option<PathBuf>> {
-    let toks = cmdline::tokenize(seg);
+    let toks = cmdline::command_words(seg).words;
     if !matches!(toks.first().map(String::as_str), Some("cd" | "pushd")) || toks.len() > 2 {
         return None;
     }
@@ -957,11 +975,18 @@ fn agent_acquisition(stage: &str) -> Option<Decision> {
     None
 }
 
+/// A package runner in command position: where [`RUNNER_PAT`] finds one,
+/// or as the command word once grouping and wrappers are removed
+/// (`sudo -u root npx …`, `(npx …)`, `timeout 60 uvx …`).
+fn runner_at(stage: &str) -> Option<cmdline::Runner> {
+    find_at(stage, RUNNER_PAT)
+        .and_then(|i| cmdline::parse_runner(&cmdline::tokenize(&stage[i..])))
+        .or_else(|| cmdline::parse_runner(&cmdline::command_words(stage).words))
+}
+
 /// Remote package runners: fetch-and-execute in one step.
 fn runner(stage: &str, ctx: &Context) -> Option<Decision> {
-    let at = find_at(stage, RUNNER_PAT)?;
-    let toks = cmdline::tokenize(&stage[at..]);
-    let r = cmdline::parse_runner(&toks)?;
+    let r = runner_at(stage)?;
     // `npx tsc` in a project that has typescript installed runs the local
     // binary; nothing is fetched.
     if matches!(r.tool.as_str(), "npx" | "bunx" | "bun x")
@@ -1028,13 +1053,8 @@ fn deno_remote(stage: &str) -> Option<Decision> {
 
 /// Downloads, unpacks and copies into agent tooling directories.
 fn tooling_write(stage: &str, ctx: &Context) -> Option<Decision> {
-    let mut toks = cmdline::tokenize(stage);
-    while toks
-        .first()
-        .is_some_and(|t| t == "sudo" || (t.contains('=') && !t.starts_with('-')))
-    {
-        toks.remove(0);
-    }
+    let words = cmdline::command_words(stage);
+    let toks = &words.words;
     let head = toks.first()?.rsplit('/').next()?.to_string();
     let cwd_dest = || ctx.cwd.as_ref().map(|c| c.to_string_lossy().to_string());
     let original = stage.trim();
@@ -1058,47 +1078,9 @@ fn tooling_write(stage: &str, ctx: &Context) -> Option<Decision> {
     };
     match head.as_str() {
         "curl" | "wget" => {
-            let mut dest: Option<String> = None;
-            let mut remote_name = head == "wget";
-            let mut it = toks.iter().skip(1).peekable();
-            while let Some(t) = it.next() {
-                let t = t.as_str();
-                match t {
-                    "-o" | "--output" | "-O" if head == "wget" && t == "-O" => {
-                        dest = it.next().cloned();
-                    }
-                    "-o" | "--output" => dest = it.next().cloned(),
-                    "--output-document" => dest = it.next().cloned(),
-                    "--output-dir" | "-P" | "--directory-prefix" => {
-                        dest = it.next().cloned();
-                        remote_name = true;
-                    }
-                    "-O" | "--remote-name" => remote_name = true,
-                    _ if t.starts_with("--output-document=")
-                        || t.starts_with("--directory-prefix=") =>
-                    {
-                        dest = t.split_once('=').map(|(_, v)| v.to_string());
-                    }
-                    _ if head == "curl" && t.starts_with('-') && !t.starts_with("--") => {
-                        if t.ends_with('o') {
-                            dest = it.next().cloned();
-                        } else if t.contains('O') {
-                            remote_name = true;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            // The flag parse above, or the saved file as `download_file`
-            // resolves it (which also follows `> file` redirects).
-            let dest = dest
-                .or_else(|| remote_name.then(cwd_dest).flatten())
-                .filter(|d| d != "-" && is_agent_dest(d, ctx))
-                .or_else(|| download_file(stage, ctx).filter(|f| agent_path(f)))?;
-            let url = cmdline::first_url(stage).unwrap_or_else(|| "<url>".into());
-            Some(Decision::Deny(format!(
-                "Downloads into agent tooling ({dest}) with no scan. Use: sigil scan {url} — it downloads into quarantine and scans first. {BYPASS_HINT}"
-            )))
+            let dl = download(&words, stage, ctx)?;
+            let dest = dl.files.into_iter().find(|f| agent_path(f))?;
+            Some(tooling_download_deny(&dest, stage))
         }
         "unzip" | "tar" | "bsdtar" | "7z" | "7za" | "ditto" => {
             let extracting = match head.as_str() {
@@ -1353,28 +1335,23 @@ fn package_managers(stage: &str, ctx: &Context) -> Decision {
     Decision::Allow(NO_MATCH.into())
 }
 
-/// Tokens of a stage with leading `sudo` and `VAR=value` words dropped.
-fn command_tokens(stage: &str) -> Vec<String> {
-    let mut toks = cmdline::tokenize(stage);
-    while toks
-        .first()
-        .is_some_and(|t| t == "sudo" || t == "env" || (t.contains('=') && !t.starts_with('-')))
-    {
-        toks.remove(0);
-    }
-    toks
+/// What a `curl`/`wget` stage does with the body it downloads.
+struct Download {
+    /// Files it saves the body to, resolved like [`canon_path`]. When the
+    /// name would come from the URL and the URL has none: the directory.
+    files: Vec<String>,
+    /// It writes the body to stdout, into the pipe.
+    stdout: bool,
 }
 
-/// The file a `curl`/`wget` stage saves its download to, resolved like
-/// [`canon_path`]. `None` when it writes to stdout or is not a download.
-fn download_file(stage: &str, ctx: &Context) -> Option<String> {
-    let toks = command_tokens(stage);
-    let head = toks.first()?.rsplit('/').next()?.to_string();
-    let wget = head == "wget";
-    if !wget && head != "curl" {
-        return None;
-    }
-    let url_name = cmdline::first_url(stage).and_then(|u| {
+/// curl short options that take a value, besides `-o`.
+const CURL_VALUED: &str = "dHuXAebcFTxwmrCEKYyzUQtPD";
+/// wget short options that take a value, besides `-O` and `-P`.
+const WGET_VALUED: &str = "oaeiBtTwQUDRAIXl";
+
+/// The last path component of the first URL in `stage`.
+fn url_name(stage: &str) -> Option<String> {
+    cmdline::first_url(stage).and_then(|u| {
         let path = u.split(['?', '#']).next()?.to_string();
         let name = path
             .split("://")
@@ -1384,105 +1361,199 @@ fn download_file(stage: &str, ctx: &Context) -> Option<String> {
             .rsplit('/')
             .next()?;
         (!name.is_empty()).then(|| name.to_string())
-    });
-    let mut out: Option<String> = None;
-    let mut dir: Option<String> = None;
-    let mut remote = wget;
-    let mut it = toks.iter().skip(1);
-    while let Some(t) = it.next() {
-        let t = t.as_str();
-        match t {
-            ">" | ">>" => out = it.next().cloned(),
-            _ if t.starts_with('>') && !t.starts_with(">&") => {
-                out = Some(t.trim_start_matches('>').to_string())
-            }
-            "--output" | "--output-document" => out = it.next().cloned(),
-            "-o" if wget => {
-                it.next(); // wget -o is its log file
-            }
-            "-o" => out = it.next().cloned(),
-            "-O" if wget => out = it.next().cloned(),
-            "-O" | "--remote-name" => remote = true,
-            "-P" | "--directory-prefix" | "--output-dir" => dir = it.next().cloned(),
-            _ if t.starts_with("--output-document=") || t.starts_with("--output=") => {
-                out = t.split_once('=').map(|(_, v)| v.to_string())
-            }
-            _ if t.starts_with("--directory-prefix=") || t.starts_with("--output-dir=") => {
-                dir = t.split_once('=').map(|(_, v)| v.to_string())
-            }
-            // Bundled short flags: curl `-fsSLo file`, `-fsSLO`; wget `-qO file`, `-qO-`.
-            _ if t.starts_with('-') && !t.starts_with("--") => {
-                let flags = &t[1..];
-                if wget {
-                    if let Some(i) = flags.find('O') {
-                        let rest = &flags[i + 1..];
-                        out = if rest.is_empty() {
-                            it.next().cloned()
-                        } else {
-                            Some(rest.to_string())
-                        };
-                    }
-                } else if flags.ends_with('o') {
-                    out = it.next().cloned();
-                } else if flags.contains('O') {
-                    remote = true;
-                }
-            }
-            _ => {}
-        }
-    }
-    let file = out.or_else(|| remote.then_some(url_name).flatten())?;
-    if file == "-" || file.starts_with("/dev/") {
-        return None;
-    }
-    let file = match dir {
-        Some(d) if !file.contains('/') => format!("{}/{file}", d.trim_end_matches('/')),
-        _ => file,
-    };
-    Some(canon_path(&file, ctx))
+    })
 }
 
-/// The file a stage executes: the script argument of an interpreter
-/// (`bash x.sh`, `python3 x.py`, `. x.sh`) or a path run directly (`./x`).
-fn executed_file(stage: &str, ctx: &Context) -> Option<String> {
-    let toks = command_tokens(stage);
-    let head = toks.first()?;
-    let base = head.rsplit('/').next().unwrap_or(head);
-    let interp = matches!(
-        base.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.'),
-        "sh" | "bash"
-            | "zsh"
-            | "dash"
-            | "ksh"
-            | "fish"
-            | "python"
-            | "node"
-            | "deno"
-            | "bun"
-            | "perl"
-            | "ruby"
-            | "php"
-            | "pwsh"
-            | "powershell"
-            | "source"
-            | "."
-    );
-    if !interp {
-        return head.contains('/').then(|| canon_path(head, ctx));
+/// Where a `curl`/`wget` stage (as [`cmdline::command_words`] gives it)
+/// puts what it downloads; `None` when it is not a download. Reads bundled
+/// and attached options (`-fsSLo f`, `-oi.sh`, `-qO-`), the output
+/// directory, and stdout redirections (`> f`, `1> f`, `&> f`).
+fn download(w: &cmdline::Words, stage: &str, ctx: &Context) -> Option<Download> {
+    let head = w.words.first()?.rsplit('/').next()?;
+    let wget = head == "wget";
+    if !wget && head != "curl" {
+        return None;
     }
-    for t in toks.iter().skip(1) {
-        if matches!(
-            t.as_str(),
-            "-c" | "-e" | "-m" | "-Command" | "-EncodedCommand"
-        ) {
-            return None; // inline code or a module, not a file
+    let args = &w.words[1..];
+    let mut outs: Vec<String> = Vec::new();
+    let mut dir: Option<String> = None;
+    let mut remote = false;
+    let mut i = 0;
+    while let Some(t) = args.get(i) {
+        i += 1;
+        if t == "--" {
+            break;
         }
-        if t == "run" || t.starts_with('-') {
+        if let Some(long) = t.strip_prefix("--") {
+            let (name, attached) = match long.split_once('=') {
+                Some((n, v)) => (n, Some(v.to_string())),
+                None => (long, None),
+            };
+            let valued = if wget {
+                matches!(
+                    name,
+                    "output-document"
+                        | "directory-prefix"
+                        | "output-file"
+                        | "append-output"
+                        | "input-file"
+                )
+            } else {
+                matches!(name, "output" | "output-dir")
+            };
+            if !valued {
+                remote |= !wget && matches!(name, "remote-name" | "remote-name-all");
+                continue;
+            }
+            let value = attached.or_else(|| {
+                i += 1;
+                args.get(i - 1).cloned()
+            });
+            match name {
+                "output" | "output-document" => outs.extend(value),
+                "output-dir" | "directory-prefix" => dir = value,
+                _ => {}
+            }
             continue;
         }
-        return Some(canon_path(t, ctx));
+        if t.len() < 2 || !t.starts_with('-') {
+            continue;
+        }
+        let flags: Vec<char> = t[1..].chars().collect();
+        if wget && flags[0] == 'n' {
+            continue; // -nv, -nc, -nd, -nH, -np
+        }
+        for (k, &c) in flags.iter().enumerate() {
+            if !wget && c == 'O' {
+                remote = true;
+                continue;
+            }
+            let takes = if wget {
+                c == 'O' || c == 'P' || WGET_VALUED.contains(c)
+            } else {
+                c == 'o' || CURL_VALUED.contains(c)
+            };
+            if !takes {
+                continue;
+            }
+            let rest: String = flags[k + 1..].iter().collect();
+            let value = if rest.is_empty() {
+                i += 1;
+                args.get(i - 1).cloned()
+            } else {
+                Some(rest)
+            };
+            match (c, wget) {
+                ('o', false) | ('O', true) => outs.extend(value),
+                ('P', true) => dir = value,
+                _ => {}
+            }
+            break;
+        }
     }
-    None
+    // A bare file name lands in the output directory.
+    let join = |f: &str| match &dir {
+        Some(d) if !f.contains('/') => format!("{}/{f}", d.trim_end_matches('/')),
+        _ => f.to_string(),
+    };
+    let mut files = Vec::new();
+    let mut body_to_stdout = false;
+    for o in &outs {
+        match o.as_str() {
+            "-" | "/dev/stdout" => body_to_stdout = true,
+            _ if o.starts_with("/dev/") => {}
+            _ => files.push(join(o)),
+        }
+    }
+    // wget names the file after the URL unless -O is given; curl with -O.
+    // With no name in the URL, the directory it lands in.
+    if remote || wget && outs.is_empty() {
+        match url_name(stage) {
+            Some(n) => files.push(join(&n)),
+            None => files.extend(
+                dir.clone()
+                    .or_else(|| ctx.cwd.as_ref().map(|c| c.to_string_lossy().to_string())),
+            ),
+        }
+    } else if !wget && outs.is_empty() {
+        body_to_stdout = true;
+    }
+    if body_to_stdout {
+        files.extend(w.stdout.iter().cloned());
+    }
+    let files = files.iter().map(|f| canon_path(f, ctx)).collect();
+    Some(Download {
+        files,
+        stdout: body_to_stdout && w.stdout.is_empty(),
+    })
+}
+
+/// The file a stage executes: an interpreter's script (`bash x.sh`,
+/// `python3 -X dev x.py`, `. x.sh`), the file an interpreter reads its
+/// script from on stdin (`bash < x.sh`), or a path run directly (`./x`).
+fn executed_file(w: &cmdline::Words, ctx: &Context) -> Option<String> {
+    let head = w.words.first()?;
+    match cmdline::interpreter_runs(&w.words) {
+        Some(cmdline::Runs::File(f)) => Some(canon_path(&f, ctx)),
+        Some(cmdline::Runs::Stdin) => match &w.stdin {
+            cmdline::Stdin::File(f) => Some(canon_path(f, ctx)),
+            _ => None,
+        },
+        Some(cmdline::Runs::Inline) => None,
+        None => head.contains('/').then(|| canon_path(head, ctx)),
+    }
+}
+
+/// The command string a stage hands to a shell of its own:
+/// `bash -c '…'`, `su -c '…'`, `eval '…'`.
+fn inner_command(words: &[String]) -> Option<String> {
+    let head = words.first()?;
+    let base = head.rsplit('/').next().unwrap_or(head);
+    if base == "eval" {
+        return (words.len() > 1).then(|| words[1..].join(" "));
+    }
+    if base == "su" || base == "runuser" {
+        let mut it = words.iter().skip(1);
+        while let Some(t) = it.next() {
+            if t == "-c" || t == "--command" {
+                return it.next().cloned();
+            }
+            if let Some(v) = t.strip_prefix("--command=") {
+                return Some(v.to_string());
+            }
+        }
+        return None;
+    }
+    if cmdline::interpreter(head) != Some(cmdline::Interp::Shell)
+        || cmdline::interpreter_runs(words) != Some(cmdline::Runs::Inline)
+    {
+        return None;
+    }
+    // The first word after the options is the command string.
+    let mut i = 1;
+    while let Some(t) = words.get(i) {
+        let flag = (t.starts_with('-') || t.starts_with('+')) && t.len() > 1;
+        if t == "--" {
+            i += 1;
+            break;
+        }
+        if !flag {
+            break;
+        }
+        let valued = !t.starts_with("--") && (t.ends_with('o') || t.ends_with('O'))
+            || matches!(t.as_str(), "--rcfile" | "--init-file");
+        i += if valued { 2 } else { 1 };
+    }
+    words.get(i).cloned()
+}
+
+/// The deny for a download saved into agent tooling. Never gated: the
+/// server decides per request what it serves.
+fn tooling_download_deny(dest: &str, text: &str) -> Decision {
+    let url = cmdline::first_url(text).unwrap_or_else(|| "<url>".into());
+    Decision::Deny(format!(
+        "Downloads into agent tooling ({dest}) with no scan. Use: sigil scan {url} — it downloads into quarantine and scans first. {BYPASS_HINT}"
+    ))
 }
 
 fn classify_stage(stage: &str, ctx: &Context) -> Decision {
@@ -1508,12 +1579,15 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
     if has(cmd, &format!(r"{WB}SIGIL_BYPASS=1(\s|$)")) {
         return Decision::Allow("Sigil guard bypassed (SIGIL_BYPASS=1)".into());
     }
+    // A backslash-newline is a line continuation: the shell removes both,
+    // so `… && sigil scan i.sh && \⏎bash i.sh` is one && chain.
+    let cmd = cmd.replace("\\\r\n", "").replace("\\\n", "");
 
     // A download piped or substituted into an interpreter. Judged on the
     // whole command (process substitution spans segments) and never gated
     // by a prior scan: the server decides per request what it serves.
-    if cmdline::pipes_download_to_interpreter(cmd) {
-        let alt = match cmdline::first_url(cmd) {
+    if cmdline::pipes_download_to_interpreter(&cmd) {
+        let alt = match cmdline::first_url(&cmd) {
             Some(u) => format!(
                 "Use: sigil scan {u} — or download it (curl -fsSLo script.sh {u}), run sigil scan script.sh, then run the file you scanned"
             ),
@@ -1524,68 +1598,232 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
         ));
     }
 
-    let mut ctx = ctx.clone();
-    let mut gates: Vec<Vec<Target>> = Vec::new();
-    // Files curl/wget saved earlier in this command line.
-    let mut downloads: Vec<String> = Vec::new();
-    let mut decision = Decision::Allow(NO_MATCH.into());
-    for (op, seg) in segments(cmd) {
-        if op != Op::And {
-            gates.clear();
+    let mut walk = Walk {
+        ctx: ctx.clone(),
+        gates: Vec::new(),
+        downloads: Vec::new(),
+        decision: Decision::Allow(NO_MATCH.into()),
+        untrusted_sigil: redefines_sigil(&cmd) || redefines_sigil(&cmdline::dequote(&cmd)),
+    };
+    walk.run(&cmd, false, 0);
+    let decision = walk.decision;
+    if let Decision::Allow(r) = &decision {
+        if r == NO_MATCH && is_sigil(&cmd) {
+            return Decision::Allow("Command uses sigil".into());
         }
-        let seg = seg.trim();
-        if seg.is_empty() {
-            continue;
+    }
+    decision
+}
+
+/// How many `bash -c '…'` levels deep a command is followed.
+const MAX_INNER: u8 = 3;
+
+/// What a command line has done so far, segment by segment.
+struct Walk {
+    /// Where it runs (follows `cd`).
+    ctx: Context,
+    /// What `sigil scan|clone|pip|npm` calls earlier in the `&&` chain vetted.
+    gates: Vec<Vec<Target>>,
+    /// Files curl/wget saved earlier in the command line.
+    downloads: Vec<String>,
+    decision: Decision,
+    /// The command defines its own `sigil` or changes PATH: no sigil call
+    /// in it vets anything.
+    untrusted_sigil: bool,
+}
+
+impl Walk {
+    /// A stage gated by the `&&` chain is allowed.
+    fn gate(&self, d: Decision, targets: &[Target]) -> Decision {
+        if d.rank() > 0 && gated(&self.gates, targets) {
+            Decision::Allow("Gated by a preceding sigil check on the same target".into())
+        } else {
+            d
         }
-        if let Some(dir) = cd_target(seg, &ctx) {
-            ctx.cwd = dir;
-            continue;
+    }
+
+    /// A download replaces the file: a scan of it that ran earlier read
+    /// other bytes, so it no longer vets it.
+    fn record_download(&mut self, f: String) {
+        let t = Target::Path(f.clone());
+        for g in &mut self.gates {
+            g.retain(|x| *x != t);
         }
-        for stage in stages(seg) {
+        if !self.downloads.contains(&f) {
+            self.downloads.push(f);
+        }
+    }
+
+    /// Judge `cmd` segment by segment. `inherit`: the first segment
+    /// continues the caller's `&&` chain (the string of a `bash -c`).
+    fn run(&mut self, cmd: &str, inherit: bool, depth: u8) {
+        // Open `( … )` groups (a `cd` in one lasts until its `)`) and
+        // substitutions, innermost last.
+        let mut groups: Vec<Option<Option<PathBuf>>> = Vec::new();
+        for (n, (op, seg)) in segments(cmd).into_iter().enumerate() {
+            if op != Op::And && !(n == 0 && inherit) {
+                self.gates.clear();
+            }
+            if op == Op::Subst {
+                groups.push(None);
+            }
+            let seg = seg.trim();
+            let opens = seg
+                .chars()
+                .take_while(|c| *c == '(' || c.is_whitespace())
+                .filter(|c| *c == '(')
+                .count();
+            let closes = seg
+                .chars()
+                .rev()
+                .take_while(|c| *c == ')' || c.is_whitespace())
+                .filter(|c| *c == ')')
+                .count();
+            for _ in 0..opens {
+                groups.push(Some(self.ctx.cwd.clone()));
+            }
+            if let Some(dir) = cd_target(seg, &self.ctx) {
+                self.ctx.cwd = dir;
+            } else if !seg.is_empty() {
+                self.segment(seg, depth);
+            }
+            for _ in 0..closes {
+                if let Some(Some(cwd)) = groups.pop() {
+                    self.ctx.cwd = cwd;
+                }
+            }
+        }
+    }
+
+    /// Judge one list segment: its pipeline stages, then the command
+    /// strings they hand to a shell of their own.
+    fn segment(&mut self, seg: &str, depth: u8) {
+        // An earlier stage of this pipeline writes a download to stdout.
+        let mut fed = false;
+        // Files an earlier stage reads into the pipe (`cat f |`, `< f`).
+        let mut sources: Vec<String> = Vec::new();
+        let mut inner: Vec<String> = Vec::new();
+        for (k, stage) in stages(seg).into_iter().enumerate() {
             let stage = stage.trim();
             if stage.is_empty() {
                 continue;
             }
             // The command is going through sigil: that stage is allowed,
-            // and a vetting call gates what follows it with `&&`.
+            // and a vetting call gates what follows it with `&&` — when it
+            // is the real sigil.
             if is_sigil(stage) {
-                if let Some(t) = vetting_targets(stage, &ctx) {
-                    gates.push(t);
+                if !self.untrusted_sigil && trusted_sigil(stage) {
+                    if let Some(t) = vetting_targets(stage, &self.ctx) {
+                        self.gates.push(t);
+                    }
                 }
                 continue;
             }
-            let mut d = classify_stage(stage, &ctx);
-            let mut targets = stage_targets(stage, &ctx);
-            // Download to a file, then run that file: the same remote
-            // execution as `curl … | sh`, one step removed. Unlike the pipe,
-            // this form can be gated — the scan reads the bytes that run.
-            if let Some(f) = executed_file(stage, &ctx).filter(|f| downloads.contains(f)) {
-                d = worse(
-                    d,
-                    Decision::Deny(format!(
-                        "Runs {f}, downloaded earlier in this command, without a scan: remote code execution one step removed from curl | sh. Use: sigil scan {f} && {} (after the download). {BYPASS_HINT}",
-                        stage.trim()
-                    )),
-                );
-                targets = vec![Target::Path(f)];
+            let w = cmdline::command_words(stage);
+            self.stage(stage, seg, &w, k, &mut fed, &mut sources);
+            if depth < MAX_INNER {
+                inner.extend(inner_command(&w.words));
             }
-            if let Some(f) = download_file(stage, &ctx) {
-                downloads.push(f);
-            }
-            let d = if d.rank() > 0 && gated(&gates, &targets) {
-                Decision::Allow("Gated by a preceding sigil check on the same target".into())
-            } else {
-                d
-            };
-            decision = worse(decision, d);
+        }
+        // `bash -c '…'`: the string is a command line of its own, run in a
+        // child shell (a `cd` in it does not last).
+        for s in inner {
+            let cwd = self.ctx.cwd.clone();
+            self.run(&s, true, depth + 1);
+            self.ctx.cwd = cwd;
         }
     }
-    if let Decision::Allow(r) = &decision {
-        if r == NO_MATCH && is_sigil(cmd) {
-            return Decision::Allow("Command uses sigil".into());
+
+    fn stage(
+        &mut self,
+        stage: &str,
+        seg: &str,
+        w: &cmdline::Words,
+        k: usize,
+        fed: &mut bool,
+        sources: &mut Vec<String>,
+    ) {
+        let ctx = self.ctx.clone();
+        // Judged as written and with word-internal quoting removed, as the
+        // shell reads it (`"npm" exec x`, `de''no run …`, `pip''x install`).
+        let mut d = Decision::Allow(NO_MATCH.into());
+        let dq = cmdline::dequote(stage);
+        for v in [stage, dq.as_str()] {
+            let dv = classify_stage(v, &ctx);
+            d = worse(d, self.gate(dv, &stage_targets(v, &ctx)));
+            if dq == stage {
+                break;
+            }
         }
+        // Download to a file, then run that file: the same remote execution
+        // as `curl … | sh`, one step removed. Unlike the pipe, this form can
+        // be gated — the scan reads the bytes that run.
+        let ran = executed_file(w, &ctx)
+            .filter(|f| self.downloads.contains(f))
+            .map(|f| (f, stage))
+            .or_else(|| {
+                // `cat i.sh | sh`: the file, read into an interpreter.
+                let reads_pipe = k > 0
+                    && w.stdin == cmdline::Stdin::Inherit
+                    && cmdline::interpreter_runs(&w.words) == Some(cmdline::Runs::Stdin);
+                let f = sources.iter().find(|f| self.downloads.contains(f))?;
+                reads_pipe.then(|| (f.clone(), seg))
+            });
+        if let Some((f, shown)) = ran {
+            let deny = Decision::Deny(format!(
+                "Runs {f}, downloaded earlier in this command, without a scan: remote code execution one step removed from curl | sh. Use: sigil scan {f} && {} (after the download). {BYPASS_HINT}",
+                shown.trim()
+            ));
+            d = worse(d, self.gate(deny, &[Target::Path(f)]));
+        }
+        // What this stage writes a download to.
+        let mut written: Vec<String> = Vec::new();
+        let dl = download(w, stage, &ctx);
+        if let Some(dl) = &dl {
+            written.extend(dl.files.iter().cloned());
+        }
+        if k > 0 && *fed {
+            // `curl … | tee f`, `curl … | sed … > f`: the download, passed on.
+            let tee = w
+                .words
+                .first()
+                .is_some_and(|h| h.rsplit('/').next() == Some("tee"));
+            let args = if tee { &w.words[1..] } else { &[][..] };
+            let piped: Vec<String> = args
+                .iter()
+                .filter(|a| !a.starts_with('-'))
+                .chain(&w.stdout)
+                .filter(|f| !f.starts_with("/dev/"))
+                .map(|f| canon_path(f, &ctx))
+                .collect();
+            if let Some(dest) = piped.iter().find(|f| agent_path(f)) {
+                d = worse(d, tooling_download_deny(dest, seg));
+            }
+            written.extend(piped);
+        }
+        if dl.is_some_and(|dl| dl.stdout) {
+            *fed = true;
+        }
+        if w.words
+            .first()
+            .is_some_and(|h| h.rsplit('/').next() == Some("cat"))
+        {
+            sources.extend(
+                w.words[1..]
+                    .iter()
+                    .filter(|a| !a.starts_with('-'))
+                    .map(|a| canon_path(a, &ctx)),
+            );
+        }
+        if let cmdline::Stdin::File(f) = &w.stdin {
+            sources.push(canon_path(f, &ctx));
+        }
+        for f in written {
+            self.record_download(f);
+        }
+        let prev = std::mem::replace(&mut self.decision, Decision::Allow(NO_MATCH.into()));
+        self.decision = worse(prev, d);
     }
-    decision
 }
 
 /// Judge a Write/Edit to a file: only agent tooling is in scope.

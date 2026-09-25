@@ -82,12 +82,557 @@ fn re(cell: &'static OnceLock<Regex>, pattern: &str) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("static pattern compiles"))
 }
 
+/// Remove quoting that does not change what a word is: quotes around a
+/// run with no whitespace or quote in it (`"bash"`, `de''no`, `'npm'`) and a
+/// backslash in front of a word character (`b\ash`). A quoted string with
+/// whitespace keeps its quotes, so `bash -c 'npm install x'` keeps its shape.
+/// The result is for pattern matching only.
+pub fn dequote(s: &str) -> String {
+    static SQ: OnceLock<Regex> = OnceLock::new();
+    static DQ: OnceLock<Regex> = OnceLock::new();
+    static BS: OnceLock<Regex> = OnceLock::new();
+    if !s.contains(['\'', '"', '\\']) {
+        return s.to_string();
+    }
+    let a = re(&SQ, r#"'([^'"[[:space:]]]*)'"#).replace_all(s, "$1");
+    let b = re(&DQ, r#""([^'"[[:space:]]]*)""#).replace_all(&a, "$1");
+    re(&BS, r"\\([A-Za-z0-9_./-])")
+        .replace_all(&b, "$1")
+        .into_owned()
+}
+
+/// A redirection word: `> f`, `2>&1`, `&>f`, `< f`, `<<EOF`, `<<< s`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Redirect {
+    /// It replaces stdin (`<`, `<>`, `<<`, `<<<`, `<&` on descriptor 0).
+    pub stdin: bool,
+    /// Stdin becomes text on the command line (a here-document or
+    /// here-string), not a file.
+    pub inline: bool,
+    /// It sends stdout to a file (`>`, `>>`, `>|`, `1>`, `&>`, `>& file`).
+    pub stdout: bool,
+    /// The file, when it is part of the word (`>out.txt`).
+    pub target: Option<String>,
+    /// The file is the next word (`> out.txt`).
+    pub takes_next: bool,
+}
+
+/// Parse a word as a redirection: the operator starts the word, after an
+/// optional descriptor number (`2>`) or `&` (`&>`). A word with another `<`
+/// or `>` after the operator is a documentation placeholder
+/// (`<repo>/skills/x`), not a redirection.
+pub fn redirection(t: &str) -> Option<Redirect> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let c = re(&RE, r"^([0-9]*|&)(<<<|<<-|<<|<>|<&|>&|>>|>\||<|>)(.*)$").captures(t)?;
+    let fd = c.get(1).map_or("", |m| m.as_str());
+    let op = c.get(2).map_or("", |m| m.as_str());
+    let rest = c.get(3).map_or("", |m| m.as_str());
+    if rest.contains(['<', '>']) {
+        return None;
+    }
+    let input = op.starts_with('<');
+    let on_stdin = input && (fd.is_empty() || fd == "0");
+    let mut r = Redirect {
+        stdin: on_stdin,
+        inline: on_stdin && matches!(op, "<<" | "<<-" | "<<<"),
+        stdout: !input && matches!(fd, "" | "1" | "&"),
+        target: None,
+        takes_next: false,
+    };
+    if matches!(op, ">&" | "<&") {
+        if rest.is_empty() && op == ">&" {
+            // `>& file`: stdout and stderr to the file.
+            r.takes_next = true;
+        } else if rest.chars().all(|ch| ch.is_ascii_digit() || ch == '-') {
+            // `2>&1`, `>&2`, `<&3`: another descriptor, not a file.
+            r.stdout = false;
+        } else {
+            r.target = Some(rest.to_string());
+        }
+        return Some(r);
+    }
+    if rest.is_empty() {
+        r.takes_next = true;
+    } else {
+        r.target = Some(rest.to_string());
+    }
+    Some(r)
+}
+
+/// Where a simple command's stdin comes from.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Stdin {
+    /// The pipe or terminal it was started with.
+    #[default]
+    Inherit,
+    /// `< file`.
+    File(String),
+    /// A here-document or here-string.
+    Inline,
+}
+
+/// A simple command as the shell runs it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Words {
+    /// The command word and its arguments, with grouping (`(`, `{`, `if`,
+    /// `do`, ...), leading `VAR=value` assignments, redirections and
+    /// wrapper commands (`sudo -u root`, `env -i`, `command`, `exec`,
+    /// `nohup`, `time`, `xargs`, ...) removed. Empty when a wrapper runs
+    /// nothing (`sudo -l`, `command -v x`).
+    pub words: Vec<String>,
+    /// Where stdin comes from.
+    pub stdin: Stdin,
+    /// Files stdout is written to (`> f`, `>> f`, `1> f`, `&> f`).
+    pub stdout: Vec<String>,
+}
+
+fn is_assignment(t: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(&RE, r"^[A-Za-z_][A-Za-z0-9_]*\+?=").is_match(t)
+}
+
+/// A command that runs its remaining arguments as another command: its
+/// short options that take a value, long options that take the next word
+/// as a value, short options after which no command runs, the operands it
+/// takes before the command, and whether `VAR=value` words may come first.
+struct Wrapper {
+    short_valued: &'static str,
+    long_valued: &'static [&'static str],
+    no_command: &'static str,
+    operands: usize,
+    assignments: bool,
+}
+
+fn wrapper(head: &str) -> Option<Wrapper> {
+    let w = |short_valued, long_valued, no_command, operands, assignments| Wrapper {
+        short_valued,
+        long_valued,
+        no_command,
+        operands,
+        assignments,
+    };
+    const NONE: &[&str] = &[];
+    Some(match head {
+        "sudo" => w(
+            "ugCDhprtTUR",
+            &[
+                "--user",
+                "--group",
+                "--close-from",
+                "--chdir",
+                "--host",
+                "--prompt",
+                "--role",
+                "--type",
+                "--command-timeout",
+                "--other-user",
+                "--chroot",
+            ],
+            "lveVK",
+            0,
+            true,
+        ),
+        "doas" => w("u", NONE, "CL", 0, false),
+        "env" => w(
+            "uCS",
+            &["--unset", "--chdir", "--split-string"],
+            "",
+            0,
+            true,
+        ),
+        "command" => w("", NONE, "vV", 0, false),
+        "builtin" | "nohup" | "busybox" | "setsid" => w("", NONE, "", 0, false),
+        "exec" => w("a", NONE, "", 0, false),
+        "time" => w("fo", &["--format", "--output"], "", 0, false),
+        "nice" => w("n", &["--adjustment"], "", 0, false),
+        "timeout" => w("sk", &["--signal", "--kill-after"], "", 1, false),
+        "stdbuf" => w("ioe", &["--input", "--output", "--error"], "", 0, false),
+        "ionice" => w(
+            "cnpPu",
+            &["--class", "--classdata", "--pid", "--pgid", "--uid"],
+            "",
+            0,
+            false,
+        ),
+        "xargs" => w(
+            "adEILnPs",
+            &[
+                "--arg-file",
+                "--delimiter",
+                "--eof",
+                "--max-lines",
+                "--max-args",
+                "--max-procs",
+                "--max-chars",
+                "--process-slot-var",
+            ],
+            "",
+            0,
+            false,
+        ),
+        _ => return None,
+    })
+}
+
+/// Reserved words and grouping that can come before a simple command.
+const KEYWORDS: &[&str] = &[
+    "(", "{", "!", "if", "then", "else", "elif", "do", "while", "until",
+];
+
+/// The command a pipeline stage runs, as the shell would see it (see
+/// [`Words`]).
+pub fn command_words(stage: &str) -> Words {
+    let mut toks = tokenize(stage);
+    // Grouping: `(bash i.sh)`, `{ bash i.sh; }`, `if bash i.sh; then`.
+    while let Some(first) = toks.first() {
+        if first.is_empty() || KEYWORDS.contains(&first.as_str()) {
+            toks.remove(0);
+        } else if first.starts_with('(') {
+            toks[0] = first.trim_start_matches('(').to_string();
+        } else {
+            break;
+        }
+    }
+    while let Some(last) = toks.last() {
+        if last == ")" || last == "}" {
+            toks.pop();
+        } else if last.ends_with(')') && !last.contains('(') {
+            let n = toks.len() - 1;
+            toks[n] = last.trim_end_matches(')').to_string();
+        } else {
+            break;
+        }
+    }
+    // Redirections, wherever they are.
+    let mut out = Words::default();
+    let mut words = Vec::new();
+    let mut it = toks.into_iter();
+    while let Some(t) = it.next() {
+        let Some(r) = redirection(&t) else {
+            words.push(t);
+            continue;
+        };
+        let target = if r.takes_next { it.next() } else { r.target };
+        if r.inline {
+            out.stdin = Stdin::Inline;
+        } else if r.stdin {
+            out.stdin = target.map_or(Stdin::Inline, Stdin::File);
+        } else if r.stdout {
+            out.stdout.extend(target);
+        }
+    }
+    // Assignments and wrapper commands.
+    let mut i = 0;
+    loop {
+        while words.get(i).is_some_and(|t| is_assignment(t)) {
+            i += 1;
+        }
+        let Some(head) = words.get(i).map(|h| basename(h).to_ascii_lowercase()) else {
+            break;
+        };
+        let Some(w) = wrapper(&head) else {
+            break;
+        };
+        let mut j = i + 1;
+        let mut operands = w.operands;
+        while let Some(t) = words.get(j).cloned() {
+            if t == "--" {
+                j += 1;
+                break;
+            }
+            if t.starts_with("--") {
+                let valued = !t.contains('=') && w.long_valued.contains(&t.as_str());
+                j += if valued { 2 } else { 1 };
+                continue;
+            }
+            if t.len() > 1 && t.starts_with('-') {
+                let flags: Vec<char> = t[1..].chars().collect();
+                let mut step = 1;
+                for (k, c) in flags.iter().enumerate() {
+                    if w.no_command.contains(*c) {
+                        return out;
+                    }
+                    if !w.short_valued.contains(*c) {
+                        continue;
+                    }
+                    let attached: String = flags[k + 1..].iter().collect();
+                    let value = if attached.is_empty() {
+                        step = 2;
+                        words.get(j + 1).cloned().unwrap_or_default()
+                    } else {
+                        attached
+                    };
+                    if head == "env" && *c == 'S' {
+                        // `env -S 'bash -e' i.sh`: the value is split into
+                        // words, which come first.
+                        let tail = words.split_off((j + step).min(words.len()));
+                        words.truncate(j);
+                        words.extend(tokenize(&value));
+                        words.extend(tail);
+                        step = 0;
+                    }
+                    break;
+                }
+                j += step;
+                continue;
+            }
+            if t == "-" || w.assignments && is_assignment(&t) {
+                j += 1;
+                continue;
+            }
+            if operands > 0 {
+                operands -= 1;
+                j += 1;
+                continue;
+            }
+            break;
+        }
+        i = j;
+    }
+    out.words = words.split_off(i.min(words.len()));
+    out
+}
+
+/// Interpreter families, by how they read their command line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Interp {
+    /// sh, bash, zsh, dash, ksh, fish, `$SHELL`.
+    Shell,
+    Python,
+    /// node and bun.
+    Node,
+    Deno,
+    Perl,
+    Ruby,
+    Php,
+    /// pwsh and powershell.
+    Pwsh,
+    /// `source` and `.`: run a file in the current shell.
+    Source,
+}
+
+/// The interpreter family a command word names (`python3.11`, `/bin/bash`,
+/// `$SHELL`, `.`), if any.
+pub fn interpreter(word: &str) -> Option<Interp> {
+    let w = word.to_ascii_lowercase();
+    if matches!(w.as_str(), "$shell" | "${shell}") {
+        return Some(Interp::Shell);
+    }
+    let base = basename(&w);
+    let base = base.strip_suffix(".exe").unwrap_or(base);
+    if base == "." || base == "source" {
+        return Some(Interp::Source);
+    }
+    Some(
+        match base.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.') {
+            "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" => Interp::Shell,
+            "python" => Interp::Python,
+            "node" | "bun" => Interp::Node,
+            "deno" => Interp::Deno,
+            "perl" => Interp::Perl,
+            "ruby" => Interp::Ruby,
+            "php" => Interp::Php,
+            "pwsh" | "powershell" => Interp::Pwsh,
+            _ => return None,
+        },
+    )
+}
+
+/// What an interpreter invocation runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Runs {
+    /// A script file (`bash i.sh`, `python3 -X dev i.py`, `. ./i.sh`).
+    File(String),
+    /// Its stdin (`bash`, `sh -s`, `python3 -`).
+    Stdin,
+    /// Code on the command line (`bash -c`, `python3 -m`, `node -e`).
+    Inline,
+}
+
+/// PowerShell options that take a value (lowercase).
+const PWSH_VALUED: &[&str] = &[
+    "-ex",
+    "-ep",
+    "-executionpolicy",
+    "-w",
+    "-windowstyle",
+    "-wd",
+    "-workingdirectory",
+    "-o",
+    "-of",
+    "-outputformat",
+    "-if",
+    "-inputformat",
+    "-config",
+    "-configurationname",
+    "-v",
+    "-version",
+    "-settingsfile",
+    "-psconsolefile",
+    "-custompipename",
+    "-configurationfile",
+];
+
+/// What `words` (a command as [`command_words`] gives it) runs when its
+/// command word is an interpreter; `None` when it is not one. Options are
+/// read per interpreter family: `bash -e i.sh` runs i.sh (`-e` is errexit),
+/// `python3 -X dev i.py` and `bash -O extglob i.sh` run the file (`-X` and
+/// `-O` take a value), `bash -c '…'` and `python3 -m x` run inline code.
+pub fn interpreter_runs(words: &[String]) -> Option<Runs> {
+    let kind = interpreter(words.first()?)?;
+    let mut args = &words[1..];
+    if kind == Interp::Source {
+        return Some(args.first().map_or(Runs::Stdin, |f| Runs::File(f.clone())));
+    }
+    // deno and bun take a subcommand; `deno eval` is inline code.
+    if matches!(kind, Interp::Deno | Interp::Node) {
+        match args.first().map(String::as_str) {
+            Some("run") => args = &args[1..],
+            Some("eval") if kind == Interp::Deno => return Some(Runs::Inline),
+            _ => {}
+        }
+    }
+    // Option characters that mean inline code; that take a value (attached,
+    // or else the next word); that take an attached value only; and long
+    // options that take the next word as a value.
+    let (inline, valued, attached, long_valued): (&str, &str, &str, &[&str]) = match kind {
+        Interp::Shell => ("c", "oO", "", &["--rcfile", "--init-file"]),
+        Interp::Python => ("cm", "WX", "", &["--check-hash-based-pycs"]),
+        Interp::Node => (
+            "ep",
+            "rC",
+            "",
+            &[
+                "--require",
+                "--import",
+                "--loader",
+                "--experimental-loader",
+                "--conditions",
+                "--env-file",
+            ],
+        ),
+        Interp::Deno => (
+            "",
+            "cL",
+            "",
+            &[
+                "--config",
+                "--import-map",
+                "--lock",
+                "--cert",
+                "--location",
+                "--seed",
+                "--log-level",
+            ],
+        ),
+        Interp::Perl => ("eE", "", "IMmxFil0d", &[]),
+        Interp::Ruby => ("e", "rICE", "xFi0", &[]),
+        Interp::Php => ("rRBE", "cdzt", "", &[]),
+        Interp::Pwsh | Interp::Source => ("", "", "", &[]),
+    };
+    let mut i = 0;
+    while let Some(t) = args.get(i) {
+        let t = t.as_str();
+        if t == "-" {
+            return Some(Runs::Stdin);
+        }
+        if t == "--" {
+            return Some(
+                args.get(i + 1)
+                    .map_or(Runs::Stdin, |f| Runs::File(f.clone())),
+            );
+        }
+        let plus = kind == Interp::Shell && t.starts_with('+');
+        if !t.starts_with('-') && !plus {
+            return Some(Runs::File(t.to_string()));
+        }
+        if kind == Interp::Pwsh {
+            let l = t.to_ascii_lowercase();
+            match l.as_str() {
+                "-c" | "-command" | "-e" | "-ec" | "-enc" | "-encodedcommand" | "-cwa"
+                | "-commandwithargs" => return Some(Runs::Inline),
+                "-f" | "-file" => return args.get(i + 1).map(|f| Runs::File(f.clone())),
+                _ => {
+                    i += if PWSH_VALUED.contains(&l.as_str()) {
+                        2
+                    } else {
+                        1
+                    }
+                }
+            }
+            continue;
+        }
+        if t.starts_with("--") {
+            if kind == Interp::Node && matches!(t, "--eval" | "--print") {
+                return Some(Runs::Inline);
+            }
+            i += if !t.contains('=') && long_valued.contains(&t) {
+                2
+            } else {
+                1
+            };
+            continue;
+        }
+        let bundle: Vec<char> = t[1..].chars().collect();
+        let mut step = 1;
+        for (k, c) in bundle.iter().enumerate() {
+            if inline.contains(*c) {
+                return Some(Runs::Inline);
+            }
+            if kind == Interp::Shell && *c == 's' {
+                // -s: commands come from stdin; the words after it are the
+                // script's arguments.
+                return Some(Runs::Stdin);
+            }
+            if kind == Interp::Php && *c == 'f' {
+                return match bundle[k + 1..].iter().collect::<String>() {
+                    f if !f.is_empty() => Some(Runs::File(f)),
+                    _ => args.get(i + 1).map(|f| Runs::File(f.clone())),
+                };
+            }
+            if valued.contains(*c) {
+                if k + 1 == bundle.len() {
+                    step = 2;
+                }
+                break;
+            }
+            if attached.contains(*c) {
+                break;
+            }
+        }
+        i += step;
+    }
+    Some(Runs::Stdin)
+}
+
+/// Where a pipeline stage's text ends: the first `|`, `;`, `)`, quote,
+/// backtick or newline, or an `&` that is not part of a redirection
+/// (`2>&1`, `&>f`, `<&3`).
+fn stage_end(tail: &str) -> usize {
+    let b = tail.as_bytes();
+    for (i, &c) in b.iter().enumerate() {
+        match c {
+            b'|' | b';' | b')' | b'\'' | b'"' | b'`' | b'\n' => return i,
+            b'&' => {
+                let prev = i.checked_sub(1).map(|p| b[p]);
+                if !matches!(prev, Some(b'>' | b'<')) && b.get(i + 1) != Some(&b'>') {
+                    return i;
+                }
+            }
+            _ => {}
+        }
+    }
+    tail.len()
+}
+
 /// Does an interpreter at the end of a pipe run what it reads on stdin?
 ///
 /// `curl … | python3` does; `curl … | python3 -m json.tool`,
-/// `curl … | python3 -c '…'`, `curl … | node script.js` and
-/// `curl … | bash -c 'jq …'` read stdin as *data*. `rest` is the text after
-/// the interpreter word up to the end of its pipeline stage.
+/// `curl … | python3 -c '…'`, `curl … | node script.js`,
+/// `curl … | bash -c 'jq …'` and `curl … | bash < other.sh` read the
+/// download as *data* or not at all. `rest` is the text after the
+/// interpreter word up to the end of its pipeline stage. Output
+/// redirections (`>/dev/null`, `2>&1`) and a `# comment` change nothing.
 fn executes_stdin(interp: &str, rest: &str) -> bool {
     let interp = interp.to_ascii_lowercase();
     if matches!(interp.as_str(), "iex" | "invoke-expression") {
@@ -95,14 +640,34 @@ fn executes_stdin(interp: &str, rest: &str) -> bool {
     }
     let shell = matches!(
         interp.as_str(),
-        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish"
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" | "$shell" | "${shell}"
     );
     let pwsh = matches!(interp.as_str(), "pwsh" | "powershell");
     let toks = tokenize(rest);
+    // A redirection of stdin anywhere in the stage (`python3 - <<'EOF'`,
+    // `bash -s < x.sh`) replaces the download.
+    for t in &toks {
+        if t.starts_with('#') {
+            break;
+        }
+        if redirection(t).is_some_and(|r| r.stdin) {
+            return false;
+        }
+    }
     let mut i = 0;
     while i < toks.len() {
         let t = toks[i].as_str();
         let lower = t.to_ascii_lowercase();
+        if t.starts_with('#') {
+            return true; // a comment: no arguments follow
+        }
+        if let Some(r) = redirection(t) {
+            if r.stdin {
+                return false; // stdin is a file or text, not the download
+            }
+            i += if r.takes_next { 2 } else { 1 };
+            continue;
+        }
         if t == "--" || t == "-" {
             // Options end; what follows is passed to the stdin program.
             return true;
@@ -123,7 +688,12 @@ fn executes_stdin(interp: &str, rest: &str) -> bool {
                 // the script's arguments (`curl … | bash -s stable`).
                 return true;
             }
-            if t == "-o" || t == "+o" {
+            // -o/-O (also last in a bundle, `-euo pipefail`) and the rc
+            // file options take a value.
+            let bundle = (t.starts_with('-') || t.starts_with('+')) && !t.starts_with("--");
+            if bundle && (t.ends_with('o') || t.ends_with('O'))
+                || matches!(t, "--rcfile" | "--init-file")
+            {
                 i += 2;
                 continue;
             }
@@ -155,25 +725,39 @@ fn executes_stdin(interp: &str, rest: &str) -> bool {
 // sigil:ignore-next-line NET-RCE-001 -- doc comment listing the download-to-interpreter shapes this function detects
 /// `sh -c "$(curl …)"`, `eval "$(wget …)"`, `iwr … | iex`, `iex (irm …)`.
 /// An interpreter that treats the download as data (`| python3 -m
-/// json.tool`, `| node script.js`) does not count.
+/// json.tool`, `| node script.js`) does not count. The command is also
+/// read with word-internal quoting removed ([`dequote`]), so `| "bash"`
+/// and `| b''ash` are bash.
 pub fn pipes_download_to_interpreter(s: &str) -> bool {
+    let dq = dequote(s);
+    pipes_to_interpreter(s) || dq != s && pipes_to_interpreter(&dq)
+}
+
+fn pipes_to_interpreter(s: &str) -> bool {
     static PIPE: OnceLock<Regex> = OnceLock::new();
     static SUBST: OnceLock<Regex> = OnceLock::new();
     static PS: OnceLock<Regex> = OnceLock::new();
     const DL: &str = r"(curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod)";
-    const INTERP: &str = r"(sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell)";
+    const INTERP: &str = r"(sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell|\$shell|\$\{shell\})";
+    // A stage's arguments: anything up to a pipe or list operator, where
+    // `2>&1`, `&>f` and `<&3` are redirections rather than `&`.
+    const ARGS: &str = r"(\s([^|;&]|>&|&>|<&)*)?";
+    // Commands that run the next word as the command (`sudo -u root`,
+    // `env -i`, `command`, `doas`, `busybox`, `timeout 60`, ...).
+    const WRAP: &str = r"(\S*/)?(sudo|doas|env|command|builtin|exec|nohup|time|nice|timeout|stdbuf|setsid|ionice|busybox)(\s+(-\S+(\s+[^-\s|;&<>]\S*)?|[A-Za-z0-9_]+=\S*|[0-9.]+[smhd]?))*\s+";
     let pipe = re(
         &PIPE,
         &format!(
             // `| tee file |` stages in between still hand the interpreter
-            // the download; `sudo -u user` takes a value.
-            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}(\s[^|;&]*)?(\|\s*(\S*/)?tee(\s[^|;&]*)?)*\|\s*(sudo(\s+-\S+(\s+[^-\s|;&]\S*)?)*\s+)?(env(\s+\w+=\S*)*\s+)?(\S*/)?(?P<interp>sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell)([\s"')]|$)"#
+            // the download; `|&` pipes stderr as well.
+            r#"(?i)(^|[\s;&|("'`$])(\S*/)?{DL}{ARGS}(\|&?\s*({WRAP})*(\S*/)?tee{ARGS})*\|&?\s*({WRAP})*(\S*/)?(?P<interp>sh|bash|zsh|dash|ksh|fish|python[0-9.]*|node|deno|bun|perl|ruby|php|iex|invoke-expression|pwsh|powershell|\$shell|\$\{{shell\}})([\s"')`;&|<>]|$)"#
         ),
     );
     let subst = re(
         &SUBST,
         &format!(
-            r#"(?i)(^|[\s;&|("'`])((\S*/)?{INTERP}\s+(-\S+\s+)*|source\s+|\.\s+|eval\s+)["']?(<\(|\$\(|`)\s*(\S*/)?{DL}\s"#
+            // `bash < <(curl …)` and `bash <<< "$(curl …)"` feed stdin.
+            r#"(?i)(^|[\s;&|("'`])((\S*/)?{INTERP}\s+(-\S+\s+)*(<<<\s*|<\s*)?|source\s+|\.\s+|eval\s+)["']?(<\(|\$\(|`)\s*(\S*/)?{DL}\s"#
         ),
     );
     let ps = re(
@@ -185,10 +769,7 @@ pub fn pipes_download_to_interpreter(s: &str) -> bool {
             return false;
         };
         let tail = &s[m.end()..];
-        let end = tail
-            .find(['|', ';', '&', ')', '\'', '"', '`', '\n'])
-            .unwrap_or(tail.len());
-        executes_stdin(m.as_str(), &tail[..end])
+        executes_stdin(m.as_str(), &tail[..stage_end(tail)])
     });
     piped || subst.is_match(s) || ps.is_match(s)
 }
