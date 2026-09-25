@@ -544,18 +544,26 @@ over a PE launcher, an ELF executable, a gzip stream, a text file and a zip
 holding an ELF. Both engines gave identical findings through Sigil: the five
 matches each tool reports when run directly on the files, plus the two
 archive members the tools do not open themselves (the ELF inside the zip, and
-the decompressed gzip). The cost, on this repository's self-scan (543 files,
-all eight phases named so the network enrichment feeds are skipped, a shared
-4-core machine, five interleaved runs, medians): the scan pass took 1.75 s
-without YARA rules, 1.89 s with the five rules on YARA-X and 1.98 s on YARA;
-the engine run itself (`SIGIL_TIMING=1`, stage `yara rules`) took 171 ms and
-247 ms. An engine run happens once per scan, before the per-file pass, so it
-adds to the scan's wall time rather than running beside it.
+the decompressed gzip). The same check was run twice, by the change's author
+and again in review, with the same result. The cost, re-measured in review
+on this repository's self-scan (543 files, every phase named so the network
+enrichment feeds are skipped, five interleaved runs, medians, on a shared
+4-core machine with a load average near 6): the scan pass took 2.15 s without
+YARA rules, 2.77 s with the five rules on YARA-X and 3.22 s on YARA; the
+engine's own stage (`SIGIL_TIMING=1`, `yara rules`) took 242 ms and 319 ms.
+The engine runs before the per-file pass, so its time
+adds to the scan's wall time rather than running beside it. A larger set —
+2,000 synthetic rules in four files, each with a text string, a hex string
+and a `pe` condition — loaded and ran on both engines; over an 85-file tree
+the scan took 0.80 s without it, 1.35 s with it on YARA-X and 1.02 s on YARA
+(medians of three). Each file is compiled twice per scan, once when its pack
+loads (the check above) and once for the run: YARA-X took about 0.2 s to
+compile and run the set once when called directly, YARA about 0.05 s.
 
 ```
-Data Source: Synthetic rules written for the check; real files from the test machine (a pip/distlib Windows launcher, /bin/true, gzip of /bin/ls) and this repository
-Sample Size: 5 files and 2 archive members (engine comparison); 5 runs per configuration over 543 files (cost)
-Limitations: One rule file of five rules, not a real rule library, so the cost of a large rule set's compilation is not measured. Timing on a shared machine (runs spanned 1.73-1.99 s without rules, 1.82-2.13 s with YARA-X, 1.95-2.10 s with YARA).
+Data Source: Synthetic rules written for the check (five module rules; 2,000 generated rules, no randomness); real files from the test machine (a distlib Windows launcher, /bin/true, gzip of /bin/ls, a zip holding /bin/true) and this repository's source
+Sample Size: 5 files and 2 archive members (engine comparison); 5 runs per configuration over 543 files (self-scan cost); 3 runs per configuration over 85 files (2,000-rule cost)
+Limitations: Not a real rule library: the compile time of a community set (thousands of rules with modules and long regular expressions) is not measured. Timing on a shared, loaded machine: self-scan runs spanned 2.08-3.17 s without rules, 2.41-3.21 s with YARA-X, 2.38-3.29 s with YARA. Engine crashes were exercised with stub engines only; no input that crashes YARA 4.5.0 or YARA-X 1.20.0 was used.
 ```
 
 **Your organisation's or a community's rules.** Detection classes Sigil does

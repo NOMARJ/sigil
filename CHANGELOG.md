@@ -245,9 +245,11 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   pip/distlib Windows launcher, `/bin/true`, a gzip of `/bin/ls`, a text
   file and a zip holding an ELF): both engines gave identical findings
   through Sigil — the five each tool reports when run directly, plus the two
-  archive members the tools do not open. On this repository's self-scan (543
-  files, 5 interleaved runs, medians) the scan pass took 1.75 s without YARA
-  rules, 1.89 s with YARA-X and 1.98 s with YARA. Sigil ships no rules for
+  archive members the tools do not open (reproduced in review). On this
+  repository's self-scan (543 files, 5 interleaved runs, medians, on a shared
+  machine under load) the scan pass took 2.15 s without YARA rules, 2.77 s
+  with YARA-X and 3.22 s with YARA; a 2,000-rule synthetic set added 0.55 s
+  (YARA-X) and 0.22 s (YARA) to an 85-file scan. Sigil ships no rules for
   these engines; organisations load their own or a vetted community set
   through `--rules`/`rule_packs` (documented in the same section). The tests
   use stub engines that print the recorded formats, so CI needs neither
