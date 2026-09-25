@@ -68,14 +68,16 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
-| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; } \| sh`) | deny | `sigil scan <url>` |
-| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
+| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
+| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
 
 The gate reads a command the way the shell runs it: grouping (`( … )`,
 `{ …; }`, `if`), redirections, `VAR=value` words and wrappers (`sudo -u
 root`, `env -i`, `command`, `exec`, `nohup`, `time`, `timeout`, `xargs`,
-`doas`, `busybox`) are set aside before the command word is judged; quoting
+`doas`, `busybox`, `flock`, `chroot`, `strace`, `watch`, `runuser`, …) are
+set aside before the command word is judged; `sudo -s`, `sudo -i` and `su`
+start a shell that reads stdin; quoting
 inside a word does not hide it (`"npm" exec x`, `de''no run npm:x`); an
 interpreter's options are read per interpreter (`bash -e i.sh` runs `i.sh`,
 `python3 -X dev i.py` runs `i.py`); the string of `bash -c '…'`, `su -c '…'`
@@ -90,21 +92,29 @@ npm package is vetted by `sigil npm`, a PyPI package by `sigil pip`, a
 repository by `sigil clone` (branch included), a local path by `sigil scan`
 — so `sigil scan evil && npm install evil` is still denied. A scan of a
 downloaded file counts only when it runs after the last download to that
-path, and only the `sigil` found on PATH vets anything: `./sigil`,
-`vendor/bin/sigil`, `PATH=… sigil` (or `HOME=…`, or any `SIGIL_…=`
-setting such as `SIGIL_POLICY_FILE`), any sigil call in a command that
-defines a `sigil` function or alias, changes PATH, or names a Sigil policy
-file (`.sigil.yml` in the working directory is trusted), and any after a
+path, the download is not still running in the background (`curl -o i.sh
+… & sigil scan i.sh && …`, until a `wait`), and nothing writes the file
+again after the scan (`sed -i`, `>> i.sh`, `cp x i.sh`). Only the `sigil`
+found on PATH vets anything: `./sigil`,
+`vendor/bin/sigil`, `PATH=… sigil` (or `HOME=…`, any `SIGIL_…=`
+setting such as `SIGIL_POLICY_FILE`, or `LD_PRELOAD=…`), any sigil call in a command that
+defines a `sigil` function or alias, changes PATH, names a Sigil policy
+file (`.sigil.yml` in the working directory is trusted), runs `sigil
+approve` or `sigil known-good`, or writes into `~/.sigil/`, and any after a
 sourced file, vet nothing. A copy of a scanned file made later in the same
 `&&` chain is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
 ~/bin/t`). Nor does a call that is not a
 real scan (`--help`, `--fail-on critical`, `--severity critical`, a subset
-of `--phases`, `--config`, `--baseline`), or whose exit status `&&` does not
+of `--phases`, `--config`, `--baseline`, also attached or bundled:
+`-pnetwork`, `-s=critical`, `-vh`), or whose exit status `&&` does not
 test: `sigil scan i.sh | tee log && bash i.sh`, `echo $(sigil scan i.sh) &&
 …`, or a sigil call inside quotes or a comment. A sigil call no longer
-allows the rest of a command line — `sigil --version; npm install x` and
-`sigil npm x | npm install x` are denied. `npx tsc` is allowed when the
-project has `node_modules/.bin/tsc`.
+allows the rest of a command line — `sigil --version; npm install x`,
+`sigil npm x | npm install x` and `$(sigil --version) npm install x` are
+denied. `npx tsc` is allowed when the
+project has `node_modules/.bin/tsc`. `pip install -r requirements.txt` is
+asked about; a package named beside it (`pip install -r requirements.txt
+evil`) is denied like `pip install evil`.
 
 Register the hook for `Write|Edit|MultiEdit` too (matcher
 `"Bash|Write|Edit|MultiEdit"`, command `sigil hook pretooluse`) and it also

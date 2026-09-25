@@ -186,8 +186,8 @@ run instead:
 | `npx`/`bunx`/`pnpm dlx`/`yarn dlx`/`npm exec`/`uvx`/`uv tool run`/`pipx run` of a registry package | deny | `sigil npm <spec> && <original>` / `sigil pip <spec> && …` |
 | `pipx install <pkg>`, `uv tool install <pkg>` | deny | `sigil pip <pkg> && <original>` |
 | `deno run\|x\|install\|serve` of an `npm:` / `jsr:` / `https://` module | deny | `sigil npm <spec> && <original>` for `npm:`; otherwise download, scan, run the local file |
-| `curl … \| sh`, `curl … \| bash -s stable`, `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `curl … 2>&1 \| sh`, `curl … \|& sh`, `curl … \| bash >/dev/null`, `curl … \| "bash"`, `curl … \| env -i bash` (also `command`, `doas`, `busybox`, `$SHELL`), `curl … \| INSTALL_DIR=~/bin bash`, `` `curl … \| bash` ``, `bash <(curl …)`, `bash < <(curl …)`, `bash <<< "$(curl …)"`, `sh -c "$(curl …)"`, `iwr … \| iex`, and through any filter or group: `curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; } \| sh`, `curl … \| bash < /dev/stdin`, `curl … \| node -r x`, `curl … \| perl -I lib` | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
-| Download to a file, then run that file in the same command: `curl -o i.sh … && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`, `curl -O …/setup.py && python3 setup.py`, and through wrappers, groups and redirections: `sudo -E bash i.sh`, `bash -e i.sh`, `python3 -X dev i.py`, `. ./i.sh`, `(bash i.sh)`, `bash < i.sh`, `cat i.sh \| sh`, `head i.sh \| sh`, after `curl -oi.sh …`, `curl … 1> i.sh`, `curl … \| tee i.sh` or `curl … \| dd of=i.sh`; through a substitution: `eval "$(cat i.sh)"`, `bash -c "$(cat i.sh)"`, `bash <(cat i.sh)`; and through a copy: `mv i.tmp i.sh && bash i.sh`, `cp -t /tmp i.sh`, `cat i.sh > j.sh`, `dd if=i.sh of=j.sh` | deny | `sigil scan <file> && <run>` after the download |
+| `curl … \| sh`, `curl … \| bash -s stable`, `curl … \| tee f \| sh`, `curl … \| sudo -u root bash`, `curl … 2>&1 \| sh`, `curl … \|& sh`, `curl … \| bash >/dev/null`, `curl … \| "bash"`, `curl … \| env -i bash` (also `command`, `doas`, `busybox`, `$SHELL`), `curl … \| INSTALL_DIR=~/bin bash`, `` `curl … \| bash` ``, `bash <(curl …)`, `bash < <(curl …)`, `bash <<< "$(curl …)"`, `sh -c "$(curl …)"`, `iwr … \| iex`, and through any filter or group: `curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; } \| sh`, `curl … \| bash < /dev/stdin`, `curl … \| node -r x`, `curl … \| perl -I lib`; into a shell that `sudo -s`, `sudo -i`, `doas -s` or `su` starts; into code that reads it: `curl … \| bash -c "$(cat)"`, `curl … \| eval "$(cat)"`, `curl … \| sh -c 'source /dev/stdin'`, `curl … \| xargs -0 bash -c`, `curl … \| xargs -I{} sh -c '{}'`, `curl … \| python3 -c "import sys; exec(sys.stdin.read())"`; into a process substitution: `curl … \| tee >(bash)`, `curl … > >(bash)`; from or into a group or compound command: `{ curl …; echo; } \| sh`, `(curl …; true) \| bash`, `for …; do curl …; done \| sh`, `curl … \| { echo; bash; }`, `curl … \| if true; then bash; fi`, `curl … \| while read l; do eval "$l"; done`; and written to stdout by another name (`curl -o /dev/fd/1 … \| tr -d x \| bash`) | deny | `sigil scan <url>`, or download → `sigil scan file` → run the file |
+| Download to a file, then run that file in the same command: `curl -o i.sh … && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`, `curl -O …/setup.py && python3 setup.py`, and through wrappers, groups and redirections: `sudo -E bash i.sh`, `bash -e i.sh`, `python3 -X dev i.py`, `. ./i.sh`, `(bash i.sh)`, `bash < i.sh`, `cat i.sh \| sh`, `head i.sh \| sh`, after `curl -oi.sh …`, `curl … 1> i.sh`, `curl … \| tee i.sh` or `curl … \| dd of=i.sh`; through a substitution: `eval "$(cat i.sh)"`, `bash -c "$(cat i.sh)"`, `bash <(cat i.sh)`; through a copy: `mv i.tmp i.sh && bash i.sh`, `cp -t bin i.sh`, `cat i.sh > j.sh`, `dd if=i.sh of=j.sh`; behind more wrappers: `trap 'bash i.sh' EXIT`, `watch bash i.sh`, `flock l bash i.sh`, `flock l -c 'bash i.sh'`, `chroot / bash …`, `taskset`, `chrt`, `unshare`, `setpriv`, `strace`, `ltrace`, `script -c '…'`, `sg grp -c '…'`, `runuser -u root -- bash i.sh`; through xargs: `xargs -a i.sh -I{} sh -c '{}'`; and after the words of a substitution (`$(true) bash i.sh`) | deny | `sigil scan <file> && <run>` after the download |
 | `curl -o ~/.claude/skills/…`, `curl … > .mcp.json`, `curl … \| tee ~/.claude/skills/…`, `wget -P …`, `unzip … -d ~/.claude/skills`, `tar -x … -C ~/.gemini/extensions`, `cp -r x ~/.codex/skills/`, `git clone <url> ~/.claude/skills/x`, `cp x .mcp.json` (also after `cd` into those directories, behind `sudo -E`/`env`/`command`, in a `( … )` subshell or a `bash -c '…'` string, and in any case: `~/.CLAUDE/skills` is `~/.claude/skills` on the default macOS and Windows file systems) | deny | `sigil scan <src> && <original>` / `sigil clone <url> && <original>` |
 
 **How a command is read.** Each pipeline stage is read the way the shell
@@ -195,8 +195,15 @@ runs it (`cmdline::command_words`): grouping (`( … )`, `{ …; }`, `if`,
 `then`, `do`), redirections (anywhere in the stage), leading `VAR=value`
 words and wrapper commands (`sudo` with its options, `env -i`/`-u`/`-S`,
 `command`, `builtin`, `exec`, `nohup`, `time`, `nice`, `timeout`, `stdbuf`,
-`setsid`, `ionice`, `xargs`, `doas`, `busybox`) are set aside before the
-command word is judged. An interpreter's options are read per interpreter
+`setsid`, `ionice`, `xargs`, `doas`, `busybox`, `flock`, `chroot`,
+`taskset`, `chrt`, `unshare`, `setpriv`, `strace`, `ltrace`, `watch`,
+`runuser`) are set aside before the command word is judged. `sudo -s`,
+`sudo -i`, `doas -s`, `runuser <user>` and `su` with nothing to run start
+a shell that reads its commands from stdin; the `-c` string of `flock`,
+`script`, `sg` and `runuser`, and the string of `trap '…' EXIT`, are read
+as a command line of their own. Behind `xargs`, inline code with no code
+of its own (`xargs -0 bash -c`, `xargs -I{} sh -c '{}'`) runs the words
+xargs reads, from stdin or from the file of `xargs -a f`. An interpreter's options are read per interpreter
 family: `-e` is errexit to bash and inline code to node, `-X`/`-W` take a
 value for python, `-I` for perl, `-o`/`-O` (also last in a bundle,
 `-euo pipefail`) for shells, `-ExecutionPolicy` for PowerShell. Each stage is also judged with
@@ -218,8 +225,20 @@ another descriptor (`3<&0`). Whatever a stage reads from a download is
 passed on: every later stage of the pipeline that runs its stdin
 (`… | tr -d '\r' | bash`) runs the download, and a file written from it
 (`cp`, `mv`, `ln`, `install`, `cat i.sh > j.sh`, `| tee j.sh`,
-`dd if=i.sh of=j.sh`) is a download too. A group whose last command is a
-download (`{ echo; curl …; } | sh`) pipes the download.
+`dd if=i.sh of=j.sh`) is a download too. So is what a download writes to
+stdout by another name (`-o /dev/fd/1`, `> /dev/stdout`). A group or
+compound command that holds a download (`{ curl …; echo; } | sh`,
+`for …; do curl …; done | sh`) pipes it, and every command inside one
+that receives a download on stdin (`… | { echo; bash; }`, `… | while read
+l; do eval "$l"; done`) reads it; so does the string of a `bash -c` whose
+stage reads it (`… | sh -c 'source /dev/stdin'`), a substitution in such a
+stage (`… | bash -c "$(cat)"`), and a `>( … )` a download is written to
+(`… | tee >(bash)`). Code that runs what it reads counts as running its
+stdin: a variable run as code (`eval "$l"`, `bash -c "$line"`) and
+python, node, perl, ruby or php inline code that evaluates its stdin
+(`exec(sys.stdin.read())`, `eval STDIN.read`). The words after the `)` of a
+substitution are judged as a command of their own (`$(true) npm install
+evil`).
 
 Allowed look-alikes include `npx tsc` when the project has
 `node_modules/.bin/tsc` (found up the tree, as npx does), `npx ./local.js`,
@@ -254,16 +273,26 @@ server can serve the scanner and the shell different bytes. A download saved
 to a file *can* be: `curl -o i.sh URL && sigil scan i.sh && bash i.sh` is
 allowed, because the scan reads the bytes that run — as long as the scan
 runs after the last download to that path (`sigil scan i.sh && curl -o i.sh
-URL && bash i.sh` is denied). A copy of the scanned file made later in the
+URL && bash i.sh` is denied), the download is not still running in the
+background (`curl -o i.sh URL & sigil scan i.sh && bash i.sh` is denied
+until a `wait`), and nothing writes the file again after the scan: an
+in-place edit (`sed -i`, `perl -pi`, `ruby -i`), an append or redirect
+(`>> i.sh`, `tee -a i.sh`, `dd of=i.sh`) or a copy over it (`cp x i.sh`,
+`mv x i.sh`, `ln -sf x i.sh`) cancels the scan. A copy of the scanned file made later in the
 same `&&` chain (`cp`, `mv`, `ln`, `install`, `rsync`) holds the scanned
 bytes and is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
 ~/bin/t`). Only the `sigil` found on PATH vets: `./sigil`,
 `vendor/bin/sigil` and `PATH=… sigil` (or `HOME=` and `XDG_…=`, which move
-its state and trust ledger, or any `SIGIL_…=` setting) do not, and neither
+its state and trust ledger, any `SIGIL_…=` setting, or the dynamic
+loader's `LD_…=`/`DYLD_…=`, which load code into sigil itself) do not, and neither
 does any sigil call in a command that defines a `sigil` function or alias
 (`alias -- sigil=true` included), loads a builtin named sigil, pins a path
-with `hash -p`, changes PATH, HOME or a `SIGIL_…` setting, or names a Sigil
-policy file (`.sigil.yml`, `.sigil.yaml`, `sigil.yml`), nor one after a
+with `hash -p`, changes PATH, HOME, a `SIGIL_…` setting or `LD_…`/`DYLD_…`,
+names a Sigil policy file (`.sigil.yml`, `.sigil.yaml`, `sigil.yml`),
+runs `sigil approve` (an approved artifact's content is allowlisted by
+digest in later scans) or `sigil known-good` (an installed index is
+recognised as published code), or writes into sigil's state directory
+(`~/.sigil/`: cache, ledger, known-good indexes), nor one after a
 sourced file (`. ./env; sigil …`). The scan's policy must not be the
 command's own: `SIGIL_POLICY_FILE` names an organisation policy the scan
 trusts whole, and a `.sigil.yml` in the working directory is trusted too,
@@ -271,7 +300,11 @@ so a command that sets or writes one could raise `fail_on` past every High
 finding. The call must be a real scan: `-h`/`--help`, `--fail-on` or
 `--severity` other than `low`/`medium`/`high`, `--phases` other than `all`,
 `--config` and `--baseline` all let a hostile file pass, so such a call
-vets nothing. And its exit status must be what `&&` tests: a sigil call
+vets nothing. Its options are read as sigil's argument parser reads them:
+a short option's value attached (`-pnetwork`) or after `=`
+(`-s=critical`), `-h` in a bundle (`-vh`), and a bundle that ends in a
+valued option (`-vo i.sh x.sh` writes the report to `i.sh` and scans
+`x.sh`). And its exit status must be what `&&` tests: a sigil call
 that is not the last stage of its pipeline (`sigil scan i.sh | tee log &&
 bash i.sh` tests tee), that sits inside a substitution (`echo $(sigil scan
 i.sh) && …` tests echo), or that is only text inside quotes or a comment
@@ -279,9 +312,9 @@ vets nothing.
 
 **No laundering.** A sigil invocation allows only its own segment:
 `sigil --version; npm install evil`, `sigil help | npm install evil`,
-`sigil npm evil | npm install evil` and `sigil scan $(npm install evil)` are
-judged segment by segment and denied (by the shell fallback too, when awk
-is available).
+`sigil npm evil | npm install evil`, `sigil scan $(npm install evil)` and
+`$(sigil --version) npm install evil` are judged segment by segment and
+denied (by the shell fallback too, when awk is available).
 
 **Edits.** Registered for `Write|Edit|MultiEdit` as well, the hook judges
 edits to agent tooling: content that pipes a download into a shell or ships
@@ -513,6 +546,8 @@ before (median of 15 runs each).
   `2>`, it read the `&` of `2>&1` as the end of the stage), fixed before
   the measurement. With no awk on PATH (the per-stage checks off), the
   pipe check still agrees on every seventh of them (1,778 of 1,778).
+  *§8: 1,666 of 1,778 now; the native hook denies 112 that the no-awk
+  pipe check allows.*
 - Generated per-stage commands: the decisions agree on **22,242 of
   22,246**. The 4 others are an older fallback shortcut, not part of this
   change: when a segment of a command starts with `sigil`, the fallback
@@ -537,7 +572,7 @@ all on clean NVIDIA skills; no malicious-corpus decision changes:
 |---|---|---|---|
 | block: `curl … "https://raw.githubusercontent.com/NVIDIA/NeMo-Relay/${RELAY_VERSION}/install.sh" --output nemo-relay-install.sh`, `less nemo-relay-install.sh`, `… sh nemo-relay-install.sh` | allow | deny | A download and its execution; the curl command spans three lines joined by `\`, which the old gate read as three commands. The reason names `sigil scan <file> && <run>`. |
 | line: `\|\| curl -LsSf https://astral.sh/uv/install.sh \| sh; then` | allow | deny | `curl … \| sh` followed by `;`. |
-| block: `"$VENV/bin/python" -m pip install \` / `-r "$REQUIREMENTS" \` / `"transformers==4.46.3" "typer>=0.9"` | deny | ask | Read as one command now, it carries `-r`, and the existing rule asks for `pip install -r` before looking for named packages. |
+| block: `"$VENV/bin/python" -m pip install \` / `-r "$REQUIREMENTS" \` / `"transformers==4.46.3" "typer>=0.9"` | deny | ask | Read as one command now, it carries `-r`, and the existing rule asks for `pip install -r` before looking for named packages. *§8: a package named besides `-r` is now denied, so this block is denied again.* |
 
 Clean skills with a denied block go from 91 to 90 of 344 (the third row's
 skill had no other deny); with a denied line, 90 in both; malicious skills,
@@ -560,8 +595,8 @@ different reason, the same 784 before and after.
 
 **Left open by this pass.** Found in it (80 hand-written edge cases, on
 which the two gates agree) and not changed here. The verification pass
-(§8) closed the first, second and fifth, and showed that the fourth was an
-allow as well as a deny:
+(§8) closed the first, second, third and fifth, and showed that the fourth
+was an allow as well as a deny:
 
 - A downloaded file run through a substitution: `eval "$(cat i.sh)"`,
   `bash -c "$(cat i.sh)"`. *Closed in §8.*
@@ -570,7 +605,8 @@ allow as well as a deny:
   `curl … | node --require x` is allowed (the download-then-run check reads
   them per interpreter). *Closed in §8.*
 - The `pip install -r` precedence in the third row: `pip install -r req.txt
-  evil-pkg` asks instead of denying, in both gates. *Still open.*
+  evil-pkg` asks instead of denying, in both gates. *Closed in §8 (in the
+  fallback, where awk is available).*
 - Segmentation ignores quotes, so a separator inside a quoted string splits
   the command: `bash -c 'cd build && curl -o i.sh …' && bash i.sh` is
   judged as if the download landed in the working directory (a deny, as in
@@ -584,3 +620,215 @@ allow as well as a deny:
   inside the command bypasses it, and the fallback does not implement
   agent-CLI acquisition or copies and unpacks into agent tooling. *Still
   open.*
+
+---
+
+## 8. Verification pass: what still got through
+
+Two passes verified §7 by trying to get past it. The first was stopped by a
+container restart before its gates and measurements ran; the second resumed
+it, re-ran every measurement of §7 and of the first pass, reviewed the
+first pass's changes as critically as the rest, and probed further. Every
+number below comes from a run made in the resumed pass. "Main" is 3982aa6
+and "the change" is §7 as first written, both built from source in this
+pass.
+
+```
+Data Source: Synthetic probes (hand-written, deterministic), real scans of
+             one hand-written fixture, and the shell lines and fenced shell
+             blocks of the §5 skill corpora (static text, nothing executed).
+Sample Size: 462 probes written by the first pass; 255 + 57 (pip) + 22
+             (inline code) probes written by the resumed pass; 168 probes
+             and 80 edge cases of §7; 12,444 + 22,246 generated commands;
+             43,869 corpus lines and 7,649 corpus blocks.
+Limitations: The probes were written to get past the gate, so they show
+             which shapes are closed, not how many others remain. The corpus
+             replay measures how often the gate's decision changes on real
+             instructions, not detection accuracy. The fallback was run with
+             dash and mawk, and with bash as sh; not with busybox. Timings
+             are single runs (the fallback's per-command times: medians of
+             15) on a shared, loaded 4-CPU machine.
+```
+
+**Reproduced.** The §7 numbers hold: on its 168 probes main decides 56
+(native) and 59 (fallback) as expected and the change 168 and 168; the
+corpus replay of main against the change gives the same three decision
+changes and eleven reason-only changes as §7, with the same totals.
+
+**The first pass** wrote 462 probes (its expectations, with nine labels
+corrected where the allow is right: the scan and the run name the same
+file, an output option, an option sigil rejects, `./sigil` not on PATH, a
+download into another directory). Main decides 199 of them as expected
+natively and 198 in the fallback; the change 316 and 307, and gets 155 of
+them wrong in one gate or both. The first pass's fixes bring both gates to
+432. Among what it closed: `curl … | bash < /dev/stdin` (let through by
+the change's own here-document exemption), filters and groups between the
+download and the shell (`| tr -d '\r' | bash`, `{ curl …; } | sh`),
+options that take a value (`| perl -I lib`, `| node -r x`), `eval "$(cat
+i.sh)"`, copies (`mv i.tmp i.sh && bash i.sh`), a scan that vets nothing
+(`--fail-on critical`, `sigil scan i.sh | tee log`, a policy the command
+sets), and a `cd` inside `$( … )`.
+
+**Found in the resumed pass and fixed, in both gates** (each reproduced
+before the fix; the scan-gate ones with real scans, below):
+
+| Part | Allowed before | Now |
+|---|---|---|
+| pipe | a shell that `sudo -s`, `sudo -i`, `doas -s`, `su` or `runuser <user>` starts: `curl … \| sudo -s` | it reads the pipe: denied |
+| pipe | code that reads the pipe: `\| bash -c "$(cat)"`, `\| eval "$(cat)"`, `\| sh -c 'source /dev/stdin'`, `\| xargs -0 bash -c`, `\| xargs -I{} sh -c '{}'`, `\| python3 -c "import sys; exec(sys.stdin.read())"`, `\| ruby -e 'eval STDIN.read'` | denied: inline Python, Node, Perl, Ruby or PHP code counts when it reads stdin and calls `exec`, `eval`, `Function` or `instance_eval`; compiling a regex or matching a JavaScript regex literal does not |
+| pipe | a process substitution: `\| tee >(bash)`, `> >(bash)` | denied |
+| pipe | a group or compound command that holds the download (`{ curl …; echo; } \| sh`, `(curl …; true) \| bash`, `for …; do curl …; done \| bash`) or receives it (`\| { echo; bash; }`, `\| if true; then bash; fi`, `\| while read l; do eval "$l"; done`, `\| while read l; do $l; done`) | denied |
+| pipe | stdout by another name: `curl -o /dev/fd/1 … \| tr -d x \| bash`, `> /dev/stdout` | denied |
+| laundering | `$(sigil --version) npm install evil`, `$(true) npm install evil`, `$(true) bash i.sh` after a download (the words after a substitution were not judged) | denied |
+| download, then run | behind `trap '…' EXIT`, `watch`, `flock` (and `flock -c`), `chroot`, `taskset`, `chrt`, `unshare`, `setpriv`, `strace`, `ltrace`, `script -c`, `sg -c`, `runuser`; through `xargs -a i.sh -I{} sh -c '{}'` | denied unless scanned |
+| scan gate | options read as sigil reads them: `-pnetwork`, `-p=network`, `-scritical`, `-s=critical`, `-vh`, `-hv`, `-vo i.sh x.sh` all vetted a scan that lets a hostile file pass | such a call vets nothing |
+| scan gate | state that makes a later scan pass: `LD_PRELOAD=…`/`DYLD_…=` for sigil or exported, `sigil approve` (an approved artifact's content is allowlisted by digest), `sigil known-good` (an installed index), a write into `~/.sigil/` | no sigil call in the command vets |
+| scan gate | the scanned file written again after the scan: `sed -i`, `perl -pi`, `>> i.sh`, `tee -a`, `dd of=`, `cp`/`mv`/`ln -sf` over it | the write cancels the scan |
+| scan gate | a download still running in the background: `curl -o i.sh … & sigil scan i.sh && bash i.sh` (the scan can read the file before it is complete) | not vetted until a `wait` |
+| package install | a package named besides a requirements file: `pip install -r req.txt evil-pkg`, `uv pip install -r req.txt evil-pkg`, `pip install -r req.txt -- evil-pkg`, `pip install -r req.txt -e git+https://…` were asked about as a requirements install (§7 left it open; its continued-line reading turned one clean-skill deny into such an ask) | denied as `pip install <pkg>`; the values of options that take one (`-r f`, `-c f`, `-e .`, `-i <url>`, `--target d`) are not packages, unless `-e` names a repository, so `pip install -r req.txt -e .` is still an ask |
+| native hook, speed | each pattern was compiled for every stage it was checked on: a 13.6 KB command of 800 substitutions took 14.0 s with main and 14.4 s with the first pass's build, 11.5 s for 2,000 pipe stages (which main allowed: `curl … \| cat \| … \| bash`). A host that treats a hook past its time limit as an allow would let such a padded command through | patterns compiled once: 0.08 s and 0.07 s (denied); 0.76 s and 0.63 s for commands ten times that size |
+
+The scan-gate options were checked with real scans of a hand-written
+fixture (`exec(base64.b64decode("cHJpbnQoMSk="))`, which decodes to
+`print(1)` and draws a High finding) in a fresh HOME: a plain scan exits
+1; `--fail-on critical`, `-pnetwork`, `-s=critical`, `-vh`, a
+`.sigil.yml` with `fail_on: critical` in the working directory and
+`SIGIL_POLICY_FILE` naming such a file each exit 0. Under an organisation
+policy that locks every key (`locked: [all]`, `allow_project_policy:
+false`) the scan exits 1 with the `.sigil.yml` and with `--fail-on
+critical` too. `LD_PRELOAD`, `sigil approve` and `sigil known-good` are
+from reading the code (`ledger::apply_suppression` allowlists approved
+content by digest; `known-good` indexes are recognised as published
+code), not from a run.
+
+A draft of this pass's own fix for substitutions judged only the text
+before the `)`, which let `$(true) npm install evil` through natively; a
+probe caught it before the fix was committed, and the words after the `)`
+are now judged as a stage of their own. Likewise a draft of the `pip -r`
+fix read a comment as packages: the corpus replay turned `pip install -r
+requirements.txt  # other dependencies` (a clean NVIDIA skill) from an ask
+into a deny natively. A comment now ends the words read, and the line is an
+ask again; the fallback's lexer already dropped comments. And this pass's
+own read-code markers, as first committed, counted `compile` and any
+`exec` call: 18 probes of legitimate pipes into inline code found two
+ordinary parsers of a downloaded page denied in both gates (a Python regex
+compiled and matched against `sys.stdin`, a Node regex literal's `exec`
+on `process.stdin`). Neither counts now; `builtins.exec(…)` and
+`require('child_process').exec(d)` still do.
+
+**Measured.**
+
+| | main | the change | first pass | now |
+|---|---|---|---|---|
+| First pass's 462 probes, native / fallback | 199 / 198 | 316 / 307 | 432 / 432 | 443 / 443 |
+| Resumed pass's 255 probes, native / fallback | 151 / 135 | 167 / 151 | 180 / 177 | 253 / 250 |
+| §7's 168 probes, native / fallback | 56 / 59 | 168 / 168 | 168 / 168 | 168 / 168 |
+| Resumed pass's 57 `pip` probes, native / fallback | 34 / 32 | 34 / 32 | 34 / 32 | 56 / 56 |
+| Resumed pass's 22 pipes into inline code (19 that parse the download, 3 that run it), native / fallback | 19 / 19 | 19 / 19 | 19 / 19 | 22 / 22 |
+
+The five of the 255 still decided otherwise than expected now: three in
+the fallback only (a download copied or installed into agent tooling,
+which only the native hook judges), and two in both gates (`find . -name
+i.sh -exec bash {} \;`, and a policy file whose name the command computes:
+`f=.sigi; echo 'fail_on: critical' > ${f}l.yml`). The one of the 57 is
+the same in every build, main included: `echo pip install -r
+requirements.txt evil-pkg` is asked about (expected: allowed), because the
+`pip` rule looks for `pip install` anywhere in the stage. Without `awk`
+the fallback decides 32 of the 57 as expected, as main's does: the `pip
+-r` fix reads the lexer's words.
+
+`cargo test` covers each shape in both directions
+(`cli/src/hook_tests.rs`, `cli/src/cmdline_tests.rs`), and
+`plugins/claude-code/hooks/tests/test-guard.sh` passes 417 of 417 with the
+fallback, with the native hook, without `jq`, and with bash as `sh`.
+
+**Corpus replay, main against now (native hook).** The §7 corpora again
+(43,869 lines, 7,649 blocks). Four decisions change, all to deny and all on
+clean NVIDIA skills: the two download-and-run commands of §7, a download
+piped across a line continuation into `HELM_INSTALL_DIR=~/.local/bin
+USE_SUDO=false bash` (allowed by main and by §7), and `pip install -r
+requirements.txt pytest -q` (a package named beside `-r`). The block in
+§7's third row is denied again, as in main. 55 commands keep their
+decision with a new reason: §7's eleven, and 44 `git clone` denies whose
+suggested `sigil clone` now names the repository rather than an option's
+value (`--depth 1` gave `sigil clone 1`). Totals, allow / ask / deny:
+
+| | main | §7 | now |
+|---|---|---|---|
+| Clean blocks | 5,059 / 34 / 376 | 5,058 / 35 / 376 | 5,057 / 34 / 378 |
+| Clean lines | 31,906 / 51 / 557 | 31,905 / 51 / 558 | 31,905 / 50 / 559 |
+| Malicious blocks | 2,006 / 16 / 158 | 2,006 / 16 / 158 | 2,006 / 16 / 158 |
+| Malicious lines | 11,089 / 30 / 236 | 11,089 / 30 / 236 | 11,089 / 30 / 236 |
+
+Clean skills with a denied block: 91 of 344 in main, 90 with §7, 92 now
+(main's 91 and the Helm skill); with a denied line, 90 in all three;
+malicious skills, 65 of 160 either way. Every new deny was read: each runs
+or installs code that no scan has vetted, but they are real instructions
+from clean skills, so a user following them now has to scan first or
+bypass. A draft of the `pip` fix also denied `pip install -r
+requirements.txt  # other dependencies` (above); that is an ask again.
+
+**Fallback against native, now.** Generated download-to-interpreter
+commands: 12,444 of 12,444, decision and reason. Generated per-stage
+commands: all 22,246 on the decision; 3 differ in reason only (the
+fallback's older generic runner reason for `n\px -y x`). §7's 80 edge
+cases: 80 of 80. The 51,518 corpus commands: 98 decision differences (51
+distinct texts), down from 105 (58) for main's pair and 104 (57) for §7's,
+both reproduced in this pass: the 7 that went are the `pip install -r`
+precedence, which both gates now apply per stage. The 98 are the fallback's older limits:
+agent-CLI acquisition (61) and copies into agent tooling (23), which only
+the native hook judges; its legacy `npx` rule, which also matches `# npx
+…`, `$ npx …` and `~/.npm/_npx` (8); `pip install` inside backticks (3);
+and `npm install` asked about before `npx` is denied (3). 787 commands
+get the same decision with a different reason (main's pair: 784): four
+more `git clone <url> -b <ref>` commands, for which the native hook's
+suggestion now names the branch and the fallback's does not, and one fewer
+(a `git clone --depth=1 … \` line, for which main's native hook suggested
+an empty `sigil clone`).
+Without `awk`, see the list below.
+
+**`sigil scan` is unchanged.** Only the hook (`hook.rs`, `cmdline.rs`)
+and the fallback changed. Scanning the 18 smallest directories of three
+real corpora (6 clean MCP servers, 6 clean vendor skills, 6 malicious
+skills) with main's binary and this pass's gives the same verdict, score
+and findings for all 18.
+
+**Speed.** The native hook on the same large synthetic commands: main
+14.0 s (800 substitutions), 11.5 s (2,000 pipe stages), 5.4 s (300
+here-documents), 2.4 s (400 `&&` downloads); now 0.08 s, 0.07 s, 0.07 s,
+0.10 s. The fallback got slower: the median of 15 runs per command, main /
+§7 / now, is 33 / 31 / 33 ms for `ls -la`, 22 / 26 / 26 ms for `npm
+install express`, 14 / 25 / 44 ms for `curl … | sh`, 21 / 38 / 83 ms for a
+download scanned and run, and 46 / 58 / 81 ms for `cd`, a download, `tar`
+and a run; on a 162 KB command of 400 `&&` downloads it takes 5.1 s (the
+native hook 1.0 s).
+
+**Still open.**
+
+- Names the gate cannot resolve: globs and brace expansion (`bash
+  dl/i*.sh`, `bash dl/{i,}.sh`), variables and loops (`f=i.sh; bash
+  $f`, `for f in i.sh; do bash $f; done`, `x=$(cat i.sh); eval "$x"`,
+  `bash "$(pwd)/i.sh"`), `find … -exec bash {} \;`, a file name the server
+  chooses (`curl -J -O`, `wget --content-disposition`), options read from a
+  file (`curl -K cfg`), files unpacked from a downloaded archive (`tar xzf
+  x.tgz && bash install.sh`), and a policy file whose name is computed.
+- Interpreters outside the list (`elvish`, `nu`, `osascript`, `lua`),
+  inline code that evaluates its stdin in a way the markers do not name,
+  and `xargs npx` (a runner fed its package on stdin).
+- `npm create`, `npm init <pkg>`, `go run <module>@<version>` and `uv run
+  --with <pkg>` fetch and run a package; none is in the runner list.
+- As in §7: the gate is stateless across Bash calls (a policy file, an
+  approval or a download from an earlier call is not seen; see
+  [enterprise.md](../enterprise.md) for the locked policy that closes the
+  policy part; nor is a `sigil` shell function the Bash tool's shell gets
+  from a profile an earlier call wrote, and `export -f sigil` in the
+  command is not read as a sign of one); `SIGIL_BYPASS=1` inside the
+  command bypasses it; and the fallback does not judge agent-CLI
+  acquisition or copies and unpacks into agent tooling, and without `awk`
+  runs only its pipe check and older rules (1,666 of 1,778 generated
+  download-to-interpreter commands decided as natively; the rest are
+  native denies it allows, such as `curl … | python3 -x -E`).
+- The `pip` rule looks for `pip install` anywhere in a stage, so `echo pip
+  install -r req.txt evil` is asked about (as in main).
+- Of the first pass's 462 probes, the 19 still allowed in both gates are
+  shapes of the first two items above, plus `export -f sigil`.
