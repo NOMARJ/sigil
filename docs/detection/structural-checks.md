@@ -279,8 +279,8 @@ weight; its rule id, severity and snippet change, and the snippet says why.
     prototype functions, `WebAssembly`, `Worker`, `createRequire`, `with (`.
 - **`INSTALL-011`** (from `INSTALL-003`, Low). The command is exactly
   `npx [-y |--yes ]only-allow <pnpm|yarn|npm|bun>`, and the manifest neither declares,
-  bundles nor overrides `only-allow`, and neither `npx` nor `only-allow` is a
-  shadowing bin (see below).
+  bundles nor overrides `only-allow`, none of `npx`, `only-allow` and `node` is a
+  shadowing bin, and the install adds no dependency at all (both below).
 - **`INSTALL-012`** (from `INSTALL-004`, Low). The `prepare` / `prepublish` command,
   the `pre`/`post` scripts npm runs around it, and every `npm|pnpm|yarn run X` they
   reach (three levels deep, again with `preX` / `postX`) consist only of `&&`, `||` and
@@ -295,18 +295,60 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   shipped lockfile. An **undeclared** tool name is not trusted: npm prepends
   `node_modules/.bin` to PATH for lifecycle scripts, so a dependency shipping a `tsc` /
   `husky` / `rimraf` / `shx` bin would run in place of the real tool while the package
-  never named the real one, so such a `prepare` stays `INSTALL-004` (Medium).
-- **Bin shadowing (all three of the above).** A command a lifecycle script runs by name
-  — the `node` interpreter of an `INSTALL-010` script, the `npx` / `only-allow` of an
-  `INSTALL-011` guard, or a build leaf (`tsc`, `husky`, `rimraf`, `shx`, and the shell
-  command `chmod`) of an `INSTALL-012` `prepare` — resolves through `node_modules/.bin`
-  first, and npm, yarn and pnpm all **hoist workspace members' bins** into the root
-  `node_modules/.bin`. So the rewrite is refused, keeping the pack's severity, when any
-  name it would trust is a `bin` the manifest itself declares, or — when the manifest is
-  a workspace root (a `workspaces` field, or a `pnpm-workspace.yaml` beside it) — a `bin`
-  any `package.json` in its subtree declares. A string `bin` counts under the package's
-  own (unscoped) name. The shell builtins `true` and `exit` cannot be shadowed by a file
-  on PATH and are exempt.
+  never named the real one, so such a `prepare` stays `INSTALL-004` (Medium). Declaring
+  the tool is necessary, not sufficient: the dependency rule below also applies.
+- **Bin shadowing (all three of the above).** Every command a lifecycle script runs by
+  name resolves through `node_modules/.bin` first: the `node` interpreter of an
+  `INSTALL-010` script; the `npx`, `only-allow` and `node` of an `INSTALL-011` guard
+  (both bins are `#!/usr/bin/env node` scripts); and for an `INSTALL-012` `prepare`,
+  every build leaf (`tsc`, `husky`, `rimraf`, `shx`, and the shell command `chmod`),
+  **every runner the chain follows** (`npm`, `pnpm` or `yarn` in `<runner> run X`: the
+  runner is looked up on the same PATH before `X` is ever reached), and `node` whenever
+  a tool or runner runs. npm and pnpm also spawn the script shell `sh` by name with
+  that PATH, so `sh` is trusted by every rewrite. npm, yarn and pnpm **hoist workspace
+  members' bins** into the root `node_modules/.bin`, and a member's scripts run with the
+  root's `node_modules/.bin` on PATH. So the rewrite is refused, keeping the pack's
+  severity, when any name it would trust is a `bin` the manifest itself declares, or —
+  when the manifest is a workspace root or sits inside one (a `workspaces` field, or a
+  `pnpm-workspace.yaml`, at its directory or any directory above it in the scan) — a
+  `bin` any `package.json` under the outermost such root declares. A string `bin`
+  counts under the package's own (unscoped) name. The shell builtins `true` and `exit`
+  cannot be shadowed by a file on PATH and are exempt.
+- **Dependencies (all three of the above), failing closed.** npm links into
+  `node_modules/.bin` the bins of *every* package the install puts in the tree —
+  direct and transitive dependencies, and at a workspace root every member's — and
+  this pass does not fetch dependencies, so it cannot see their bins. A dependency
+  shipping a bin named `node`, `npx`, `only-allow`, `npm`, `tsc`, `chmod` or any other
+  trusted name would run in the real tool's place (the `node` and `npm` packages on the
+  registry link exactly such bins). A rewrite therefore applies only when the
+  dependency set the lifecycle phase installs is **empty apart from the trusted tools'
+  own packages** the leaves name: `typescript` for `tsc`, `husky`, `rimraf`, `shx`;
+  nothing for `chmod`, `true`, `exit 0`, `node`, `npx` or `only-allow` (so `INSTALL-010`
+  and `INSTALL-011` need no dependency at all). The phase's set is:
+  - for `preinstall` / `postinstall` / `preuninstall` / `postuninstall`:
+    `dependencies`, `optionalDependencies`, `peerDependencies` and the names in
+    `bundleDependencies` / `bundledDependencies`;
+  - for `prepare` / `prepublish`: those plus `devDependencies`, which a local install,
+    the install of a package fetched from a repository, and a publish all install
+    before `prepare` runs;
+  - across the manifest and, in a workspace (as above), every `package.json` under the
+    root.
+
+  Any other dependency, a dependency field that is not an object, a spec that is not a
+  registry range, any bundled name, a workspace `package.json` this pass cannot parse,
+  or a `node_modules` shipped in any directory above the package (npm puts every
+  ancestor's `node_modules/.bin` on PATH) keeps the original rule and severity. The
+  existing checks (the tool declared with a registry spec, not bundled, overridden or
+  lockfile-redirected, no shipped `node_modules` or `binding.gyp` beside the manifest)
+  still apply; in a workspace the override and lockfile checks run on every manifest
+  in it.
+
+  **A lockfile is not evidence that no collision exists.** `package-lock.json` records
+  a `bin` map per package, but that is text the package's author wrote; npm links bins
+  from the installed package's own `package.json`, not from the lockfile. And a
+  package's lockfile is ignored when a consumer installs it as a dependency, so for
+  install-phase scripts it does not even describe the tree that runs them. The
+  lockfile is read only to *reject*: a trusted tool resolved off the public registry.
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
@@ -332,12 +374,21 @@ rewritten.
 
 What the classifier trusts, and so what it cannot see:
 
-- It trusts that `node`, `npx`, `tsc`, `husky`, `shx` and `rimraf` on the install-time
-  `PATH` are the real tools. npm puts `node_modules/.bin` first on that `PATH`, so a
-  *dependency* that declares a `bin` with one of those names would run instead. This
-  pass does not fetch or read dependencies; such a dependency is only seen when it is
-  scanned itself (`sigil npm <dependency>`). The rewritten `INSTALL-010` stays Medium
-  and an action behaviour for that reason.
+- It trusts that `node`, `sh`, `npx`, `npm`, `pnpm`, `yarn`, `only-allow`, `tsc`,
+  `husky`, `shx`, `rimraf` and `chmod` on the install-time `PATH` are the real tools
+  when nothing the scan can see links a bin of that name and the phase installs no
+  package other than the trusted tools' own. It does not fetch those tool packages, so
+  it trusts the registry's `typescript`, `husky`, `shx` and `rimraf` and their own
+  dependencies. It cannot see a `node_modules` or a workspace above the scanned
+  directory, or what else a consumer's project installs beside the package (those
+  bins share the consumer's `node_modules/.bin` too, but that package's own install
+  scripts run anyway). The rewritten `INSTALL-010` stays Medium and an action
+  behaviour for that reason.
+- For `preinstall` / `postinstall` it counts the fields a consumer's install adds,
+  not `devDependencies`. Running `npm install` inside the package's own checkout also
+  installs its `devDependencies` before those scripts run, so there a devDependency's
+  bin could still collide with `node`, `npx` or `only-allow`; that case is not
+  covered.
 - It trusts the platform packages a launcher installs to be the publisher's own, as
   its manifest declares them. It does not fetch them.
 - `INSTALL-003` itself does not cover npm's `install` key, or a key written with JSON

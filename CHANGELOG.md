@@ -505,6 +505,28 @@ pass.
   declares, so a member shipping a `tsc` / `node` / `chmod` / `only-allow` bin
   no longer downgrades the finding. The shell builtins `true` / `exit` are
   exempt.
+- **Lifecycle rewrites fail closed on runners and dependencies** (review of
+  #172). The runner of every `npm|pnpm|yarn run X` a `prepare` chain follows,
+  `npx`, `node` (every tool and runner is a `#!/usr/bin/env node` script) and
+  the script shell `sh` are now trusted names too, so a `bin` of the package
+  or a workspace member named `npm` no longer turns `prepare: "npm run build"`
+  into `INSTALL-012`. And because npm links the bins of every package the
+  install adds into `node_modules/.bin`, which this pass cannot see, a
+  rewrite now applies only when the dependency set the lifecycle phase
+  installs is empty apart from the trusted tools' own packages (`typescript`,
+  `husky`, `shx`, `rimraf`; none for `node`, `npx`, `only-allow`, `chmod`,
+  `true`, `exit 0`): `dependencies`, `optionalDependencies`,
+  `peerDependencies` and bundled names for `preinstall` / `postinstall`, plus
+  `devDependencies` for `prepare` / `prepublish`, across every
+  `package.json` of a workspace the manifest is the root of or sits in. Any
+  other dependency, an unreadable field, or a `node_modules` above the
+  package keeps `INSTALL-003` (Critical) or `INSTALL-004` (Medium). A
+  lockfile is not taken as proof that nothing collides: npm links bins from
+  each installed package's own manifest, not from the lockfile's `bin`
+  metadata, and a dependency's lockfile is ignored by the consumer's install.
+  The Microsoft platform launchers' postinstall (three optional platform
+  packages) is `INSTALL-003` again, and `ENGINE_REVISION` goes to 9, so cached
+  scans are recomputed.
 - **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
   `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
   `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.
