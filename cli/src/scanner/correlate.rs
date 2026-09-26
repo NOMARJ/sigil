@@ -97,6 +97,7 @@
 //! ends of the chain, so the report explains itself: `Credential read
 //! (CRED-012 @L9) reaches network send (NET-001 @L10)`.
 
+use std::cell::OnceCell;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -112,9 +113,10 @@ fn assignment_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         // `name = ...`, `const name = ...`, `let name: T = ...`, `self.name = ...`,
-        // `name := ...`. The identifier captured is the last dotted segment.
+        // `name := ...`. `name` is the last dotted segment, `recv` the object
+        // it is an attribute of (`self`, `cfg.inner`), `op` the operator.
         Regex::new(
-            r"^\s*(?:(?:const|let|var|export|local|my|our|\$)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*[A-Za-z0-9_\[\]<>|, ]+)?\s*(?::=|=)[^=]",
+            r"^\s*(?:(?:const|let|var|export|local|my|our|\$)\s+)?(?:(?P<recv>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\.)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*[A-Za-z0-9_\[\]<>|, ]+)?\s*(?P<op>:=|=)[^=]",
         )
         .expect("assignment regex compiles")
     })
@@ -122,10 +124,25 @@ fn assignment_re() -> &'static Regex {
 
 /// The identifier a source line assigns to, if it is an assignment.
 pub fn assigned_identifier(line: &str) -> Option<&str> {
-    assignment_re()
-        .captures(line)
-        .and_then(|c| c.get(1))
-        .map(|m| m.as_str())
+    assignment(line).map(|a| a.name)
+}
+
+/// An assignment a line makes: `recv.name = rhs`.
+struct Assignment<'a> {
+    /// The object the name is an attribute of (`self`, `cfg.inner`), if any.
+    recv: Option<&'a str>,
+    name: &'a str,
+    /// What is assigned: the text after the operator.
+    rhs: &'a str,
+}
+
+fn assignment(line: &str) -> Option<Assignment<'_>> {
+    let c = assignment_re().captures(line)?;
+    Some(Assignment {
+        recv: c.name("recv").map(|m| m.as_str()),
+        name: c.name("name")?.as_str(),
+        rhs: &line[c.name("op")?.end()..],
+    })
 }
 
 /// A file opened for writing: `open(PATH, 'wb')`, `open(self.path, "a")`,
@@ -333,65 +350,623 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Is `name` an identifier (as opposed to a literal path a line writes)?
+fn is_identifier(name: &str) -> bool {
+    let b = name.as_bytes();
+    b.first().is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') && b.iter().all(|&c| is_ident_byte(c))
+}
+
+/// The start offsets of the whole-word occurrences of `ident` in `text`.
+///
+/// Every bound name is an identifier or a path, and starts with an ASCII
+/// byte, so the byte after an occurrence's start is a char boundary.
+fn occurrences<'a>(text: &'a str, ident: &'a str) -> impl Iterator<Item = usize> + 'a {
+    let bytes = text.as_bytes();
+    let mut start = 0;
+    std::iter::from_fn(move || {
+        if ident.is_empty() {
+            return None;
+        }
+        while let Some(pos) = text.get(start..)?.find(ident) {
+            let at = start + pos;
+            let end = at + ident.len();
+            start = at + 1;
+            let before_ok = at == 0 || !is_ident_byte(bytes[at - 1]);
+            let after_ok = end >= bytes.len() || !is_ident_byte(bytes[end]);
+            if before_ok && after_ok {
+                return Some(at);
+            }
+        }
+        None
+    })
+}
+
 /// Does `ident` appear in `text` as a *value*: a whole word that is not only
 /// a name something else is given to?
 ///
-/// A rule with `name_uses: "value"` (or, leaving it unset, one in the
-/// statement mode) links through this instead of [`contains_word`].
-/// Keyword-argument names and object keys are the names a
-/// call's parameters have, whatever is passed: `headers={"Accept": "json"}`
-/// does not use a `headers` dict bound from a token two functions up,
-/// `hvac.Client(token=role_token)` does not use a `token` variable, and
-/// `{ token: "public" }` does not either. So an occurrence is skipped when it
-/// is followed by `=` (not `==`: a keyword argument, or an assignment target),
-/// or when it is a key: followed by `:` (not `::`), after `{`, `,`, `(` or at
-/// the start of the line, bare or quoted (`"token": ...`). The value side is
-/// still a use: `headers=headers`, `{ auth: token }`, `f"Bearer {token}"`,
-/// `{ agent, headers }`.
+/// [`statement_scope`] decides with this which lines around a sink belong to
+/// its statement, and [`uses_value`] (the link test of a rule with
+/// `name_uses: "value"`) starts from it. Keyword-argument names and object
+/// keys are the names a call's parameters have, whatever is passed:
+/// `headers={"Accept": "json"}` does not use a `headers` dict bound from a
+/// token two functions up, `hvac.Client(token=role_token)` does not use a
+/// `token` variable, and `{ token: "public" }` does not either. So an
+/// occurrence is skipped when it is followed by `=` (not `==`: a keyword
+/// argument, or an assignment target), or when it is a key: followed by `:`
+/// (not `::`), after `{`, `,`, `(`, `;` or at the start of the line, bare or
+/// quoted (`"token": ...`), or a TypeScript member (`token?: string`,
+/// `private token: string`). The value side is still a use: `headers=headers`,
+/// `{ auth: token }`, `f"Bearer {token}"`, `{ agent, headers }`, and a
+/// variable reference, `$TOKEN` or `${TOKEN:-default}`.
 fn uses_word(text: &str, ident: &str) -> bool {
-    if ident.is_empty() {
-        return false;
-    }
     let bytes = text.as_bytes();
-    let mut start = 0;
-    while let Some(pos) = text[start..].find(ident) {
-        let at = start + pos;
-        let end = at + ident.len();
-        start = at + 1;
-        let before_ok = at == 0 || !is_ident_byte(bytes[at - 1]);
-        let after_ok = end >= bytes.len() || !is_ident_byte(bytes[end]);
-        if before_ok && after_ok && !names_a_parameter(bytes, at, end) {
-            return true;
-        }
-    }
-    false
+    occurrences(text, ident).any(|at| !names_a_parameter(bytes, at, at + ident.len(), Lang::Other))
 }
 
 /// Is the word at `bytes[at..end]` a keyword-argument name, an assignment
-/// target or an object key (see [`uses_word`])?
-fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
+/// target or an object key (see [`uses_word`])? `lang` is the sink file's:
+/// in Python a bare `name:` inside `{...}` is a dict key *expression*, which
+/// is the variable's value, not a name.
+fn names_a_parameter(bytes: &[u8], at: usize, end: usize, lang: Lang) -> bool {
     let is_blank = |b: u8| b == b' ' || b == b'\t';
+    // A variable reference reads the variable: `${TOKEN:-}`, `${TOKEN=x}`
+    // and `"$TOKEN=1"` send it. Only `$name = ...` opening a line (PHP,
+    // PowerShell, Perl) assigns to it.
+    if at >= 2 && bytes[at - 1] == b'{' && bytes[at - 2] == b'$' {
+        return false;
+    }
+    let dollar = at >= 1 && bytes[at - 1] == b'$';
     // A quoted key: `"token": ...` / `'token': ...`.
     let quote = at
         .checked_sub(1)
         .map(|i| bytes[i])
         .filter(|&q| (q == b'"' || q == b'\'') && bytes.get(end) == Some(&q));
     let mut j = if quote.is_some() { end + 1 } else { end };
+    // TypeScript's optional and definite members: `token?: T`, `token!: T`.
+    let marked = quote.is_none()
+        && matches!(bytes.get(j), Some(b'?' | b'!'))
+        && bytes.get(j + 1) == Some(&b':');
+    if marked {
+        j += 1;
+    }
     while j < bytes.len() && is_blank(bytes[j]) {
         j += 1;
     }
     let after = bytes.get(j + 1).copied();
     match bytes.get(j) {
-        Some(b'=') if quote.is_none() => after != Some(b'='),
-        Some(b':') if after != Some(b':') => {
-            let mut i = if quote.is_some() { at - 1 } else { at };
-            while i > 0 && is_blank(bytes[i - 1]) {
-                i -= 1;
-            }
-            i == 0 || matches!(bytes[i - 1], b'{' | b',' | b'(' | b'\n')
+        Some(b'=') if quote.is_none() && !marked => {
+            after != Some(b'=') && (!dollar || starts_its_line(bytes, at - 1))
+        }
+        Some(b':') if after != Some(b':') && !dollar => {
+            let start = if quote.is_some() { at - 1 } else { at };
+            in_key_position(bytes, start, lang, quote.is_none())
         }
         _ => false,
     }
+}
+
+/// Is only blank space between the start of its line and `i`?
+fn starts_its_line(bytes: &[u8], i: usize) -> bool {
+    bytes[..i]
+        .iter()
+        .rev()
+        .take_while(|&&b| b != b'\n')
+        .all(|&b| b == b' ' || b == b'\t')
+}
+
+/// Is a `name:` whose name (or opening quote) starts at `start` a key: after
+/// `{`, `,`, `(` or `;`, at the start of the text or of a line, or after a
+/// TypeScript member modifier?
+fn in_key_position(bytes: &[u8], start: usize, lang: Lang, bare: bool) -> bool {
+    let mut i = start;
+    while i > 0 && (bytes[i - 1] == b' ' || bytes[i - 1] == b'\t') {
+        i -= 1;
+    }
+    // `{token: "host"}` in Python sends the variable's value as the key.
+    let python_dict = || bare && lang == Lang::Python && innermost_open(bytes, start) == Some(b'{');
+    if i == 0 {
+        return !python_dict();
+    }
+    match bytes[i - 1] {
+        b'{' | b',' | b'(' | b';' => !python_dict(),
+        b'\n' => {
+            // After a line that ends with `?`, the name is the operand of a
+            // ternary laid out with its operators at line ends (`leak ?` /
+            // `token :` / `"x"`), not a key.
+            let mut k = i - 1;
+            while k > 0 && bytes[k - 1].is_ascii_whitespace() {
+                k -= 1;
+            }
+            !(k > 0 && bytes[k - 1] == b'?') && !python_dict()
+        }
+        _ => {
+            let mut k = i;
+            while k > 0 && is_ident_byte(bytes[k - 1]) {
+                k -= 1;
+            }
+            matches!(
+                &bytes[k..i],
+                b"private"
+                    | b"public"
+                    | b"protected"
+                    | b"readonly"
+                    | b"static"
+                    | b"declare"
+                    | b"abstract"
+                    | b"override"
+            )
+        }
+    }
+}
+
+/// The innermost bracket still open at `at`, reading `bytes` from the start.
+fn innermost_open(bytes: &[u8], at: usize) -> Option<u8> {
+    let mut depth = 0usize;
+    for &b in bytes[..at].iter().rev() {
+        match b {
+            b')' | b']' | b'}' => depth += 1,
+            b'(' | b'[' | b'{' => {
+                if depth == 0 {
+                    return Some(b);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Does `ident` appear in `code` as a value the sink's statement sends: the
+/// link test of a rule with `name_uses: "value"`.
+///
+/// `code` is the window with what is not code blanked ([`code_only`]): a
+/// word inside a string literal or a comment is not a use, while what a
+/// string interpolates is (`f"...{token:>40}"`, `` `${token}` ``,
+/// `"$TOKEN"`). On top of [`uses_word`], an occurrence is skipped when it is
+///
+/// - an attribute of another object: `r.url` is not a bound `url`. The
+///   object's own state (`self.token`, `this.token`), and the attribute path
+///   the source line assigned (`recv`, `cfg` in `cfg.token = ...`), are;
+///   `...token` spreads the value;
+/// - inside the target of a destructuring or tuple assignment
+///   (`const { token } = await res.json()`, `user, token = pair`);
+/// - on a line that only exports names (`export { token }`,
+///   `module.exports = { token, health }`).
+fn uses_value(code: &str, ident: &str, lang: Lang, recv: Option<&str>) -> bool {
+    let bytes = code.as_bytes();
+    occurrences(code, ident).any(|at| {
+        !names_a_parameter(bytes, at, at + ident.len(), lang)
+            && !an_attribute_of_another_object(bytes, at, recv)
+            && !in_an_assignment_pattern(bytes, at)
+            && !on_an_export_line(code, at)
+    })
+}
+
+/// Is the occurrence at `at` an attribute of an object other than the one
+/// the name was bound on (see [`uses_value`])?
+fn an_attribute_of_another_object(bytes: &[u8], at: usize, recv: Option<&str>) -> bool {
+    if at == 0 || bytes[at - 1] != b'.' || (at >= 3 && &bytes[at - 3..at] == b"...") {
+        return false;
+    }
+    let mut k = at - 1;
+    while k > 0 && (is_ident_byte(bytes[k - 1]) || bytes[k - 1] == b'.') {
+        k -= 1;
+    }
+    let path = &bytes[k..at - 1];
+    if matches!(path, b"self" | b"this" | b"cls") {
+        return false;
+    }
+    !recv.is_some_and(|r| {
+        let r = r.as_bytes();
+        path.ends_with(r) && (path.len() == r.len() || path[path.len() - r.len() - 1] == b'.')
+    })
+}
+
+/// The line of `bytes` that holds offset `at`, as a byte range.
+fn line_around(bytes: &[u8], at: usize) -> std::ops::Range<usize> {
+    let start = bytes[..at].iter().rposition(|&b| b == b'\n').map_or(0, |p| p + 1);
+    let end = bytes[at..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |p| at + p);
+    start..end
+}
+
+/// Is the occurrence at `at` inside the target of a destructuring or tuple
+/// assignment on its line: a `{...}`, `[...]` or `(...)` pattern, or names
+/// joined by commas, before the line's first `=` (see [`uses_value`])?
+fn in_an_assignment_pattern(bytes: &[u8], at: usize) -> bool {
+    let range = line_around(bytes, at);
+    let line = &bytes[range.clone()];
+    let mut p = 0;
+    loop {
+        while p < line.len() && (line[p] == b' ' || line[p] == b'\t') {
+            p += 1;
+        }
+        match [b"const ".as_slice(), b"let ", b"var "]
+            .iter()
+            .find(|k| line[p..].starts_with(k))
+        {
+            Some(k) => p += k.len(),
+            None => break,
+        }
+    }
+    let start = p;
+    let bracketed = line.get(p).is_some_and(|b| b"{[(".contains(b));
+    let mut comma = false;
+    let mut prev = 0u8;
+    while p < line.len() {
+        let b = line[p];
+        match b {
+            b'=' => {
+                let next = line.get(p + 1).copied();
+                let assigns = next != Some(b'=')
+                    && next != Some(b'>')
+                    && !b"!<>+-*/%&|^:".contains(&prev);
+                let off = at - range.start;
+                return assigns && (bracketed || comma) && (start..p).contains(&off);
+            }
+            b',' => comma = true,
+            // `send(url, token=...)` is a call, not a pattern.
+            b'(' if is_ident_byte(prev) => return false,
+            _ if is_ident_byte(b) || b" \t{}[]():.*$".contains(&b) => {}
+            _ => return false,
+        }
+        if b != b' ' && b != b'\t' {
+            prev = b;
+        }
+        p += 1;
+    }
+    false
+}
+
+fn export_list_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^\s*(?:export\s+(?:default\s+)?|module\.exports\s*=\s*)\{[\s\w$,:]*\}\s*;?\s*$")
+            .expect("export-list regex compiles")
+    })
+}
+
+/// Is the occurrence at `at` on a line that exports a list of names
+/// (`export { token }`, `module.exports = { token, health };`)?
+fn on_an_export_line(code: &str, at: usize) -> bool {
+    let range = line_around(code.as_bytes(), at);
+    code.get(range).is_some_and(|l| export_list_re().is_match(l))
+}
+
+/// How [`code_only`] tells code from comments and strings in a file, chosen
+/// by its extension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Lang {
+    /// `#` comments; `'`, `"` and triple-quoted strings with their prefixes,
+    /// and f-strings.
+    Python,
+    /// Shell, PowerShell, Ruby, Perl, YAML, TOML: `#` comments after a blank;
+    /// `'` and `"` strings.
+    Hash,
+    /// JavaScript, TypeScript and the C family: `//` and `/* */` comments;
+    /// `'`, `"` and `` ` `` strings.
+    CLike,
+    /// PHP: both comment styles.
+    Php,
+    /// Markdown and plain text, whose code blocks may be any language: `#`
+    /// and `//` comments after a blank; `'` and `"` strings (an apostrophe in
+    /// a word opens none).
+    Prose,
+    /// Anything else (JSON, notebooks, HTML, files without an extension):
+    /// read as it is.
+    Other,
+}
+
+impl Lang {
+    fn of(file: &str) -> Lang {
+        let base = file.rsplit(['/', '\\']).next().unwrap_or(file);
+        if base == "Dockerfile" || base == "Makefile" {
+            return Lang::Hash;
+        }
+        let ext = base
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        match ext.as_str() {
+            "py" | "pyw" | "pyi" => Lang::Python,
+            "sh" | "bash" | "zsh" | "ksh" | "ps1" | "psm1" | "rb" | "pl" | "pm" | "yml"
+            | "yaml" | "toml" => Lang::Hash,
+            "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx" | "go" | "java" | "kt"
+            | "kts" | "c" | "h" | "cc" | "cpp" | "hpp" | "cs" | "swift" | "scala" | "dart" => {
+                Lang::CLike
+            }
+            "php" => Lang::Php,
+            "md" | "mdx" | "markdown" | "txt" | "rst" => Lang::Prose,
+            _ => Lang::Other,
+        }
+    }
+}
+
+/// `text` with what is not code blanked: comments, and the contents of
+/// string literals except what a string interpolates — a Python f-string's
+/// `{expr}` (without its `=`, `!conversion` or `:spec`), `${...}`, `$(...)`
+/// and `$NAME`, and, when the text formats with `locals()`, `vars()` or
+/// `globals()`, a plain string's `{name}` and `%(name)s` placeholders.
+///
+/// The result has the same length as `text`, byte for byte, so an offset in
+/// one is the same place in the other. Quote characters are kept. A quote
+/// does not carry over to the next line, except in a triple-quoted string
+/// or a JavaScript template.
+fn code_only(text: &str, lang: Lang) -> String {
+    if lang == Lang::Other {
+        return text.to_string();
+    }
+    let b = text.as_bytes();
+    let placeholders = ["locals()", "vars()", "globals()"]
+        .iter()
+        .any(|f| text.contains(f));
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if let Some(end) = comment_end(b, i, lang) {
+            out.extend(b[i..end].iter().map(|&c| if c == b'\n' { b'\n' } else { b' ' }));
+            i = end;
+            continue;
+        }
+        if let Some(open) = string_open(b, i, lang) {
+            out.extend_from_slice(&b[i..open.body]);
+            i = mask_string(b, &open, placeholders, &mut out);
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+}
+
+/// Where the comment starting at `i` ends, if one starts there.
+fn comment_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
+    let after_blank = i == 0 || b[i - 1].is_ascii_whitespace();
+    let eol = || b[i..].iter().position(|&c| c == b'\n').map_or(b.len(), |p| i + p);
+    let hash = match lang {
+        Lang::Python => true,
+        Lang::Hash | Lang::Php | Lang::Prose => after_blank,
+        Lang::CLike | Lang::Other => false,
+    };
+    if b[i] == b'#' && hash {
+        return Some(eol());
+    }
+    if matches!(lang, Lang::CLike | Lang::Php | Lang::Prose)
+        && b[i..].starts_with(b"//")
+        && (after_blank || (lang != Lang::Prose && b";){},".contains(&b[i - 1])))
+    {
+        return Some(eol());
+    }
+    if matches!(lang, Lang::CLike | Lang::Php) && b[i..].starts_with(b"/*") {
+        let close = b[i + 2..].windows(2).position(|w| w == b"*/");
+        return Some(close.map_or(b.len(), |p| i + 2 + p + 2));
+    }
+    None
+}
+
+/// A string literal's opening, as [`string_open`] found it.
+struct StringOpen {
+    quote: u8,
+    triple: bool,
+    /// A Python f-string: `{expr}` is interpolated.
+    fstring: bool,
+    /// The offset of the first byte of the string's contents.
+    body: usize,
+}
+
+/// Does a string literal open at `i`? A quote directly after a word opens
+/// one only when the word is a Python string prefix (`f"`, `rb'`); otherwise
+/// it is an apostrophe (`don't`). A backtick opens one only in the C family
+/// (in shell and Markdown it is code).
+fn string_open(b: &[u8], i: usize, lang: Lang) -> Option<StringOpen> {
+    let q = b[i];
+    let backtick = q == b'`' && lang == Lang::CLike;
+    if !(q == b'"' || q == b'\'' || backtick) {
+        return None;
+    }
+    let mut k = i;
+    while k > 0 && b[k - 1].is_ascii_alphabetic() {
+        k -= 1;
+    }
+    let prefix = &b[k..i];
+    let mut fstring = false;
+    if !backtick && i > 0 && is_ident_byte(b[i - 1]) {
+        let python = matches!(lang, Lang::Python | Lang::Prose);
+        let is_prefix = python
+            && !prefix.is_empty()
+            && prefix.len() <= 2
+            && (k == 0 || !is_ident_byte(b[k - 1]))
+            && prefix.iter().all(|c| b"rRbBuUfF".contains(c));
+        if !is_prefix {
+            return None;
+        }
+        fstring = prefix.iter().any(|c| *c == b'f' || *c == b'F');
+    }
+    let triple = matches!(lang, Lang::Python | Lang::Prose)
+        && b.get(i + 1) == Some(&q)
+        && b.get(i + 2) == Some(&q);
+    Some(StringOpen {
+        quote: q,
+        triple,
+        fstring,
+        body: i + if triple { 3 } else { 1 },
+    })
+}
+
+/// Blank the contents of the string `open` starts, keeping what it
+/// interpolates, and return the offset just after it (or of the line end
+/// that stopped it).
+fn mask_string(b: &[u8], open: &StringOpen, placeholders: bool, out: &mut Vec<u8>) -> usize {
+    let q = open.quote;
+    let n = if open.triple { 3 } else { 1 };
+    let multiline = open.triple || q == b'`';
+    let mut i = open.body;
+    while i < b.len() {
+        let c = b[i];
+        if c == b'\\' {
+            out.push(b' ');
+            i += 1;
+            if b.get(i).is_some_and(|&x| x != b'\n') {
+                out.push(b' ');
+                i += 1;
+            }
+            continue;
+        }
+        if c == q && b[i..].iter().take(n).filter(|&&x| x == q).count() == n {
+            out.extend(std::iter::repeat_n(q, n));
+            return i + n;
+        }
+        if c == b'\n' {
+            if !multiline {
+                return i;
+            }
+            out.push(b'\n');
+            i += 1;
+            continue;
+        }
+        if c == b'$' {
+            match b.get(i + 1) {
+                Some(b'{' | b'(') => {
+                    i = copy_group(b, i, out);
+                    continue;
+                }
+                Some(&x) if x.is_ascii_alphabetic() || x == b'_' => {
+                    // `$NAME`, and PowerShell's `$env:NAME`.
+                    out.push(b'$');
+                    i += 1;
+                    while i < b.len()
+                        && (is_ident_byte(b[i])
+                            || (b[i] == b':' && b.get(i + 1).is_some_and(|&y| y.is_ascii_alphabetic())))
+                    {
+                        out.push(b[i]);
+                        i += 1;
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        if c == b'{' && (open.fstring || placeholders) {
+            if b.get(i + 1) == Some(&b'{') {
+                out.extend_from_slice(b"  ");
+                i += 2;
+                continue;
+            }
+            if open.fstring || b.get(i + 1).is_some_and(|&x| x.is_ascii_alphabetic() || x == b'_') {
+                i = copy_field(b, i, out);
+                continue;
+            }
+        }
+        if c == b'%' && placeholders && b.get(i + 1) == Some(&b'(') {
+            out.extend_from_slice(b"  ");
+            i += 2;
+            while i < b.len() && is_ident_byte(b[i]) {
+                out.push(b[i]);
+                i += 1;
+            }
+            continue;
+        }
+        out.push(b' ');
+        i += 1;
+    }
+    i
+}
+
+/// Copy the `${...}` or `$(...)` group whose `$` is at `i`, as it is, and
+/// return the offset after its closing bracket (or of the line end).
+fn copy_group(b: &[u8], i: usize, out: &mut Vec<u8>) -> usize {
+    out.push(b'$');
+    let mut depth = 0usize;
+    let mut j = i + 1;
+    while j < b.len() && b[j] != b'\n' {
+        out.push(b[j]);
+        match b[j] {
+            b'{' | b'(' => depth += 1,
+            b'}' | b')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return j + 1;
+                }
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+    j
+}
+
+/// Copy the expression of the replacement field whose `{` is at `i`
+/// (`{token}`, `{token=}`, `{token!r:>40}`, `{d["k"]:{w}}`): the braces
+/// become blanks, the expression is kept, and what follows a top-level `=`
+/// (Python's self-documenting field), `!` (a conversion) or `:` (a format
+/// spec) is blanked, as are the contents of strings inside the expression.
+/// Returns the offset after the closing `}` (or of the line end).
+fn copy_field(b: &[u8], i: usize, out: &mut Vec<u8>) -> usize {
+    out.push(b' ');
+    let mut j = i + 1;
+    let mut depth = 0usize;
+    let mut spec = false;
+    let mut inner: Option<u8> = None;
+    while j < b.len() && b[j] != b'\n' {
+        let c = b[j];
+        if let Some(iq) = inner {
+            out.push(if c == iq { c } else { b' ' });
+            if c == iq {
+                inner = None;
+            }
+            j += 1;
+            continue;
+        }
+        let next = b.get(j + 1).copied();
+        let prev = if j > i + 1 { b[j - 1] } else { b'{' };
+        if spec {
+            match c {
+                b'{' => depth += 1,
+                b'}' if depth == 0 => {
+                    out.push(b' ');
+                    return j + 1;
+                }
+                b'}' => depth -= 1,
+                _ => {}
+            }
+            out.push(b' ');
+            j += 1;
+            continue;
+        }
+        match c {
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                out.push(c);
+            }
+            b')' | b']' => {
+                depth = depth.saturating_sub(1);
+                out.push(c);
+            }
+            b'}' if depth == 0 => {
+                out.push(b' ');
+                return j + 1;
+            }
+            b'}' => {
+                depth -= 1;
+                out.push(c);
+            }
+            b'"' | b'\'' => {
+                inner = Some(c);
+                out.push(c);
+            }
+            b'=' if depth == 0 && next != Some(b'=') && !b"=!<>".contains(&prev) => {
+                spec = true;
+                out.push(b' ');
+            }
+            b'!' | b':' if depth == 0 && next != Some(b'=') => {
+                spec = true;
+                out.push(b' ');
+            }
+            _ => out.push(c),
+        }
+        j += 1;
+    }
+    j
 }
 
 /// Run every correlation rule over one file's findings.
@@ -404,6 +979,9 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
     if rules.is_empty() || findings.len() < 2 {
         return out;
     }
+    // The findings are one file's: its extension says what the value reading
+    // counts as code.
+    let code = CodeLines::new(lines, Lang::of(&findings[0].file));
 
     for rule in rules {
         let Some(phase) = Phase::from_name(&rule.phase) else {
@@ -436,6 +1014,12 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // rule reads the sink line and the lines after it.
             let statement_mode = !file_only && rule.sink_window_before > 0;
             let by_value = links_by_value(rule, statement_mode);
+            // A source map carries other files' source as JSON string data;
+            // one line of it holds unrelated code megabytes apart, and none
+            // of it runs.
+            if by_value && sink.file.ends_with(".map") {
+                continue;
+            }
             let scope = if statement_mode {
                 statement_scope(lines, sink_line, rule.sink_window_before)
             } else {
@@ -446,11 +1030,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // matches interpreter and operand together), so the lines after
             // it are not its program: `>/dev/null` or `input=data` there is
             // not what runs.
-            let link_text: &str = if file_only {
-                lines.get(sink_line.wrapping_sub(1)).copied().unwrap_or("")
-            } else {
-                window
-            };
+            let launch_line = lines.get(sink_line.wrapping_sub(1)).copied().unwrap_or("");
             if rule
                 .sink_excludes
                 .iter()
@@ -458,6 +1038,27 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             {
                 continue;
             }
+            // What the value reading reads, as written and as code: the
+            // statement mode's window, or else the sink's call (see
+            // [`call_scope`]). Made when a source first needs it.
+            let value_cell: OnceCell<(String, String, usize)> = OnceCell::new();
+            let value_text = || {
+                value_cell.get_or_init(|| {
+                    let (raw, last) = if statement_mode {
+                        (window.to_string(), scope.end)
+                    } else {
+                        call_scope(&code, sink_line, names_a_destination(&sink.rule))
+                    };
+                    let masked = code_only(&raw, code.lang);
+                    (raw, masked, last)
+                })
+            };
+            // The word reading's window as code, for following a derived
+            // name (see [`derived_names`]).
+            let window_cell: OnceCell<String> = OnceCell::new();
+            let window_code = || window_cell.get_or_init(|| code_only(window, code.lang));
+            let launched_cell: OnceCell<Vec<&str>> = OnceCell::new();
+            let launched = || launched_cell.get_or_init(|| launched_operands(launch_line));
             for source in &sources {
                 let source_line = source.line.unwrap_or(0);
                 // A source on another line of the sink's own statement (the
@@ -477,23 +1078,53 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                 // the window uses.
                 let linked = if source_line == sink_line || in_same_call {
                     true
-                } else {
-                    lines.get(source_line.wrapping_sub(1)).is_some_and(|l| {
-                        let bound = if file_only {
-                            written_paths(l)
+                } else if let Some(l) = lines.get(source_line.wrapping_sub(1)).copied() {
+                    if file_only {
+                        let written = written_paths(l);
+                        if by_value {
+                            // Only through the program the launch runs.
+                            written
+                                .iter()
+                                .any(|p| launched().iter().any(|op| contains_word(op, p)))
                         } else {
-                            source_bindings(l)
-                        };
-                        // A call's keyword names and keys are not values
-                        // it sends (`name_uses`).
-                        bound.iter().any(|ident| {
-                            if by_value {
-                                uses_word(link_text, ident)
-                            } else {
-                                contains_word(link_text, ident)
-                            }
-                        })
-                    })
+                            written.iter().any(|p| contains_word(launch_line, p))
+                        }
+                    } else {
+                        let bound = source_bindings(l);
+                        if by_value {
+                            let assigned = assignment(l);
+                            // A call's keyword names and keys are not values
+                            // it sends (`name_uses`).
+                            let reads = |raw: &str, masked: &str, name: &str| {
+                                if is_identifier(name) {
+                                    let recv = assigned
+                                        .as_ref()
+                                        .filter(|a| a.name == name)
+                                        .and_then(|a| a.recv);
+                                    uses_value(masked, name, code.lang, recv)
+                                } else {
+                                    contains_word(raw, name)
+                                }
+                            };
+                            let (raw, masked, last) = value_text();
+                            bound.iter().any(|b| reads(raw, masked, b))
+                                // Outside the statement mode, a name assigned
+                                // from the bound one before the send, where
+                                // the word reading's window names the bound
+                                // one in its code.
+                                || (!statement_mode
+                                    && bound
+                                        .iter()
+                                        .any(|b| is_identifier(b) && contains_word(window_code(), b))
+                                    && derived_names(&code, source_line, *last, &bound)
+                                        .iter()
+                                        .any(|d| uses_value(masked, d, code.lang, None)))
+                        } else {
+                            bound.iter().any(|b| contains_word(window, b))
+                        }
+                    }
+                } else {
+                    false
                 };
                 if !linked {
                     continue;
@@ -560,6 +1191,176 @@ fn arg_window(lines: &[&str], sink_line: usize) -> String {
         .get(start..end)
         .map(|w| w.join("\n"))
         .unwrap_or_default()
+}
+
+/// A file's lines, and each line with what is not code blanked
+/// ([`code_only`]), made once, when the value reading first asks for it.
+struct CodeLines<'a> {
+    lines: &'a [&'a str],
+    lang: Lang,
+    code: Vec<OnceCell<String>>,
+}
+
+impl<'a> CodeLines<'a> {
+    fn new(lines: &'a [&'a str], lang: Lang) -> Self {
+        CodeLines {
+            lines,
+            lang,
+            code: lines.iter().map(|_| OnceCell::new()).collect(),
+        }
+    }
+
+    /// 1-based line `n` as code; empty outside the file.
+    fn code(&self, n: usize) -> &str {
+        match (self.lines.get(n.wrapping_sub(1)), self.code.get(n.wrapping_sub(1))) {
+            (Some(line), Some(cell)) => cell.get_or_init(|| code_only(line, self.lang)),
+            _ => "",
+        }
+    }
+}
+
+/// Does the sink rule match a line that names where data will go, or opens
+/// the connection it will go through, without sending anything itself: a
+/// webhook, callback or tunnel URL (NET-006, NET-007, NET-014, AGENTSC-020),
+/// an HTTP client connection (NET-003), a socket (NET-008, NET-009)? The send
+/// is a later line that uses the name such a line assigns (`url = "https://
+/// hook.example/c"`, then `Request(url, data=body)`). Every other sink sends
+/// on its own statement, and what the lines after it do with its result
+/// happens after the send.
+fn names_a_destination(rule_id: &str) -> bool {
+    rule_id == "NET-003"
+        || matches!(
+            super::profile::behavior_for(rule_id),
+            Some("exfiltration_endpoint" | "raw_sockets" | "c2_tunnel_host")
+        )
+}
+
+/// The window the value reading reads for a sink outside the statement mode,
+/// and its last line: the sink line, the lines its call continues onto
+/// (while a bracket it opened is still open, or the line ends inside an
+/// argument list — see [`continues_into_next`]), and, for a sink that
+/// [`names_a_destination`], the lines below that use the name the sink line
+/// assigns; all within the [`SINK_ARG_WINDOW`] lines [`arg_window`] reads. A
+/// complete statement after the sink is something else: a docstring, a log
+/// line, the next function's `def connect(url):`.
+fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> (String, usize) {
+    let lines = code.lines;
+    if sink_line == 0 || sink_line > lines.len() {
+        return (String::new(), sink_line);
+    }
+    let depth = |n: usize| -> isize {
+        code.code(n)
+            .bytes()
+            .map(|b| match b {
+                b'(' | b'[' | b'{' => 1,
+                b')' | b']' | b'}' => -1,
+                _ => 0,
+            })
+            .sum()
+    };
+    let last = lines.len().min(sink_line + SINK_ARG_WINDOW - 1);
+    let mut end = sink_line;
+    let mut open = depth(sink_line);
+    while end < last && (open > 0 || continues_into_next(lines[end - 1])) {
+        end += 1;
+        open += depth(end);
+    }
+    let mut keep: Vec<usize> = (sink_line..=end).collect();
+    if let Some((bound, _)) = assigned_name(lines[sink_line - 1]).filter(|_| follow_uses) {
+        keep.extend((end + 1..=last).filter(|&n| uses_word(lines[n - 1], bound)));
+    }
+    let last_kept = keep.last().copied().unwrap_or(sink_line);
+    let text = keep
+        .into_iter()
+        .map(|n| lines[n - 1])
+        .collect::<Vec<_>>()
+        .join("\n");
+    (text, last_kept)
+}
+
+/// A line longer than this is not read as a hop by [`derived_names`]: a hop
+/// is one assignment, and a longer line is minified code, where one line
+/// holds a whole program.
+const MAX_HOP_LINE: usize = 1_000;
+
+/// Names assigned, on the lines after `source_line` and before `send_line`
+/// (the last line of the sink's [`call_scope`]), from an expression that
+/// uses a `bound` name — or a name derived before it — as a value: `encoded
+/// = urlencode(data)` after `data = dict(os.environ)`, `b64env =
+/// b64encode(benv)` after `benv = env.encode()`.
+///
+/// The value reading follows these only where the word reading's window
+/// names a bound name in its code (see [`apply`]): an exfiltration that
+/// encodes the secret into a new name before a send whose window also names
+/// the secret (`Request(url, data=encoded_data)` beside a bound `data`)
+/// keeps the link the word reading made, and no link is made that the word
+/// reading did not make. Following derived names everywhere would be the
+/// taint propagation ADR-0005 keeps out of the engine, and would link
+/// ordinary clients (`auth = (user, password)`, then `get(url, auth=auth)`)
+/// that neither reading links.
+fn derived_names<'a>(
+    code: &CodeLines<'a>,
+    source_line: usize,
+    send_line: usize,
+    bound: &[&str],
+) -> Vec<&'a str> {
+    let lines = code.lines;
+    let mut names: Vec<&str> = bound.iter().copied().filter(|b| is_identifier(b)).collect();
+    let mut derived: Vec<&'a str> = Vec::new();
+    for n in source_line + 1..send_line.min(lines.len() + 1) {
+        let line: &'a str = lines[n - 1];
+        if line.len() > MAX_HOP_LINE {
+            continue;
+        }
+        let Some(a) = assignment(line) else {
+            continue;
+        };
+        if names.contains(&a.name) {
+            continue;
+        }
+        // `code_only` keeps offsets, so the right-hand side starts at the
+        // same offset in the line as code.
+        let rhs = code.code(n).get(line.len() - a.rhs.len()..).unwrap_or("");
+        if names.iter().any(|x| uses_value(rhs, x, code.lang, None)) {
+            names.push(a.name);
+            derived.push(a.name);
+        }
+    }
+    derived
+}
+
+fn launched_operand_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // CODE-RUNFILE-001's alternatives (cli/packs/core/v1/code_patterns.json),
+        // each with its program operand captured.
+        Regex::new(concat!(
+            r#"subprocess\.(?:run|call|Popen|check_call|check_output)\s*\(\s*\[\s*(?:sys\.executable|["'](?:python[0-9.]*|pythonw|py|bash|sh|zsh|node|pwsh|powershell(?:\.exe)?|cmd(?:\.exe)?|wscript|cscript|msiexec|rundll32|regsvr32|mshta|perl|ruby)["'])\s*,\s*(?:["'](?:-u|-B|-E|-I|-s|-S|-O|-File|-NoProfile|-NonInteractive|-ExecutionPolicy|Bypass|-WindowStyle|Hidden|-NoLogo|/i|/q|/qn)["']\s*,\s*)*(?P<list>[A-Za-z_][\w.]*|f["'][^"'\n]*\{[A-Za-z_][\w.]*\}[^"'\n]*["']|["'][^"'\s]*\.(?:py|pyz|pyc|sh|ps1|js|mjs|exe|bat|cmd|vbs|jar|msi)["'])\s*[,\]]"#,
+            r#"|\bos\.startfile\s*\(\s*(?P<startfile>[^,)\n]+)"#,
+            r#"|\bStart-Process\s+(?:-FilePath\s+)?(?P<ps>["']?(?:\$\{?|\{)[A-Za-z_]\w*)"#,
+            r#"|\bexecFile(?:Sync)?\s*\(\s*(?P<exec>[A-Za-z_][\w.]*)\s*[,)]"#,
+            r#"|(?:^\s*|[;&|(]\s*|\bthen\s+|\bdo\s+)(?:sudo\s+)?(?:bash|sh|zsh|python[0-9.]*|node|pwsh|powershell)\s+(?P<shell>["']?\$\{?[A-Za-z_]\w*\}?["']?)\s*(?:$|[;&|)])"#,
+        ))
+        .expect("launched-operand regex compiles")
+    })
+}
+
+/// The program operands a launch line runs, as CODE-RUNFILE-001 matches
+/// them: `PATH` in `subprocess.run([sys.executable, PATH, data_path])`,
+/// `"{output_file}"` after `Start-Process`, `"$INSTALLER"` after `bash`, the
+/// first argument of `os.startfile` or `execFile`. A written file linked to a
+/// launch must be one of these, not another argument (`data_path`, `cwd=`,
+/// `env=`) or a comment on the line.
+fn launched_operands(line: &str) -> Vec<&str> {
+    launched_operand_re()
+        .captures_iter(line)
+        .filter_map(|c| {
+            ["list", "startfile", "ps", "exec", "shell"]
+                .iter()
+                .find_map(|g| c.name(g))
+                .map(|m| m.as_str())
+        })
+        .collect()
 }
 
 /// The sink's statement (1-based lines `start..=end`), the text a link is
