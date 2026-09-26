@@ -494,6 +494,18 @@ impl CompiledCorpus {
         self.meta_by_id.get(id)
     }
 
+    /// Does the content rule `id`'s pattern match `text`? `None` when no
+    /// content rule has that id (an engine, provenance or YARA rule, or a
+    /// correlation chain). Correlation asks this to tell a finding that
+    /// matched only a line's comment.
+    pub fn rule_matches(&self, id: &str, text: &str) -> Option<bool> {
+        self.per_phase
+            .values()
+            .flat_map(|p| p.rules.iter())
+            .find(|r| r.id == id)
+            .map(|r| r.regex.is_match(text))
+    }
+
     #[allow(dead_code)]
     pub fn phase(&self, phase: Phase) -> Option<&CompiledPhase> {
         self.per_phase.get(&phase)

@@ -497,6 +497,7 @@ pub fn parse_pack(bytes: &[u8], path: &Path) -> Result<CustomPack, Vec<String>> 
         form: PackForm::Yara,
         signature,
         warnings,
+        ignored: Vec::new(),
     })
 }
 

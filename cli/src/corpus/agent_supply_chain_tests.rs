@@ -596,11 +596,7 @@ fn agentsc_041_event_handler_payload_in_markdown() {
 fn chains(path: &str, contents: &str) -> Vec<Finding> {
     let findings = scan_at(path, contents);
     let lines: Vec<&str> = contents.lines().collect();
-    crate::scanner::correlate::apply(
-        &crate::corpus::compiled::corpus().correlation_rules,
-        &findings,
-        &lines,
-    )
+    crate::scanner::correlate::apply_corpus(&findings, &lines)
 }
 
 #[test]

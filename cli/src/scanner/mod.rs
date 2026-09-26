@@ -1425,11 +1425,7 @@ pub fn run_scan(
             // dismissed, and its own findings can be dismissed the same way.
             let chains = timing::measure(timing::Stage::Correlate, || {
                 let lines: Vec<&str> = source_text.lines().collect();
-                correlate::apply(
-                    &crate::corpus::compiled::corpus().correlation_rules,
-                    &kept,
-                    &lines,
-                )
+                correlate::apply_corpus(&kept, &lines)
             });
             let (chain_kept, mut chain_silenced) = suppress::apply(&markers, chains);
             kept.extend(chain_kept);

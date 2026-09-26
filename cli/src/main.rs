@@ -2181,6 +2181,16 @@ fn report_policy(
     for r in &policy.refused {
         eprintln!("{} policy: {r}", "warning:".bold().yellow());
     }
+    // Always shown: the scan runs without what these name.
+    for p in packs {
+        for e in &p.ignored {
+            eprintln!(
+                "{} rule pack {}: {e} — ignored; `sigil rules validate` rejects it",
+                "warning:".bold().yellow(),
+                p.path.display()
+            );
+        }
+    }
     if !verbose {
         return;
     }
@@ -2863,11 +2873,23 @@ fn cmd_config_validate(file: &Path, org: bool, format: &str) -> i32 {
             notes.extend(project_config::lock_gaps(&doc));
             for p in &doc.rule_packs {
                 match corpus::custom::load_path(p) {
-                    Ok(packs) => notes.push(format!(
-                        "rule_packs: {} loads ({} pack(s))",
-                        p.display(),
-                        packs.len()
-                    )),
+                    Ok(packs) => {
+                        notes.push(format!(
+                            "rule_packs: {} loads ({} pack(s))",
+                            p.display(),
+                            packs.len()
+                        ));
+                        // A scan would warn and ignore these; validation
+                        // rejects them, as `sigil rules validate` does.
+                        for c in &packs {
+                            errors.extend(c.ignored.iter().map(|e| {
+                                format!(
+                                    "rule_packs: {}: {e} (a scan ignores this with a warning)",
+                                    c.path.display()
+                                )
+                            }));
+                        }
+                    }
                     Err(e) => errors.push(format!("rule_packs: {e}")),
                 }
             }

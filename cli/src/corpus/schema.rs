@@ -422,16 +422,24 @@ pub struct CorrelationRule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NameUses {
-    /// Links only where the window uses the name as a value
-    /// (`scanner::correlate::uses_word`): an occurrence that is a keyword
-    /// argument's name, an assignment target or an object key (`name=` but
-    /// not `==`; `name:` after `{`, `,`, `(` or at the start of a line; a
-    /// quoted `"name":`) is skipped. `data=token`, `json={"k": token}`,
-    /// `f"...{token}"`, `token=token`, `{ token }` and a positional
-    /// `token` are uses.
+    /// Links only where the sink sends the bound value
+    /// (`scanner::correlate::uses_value`; the module documentation has the
+    /// whole reading). The window is read as code: comments and string
+    /// contents are blanked, what a string interpolates is kept
+    /// (`f"{token:>40}"`, `f"{token=}"`, `"${TOKEN:-}"`). An occurrence that
+    /// is a keyword argument's name, an assignment or destructuring target,
+    /// an object key (`name:` after `{`, `,`, `(`, `;` or at the start of a
+    /// line; a quoted `"name":`; not a Python dict key, which is an
+    /// expression), a TypeScript member, an attribute of another object, an
+    /// export list, a count (`len(token)`), or a parameter of a function the
+    /// sink is in, is skipped. Outside the statement mode the window is the
+    /// sink's own call, not the lines after it. `data=token`,
+    /// `json={"k": token}`, `f"...{token}"`, `token=token`, `{ token }` and a
+    /// positional `token` are uses.
     Value,
-    /// Links on any whole-word occurrence (`scanner::correlate::contains_word`),
-    /// keyword names and keys included.
+    /// Links on any whole-word occurrence in the argument window
+    /// (`scanner::correlate::contains_word`), keyword names, keys, strings
+    /// and comments included.
     Word,
 }
 
