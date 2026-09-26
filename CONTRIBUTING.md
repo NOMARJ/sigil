@@ -196,7 +196,18 @@ only where the window uses it as a value: a keyword argument's name or an
 object key (`headers={...}`, `token=other`, `{ token: "x" }`) is not a use.
 `max_line_length` (default 0, no limit) skips a source or sink on a longer
 line: on a minified bundle two matches on one line say nothing about each
-other. `TLS-CHAIN-001` in `insecure_transport.json` uses both.
+other. `TLS-CHAIN-001` in `insecure_transport.json` uses both. The older
+chains do not set it: a payload the scanner decodes (a base64 blob passed to
+`exec`) reports every finding on the one line that holds the blob, and a cap
+would drop the credential-theft chains measured there
+([docs/detection/source-map-correlation.md](docs/detection/source-map-correlation.md)).
+
+No correlation rule reads a source map. A file named `*.map` whose whole
+content is a JSON source map (an object with `mappings`, or `sections` for an
+index map) is data a debugger reads, and it carries each original file as one
+JSON string, so everything in a program is on "the same line" there. Its line
+findings are still reported. A `.map` file that is not JSON as a whole (a
+script given the extension) is correlated like any other file.
 
 ### Fixtures
 

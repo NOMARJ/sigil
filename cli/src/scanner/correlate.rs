@@ -50,6 +50,13 @@
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
 //! linked, because on a minified bundle one line holds a whole program.
 //!
+//! A source map is not correlated at all (see [`is_source_map`]). It is data
+//! a debugger reads, never code that runs, and it carries each original file
+//! as one JSON string, so a `curl` in one function's help text and a launch
+//! in another function are "the same line" there, however far apart they
+//! are in the source. Its line findings are still reported, and the compiled
+//! file it describes is scanned and correlated in its own right.
+//!
 //! A line binds a name by assigning to it (`key = os.getenv(...)`), by the
 //! `as` name of a `with` item that *yields* data (`with open(KEY_PATH) as
 //! keyfile`, `with urlopen(req) as response` — see [`with_handles`]), or by
@@ -388,6 +395,14 @@ fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
 pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) -> Vec<Finding> {
     let mut out: Vec<Finding> = Vec::new();
     if rules.is_empty() || findings.len() < 2 {
+        return out;
+    }
+    // Nothing in a source map runs, and every source it carries is one JSON
+    // string: a whole program on one line (see the module documentation).
+    if findings
+        .first()
+        .is_some_and(|f| is_source_map(&f.file, lines))
+    {
         return out;
     }
 
@@ -855,6 +870,76 @@ fn strip_trailing_comment(line: &str) -> &str {
     line
 }
 
+/// The members that make a JSON object a source map: `mappings`, or for an
+/// index map `sections`. Every other member is skipped without being kept.
+#[derive(serde::Deserialize)]
+struct SourceMapProbe {
+    mappings: Option<serde::de::IgnoredAny>,
+    sections: Option<serde::de::IgnoredAny>,
+}
+
+impl SourceMapProbe {
+    fn is_map(&self) -> bool {
+        self.mappings.is_some() || self.sections.is_some()
+    }
+}
+
+/// The line the format allows before the JSON, against cross-site inclusion.
+const SOURCE_MAP_GUARD: &str = ")]}'";
+
+fn has_map_name(file: &str) -> bool {
+    let b = file.as_bytes();
+    b.len() >= 4 && b[b.len() - 4..].eq_ignore_ascii_case(b".map")
+}
+
+/// Is `file` a source map: named `*.map`, and as a whole one JSON object with
+/// a `mappings` (or, for an index map, `sections`) member? A leading `)]}'`
+/// line is skipped.
+///
+/// The content check is what keeps this from being an escape hatch: a script
+/// given the extension (`node lib/x.map`, `python3 x.map`) is not JSON, or has
+/// code after the JSON, and is correlated like any other file. `lines` must
+/// be the whole file; the scanner reads a file too large for that with
+/// [`is_source_map_file`].
+pub fn is_source_map(file: &str, lines: &[&str]) -> bool {
+    if !has_map_name(file) {
+        return false;
+    }
+    let lines = match lines.split_first() {
+        Some((first, rest)) if first.starts_with(SOURCE_MAP_GUARD) => rest,
+        _ => lines,
+    };
+    let text: std::borrow::Cow<'_, str> = match lines {
+        [one] => std::borrow::Cow::Borrowed(one),
+        _ => std::borrow::Cow::Owned(lines.join("\n")),
+    };
+    serde_json::from_str::<SourceMapProbe>(&text).is_ok_and(|p| p.is_map())
+}
+
+/// [`is_source_map`] for a file on disk, read as a stream: for a file the
+/// scanner only reads the ends of, whose first megabytes alone never close a
+/// source map's JSON.
+pub fn is_source_map_file(path: &std::path::Path) -> bool {
+    use std::io::BufRead;
+    if !has_map_name(&path.to_string_lossy()) {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut reader = std::io::BufReader::new(file);
+    if reader
+        .fill_buf()
+        .is_ok_and(|b| b.starts_with(SOURCE_MAP_GUARD.as_bytes()))
+    {
+        let mut guard = Vec::new();
+        if reader.read_until(b'\n', &mut guard).is_err() {
+            return false;
+        }
+    }
+    serde_json::from_reader::<_, SourceMapProbe>(reader).is_ok_and(|p| p.is_map())
+}
+
 /// Is 1-based line `n` longer than `limit` bytes (`limit` 0: never)?
 fn too_long(lines: &[&str], n: usize, limit: usize) -> bool {
     limit > 0
@@ -1168,6 +1253,103 @@ mod tests {
         let handle = "with urlopen(req) as response:\n    pass\nrun([interp, helper_script], input=response.read())\n";
         let lines_h: Vec<&str> = handle.lines().collect();
         assert!(apply(&[launch_rule()], &findings_d, &lines_h).is_empty());
+    }
+
+    fn at(file: &str, rule: &str, line: usize) -> Finding {
+        Finding {
+            file: file.to_string(),
+            ..f(rule, line)
+        }
+    }
+
+    /// The shape of com.vibgrate/ai-context's `dist/cli.js.map` and
+    /// dev.jasonpearson/auto-mobile's `dist/src/index.js.map`: the whole
+    /// original source is one JSON string, so a download in one function's
+    /// help text and an unrelated launch 150 lines further down are both
+    /// "line 1". (The end-to-end form, with the real rules firing, is in
+    /// `corpus::engine::reconcile`.)
+    fn one_line_map() -> String {
+        let mut src = String::from("export const HELP = 'fetch-tool https://example.com/i.sh';\\n");
+        for i in 0..150 {
+            src.push_str(&format!("export const k{i} = {i};\\n"));
+        }
+        src.push_str("export function devices(toolPath) {\\n  return runFile(toolPath);\\n}\\n");
+        format!(
+            r#"{{"version":3,"file":"cli.js","sources":["../src/cli.ts"],"sourcesContent":["{src}"],"names":[],"mappings":"AAAA,SAAS;AACA"}}"#
+        )
+    }
+
+    #[test]
+    fn a_source_map_is_not_correlated() {
+        let map = one_line_map();
+        let lines = vec![map.as_str()];
+        let findings = vec![
+            at("dist/cli.js.map", "NET-001", 1),
+            at("dist/cli.js.map", "CODE-RUNFILE-001", 1),
+        ];
+        assert!(apply(&[launch_rule()], &findings, &lines).is_empty());
+        // Every rule, not only the launch chain.
+        let exfil = vec![
+            at("dist/cli.js.map", "CRED-012", 1),
+            at("dist/cli.js.map", "NET-001", 1),
+        ];
+        assert!(apply(&[rule()], &exfil, &lines).is_empty());
+        // The same line in a file that is not a source map is still read.
+        let js = vec![
+            at("dist/cli.js", "NET-001", 1),
+            at("dist/cli.js", "CODE-RUNFILE-001", 1),
+        ];
+        assert_eq!(apply(&[launch_rule()], &js, &lines).len(), 1);
+    }
+
+    /// A file named `.map` that is not a JSON source map can be run
+    /// (`node lib/x.map`), so it is correlated like any other file.
+    #[test]
+    fn a_script_named_like_a_source_map_is_correlated() {
+        let script = "fetch-tool -o \"$INSTALLER\"\nbash \"$INSTALLER\"\n";
+        let lines: Vec<&str> = script.lines().collect();
+        let findings = vec![
+            at("lib/x.map", "NET-001", 1),
+            at("lib/x.map", "CODE-RUNFILE-001", 2),
+        ];
+        assert_eq!(apply(&[launch_rule()], &findings, &lines).len(), 1);
+        // A source map on the first line followed by code is not a source
+        // map: `python3 x.map` evaluates the object and runs the rest.
+        let map = one_line_map();
+        let tail = [
+            map.as_str(),
+            "fetch-tool -o \"$INSTALLER\"",
+            "bash \"$INSTALLER\"",
+        ];
+        let findings_t = vec![
+            at("lib/x.map", "NET-001", 2),
+            at("lib/x.map", "CODE-RUNFILE-001", 3),
+        ];
+        assert_eq!(apply(&[launch_rule()], &findings_t, &tail).len(), 1);
+    }
+
+    #[test]
+    fn what_counts_as_a_source_map() {
+        let map = one_line_map();
+        assert!(is_source_map("dist/cli.js.map", &[map.as_str()]));
+        assert!(is_source_map("DIST/CLI.JS.MAP", &[map.as_str()]));
+        // Pretty-printed, over several lines.
+        let pretty = ["{", "  \"version\": 3,", "  \"mappings\": \"AAAA\"", "}"];
+        assert!(is_source_map("a.css.map", &pretty));
+        // The cross-site-inclusion guard the format allows before the JSON.
+        assert!(is_source_map("a.js.map", &[")]}'", map.as_str()]));
+        // An index map has sections instead of mappings.
+        assert!(is_source_map(
+            "a.js.map",
+            &[r#"{"version":3,"sections":[]}"#]
+        ));
+        // JSON that is not a source map, a source map under another name,
+        // and a `.map` file that is not JSON.
+        assert!(!is_source_map("a.js.map", &[r#"{"version":3}"#]));
+        assert!(!is_source_map("a.js.map", &[r#"["mappings"]"#]));
+        assert!(!is_source_map("cli.json", &[map.as_str()]));
+        assert!(!is_source_map("a.js.map", &["module.exports = {};"]));
+        assert!(!is_source_map("a.js.map", &[]));
     }
 
     /// A rule whose sink is a keyword argument on its own line at the end of

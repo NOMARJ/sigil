@@ -1243,7 +1243,7 @@ pub fn run_scan(
             // separately; a normal file yields its whole text and no tail.
             // A virtual file (archive member, bytecode constants) is already
             // text and carries its own path, locator and label.
-            let (read, rel_path, derived, gap, yara_bytes) = match unit {
+            let (read, rel_path, derived, gap, yara_bytes, disk_path) = match unit {
                 ScanUnit::Virtual(v) => {
                     let yara_bytes = if yara_active && v.is_file {
                         YaraBytes::Member(v.raw, v.truncated)
@@ -1259,6 +1259,7 @@ pub fn run_scan(
                         Some((v.locator, v.label)),
                         (None, None),
                         yara_bytes,
+                        None,
                     )
                 }
                 ScanUnit::Disk(file_path) => {
@@ -1277,6 +1278,7 @@ pub fn run_scan(
                         None,
                         (disk.gap, disk.stray_nuls),
                         yara_bytes,
+                        Some(file_path),
                     )
                 }
             };
@@ -1456,6 +1458,7 @@ pub fn run_scan(
             // The tail of an oversized file is scanned once, without the
             // decode worklist, and its findings are re-numbered onto the
             // real lines of the file.
+            let oversized = tail.is_some();
             if let Some((tail_text, offset)) = tail {
                 let tail_start = std::time::Instant::now();
                 let tail_norm = normalize::normalize_for_matching(&tail_text);
@@ -1501,7 +1504,16 @@ pub fn run_scan(
 
             // Correlation runs over the findings a reviewer has not already
             // dismissed, and its own findings can be dismissed the same way.
+            // A source map is not correlated (`correlate::is_source_map`);
+            // an oversized one reaches this point as its head alone, so
+            // whether the whole file is one is read from disk.
             let chains = timing::measure(timing::Stage::Correlate, || {
+                if oversized
+                    && kept.len() >= 2
+                    && disk_path.is_some_and(|p| correlate::is_source_map_file(p))
+                {
+                    return Vec::new();
+                }
                 let lines: Vec<&str> = source_text.lines().collect();
                 correlate::apply(
                     &crate::corpus::compiled::corpus().correlation_rules,
@@ -1799,6 +1811,59 @@ mod oversized_tests {
         assert_eq!(gap.file, "setup.py");
         assert!(gap.snippet.contains("first and last"), "{gap:?}");
         assert_eq!(gap.severity, Severity::Low);
+    }
+
+    /// dev.jasonpearson/auto-mobile ships a 13.4 MB one-line
+    /// `dist/src/index.js.map`. Only its ends are scanned, and the head alone
+    /// is not JSON, so the in-memory source-map check could not see it: a
+    /// `curl … https://` in help text in the head and an
+    /// `execFileSync(<path>, …)` in the tail were both "line 1", a
+    /// DROPPER-CHAIN-001 High on a clean server.
+    #[test]
+    fn an_oversized_source_map_is_not_correlated() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, after: &[u8]| {
+            let path = dir.path().join(name);
+            let mut f = std::fs::File::create(&path).unwrap();
+            f.write_all(
+                b"{\"version\":3,\"sources\":[\"../src/index.ts\"],\"sourcesContent\":[\"\
+                  export const HELP = 'Install: curl -fsSL https://example.com/install.sh | sh';\\n\
+                  const pad = '",
+            )
+            .unwrap();
+            let chunk = vec![b'A'; 1 << 20];
+            for _ in 0..11 {
+                f.write_all(&chunk).unwrap();
+            }
+            f.write_all(
+                b"';\\nexport function devices(adbPath) {\\n  return execFileSync(adbPath, ['devices']);\\n}\\n\"],\
+                  \"names\":[],\"mappings\":\"AAAA\"}",
+            )
+            .unwrap();
+            f.write_all(after).unwrap();
+            assert!(std::fs::metadata(&path).unwrap().len() > MAX_CONTENT_SCAN_BYTES);
+        };
+        write("index.js.map", b"\n");
+        // The same bytes under a script's name are read like any bundle.
+        write("index.js", b"\n");
+        // A `.map` whose JSON is followed by more text is not a source map.
+        write("x.map", b"\nprint('after the map')\n");
+
+        let result = run_scan(dir.path(), None, None);
+        let rules_in = |file: &str| -> Vec<&str> {
+            result
+                .findings
+                .iter()
+                .filter(|f| f.file == file)
+                .map(|f| f.rule.as_str())
+                .collect()
+        };
+        let map = rules_in("index.js.map");
+        assert!(map.contains(&"NET-012"), "{map:?}");
+        assert!(map.contains(&"CODE-RUNFILE-001"), "{map:?}");
+        assert!(!map.contains(&"DROPPER-CHAIN-001"), "{map:?}");
+        assert!(rules_in("index.js").contains(&"DROPPER-CHAIN-001"));
+        assert!(rules_in("x.map").contains(&"DROPPER-CHAIN-001"));
     }
 
     #[test]
