@@ -241,6 +241,13 @@ figure above is on this set of 157. Its manifest
 version, archive URL and SHA-256 of each server) rebuilds it byte for byte
 with `fetch_mcp_clean.py --from-manifest`.
 
+The original holdout's manifest has since been published, as
+`evaluation_results/corpora/mcp_holdout146_manifest.json` (148 selected by
+`fetch_mcp_clean.py --mode popular` on 2026-09-25, 146 fetched). It is a
+different sample from the 157 here; the figures on this page are all on the
+157, and the MCP calibration, the insecure-transport pack and the
+correlation-chain measurements are on the 146.
+
 ## Reproducing
 
 ```bash

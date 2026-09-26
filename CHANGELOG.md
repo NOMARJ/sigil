@@ -225,10 +225,15 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   now. Every built-in chain sets `name_uses: "value"`, which reads the window
   as code in the sink file's language (comments, string contents and regular
   expressions blanked; what a string interpolates kept, `f"{token:>40}"`,
-  `f"{token=}"`, `"${TOKEN:-}"` included) and limits it to the sink's own call.
+  `f"{token=}"`, `"${TOKEN:-}"`, Ruby's `"#{key}"` and `%x(... #{key})`,
+  Swift's `"\(key)"` and C#'s `$"{key}"` included) and limits it to the sink's
+  own call, including a heredoc the call reads (`curl --data-binary @- <<EOF`;
+  a quoted delimiter expands nothing and is not read).
   A keyword argument's name, an object key, a TypeScript member, an attribute
   of another object (`r.url`), a destructuring target, an export list, a count
-  (`len(secrets)`) and a function parameter of the same name are not uses;
+  (`len(secrets)`) and a function parameter of the same name (unless the
+  function is called with the bound value, within 500 lines, where the name is
+  still the source's) are not uses;
   `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
   positional `token`, a Python dict keyed by the variable, `{ body: token }`
   and `{ token }` are. A same-line link needs the source and the sink to match
@@ -269,9 +274,16 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   re-signing): the scan ignores the key and prints a warning on stderr.
   `sigil rules validate`, `sigil config --validate` and `sigil rules sign`
   reject it, with a "did you mean" hint. An unknown `name_uses` value is an
-  error everywhere.
+  error everywhere; `name_uses: null` (an empty YAML value) is the default, as
+  a missing field is, instead of refusing the whole pack.
 - **The corpus digest covers `name_uses`**, and the engine revision moved
-  (6), so a scan cached under one reading is not served under another.
+  (7), so a scan cached under one reading is not served under another.
+- **Verified against the port.** 87 more hand-written probes around each
+  resolution of the port found five things the port lost, each fixed with
+  tests: a heredoc body the call reads, Ruby/Swift/C# interpolation, a helper
+  called with the secret beyond the rule's window, a same-line comment check
+  that ran once per pair (2.46 s against 1.25 s for e45efc5 on a 3.9 MB
+  minified line; 1.33 s now), and `name_uses: null` refusing a pack.
 - **Linear on long lines.** A work-in-progress version of this reading
   re-read the line for every occurrence of the name it skipped (2.0 s and
   5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square

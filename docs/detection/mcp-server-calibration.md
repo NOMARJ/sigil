@@ -759,8 +759,10 @@ reserved for the next pass. The point is to see whether the in-sample gains
 carry over, and whether anything moved the wrong way.
 
 ```
-Data Source: 146 held-out MCP servers, release builds of main (3982aa6) and
-             this branch, --no-cache, isolated HOME, OSV lookup on.
+Data Source: 146 held-out MCP servers (manifest, published later:
+             evaluation_results/corpora/mcp_holdout146_manifest.json), release
+             builds of main (3982aa6) and this branch, --no-cache, isolated
+             HOME, OSV lookup on.
 Sample Size: 146 servers.
 Limitations: "Clean" is not "audited"; the holdout, like the in-sample corpus,
              is unaudited published servers. Machine shared during the runs.

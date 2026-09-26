@@ -84,7 +84,7 @@ recorded runs before anything was compared:
 | Datadog 844 | `run_eval.dataset_fingerprint` | `63fcde5b…`, identical; recall 785 / 761 / 752 / 561 at any / Med / High / Crit, identical to [the recorded run](../../evaluation_results/honest_detection_eval_7826ea1.md); cff3fa2 and head (ef0b95f) per-sample identical to each other |
 | Skills 659 | head's per-sample level, rule set, finding count vs `evaluation_results/skills_benchmark/sigil_tls.json` | 659 of 659 identical |
 | MCP clean 169 | archive sha256 (manifest); head per-sample vs `mcp_sigil_tls.json` | 169 of 169 identical |
-| MCP holdout | no manifest was published | re-derived from the stated criteria: 157 selected (a second run of `select_mcp_holdout.py` selects the same 157), 154 fetched (3 over the 30 MB archive cap) |
+| MCP holdout | no manifest was published at the time (the original 146's is now `evaluation_results/corpora/mcp_holdout146_manifest.json`; the figures on this page stay on the re-derived set) | re-derived from the stated criteria: 157 selected (a second run of `select_mcp_holdout.py` selects the same 157), 154 fetched (3 over the 30 MB archive cap) |
 
 The first holdout selection run lost one server to a throttled npm lookup,
 `io.github.cameroncooke/XcodeBuildMCP`. It publishes the same npm package as

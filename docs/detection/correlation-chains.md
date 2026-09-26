@@ -25,6 +25,16 @@ is not) pass here too, and its reading of a bare name inside Python braces is
 what the statement mode uses to pick the lines around a sink. The probe
 tables below have a column for each of those builds.
 
+A verification of the port (a442dad) then wrote 87 more probes around each
+of the port's resolutions ([below](#the-verifiers-probes)). They found true
+exfiltration shapes that e45efc5 and the word reading linked and the port no
+longer did: a request that reads its body from a heredoc, Ruby, Swift and C#
+string interpolation, and a helper whose parameter shares the secret's name
+called with it beyond the rule's window. They also found a comment check that
+doubled the scan time of a minified line, and a `name_uses: null` that
+refused a whole custom pack. All are fixed in 8f8fd64 with tests, and the
+corpora were measured with that build ([Measurements](#measurements)).
+
 ## The built-in chains
 
 | Chain | Severity | Source | Sink | Links through |
@@ -52,9 +62,11 @@ Every built-in chain sets `"name_uses": "value"`: the link needs the sink to
    JavaScript regular-expression literal is text too. What a string
    interpolates is kept: a Python f-string's `{expr}` whatever
    follows it (`{token:>40}`, `{token:s}`, `{token!r}`, `{token=}`), `${...}`
-   and `$(...)` in any string, `$NAME`, and, when the text formats with
-   `locals()`, `vars()` or `globals()`, a plain string's `{name}` and
-   `%(name)s`. A token endpoint's path (`"https://oauth2.example.com/token"`),
+   and `$(...)` in any string, `$NAME`, Ruby's `#{expr}` in a `"..."` string,
+   a backtick command or `%x(...)`, Swift's `\(expr)`, a C# `$"...{expr}"`
+   field, and, when the text formats with `locals()`, `vars()` or
+   `globals()`, a plain string's `{name}` and `%(name)s`. A single-quoted Ruby
+   string, and `\(` outside Swift, are text. A token endpoint's path (`"https://oauth2.example.com/token"`),
    an OAuth grant type, an escaped JSON body and a `# no token needed` note are
    not the token.
 2. **Values, not names.** An occurrence that only names something is skipped:
@@ -78,18 +90,30 @@ Every built-in chain sets `"name_uses": "value"`: the link needs the sink to
    destination without sending anything itself (a webhook, callback or tunnel
    URL, an HTTP connection, a socket) adds the lines below that use the name
    it assigns: `url = "https://hook.example/c"`, then `Request(url,
-   data=body)`.
+   data=body)`. A heredoc the call opens (`curl --data-binary @- <<EOF`) is
+   the call's input: its body, up to the delimiter and within the same five
+   lines, is read with the call (shell, Ruby's `<<~EOS`, YAML `run:` blocks,
+   Markdown and extensionless files). A quoted or escaped delimiter
+   (`<<'EOF'`, `<<"EOF"`, `<<\EOF`; Ruby `<<~'EOS'`) expands nothing, so its
+   `$TOKEN` is text and is not read; a here-string (`<<<`) and a shift inside
+   `$(( ))` are not heredocs.
 4. **The bound value, not a parameter.** In the body of a function declared
    after the source line whose parameter list declares the same name
    (`def ping(url):`, `lambda url: ...`, `function send(token) {`,
    `(token: string) =>`, a method `verify(token) {`), the name is that
    parameter. A Python body is the lines indented under the `def`; a
    C-family body is the braces after the header, or an arrow's expression.
-   A function called with the bound value itself within the rule's window
-   (`send(token)`) passes it on, and does not shadow it; neither does a
-   parameter whose default is the bound value (`def ping(url=url):`). A call
-   with a name assigned from the bound one (`t = token`, then `send(t)`) is
-   not followed (see 5).
+   A function called with the bound value itself (`send(token)`) passes it
+   on, and does not shadow it; neither does a parameter whose default is the
+   bound value (`def ping(url=url):`). Within the rule's window of the source
+   any such call counts. Further down, up to 500 lines below the source (the
+   end of a module, the `__main__` guard, a `main()`), a call counts where the
+   name is still the source's: at the source's indentation or an outer one, in
+   a block under it, or in a function that neither declares nor assigns the
+   name itself, and not after a line at the source's level assigns it again.
+   So `def main(): url = "https://status.example.com"; ping(url)` does not
+   count. A call with a name assigned from the bound one (`t = token`, then
+   `send(t)`) is not followed (see 5).
 5. **One hop: the bound name itself.** A name assigned from the bound one
    between the source and the send (`encoded = urlencode(data)`, `payload =
    JSON.stringify({ v: body })`) is not followed, whatever the send's keyword
@@ -205,12 +229,16 @@ name is not checked in that mode).
 
 The corpus digest (`sigil scan --format json` reports it as
 `scanner.corpus_digest`, and the scan cache is keyed on it) includes each
-chain's `name_uses` and the engine revision (`ENGINE_REVISION`, 6 with this
-reading), so a scan cached under one reading is not served under another.
+chain's `name_uses` and the engine revision (`ENGINE_REVISION`: 6 with the
+port's reading, 7 with the verification's fixes), so a scan cached under one
+reading is not served under another.
 
 ### Custom packs
 
-Any `name_uses` value other than `value` or `word` refuses the pack. An
+Any `name_uses` value other than `value` or `word` refuses the pack, except
+`null` (or `name_uses:` with nothing after it in YAML), which is the default
+as a missing field is: before the field existed such a pack loaded with the
+key ignored, and refusing it would drop every rule in the pack. An
 unknown key on a correlation rule or on its `source` or `sink` selector (a
 `notes` field for the owning team, a misspelt `name_use` or `rule_idz`), and a
 selector that names no rule, do **not**: earlier versions accepted any key on
@@ -261,13 +289,25 @@ These are known and measured only on the probes below (synthetic inputs):
   launch shape the operand reading does not know all leave the name read as
   the bound value, as before.
 - **Heuristics that can hide a use.** A function whose parameter shares the
-  bound name is treated as shadowing it unless it is called, within the
-  rule's window of the source, with the bound value itself; a call further
-  away, or with a name assigned from the bound one, is not seen. A
+  bound name is treated as shadowing it unless it is called with the bound
+  value itself where the name is still the source's; a call more than 500
+  lines below the source, the ninth and later calls beyond the rule's window,
+  or a call with a name assigned from the bound one, is not seen. A
   JavaScript regular-expression literal is recognised where a value is
   expected and when it closes within 256 bytes on its line; one after
   `return`, or longer, is read as code, and a quote inside it then opens a
-  string to the end of the line.
+  string to the end of the line. A heredoc body is read only within the five
+  lines the call's window has always had.
+- **Markdown is not Python.** A Python code block in a `SKILL.md` is read
+  with Markdown's rules, where a bare `{token: 1}` is an object key, so a dict
+  keyed by the secret there does not link (the word reading linked it; the
+  e45efc5 value reading did not either).
+- **Assignments that are not bound.** Kotlin's `val key = ...`, and PHP's,
+  Perl's and PowerShell's `$key = ...` bind no name, under either reading, so
+  their interpolated sends do not link (verified with every build here).
+- **Ruby's `#{` is never a comment.** In Ruby code `#{...}` is read as
+  interpolation even where it would start a comment (`x = 1 #{note}`); that
+  can link a name that only such a comment mentions.
 - **Counts are not values.** A count of a secret's lines is not reported as
   exfiltration; its length is still information about it.
 
@@ -293,7 +333,9 @@ Columns, and where each comes from:
 - **d89c600 (lane, hop on)**: the lane's final build, the lane's recorded run.
   It follows one derived name where the word reading linked (the one-hop
   follow), which this branch does not.
-- **this branch**: the release build of the port. Run for this page.
+- **this branch**: the release build of the port (a442dad). Run for this
+  page. The verified build (8f8fd64) was run on all 286 too and gives the
+  same verdict and the same chains (rule, file, line) on every one.
 
 ```
 Data Source: Synthetic test. Hand-written probe files: 144 from the recall

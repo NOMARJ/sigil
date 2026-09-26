@@ -414,8 +414,12 @@ Data Source: Real samples. 146 MCP servers from the official MCP registry: lates
              (148 selected, 2 failed to download).
 Sample Size: 146 MCP servers.
 Limitations: "Clean" means popular and registry-listed, not audited. The selection
-             manifest is not published with this change.
+             manifest was not published with this change.
 ```
+
+The selection manifest has since been published as
+`evaluation_results/corpora/mcp_holdout146_manifest.json`; it rebuilds this
+146-server corpus with `fetch_mcp_clean.py --from-manifest`.
 
 | | main (no TLS rules) | First build of the pack | First review | Final build |
 |---|---:|---:|---:|---:|
