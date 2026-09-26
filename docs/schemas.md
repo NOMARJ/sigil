@@ -346,8 +346,15 @@ errors. Largest file read: 1 MiB.
 | `rule_packs` | list of strings | paths relative to the policy file |
 | `trusted_domains` | list of strings | host names; at least two labels; a leading `*.` is accepted and means the same |
 | `baseline` | string | path relative to the policy file |
+| `llm_review` | bool | run the optional LLM review stage ([llm-review.md](llm-review.md)) |
+| `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level |
+| `llm_provider` | string | `anthropic` \| `openai-compatible` (also `openai`) |
+| `llm_model` | string | model id: letters, digits and `. - _ : / @`, at most 128 characters |
+| `llm_max_calls` | integer | 1 to 1000 |
+| `llm_max_tokens` | integer | 10,000 to 10,000,000 |
 | `locked` | list of strings | organisation file only: any of the keys above except `version`, or `all` |
 | `allow_project_policy` | bool | organisation file only |
+| `llm_endpoint` | string | organisation file only: an `https` URL, or `http` to a loopback address; no credentials in the URL; not combinable with `llm_provider: anthropic` |
 
 ### Baseline file
 
@@ -422,10 +429,13 @@ serialisation of the pack without that field.
 
 ### YARA rule file (`.yar`, `.yara`)
 
-UTF-8 YARA source in the subset described in
-[YARA rules](enterprise.md#yara-rules); one file is one pack with id
-`yara.<file stem>`. Largest file read: 8 MiB. How each rule maps to a Sigil
-rule:
+UTF-8 YARA source: the subset described in
+[YARA rules](enterprise.md#yara-rules) for the built-in engine, or any YARA
+an installed engine compiles (see
+[Full YARA: external engines](enterprise.md#full-yara-external-engines));
+one file is one pack with id `yara.<file stem>`. Largest file read: 8 MiB.
+`include` and external variables are refused with any engine. How each rule
+maps to a Sigil rule:
 
 | YARA | Sigil rule |
 |---|---|
@@ -437,6 +447,7 @@ rule:
 | `meta: reference` (repeatable) | `references` |
 | tags | `tags` |
 | `private` rule | evaluated and referable, never reported; listed with kind `yara-private` |
+| the file's engine | `engine` in `sigil rules list --json` / `show --json` and in `sigil rules validate --format json`, and `yara_engine` per pack in `sigil corpus --format json`: `built-in`, the external engine and its version (`YARA-X 1.20.0`, `YARA 4.5.0`), or `not evaluated (no external engine)` |
 
 Detached signature: `<file>.sig` beside the rule file, one line of base64
 holding the 64-byte Ed25519 signature over the bytes
@@ -456,5 +467,9 @@ When a policy is active the scan document gains, after `findings`:
 | `policy.hidden_below_min_severity`, `policy.severity_overridden` | counts |
 | `summary.gate` | `pass` \| `fail` |
 | `summary.policy_suppressed_count`, `summary.baseline_suppressed_count` | counts |
+| `policy.llm` | present when any LLM key is set: `{review, may_downgrade, provider, model, endpoint, max_calls, max_tokens}` (`endpoint` without credentials or query) |
+| `llm_review` | present when the optional LLM review stage was requested: `status` (`complete` \| `incomplete` \| `not_run`), `mode`, `provider`, `endpoint`, `model`, `served_models`, call and token counts and caps, `eligible`/`reviewed`/`not_reviewed`/`confirmed`/`dismissed`/`escalated`/`downgraded`, `incomplete_reasons`, `manipulation_files`, `sent`, `reviews[]`; see [llm-review.md](llm-review.md#output) |
+| `findings[].llm_review` | the model's review of that finding: `verdict`, `rationale`, `action` (`none` \| `note` \| `downgraded` \| `not_applied`), `not_applied_reason`, `severity`, `original_severity`, `manipulation_suspected`, `model` |
 
-With no policy file and no policy flag, the document is unchanged.
+With no policy file, no policy flag and no `--llm-review`, the document is
+unchanged.

@@ -33,6 +33,10 @@ regex-automata = { version = "0.4", default-features = false, features = ["std",
 # Its parser, with the features `regex` enables: a YARA string's parsed form
 # is inspected for counted repetition before it is compiled.
 regex-syntax = "0.8"
+# Already built for reqwest's URL handling (url -> idna), with the same
+# features: the LLM review stage's checks read compatibility letters (NFKC)
+# before matching, so nothing new is compiled.
+icu_normalizer = { version = "2", default-features = false, features = ["compiled_data"] }
 walkdir = "2"
 ignore = "0.4"
 rayon = "1"

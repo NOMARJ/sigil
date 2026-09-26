@@ -26,6 +26,8 @@ mod agent_supply_chain_tests;
 #[cfg(test)]
 mod guardrail_tests;
 #[cfg(test)]
+mod insecure_transport_tests;
+#[cfg(test)]
 mod mcp_fp_tests;
 #[cfg(test)]
 mod multilingual_tests;

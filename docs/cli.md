@@ -68,18 +68,53 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
-| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `bash <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex` | deny | `sigil scan <url>` |
-| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command) | deny | `sigil scan i.sh && bash i.sh` |
-| downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … | deny | `sigil scan <src> && <original>` |
+| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
+| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
+| downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
+
+The gate reads a command the way the shell runs it: grouping (`( … )`,
+`{ …; }`, `if`), redirections, `VAR=value` words and wrappers (`sudo -u
+root`, `env -i`, `command`, `exec`, `nohup`, `time`, `timeout`, `xargs`,
+`doas`, `busybox`, `flock`, `chroot`, `strace`, `watch`, `runuser`, …) are
+set aside before the command word is judged; `sudo -s`, `sudo -i` and `su`
+start a shell that reads stdin; quoting
+inside a word does not hide it (`"npm" exec x`, `de''no run npm:x`); an
+interpreter's options are read per interpreter (`bash -e i.sh` runs `i.sh`,
+`python3 -X dev i.py` runs `i.py`); the string of `bash -c '…'`, `su -c '…'`
+and `eval '…'` is judged as a command of its own, read whole; a `cd` in a
+subshell, a substitution or a list sent to the background (`cd /tmp &`)
+ends with it, and `cd -`, `pushd`/`popd`, `$HOME` and `$PWD` are followed;
+and a backslash at the end of a line continues the command.
 
 The `sigil … && <original>` form is allowed: the second command only runs if
 the scan of the same target passed. "Same" includes the kind of target: an
 npm package is vetted by `sigil npm`, a PyPI package by `sigil pip`, a
 repository by `sigil clone` (branch included), a local path by `sigil scan`
-— so `sigil scan evil && npm install evil` is still denied. A sigil call no
-longer allows the rest of
-a command line — `sigil --version; npm install x` is denied. `npx tsc` is
-allowed when the project has `node_modules/.bin/tsc`.
+— so `sigil scan evil && npm install evil` is still denied. A scan of a
+downloaded file counts only when it runs after the last download to that
+path, the download is not still running in the background (`curl -o i.sh
+… & sigil scan i.sh && …`, until a `wait`), and nothing writes the file
+again after the scan (`sed -i`, `>> i.sh`, `cp x i.sh`). Only the `sigil`
+found on PATH vets anything: `./sigil`,
+`vendor/bin/sigil`, `PATH=… sigil` (or `HOME=…`, any `SIGIL_…=`
+setting such as `SIGIL_POLICY_FILE`, or `LD_PRELOAD=…`), any sigil call in a command that
+defines a `sigil` function or alias, changes PATH, names a Sigil policy
+file (`.sigil.yml` in the working directory is trusted), runs `sigil
+approve` or `sigil known-good`, or writes into `~/.sigil/`, and any after a
+sourced file, vet nothing. A copy of a scanned file made later in the same
+`&&` chain is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
+~/bin/t`). Nor does a call that is not a
+real scan (`--help`, `--fail-on critical`, `--severity critical`, a subset
+of `--phases`, `--config`, `--baseline`, also attached or bundled:
+`-pnetwork`, `-s=critical`, `-vh`), or whose exit status `&&` does not
+test: `sigil scan i.sh | tee log && bash i.sh`, `echo $(sigil scan i.sh) &&
+…`, or a sigil call inside quotes or a comment. A sigil call no longer
+allows the rest of a command line — `sigil --version; npm install x`,
+`sigil npm x | npm install x` and `$(sigil --version) npm install x` are
+denied. `npx tsc` is allowed when the
+project has `node_modules/.bin/tsc`. `pip install -r requirements.txt` is
+asked about; a package named beside it (`pip install -r requirements.txt
+evil`) is denied like `pip install evil`.
 
 Register the hook for `Write|Edit|MultiEdit` too (matcher
 `"Bash|Write|Edit|MultiEdit"`, command `sigil hook pretooluse`) and it also
@@ -112,7 +147,7 @@ sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation po
 | `--list`, `-l` | Print the whole configuration file |
 | `--policy` | Show which policy files apply (organisation `SIGIL_POLICY_FILE`, project `.sigil.yml`, or `--config FILE`), the merged values, locked keys, and any loosening the organisation policy refused |
 | `--validate FILE` | Validate a policy file. Exit 0 valid, 1 invalid (every problem listed), 2 unreadable |
-| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked` and `allow_project_policy` |
+| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked`, `allow_project_policy` and `llm_endpoint` |
 
 The policy format, precedence and lock rules are in
 [Rolling Sigil out across an organisation](enterprise.md).
@@ -239,6 +274,7 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--fail-on-incomplete` | off | Also exit 1 when part of the target could not be fully inspected. Also `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete: true` in a policy. See [Incomplete coverage](#incomplete-coverage) |
 | `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
 | `--rules` | | Add a custom rule pack: a JSON or YAML pack, a YARA `.yar`/`.yara` rule file, or a directory of them. Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) and [YARA rules](enterprise.md#yara-rules) |
+| `--yara-engine` | `auto`, or the policy's `yara_engine` | What evaluates YARA rule files: `auto` (the built-in engine, and an installed YARA-X `yr` or YARA `yara` for files that need modules, loops or other YARA it does not evaluate; with neither usable such a file is refused, exit 2), `best-effort` (as `auto`, but with neither usable such a file loads unevaluated and every scan reports incomplete coverage), `builtin` (refuse those files), `yara-x` or `yara` (that engine for every file; it must be installed). Global flag. See [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
 | `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
 | `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
 | `--phases` | `all` | Comma-separated phase filter |
@@ -246,6 +282,9 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--no-cache` | | Force a fresh scan even if the content is unchanged |
 | `--ignore-ledger` | | Report findings even when the content matches a trust-ledger approval |
 | `--follow-refs` | off | Also download what the scanned files tell someone to fetch, install or run, into quarantine, and scan it (never executed). Also enabled by `SIGIL_FOLLOW_REFS=1`. See [Following references](#following-references) |
+| `--llm-review` | off | Send each finding at Medium or above to a language model you choose, for an advisory second opinion. The rule, title, path, masked matched line and surrounding lines are sent; secrets are masked first. Anthropic by default (`ANTHROPIC_API_KEY`), or any OpenAI-compatible endpoint (`SIGIL_LLM_ENDPOINT`). The stage never changes a severity unless the scan policy sets `llm_may_downgrade: true`, and a failure never changes the verdict or exit code. Also `llm_review: true` in the organisation policy or a `--config` file; a `.sigil.yml` found by discovery cannot turn it on. See [LLM review](llm-review.md) |
+| `--no-llm-review` | | Do not run the LLM review stage even if a policy turns it on. Refused when the organisation policy locks `llm_review` |
+| `--llm-model` | `claude-opus-5` for Anthropic | Model for `--llm-review` (also `SIGIL_LLM_MODEL`). Required for an OpenAI-compatible endpoint |
 
 **Behavior:**
 
@@ -289,6 +328,7 @@ sigil scan . --format junit -o sigil-junit.xml  # CI test-report view
 sigil scan . --baseline .sigil-baseline.json    # Fail only on findings added since the baseline
 sigil scan . --rules ./acme-rules.yaml          # Add your organisation's rules
 sigil scan ./vendor --fail-on-incomplete        # Fail closed if anything could not be inspected
+sigil scan ./skill --llm-review                 # Advisory second opinion from a model (sends masked excerpts)
 ```
 
 #### Incomplete coverage
@@ -491,6 +531,16 @@ detached `<file>.sig` beside it; an unsigned or badly signed pack stops the
 scan with exit 2 rather than being skipped. See
 [Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing)
 and [YARA rules](enterprise.md#yara-rules).
+
+For a YARA file, `validate` names the engine that will evaluate it
+(`built-in`, `YARA-X 1.20.0`, `YARA 4.5.0`, …) and, for an external engine,
+compiles it with that engine; a file that needs an engine the machine does
+not have is reported as not checked (exit 1). `validate`, `test`, `sign`,
+`list` and `show` use the engine a scan run from the same directory would:
+`--yara-engine`, or the organisation policy's and the project file's
+`yara_engine`, a locked value included (a refused flag is reported on
+stderr). `show` prints it. When the engine refuses files, each refused file
+is one problem, with the engine's message quoted under it.
 
 ### sigil diff
 
@@ -967,9 +1017,16 @@ All configuration can be overridden via environment variables.
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+| `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds an external YARA engine (`yr`, `yara`) may spend on one scan, every run of it included; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
 | `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
 | `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
 | `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |
+| `ANTHROPIC_API_KEY` | unset | Key for `--llm-review` with the Anthropic provider. Read only when the stage is on — see [LLM review](llm-review.md) |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic API base URL for `--llm-review`, as the official SDKs read it |
+| `SIGIL_LLM_ENDPOINT` | unset | OpenAI-compatible endpoint for `--llm-review` (a base URL such as `http://localhost:11434/v1`, or the full `/chat/completions` URL). Setting it selects that provider. `https` is required except for localhost |
+| `SIGIL_LLM_API_KEY` | unset | Bearer key for `SIGIL_LLM_ENDPOINT`, if it needs one |
+| `SIGIL_LLM_MODEL` | provider default | Model for `--llm-review` (as `--llm-model`) |
+| `SIGIL_LLM_TIMEOUT_SECS` | `120` | Per-request timeout for `--llm-review`, 1 to 3600 |
 
 ---
 

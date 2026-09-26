@@ -173,6 +173,31 @@ substrings that disqualify the link. `EXFIL-CHAIN-001` in `network_exfil.json`
 one place a pack can say "line 9 feeds line 10" without the engine executing
 anything: the link is a text identity check, not taint analysis.
 
+The sink's argument window is the sink line and the four lines after it.
+`sink_window_before` (default 0, at most 20 in a custom pack) switches a rule
+to the sink's *statement* instead, for a sink matched on a keyword argument a
+formatter puts on its own line at the end of a call (the insecure `verify`
+argument as the last line of a multi-line `requests.post(` call, with the
+header that carries the token three lines above). The statement is the sink
+line, up to that many lines above it that continue into it (each ending with
+`(`, `[`, `,`, `\` or an object literal's `{`), and the lines below that its
+call continues onto. The window adds the lines next to the statement that
+work with the same object: above, a line that assigns to or calls a method on
+a local name the statement uses (a `headers` dict, a session's headers);
+below, a line that uses the name the statement assigns (the agent it builds).
+A complete statement about something else is not read, so a key passed to
+another client on the line above does not link. A source on a line of the
+statement itself links without needing a name, and may sit below the sink,
+when its line starts in the sink line's bracket group or in one nested inside
+or around it; two sibling literals of one statement (`openai: {...}` beside
+`db: {...}`) do not link, and a line that is one key and a literal it opens
+and closes counts as a literal of its own. In this mode a bound name links
+only where the window uses it as a value: a keyword argument's name or an
+object key (`headers={...}`, `token=other`, `{ token: "x" }`) is not a use.
+`max_line_length` (default 0, no limit) skips a source or sink on a longer
+line: on a minified bundle two matches on one line say nothing about each
+other. `TLS-CHAIN-001` in `insecure_transport.json` uses both.
+
 ### Fixtures
 
 Every rule ships with two fixtures:

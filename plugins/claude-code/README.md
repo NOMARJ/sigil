@@ -221,13 +221,13 @@ The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A
 | ---------------------------------------------------------------------- | -------- | ------------------------------------------------------------ |
 | `git clone`, `gh repo clone`                                            | **deny** | Use `sigil clone <url>` — quarantine + scan first            |
 | `npm install <pkg>`, `npm add`, `yarn add`, `pnpm add`                  | **deny** | Use `sigil npm <pkg>`                                        |
-| `pip install <pkg>`, `uv add`                                           | **deny** | Use `sigil pip <pkg>`                                        |
+| `pip install <pkg>` (also beside `-r req.txt`), `uv add`                | **deny** | Use `sigil pip <pkg>`                                        |
 | `cargo install/add`, `gem install`, `go install/get`                    | **deny** | Quarantine + scan the source with `sigil clone` first        |
-| `curl \| sh`, `curl \| bash -s`, `curl \| tee f \| sh`, `bash <(curl …)` | **deny** | Piping a download into an interpreter executes unscanned code |
-| `curl -o i.sh URL && bash i.sh` (download, then run it)                | **deny** | Allowed as `curl -o i.sh URL && sigil scan i.sh && bash i.sh` |
+| `curl \| sh`, `curl \| bash -s`, `curl \| tee f \| sh`, `curl \| tr -d '\r' \| bash`, `curl \| sudo -s`, `curl \| bash -c "$(cat)"`, `curl \| tee >(bash)`, `{ curl …; } \| sh`, `bash <(curl …)` | **deny** | Piping a download into an interpreter executes unscanned code |
+| `curl -o i.sh URL && bash i.sh` (download, then run it, a copy of it, or its text through `eval "$(cat i.sh)"`) | **deny** | Allowed as `curl -o i.sh URL && sigil scan i.sh && bash i.sh` (a real scan, the last stage of its pipeline, under no policy the command sets or writes, of a download that has finished, with nothing written to the file after it) |
 | `curl … > ~/.claude/skills/…`, `-o .mcp.json` (downloads into agent tooling) | **deny** | Use `sigil scan <url>` — quarantine + scan first       |
 | `pipx install`, `uv tool install`, `deno run npm:…` / `https://…`       | **deny** | Prefix `sigil pip <pkg> &&` / `sigil npm <pkg> &&`; download and `sigil scan` a URL module |
-| Bare lockfile restores (`npm install`, `npm ci`, `pip install -r`, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
+| Bare lockfile restores (`npm install`, `npm ci`, `pip install -r req.txt` with no package beside it, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
 | One-shot runners (`npx`, `bunx`, `dlx`, `uvx`, `pipx run`, `npm exec`, `bun x`, `uv tool run`) | **deny** | Downloads and executes in one step with no scan |
 | Everything else                                                         | allow    |                                                              |
 

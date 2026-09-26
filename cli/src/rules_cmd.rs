@@ -81,6 +81,8 @@ struct RuleRow {
     remediation: Option<String>,
     references: Vec<String>,
     tags: Vec<String>,
+    /// What evaluates a YARA rule (built-in, an external engine, or none).
+    engine: Option<String>,
 }
 
 fn all_rules() -> Result<Vec<RuleRow>, String> {
@@ -104,6 +106,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
         for r in &pack.provenance_rules {
@@ -124,6 +127,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
         if let Some(file) = &pack.yara {
@@ -149,6 +153,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                     remediation: Some(r.remediation_or_default(&file.path)),
                     references: r.references.clone(),
                     tags: r.tags.clone(),
+                    engine: Some(file.engine.label()),
                 });
             }
         }
@@ -170,6 +175,7 @@ fn all_rules() -> Result<Vec<RuleRow>, String> {
                 remediation: r.remediation.clone(),
                 references: r.references.clone(),
                 tags: r.tags.clone(),
+                engine: None,
             });
         }
     }
@@ -221,6 +227,7 @@ fn row_json(row: &RuleRow, policy: &EffectivePolicy) -> serde_json::Value {
         "references": row.references,
         "tags": row.tags,
         "behavior": crate::scanner::profile::behavior_for(&row.id),
+        "engine": row.engine,
     })
 }
 
@@ -371,6 +378,9 @@ fn show(id: &str, as_json: bool, policy: &EffectivePolicy) -> i32 {
         format!("{} {} ({})", row.pack_id, row.pack_version, row.origin),
     );
     field("kind", row.kind.to_string());
+    if let Some(e) = &row.engine {
+        field("engine", e.clone());
+    }
     let phase_label = Phase::from_name(&row.phase)
         .map(|p| format!("{} ({})", row.phase, p.display_name()))
         .unwrap_or_else(|| row.phase.clone());
@@ -459,6 +469,23 @@ fn show(id: &str, as_json: bool, policy: &EffectivePolicy) -> i32 {
     write_out(&s)
 }
 
+/// The problems in a load error, one per entry: a line indented under the
+/// line before it (an external engine's message, quoted under the file it
+/// refused) belongs to that problem rather than counting as another.
+fn problems(error: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in error.lines() {
+        match out.last_mut() {
+            Some(last) if line.starts_with(char::is_whitespace) => {
+                last.push('\n');
+                last.push_str(line);
+            }
+            _ => out.push(line.to_string()),
+        }
+    }
+    out
+}
+
 fn validate(path: &Path, as_json: bool) -> i32 {
     if !path.exists() {
         eprintln!(
@@ -471,10 +498,7 @@ fn validate(path: &Path, as_json: bool) -> i32 {
     let loaded = custom::load_path(path);
     let (packs, mut errors) = match loaded {
         Ok(p) => (p, Vec::new()),
-        Err(e) => (
-            Vec::new(),
-            e.lines().map(str::to_string).collect::<Vec<_>>(),
-        ),
+        Err(e) => (Vec::new(), problems(&e)),
     };
     if errors.is_empty() {
         match loader::load_base_packs() {
@@ -485,6 +509,25 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                     "error:".bold().red()
                 );
                 return 2;
+            }
+        }
+    }
+    // A YARA file no engine here can evaluate is not refused by a scan (it
+    // is reported as incomplete coverage), but it cannot be called valid
+    // either: nothing here has checked its strings and conditions.
+    for p in &packs {
+        if let Some(file) = &p.pack.yara {
+            if let crate::corpus::yara::FileEngine::Unevaluated {
+                reasons,
+                unavailable,
+            } = &file.engine
+            {
+                errors.push(format!(
+                    "{}: not checked: it needs an external YARA engine and none can be used \
+                     here ({unavailable}; {}); a scan would not evaluate it",
+                    file.path.display(),
+                    reasons.first().map(String::as_str).unwrap_or("")
+                ));
             }
         }
     }
@@ -499,6 +542,7 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                 "form": p.form.to_string(),
                 "rules": p.pack.rule_count(),
                 "signature": p.signature.to_string(),
+                "engine": p.pack.yara.as_ref().map(|y| y.engine.label()),
                 "warnings": p.warnings,
             })).collect::<Vec<_>>(),
         });
@@ -514,12 +558,19 @@ fn validate(path: &Path, as_json: bool) -> i32 {
                 p.form,
                 p.signature
             );
+            if let Some(y) = &p.pack.yara {
+                println!("      engine: {}", y.engine.label());
+            }
             for w in &p.warnings {
                 println!("      {} {w}", "warning:".yellow());
             }
         }
         for e in &errors {
-            println!("  {} {e}", "✗".red());
+            let mut lines = e.lines();
+            println!("  {} {}", "✗".red(), lines.next().unwrap_or(""));
+            for more in lines {
+                println!("  {more}");
+            }
         }
         if ok {
             println!("  {} valid", "sigil:".bold().green());
@@ -539,6 +590,8 @@ fn validate(path: &Path, as_json: bool) -> i32 {
 }
 
 fn test(pack: &Path, target: &Path) -> i32 {
+    // The samples are untrusted: no YARA engine is looked for among them.
+    crate::corpus::yara::external::exclude_from_search(target);
     let packs = match custom::load_path(pack) {
         Ok(p) => p,
         Err(e) => {
@@ -566,6 +619,53 @@ fn test(pack: &Path, target: &Path) -> i32 {
     };
     let files = crate::scanner::collect_files(target);
     let mut hits = 0usize;
+    let rel_of = |file: &Path| {
+        file.strip_prefix(base)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .to_string()
+    };
+    // Rules an external engine evaluates run once over every file.
+    let external: Vec<_> = compiled
+        .yara()
+        .iter()
+        .filter(|f| !f.is_builtin())
+        .cloned()
+        .collect();
+    if !external.is_empty() {
+        use crate::corpus::yara::external::{self, Source, Unit};
+        let units: Vec<Unit<'_>> = files
+            .iter()
+            .map(|f| Unit {
+                rel_path: rel_of(f),
+                source: Source::Disk(f),
+            })
+            .collect();
+        let mut found: Vec<crate::scanner::Finding> =
+            external::unevaluated_findings(&external, &|_| true);
+        // As for a scan: an engine inside the samples is never run.
+        let ev = external::evaluate(&external, &units, &|_| true, Some(target));
+        found.extend(ev.global);
+        found.extend(ev.per_unit.into_iter().flatten());
+        for f in found {
+            let note = crate::scanner::coverage::is_coverage_rule(&f.rule);
+            if !note {
+                hits += 1;
+            }
+            println!(
+                "  {:<8} [{}] {}{}\n           {}",
+                if note {
+                    "note".to_string()
+                } else {
+                    f.severity.to_string()
+                },
+                f.rule,
+                f.file,
+                f.line.map(|l| format!(":{l}")).unwrap_or_default(),
+                f.snippet.dimmed()
+            );
+        }
+    }
     for file in &files {
         let Ok(bytes) = std::fs::read(file) else {
             continue;
@@ -706,5 +806,31 @@ fn write_out(text: &str) -> i32 {
             print!("{text}");
             0
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::problems;
+
+    #[test]
+    fn an_engine_refusal_quoted_over_several_lines_is_one_problem() {
+        // Two files an external engine refused (the shape of
+        // `external::refusal`, as YARA-X 1.20.0 prints it), then a problem
+        // of Sigil's own: three problems, not one per line of the excerpts
+        // (which `rules validate` counted as 12 for two refused files).
+        let e = "rules/b.yar: refused by YARA-X 1.20.0 (/opt/bin/yr):\n    \
+                 error[E008]: unknown field or method `no_such_field`\n     \
+                 --> rules/b.yar:2:30\n      |\n\
+                 rules/c.yar: refused by YARA-X 1.20.0 (/opt/bin/yr):\n    \
+                 error[E009]: unknown identifier `nosuchmodule`\n\
+                 rules/d.yar:3: string $b is not defined";
+        let p = problems(e);
+        assert_eq!(p.len(), 3, "{p:?}");
+        assert!(p[0].starts_with("rules/b.yar: refused") && p[0].contains("E008"));
+        assert!(p[0].ends_with("      |"), "{:?}", p[0]);
+        assert!(p[1].starts_with("rules/c.yar: refused") && p[1].contains("E009"));
+        assert_eq!(p[2], "rules/d.yar:3: string $b is not defined");
+        assert!(problems("").is_empty());
     }
 }

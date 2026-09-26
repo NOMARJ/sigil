@@ -205,6 +205,11 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         "ARTIFACT-005" | "ARTIFACT-009" => Some("concealed_artifact"),
         "ARTIFACT-010" => Some("archive_path_traversal"),
         "PAD-003" => Some("whitespace_padding"),
+        // Insecure transport pack (insecure_transport.json). The TLS-* line
+        // rules take the family default below; the chain names what the link
+        // proves: a credential carried by a connection that does not check
+        // who is on the other end. Neither is an ACTION behaviour.
+        "TLS-CHAIN-001" => Some("exposes_credentials_in_transit"),
         _ => None,
     };
     if specific.is_some() {
@@ -256,6 +261,7 @@ pub fn behavior_for(rule_id: &str) -> Option<&'static str> {
         ("ARTIFACT-", "bundled_archive"),
         ("DEPSRC-", "dependency_source_redirect"),
         ("PAD-", "hides_text_with_padding"),
+        ("TLS-", "insecure_transport"),
         ("LPRIV-", "privilege_mismatch"),
         // OSV advisory ids.
         ("MAL-", "known_malicious_package"),

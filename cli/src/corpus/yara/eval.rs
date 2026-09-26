@@ -129,7 +129,9 @@ pub fn scan(
     budget: &FileBudget,
 ) -> Vec<Finding> {
     let mut out = Vec::new();
-    for file in files {
+    // A file an external engine evaluates (or none can) has no compiled
+    // strings or condition here.
+    for file in files.iter().filter(|f| f.is_builtin()) {
         let mut results: Vec<bool> = Vec::with_capacity(file.rules.len());
         let mut evals: Vec<RuleEval<'_, '_>> = Vec::with_capacity(file.rules.len());
         let mut cut_short = false;

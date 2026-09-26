@@ -31,7 +31,8 @@ A scan policy is a YAML file. Sigil reads, in order:
    current directory (skip discovery with `--no-project-config` or
    `SIGIL_NO_PROJECT_CONFIG=1`);
 3. **flags**: `--fail-on`, `--fail-on-verdict`, `--severity`, `--baseline`,
-   `--rules`.
+   `--rules`, and for the LLM stage `--llm-review`, `--no-llm-review` and
+   `--llm-model` (or `SIGIL_LLM_MODEL`).
 
 Later layers override earlier ones, except that a key the organisation policy
 lists under `locked:` can afterwards only be made stricter.
@@ -48,9 +49,17 @@ ignore_paths: [tests/fixtures/, "*.snap"]   # .sigilignore (gitignore) syntax
 rule_packs: [.sigil/rules/]         # custom packs: files or directories
 trusted_domains: [api.openai.com]   # excuse network findings to these hosts
 baseline: .sigil-baseline.json      # accept the findings recorded here
+llm_review: false                   # optional LLM review stage (sends masked code to a model)
+llm_may_downgrade: false            # let a model's dismissal lower a finding by one level
+llm_provider: anthropic             # or openai-compatible
+llm_model: claude-opus-5
+llm_max_calls: 25                   # per scan
+llm_max_tokens: 200000              # per scan, input + output
+yara_engine: auto                   # auto | best-effort | builtin | yara-x | yara
 # Organisation policy only:
 locked: [fail_on, disable_rules]    # or [all]
 allow_project_policy: true          # false = project files may only tighten
+llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends code
 ```
 
 | Key | Type | Effect |
@@ -64,8 +73,28 @@ allow_project_policy: true          # false = project files may only tighten
 | `rule_packs` | list of paths | adds custom rule packs (relative to the policy file) |
 | `trusted_domains` | list of host names | a Network/Exfil finding up to High whose URLs all point at these hosts (or their subdomains) moves to `policy.suppressed`; never Critical findings, credential-flow chains, data-egress rules (`SKILL-017`, `NET-011`, `NET-018`), reverse shells, decoded or truncated lines, or a line with a URL whose host cannot be read with certainty (userinfo `@`, percent encoding, templates, shell quoting) |
 | `baseline` | path | findings recorded in the baseline move to `policy.suppressed` |
+| `yara_engine` | `auto`/`best-effort`/`builtin`/`yara-x`/`yara` | what evaluates YARA rule files (same as `--yara-engine`); see [Full YARA: external engines](enterprise.md#full-yara-external-engines). Locked or in a tighten-only file, it cannot be changed at all |
 | `locked` | list of keys, or `all` | organisation only; see below |
 | `allow_project_policy` | bool | organisation only; `false` makes every project file tighten-only |
+| `llm_review` | bool | run the optional LLM review stage on `sigil scan` (as `--llm-review`); `true` takes effect from the organisation policy or a `--config` file, not a discovered `.sigil.yml`; see [llm-review.md](llm-review.md) |
+| `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level; never a Critical, prompt-injection or agent-manipulation finding, or a finding in a file that addresses the reviewer |
+| `llm_provider` | `anthropic`/`openai-compatible` | which API the stage speaks (default: Anthropic, or OpenAI-compatible when an endpoint is set); not from a discovered `.sigil.yml` |
+| `llm_model` | model id | the model (as `--llm-model`); not from a discovered `.sigil.yml` |
+| `llm_endpoint` | URL | organisation only; the OpenAI-compatible endpoint the stage sends code to (`https`, or `http` to localhost) |
+| `llm_max_calls` | 1–1000 | per-scan cap on requests (default 25) |
+| `llm_max_tokens` | 10,000–10,000,000 | per-scan cap on input + output tokens (default 200,000) |
+
+The LLM keys cannot be set by a policy file inside a tree scanned from
+outside it: such a file may only set `llm_may_downgrade: false`. A project
+file found by discovery cannot turn the stage on, raise `llm_max_calls` or
+`llm_max_tokens`, or choose `llm_provider` or `llm_model`, even when you work
+inside its tree: that takes `--llm-review`, `--llm-model`, the environment
+(`SIGIL_LLM_ENDPOINT`, `SIGIL_LLM_MODEL`), the organisation policy, or naming
+the file with `--config`, because the stage sends code off the machine on the
+API key of whoever runs the scan. A locked
+`llm_review`, `llm_provider` or `llm_model` is fixed at the organisation's
+value, a locked `llm_may_downgrade` can only be switched off, and locked caps
+can only be lowered. API keys are read from the environment only.
 
 Validation is strict: an unknown key, a misspelt severity, a URL where a host
 name belongs, or a single-label trusted domain such as `com` is an error
@@ -88,9 +117,9 @@ severities, but may not add to a locked `disable_rules`, `ignore_paths`,
 Refusals are warnings on stderr and entries in `policy.refused`. Locking the
 gate (`fail_on`, `fail_on_verdict`) is not enough on its own: every unlocked
 key among `min_severity`, `severity_overrides`, `baseline`, `disable_rules`,
-`ignore_paths` and `trusted_domains` can still take findings out from under
-it. `sigil config --validate FILE --org` lists each one; `locked: [all]`
-closes them all.
+`ignore_paths`, `trusted_domains` and `llm_may_downgrade` can still take
+findings out from under it. `sigil config --validate FILE --org` lists each
+one; `locked: [all]` closes them all.
 
 **The scanned-tree guard.** A project file found in the scan root is trusted
 only when you run Sigil from inside that tree. Scanning a tree from outside
@@ -116,7 +145,9 @@ a Critical pattern in a baseline, add a `sigil:ignore` marker for it.
 
 `--rules PATH` (repeatable, a file or a directory) and a policy's
 `rule_packs` add rule packs in JSON or YAML, and YARA rule files (`.yar`,
-`.yara`; see [YARA rules](enterprise.md#yara-rules)). Two JSON/YAML shapes are
+`.yara`; see [YARA rules](enterprise.md#yara-rules), and
+[Full YARA: external engines](enterprise.md#full-yara-external-engines) for
+rules that use modules). Two JSON/YAML shapes are
 accepted: the full pack schema used by `cli/packs/core/v1/`, and a compact
 form:
 
