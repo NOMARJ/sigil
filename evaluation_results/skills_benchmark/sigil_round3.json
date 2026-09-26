@@ -1,9 +1,9 @@
 {
- "note": "Skills (204 malicious, 455 clean): the same samples scanned with the release build of main 35c0155 (main) and of ws/exfil-port 8f8fd64 (branch), each with an isolated HOME and --no-cache, by scripts/benchmark_skills.py --tools sigil --workers 2. level_changes lists every sample whose verdict level differs; chain_changes every sample whose set of correlation-chain rules differs; other_changes every other sample whose rule set or finding count differs. rules_* and high_* are the differences of the rule sets (all findings, and High/Critical findings).",
+ "note": "Skills (204 malicious, 455 clean): the same samples scanned with the release build of main 35c0155 (main) and of ws/exfil-port 34eaa0b (branch), each with an isolated HOME and --no-cache, by scripts/benchmark_skills.py --tools sigil --workers 2. level_changes lists every sample whose verdict level differs; chain_changes every sample whose set of correlation-chain rules differs; other_changes every other sample whose rule set or finding count differs. rules_* and high_* are the differences of the rule sets (all findings, and High/Critical findings).",
  "disclosure": [
   "Data Source: Real samples: DataDog malicious-software-packages-dataset ai-skills bucket (malicious);",
   "             anthropics, NVIDIA, openai and vercel-labs skill catalogs (clean).",
-  "Sample Size: 204 malicious, 455 clean, each scanned once per build (35c0155, 8f8fd64).",
+  "Sample Size: 204 malicious, 455 clean, each scanned once per build (35c0155, 34eaa0b).",
   "Limitations: Real samples, static analysis only. 'Clean' means published, not audited.",
   "             One run per build on a 4-core machine (--workers 2); the per-file time",
   "             budget makes large files load-sensitive (PROV-BUDGET-001 is listed below).",
@@ -12,7 +12,7 @@
  ],
  "builds": {
   "main": "sigil 35c0155 (main, release)",
-  "branch": "sigil 8f8fd64 (ws/exfil-port, release)"
+  "branch": "sigil 34eaa0b (ws/exfil-port, release)"
  },
  "corpora": {
   "malicious:mal_skills": 204,
@@ -46,14 +46,14 @@
     "block": 173,
     "warn": 184,
     "any": 190,
-    "seconds": 154.8
+    "seconds": 175.0
    },
    "clean": {
     "scanned": 455,
     "block": 7,
     "warn": 71,
     "any": 224,
-    "seconds": 333.5
+    "seconds": 381.8
    }
   }
  },
@@ -10262,7 +10262,7 @@
      "CODE-014",
      "SKILL-003"
     ],
-    "seconds": 0.63,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -10281,7 +10281,7 @@
      "CODE-014",
      "SKILL-003"
     ],
-    "seconds": 0.64,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -10301,7 +10301,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -10322,7 +10322,7 @@
      "CODE-002",
      "CODE-014"
     ],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -10341,7 +10341,7 @@
     "high_rules": [
      "AGENTSC-015"
     ],
-    "seconds": 0.6,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -10358,7 +10358,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.61,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -10373,7 +10373,7 @@
      "SKILL-015"
     ],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.67,
     "error": null
    },
    {
@@ -10392,7 +10392,7 @@
      "CODE-001",
      "CODE-002"
     ],
-    "seconds": 0.61,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -10410,7 +10410,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 0.71,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -10432,7 +10432,7 @@
      "CODE-002",
      "CODE-014"
     ],
-    "seconds": 0.65,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -10451,7 +10451,7 @@
      "CRED-030",
      "PERSIST-001"
     ],
-    "seconds": 0.64,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -10473,7 +10473,7 @@
      "PROMPT-001",
      "PROMPT-005"
     ],
-    "seconds": 0.67,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -10491,7 +10491,7 @@
     "high_rules": [
      "SKILL-017"
     ],
-    "seconds": 0.6,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -10507,7 +10507,7 @@
     "high_rules": [
      "PROMPT-012"
     ],
-    "seconds": 0.57,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -10523,7 +10523,7 @@
     "high_rules": [
      "PROMPT-013"
     ],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -10549,7 +10549,7 @@
      "INSTR-014",
      "PROMPT-014"
     ],
-    "seconds": 1.54,
+    "seconds": 2.18,
     "error": null
    },
    {
@@ -10565,7 +10565,7 @@
     "high_rules": [
      "PROMPT-013"
     ],
-    "seconds": 0.67,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -10587,7 +10587,7 @@
      "PROMPT-014",
      "PROMPT-015"
     ],
-    "seconds": 0.64,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -10604,7 +10604,7 @@
     "high_rules": [
      "PROMPT-015"
     ],
-    "seconds": 0.7,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -10621,7 +10621,7 @@
     "high_rules": [
      "PROMPT-011"
     ],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -10640,7 +10640,7 @@
      "PROMPT-014",
      "PROMPT-015"
     ],
-    "seconds": 0.69,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -10659,7 +10659,7 @@
      "NET-RCE-001",
      "PROMPT-014"
     ],
-    "seconds": 0.66,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -10680,7 +10680,7 @@
      "MANIP-004",
      "SKILL-018"
     ],
-    "seconds": 0.77,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -10698,7 +10698,7 @@
     "high_rules": [
      "SKILL-018"
     ],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -10715,7 +10715,7 @@
     "high_rules": [
      "PROMPT-014"
     ],
-    "seconds": 0.72,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -10731,7 +10731,7 @@
     "high_rules": [
      "INSTR-033"
     ],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -10743,7 +10743,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -10759,7 +10759,7 @@
     "high_rules": [
      "CRED-030"
     ],
-    "seconds": 0.67,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -10774,7 +10774,7 @@
      "PROMPT-017"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -10791,7 +10791,7 @@
     "high_rules": [
      "AGENTSC-020"
     ],
-    "seconds": 0.69,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -10807,7 +10807,7 @@
     "high_rules": [
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 0.66,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -10831,7 +10831,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -10855,7 +10855,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -10874,7 +10874,7 @@
      "MANIP-010",
      "SKILL-020"
     ],
-    "seconds": 0.58,
+    "seconds": 0.67,
     "error": null
    },
    {
@@ -10890,7 +10890,7 @@
     "high_rules": [
      "MANIP-010"
     ],
-    "seconds": 0.74,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -10906,7 +10906,7 @@
     "high_rules": [
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 0.66,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -10930,7 +10930,7 @@
      "CODE-014",
      "NET-RCE-001"
     ],
-    "seconds": 0.6,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -10948,7 +10948,7 @@
     "high_rules": [
      "SKILL-014"
     ],
-    "seconds": 0.6,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -10966,7 +10966,7 @@
     "high_rules": [
      "CRED-033"
     ],
-    "seconds": 0.58,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -10984,7 +10984,7 @@
      "CODE-001",
      "CODE-002"
     ],
-    "seconds": 0.58,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -11004,7 +11004,7 @@
      "CODE-001",
      "EXFIL-CHAIN-001"
     ],
-    "seconds": 0.61,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -11018,7 +11018,7 @@
      "SKILL-013"
     ],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -11030,7 +11030,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.6,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -11046,7 +11046,7 @@
     "high_rules": [
      "SKILL-012"
     ],
-    "seconds": 0.62,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -11064,7 +11064,7 @@
      "INSTR-002",
      "PROMPT-001"
     ],
-    "seconds": 0.64,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -11088,7 +11088,7 @@
      "OBFUSC-014",
      "RSHELL-011"
     ],
-    "seconds": 0.6,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -11110,7 +11110,7 @@
      "PROMPT-001",
      "SKILL-003"
     ],
-    "seconds": 0.63,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -11122,7 +11122,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -11141,7 +11141,7 @@
      "MANIP-007",
      "SKILL-021"
     ],
-    "seconds": 0.69,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -11160,7 +11160,7 @@
      "MANIP-007",
      "SKILL-021"
     ],
-    "seconds": 0.66,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -11176,7 +11176,7 @@
     "high_rules": [
      "SKILL-019"
     ],
-    "seconds": 0.61,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -11203,7 +11203,7 @@
      "SKILL-019",
      "SKILL-021"
     ],
-    "seconds": 0.63,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -11230,7 +11230,7 @@
      "SKILL-019",
      "SKILL-021"
     ],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -11246,7 +11246,7 @@
     "high_rules": [
      "MANIP-009"
     ],
-    "seconds": 0.65,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -11258,7 +11258,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -11274,7 +11274,7 @@
     "high_rules": [
      "SKILL-016"
     ],
-    "seconds": 0.75,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -11292,7 +11292,7 @@
     "high_rules": [
      "SKILL-022"
     ],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -11308,7 +11308,7 @@
     "high_rules": [
      "MANIP-007"
     ],
-    "seconds": 0.64,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -11324,7 +11324,7 @@
     "high_rules": [
      "MANIP-007"
     ],
-    "seconds": 0.62,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -11340,7 +11340,7 @@
     "high_rules": [
      "SKILL-011"
     ],
-    "seconds": 0.63,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -11352,7 +11352,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -11364,7 +11364,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -11381,7 +11381,7 @@
     "high_rules": [
      "AGENTSC-012"
     ],
-    "seconds": 0.67,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -11396,7 +11396,7 @@
      "SKILL-010"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -11411,7 +11411,7 @@
      "SKILL-010"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -11427,7 +11427,7 @@
     "high_rules": [
      "AGENTSC-013"
     ],
-    "seconds": 0.61,
+    "seconds": 0.67,
     "error": null
    },
    {
@@ -11448,7 +11448,7 @@
      "AGENTSC-020",
      "PERSIST-005"
     ],
-    "seconds": 0.71,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -11462,7 +11462,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -11481,7 +11481,7 @@
     "high_rules": [
      "MANIP-007"
     ],
-    "seconds": 0.72,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -11500,7 +11500,7 @@
     "high_rules": [
      "MANIP-007"
     ],
-    "seconds": 0.77,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -11512,7 +11512,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -11524,7 +11524,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -11541,7 +11541,7 @@
     "high_rules": [
      "AGENTSC-041"
     ],
-    "seconds": 0.6,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -11559,7 +11559,7 @@
     "high_rules": [
      "AGENTSC-CHAIN-002"
     ],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -11580,7 +11580,7 @@
      "NET-RCE-001",
      "PROMPT-010"
     ],
-    "seconds": 0.67,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -11597,7 +11597,7 @@
     "high_rules": [
      "MANIP-004"
     ],
-    "seconds": 0.75,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -11615,7 +11615,7 @@
     "high_rules": [
      "AGENTSC-014"
     ],
-    "seconds": 0.69,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -11646,7 +11646,7 @@
      "NET-RCE-001",
      "NET-RCE-002"
     ],
-    "seconds": 0.99,
+    "seconds": 1.47,
     "error": null
    },
    {
@@ -11663,7 +11663,7 @@
     "high_rules": [
      "MANIP-004"
     ],
-    "seconds": 0.75,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -11675,7 +11675,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -11696,7 +11696,7 @@
      "CRED-007",
      "SKILL-005"
     ],
-    "seconds": 0.68,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -11710,7 +11710,7 @@
      "INSTR-017"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -11722,7 +11722,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -11736,7 +11736,7 @@
      "CRED-002"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -11770,7 +11770,7 @@
      "GHSA-mh99-v99m-4gvg",
      "GHSA-rgw5-rvv9-x895"
     ],
-    "seconds": 10.47,
+    "seconds": 9.32,
     "error": null
    },
    {
@@ -11804,7 +11804,7 @@
      "GHSA-mh99-v99m-4gvg",
      "GHSA-rgw5-rvv9-x895"
     ],
-    "seconds": 10.09,
+    "seconds": 8.19,
     "error": null
    },
    {
@@ -11822,7 +11822,7 @@
     "high_rules": [
      "SKILL-022"
     ],
-    "seconds": 0.72,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -11845,7 +11845,7 @@
      "ARTIFACT-001",
      "ARTIFACT-003"
     ],
-    "seconds": 0.85,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -11869,7 +11869,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.93,
     "error": null
    },
    {
@@ -11893,7 +11893,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -11917,7 +11917,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -11941,7 +11941,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -11965,7 +11965,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -11989,7 +11989,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -12008,7 +12008,7 @@
      "AGENTSC-002",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12027,7 +12027,7 @@
      "AGENTSC-002",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12051,7 +12051,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -12076,7 +12076,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -12100,7 +12100,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.7,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -12153,7 +12153,7 @@
      "SKILL-003",
      "SKILL-017"
     ],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -12171,7 +12171,7 @@
     "high_rules": [
      "AGENTSC-031"
     ],
-    "seconds": 0.65,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -12189,7 +12189,7 @@
     "high_rules": [
      "AGENTSC-CHAIN-002"
     ],
-    "seconds": 0.61,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -12201,7 +12201,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -12219,7 +12219,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.63,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -12243,7 +12243,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.66,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -12267,7 +12267,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.67,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -12291,7 +12291,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.71,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -12312,7 +12312,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.75,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12333,7 +12333,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.69,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -12351,7 +12351,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.66,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12369,7 +12369,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -12389,7 +12389,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.61,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -12409,7 +12409,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.61,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -12427,7 +12427,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.63,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -12445,7 +12445,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.63,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -12467,7 +12467,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.62,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12487,7 +12487,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.65,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -12506,7 +12506,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.68,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -12526,7 +12526,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -12543,7 +12543,7 @@
     "high_rules": [
      "AGENTSC-001"
     ],
-    "seconds": 0.73,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -12562,7 +12562,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -12581,7 +12581,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.61,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -12603,7 +12603,7 @@
      "PROMPT-015",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -12625,7 +12625,7 @@
      "PROMPT-015",
      "SKILL-024"
     ],
-    "seconds": 0.67,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -12647,7 +12647,7 @@
      "PROMPT-015",
      "SKILL-024"
     ],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -12669,7 +12669,7 @@
      "PROMPT-015",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -12691,7 +12691,7 @@
      "PROMPT-015",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -12713,7 +12713,7 @@
      "AGENTSC-020",
      "SKILL-024"
     ],
-    "seconds": 0.68,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -12732,7 +12732,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.68,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -12753,7 +12753,7 @@
      "PROMPT-013",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -12774,7 +12774,7 @@
      "PROMPT-013",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -12797,7 +12797,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -12816,7 +12816,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.61,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -12839,7 +12839,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.62,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -12858,7 +12858,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.65,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -12880,7 +12880,7 @@
      "PERSIST-005",
      "SKILL-024"
     ],
-    "seconds": 0.72,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -12897,7 +12897,7 @@
     "high_rules": [
      "PERSIST-005"
     ],
-    "seconds": 0.66,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -12916,7 +12916,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -12935,7 +12935,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -12955,7 +12955,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -12974,7 +12974,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.69,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -12993,7 +12993,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13012,7 +13012,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -13031,7 +13031,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.66,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -13050,7 +13050,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -13069,7 +13069,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -13088,7 +13088,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13107,7 +13107,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -13127,7 +13127,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.6,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -13147,7 +13147,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.62,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13166,7 +13166,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -13185,7 +13185,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.64,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -13204,7 +13204,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -13223,7 +13223,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -13242,7 +13242,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13266,7 +13266,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -13290,7 +13290,7 @@
      "AGENTSC-001",
      "SKILL-024"
     ],
-    "seconds": 0.63,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13302,7 +13302,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -13321,7 +13321,7 @@
      "CRED-018",
      "SKILL-022"
     ],
-    "seconds": 0.64,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -13339,7 +13339,7 @@
      "AGENTSC-040",
      "SKILL-003"
     ],
-    "seconds": 0.68,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -13355,7 +13355,7 @@
     "high_rules": [
      "AGENTSC-040"
     ],
-    "seconds": 0.68,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -13377,7 +13377,7 @@
     "high_rules": [
      "CRED-020"
     ],
-    "seconds": 0.67,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -13391,7 +13391,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -13405,7 +13405,7 @@
      "NET-UPLOAD-001"
     ],
     "high_rules": [],
-    "seconds": 0.6,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13426,7 +13426,7 @@
      "PROMPT-012",
      "PROMPT-014"
     ],
-    "seconds": 0.68,
+    "seconds": 1.11,
     "error": null
    },
    {
@@ -13442,7 +13442,7 @@
      "OBFUSC-010"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -13456,7 +13456,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -13472,7 +13472,7 @@
     "high_rules": [
      "AGENTSC-010"
     ],
-    "seconds": 0.63,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -13490,7 +13490,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.64,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -13507,7 +13507,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.62,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13525,7 +13525,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.67,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -13543,7 +13543,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.7,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -13560,7 +13560,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.67,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -13577,7 +13577,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -13594,7 +13594,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.61,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -13612,7 +13612,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.64,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -13629,7 +13629,7 @@
     "high_rules": [
      "SKILL-001"
     ],
-    "seconds": 0.72,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13643,7 +13643,7 @@
      "MANIP-008"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -13661,7 +13661,7 @@
     "high_rules": [
      "NET-CLEAR-001"
     ],
-    "seconds": 0.63,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -13685,7 +13685,7 @@
      "PROMPT-016",
      "SKILL-024"
     ],
-    "seconds": 0.75,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -13702,7 +13702,7 @@
     "high_rules": [
      "AGENTSC-020"
     ],
-    "seconds": 0.65,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -13718,7 +13718,7 @@
     "high_rules": [
      "PROMPT-013"
     ],
-    "seconds": 0.65,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -13735,7 +13735,7 @@
     "high_rules": [
      "AGENTSC-020"
     ],
-    "seconds": 0.64,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -13756,7 +13756,7 @@
      "SKILL-024",
      "SKILL-025"
     ],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -13773,7 +13773,7 @@
     "high_rules": [
      "AGENTSC-020"
     ],
-    "seconds": 0.64,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -13793,7 +13793,7 @@
      "NET-007",
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 0.65,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -13811,7 +13811,7 @@
     "high_rules": [
      "AGENTSC-CHAIN-002"
     ],
-    "seconds": 0.61,
+    "seconds": 0.67,
     "error": null
    },
    {
@@ -13832,7 +13832,7 @@
      "NET-RCE-001",
      "PROMPT-014"
     ],
-    "seconds": 0.7,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13868,7 +13868,7 @@
      "ARTIFACT-001",
      "ARTIFACT-002"
     ],
-    "seconds": 0.66,
+    "seconds": 0.67,
     "error": null
    },
    {
@@ -13886,7 +13886,7 @@
     "high_rules": [
      "CODE-014"
     ],
-    "seconds": 0.63,
+    "seconds": 0.66,
     "error": null
    },
    {
@@ -13904,7 +13904,7 @@
     "high_rules": [
      "AGENTSC-034"
     ],
-    "seconds": 0.63,
+    "seconds": 1.28,
     "error": null
    },
    {
@@ -13921,7 +13921,7 @@
     "high_rules": [
      "AGENTSC-032"
     ],
-    "seconds": 0.61,
+    "seconds": 1.16,
     "error": null
    },
    {
@@ -13939,7 +13939,7 @@
     "high_rules": [
      "AGENTSC-031"
     ],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -13951,7 +13951,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -13968,7 +13968,7 @@
     "high_rules": [
      "AGENTSC-013"
     ],
-    "seconds": 0.67,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -13986,7 +13986,7 @@
     "high_rules": [
      "SKILL-017"
     ],
-    "seconds": 0.62,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -14005,7 +14005,7 @@
      "NET-RCE-001",
      "PROMPT-010"
     ],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -14027,7 +14027,7 @@
      "NET-RCE-001",
      "PROMPT-010"
     ],
-    "seconds": 0.72,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -14049,7 +14049,7 @@
      "NET-RCE-001",
      "PROMPT-010"
     ],
-    "seconds": 0.65,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14071,7 +14071,7 @@
      "NET-RCE-001",
      "PROMPT-010"
     ],
-    "seconds": 0.65,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -14086,7 +14086,7 @@
      "NET-015"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -14104,7 +14104,7 @@
     "high_rules": [
      "AGENTSC-CHAIN-002"
     ],
-    "seconds": 0.66,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -14116,7 +14116,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -14128,7 +14128,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -14140,7 +14140,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -14152,7 +14152,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -14164,7 +14164,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 1.41,
     "error": null
    },
    {
@@ -14185,7 +14185,7 @@
     "high_rules": [
      "CODE-001"
     ],
-    "seconds": 1.12,
+    "seconds": 1.64,
     "error": null
    },
    {
@@ -14197,7 +14197,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -14209,7 +14209,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -14224,7 +14224,7 @@
      "CRED-ENV-001"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -14238,7 +14238,7 @@
      "INSTR-004"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -14250,7 +14250,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14266,7 +14266,7 @@
      "NET-005"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -14278,7 +14278,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -14293,7 +14293,7 @@
      "CRED-ENV-001"
     ],
     "high_rules": [],
-    "seconds": 0.84,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -14308,7 +14308,7 @@
      "OBFUSC-002"
     ],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -14320,7 +14320,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -14332,7 +14332,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -14346,7 +14346,7 @@
      "ARTIFACT-007"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -14361,7 +14361,7 @@
      "CODE-015"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -14376,7 +14376,7 @@
      "CRED-ENV-001"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -14388,7 +14388,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -14400,7 +14400,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14412,7 +14412,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14428,7 +14428,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.93,
     "error": null
    },
    {
@@ -14443,7 +14443,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14459,7 +14459,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -14474,7 +14474,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14488,7 +14488,7 @@
      "CODE-RUNFILE-001"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -14502,7 +14502,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -14517,7 +14517,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -14532,7 +14532,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -14547,7 +14547,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -14562,7 +14562,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -14577,7 +14577,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -14589,7 +14589,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -14604,7 +14604,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -14616,7 +14616,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -14632,7 +14632,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14649,7 +14649,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14666,7 +14666,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 0.67,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -14678,7 +14678,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14700,7 +14700,7 @@
      "CODE-001",
      "NET-RCE-001"
     ],
-    "seconds": 0.81,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14715,7 +14715,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -14727,7 +14727,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14741,7 +14741,7 @@
      "NET-002"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14753,7 +14753,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -14768,7 +14768,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -14783,7 +14783,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -14795,7 +14795,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -14809,7 +14809,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -14826,7 +14826,7 @@
      "OBFUSC-010"
     ],
     "high_rules": [],
-    "seconds": 0.89,
+    "seconds": 1.09,
     "error": null
    },
    {
@@ -14842,7 +14842,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -14862,7 +14862,7 @@
     "high_rules": [
      "CODE-001"
     ],
-    "seconds": 1.96,
+    "seconds": 2.39,
     "error": null
    },
    {
@@ -14877,7 +14877,7 @@
      "MANIP-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -14889,7 +14889,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -14910,7 +14910,7 @@
     "high_rules": [
      "NET-008"
     ],
-    "seconds": 0.96,
+    "seconds": 1.13,
     "error": null
    },
    {
@@ -14925,7 +14925,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.86,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -14940,7 +14940,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -14954,7 +14954,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -14970,7 +14970,7 @@
      "OBFUSC-CHAIN-008"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -14994,7 +14994,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -15010,7 +15010,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -15022,7 +15022,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.96,
     "error": null
    },
    {
@@ -15034,7 +15034,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.96,
     "error": null
    },
    {
@@ -15046,7 +15046,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 1.05,
     "error": null
    },
    {
@@ -15062,7 +15062,7 @@
     "high_rules": [
      "PERSIST-006"
     ],
-    "seconds": 0.82,
+    "seconds": 0.96,
     "error": null
    },
    {
@@ -15074,7 +15074,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -15086,7 +15086,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -15098,7 +15098,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -15110,7 +15110,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -15122,7 +15122,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15134,7 +15134,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15146,7 +15146,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.83,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -15158,7 +15158,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -15170,7 +15170,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -15182,7 +15182,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -15194,7 +15194,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15206,7 +15206,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -15218,7 +15218,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -15230,7 +15230,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -15242,7 +15242,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15254,7 +15254,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.94,
     "error": null
    },
    {
@@ -15266,7 +15266,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -15278,7 +15278,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -15290,7 +15290,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15302,7 +15302,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -15314,7 +15314,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -15326,7 +15326,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.85,
+    "seconds": 0.94,
     "error": null
    },
    {
@@ -15338,7 +15338,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -15350,7 +15350,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -15362,7 +15362,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15374,7 +15374,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -15398,7 +15398,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -15410,7 +15410,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15422,7 +15422,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -15434,7 +15434,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15446,7 +15446,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15458,7 +15458,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -15470,7 +15470,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -15482,7 +15482,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15494,7 +15494,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -15506,7 +15506,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -15518,7 +15518,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -15530,7 +15530,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15542,7 +15542,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15554,7 +15554,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -15566,7 +15566,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15578,7 +15578,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15590,7 +15590,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -15614,7 +15614,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -15626,7 +15626,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -15638,7 +15638,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -15650,7 +15650,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15662,7 +15662,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -15674,7 +15674,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15690,7 +15690,7 @@
     "high_rules": [
      "MANIP-004"
     ],
-    "seconds": 0.78,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -15702,7 +15702,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15726,7 +15726,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -15738,7 +15738,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -15752,7 +15752,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -15766,7 +15766,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15780,7 +15780,7 @@
      "NET-002"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -15795,7 +15795,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -15809,7 +15809,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -15825,7 +15825,7 @@
      "PERSIST-012"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -15841,7 +15841,7 @@
      "PERSIST-012"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -15853,7 +15853,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -15865,7 +15865,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -15877,7 +15877,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -15889,7 +15889,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -15901,7 +15901,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -15913,7 +15913,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -15925,7 +15925,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -15937,7 +15937,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -15949,7 +15949,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -15964,7 +15964,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -15976,7 +15976,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -15991,7 +15991,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -16005,7 +16005,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16017,7 +16017,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16032,7 +16032,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -16047,7 +16047,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16063,7 +16063,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -16075,7 +16075,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16089,7 +16089,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.84,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -16101,7 +16101,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -16121,7 +16121,7 @@
     "high_rules": [
      "CRED-031"
     ],
-    "seconds": 0.67,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -16136,7 +16136,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -16148,7 +16148,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16160,7 +16160,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16172,7 +16172,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -16184,7 +16184,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16196,7 +16196,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -16208,7 +16208,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16220,7 +16220,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16232,7 +16232,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -16244,7 +16244,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16256,7 +16256,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16268,7 +16268,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -16280,7 +16280,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -16292,7 +16292,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -16304,7 +16304,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -16320,7 +16320,7 @@
      "NET-003"
     ],
     "high_rules": [],
-    "seconds": 0.82,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -16332,7 +16332,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -16344,7 +16344,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -16356,7 +16356,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -16368,7 +16368,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16380,7 +16380,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16392,7 +16392,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16404,7 +16404,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -16416,7 +16416,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16428,7 +16428,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -16440,7 +16440,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -16452,7 +16452,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16464,7 +16464,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -16476,7 +16476,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -16490,7 +16490,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -16502,7 +16502,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16516,7 +16516,7 @@
      "PERSIST-003"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16528,7 +16528,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -16540,7 +16540,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16554,7 +16554,7 @@
      "MANIP-008"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -16566,7 +16566,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16578,7 +16578,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -16592,7 +16592,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -16606,7 +16606,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16618,7 +16618,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -16630,7 +16630,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -16642,7 +16642,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -16654,7 +16654,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -16666,7 +16666,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -16678,7 +16678,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -16690,7 +16690,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -16702,7 +16702,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16714,7 +16714,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -16733,7 +16733,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 0.71,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -16748,7 +16748,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -16762,7 +16762,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -16778,7 +16778,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.99,
     "error": null
    },
    {
@@ -16790,7 +16790,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -16805,7 +16805,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 1.07,
     "error": null
    },
    {
@@ -16819,7 +16819,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -16831,7 +16831,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -16843,7 +16843,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16855,7 +16855,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16867,7 +16867,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -16879,7 +16879,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -16894,7 +16894,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -16906,7 +16906,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -16918,7 +16918,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -16930,7 +16930,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -16942,7 +16942,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -16954,7 +16954,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -16966,7 +16966,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -16978,7 +16978,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -16990,7 +16990,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17002,7 +17002,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -17014,7 +17014,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17026,7 +17026,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -17038,7 +17038,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -17050,7 +17050,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -17062,7 +17062,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -17074,7 +17074,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -17086,7 +17086,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -17098,7 +17098,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -17110,7 +17110,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17122,7 +17122,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -17134,7 +17134,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17146,7 +17146,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -17158,7 +17158,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17170,7 +17170,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -17182,7 +17182,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -17194,7 +17194,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -17206,7 +17206,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -17218,7 +17218,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17232,7 +17232,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -17246,7 +17246,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17258,7 +17258,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -17270,7 +17270,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.6,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17282,7 +17282,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -17294,7 +17294,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -17306,7 +17306,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -17318,7 +17318,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -17334,7 +17334,7 @@
     "high_rules": [
      "CRED-011"
     ],
-    "seconds": 0.71,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -17346,7 +17346,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17358,7 +17358,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17370,7 +17370,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -17382,7 +17382,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -17394,7 +17394,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -17406,7 +17406,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17420,7 +17420,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -17436,7 +17436,7 @@
     "high_rules": [
      "CODE-001"
     ],
-    "seconds": 0.79,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -17448,7 +17448,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.88,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -17460,7 +17460,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -17474,7 +17474,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -17490,7 +17490,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -17504,7 +17504,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.9,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -17521,7 +17521,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -17537,7 +17537,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -17552,7 +17552,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -17567,7 +17567,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17582,7 +17582,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -17600,7 +17600,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -17615,7 +17615,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -17631,7 +17631,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -17646,7 +17646,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -17660,7 +17660,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 1.05,
     "error": null
    },
    {
@@ -17672,7 +17672,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -17688,7 +17688,7 @@
     "high_rules": [
      "SUPPLY-003"
     ],
-    "seconds": 0.72,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -17700,7 +17700,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -17723,7 +17723,7 @@
      "DEPSRC-005",
      "SUPPLY-003"
     ],
-    "seconds": 1.47,
+    "seconds": 1.43,
     "error": null
    },
    {
@@ -17735,7 +17735,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17752,7 +17752,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 0.71,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -17764,7 +17764,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -17778,7 +17778,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.82,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -17790,7 +17790,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -17809,7 +17809,7 @@
      "OBFUSC-005"
     ],
     "high_rules": [],
-    "seconds": 0.96,
+    "seconds": 1.15,
     "error": null
    },
    {
@@ -17826,7 +17826,7 @@
      "OBFUSC-CHAIN-008"
     ],
     "high_rules": [],
-    "seconds": 1.15,
+    "seconds": 1.4,
     "error": null
    },
    {
@@ -17847,7 +17847,7 @@
     "high_rules": [
      "MANIP-007"
     ],
-    "seconds": 1.15,
+    "seconds": 1.39,
     "error": null
    },
    {
@@ -17859,7 +17859,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.86,
+    "seconds": 1.11,
     "error": null
    },
    {
@@ -17871,7 +17871,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.91,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -17883,7 +17883,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.91,
+    "seconds": 0.99,
     "error": null
    },
    {
@@ -17900,7 +17900,7 @@
      "PERSIST-009"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -17914,7 +17914,7 @@
      "MANIP-008"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -17929,7 +17929,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.88,
+    "seconds": 1.06,
     "error": null
    },
    {
@@ -17945,7 +17945,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -17962,7 +17962,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -17979,7 +17979,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.9,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -17991,7 +17991,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.91,
+    "seconds": 0.98,
     "error": null
    },
    {
@@ -18008,7 +18008,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.84,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -18020,7 +18020,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -18032,7 +18032,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18044,7 +18044,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -18063,7 +18063,7 @@
     "high_rules": [
      "CRED-031"
     ],
-    "seconds": 0.83,
+    "seconds": 0.96,
     "error": null
    },
    {
@@ -18077,7 +18077,7 @@
      "SKILL-010"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -18092,7 +18092,7 @@
      "SKILL-010"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -18104,7 +18104,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -18118,7 +18118,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -18132,7 +18132,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -18144,7 +18144,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -18159,7 +18159,7 @@
      "SKILL-023"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18173,7 +18173,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -18187,7 +18187,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -18201,7 +18201,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18217,7 +18217,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -18231,7 +18231,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -18245,7 +18245,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -18259,7 +18259,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -18274,7 +18274,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -18288,7 +18288,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -18302,7 +18302,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18320,7 +18320,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.94,
+    "seconds": 1.18,
     "error": null
    },
    {
@@ -18338,7 +18338,7 @@
     "high_rules": [
      "CODE-001"
     ],
-    "seconds": 0.88,
+    "seconds": 1.11,
     "error": null
    },
    {
@@ -18352,7 +18352,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18366,7 +18366,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -18380,7 +18380,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -18394,7 +18394,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18408,7 +18408,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18422,7 +18422,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18434,7 +18434,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -18448,7 +18448,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -18462,7 +18462,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -18476,7 +18476,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -18490,7 +18490,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18504,7 +18504,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -18520,7 +18520,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -18534,7 +18534,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18550,7 +18550,7 @@
      "CRED-001"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -18562,7 +18562,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -18581,7 +18581,7 @@
      "PROV-001"
     ],
     "high_rules": [],
-    "seconds": 0.9,
+    "seconds": 1.13,
     "error": null
    },
    {
@@ -18597,7 +18597,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.85,
+    "seconds": 1.13,
     "error": null
    },
    {
@@ -18613,7 +18613,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -18631,7 +18631,7 @@
      "MANIP-008"
     ],
     "high_rules": [],
-    "seconds": 0.91,
+    "seconds": 1.02,
     "error": null
    },
    {
@@ -18647,7 +18647,7 @@
      "NET-002"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -18666,7 +18666,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 0.68,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -18680,7 +18680,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -18695,7 +18695,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18712,7 +18712,7 @@
     "high_rules": [
      "PERSIST-006"
     ],
-    "seconds": 0.72,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18729,7 +18729,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -18747,7 +18747,7 @@
     "high_rules": [
      "INSTR-014"
     ],
-    "seconds": 0.63,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -18763,7 +18763,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -18777,7 +18777,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18791,7 +18791,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18805,7 +18805,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -18820,7 +18820,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -18834,7 +18834,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -18848,7 +18848,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18863,7 +18863,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -18877,7 +18877,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -18892,7 +18892,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18906,7 +18906,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.85,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -18920,7 +18920,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -18934,7 +18934,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -18948,7 +18948,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -18962,7 +18962,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -18976,7 +18976,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -18990,7 +18990,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19004,7 +19004,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19018,7 +19018,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -19032,7 +19032,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -19046,7 +19046,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.83,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -19060,7 +19060,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19074,7 +19074,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -19103,7 +19103,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -19117,7 +19117,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -19131,7 +19131,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -19145,7 +19145,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -19159,7 +19159,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -19171,7 +19171,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -19186,7 +19186,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19202,7 +19202,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.87,
+    "seconds": 0.93,
     "error": null
    },
    {
@@ -19216,7 +19216,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -19231,7 +19231,7 @@
      "OBFUSC-CHAIN-008"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -19243,7 +19243,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -19255,7 +19255,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -19267,7 +19267,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -19279,7 +19279,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.93,
     "error": null
    },
    {
@@ -19291,7 +19291,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.8,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -19305,7 +19305,7 @@
      "CODE-003"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -19317,7 +19317,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -19331,7 +19331,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -19345,7 +19345,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -19367,7 +19367,7 @@
     "high_rules": [
      "SKILL-017"
     ],
-    "seconds": 0.96,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -19381,7 +19381,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -19408,7 +19408,7 @@
      "NET-013",
      "PERSIST-010"
     ],
-    "seconds": 0.88,
+    "seconds": 0.99,
     "error": null
    },
    {
@@ -19423,7 +19423,7 @@
      "PERSIST-007"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -19439,7 +19439,7 @@
      "TLS-010"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -19453,7 +19453,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -19472,7 +19472,7 @@
     "high_rules": [
      "MANIP-004"
     ],
-    "seconds": 0.78,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -19486,7 +19486,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -19500,7 +19500,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -19514,7 +19514,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -19528,7 +19528,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19543,7 +19543,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -19558,7 +19558,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -19574,7 +19574,7 @@
      "SKILL-008"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -19588,7 +19588,7 @@
      "PERSIST-004"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -19603,7 +19603,7 @@
      "CRED-ENV-001"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -19615,7 +19615,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -19627,7 +19627,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -19639,7 +19639,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -19664,7 +19664,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 1.2,
+    "seconds": 1.39,
     "error": null
    },
    {
@@ -19676,7 +19676,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -19693,7 +19693,7 @@
     "high_rules": [
      "PROMPT-014"
     ],
-    "seconds": 0.76,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -19717,7 +19717,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -19729,7 +19729,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -19741,7 +19741,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -19753,7 +19753,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -19765,7 +19765,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -19781,7 +19781,7 @@
     "high_rules": [
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 0.73,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -19795,7 +19795,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.68,
     "error": null
    },
    {
@@ -19809,7 +19809,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.59,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -19821,7 +19821,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -19835,7 +19835,7 @@
      "PROMPT-017"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -19847,7 +19847,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.69,
     "error": null
    },
    {
@@ -19866,7 +19866,7 @@
      "PROMPT-014",
      "PROMPT-015"
     ],
-    "seconds": 0.72,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -19880,7 +19880,7 @@
      "CRED-002"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -19894,7 +19894,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -19906,7 +19906,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -19918,7 +19918,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -19930,7 +19930,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -19944,7 +19944,7 @@
      "CODE-007"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -19956,7 +19956,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.61,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -19970,7 +19970,7 @@
      "PROMPT-017"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -19986,7 +19986,7 @@
     "high_rules": [
      "PROMPT-015"
     ],
-    "seconds": 0.62,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -20010,7 +20010,7 @@
      "PROMPT-014",
      "TLS-CHAIN-001"
     ],
-    "seconds": 0.79,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -20027,7 +20027,7 @@
     "high_rules": [
      "OBFUSC-006"
     ],
-    "seconds": 0.75,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -20060,7 +20060,7 @@
      "SKILL-014",
      "SUPPLY-008"
     ],
-    "seconds": 0.95,
+    "seconds": 0.93,
     "error": null
    },
    {
@@ -20074,7 +20074,7 @@
      "CODE-013"
     ],
     "high_rules": [],
-    "seconds": 0.84,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -20086,7 +20086,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.78,
     "error": null
    },
    {
@@ -20101,7 +20101,7 @@
      "NET-012"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -20116,7 +20116,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -20133,7 +20133,7 @@
      "PROMPT-017"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -20147,7 +20147,7 @@
      "NET-UPLOAD-001"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -20159,7 +20159,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.82,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -20171,7 +20171,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -20187,7 +20187,7 @@
      "OBFUSC-001"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -20201,7 +20201,7 @@
      "CODE-007"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -20213,7 +20213,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -20225,7 +20225,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -20242,7 +20242,7 @@
      "PROMPT-017"
     ],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -20254,7 +20254,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.7,
+    "seconds": 0.81,
     "error": null
    },
    {
@@ -20269,7 +20269,7 @@
      "NET-UPLOAD-001"
     ],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -20281,7 +20281,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.78,
+    "seconds": 1.02,
     "error": null
    },
    {
@@ -20293,7 +20293,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -20305,7 +20305,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.77,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -20319,7 +20319,7 @@
      "MANIP-006"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -20338,7 +20338,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 0.93,
+    "seconds": 1.06,
     "error": null
    },
    {
@@ -20350,7 +20350,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -20362,7 +20362,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.73,
     "error": null
    }
   ]

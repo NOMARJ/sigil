@@ -73,8 +73,16 @@ narrower form of the step (a derived name followed only where the old word
 reading's window names the bound one in its code, which restores exactly
 the 17 artifact-lab links), and it was **not** ported. Its effect on the
 attack probes (ten true probes it links and this branch does not) is in
-[correlation-chains.md](correlation-chains.md#the-attack-probes); it has not
-been measured on the corpora below against this page's builds.
+[correlation-chains.md](correlation-chains.md#the-attack-probes). The
+branch's final build (34eaa0b, the port with both of its verifications'
+fixes) was measured on the Datadog selection sample by sample against main
+and e45efc5 ([correlation-chains.md](correlation-chains.md#measurements)):
+it loses EXFIL-CHAIN-001 on the same 17 packages as this page's build, and
+on 4 more `artifact-lab-3-package` versions that e45efc5 still linked
+because its window reached a derivation, a comment or the next block. One of
+those four, `artifact-lab-3-package-b1ec2b9f` 0.2.3, drops from CRITICAL to
+HIGH RISK (Critical recall 561 to 560 of 844); the other 20 stay CRITICAL
+RISK.
 
 The corpora were rebuilt from their public sources and checked against the
 recorded runs before anything was compared:

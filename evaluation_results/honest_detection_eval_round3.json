@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-26T05:58:07.122060+00:00",
-  "binary": "sigil (ws/exfilchain-v d89c600, release)",
+  "generated_at": "2026-09-26T10:52:52.250940+00:00",
+  "binary": "sigil (ws/exfil-port 34eaa0b, release)",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
   "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
   "dataset_fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
@@ -24,9 +24,9 @@
       "rate": 0.891
     },
     "Critical": {
-      "detected": 561,
+      "detected": 560,
       "scanned": 844,
-      "rate": 0.6647
+      "rate": 0.6635
     }
   },
   "control_total": 0,

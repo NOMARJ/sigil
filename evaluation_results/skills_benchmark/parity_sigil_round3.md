@@ -1,9 +1,9 @@
-# SkillSpector parity: main 35c0155 against ws/exfil-port 8f8fd64
+# SkillSpector parity: main 35c0155 against ws/exfil-port 34eaa0b
 
 ```
 Data Source: SkillSpector's own test suite, every finding its tests construct, de-duplicated
              (the parity corpus).
-Sample Size: 1,796 examples, each scanned once per build (35c0155, 8f8fd64).
+Sample Size: 1,796 examples, each scanned once per build (35c0155, 34eaa0b).
 Limitations: Includes findings SkillSpector's later stages filter as false positives and test-only
              markers; measures agreement with SkillSpector's examples, not recall on malware.
 ```

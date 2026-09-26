@@ -1,15 +1,15 @@
 {
- "note": "SkillSpector parity corpus scanned with main 35c0155 and ws/exfil-port 8f8fd64 (scripts/skillspector_parity.py run --workers 2, once per build). changed lists every example whose highest severity or rule set differs.",
+ "note": "SkillSpector parity corpus scanned with main 35c0155 and ws/exfil-port 34eaa0b (scripts/skillspector_parity.py run --workers 2, once per build). changed lists every example whose highest severity or rule set differs.",
  "disclosure": [
   "Data Source: SkillSpector's own test suite, every finding its tests construct, de-duplicated",
   "             (the parity corpus).",
-  "Sample Size: 1,796 examples, each scanned once per build (35c0155, 8f8fd64).",
+  "Sample Size: 1,796 examples, each scanned once per build (35c0155, 34eaa0b).",
   "Limitations: Includes findings SkillSpector's later stages filter as false positives and test-only",
   "             markers; measures agreement with SkillSpector's examples, not recall on malware."
  ],
  "builds": {
   "main": "sigil 35c0155 (main, release)",
-  "branch": "sigil 8f8fd64 (ws/exfil-port, release)"
+  "branch": "sigil 34eaa0b (ws/exfil-port, release)"
  },
  "aggregate": {
   "main": {

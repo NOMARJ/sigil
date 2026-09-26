@@ -1,6 +1,6 @@
 # Sigil Detection Evaluation — Honest Measurement
 
-_Generated: 2026-09-26T05:58:07.122060+00:00_
+_Generated: 2026-09-26T10:52:52.250940+00:00_
 
 ## Disclosure (mandatory, per CLAUDE.md)
 
@@ -12,7 +12,7 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 
 - Dataset commit: `1dbcfc517277f3e3d32434f8f6a82e6e9fb75580`
 - Reproducibility fingerprint: `63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade`
-- Scanner: `sigil (ws/exfilchain-v d89c600, release)`
+- Scanner: `sigil (ws/exfil-port 34eaa0b, release)`
 - Extract failures: 0 | scan errors: 0
 
 ## Recall (malicious samples detected)
@@ -22,7 +22,7 @@ Limitations: Dataset has selection bias (mostly GuardDog-identified, per Datadog
 | >= any | 785 | 844 | 93.01% |
 | >= Medium | 761 | 844 | 90.17% |
 | >= High | 752 | 844 | 89.10% |
-| >= Critical | 561 | 844 | 66.47% |
+| >= Critical | 560 | 844 | 66.35% |
 
 ## Notes
 

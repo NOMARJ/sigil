@@ -165,6 +165,13 @@ cli/src/scanner/normalize.rs
 cli/src/scanner/mod.rs
 # cli/src/scanner/context.rs: doc-comment example "eval(" in .d.ts files.
 cli/src/scanner/context.rs
+# cli/src/scanner/correlate.rs: the correlation engine. Its docs and its unit tests
+# quote the exfiltration shapes a chain links, as string literals (a curl that reads
+# its body from a heredoc, `curl --data-binary @- <<EOF`, and the requests a secret
+# is sent in), to prove the value reading links them; SKILL-017 reads each as an
+# upload. The module runs no command and sends nothing. Detection-engine test
+# inputs, not payloads.
+cli/src/scanner/correlate.rs
 # cli/src/corpus/ (F-008 Phase C): the declarative pack engine + signing module.
 # Its parity tests embed malicious sample strings as Rust literals (let contents =
 # "eval(compile(…))", requests.get("https://evil…")) to prove the engine detects

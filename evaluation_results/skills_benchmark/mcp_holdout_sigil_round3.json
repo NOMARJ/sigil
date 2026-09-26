@@ -1,9 +1,9 @@
 {
- "note": "Unseen MCP servers (146): the same samples scanned with the release build of main 35c0155 (main) and of ws/exfil-port 8f8fd64 (branch), each with an isolated HOME and --no-cache, by scripts/benchmark_skills.py --tools sigil --workers 2. level_changes lists every sample whose verdict level differs; chain_changes every sample whose set of correlation-chain rules differs; other_changes every other sample whose rule set or finding count differs. rules_* and high_* are the differences of the rule sets (all findings, and High/Critical findings).",
+ "note": "Unseen MCP servers (146): the same samples scanned with the release build of main 35c0155 (main) and of ws/exfil-port 34eaa0b (branch), each with an isolated HOME and --no-cache, by scripts/benchmark_skills.py --tools sigil --workers 2. level_changes lists every sample whose verdict level differs; chain_changes every sample whose set of correlation-chain rules differs; other_changes every other sample whose rule set or finding count differs. rules_* and high_* are the differences of the rule sets (all findings, and High/Critical findings).",
  "disclosure": [
   "Data Source: Real samples: the 146-server MCP holdout",
   "             (evaluation_results/corpora/mcp_holdout146_manifest.json), not used for tuning.",
-  "Sample Size: 146 clean, each scanned once with main 35c0155 and once with ws/exfil-port 8f8fd64.",
+  "Sample Size: 146 clean, each scanned once with main 35c0155 and once with ws/exfil-port 34eaa0b.",
   "Limitations: Real samples, static analysis only. 'Clean' means published, not audited.",
   "             One run per build on a 4-core machine (--workers 2); the per-file time",
   "             budget makes large files load-sensitive (PROV-BUDGET-001 is listed below).",
@@ -12,7 +12,7 @@
  ],
  "builds": {
   "main": "sigil 35c0155 (main, release)",
-  "branch": "sigil 8f8fd64 (ws/exfil-port, release)"
+  "branch": "sigil 34eaa0b (ws/exfil-port, release)"
  },
  "corpora": {
   "clean:mcp_holdout": 146
@@ -49,7 +49,7 @@
     "block": 66,
     "warn": 114,
     "any": 144,
-    "seconds": 232.2
+    "seconds": 319.2
    }
   }
  },
@@ -76,7 +76,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/com.githits__githits",
@@ -102,7 +106,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "CODE-002"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/com.shipstatic__mcp",
@@ -120,7 +128,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/com.tokportal__mcp",
@@ -138,7 +148,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.171county__modwrench",
@@ -156,7 +170,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.AgentPhone-AI__agentphone",
@@ -178,6 +196,13 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -203,7 +228,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "CODE-002"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.MatanYemini__bitbucket-mcp",
@@ -225,6 +254,13 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -248,7 +284,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.akutishevsky__lunchmoney-mcp",
@@ -271,7 +309,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.b1ff__atlassian-dc-mcp-confluence",
@@ -289,7 +329,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.b1ff__atlassian-dc-mcp-jira",
@@ -307,7 +351,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.bgauryy__octocode-mcp",
@@ -338,7 +386,13 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "SUPPLY-011",
+    "SUPPLY-013",
+    "SUPPLY-016"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.cablate__google-map",
@@ -365,6 +419,13 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INFER-004",
+    "INFER-005"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -383,7 +444,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.domdomegg__airtable-mcp-server",
@@ -405,6 +470,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -423,7 +494,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.fluttersdk__ai",
@@ -441,7 +516,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.giancarloerra__socraticode",
@@ -463,7 +542,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.grossiweb__toolroute",
@@ -485,6 +566,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -507,6 +594,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -529,7 +622,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.karanb192__reddit-mcp-buddy",
@@ -551,7 +646,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.kitepon-rgb__aiterm-mcp",
@@ -573,6 +670,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -591,7 +694,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.neat-technologies__neat",
@@ -613,6 +720,13 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -636,7 +750,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.planetabhi__figma-mcp-server",
@@ -658,6 +774,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -684,7 +806,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "CODE-002"
+   ],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.shinpr__mcp-local-rag",
@@ -706,6 +832,13 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-012"
    ]
   },
   {
@@ -728,6 +861,12 @@
    "budget": [
     false,
     false
+   ],
+   "lost_at_old_level": [
+    "INSTALL-004"
+   ],
+   "gained_at_new_level": [
+    "INSTALL-009"
    ]
   },
   {
@@ -751,7 +890,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.yamadashy__repomix",
@@ -773,7 +914,9 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [],
+   "gained_at_new_level": []
   },
   {
    "sample": "corpora/mcp_holdout/io.github.yokingma__time-mcp",
@@ -791,7 +934,11 @@
    "budget": [
     false,
     false
-   ]
+   ],
+   "lost_at_old_level": [
+    "HYGIENE-001"
+   ],
+   "gained_at_new_level": []
   }
  ],
  "chain_changes": [
@@ -6704,7 +6851,7 @@
      "NET-007",
      "SKILL-018"
     ],
-    "seconds": 1.1,
+    "seconds": 1.21,
     "error": null
    },
    {
@@ -6726,7 +6873,7 @@
      "OBFUSC-004"
     ],
     "high_rules": [],
-    "seconds": 1.18,
+    "seconds": 1.64,
     "error": null
    },
    {
@@ -6741,7 +6888,7 @@
      "CODE-RUNFILE-001"
     ],
     "high_rules": [],
-    "seconds": 0.58,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -6767,7 +6914,7 @@
      "PROMPT-004",
      "SUPPLY-008"
     ],
-    "seconds": 0.97,
+    "seconds": 1.15,
     "error": null
    },
    {
@@ -6794,7 +6941,7 @@
      "AGENTSC-013",
      "INSTR-001"
     ],
-    "seconds": 1.16,
+    "seconds": 1.65,
     "error": null
    },
    {
@@ -6810,7 +6957,7 @@
      "NET-MCP-002"
     ],
     "high_rules": [],
-    "seconds": 0.69,
+    "seconds": 0.91,
     "error": null
    },
    {
@@ -6838,7 +6985,7 @@
     "high_rules": [
      "CRED-007"
     ],
-    "seconds": 1.06,
+    "seconds": 1.48,
     "error": null
    },
    {
@@ -6871,7 +7018,7 @@
      "NET-RCE-001",
      "PERSIST-002"
     ],
-    "seconds": 0.77,
+    "seconds": 1.11,
     "error": null
    },
    {
@@ -6900,7 +7047,7 @@
      "INFER-004",
      "INFER-005"
     ],
-    "seconds": 1.45,
+    "seconds": 2.94,
     "error": null
    },
    {
@@ -6920,7 +7067,7 @@
     "high_rules": [
      "SKILL-018"
     ],
-    "seconds": 1.08,
+    "seconds": 1.67,
     "error": null
    },
    {
@@ -6955,7 +7102,7 @@
      "CODE-014",
      "CRED-041"
     ],
-    "seconds": 1.5,
+    "seconds": 2.17,
     "error": null
    },
    {
@@ -6973,7 +7120,7 @@
     "high_rules": [
      "CRED-008"
     ],
-    "seconds": 0.89,
+    "seconds": 1.0,
     "error": null
    },
    {
@@ -6989,7 +7136,7 @@
      "HYGIENE-001"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 1.08,
     "error": null
    },
    {
@@ -7044,7 +7191,7 @@
      "SUPPLY-012",
      "SUPPLY-015"
     ],
-    "seconds": 4.29,
+    "seconds": 8.3,
     "error": null
    },
    {
@@ -7061,7 +7208,7 @@
      "OBFUSC-008"
     ],
     "high_rules": [],
-    "seconds": 1.01,
+    "seconds": 1.34,
     "error": null
    },
    {
@@ -7110,7 +7257,7 @@
      "SUPPLY-001",
      "SUPPLY-014"
     ],
-    "seconds": 2.5,
+    "seconds": 4.92,
     "error": null
    },
    {
@@ -7124,7 +7271,7 @@
      "HYGIENE-001"
     ],
     "high_rules": [],
-    "seconds": 0.65,
+    "seconds": 0.75,
     "error": null
    },
    {
@@ -7148,7 +7295,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 0.94,
+    "seconds": 1.03,
     "error": null
    },
    {
@@ -7213,7 +7360,7 @@
      "PROMPT-014",
      "SUPPLY-014"
     ],
-    "seconds": 8.13,
+    "seconds": 11.74,
     "error": null
    },
    {
@@ -7239,7 +7386,7 @@
      "CODE-014",
      "CRED-005"
     ],
-    "seconds": 1.12,
+    "seconds": 1.98,
     "error": null
    },
    {
@@ -7256,7 +7403,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.91,
+    "seconds": 1.32,
     "error": null
    },
    {
@@ -7290,7 +7437,7 @@
      "NET-RCE-001",
      "SUPPLY-008"
     ],
-    "seconds": 2.3,
+    "seconds": 4.71,
     "error": null
    },
    {
@@ -7314,7 +7461,7 @@
      "NET-RCE-001",
      "PROMPT-014"
     ],
-    "seconds": 0.73,
+    "seconds": 1.02,
     "error": null
    },
    {
@@ -7345,7 +7492,7 @@
      "SUPPLY-007",
      "SUPPLY-008"
     ],
-    "seconds": 1.21,
+    "seconds": 1.32,
     "error": null
    },
    {
@@ -7396,7 +7543,7 @@
      "SUPPLY-014",
      "SUPPLY-015"
     ],
-    "seconds": 2.92,
+    "seconds": 3.92,
     "error": null
    },
    {
@@ -7414,7 +7561,7 @@
     "high_rules": [
      "INSTALL-003"
     ],
-    "seconds": 0.65,
+    "seconds": 1.01,
     "error": null
    },
    {
@@ -7439,7 +7586,7 @@
      "SKILL-013"
     ],
     "high_rules": [],
-    "seconds": 1.3,
+    "seconds": 1.9,
     "error": null
    },
    {
@@ -7451,7 +7598,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -7466,7 +7613,7 @@
      "NET-MCP-002"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -7494,7 +7641,7 @@
      "CODE-008",
      "SUPPLY-014"
     ],
-    "seconds": 1.15,
+    "seconds": 1.45,
     "error": null
    },
    {
@@ -7508,7 +7655,7 @@
      "INSTALL-004"
     ],
     "high_rules": [],
-    "seconds": 1.08,
+    "seconds": 1.88,
     "error": null
    },
    {
@@ -7520,7 +7667,7 @@
     "findings": 0,
     "rules": [],
     "high_rules": [],
-    "seconds": 0.66,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -7536,7 +7683,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.62,
+    "seconds": 0.7,
     "error": null
    },
    {
@@ -7572,7 +7719,7 @@
      "SKILL-022",
      "SUPPLY-014"
     ],
-    "seconds": 2.23,
+    "seconds": 2.74,
     "error": null
    },
    {
@@ -7591,7 +7738,7 @@
     "high_rules": [
      "INSTALL-003"
     ],
-    "seconds": 0.79,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -7618,7 +7765,7 @@
     "high_rules": [
      "CODE-014"
     ],
-    "seconds": 0.93,
+    "seconds": 1.51,
     "error": null
    },
    {
@@ -7649,7 +7796,7 @@
      "NET-013",
      "NET-RCE-001"
     ],
-    "seconds": 0.87,
+    "seconds": 1.2,
     "error": null
    },
    {
@@ -7716,7 +7863,7 @@
      "SUPPLY-001",
      "SUPPLY-014"
     ],
-    "seconds": 2.95,
+    "seconds": 3.77,
     "error": null
    },
    {
@@ -7735,7 +7882,7 @@
      "TLS-005"
     ],
     "high_rules": [],
-    "seconds": 1.76,
+    "seconds": 2.28,
     "error": null
    },
    {
@@ -7753,7 +7900,7 @@
      "UNICODE-001"
     ],
     "high_rules": [],
-    "seconds": 0.93,
+    "seconds": 3.86,
     "error": null
    },
    {
@@ -7795,7 +7942,7 @@
      "SUPPLY-007",
      "SUPPLY-008"
     ],
-    "seconds": 1.44,
+    "seconds": 1.78,
     "error": null
    },
    {
@@ -7820,7 +7967,7 @@
     "high_rules": [
      "MANIP-004"
     ],
-    "seconds": 1.32,
+    "seconds": 2.02,
     "error": null
    },
    {
@@ -7844,7 +7991,7 @@
      "TLS-004"
     ],
     "high_rules": [],
-    "seconds": 1.28,
+    "seconds": 1.26,
     "error": null
    },
    {
@@ -7867,7 +8014,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 1.05,
+    "seconds": 1.1,
     "error": null
    },
    {
@@ -7894,7 +8041,7 @@
      "CODE-001",
      "INSTALL-003"
     ],
-    "seconds": 0.93,
+    "seconds": 1.6,
     "error": null
    },
    {
@@ -7917,7 +8064,7 @@
      "CODE-001",
      "CRED-007"
     ],
-    "seconds": 0.79,
+    "seconds": 1.2,
     "error": null
    },
    {
@@ -7938,7 +8085,7 @@
     "high_rules": [
      "OBFUSC-007"
     ],
-    "seconds": 0.73,
+    "seconds": 0.84,
     "error": null
    },
    {
@@ -7960,7 +8107,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 1.09,
+    "seconds": 1.37,
     "error": null
    },
    {
@@ -7989,7 +8136,7 @@
      "CODE-008",
      "SUPPLY-008"
     ],
-    "seconds": 1.23,
+    "seconds": 1.53,
     "error": null
    },
    {
@@ -8009,7 +8156,7 @@
     "high_rules": [
      "PROMPT-008"
     ],
-    "seconds": 0.77,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -8038,7 +8185,7 @@
      "NET-CLEAR-001",
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 1.04,
+    "seconds": 1.13,
     "error": null
    },
    {
@@ -8064,7 +8211,7 @@
      "PROMPT-006",
      "TYPOSQUAT-001"
     ],
-    "seconds": 1.07,
+    "seconds": 1.36,
     "error": null
    },
    {
@@ -8079,7 +8226,7 @@
      "PROV-001"
     ],
     "high_rules": [],
-    "seconds": 0.73,
+    "seconds": 0.77,
     "error": null
    },
    {
@@ -8138,7 +8285,7 @@
      "SKILL-018",
      "UNICODE-003"
     ],
-    "seconds": 3.61,
+    "seconds": 7.03,
     "error": null
    },
    {
@@ -8248,7 +8395,7 @@
      "SKILL-022",
      "SUPPLY-014"
     ],
-    "seconds": 4.28,
+    "seconds": 7.52,
     "error": null
    },
    {
@@ -8270,7 +8417,7 @@
     "high_rules": [
      "NET-013"
     ],
-    "seconds": 1.08,
+    "seconds": 0.94,
     "error": null
    },
    {
@@ -8290,7 +8437,7 @@
      "UNICODE-003"
     ],
     "high_rules": [],
-    "seconds": 1.21,
+    "seconds": 1.98,
     "error": null
    },
    {
@@ -8308,7 +8455,7 @@
      "NET-UPLOAD-001"
     ],
     "high_rules": [],
-    "seconds": 1.11,
+    "seconds": 1.71,
     "error": null
    },
    {
@@ -8327,7 +8474,7 @@
      "NET-UPLOAD-001"
     ],
     "high_rules": [],
-    "seconds": 1.29,
+    "seconds": 1.65,
     "error": null
    },
    {
@@ -8353,7 +8500,7 @@
      "INSTALL-REF-001",
      "PERSIST-002"
     ],
-    "seconds": 1.08,
+    "seconds": 0.95,
     "error": null
    },
    {
@@ -8389,7 +8536,7 @@
      "OBFUSC-CHAIN-006",
      "PROMPT-004"
     ],
-    "seconds": 1.88,
+    "seconds": 2.11,
     "error": null
    },
    {
@@ -8410,7 +8557,7 @@
     "high_rules": [
      "PROMPT-004"
     ],
-    "seconds": 0.88,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -8433,7 +8580,7 @@
     "high_rules": [
      "TYPOSQUAT-001"
     ],
-    "seconds": 1.05,
+    "seconds": 1.17,
     "error": null
    },
    {
@@ -8452,7 +8599,7 @@
      "NET-004"
     ],
     "high_rules": [],
-    "seconds": 0.79,
+    "seconds": 0.96,
     "error": null
    },
    {
@@ -8487,7 +8634,7 @@
      "INSTALL-003",
      "SKILL-018"
     ],
-    "seconds": 1.05,
+    "seconds": 1.33,
     "error": null
    },
    {
@@ -8522,7 +8669,7 @@
      "PROMPT-006",
      "SUPPLY-014"
     ],
-    "seconds": 1.39,
+    "seconds": 2.19,
     "error": null
    },
    {
@@ -8537,7 +8684,7 @@
      "PROV-001"
     ],
     "high_rules": [],
-    "seconds": 0.98,
+    "seconds": 1.16,
     "error": null
    },
    {
@@ -8553,7 +8700,7 @@
      "UNICODE-003"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.88,
     "error": null
    },
    {
@@ -8582,7 +8729,7 @@
      "PERSIST-001",
      "PERSIST-002"
     ],
-    "seconds": 0.86,
+    "seconds": 1.12,
     "error": null
    },
    {
@@ -8600,7 +8747,7 @@
     "high_rules": [
      "INSTALL-003"
     ],
-    "seconds": 0.8,
+    "seconds": 0.82,
     "error": null
    },
    {
@@ -8638,7 +8785,7 @@
      "NET-013",
      "OBFUSC-006"
     ],
-    "seconds": 2.65,
+    "seconds": 3.15,
     "error": null
    },
    {
@@ -8688,7 +8835,7 @@
      "PROMPT-014",
      "SKILL-017"
     ],
-    "seconds": 1.56,
+    "seconds": 1.93,
     "error": null
    },
    {
@@ -8714,7 +8861,7 @@
      "CRED-041",
      "SKILL-001"
     ],
-    "seconds": 0.86,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -8739,7 +8886,7 @@
      "CODE-001",
      "CRED-023"
     ],
-    "seconds": 1.43,
+    "seconds": 2.27,
     "error": null
    },
    {
@@ -8783,7 +8930,7 @@
      "PROMPT-009",
      "PROMPT-012"
     ],
-    "seconds": 1.56,
+    "seconds": 2.19,
     "error": null
    },
    {
@@ -8811,7 +8958,7 @@
      "CRED-007",
      "CRED-008"
     ],
-    "seconds": 1.51,
+    "seconds": 1.93,
     "error": null
    },
    {
@@ -8857,7 +9004,7 @@
      "PYSEC-2026-2476",
      "PYSEC-2026-338"
     ],
-    "seconds": 2.13,
+    "seconds": 2.45,
     "error": null
    },
    {
@@ -8877,7 +9024,7 @@
     "high_rules": [
      "SKILL-022"
     ],
-    "seconds": 1.03,
+    "seconds": 1.15,
     "error": null
    },
    {
@@ -8997,7 +9144,7 @@
      "SUPPLY-014",
      "TYPOSQUAT-001"
     ],
-    "seconds": 8.94,
+    "seconds": 12.19,
     "error": null
    },
    {
@@ -9017,7 +9164,7 @@
      "UNICODE-003"
     ],
     "high_rules": [],
-    "seconds": 1.34,
+    "seconds": 2.46,
     "error": null
    },
    {
@@ -9036,7 +9183,7 @@
      "OBFUSC-003"
     ],
     "high_rules": [],
-    "seconds": 1.4,
+    "seconds": 1.77,
     "error": null
    },
    {
@@ -9051,7 +9198,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 1.07,
+    "seconds": 1.53,
     "error": null
    },
    {
@@ -9092,7 +9239,7 @@
      "SKILL-001",
      "SUPPLY-008"
     ],
-    "seconds": 2.71,
+    "seconds": 3.75,
     "error": null
    },
    {
@@ -9107,7 +9254,7 @@
      "HYGIENE-001"
     ],
     "high_rules": [],
-    "seconds": 0.85,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -9122,7 +9269,7 @@
      "INSTALL-004"
     ],
     "high_rules": [],
-    "seconds": 0.64,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -9136,7 +9283,7 @@
      "HYGIENE-001"
     ],
     "high_rules": [],
-    "seconds": 0.59,
+    "seconds": 0.66,
     "error": null
    },
    {
@@ -9161,7 +9308,7 @@
      "CRED-006",
      "MANIP-004"
     ],
-    "seconds": 1.1,
+    "seconds": 1.14,
     "error": null
    },
    {
@@ -9191,7 +9338,7 @@
     "high_rules": [
      "CODE-014"
     ],
-    "seconds": 1.24,
+    "seconds": 1.47,
     "error": null
    },
    {
@@ -9205,7 +9352,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -9220,7 +9367,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.72,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -9238,7 +9385,7 @@
      "OBFUSC-004"
     ],
     "high_rules": [],
-    "seconds": 0.76,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -9254,7 +9401,7 @@
      "OBFUSC-008"
     ],
     "high_rules": [],
-    "seconds": 0.86,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -9268,7 +9415,7 @@
      "ARTIFACT-007"
     ],
     "high_rules": [],
-    "seconds": 0.82,
+    "seconds": 0.85,
     "error": null
    },
    {
@@ -9294,7 +9441,7 @@
     "high_rules": [
      "OBFUSC-007"
     ],
-    "seconds": 1.7,
+    "seconds": 1.93,
     "error": null
    },
    {
@@ -9318,7 +9465,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 1.23,
+    "seconds": 1.32,
     "error": null
    },
    {
@@ -9343,7 +9490,7 @@
     "high_rules": [
      "SKILL-018"
     ],
-    "seconds": 0.81,
+    "seconds": 0.87,
     "error": null
    },
    {
@@ -9360,7 +9507,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.86,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -9387,7 +9534,7 @@
      "INSTALL-003",
      "INSTALL-REF-001"
     ],
-    "seconds": 0.87,
+    "seconds": 1.19,
     "error": null
    },
    {
@@ -9412,7 +9559,7 @@
     "high_rules": [
      "INSTR-001"
     ],
-    "seconds": 1.72,
+    "seconds": 1.74,
     "error": null
    },
    {
@@ -9438,7 +9585,7 @@
     "high_rules": [
      "ARTIFACT-011"
     ],
-    "seconds": 1.4,
+    "seconds": 2.44,
     "error": null
    },
    {
@@ -9453,7 +9600,7 @@
      "CRED-ENV-001"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 1.39,
     "error": null
    },
    {
@@ -9470,7 +9617,7 @@
      "NET-MCP-002"
     ],
     "high_rules": [],
-    "seconds": 0.68,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -9487,7 +9634,7 @@
      "OBFUSC-003"
     ],
     "high_rules": [],
-    "seconds": 0.81,
+    "seconds": 0.92,
     "error": null
    },
    {
@@ -9509,7 +9656,7 @@
      "CRED-007",
      "INFER-006"
     ],
-    "seconds": 0.73,
+    "seconds": 0.94,
     "error": null
    },
    {
@@ -9575,7 +9722,7 @@
      "PROMPT-015",
      "PROV-003"
     ],
-    "seconds": 33.45,
+    "seconds": 51.23,
     "error": null
    },
    {
@@ -9606,7 +9753,7 @@
      "INSTALL-003",
      "NET-013"
     ],
-    "seconds": 1.21,
+    "seconds": 1.62,
     "error": null
    },
    {
@@ -9624,7 +9771,7 @@
      "NET-MCP-002"
     ],
     "high_rules": [],
-    "seconds": 0.93,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -9661,7 +9808,7 @@
      "PERSIST-002",
      "PROMPT-012"
     ],
-    "seconds": 2.38,
+    "seconds": 2.49,
     "error": null
    },
    {
@@ -9748,7 +9895,7 @@
      "SUPPLY-012",
      "SUPPLY-014"
     ],
-    "seconds": 10.17,
+    "seconds": 12.9,
     "error": null
    },
    {
@@ -9786,7 +9933,7 @@
      "SUPPLY-006",
      "SUPPLY-008"
     ],
-    "seconds": 1.79,
+    "seconds": 1.94,
     "error": null
    },
    {
@@ -9812,7 +9959,7 @@
      "PROMPT-004",
      "SUPPLY-002"
     ],
-    "seconds": 3.68,
+    "seconds": 5.68,
     "error": null
    },
    {
@@ -9826,7 +9973,7 @@
      "CODE-007"
     ],
     "high_rules": [],
-    "seconds": 0.63,
+    "seconds": 0.8,
     "error": null
    },
    {
@@ -9877,7 +10024,7 @@
      "INSTALL-003",
      "PERSIST-011"
     ],
-    "seconds": 3.09,
+    "seconds": 5.24,
     "error": null
    },
    {
@@ -9907,7 +10054,7 @@
      "NET-013",
      "PROMPT-006"
     ],
-    "seconds": 1.14,
+    "seconds": 1.29,
     "error": null
    },
    {
@@ -9932,7 +10079,7 @@
      "CODE-002",
      "SKILL-018"
     ],
-    "seconds": 0.91,
+    "seconds": 1.04,
     "error": null
    },
    {
@@ -9968,7 +10115,7 @@
      "OBFUSC-012",
      "SUPPLY-014"
     ],
-    "seconds": 1.98,
+    "seconds": 2.33,
     "error": null
    },
    {
@@ -9991,7 +10138,7 @@
     "high_rules": [
      "SUPPLY-001"
     ],
-    "seconds": 0.95,
+    "seconds": 1.04,
     "error": null
    },
    {
@@ -10006,7 +10153,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.67,
+    "seconds": 0.76,
     "error": null
    },
    {
@@ -10025,7 +10172,7 @@
      "CODE-002",
      "OBFUSC-CHAIN-006"
     ],
-    "seconds": 0.58,
+    "seconds": 0.73,
     "error": null
    },
    {
@@ -10042,7 +10189,7 @@
      "OBFUSC-004"
     ],
     "high_rules": [],
-    "seconds": 0.75,
+    "seconds": 1.01,
     "error": null
    },
    {
@@ -10061,7 +10208,7 @@
     "high_rules": [
      "NET-RCE-001"
     ],
-    "seconds": 0.69,
+    "seconds": 0.79,
     "error": null
    },
    {
@@ -10098,7 +10245,7 @@
      "SUPPLY-001",
      "SUPPLY-014"
     ],
-    "seconds": 0.92,
+    "seconds": 1.13,
     "error": null
    },
    {
@@ -10131,7 +10278,7 @@
      "OBFUSC-CHAIN-006",
      "SUPPLY-014"
     ],
-    "seconds": 0.89,
+    "seconds": 1.2,
     "error": null
    },
    {
@@ -10153,7 +10300,7 @@
     "high_rules": [
      "CODE-002"
     ],
-    "seconds": 0.92,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -10169,7 +10316,7 @@
      "PERSIST-009"
     ],
     "high_rules": [],
-    "seconds": 0.94,
+    "seconds": 0.99,
     "error": null
    },
    {
@@ -10191,7 +10338,7 @@
      "CODE-014",
      "PROMPT-009"
     ],
-    "seconds": 0.76,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -10216,7 +10363,7 @@
     "high_rules": [
      "CRED-007"
     ],
-    "seconds": 1.56,
+    "seconds": 1.85,
     "error": null
    },
    {
@@ -10251,7 +10398,7 @@
      "SUPPLY-001",
      "SUPPLY-008"
     ],
-    "seconds": 1.17,
+    "seconds": 1.2,
     "error": null
    },
    {
@@ -10272,7 +10419,7 @@
     "high_rules": [
      "OBFUSC-007"
     ],
-    "seconds": 0.87,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -10289,7 +10436,7 @@
      "OBFUSC-003"
     ],
     "high_rules": [],
-    "seconds": 0.9,
+    "seconds": 1.11,
     "error": null
    },
    {
@@ -10306,7 +10453,7 @@
     "high_rules": [
      "PROMPT-004"
     ],
-    "seconds": 0.71,
+    "seconds": 0.86,
     "error": null
    },
    {
@@ -10331,7 +10478,7 @@
      "CRED-019",
      "PROMPT-006"
     ],
-    "seconds": 1.04,
+    "seconds": 1.27,
     "error": null
    },
    {
@@ -10345,7 +10492,7 @@
      "INSTALL-009"
     ],
     "high_rules": [],
-    "seconds": 0.74,
+    "seconds": 0.71,
     "error": null
    },
    {
@@ -10363,7 +10510,7 @@
     "high_rules": [
      "PROMPT-006"
     ],
-    "seconds": 0.77,
+    "seconds": 0.9,
     "error": null
    },
    {
@@ -10397,7 +10544,7 @@
      "OBFUSC-CHAIN-006",
      "SKILL-022"
     ],
-    "seconds": 1.36,
+    "seconds": 1.84,
     "error": null
    },
    {
@@ -10439,7 +10586,7 @@
      "PERSIST-008",
      "SKILL-017"
     ],
-    "seconds": 1.07,
+    "seconds": 1.25,
     "error": null
    },
    {
@@ -10453,7 +10600,7 @@
      "OBFUSC-004"
     ],
     "high_rules": [],
-    "seconds": 0.71,
+    "seconds": 0.83,
     "error": null
    },
    {
@@ -10467,7 +10614,7 @@
      "CRED-002"
     ],
     "high_rules": [],
-    "seconds": 0.6,
+    "seconds": 0.74,
     "error": null
    },
    {
@@ -10515,7 +10662,7 @@
      "PROMPT-014",
      "SKILL-014"
     ],
-    "seconds": 1.16,
+    "seconds": 1.47,
     "error": null
    },
    {
@@ -10547,7 +10694,7 @@
      "INFER-005",
      "TYPOSQUAT-001"
     ],
-    "seconds": 0.86,
+    "seconds": 0.97,
     "error": null
    },
    {
@@ -10583,7 +10730,7 @@
      "MANIP-004",
      "MANIP-007"
     ],
-    "seconds": 1.69,
+    "seconds": 1.53,
     "error": null
    },
    {
@@ -10626,7 +10773,7 @@
      "PROMPT-004",
      "TYPOSQUAT-001"
     ],
-    "seconds": 1.55,
+    "seconds": 1.87,
     "error": null
    },
    {
@@ -10649,7 +10796,7 @@
      "MANIP-004",
      "NET-013"
     ],
-    "seconds": 0.86,
+    "seconds": 1.01,
     "error": null
    },
    {
@@ -10669,7 +10816,7 @@
     "high_rules": [
      "CODE-008"
     ],
-    "seconds": 1.06,
+    "seconds": 0.89,
     "error": null
    },
    {
@@ -10683,7 +10830,7 @@
      "HYGIENE-001"
     ],
     "high_rules": [],
-    "seconds": 0.57,
+    "seconds": 0.72,
     "error": null
    },
    {
@@ -10720,7 +10867,7 @@
      "OBFUSC-012",
      "SKILL-022"
     ],
-    "seconds": 0.93,
+    "seconds": 1.25,
     "error": null
    }
   ]

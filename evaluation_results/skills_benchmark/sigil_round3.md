@@ -1,11 +1,11 @@
-# Skills (204 malicious, 455 clean): main 35c0155 against ws/exfil-port 8f8fd64
+# Skills (204 malicious, 455 clean): main 35c0155 against ws/exfil-port 34eaa0b
 
 _Composed from two runs of `scripts/benchmark_skills.py --tools sigil --workers 2`, one per build._
 
 ```
 Data Source: Real samples: DataDog malicious-software-packages-dataset ai-skills bucket (malicious);
              anthropics, NVIDIA, openai and vercel-labs skill catalogs (clean).
-Sample Size: 204 malicious, 455 clean, each scanned once per build (35c0155, 8f8fd64).
+Sample Size: 204 malicious, 455 clean, each scanned once per build (35c0155, 34eaa0b).
 Limitations: Real samples, static analysis only. 'Clean' means published, not audited.
              One run per build on a 4-core machine (--workers 2); the per-file time
              budget makes large files load-sensitive (PROV-BUDGET-001 is listed below).

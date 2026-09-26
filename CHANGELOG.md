@@ -228,12 +228,17 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   `f"{token=}"`, `"${TOKEN:-}"`, Ruby's `"#{key}"` and `%x(... #{key})`,
   Swift's `"\(key)"` and C#'s `$"{key}"` included) and limits it to the sink's
   own call, including a heredoc the call reads (`curl --data-binary @- <<EOF`;
-  a quoted delimiter expands nothing and is not read).
+  a quoted delimiter expands nothing and is not read; a heredoc after `&&`,
+  `||` or `;` is another command's unless the sink's rule matches that
+  command), and, for a sink that opens a destination (a webhook URL, a
+  socket), the later lines that use the name it assigns or the object it
+  connects (`s.connect(...)`, then `s.sendall(key)`).
   A keyword argument's name, an object key, a TypeScript member, an attribute
   of another object (`r.url`), a destructuring target, an export list, a count
   (`len(secrets)`) and a function parameter of the same name (unless the
-  function is called with the bound value, within 500 lines, where the name is
-  still the source's) are not uses;
+  function is called with the bound value, or handed on by reference beside
+  it as in `Thread(target=send, args=(token,))`, within 500 lines, where the
+  name is still the source's) are not uses;
   `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
   positional `token`, a Python dict keyed by the variable, `{ body: token }`
   and `{ token }` are. A same-line link needs the source and the sink to match
@@ -248,7 +253,9 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   send's keyword repeated the source's name: `artifact-lab-3-package` (17 of
   the 844 Datadog samples) copies `dict(os.environ)` into `data`, encodes it,
   and sends `Request(url, data=encoded_data)`; all 17 lose EXFIL-CHAIN-001
-  and stay CRITICAL RISK on NET-007 (16 also on INSTALL-001). One
+  and stay CRITICAL RISK on NET-007 (16 also on INSTALL-001). With the sink's
+  window limited to its own call, 4 more versions of the same family lose it,
+  and one of them its CRITICAL verdict (see "Measured" below). One
   propagation step (`new = f(bound)` makes `new` a source) was measured and
   not adopted: it wins back those 17 chain labels but changes no real verdict
   except through one wrong link, in mistralai's own example code, and it turns
@@ -277,13 +284,23 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   error everywhere; `name_uses: null` (an empty YAML value) is the default, as
   a missing field is, instead of refusing the whole pack.
 - **The corpus digest covers `name_uses`**, and the engine revision moved
-  (7), so a scan cached under one reading is not served under another.
-- **Verified against the port.** 87 more hand-written probes around each
-  resolution of the port found five things the port lost, each fixed with
-  tests: a heredoc body the call reads, Ruby/Swift/C# interpolation, a helper
-  called with the secret beyond the rule's window, a same-line comment check
-  that ran once per pair (2.46 s against 1.25 s for e45efc5 on a 3.9 MB
-  minified line; 1.33 s now), and `name_uses: null` refusing a pack.
+  (8), so a scan cached under one reading is not served under another.
+- **Verified against the port, twice.** 87 hand-written probes around each
+  resolution of the port found five things it lost, each fixed with tests: a
+  heredoc body the call reads, Ruby/Swift/C# interpolation, a helper called
+  with the secret beyond the rule's window, a same-line comment check that ran
+  once per pair (2.46 s against 1.25 s for e45efc5 on a 3.9 MB minified line;
+  1.33 s after), and `name_uses: null` refusing a pack. 37 more around those
+  fixes found three, also fixed with tests: a helper handed the secret by
+  reference (`Thread(target=upload, args=(token,))`, `setTimeout(upload, 0,
+  token)`, `upload.call(null, token)`), which the port reported LOW RISK
+  where e45efc5 reported CRITICAL; a socket connected by `s.connect(...)` and
+  sent on the next line; and a heredoc of another command (`curl ... && cat
+  <<EOF > notes.txt`) read as the request's body. Of the 124 probes (91 true,
+  33 clean; synthetic), e45efc5 gets 81 right, the port 79 and this change
+  105; the two it gets wrong that e45efc5 got right are a function called with
+  a name assigned from the secret (`t = token`, `send(t)`), the derived name
+  left out on purpose.
 - **Linear on long lines.** A work-in-progress version of this reading
   re-read the line for every occurrence of the name it skipped (2.0 s and
   5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square
@@ -300,16 +317,25 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   cff3fa2 made are kept at the same verdict. The 10 lost are the two-hop
   flows above and a function called with a name assigned from the secret
   (`t = token`, `send(t)`), all of which the lane's build with its one-hop
-  follow linked. Corpora: the per-sample runs published with this work
-  (`evaluation_results/skills_benchmark/*_exfilchain*`,
-  `evaluation_results/honest_detection_eval_exfilchain.*`) are of that lane
-  build (d89c600, one-hop follow on): no verdict level or highest severity
-  changed on 169 + 146 MCP servers, 659 skills, 1,796 SkillSpector examples
-  or 844 Datadog packages, and the two DROPPER-CHAIN-001 links it removed
-  were in source maps, which this branch leaves out of correlation anyway.
-  #169 measured its first cut on the same corpora with no level change and
-  the 17 Datadog chain labels above lost. This change has not been
-  re-measured on the corpora as a whole.
+  follow linked. Corpora, with the release build of this branch (34eaa0b)
+  against main (35c0155), sample by sample in both directions (real samples;
+  one run per build; `evaluation_results/skills_benchmark/*_round3*`,
+  `datadog_round3_diff.json` and
+  `evaluation_results/honest_detection_eval_round3.*`): the 169 clean MCP
+  servers go from 39 to 24 blocked and 125 to 76 warned and the 146 unseen
+  ones from 80 to 66 and 135 to 114, every change downward and all of it the
+  MCP false-positive pass (e45efc5, the branch before the port, gives the 169
+  the same level, rules and finding count as this build); the only
+  correlation change there is DROPPER-CHAIN-001 leaving two one-line source
+  maps (#170; both servers stay CRITICAL). Skills (204 + 455) and
+  SkillSpector's 1,796 examples keep every level (626 / 385 flagged).
+  Datadog (844 packages): recall 785 / 761 / 752 at any / Medium / High
+  as on main, and 560 at Critical against 561: EXFIL-CHAIN-001 leaves 21
+  `artifact-lab-3-package` versions, the 17 above (already with e45efc5) and
+  4 that e45efc5 linked only through a derivation, a comment or the next
+  block inside its five-line window; `artifact-lab-3-package-b1ec2b9f` 0.2.3
+  drops from CRITICAL to HIGH RISK, the other 20 stay CRITICAL. No chain was
+  gained anywhere, and no other chain moved.
 
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
