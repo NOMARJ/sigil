@@ -1243,7 +1243,7 @@ pub fn run_scan(
             // separately; a normal file yields its whole text and no tail.
             // A virtual file (archive member, bytecode constants) is already
             // text and carries its own path, locator and label.
-            let (read, rel_path, derived, gap, yara_bytes, disk_path) = match unit {
+            let (read, rel_path, derived, gap, yara_bytes, disk_path, member_cut) = match unit {
                 ScanUnit::Virtual(v) => {
                     let yara_bytes = if yara_active && v.is_file {
                         YaraBytes::Member(v.raw, v.truncated)
@@ -1260,6 +1260,7 @@ pub fn run_scan(
                         (None, None),
                         yara_bytes,
                         None,
+                        v.truncated,
                     )
                 }
                 ScanUnit::Disk(file_path) => {
@@ -1279,6 +1280,7 @@ pub fn run_scan(
                         (disk.gap, disk.stray_nuls),
                         yara_bytes,
                         Some(file_path),
+                        false,
                     )
                 }
             };
@@ -1504,17 +1506,20 @@ pub fn run_scan(
 
             // Correlation runs over the findings a reviewer has not already
             // dismissed, and its own findings can be dismissed the same way.
-            // A source map is not correlated (`correlate::is_source_map`);
-            // an oversized one reaches this point as its head alone, so
-            // whether the whole file is one is read from disk.
+            // A source map is not correlated (`correlate::is_source_map`).
+            // One read only in part reaches this point as its head: an
+            // oversized file on disk is read again, whole, from disk; an
+            // archive member cut at its size cap has nothing more to read,
+            // and the part that was scanned is judged
+            // (`correlate::is_cut_source_map`).
             let chains = timing::measure(timing::Stage::Correlate, || {
-                if oversized
-                    && kept.len() >= 2
-                    && disk_path.is_some_and(|p| correlate::is_source_map_file(p))
+                let lines: Vec<&str> = source_text.lines().collect();
+                if kept.len() >= 2
+                    && ((oversized && disk_path.is_some_and(|p| correlate::is_source_map_file(p)))
+                        || (member_cut && correlate::is_cut_source_map(&rel_path, &lines)))
                 {
                     return Vec::new();
                 }
-                let lines: Vec<&str> = source_text.lines().collect();
                 correlate::apply(
                     &crate::corpus::compiled::corpus().correlation_rules,
                     &kept,
@@ -1864,6 +1869,60 @@ mod oversized_tests {
         assert!(!map.contains(&"DROPPER-CHAIN-001"), "{map:?}");
         assert!(rules_in("index.js").contains(&"DROPPER-CHAIN-001"));
         assert!(rules_in("x.map").contains(&"DROPPER-CHAIN-001"));
+    }
+
+    /// The same map shipped inside an archive in the tree (review finding): a
+    /// member is read up to its 4 MB cap and no further, so it reaches
+    /// correlation as its first 4 MB with no file to read again. Both ends
+    /// of the false chain sit inside those 4 MB.
+    #[test]
+    fn a_source_map_cut_at_the_archive_member_cap_is_not_correlated() {
+        let pad = "A".repeat(5 << 20);
+        let map = format!(
+            "{{\"version\":3,\"sources\":[\"../src/index.ts\"],\"sourcesContent\":[\"\
+             export const HELP = 'Install: curl -fsSL https://example.com/install.sh | sh';\\n\
+             export function devices(adbPath) {{\\n  return execFileSync(adbPath, ['devices']);\\n}}\\n\
+             const pad = '{pad}';\\n\"],\"names\":[],\"mappings\":\"AAAA\"}}"
+        );
+        // A script that only borrows the extension, cut at the cap as well.
+        let script = format!(
+            "curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+             bash \"$INSTALLER\"\n# {pad}\n"
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            for (name, body) in [
+                ("pkg/dist/index.js.map", &map),
+                ("pkg/dist/index.js", &map),
+                ("pkg/lib/x.map", &script),
+            ] {
+                w.start_file(name, opts).unwrap();
+                w.write_all(body.as_bytes()).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        std::fs::write(dir.path().join("bundle.zip"), buf.into_inner()).unwrap();
+
+        let result = run_scan(dir.path(), None, None);
+        let rules_in = |member: &str| -> Vec<&str> {
+            let file = format!("bundle.zip!/{member}");
+            result
+                .findings
+                .iter()
+                .filter(|f| f.file == file)
+                .map(|f| f.rule.as_str())
+                .collect()
+        };
+        let map_rules = rules_in("pkg/dist/index.js.map");
+        assert!(map_rules.contains(&"NET-012"), "{map_rules:?}");
+        assert!(map_rules.contains(&"CODE-RUNFILE-001"), "{map_rules:?}");
+        assert!(!map_rules.contains(&"DROPPER-CHAIN-001"), "{map_rules:?}");
+        assert!(rules_in("pkg/dist/index.js").contains(&"DROPPER-CHAIN-001"));
+        assert!(rules_in("pkg/lib/x.map").contains(&"DROPPER-CHAIN-001"));
     }
 
     #[test]

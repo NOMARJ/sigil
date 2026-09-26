@@ -916,6 +916,30 @@ pub fn is_source_map(file: &str, lines: &[&str]) -> bool {
     serde_json::from_str::<SourceMapProbe>(&text).is_ok_and(|p| p.is_map())
 }
 
+/// [`is_source_map`] for the part of a `*.map` file that was read, when the
+/// rest was not (an archive member cut at its size cap): the text is one JSON
+/// object, complete, or still open where the text ends. Nothing after the cut
+/// is scanned, and everything before it is inside that object, which runs as
+/// neither JavaScript (a block that is a syntax error) nor Python (a dict
+/// literal), so no finding in it is code that runs.
+pub fn is_cut_source_map(file: &str, lines: &[&str]) -> bool {
+    if !has_map_name(file) {
+        return false;
+    }
+    let lines = match lines.split_first() {
+        Some((first, rest)) if first.starts_with(SOURCE_MAP_GUARD) => rest,
+        _ => lines,
+    };
+    let text = lines.join("\n");
+    if !text.trim_start().starts_with('{') {
+        return false;
+    }
+    match serde_json::from_str::<SourceMapProbe>(&text) {
+        Ok(p) => p.is_map(),
+        Err(e) => e.is_eof(),
+    }
+}
+
 /// [`is_source_map`] for a file on disk, read as a stream: for a file the
 /// scanner only reads the ends of, whose first megabytes alone never close a
 /// source map's JSON.
@@ -1350,6 +1374,36 @@ mod tests {
         assert!(!is_source_map("cli.json", &[map.as_str()]));
         assert!(!is_source_map("a.js.map", &["module.exports = {};"]));
         assert!(!is_source_map("a.js.map", &[]));
+    }
+
+    /// An archive member cut at its size cap: only the part that was read
+    /// can be judged, and nothing after it was scanned.
+    #[test]
+    fn a_source_map_cut_short_is_judged_by_what_was_read() {
+        let map = one_line_map();
+        let cut = &map[..map.len() / 2];
+        assert!(!is_source_map("dist/cli.js.map", &[cut]));
+        assert!(is_cut_source_map("dist/cli.js.map", &[cut]));
+        assert!(is_cut_source_map("dist/cli.js.map", &[map.as_str()]));
+        assert!(is_cut_source_map("a.js.map", &[")]}'", cut]));
+        // Still open where the text ends, whatever members it has read so
+        // far: every byte of it is inside one JSON value.
+        assert!(is_cut_source_map(
+            "a.js.map",
+            &[r#"{"version":3,"sources":["#]
+        ));
+        // Anything that is not an open or complete JSON object, and a name
+        // that is not a map's.
+        assert!(!is_cut_source_map(
+            "a.js.map",
+            &[r#"{"version":3}"#, "run(x)"]
+        ));
+        assert!(!is_cut_source_map("a.js.map", &[r#"{"version":3} run(x)"#]));
+        assert!(!is_cut_source_map("a.js.map", &[r#"["mappings", "#]));
+        assert!(!is_cut_source_map("a.js.map", &["fetch-tool -o \"$OUT\""]));
+        assert!(!is_cut_source_map("a.js.map", &["", "  "]));
+        assert!(!is_cut_source_map("a.js.map", &[]));
+        assert!(!is_cut_source_map("cli.js", &[cut]));
     }
 
     /// A rule whose sink is a keyword argument on its own line at the end of

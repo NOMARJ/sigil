@@ -207,7 +207,9 @@ content is a JSON source map (an object with `mappings`, or `sections` for an
 index map) is data a debugger reads, and it carries each original file as one
 JSON string, so everything in a program is on "the same line" there. Its line
 findings are still reported. A `.map` file that is not JSON as a whole (a
-script given the extension) is correlated like any other file.
+script given the extension) is correlated like any other file. An archive
+member cut at the 4 MB member cap is judged by the part that was read, which
+must be one JSON object, complete or still open at the cut.
 
 ### Fixtures
 

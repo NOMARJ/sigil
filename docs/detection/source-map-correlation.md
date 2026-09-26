@@ -136,7 +136,12 @@ chain from each:
    JSON as a whole and is correlated like any other file. A map over the 10 MB
    whole-file limit reaches correlation as its first 2 MB, which never closes
    the JSON, so for such a file the check streams the whole file from disk.
-   `auto-mobile`'s 13.4 MB map is that case. The line findings in a map are
+   `auto-mobile`'s 13.4 MB map is that case. A map inside an archive in the
+   tree is read up to the 4 MB member cap and no further, so there is no
+   file to go back to. There, the part that was read is judged: it must be
+   one JSON object, complete or still open where the cut falls. Nothing
+   after the cut is scanned, and everything before it is inside that object,
+   which is data both as JavaScript and as Python. The line findings in a map are
    still reported; `.map` was already a secondary path for the verdict's
    first-party score.
 2. **The legacy chains keep no `max_line_length`.** On the droppers a cap is
