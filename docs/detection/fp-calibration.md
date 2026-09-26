@@ -553,7 +553,12 @@ device path (`-o /dev/null`) is not a written file; and a sink that runs a file
 source line wrote, named on the launch line itself — never through an assigned
 value, a response handle, or a word on the lines after the launch. Otherwise
 linking is unchanged: same window, same whole-word test, same
-`sink_excludes`.
+`sink_excludes`. (The whole-word test has since been replaced for every
+built-in chain: a name now links only where the sink's own call sends it as a
+value, read as code, not where it is only a keyword argument's name, an object
+key, a word in a string or comment, or a parameter of the same name; a launch
+links only through the program it runs. See
+[correlation-chains.md](correlation-chains.md).)
 
 **Rules and chains** (counts are samples; malicious = the 204 ai-skills,
 clean = the 455 vendor skills; Datadog = samples of the 844 with the finding):

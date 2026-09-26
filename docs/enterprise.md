@@ -204,8 +204,26 @@ reaches a sink finding's arguments; see `CONTRIBUTING.md`). A correlation
 rule's `sink_window_before`, which makes the rule read the sink's whole
 statement and how many lines above the sink that statement may start, may be
 at most 20 (in that mode a name links only where it is used as a value, not as
-a keyword argument's name or an object key); `name_uses: value` reads names that way in the ordinary
-window too, as every built-in chain does; `max_line_length` skips sources and sinks on longer lines
+a keyword argument's name or an object key, whatever `name_uses` says).
+`name_uses: value` reads names that way in the ordinary window too, as every
+built-in chain does: a bound name links only where the sink sends it, read as
+code (not inside a string or a comment), not where it is only a keyword
+argument's name, an object key, an attribute of another object or a function
+parameter of the same name, and outside the statement mode only in the sink's
+own call ([correlation-chains.md](detection/correlation-chains.md) has the
+whole reading). Only the bound name itself links: a value computed from it on
+another line is not followed
+([correlation-names.md](detection/correlation-names.md)). `name_uses: word`,
+the default, links on any whole-word occurrence in the sink line and the four
+lines after it, so an existing pack that leaves the key out links as it did
+outside the statement mode (in the statement mode names are read as values,
+now with the fuller reading correlation-chains.md describes).
+Any other value is refused. An unknown key on a correlation rule or its
+`source`/`sink` selector, and a selector that names no rule, do not refuse the
+pack (earlier versions accepted them, and a signed pack cannot be edited
+without re-signing): the scan ignores the key and warns on stderr, and
+`sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+reject it. `max_line_length` skips sources and sinks on longer lines
 (minified code). Custom packs are **additive**: a pack whose id matches a
 built-in pack, or a rule whose id matches any existing rule, is refused, so a
 file named at scan time can never replace a core pack and remove its

@@ -173,7 +173,61 @@ substrings that disqualify the link. `EXFIL-CHAIN-001` in `network_exfil.json`
 one place a pack can say "line 9 feeds line 10" without the engine executing
 anything: the link is a text identity check, not taint analysis.
 
-The sink's argument window is the sink line and the four lines after it.
+`name_uses` says what counts as the name appearing there: `"word"` (the
+default) or `"value"`, which every built-in chain sets, so the sink must *send*
+the bound value. The window is read as code, by the sink file's language:
+comments and the contents of string literals are blanked, and what a string
+interpolates is kept (`f"...{token}"`, `f"{token:>40}"`, `f"{token=}"`,
+`` `${token}` ``, `"$TOKEN"`, `"${TOKEN:-default}"`, a `"{token}"` formatted
+with `locals()`). An occurrence that only names something is not a use: a
+keyword argument's name or an assignment target (`name=` but not `==`), an
+object key (`name:` after `{`, `,`, `(`, `;` or at the start of a line, bare
+or quoted; a Python dict key is an expression and *is* a use), a TypeScript
+member (`token?: string`, `private token: string`), an attribute of another
+object (`r.url`; `self.token` and the source's own receiver are the value), a
+destructuring target (`const { token } = await res.json()`), an export list,
+a count (`len(token)`, `token.length`), or a parameter of a function the sink
+is in (`def ping(url):`), unless that function is called with the bound
+value itself. JavaScript regular-expression literals are text too. Outside
+the statement mode the window is the sink's own call: the sink line and the
+lines its call continues onto (plus, for a sink that only names a
+destination, such as a webhook URL, the lines that use the name it assigns),
+not the next function or a log line after it. A source and a sink on one line
+link unless one of them matched only the line's comment. For
+`DROPPER-CHAIN-001` the written path must be the program the launch runs, not
+a data file handed to it.
+
+The link is one hop, the bound name itself: a value computed from it on
+another line (`encoded = urlencode(data)`, then `data=encoded`) is not
+followed, and neither is a function called with such a value (`t = token`,
+then `send(t)`). That propagation step was measured and left out on purpose
+([docs/detection/correlation-names.md](docs/detection/correlation-names.md)).
+
+With `url` bound from a credential read, a later
+`requests.get(url=base + "/ping")` sends `base + "/ping"` and does not link;
+`data=token`, `json={"k": token}`, `token=token`, a positional `token` and
+JavaScript's `{ body: token }` or `{ token }` do. `"word"` links on any
+whole-word occurrence in the sink line and the four lines after it, keyword
+names, strings and comments included, which is how every chain but
+`TLS-CHAIN-001` linked before the field existed, so a rule that leaves
+`name_uses` out links as it did outside the statement mode. The statement
+mode (below) reads names as values whatever the field says, with the reading
+above. Set `"value"` on every new chain;
+`docs/detection/correlation-chains.md` lists each built-in chain, what it
+links through, the probes behind each part of the reading and its known
+gaps.
+
+A custom pack's correlation rule is checked for unknown keys, on the rule and
+on its `source` and `sink` selectors (`rule_ids`, `rule_prefixes`), and for a
+selector that names no rule. Earlier versions accepted any key there, so a
+pack that has one still loads: the scan ignores the key and prints a warning
+on stderr. `sigil rules validate`, `sigil config --validate` and
+`sigil rules sign` reject it, with a "did you mean" hint for a near-miss
+(`name_use`, `rule_idz`). An unknown `name_uses` *value* is an error
+everywhere, because no earlier pack can carry the field.
+
+The word reading's argument window, and the text `sink_excludes` is checked
+against under either reading, is the sink line and the four lines after it.
 `sink_window_before` (default 0, at most 20 in a custom pack) switches a rule
 to the sink's *statement* instead, for a sink matched on a keyword argument a
 formatter puts on its own line at the end of a call (the insecure `verify`
@@ -191,9 +245,9 @@ statement itself links without needing a name, and may sit below the sink,
 when its line starts in the sink line's bracket group or in one nested inside
 or around it; two sibling literals of one statement (`openai: {...}` beside
 `db: {...}`) do not link, and a line that is one key and a literal it opens
-and closes counts as a literal of its own. In this mode a bound name links
-only where the window uses it as a value: a keyword argument's name or an
-object key (`headers={...}`, `token=other`, `{ token: "x" }`) is not a use.
+and closes counts as a literal of its own. A whole call is where keyword
+names and keys live (`headers={...}`, `token=other`, `{ token: "x" }`), so
+this mode reads names as values whatever `name_uses` says.
 `max_line_length` (default 0, no limit) skips a source or sink on a longer
 line: on a minified bundle two matches on one line say nothing about each
 other. `TLS-CHAIN-001` in `insecure_transport.json` uses both. The older
@@ -210,19 +264,6 @@ findings are still reported. A `.map` file that is not JSON as a whole (a
 script given the extension) is correlated like any other file. An archive
 member cut at the 4 MB member cap is judged by the part that was read, which
 must be one JSON object, complete or still open at the cut.
-
-`name_uses` (`word`, the default, or `value`) says which occurrences of a
-bound name in the window link. `word` takes any whole word; `value` skips a
-keyword argument's name, an assignment target or an object key that only
-repeats the name, the reading the statement mode always uses. In a Python
-file a bare name inside `{...}` is an expression, not a key (`{token: 1}` sends
-the token, `f"{token:>40}"` formats it), so it is still a use there; braces in a
-string's text (`"{token:>40}"`, a `.format` template, `f"{{token}}"`) are not. Every built-in
-chain sets `value`: a request's `url=` keyword argument does not send a `url`
-bound from the database URL in the environment two lines up. The link is one hop,
-the bound name itself; a value computed from it on another line
-(`encoded = urlencode(data)`) is not followed. That was measured and left out
-on purpose ([docs/detection/correlation-names.md](docs/detection/correlation-names.md)).
 
 ### Fixtures
 
