@@ -335,3 +335,11 @@ scripts/transcript-backfill.cjs
 # This ignore file itself enumerates pattern/file names and therefore trips the
 # scanner. It is configuration, not product code.
 .sigilignore
+# evaluation_results/correlation_step/narrow_hop.patch: the narrow one-hop
+# follow, measured and not adopted (docs/detection/correlation-names.md). A diff
+# of cli/src/corpus/engine.rs and cli/src/scanner/correlate.rs, both listed
+# above: its hunks carry those files' test inputs (an exfiltration URL in a
+# test string, an environment sweep), which NET-007 and AGENTSC-010 read as the
+# patterns they are. Never applied or run by the build. Evaluation data, not
+# payloads.
+evaluation_results/correlation_step/narrow_hop.patch

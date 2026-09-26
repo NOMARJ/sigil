@@ -1,0 +1,2283 @@
+{
+ "note": "The narrow one-hop follow (ws/exfil-hop) measured against the port without it (34eaa0b, the cli/ of fd94ab7), beside #169's variants B and C. See docs/detection/correlation-names.md, 'The narrow one-hop follow'.",
+ "disclosure": [
+  "Data Source: Real samples (Datadog 844 per sample and aggregate; 204 malicious + 455 clean",
+  "             skills; 169 clean MCP; 146 unseen MCP; 1,796 SkillSpector test examples) and",
+  "             synthetic hand-written probes (37 here, and the exfilchain lane's 286), labelled.",
+  "Sample Size: as listed per section; one scan per build and sample.",
+  "Limitations: probes show which shapes link, not how often they occur; the new clean",
+  "             probes were written against the hop's code; B and C probe verdicts come from",
+  "             B and C rebuilt on 37c3140 (they reproduce #169's recorded verdicts on its 14",
+  "             probes); their corpus figures are #169's recorded ones."
+ ],
+ "builds": {
+  "cff3fa2": "release build of cff3fa2 (the word reading, before any value reading)",
+  "main": "release build of main 35c0155 (word reading)",
+  "n169": "release build of 37c3140 (#169 as shipped: name_uses value, first cut)",
+  "B": "37c3140 + evaluation_results/correlation_step/follow_assignment.patch",
+  "C": "B + follow_assignment_bare.patch",
+  "e45efc5": "release build of e45efc5 (#169 and #170 merged into the MCP pass)",
+  "exfilport": "the kept binary sigil-exfil-port: the port's first build (a442dad), as its misses on the two build-check probes show",
+  "base34": "release build of 34eaa0b (the cli/ of ws/exfil-port fd94ab7): the base",
+  "hop": "release build of ws/exfil-hop (this change)"
+ },
+ "probes": {
+  "source": "hand-written (synthetic). Neither contents nor code-like shapes are kept here (the repository's self-scan would read them as the patterns they are); docs/detection/correlation-names.md describes each probe in words, in the table under 'The propagation step' (c169/*) and 'The narrow one-hop follow' (new/*, gain/*, id/*).",
+  "rows": {
+   "id/heredoc_body": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "id/thread_handoff": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "c169/p1_client_attr": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p2_engine_next_line": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p3_engine_six_below": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p4_connection_closed": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p5_js_openai_baseurl": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p6_two_steps_repo": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p7_refresh_body": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p8_hmac_signature": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p9_jwt_assertion": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "C": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/p10_key_hint": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "c169/t1_artifact_lab_tunnel": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "c169/t2_artifact_lab_plain_host": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "c169/t3_ssh_key_read_post": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    }
+   },
+   "c169/t4_js_aws_body": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "new/h01_py_hmac_signature_then_verify": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h02_py_key_hint_then_client": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h03_py_refresh_form_then_log": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h04_py_dsn_engine_report": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h05_py_client_status_then_second_client": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h06_js_openai_baseurl_then_check": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h07_py_mistral_example_download": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "LOW RISK",
+     "chain": false
+    }
+   },
+   "new/h08_py_license_fingerprint": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h09_py_env_copy_region_data_kw": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h10_py_jwt_claims_report": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h11_py_masked_npm_token": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h12_py_uuid5_tenant": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h13_js_hmac_signature_body": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h14_sh_key_fingerprint_inventory": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h15_js_hash_under_token_key": {
+    "expect": "clean",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "new/h16_js_secret_names_report": {
+    "expect": "clean",
+    "chain": "AGENTSC-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "CRITICAL RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "gain/v23_py_forwarded_name": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "gain/x26_py_forwarded_keyword": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "exfilport": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "LOW RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "gain/x27_py_env_copy_two_hops": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "main": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "n169": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    }
+   },
+   "gain/m1_py_env_copy_other_name": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "MEDIUM RISK",
+     "chain": false
+    }
+   },
+   "gain/m2_js_body_two_hops": {
+    "expect": "true",
+    "chain": "EXFIL-CHAIN-001",
+    "cff3fa2": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "main": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "n169": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "B": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "C": {
+     "verdict": "CRITICAL RISK",
+     "chain": true
+    },
+    "e45efc5": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "exfilport": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "base34": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    },
+    "hop": {
+     "verdict": "HIGH RISK",
+     "chain": false
+    }
+   }
+  }
+ },
+ "lane_286": {
+  "source": "the exfilchain lane's 286 hand-written probes (scratch xv/probes_final.json)",
+  "right": {
+   "n169": 168,
+   "B": 179,
+   "C": 179,
+   "exfilport": 269,
+   "base34": 269,
+   "hop": 279
+  },
+  "recorded_lane_d89c600_right": 279,
+  "base34_vs_hop": {
+   "recall/py38_two_hop_data_kw": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/py39_two_hop_json_kw": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/py40_two_hop_params_kw": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/py41_two_hop_files_kw": {
+    "expect": "true",
+    "base34": [
+     "CRITICAL RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/js19_body_key_same_name_two_hop": {
+    "expect": "true",
+    "base34": [
+     "LOW RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/ag07_py_two_hop_data_kw": {
+    "expect": "true",
+    "base34": [
+     "HIGH RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "recall/b4_py_env_two_hop_body": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "xv/sh_def_called_with_forwarded": {
+    "expect": "true",
+    "base34": [
+     "LOW RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "xv/th_data_encoded_plain_host": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   },
+   "xv/th_json_payload": {
+    "expect": "true",
+    "base34": [
+     "MEDIUM RISK",
+     false
+    ],
+    "hop": [
+     "CRITICAL RISK",
+     true
+    ]
+   }
+  }
+ },
+ "datadog": {
+  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
+  "fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
+  "limit": 204,
+  "phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
+  "command": "scripts/datadog_diff.py --workers 3, empty HOME, builds exfilport, base34, hop",
+  "recall": {
+   "exfilport": {
+    "any": 785,
+    "Medium": 761,
+    "High": 752,
+    "Critical": 560,
+    "scan_errors": 0,
+    "budget_hit": 0,
+    "chain_samples": {
+     "AGENTSC-CHAIN-002": 4,
+     "DESER-CHAIN-001": 16,
+     "DROPPER-CHAIN-001": 7,
+     "EXFIL-CHAIN-001": 19,
+     "TLS-CHAIN-001": 1
+    }
+   },
+   "base34": {
+    "any": 785,
+    "Medium": 761,
+    "High": 752,
+    "Critical": 560,
+    "scan_errors": 0,
+    "budget_hit": 0,
+    "chain_samples": {
+     "AGENTSC-CHAIN-002": 4,
+     "DESER-CHAIN-001": 16,
+     "DROPPER-CHAIN-001": 7,
+     "EXFIL-CHAIN-001": 19,
+     "TLS-CHAIN-001": 1
+    }
+   },
+   "hop": {
+    "any": 785,
+    "Medium": 761,
+    "High": 752,
+    "Critical": 561,
+    "scan_errors": 0,
+    "budget_hit": 0,
+    "chain_samples": {
+     "AGENTSC-CHAIN-002": 4,
+     "DESER-CHAIN-001": 16,
+     "DROPPER-CHAIN-001": 7,
+     "EXFIL-CHAIN-001": 40,
+     "TLS-CHAIN-001": 1
+    }
+   }
+  },
+  "changes": {
+   "exfilport->base34": [],
+   "base34->hop": [
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpk3ltyin2/artifact-lab-3-package/artifact_lab_3_package-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpxulmfpmg/artifact-lab-3-package-153c1c1a/artifact_lab_3_package_153c1c1a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8qdrlt0n/artifact_lab_3_package_1f7a39bc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2h_2ie5m/artifact-lab-3-package-2387a34d-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp7k6w05zo/artifact-lab-3-package-34b21b63-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpsjnk8yif/artifact-lab-3-package-3ccf47e8-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2boamm3f/artifact-lab-3-package-438d82fc/artifact_lab_3_package_438d82fc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpdn0qjcg1/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp4zxle9do/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpltkzolsa/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.5/setup.py",
+       17,
+       "CRED-ENV-001 (@L12) reaches NET-007 (@L17)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpar1wc78u/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       15,
+       "CRED-ENV-001 (@L8) reaches NET-007 (@L15)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpi1splnb_/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-1.0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.4/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.4.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpca7z06ma/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       13,
+       "CRED-ENV-001 (@L7) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.5.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp5zondyq2/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       16,
+       "CRED-ENV-001 (@L7) reaches NET-007 (@L16)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-736f752d/0.1.1/2024-11-09-artifact-lab-3-package-736f752d-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmph4tg69kh/artifact-lab-3-package-736f752d/artifact-lab-3-package-736f752d/flag.py/artifact-lab-3-package-736f752d/flag.py",
+       13,
+       "CRED-033 (@L8) reaches NET-001 (@L13)"
+      ],
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmph4tg69kh/artifact-lab-3-package-736f752d/artifact-lab-3-package-736f752d/flag.py/artifact-lab-3-package-736f752d/flag.py",
+       19,
+       "CRED-033 (@L8) reaches NET-001 (@L19)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpw667ga8_/artifact-lab-3-package-77d0c154-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5/artifact-lab-3-package-a18ff5d9-1.1.5/setup.py",
+       14,
+       "CRED-ENV-001 (@L11) reaches NET-007 (@L14)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.2.3/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.2.3.zip",
+     "max_severity": [
+      "High",
+      "Critical"
+     ],
+     "verdict": [
+      "HIGH RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp_imxa01_/artifact-lab-3-package-b1ec2b9f/artifact-lab-3-package-b1ec2b9f/flag.py/artifact-lab-3-package-b1ec2b9f/flag.py",
+       13,
+       "CRED-033 (@L8) reaches NET-001 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8ujn_04q/artifact-lab-3-package-b55680cd-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpefguuubo/artifact-lab-3-package-db7d716a/artifact-lab-3-package-db7d716a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+     "max_severity": [
+      "Critical",
+      "Critical"
+     ],
+     "verdict": [
+      "CRITICAL RISK",
+      "CRITICAL RISK"
+     ],
+     "chains_gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp54x9w6f8/artifact-lab-3-package-e46d5661/artifact_lab_3_package_e46d5661-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "chains_lost": []
+    }
+   ]
+  },
+  "hop_vs_main_round3": "correlation findings (rule, file, line) and max severity identical to main 35c0155's rows in evaluation_results/skills_benchmark/datadog_round3_diff.json on all 844 samples; base34 here identical to that file's 'branch' rows",
+  "run_eval_hop": {
+   "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
+   "dataset_fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
+   "malicious_total": 844,
+   "malicious_extract_failures": 0,
+   "malicious_scan_errors": 0,
+   "recall": {
+    "any": {
+     "detected": 785,
+     "scanned": 844,
+     "rate": 0.9301
+    },
+    "Medium": {
+     "detected": 761,
+     "scanned": 844,
+     "rate": 0.9017
+    },
+    "High": {
+     "detected": 752,
+     "scanned": 844,
+     "rate": 0.891
+    },
+    "Critical": {
+     "detected": 561,
+     "scanned": 844,
+     "rate": 0.6647
+    }
+   },
+   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection"
+  }
+ },
+ "benchmarks": {
+  "skills": {
+   "samples": 659,
+   "levels_base34": {
+    "clean:HIGH": 7,
+    "clean:LOW": 153,
+    "clean:MEDIUM": 64,
+    "clean:NONE": 231,
+    "malicious:CRITICAL": 32,
+    "malicious:HIGH": 141,
+    "malicious:LOW": 6,
+    "malicious:MEDIUM": 11,
+    "malicious:NONE": 14
+   },
+   "levels_hop": {
+    "clean:HIGH": 7,
+    "clean:LOW": 153,
+    "clean:MEDIUM": 64,
+    "clean:NONE": 231,
+    "malicious:CRITICAL": 32,
+    "malicious:HIGH": 141,
+    "malicious:LOW": 6,
+    "malicious:MEDIUM": 11,
+    "malicious:NONE": 14
+   },
+   "changed_samples": [],
+   "chain_samples_base34": [
+    "mal_skills/malicious_intent/cisco-ai-defense-skill-scanner-exfiltrator",
+    "mal_skills/malicious_intent/cybertechajju-version-demo-helper",
+    "mal_skills/malicious_intent/cybertechajju-version-demo-skills-helper",
+    "mal_skills/malicious_intent/henryxv-study-platform-dot-agent-skills-vercel-deploy",
+    "mal_skills/malicious_intent/nickoc-clawscan-malicious-skill",
+    "mal_skills/malicious_intent/ninehills-skills-skills-vercel-deploy",
+    "mal_skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-vercel-deploy",
+    "mal_skills/malicious_intent/zhanlincui-ultimate-agent-skills-collection-vercel-deploy",
+    "openai_skills/skills/.curated/render-deploy"
+   ],
+   "chain_samples_hop": [
+    "mal_skills/malicious_intent/cisco-ai-defense-skill-scanner-exfiltrator",
+    "mal_skills/malicious_intent/cybertechajju-version-demo-helper",
+    "mal_skills/malicious_intent/cybertechajju-version-demo-skills-helper",
+    "mal_skills/malicious_intent/henryxv-study-platform-dot-agent-skills-vercel-deploy",
+    "mal_skills/malicious_intent/nickoc-clawscan-malicious-skill",
+    "mal_skills/malicious_intent/ninehills-skills-skills-vercel-deploy",
+    "mal_skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-vercel-deploy",
+    "mal_skills/malicious_intent/zhanlincui-ultimate-agent-skills-collection-vercel-deploy",
+    "openai_skills/skills/.curated/render-deploy"
+   ],
+   "budget_hit": [
+    0,
+    0
+   ],
+   "errors": [
+    0,
+    0
+   ]
+  },
+  "mcp169": {
+   "samples": 169,
+   "levels_base34": {
+    "clean:CRITICAL": 11,
+    "clean:HIGH": 13,
+    "clean:LOW": 87,
+    "clean:MEDIUM": 52,
+    "clean:NONE": 6
+   },
+   "levels_hop": {
+    "clean:CRITICAL": 11,
+    "clean:HIGH": 13,
+    "clean:LOW": 87,
+    "clean:MEDIUM": 52,
+    "clean:NONE": 6
+   },
+   "changed_samples": [],
+   "chain_samples_base34": [],
+   "chain_samples_hop": [],
+   "budget_hit": [
+    0,
+    0
+   ],
+   "errors": [
+    0,
+    0
+   ]
+  },
+  "holdout146": {
+   "samples": 146,
+   "levels_base34": {
+    "clean:CRITICAL": 45,
+    "clean:HIGH": 21,
+    "clean:LOW": 30,
+    "clean:MEDIUM": 48,
+    "clean:NONE": 2
+   },
+   "levels_hop": {
+    "clean:CRITICAL": 45,
+    "clean:HIGH": 21,
+    "clean:LOW": 30,
+    "clean:MEDIUM": 48,
+    "clean:NONE": 2
+   },
+   "changed_samples": [],
+   "chain_samples_base34": [],
+   "chain_samples_hop": [],
+   "budget_hit": [
+    0,
+    0
+   ],
+   "errors": [
+    0,
+    0
+   ]
+  }
+ },
+ "parity": {
+  "examples": [
+   1796,
+   1796
+  ],
+  "same_keys": true,
+  "changed": [],
+  "flagged_any": [
+   626,
+   626
+  ],
+  "flagged_high": [
+   385,
+   385
+  ],
+  "with_a_chain_rule": [
+   9,
+   9
+  ]
+ }
+}
