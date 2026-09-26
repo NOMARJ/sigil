@@ -13,7 +13,7 @@ not a line of text:
 - a `SKILL.md` that declares `allowed-tools: Read` while its script posts to the network.
 
 These checks live in the scanner engine (`cli/src/scanner/bytecode.rs`, `artifacts.rs`,
-`depsrc.rs`, `padding.rs`, `lpriv.rs`). Their rule metadata — title, remediation,
+`depsrc.rs`, `padding.rs`, `lpriv.rs`, `lifecycle.rs`). Their rule metadata — title, remediation,
 references, tags — lives in packs like every other rule, in a new `engine_rules` section
 (`cli/packs/core/v1/structural.json` and `supply_chain.json`), so JSON, SARIF and HTML
 output explain them exactly like regex findings, and `sigil diff` can tell a finding from
@@ -49,6 +49,10 @@ phase, severity and evidence to what the engine emits.
 | `LPRIV-001` | Skill Security | Medium | The skill's scripts use a capability its `allowed-tools` / `permissions` declaration does not cover. |
 | `LPRIV-002` | Skill Security | Low | Wildcard grant that `SKILL-008` did not already report. |
 | `LPRIV-003` | Skill Security | Low | An explicit `permissions` entry (shell, network, env) nothing in the skill appears to use. |
+| `INSTALL-010` | Install Hooks | Medium | Rewritten from `INSTALL-003`: a `preinstall` / `postinstall` that is exactly `node <local .js>`, where that script and the local scripts it requires pass the inert test (see below). Still runs on install, so still an `install_time_execution` action. |
+| `INSTALL-011` | Install Hooks | Low | Rewritten from `INSTALL-003`: exactly `npx only-allow <pnpm\|yarn\|npm\|bun>`, a package-manager guard. |
+| `INSTALL-012` | Install Hooks | Low | Rewritten from `INSTALL-004`: a `prepare` / `prepublish` whose `npm run` chain ends only in build steps. |
+| `CODE-016` | Code Patterns | Medium | Rewritten from `CODE-014`: a `bin` script's `execSync` that installs the package's own `<name>-<platform>-<arch>@<version>` (the platform-binary launcher pattern). |
 
 `SUPPLY-005` is narrowed by this change: it now reads only `package.json`
 `publishConfig` (where the *author* publishes) at Low. Install-time redirection in
@@ -242,6 +246,86 @@ points (LPRIV-001 at Medium plus one Low; LPRIV-002 and LPRIV-003 are exclusive)
 below the MEDIUM threshold of 10, and below the density threshold of any skill that has a
 script at all (7 points for two files) — so these findings inform a reviewer and never
 decide a verdict on their own. A skill that declares nothing is not reported: there is no statement to check.
+
+## Lifecycle scripts and platform launchers (`INSTALL-010` .. `012`, `CODE-016`)
+
+`INSTALL-003` reports every `preinstall` / `postinstall` key at Critical and
+`CODE-014` every `execSync` of an interpolated command at High, because a line rule
+sees the key or the call and never what it does. `cli/src/scanner/lifecycle.rs` runs
+after the content phases, reads the parsed `package.json` and the files a script
+names, and rewrites a finding only when a positive test passes. Anything it cannot
+prove keeps the pack's rule and severity. The finding keeps its file, line, phase and
+weight; its rule id, severity and snippet change, and the snippet says why.
+
+- **`INSTALL-010`** (from `INSTALL-003`, Medium). The command is exactly
+  `node [./]<path>.{js,cjs,mjs}` inside the package, with no flags or chaining. That
+  script, and the relative scripts it requires two levels deep, must each be at most
+  4 KiB of printable ASCII with lines of at most 200 bytes, and:
+  - `require` only of a string literal naming `os`, `path`, `url`, `util` (or their
+    `node:` forms), a relative `.json` inside the package, or a relative `.js` / `.cjs`
+    / `.mjs` file inside it, plus `require.resolve(`. A bare `require` (aliasing) fails;
+    static `import` follows the same list and `import(` fails.
+  - `process` only as `.exit`, `.exitCode`, `.argv`, `.platform`, `.arch`, `.version`,
+    `.versions`, `.stdout`, `.stderr`, `.cwd`. `process.env` fails, so a script cannot
+    print a CI token into the install log.
+  - `os` bound only as `os` (or destructured to allowed names) and used only as
+    `.platform`, `.arch`, `.type`, `.release`, `.EOL`.
+  - No computed member access (`x[`, `)[`, `][`, except a numeric index such as
+    `argv[2]`), no computed keys, no `\x`, `\u` or octal escapes, no IPv4 literal, and
+    no URL outside a `console.*` call.
+  - None of `global`, `globalThis`, `this`, `self`, `arguments`, `eval`, `Function`,
+    `constructor`, `__proto__`, `prototype`, `fetch`, `XMLHttpRequest`, `WebSocket`,
+    `Buffer`, `atob`, `fromCharCode`, `Reflect`, `Proxy`, the property-descriptor and
+    prototype functions, `WebAssembly`, `Worker`, `createRequire`, `with (`.
+- **`INSTALL-011`** (from `INSTALL-003`, Low). The command is exactly
+  `npx [-y |--yes ]only-allow <pnpm|yarn|npm|bun>`, and the manifest neither declares,
+  bundles nor overrides `only-allow`.
+- **`INSTALL-012`** (from `INSTALL-004`, Low). The `prepare` / `prepublish` command,
+  the `pre`/`post` scripts npm runs around it, and every `npm|pnpm|yarn run X` they
+  reach (three levels deep, again with `preX` / `postX`) consist only of `&&`, `||` and
+  `;` between these steps: `tsc` with flags or `-p|--project|-b|--build <x>.json`;
+  `husky` or `husky install`; `[shx] chmod +x <path>`; `shx mkdir -p`, `shx cp [-r]`,
+  `shx rm -rf` or `rimraf` on paths; `true`; `exit 0`. A path must be relative to the
+  package: no leading `/`, `~`, `$` or `-`, no `..` segment, no shell syntax. Each tool
+  the steps use (`typescript`, `husky`, `shx`, `rimraf`) must, where declared, have a
+  registry version range (no `git`, `github:`, `file:`, `link:`, URL, `npm:` alias or
+  `workspace:`), must not be bundled, overridden (`overrides`, `resolutions`,
+  `pnpm.overrides`) or resolved off the registry by a shipped lockfile.
+- **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
+  manifest; the manifest lists at least two `optionalDependencies` named
+  `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
+  manifest's own version; the call starts its line and is
+  `` execSync(`npm install ${X}@${Y}<flags>`, options) `` or
+  `` execSync(`${V}<flags>`, options) `` with `V` a constant holding that template;
+  `X` is a constant holding `` `${N}-${P}-${A}` `` where `N` is `<pj>.name`, `P` is
+  `os.platform()` or `process.platform`, `A` is `os.arch()` or `process.arch`, and
+  `<pj>` is `require('./package.json')` of that same manifest; `Y` is `<pj>.version`.
+  Every name is resolved through a single `const` declaration whose block encloses the
+  use, with no reassignment, parameter, `catch`, `for…of`, destructuring or rest
+  binding of the same name anywhere in the file, and the file contains no `eval(` or
+  `with (` in code. Flags must be from a list that changes nothing about what is
+  installed or where from (`--no-save`, `--no-audit`, `--no-fund`, `--prefer-online`,
+  `--prefer-offline`, `--no-package-lock`, `--no-progress`, `--silent`, `--quiet`, and
+  one `--prefix .`); the options object may not set `env`, `shell`, `argv0`, `uid` or
+  `gid` or spread another object.
+
+None of the manifest classes apply when a `node_modules` directory or a `binding.gyp`
+sits beside the manifest: npm would run the shipped tools, or `node-gyp rebuild`, as
+well. Findings from decoded content and from the tail of an oversized file are never
+rewritten.
+
+What the classifier trusts, and so what it cannot see:
+
+- It trusts that `node`, `npx`, `tsc`, `husky`, `shx` and `rimraf` on the install-time
+  `PATH` are the real tools. npm puts `node_modules/.bin` first on that `PATH`, so a
+  *dependency* that declares a `bin` with one of those names would run instead. This
+  pass does not fetch or read dependencies; such a dependency is only seen when it is
+  scanned itself (`sigil npm <dependency>`). The rewritten `INSTALL-010` stays Medium
+  and an action behaviour for that reason.
+- It trusts the platform packages a launcher installs to be the publisher's own, as
+  its manifest declares them. It does not fetch them.
+- `INSTALL-003` itself does not cover npm's `install` key, or a key written with JSON
+  escapes (`"postinstall"`); both are open gaps, independent of this pass.
 
 ## Measurements
 

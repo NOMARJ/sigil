@@ -840,3 +840,35 @@ MEDIUM. Both raw-IP rules now suppress example.com's two addresses and the
   chain says nothing about who serves the file.
 - AGENTSC-034's English and stealth forms are still unmeasured on any
   corpus. Only the sample's Chinese line fires in-corpus.
+
+## Third MCP pass: severity changes that also reach skills
+
+The third false-positive pass on clean MCP servers
+([mcp-server-calibration.md](mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression))
+changed rules that skills use too. Under the severity policy above:
+
+- **Observations (Low).** CODE-009 (`new Function`, every match of which is
+  also CODE-008 at High), HYGIENE-001/002 (a shipped source map exposes the
+  publisher's source, not the installer's machine), INSTALL-009
+  (`prepublishOnly`, which runs on publish only) and the rewritten INSTALL-011
+  (`npx only-allow`) and INSTALL-012 (a build-only `prepare`).
+- **Context-dependent (Medium).** The rewritten INSTALL-010 (a postinstall that
+  runs an inert local script) and CODE-016 (a launcher installing its own
+  platform build).
+- **Critical, corroborating.** INFER-007 (a literal client `apiKey`).
+- **Not the capability at all.** Definitions named `eval`/`exec`/`compile`,
+  credential values that are names, and `compile(` in JavaScript.
+
+Measured with the release build on the same 204 malicious and 455 clean
+skills, main (3982aa6) against this branch: malicious 173 blocked / 184 warned
+and clean 7 blocked / 71 warned in both, and no skill's verdict changed.
+
+```
+Data Source: Real samples (the skills corpora described at the top of this note),
+             scanned by both release builds with --no-cache and an isolated HOME.
+Sample Size: 204 malicious + 455 clean skills.
+Limitations: The changes were chosen for MCP servers, not skills; "no change"
+             here says the skills gate did not move, not that the changes were
+             tuned on skills. Static analysis with the OSV lookup, as in the
+             other skills runs.
+```
