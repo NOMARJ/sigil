@@ -1,0 +1,209 @@
+diff --git a/cli/packs/core/v1/agent_supply_chain.json b/cli/packs/core/v1/agent_supply_chain.json
+index afac311..1c0f4c7 100644
+--- a/cli/packs/core/v1/agent_supply_chain.json
++++ b/cli/packs/core/v1/agent_supply_chain.json
+@@ -764,6 +764,7 @@
+       },
+       "window_lines": 20,
+       "name_uses": "value",
++      "follow_assignment": true,
+       "sink_excludes": [],
+       "remediation": "A variable that holds the result of a secret-named environment sweep (AGENTSC-010) is sent in an outbound request a few lines later. That is credential exfiltration whatever the request is called — 'metrics', 'telemetry', 'audit'. Do not run the skill, and rotate every secret that was in the environment when it ran.",
+       "references": [
+@@ -803,6 +804,7 @@
+       },
+       "window_lines": 20,
+       "name_uses": "value",
++      "follow_assignment": true,
+       "sink_excludes": [],
+       "remediation": "A tarball built from the project directory with .git and node_modules excluded but .env left in (AGENTSC-011) is uploaded a few lines later (the archive path written by `tar -czf \"$TARBALL\"` is the file posted with `curl -F \"file=@$TARBALL\"`). In the agent deploy skills this was measured on the endpoint is unauthenticated and the upload is published at a preview URL, so every secret in the working tree goes with it. The vendor's corrected script excludes `.env` and `.env.*`; add those exclusions or build the archive from an allow-list, and rotate anything that was in .env when the script ran.",
+       "references": [
+diff --git a/cli/packs/core/v1/code_patterns.json b/cli/packs/core/v1/code_patterns.json
+index 4d856d3..4d33f0b 100644
+--- a/cli/packs/core/v1/code_patterns.json
++++ b/cli/packs/core/v1/code_patterns.json
+@@ -297,6 +297,7 @@
+       "sink": {"rule_prefixes": [], "rule_ids": ["CODE-DESER-001"]},
+       "window_lines": 20,
+       "name_uses": "value",
++      "follow_assignment": true,
+       "sink_excludes": [],
+       "remediation": "The package builds a path to a pickle-format file it ships (`os.path.join(os.path.dirname(__file__), \"model.pt\")`) and a few lines later loads it with `torch.load(..., weights_only=False)` — the safe loader explicitly turned off for a file the package itself supplies. Loading runs whatever code the file's pickle stream names, so the package's real behaviour lives in a binary blob no reviewer reads — in the measured samples at import time, from the package's __init__.py, disguised as a model. Disassemble the file (`python -m pickletools`, fickling) before installing; a package that needs a bundled model can ship weights as safetensors or load them with `weights_only=True`. A bundled pickle loaded with `pickle`, `joblib` or `marshal` is not a sink of this chain: packages that ship a pickled lookup table or a scikit-learn model load it that way, and those formats have no safe mode to turn off.",
+       "references": ["CWE-502", "CWE-506", "MITRE T1059.006"],
+diff --git a/cli/packs/core/v1/network_exfil.json b/cli/packs/core/v1/network_exfil.json
+index e1f493d..1e8f3e8 100644
+--- a/cli/packs/core/v1/network_exfil.json
++++ b/cli/packs/core/v1/network_exfil.json
+@@ -712,6 +712,7 @@
+       },
+       "window_lines": 20,
+       "name_uses": "value",
++      "follow_assignment": true,
+       "sink_excludes": [
+         "headers",
+         "Authorization",
+diff --git a/cli/src/corpus/compiled.rs b/cli/src/corpus/compiled.rs
+index 235504c..7c858d2 100644
+--- a/cli/src/corpus/compiled.rs
++++ b/cli/src/corpus/compiled.rs
+@@ -562,7 +562,12 @@ impl CompiledCorpus {
+             .map(|r| {
+                 (
+                     r.id.as_str(),
+-                    format!("{}\0name_uses={}", r.description, r.name_uses.as_str()),
++                    format!(
++                        "{}\0name_uses={}\0follow_assignment={}",
++                        r.description,
++                        r.name_uses.as_str(),
++                        r.follow_assignment
++                    ),
+                 )
+             })
+             .collect();
+diff --git a/cli/src/corpus/schema.rs b/cli/src/corpus/schema.rs
+index 6529975..cfe28fa 100644
+--- a/cli/src/corpus/schema.rs
++++ b/cli/src/corpus/schema.rs
+@@ -400,6 +400,12 @@ pub struct CorrelationRule {
+     /// `sink_window_before` reads names as `value` whatever this says.
+     #[serde(default, skip_serializing_if = "NameUses::is_word")]
+     pub name_uses: NameUses,
++    /// One propagation step: a line strictly between the source and the sink
++    /// of the form `new = <expression>`, whose expression uses a name the
++    /// source bound as a value, binds `new` too. The new name is not
++    /// followed further. Ignored for a sink that runs a file. Default false.
++    #[serde(default, skip_serializing_if = "is_false")]
++    pub follow_assignment: bool,
+     /// Substrings whose presence in the sink's argument window disqualifies
+     /// the link — an auth header is where a key legitimately goes.
+     #[serde(default)]
+@@ -446,6 +452,10 @@ fn is_zero(n: &usize) -> bool {
+     *n == 0
+ }
+ 
++fn is_false(b: &bool) -> bool {
++    !*b
++}
++
+ // ---------------------------------------------------------------------------
+ // Engine rules (implemented in Rust, documented in a pack)
+ // ---------------------------------------------------------------------------
+diff --git a/cli/src/scanner/correlate.rs b/cli/src/scanner/correlate.rs
+index 539822a..d4fbaba 100644
+--- a/cli/src/scanner/correlate.rs
++++ b/cli/src/scanner/correlate.rs
+@@ -111,7 +111,7 @@ fn assignment_re() -> &'static Regex {
+         // `name = ...`, `const name = ...`, `let name: T = ...`, `self.name = ...`,
+         // `name := ...`. The identifier captured is the last dotted segment.
+         Regex::new(
+-            r"^\s*(?:(?:const|let|var|export|local|my|our|\$)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*[A-Za-z0-9_\[\]<>|, ]+)?\s*(?::=|=)[^=]",
++            r"^\s*(?:(?:const|let|var|export|local|my|our|\$)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*[A-Za-z0-9_\[\]<>|, ]+)?\s*(:=|=)[^=]",
+         )
+         .expect("assignment regex compiles")
+     })
+@@ -125,6 +125,37 @@ pub fn assigned_identifier(line: &str) -> Option<&str> {
+         .map(|m| m.as_str())
+ }
+ 
++/// `name = <expression>`: the identifier assigned and the expression text.
++fn assignment_parts(line: &str) -> Option<(&str, &str)> {
++    let c = assignment_re().captures(line)?;
++    Some((c.get(1)?.as_str(), &line[c.get(2)?.end()..]))
++}
++
++/// The names one propagation step binds (see
++/// `CorrelationRule::follow_assignment`): every line strictly between the
++/// source and the sink that assigns an expression using a `bound` name as a
++/// value, with its line number.
++fn one_step<'a>(
++    lines: &[&'a str],
++    source_line: usize,
++    sink_line: usize,
++    bound: &[&str],
++) -> Vec<(&'a str, usize)> {
++    let mut out: Vec<(&'a str, usize)> = Vec::new();
++    for n in source_line + 1..sink_line {
++        let Some((name, rhs)) = lines.get(n - 1).and_then(|l| assignment_parts(l)) else {
++            continue;
++        };
++        if bound.contains(&name) || out.iter().any(|(d, _)| *d == name) {
++            continue;
++        }
++        if bound.iter().any(|b| uses_word(rhs, b)) {
++            out.push((name, n));
++        }
++    }
++    out
++}
++
+ /// A file opened for writing: `open(PATH, 'wb')`, `open(self.path, "a")`,
+ /// `open(path, mode="w")`. Captures the last segment of the path expression
+ /// when it is a (possibly dotted) identifier; a literal path is not a name
+@@ -472,6 +503,17 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
+                 }
+                 // Any other source is linked through a name it binds that
+                 // the window uses.
++                let used = |ident: &str| {
++                    // The statement mode reads a whole call, whose keyword
++                    // names and keys are not values it sends; a rule with
++                    // `name_uses: value` reads its window the same way.
++                    if by_value {
++                        uses_word(link_text, ident)
++                    } else {
++                        contains_word(link_text, ident)
++                    }
++                };
++                let mut via: Option<(&str, usize)> = None;
+                 let linked = if source_line == sink_line || in_same_call {
+                     true
+                 } else {
+@@ -481,17 +523,15 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
+                         } else {
+                             source_bindings(l)
+                         };
+-                        // The statement mode reads a whole call, whose
+-                        // keyword names and keys are not values it sends;
+-                        // a rule with `name_uses: value` reads its window
+-                        // the same way.
+-                        bound.iter().any(|ident| {
+-                            if by_value {
+-                                uses_word(link_text, ident)
+-                            } else {
+-                                contains_word(link_text, ident)
+-                            }
+-                        })
++                        if bound.iter().any(|ident| used(ident)) {
++                            return true;
++                        }
++                        if rule.follow_assignment && !file_only {
++                            via = one_step(lines, source_line, sink_line, &bound)
++                                .into_iter()
++                                .find(|(name, _)| used(name));
++                        }
++                        via.is_some()
+                     })
+                 };
+                 if !linked {
+@@ -509,12 +549,13 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
+                     file: sink.file.clone(),
+                     line: Some(sink_line),
+                     snippet: format!(
+-                        "{}: {} (@L{}) reaches {} (@L{}): {}",
++                        "{}: {} (@L{}) reaches {} (@L{}){}: {}",
+                         rule.description,
+                         source.rule,
+                         source_line,
+                         sink.rule,
+                         sink_line,
++                        via.map_or(String::new(), |(name, n)| format!(" via {name} (@L{n})")),
+                         truncate(
+                             lines
+                                 .get(sink_line.wrapping_sub(1))
+@@ -924,6 +965,7 @@ mod tests {
+             sink_window_before: 0,
+             max_line_length: 0,
+             name_uses: NameUses::Word,
++            follow_assignment: false,
+             sink_excludes: vec!["headers".to_string(), "Authorization".to_string()],
+             remediation: None,
+             references: vec![],

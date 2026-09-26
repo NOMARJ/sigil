@@ -503,6 +503,29 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   use stub engines that print the recorded formats, so CI needs neither
   engine.
 
+### 🔗 Correlation chains read names as values
+
+- **A keyword argument that repeats a bound name is not a link.** Every
+  built-in chain now sets `name_uses: value`. A keyword argument's name, an
+  assignment target or an object key that only repeats the name the source
+  bound does not link it. A clean health check,
+  `url = os.environ["DATABASE_URL"]` then `requests.get(url=base + "/ping")`,
+  was CRITICAL RISK. The corpus digest covers the setting, so a cached result
+  from the old reading is not reused. Measured cost: 17 of the 844 Datadog
+  samples lose EXFIL-CHAIN-001. All are versions of `artifact-lab-3-package`,
+  which sends the environment in two hops, and all stay CRITICAL RISK on
+  NET-007 and INSTALL-001. No level changed on the 204 malicious and 455
+  clean skills or on 323 MCP servers.
+- **One propagation step was measured and not adopted.** Under the step, a
+  line between source and sink of the form `new = f(bound)` would make `new`
+  a source too. It wins back the 17 chain labels, but it changes no real
+  verdict except through one wrong link, in mistralai's own example code.
+  It turns 7 of 10 constructed clean uses of a credential into CRITICAL RISK:
+  a client, an engine, a connection, an HMAC signature, a refresh-token body
+  and a key hint. A variant restricted to bare uses still turns 3 of them.
+  Method, per-sample results and how it relates to ADR-0005:
+  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
+
 ### 🎯 Verdict
 
 - **HIGH RISK is no longer a score threshold.** It was `score >= 25`, and the score is a

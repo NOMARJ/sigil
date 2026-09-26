@@ -296,6 +296,7 @@
       "source": {"rule_prefixes": [], "rule_ids": ["CODE-MODEL-001"]},
       "sink": {"rule_prefixes": [], "rule_ids": ["CODE-DESER-001"]},
       "window_lines": 20,
+      "name_uses": "value",
       "sink_excludes": [],
       "remediation": "The package builds a path to a pickle-format file it ships (`os.path.join(os.path.dirname(__file__), \"model.pt\")`) and a few lines later loads it with `torch.load(..., weights_only=False)` — the safe loader explicitly turned off for a file the package itself supplies. Loading runs whatever code the file's pickle stream names, so the package's real behaviour lives in a binary blob no reviewer reads — in the measured samples at import time, from the package's __init__.py, disguised as a model. Disassemble the file (`python -m pickletools`, fickling) before installing; a package that needs a bundled model can ship weights as safetensors or load them with `weights_only=True`. A bundled pickle loaded with `pickle`, `joblib` or `marshal` is not a sink of this chain: packages that ship a pickled lookup table or a scikit-learn model load it that way, and those formats have no safe mode to turn off.",
       "references": ["CWE-502", "CWE-506", "MITRE T1059.006"],

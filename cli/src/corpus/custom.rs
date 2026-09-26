@@ -1000,6 +1000,7 @@ pub fn sign_file(path: &Path, key: &ed25519_dalek::SigningKey) -> Result<String,
 mod tests {
     use super::PACK_KEY_ENV_LOCK as ENV_LOCK;
     use super::*;
+    use crate::corpus::schema::NameUses;
 
     fn parse(name: &str, text: &str) -> Result<CustomPack, Vec<String>> {
         parse_pack(text, Path::new(name))
@@ -1139,6 +1140,35 @@ rules:
             ok.pack.correlation_rules[0].sink_window_before,
             MAX_SINK_WINDOW_BEFORE
         );
+    }
+
+    #[test]
+    fn a_chain_can_read_names_as_values_and_the_digest_covers_it() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let pack = |extra: &str| {
+            format!(
+                r#"{{"meta":{{"id":"p","name":"p","version":"1","updated_at":"","author":"","description":""}},
+                "correlation_rules":[{{"id":"P-CHAIN-1","phase":"network_exfil","severity":"high","description":"d",
+                "source":{{"rule_ids":["P-1"]}},"sink":{{"rule_ids":["P-2"]}}{extra}}}]}}"#
+            )
+        };
+        let word = parse("p.json", &pack("")).expect("the default loads");
+        let value = parse("p.json", &pack(r#","name_uses":"value""#)).expect("value loads");
+        assert_eq!(word.pack.correlation_rules[0].name_uses, NameUses::Word);
+        assert_eq!(value.pack.correlation_rules[0].name_uses, NameUses::Value);
+        let errs = parse("p.json", &pack(r#","name_uses":"values""#)).expect_err("must fail");
+        assert!(
+            errs.iter().any(|e| e.contains("correlation_rules")),
+            "{errs:?}"
+        );
+        // A cached result is reused only under the same digest, and the two
+        // readings link different code.
+        let digest = |p: &CustomPack| {
+            crate::corpus::compiled::CompiledCorpus::from_packs(std::slice::from_ref(&p.pack))
+                .digest()
+        };
+        assert_ne!(digest(&word), digest(&value));
     }
 
     #[test]

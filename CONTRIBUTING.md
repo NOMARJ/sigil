@@ -211,6 +211,16 @@ script given the extension) is correlated like any other file. An archive
 member cut at the 4 MB member cap is judged by the part that was read, which
 must be one JSON object, complete or still open at the cut.
 
+`name_uses` (`word`, the default, or `value`) says which occurrences of a
+bound name in the window link. `word` takes any whole word; `value` skips a
+keyword argument's name, an assignment target or an object key that only
+repeats the name, the reading the statement mode always uses. Every built-in
+chain sets `value`: a request's `url=` keyword argument does not send a `url`
+bound from the database URL in the environment two lines up. The link is one hop,
+the bound name itself; a value computed from it on another line
+(`encoded = urlencode(data)`) is not followed. That was measured and left out
+on purpose ([docs/detection/correlation-names.md](docs/detection/correlation-names.md)).
+
 ### Fixtures
 
 Every rule ships with two fixtures:

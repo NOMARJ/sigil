@@ -554,15 +554,23 @@ impl CompiledCorpus {
             })
             .collect();
         let yara_sources = yara_owned.iter().map(|(id, s)| (*id, s.as_str()));
+        // A chain is identified by how it reads a bound name too: the same
+        // chain under another `name_uses` links different code.
+        let chain_owned: Vec<(&str, String)> = self
+            .correlation_rules
+            .iter()
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    format!("{}\0name_uses={}", r.description, r.name_uses.as_str()),
+                )
+            })
+            .collect();
         let mut entries: Vec<(&str, &str)> = self
             .per_phase
             .values()
             .flat_map(|p| p.rules.iter().map(|r| (r.id.as_str(), r.regex.as_str())))
-            .chain(
-                self.correlation_rules
-                    .iter()
-                    .map(|r| (r.id.as_str(), r.description.as_str())),
-            )
+            .chain(chain_owned.iter().map(|(id, s)| (*id, s.as_str())))
             .chain(
                 self.engine_rule_ids
                     .iter()
