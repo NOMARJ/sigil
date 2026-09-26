@@ -2,6 +2,8 @@
 
 _Generated 2026-09-26T02:50:40+00:00 by `scripts/benchmark_skills.py`._
 
+_An earlier run: build f5f142a, the third MCP pass before its lifecycle rewrites were made to fail closed. The final build's run is [mcp_sigil_round3.md](mcp_sigil_round3.md) (28/169 blocked, 89/169 warned)._
+
 ```
 Data Source: Real samples. Malicious: 
              Clean: mcp_clean

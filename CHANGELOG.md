@@ -462,7 +462,7 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
 Measured with the release build against main's, both `--no-cache` with an
 isolated `HOME` ([details and disclosure](docs/detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression)):
 
-| | Before | After |
+| | Before (main) | After (the pass's own build, f5f142a) |
 |---|---:|---:|
 | Clean MCP servers blocked (≥ HIGH), in-sample | 39/169 (23.1%) | 24/169 (14.2%) |
 | Clean MCP servers warned (≥ MEDIUM) | 125/169 (74.0%) | 75/169 (44.4%) |
@@ -472,6 +472,11 @@ isolated `HOME` ([details and disclosure](docs/detection/mcp-server-calibration.
 | SkillSpector parity flagged / ≥ High (of 1,796) | 623 / 385 | 623 / 385 |
 | Datadog malicious packages blocked / warned / CRITICAL (of 844) | 756 / 813 / 531 | 756 / 813 / 531 |
 | Datadog six-phase recall ≥ High / ≥ Critical (of 844) | 752 / 561 | 752 / 561 |
+
+These are the pass's own build. The final build of this branch, with the
+lifecycle rewrites failing closed (below), blocks 28/169 (16.6%), warns on
+89/169 (52.7%) and reports 15 CRITICAL; the merged branch just before that
+change measured 24 / 76 / 11.
 
 No MCP server's verdict rose; no skill's, parity sample's or Datadog sample's
 verdict or highest severity changed. Individual rules did lose matches on

@@ -587,6 +587,12 @@ HIGH) and to DD_O14 Datadog samples; it fired on no clean MCP server or skill.
 
 ## Third pass: lifecycle scripts and match-local suppression
 
+> The figures in this section are the pass's own build (f5f142a). The merged
+> branch is re-measured in [Re-measured on the merged branch](#re-measured-on-the-merged-branch),
+> and the final build, with the lifecycle rewrites failing closed, in
+> [Fourth change](#fourth-change-the-lifecycle-rewrites-fail-closed-final-build):
+> 28/169 blocked and 89/169 warned in-sample, 69/146 and 115/146 on the holdout.
+
 The second pass left 39 of the 169 servers blocked. This pass removed the
 blocks that came from a rule unable to see what a line does, where the
 remaining evidence could be read without trusting anything a malicious
@@ -622,7 +628,7 @@ Limitations: In-sample for the MCP corpus. The held-out MCP sample (146 unseen
 
 ### Results
 
-| | Before (main) | After | Change |
+| | Before (main) | After (f5f142a) | Change |
 |---|---:|---:|---:|
 | MCP blocked (≥ HIGH) | 39/169 (23.1%) | 24/169 (14.2%) | −15 |
 | MCP warned (≥ MEDIUM) | 125/169 (74.0%) | 75/169 (44.4%) | −50 |
@@ -768,7 +774,7 @@ Limitations: "Clean" is not "audited"; the holdout, like the in-sample corpus,
              is unaudited published servers. Machine shared during the runs.
 ```
 
-| | Before (main) | After (branch) | Change |
+| | Before (main) | After (f5f142a) | Change |
 |---|---:|---:|---:|
 | Holdout blocked (≥ HIGH) | 80/146 (54.8%) | 66/146 (45.2%) | −14 |
 | Holdout warned (≥ MEDIUM) | 135/146 (92.5%) | 114/146 (78.1%) | −21 |

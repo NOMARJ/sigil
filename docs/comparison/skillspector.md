@@ -63,7 +63,7 @@ not.
 
 After the third MCP false-positive pass
 ([mcp-server-calibration.md](../detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression)),
-a later Sigil build on the same 169 servers blocks 24 (14.2%), warns on 75
+that pass's own build (f5f142a) on the same 169 servers blocks 24 (14.2%), warns on 75
 (44.4%) and reports 11 CRITICAL; on the 156 SkillSpector finished it blocks 16
 (10.3%), warns on 62 (39.7%) and reports 7 CRITICAL. It then blocks 2 servers
 SkillSpector does not, and SkillSpector blocks 86 it does not. SkillSpector was
