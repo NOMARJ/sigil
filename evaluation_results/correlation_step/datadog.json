@@ -1,5 +1,5 @@
 {
- "generated_by": "scripts/datadog_diff.py, three runs on 2026-09-26: (1) head, name_uses, B, C; (2) name_uses, name_uses_python_keys; (3) base-09d9fae, shipped. Diffs recomputed from their rows with the committed diff() (whole chain records, counted); chain snippets reduced to their link with link_of()",
+ "generated_by": "scripts/datadog_diff.py, four runs on 2026-09-26: (1) head, name_uses, B, C; (2) name_uses, name_uses_python_keys; (3) base-09d9fae, shipped; (4) shipped, shipped_string_context. Diffs recomputed from their rows with the committed diff() (whole chain records, counted); chain snippets reduced to their link with link_of()",
  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
  "fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
  "limit": 204,
@@ -11,7 +11,8 @@
   "follow_assignment_bare": "B + follow_assignment_bare.patch (C)",
   "name_uses_python_keys": "this change as shipped: name_uses, and a bare name inside {...} in a Python file read as a value (measured with its first implementation; the single-pass bracket scan that ships was re-run against it on every corpus: identical)",
   "base-09d9fae": "09d9fae: #168 and #170 (source maps not correlated), without #169",
-  "shipped": "09d9fae + #169 + the Python-braces fix (this branch)"
+  "shipped": "09d9fae + #169 + the Python-braces fix, first version (braces counted anywhere)",
+  "shipped_string_context": "shipped with braces read the way Python reads them: code and f-string fields, not a string's text (this branch)"
  },
  "recall": {
   "head-ef0b95f": {
@@ -55,6 +56,12 @@
    "Medium": 761,
    "High": 752,
    "Critical": 561
+  },
+  "shipped_string_context": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
   }
  },
  "exfil_chain_samples": {
@@ -64,7 +71,8 @@
   "follow_assignment_bare": 40,
   "name_uses_python_keys": 23,
   "base-09d9fae": 40,
-  "shipped": 23
+  "shipped": 23,
+  "shipped_string_context": 23
  },
  "budget_expired": {
   "head-ef0b95f": [
@@ -80,7 +88,9 @@
   "name_uses (run 2)": [],
   "name_uses_python_keys (run 2)": [],
   "base-09d9fae (run 3)": [],
-  "shipped (run 3)": []
+  "shipped (run 3)": [],
+  "shipped (run 4)": [],
+  "shipped_string_context (run 4)": []
  },
  "budget_check": "Samples that hit the 30 s per-file budget (PROV-BUDGET-001) in some runs were rescanned with every build of run 1 and SIGIL_FILE_BUDGET_SECS=0: the chain findings are identical across all four builds (the two @asyncapi/studio samples: 44 each; @automagik/genie 4.260421.33: 2). The chain changes marked budget_expired below are timing, not the build.",
  "diffs": {
@@ -1358,6 +1368,29 @@
      "gained": []
     }
    ]
+  },
+  "shipped->shipped_string_context (run 4)": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     561,
+     561
+    ]
+   },
+   "severity": [],
+   "verdict": [],
+   "chains": []
   }
  },
  "per_sample_head": [

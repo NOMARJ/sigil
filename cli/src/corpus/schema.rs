@@ -397,8 +397,8 @@ pub struct CorrelationRule {
     /// name as a value, so a keyword argument's name, an assignment target
     /// or an object key that merely repeats it (a call's `url=` keyword
     /// beside a bound `url`) does not link. In a Python file a bare name
-    /// inside `{...}` is evaluated (a dict key, an f-string field), so it
-    /// still links there. A rule with
+    /// inside code braces is evaluated (a dict key, an f-string replacement
+    /// field), so it still links there; a string's text does not. A rule with
     /// `sink_window_before` reads names as `value` whatever this says.
     #[serde(default, skip_serializing_if = "NameUses::is_word")]
     pub name_uses: NameUses,

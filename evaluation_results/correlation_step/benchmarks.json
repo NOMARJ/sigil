@@ -7,7 +7,8 @@
 "follow_assignment_bare": "B + follow_assignment_bare.patch (C)",
 "name_uses_python_keys": "fa601b8 + the Python-braces fix",
 "base-09d9fae": "09d9fae (#168 + #170)",
-"shipped": "09d9fae + #169 + the Python-braces fix"
+"shipped": "09d9fae + #169 + the Python-braces fix, first version",
+"shipped_string_context": "shipped, braces read as Python reads them (this branch)"
 },
 "corpora": {
 "mcp_clean (169, --clean-sample-depth 1)": {
@@ -61,6 +62,14 @@
 }
 },
 "shipped": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"shipped_string_context": {
 "clean": {
 "scanned": 169,
 "errors": 0,
@@ -2554,7 +2563,8 @@
 "follow_assignment->follow_assignment_bare": [],
 "name_uses->name_uses_python_keys": [],
 "head-ef0b95f->base-09d9fae": [],
-"base-09d9fae->shipped": []
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 },
 "mcp_holdout (157, mcp_holdout_manifest.json, --clean-sample-depth 1)": {
@@ -2608,6 +2618,14 @@
 }
 },
 "shipped": {
+"clean": {
+"scanned": 157,
+"errors": 0,
+"block": 88,
+"warn": 146
+}
+},
+"shipped_string_context": {
 "clean": {
 "scanned": 157,
 "errors": 0,
@@ -5907,7 +5925,8 @@
 ]
 ]
 ],
-"base-09d9fae->shipped": []
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 },
 "skills (204 malicious --sample-depth 2; 455 clean)": {
@@ -5997,6 +6016,20 @@
 }
 },
 "shipped": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"shipped_string_context": {
 "malicious": {
 "scanned": 204,
 "errors": 0,
@@ -12217,7 +12250,8 @@
 "follow_assignment->follow_assignment_bare": [],
 "name_uses->name_uses_python_keys": [],
 "head-ef0b95f->base-09d9fae": [],
-"base-09d9fae->shipped": []
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 }
 }

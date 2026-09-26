@@ -357,7 +357,10 @@ fn is_ident_byte(b: u8) -> bool {
 /// still a use: `headers=headers`, `{ auth: token }`, `f"Bearer {token}"`,
 /// `{ agent, headers }`. In Python (`python`), a bare name inside `{...}` is
 /// evaluated, not named: `{token: "x"}` sends the value as a dict key and
-/// `f"{token:>40}"` formats it, so there it is a use.
+/// `f"{token:>40}"` formats it, so there it is a use. Only code braces and
+/// f-string replacement fields count (see [`python_brackets`]): the text of a
+/// plain string (`"{token:>40}"`, a `.format` template), an f-string's `{{`
+/// escape and a comment evaluate nothing.
 fn uses_word(text: &str, ident: &str, python: bool) -> bool {
     if ident.is_empty() {
         return false;
@@ -380,7 +383,7 @@ fn uses_word(text: &str, ident: &str, python: bool) -> bool {
         // In Python a bare name inside `{...}` is an expression: a dict key,
         // a set element, an f-string field (`{token:>40}`, `{token=}`).
         if python && !quoted(bytes, at, end) {
-            let opens = open_brackets.get_or_insert_with(|| innermost_open(bytes));
+            let opens = open_brackets.get_or_insert_with(|| python_brackets(bytes));
             if opens[at] == b'{' {
                 return true;
             }
@@ -420,23 +423,111 @@ fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
     }
 }
 
-/// For each byte of `bytes`, the innermost bracket still open there (`0`
-/// for none), in one pass: a window can be one very long line. Brackets in
-/// string literals are not told apart; an unmatched closer is ignored.
-fn innermost_open(bytes: &[u8]) -> Vec<u8> {
-    let mut open: Vec<u8> = Vec::new();
-    let mut out = Vec::with_capacity(bytes.len());
-    for &b in bytes {
-        out.push(open.last().copied().unwrap_or(0));
-        match b {
-            b'(' | b'[' | b'{' => open.push(b),
-            b')' | b']' | b'}' => {
-                open.pop();
+/// Where a byte of a Python window sits, as [`python_brackets`] reports it.
+const IN_STRING: u8 = b'"';
+
+/// One level of Python nesting: a bracket, a string literal, or an
+/// f-string replacement field (code again, closed by its `}`).
+enum Nest {
+    Bracket(u8),
+    Str {
+        quote: u8,
+        triple: bool,
+        fstring: bool,
+    },
+    Field,
+}
+
+/// For each byte of a Python window, the innermost bracket open there (`0`
+/// for none), or [`IN_STRING`] inside a string literal's text, in one pass:
+/// a window can be one very long line. Brackets inside a string do not
+/// count, nor do an f-string's `{{` / `}}` escapes or a comment; an f-string
+/// replacement field (`f"{token:>40}"`) is code, opened by its `{`. A
+/// string opened above the window, or a quote in a string's prefix the
+/// window cuts off, is not seen.
+fn python_brackets(bytes: &[u8]) -> Vec<u8> {
+    let mut nest: Vec<Nest> = Vec::new();
+    let mut out = vec![0u8; bytes.len()];
+    let mut i = 0;
+    while i < bytes.len() {
+        let here = match nest.last() {
+            Some(Nest::Str { .. }) => IN_STRING,
+            Some(Nest::Bracket(b)) => *b,
+            Some(Nest::Field) => b'{',
+            None => 0,
+        };
+        out[i] = here;
+        let b = bytes[i];
+        let next = bytes.get(i + 1).copied();
+        let mut step = 1;
+        match nest.last() {
+            Some(&Nest::Str {
+                quote,
+                triple,
+                fstring,
+            }) => {
+                // A backslash escapes what follows; `{{` and `}}` are an
+                // f-string's literal braces.
+                if b == b'\\' || (fstring && (b == b'{' || b == b'}') && next == Some(b)) {
+                    step = 2;
+                } else if fstring && b == b'{' {
+                    nest.push(Nest::Field);
+                } else if b == quote && (!triple || bytes[i..].starts_with(&[quote; 3])) {
+                    nest.pop();
+                    step = if triple { 3 } else { 1 };
+                } else if b == b'\n' && !triple {
+                    nest.pop();
+                }
             }
-            _ => {}
+            _ => match b {
+                b'#' => {
+                    while i + step < bytes.len() && bytes[i + step] != b'\n' {
+                        out[i + step] = here;
+                        step += 1;
+                    }
+                }
+                b'"' | b'\'' => {
+                    let triple = bytes[i..].starts_with(&[b; 3]);
+                    nest.push(Nest::Str {
+                        quote: b,
+                        triple,
+                        fstring: string_prefix(&bytes[..i]).contains(['f', 'F']),
+                    });
+                    step = if triple { 3 } else { 1 };
+                }
+                b'(' | b'[' | b'{' => nest.push(Nest::Bracket(b)),
+                b')' | b']' => {
+                    if matches!(nest.last(), Some(Nest::Bracket(_))) {
+                        nest.pop();
+                    }
+                }
+                b'}' => {
+                    if matches!(nest.last(), Some(Nest::Bracket(_) | Nest::Field)) {
+                        nest.pop();
+                    }
+                }
+                _ => {}
+            },
         }
+        out[i + 1..(i + step).min(bytes.len())].fill(here);
+        i += step;
     }
     out
+}
+
+/// The prefix letters of a string literal whose quote follows `before`
+/// (`f`, `rb`, `Rf` …), or `""` when the quote does not follow a prefix.
+fn string_prefix(before: &[u8]) -> &str {
+    let start = before
+        .iter()
+        .rposition(|&c| !c.is_ascii_alphanumeric() && c != b'_')
+        .map_or(0, |p| p + 1);
+    let word = std::str::from_utf8(&before[start..]).unwrap_or("");
+    if word.len() <= 2 && word.chars().all(|c| "rRbBuUfF".contains(c)) {
+        word
+    } else {
+        ""
+    }
 }
 
 /// Python source, whose `{...}` holds expressions (see [`uses_word`]).
@@ -1807,13 +1898,19 @@ mod tests {
 
     /// In Python a bare name inside `{...}` is evaluated: a dict key or set
     /// element sends the value, an f-string field formats it. Quoted keys,
-    /// keyword arguments and annotations are still names.
+    /// keyword arguments and annotations are still names, and so is text
+    /// inside a string: a plain string, an f-string's `{{` escape, a
+    /// `.format` template or a comment evaluates nothing.
     #[test]
     fn python_braces_hold_values() {
         for text in [
             "json={token: \"x\"}",
             "data=f\"{token:>40}\"",
             "f\"{token=}\"",
+            "rf'{token:>4}'",
+            "f\"{d['k']}: {token:>4}\"",
+            "f\"\"\"{token:>4}\"\"\"",
+            "json={\"a(\": 1, token: 2}",
             "json={\"a\": 1, token: 2}",
             "json={\n    token: 2,\n}",
             "{token}",
@@ -1827,6 +1924,13 @@ mod tests {
             "def send(token: str):",
             "def send(a, token: str):",
             "token: str = other",
+            "data=\"{token:>40}\"",
+            "data=b'{token: 1}'",
+            "data=f\"{{token:>40}}\"",
+            "data=\"{token:>40}\".format(token=other)",
+            "data=\"\"\"{token: 1}\"\"\"",
+            "data=\"\\\"{token: 1}\"",
+            "x = 1  # {token: 1}",
         ] {
             assert!(!uses_word(text, "token", true), "{text}");
         }

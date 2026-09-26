@@ -121,11 +121,22 @@ is now read as a value. Quoted keys, keyword arguments and annotations
 file's extension (`.py`, `.pyw`, `.pyi`). Every other file keeps the key
 reading, including a Python snippet inside Markdown.
 
+The brackets are read the way Python reads them. Only code braces and an
+f-string's replacement fields count. The text of a plain string, an
+f-string's `{{` escape and a comment evaluate nothing. A second review
+caught this: the first version of the fix pushed every `{` it saw, so
+`data="{token:>40}"`, a `.format` template and `f"{{token:>40}}"` became
+false CRITICAL chains. They were LOW on the first build of this change and
+CRITICAL on head, which read any whole word.
+
 | Probe (synthetic) | head | name_uses, first build | shipped |
 |---|---|---|---|
 | Python `requests.post(u, json={token: "stolen"})` | CRITICAL | LOW | CRITICAL |
 | Python `requests.post(u, data=f"{token:>40}")` | CRITICAL | LOW | CRITICAL |
 | JS `fetch(u, { body: JSON.stringify({ token: "public" }) })` | CRITICAL | LOW | LOW |
+| Python `data="{token:>40}"` (plain string) | CRITICAL | LOW | LOW |
+| Python `data=f"{{token:>40}}"` (escaped braces) | CRITICAL | LOW | LOW |
+| Python `data="{token:>40}".format(token="x")` | CRITICAL | LOW | LOW |
 
 Measured, the first build → shipped: no sample changed on any corpus.
 There were 0 level, rule-set or finding-count changes on the skills, clean
@@ -134,8 +145,11 @@ No sample in these corpora sends a credential this way, so the fix restores
 detection only of shapes like the probes. B and C below were measured on the
 first build; the fix touches neither the step nor any sample they changed.
 The fix as shipped reads the brackets in one pass over the window, so one
-long line cannot make it quadratic. It was re-run against the version
-measured above on every corpus, with identical results.
+long line cannot make it quadratic. It also keeps a string's text out, as
+described above. Each revision was re-run against the one before on every
+corpus, with identical results: 0 Datadog severity, verdict or chain
+changes, and 0 level, rule-set or finding-count changes on the skills,
+clean MCP and holdout corpora.
 
 ## The propagation step
 
