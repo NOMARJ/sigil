@@ -11,10 +11,10 @@
    },
    "clean": {
     "scanned": 169,
-    "block": 24,
-    "warn": 75,
+    "block": 39,
+    "warn": 125,
     "any": 162,
-    "seconds": 438.2
+    "seconds": 559.4
    }
   }
  },
@@ -31,7 +31,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 1.17,
+   "seconds": 0.6,
    "error": null
   },
   {
@@ -48,7 +48,7 @@
    "high_rules": [
     "CRED-006"
    ],
-   "seconds": 1.21,
+   "seconds": 0.6,
    "error": null
   },
   {
@@ -60,7 +60,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 0.81,
+   "seconds": 0.64,
    "error": null
   },
   {
@@ -68,8 +68,8 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 335,
+   "level": "CRITICAL",
+   "findings": 338,
    "rules": [
     "CODE-007",
     "CODE-MCP-001",
@@ -88,7 +88,7 @@
     "INFER-007",
     "NET-RCE-001"
    ],
-   "seconds": 1.44,
+   "seconds": 1.26,
    "error": null
   },
   {
@@ -96,14 +96,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 3,
    "rules": [
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-012"
    ],
    "high_rules": [],
-   "seconds": 1.27,
+   "seconds": 0.8,
    "error": null
   },
   {
@@ -111,15 +111,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 5,
    "rules": [
     "CRED-002",
-    "INSTALL-012",
+    "INSTALL-004",
     "INSTALL-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.11,
+   "seconds": 0.7,
    "error": null
   },
   {
@@ -127,16 +127,19 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 77,
+   "level": "MEDIUM",
+   "findings": 79,
    "rules": [
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "NET-012",
     "PROV-001"
    ],
-   "high_rules": [],
-   "seconds": 1.18,
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 0.82,
    "error": null
   },
   {
@@ -144,14 +147,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 0.98,
+   "seconds": 0.66,
    "error": null
   },
   {
@@ -169,7 +172,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.33,
+   "seconds": 1.12,
    "error": null
   },
   {
@@ -187,7 +190,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.64,
+   "seconds": 1.0,
    "error": null
   },
   {
@@ -195,10 +198,10 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
+   "level": "HIGH",
    "findings": 4,
    "rules": [
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-012",
     "OBFUSC-002",
     "PROMPT-003"
@@ -206,7 +209,7 @@
    "high_rules": [
     "PROMPT-003"
    ],
-   "seconds": 1.49,
+   "seconds": 0.9,
    "error": null
   },
   {
@@ -219,13 +222,13 @@
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "SKILL-018"
    ],
    "high_rules": [
     "SKILL-018"
    ],
-   "seconds": 1.18,
+   "seconds": 0.84,
    "error": null
   },
   {
@@ -239,7 +242,7 @@
     "CODE-MCP-001"
    ],
    "high_rules": [],
-   "seconds": 1.11,
+   "seconds": 0.73,
    "error": null
   },
   {
@@ -260,7 +263,7 @@
     "NET-RCE-001",
     "PROMPT-007"
    ],
-   "seconds": 1.67,
+   "seconds": 1.12,
    "error": null
   },
   {
@@ -268,8 +271,8 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 3521,
+   "level": "HIGH",
+   "findings": 3549,
    "rules": [
     "CODE-002",
     "CODE-003",
@@ -278,9 +281,11 @@
     "CODE-012",
     "CODE-MCP-001",
     "CRED-002",
+    "CRED-007",
+    "CRED-008",
     "HYGIENE-001",
     "INFER-011",
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-MCP-002",
     "OBFUSC-002",
     "OBFUSC-003",
@@ -291,17 +296,21 @@
     "OBFUSC-CHAIN-013",
     "PROV-004",
     "SUPPLY-007",
+    "SUPPLY-008",
     "UNICODE-001",
     "UNICODE-002",
     "UNICODE-003"
    ],
    "high_rules": [
     "CODE-002",
+    "CRED-007",
+    "CRED-008",
     "OBFUSC-006",
     "OBFUSC-CHAIN-006",
-    "SUPPLY-007"
+    "SUPPLY-007",
+    "SUPPLY-008"
    ],
-   "seconds": 8.4,
+   "seconds": 11.75,
    "error": null
   },
   {
@@ -310,8 +319,9 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 12,
+   "findings": 14,
    "rules": [
+    "CODE-003",
     "CRED-002",
     "CRED-ENV-001",
     "INFER-002",
@@ -322,7 +332,7 @@
     "UNICODE-002"
    ],
    "high_rules": [],
-   "seconds": 2.4,
+   "seconds": 3.7,
    "error": null
   },
   {
@@ -330,7 +340,7 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
+   "level": "HIGH",
    "findings": 7,
    "rules": [
     "CODE-008",
@@ -343,9 +353,10 @@
    ],
    "high_rules": [
     "CODE-008",
+    "CODE-009",
     "PROMPT-014"
    ],
-   "seconds": 3.27,
+   "seconds": 3.8,
    "error": null
   },
   {
@@ -362,7 +373,7 @@
    "high_rules": [
     "OBFUSC-CHAIN-006"
    ],
-   "seconds": 1.33,
+   "seconds": 0.99,
    "error": null
   },
   {
@@ -399,7 +410,7 @@
     "PROMPT-002",
     "PROMPT-004"
    ],
-   "seconds": 1.8,
+   "seconds": 2.26,
    "error": null
   },
   {
@@ -407,18 +418,17 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 162,
    "rules": [
     "CODE-007",
     "CRED-ENV-001",
     "HYGIENE-001",
-    "INSTALL-009",
-    "INSTALL-012",
+    "INSTALL-004",
     "NET-005"
    ],
    "high_rules": [],
-   "seconds": 1.49,
+   "seconds": 1.7,
    "error": null
   },
   {
@@ -426,15 +436,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 7,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.11,
+   "seconds": 1.36,
    "error": null
   },
   {
@@ -470,7 +480,7 @@
     "NET-RCE-001",
     "PROMPT-003"
    ],
-   "seconds": 1.93,
+   "seconds": 4.44,
    "error": null
   },
   {
@@ -486,7 +496,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.31,
+   "seconds": 1.29,
    "error": null
   },
   {
@@ -500,7 +510,7 @@
     "CODE-007"
    ],
    "high_rules": [],
-   "seconds": 1.05,
+   "seconds": 2.1,
    "error": null
   },
   {
@@ -508,17 +518,17 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 20,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-MCP-002",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.05,
+   "seconds": 1.53,
    "error": null
   },
   {
@@ -533,7 +543,7 @@
     "CRED-ENV-001"
    ],
    "high_rules": [],
-   "seconds": 0.83,
+   "seconds": 1.58,
    "error": null
   },
   {
@@ -548,7 +558,7 @@
     "OBFUSC-010"
    ],
    "high_rules": [],
-   "seconds": 0.88,
+   "seconds": 1.57,
    "error": null
   },
   {
@@ -568,7 +578,7 @@
    "high_rules": [
     "CRED-007"
    ],
-   "seconds": 1.41,
+   "seconds": 2.32,
    "error": null
   },
   {
@@ -576,7 +586,7 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 18,
    "rules": [
     "CODE-007",
@@ -585,7 +595,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 0.99,
+   "seconds": 1.91,
    "error": null
   },
   {
@@ -593,14 +603,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
     "CODE-007",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.14,
+   "seconds": 1.22,
    "error": null
   },
   {
@@ -617,7 +627,7 @@
     "NET-001"
    ],
    "high_rules": [],
-   "seconds": 1.1,
+   "seconds": 1.43,
    "error": null
   },
   {
@@ -625,15 +635,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 5,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 0.74,
+   "seconds": 1.05,
    "error": null
   },
   {
@@ -642,15 +652,17 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 2,
+   "findings": 3,
    "rules": [
     "CODE-007",
-    "INSTALL-003"
+    "INSTALL-003",
+    "SKILL-006"
    ],
    "high_rules": [
-    "INSTALL-003"
+    "INSTALL-003",
+    "SKILL-006"
    ],
-   "seconds": 1.05,
+   "seconds": 1.73,
    "error": null
   },
   {
@@ -658,16 +670,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 49,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.53,
+   "seconds": 2.11,
    "error": null
   },
   {
@@ -683,7 +695,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.23,
+   "seconds": 1.71,
    "error": null
   },
   {
@@ -699,7 +711,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 0.85,
+   "seconds": 1.43,
    "error": null
   },
   {
@@ -715,7 +727,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.67,
+   "seconds": 1.07,
    "error": null
   },
   {
@@ -731,7 +743,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.17,
+   "seconds": 1.42,
    "error": null
   },
   {
@@ -747,7 +759,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.4,
+   "seconds": 1.04,
    "error": null
   },
   {
@@ -763,7 +775,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.15,
+   "seconds": 1.07,
    "error": null
   },
   {
@@ -778,7 +790,7 @@
     "DEPSRC-003"
    ],
    "high_rules": [],
-   "seconds": 1.41,
+   "seconds": 1.56,
    "error": null
   },
   {
@@ -786,15 +798,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 6,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.61,
+   "seconds": 2.25,
    "error": null
   },
   {
@@ -817,7 +829,7 @@
     "NET-007",
     "SKILL-012"
    ],
-   "seconds": 2.26,
+   "seconds": 3.45,
    "error": null
   },
   {
@@ -825,14 +837,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 3,
    "rules": [
     "CRED-002",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.04,
+   "seconds": 1.9,
    "error": null
   },
   {
@@ -840,14 +852,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.61,
+   "seconds": 1.2,
    "error": null
   },
   {
@@ -861,7 +873,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 1.2,
+   "seconds": 1.21,
    "error": null
   },
   {
@@ -873,7 +885,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 1.27,
+   "seconds": 0.99,
    "error": null
   },
   {
@@ -881,17 +893,22 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 7,
+   "level": "CRITICAL",
+   "findings": 8,
    "rules": [
     "CODE-007",
     "CODE-012",
-    "CODE-016",
+    "CODE-014",
     "CODE-MCP-001",
-    "INSTALL-010"
+    "INSTALL-003",
+    "SKILL-006"
    ],
-   "high_rules": [],
-   "seconds": 1.17,
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 1.35,
    "error": null
   },
   {
@@ -903,7 +920,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 1.12,
+   "seconds": 1.1,
    "error": null
   },
   {
@@ -911,18 +928,23 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 9,
+   "level": "CRITICAL",
+   "findings": 10,
    "rules": [
     "CODE-007",
     "CODE-012",
-    "CODE-016",
+    "CODE-014",
     "CODE-MCP-001",
-    "INSTALL-010",
+    "INSTALL-003",
+    "SKILL-006",
     "SKILL-015"
    ],
-   "high_rules": [],
-   "seconds": 0.8,
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 1.45,
    "error": null
   },
   {
@@ -938,7 +960,7 @@
     "NET-015"
    ],
    "high_rules": [],
-   "seconds": 1.4,
+   "seconds": 1.81,
    "error": null
   },
   {
@@ -946,18 +968,23 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 9,
+   "level": "CRITICAL",
+   "findings": 10,
    "rules": [
     "CODE-007",
     "CODE-012",
-    "CODE-016",
+    "CODE-014",
     "CODE-MCP-001",
-    "INSTALL-010",
+    "INSTALL-003",
+    "SKILL-006",
     "SKILL-015"
    ],
-   "high_rules": [],
-   "seconds": 1.57,
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 0.97,
    "error": null
   },
   {
@@ -975,7 +1002,7 @@
    "high_rules": [
     "CODE-001"
    ],
-   "seconds": 2.13,
+   "seconds": 2.95,
    "error": null
   },
   {
@@ -987,7 +1014,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 0.92,
+   "seconds": 0.95,
    "error": null
   },
   {
@@ -1001,7 +1028,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 1.54,
+   "seconds": 1.44,
    "error": null
   },
   {
@@ -1016,7 +1043,7 @@
     "CRED-001"
    ],
    "high_rules": [],
-   "seconds": 1.7,
+   "seconds": 1.44,
    "error": null
   },
   {
@@ -1033,7 +1060,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 62.44,
+   "seconds": 58.99,
    "error": null
   },
   {
@@ -1041,14 +1068,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 62,
    "rules": [
     "CRED-002",
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 1.4,
+   "seconds": 1.67,
    "error": null
   },
   {
@@ -1056,14 +1083,18 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 4,
+   "level": "CRITICAL",
+   "findings": 6,
    "rules": [
     "INFER-002",
-    "INSTALL-011"
+    "INSTALL-003",
+    "SKILL-006"
    ],
-   "high_rules": [],
-   "seconds": 2.45,
+   "high_rules": [
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 2.66,
    "error": null
   },
   {
@@ -1071,16 +1102,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 23,
    "rules": [
     "CRED-001",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.41,
+   "seconds": 1.84,
    "error": null
   },
   {
@@ -1088,15 +1119,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 10,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.75,
+   "seconds": 1.87,
    "error": null
   },
   {
@@ -1104,12 +1135,12 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 15,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
    "seconds": 1.19,
@@ -1125,12 +1156,12 @@
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-003",
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 1.58,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -1138,13 +1169,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 14,
    "rules": [
     "CODE-007",
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
    "seconds": 1.31,
@@ -1155,14 +1186,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 7,
    "rules": [
     "CODE-MCP-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.25,
+   "seconds": 1.39,
    "error": null
   },
   {
@@ -1170,16 +1201,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 15,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.18,
+   "seconds": 1.16,
    "error": null
   },
   {
@@ -1202,7 +1233,7 @@
    "high_rules": [
     "PERSIST-005"
    ],
-   "seconds": 2.1,
+   "seconds": 2.53,
    "error": null
   },
   {
@@ -1217,7 +1248,7 @@
     "CRED-001"
    ],
    "high_rules": [],
-   "seconds": 0.95,
+   "seconds": 1.46,
    "error": null
   },
   {
@@ -1226,19 +1257,21 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 9,
+   "findings": 10,
    "rules": [
     "CODE-006",
     "CRED-002",
+    "CRED-007",
     "CRED-023",
     "INSTALL-004",
     "NET-MCP-002",
     "OBFUSC-002"
    ],
    "high_rules": [
+    "CRED-007",
     "CRED-023"
    ],
-   "seconds": 2.37,
+   "seconds": 3.36,
    "error": null
   },
   {
@@ -1253,7 +1286,7 @@
     "CRED-001"
    ],
    "high_rules": [],
-   "seconds": 1.69,
+   "seconds": 1.93,
    "error": null
   },
   {
@@ -1267,14 +1300,14 @@
     "CODE-MCP-001",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "MANIP-008",
     "NET-MCP-002",
     "OBFUSC-003",
     "PERSIST-004"
    ],
    "high_rules": [],
-   "seconds": 1.77,
+   "seconds": 2.47,
    "error": null
   },
   {
@@ -1292,7 +1325,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 1.3,
+   "seconds": 1.98,
    "error": null
   },
   {
@@ -1300,15 +1333,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 26,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.59,
+   "seconds": 1.22,
    "error": null
   },
   {
@@ -1316,14 +1349,17 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 2,
+   "level": "HIGH",
+   "findings": 3,
    "rules": [
     "CODE-007",
+    "CRED-011",
     "NET-MCP-002"
    ],
-   "high_rules": [],
-   "seconds": 0.98,
+   "high_rules": [
+    "CRED-011"
+   ],
+   "seconds": 1.12,
    "error": null
   },
   {
@@ -1331,16 +1367,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 22,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.07,
+   "seconds": 0.98,
    "error": null
   },
   {
@@ -1363,7 +1399,7 @@
    "high_rules": [
     "CODE-014"
    ],
-   "seconds": 4.56,
+   "seconds": 8.61,
    "error": null
   },
   {
@@ -1378,7 +1414,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.3,
+   "seconds": 0.97,
    "error": null
   },
   {
@@ -1386,17 +1422,20 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 47,
+   "level": "MEDIUM",
+   "findings": 48,
    "rules": [
     "CODE-007",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-012",
-    "NET-MCP-002"
+    "INSTALL-004",
+    "NET-MCP-002",
+    "SUPPLY-011"
    ],
-   "high_rules": [],
-   "seconds": 1.6,
+   "high_rules": [
+    "SUPPLY-011"
+   ],
+   "seconds": 1.78,
    "error": null
   },
   {
@@ -1404,14 +1443,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 3,
    "rules": [
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.5,
+   "seconds": 1.23,
    "error": null
   },
   {
@@ -1419,13 +1458,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 1,
    "rules": [
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.0,
+   "seconds": 1.39,
    "error": null
   },
   {
@@ -1433,14 +1472,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 19,
    "rules": [
     "CRED-002",
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 1.56,
+   "seconds": 1.19,
    "error": null
   },
   {
@@ -1449,8 +1488,9 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 38,
+   "findings": 42,
    "rules": [
+    "CODE-003",
     "CODE-008",
     "CODE-009",
     "HYGIENE-001",
@@ -1462,18 +1502,21 @@
     "OBFUSC-006",
     "OBFUSC-012",
     "OBFUSC-CHAIN-013",
+    "SUPPLY-013",
     "SUPPLY-014",
     "UNICODE-002",
     "UNICODE-003"
    ],
    "high_rules": [
     "CODE-008",
+    "CODE-009",
     "NET-018",
     "OBFUSC-006",
     "OBFUSC-012",
+    "SUPPLY-013",
     "SUPPLY-014"
    ],
-   "seconds": 2.33,
+   "seconds": 8.59,
    "error": null
   },
   {
@@ -1482,8 +1525,9 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 61,
+   "findings": 122,
    "rules": [
+    "CODE-003",
     "CODE-012",
     "HYGIENE-001",
     "NET-018",
@@ -1494,13 +1538,21 @@
     "PROV-004",
     "PROV-INCOMPLETE-001",
     "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-011",
+    "SUPPLY-013",
+    "SUPPLY-016",
     "UNICODE-003"
    ],
    "high_rules": [
     "NET-018",
-    "SUPPLY-001"
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-011",
+    "SUPPLY-013",
+    "SUPPLY-016"
    ],
-   "seconds": 3.75,
+   "seconds": 7.13,
    "error": null
   },
   {
@@ -1514,7 +1566,7 @@
     "NET-012"
    ],
    "high_rules": [],
-   "seconds": 1.09,
+   "seconds": 1.61,
    "error": null
   },
   {
@@ -1522,17 +1574,17 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 102,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 2.86,
+   "seconds": 2.82,
    "error": null
   },
   {
@@ -1540,14 +1592,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
-    "INSTALL-009",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.43,
+   "seconds": 1.21,
    "error": null
   },
   {
@@ -1555,14 +1606,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
-    "INSTALL-009",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.22,
+   "seconds": 1.35,
    "error": null
   },
   {
@@ -1570,14 +1620,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
-    "INSTALL-009",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.22,
+   "seconds": 1.18,
    "error": null
   },
   {
@@ -1593,7 +1642,7 @@
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.72,
+   "seconds": 2.2,
    "error": null
   },
   {
@@ -1611,7 +1660,7 @@
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 1.27,
+   "seconds": 2.32,
    "error": null
   },
   {
@@ -1623,7 +1672,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 1.24,
+   "seconds": 2.5,
    "error": null
   },
   {
@@ -1631,15 +1680,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 157,
+   "level": "HIGH",
+   "findings": 159,
    "rules": [
+    "CODE-003",
     "CODE-007",
     "CODE-014",
     "CODE-MCP-001",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-002",
     "OBFUSC-003",
     "OBFUSC-004"
@@ -1647,7 +1697,7 @@
    "high_rules": [
     "CODE-014"
    ],
-   "seconds": 2.1,
+   "seconds": 3.66,
    "error": null
   },
   {
@@ -1664,7 +1714,7 @@
    "high_rules": [
     "CODE-001"
    ],
-   "seconds": 1.49,
+   "seconds": 2.25,
    "error": null
   },
   {
@@ -1672,15 +1722,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 9,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.01,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -1701,7 +1751,7 @@
     "CODE-001",
     "CODE-002"
    ],
-   "seconds": 1.9,
+   "seconds": 2.05,
    "error": null
   },
   {
@@ -1709,14 +1759,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 16,
    "rules": [
     "HYGIENE-001",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.53,
+   "seconds": 1.8,
    "error": null
   },
   {
@@ -1734,7 +1784,7 @@
     "CRED-002",
     "CRED-ENV-001",
     "HYGIENE-001",
-    "INSTALL-009",
+    "INSTALL-004",
     "MANIP-004",
     "MANIP-006",
     "NET-004",
@@ -1750,7 +1800,7 @@
     "NET-RCE-001",
     "PERSIST-001"
    ],
-   "seconds": 4.8,
+   "seconds": 9.31,
    "error": null
   },
   {
@@ -1758,11 +1808,12 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 115,
+   "level": "CRITICAL",
+   "findings": 126,
    "rules": [
     "CODE-001",
     "CODE-002",
+    "CODE-003",
     "CODE-007",
     "CODE-008",
     "CODE-009",
@@ -1780,6 +1831,7 @@
     "OBFUSC-008",
     "OBFUSC-010",
     "OBFUSC-CHAIN-010",
+    "OBFUSC-CHAIN-011",
     "OBFUSC-CHAIN-012",
     "PERSIST-004",
     "PROV-004",
@@ -1790,14 +1842,16 @@
     "CODE-001",
     "CODE-002",
     "CODE-008",
+    "CODE-009",
     "CODE-014",
     "CRED-007",
     "CRED-018",
     "OBFUSC-CHAIN-010",
+    "OBFUSC-CHAIN-011",
     "SUPPLY-008",
     "SUPPLY-014"
    ],
-   "seconds": 8.92,
+   "seconds": 19.56,
    "error": null
   },
   {
@@ -1806,13 +1860,14 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 173,
+   "findings": 174,
    "rules": [
     "CODE-010",
     "CODE-011",
     "CODE-013",
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "CRED-008",
     "CRED-033",
     "NET-001",
@@ -1824,12 +1879,13 @@
     "SKILL-014"
    ],
    "high_rules": [
+    "CRED-007",
     "CRED-008",
     "CRED-033",
     "OBFUSC-CHAIN-017",
     "SKILL-014"
    ],
-   "seconds": 2.03,
+   "seconds": 3.32,
    "error": null
   },
   {
@@ -1837,17 +1893,20 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 275,
+   "level": "MEDIUM",
+   "findings": 300,
    "rules": [
     "CODE-011",
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "NET-MCP-001",
     "NET-MCP-002"
    ],
-   "high_rules": [],
-   "seconds": 1.85,
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 3.2,
    "error": null
   },
   {
@@ -1855,7 +1914,7 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 84,
    "rules": [
     "CRED-002",
@@ -1863,7 +1922,7 @@
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.21,
+   "seconds": 1.75,
    "error": null
   },
   {
@@ -1871,14 +1930,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
-    "INSTALL-012",
+    "INSTALL-004",
     "SUPPLY-005"
    ],
    "high_rules": [],
-   "seconds": 1.4,
+   "seconds": 1.67,
    "error": null
   },
   {
@@ -1887,14 +1946,16 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 79,
+   "findings": 89,
    "rules": [
+    "CODE-003",
     "CODE-006",
     "CODE-007",
     "CODE-008",
     "CODE-009",
     "CODE-014",
     "CODE-RUNFILE-001",
+    "CRED-008",
     "INFER-010",
     "NET-012",
     "NET-EXE-001",
@@ -1906,6 +1967,7 @@
     "OBFUSC-004",
     "OBFUSC-008",
     "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-009",
     "OBFUSC-CHAIN-013",
     "PERSIST-004",
     "PROMPT-004",
@@ -1915,13 +1977,15 @@
    ],
    "high_rules": [
     "CODE-008",
+    "CODE-009",
     "CODE-014",
+    "CRED-008",
     "NET-RCE-001",
     "OBFUSC-CHAIN-006",
     "PROMPT-004",
     "SUPPLY-008"
    ],
-   "seconds": 5.71,
+   "seconds": 8.39,
    "error": null
   },
   {
@@ -1937,7 +2001,7 @@
     "NET-002"
    ],
    "high_rules": [],
-   "seconds": 2.4,
+   "seconds": 2.86,
    "error": null
   },
   {
@@ -1945,20 +2009,23 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 62,
+   "level": "MEDIUM",
+   "findings": 63,
    "rules": [
     "CODE-013",
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "INFER-011",
     "INSTALL-MCP-002",
     "NET-012",
     "NET-MCP-002",
     "PROV-001"
    ],
-   "high_rules": [],
-   "seconds": 2.81,
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 4.14,
    "error": null
   },
   {
@@ -1967,7 +2034,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 1476,
+   "findings": 1501,
    "rules": [
     "ARTIFACT-007",
     "ARTIFACT-008",
@@ -2006,7 +2073,7 @@
     "INFER-002",
     "INFER-011",
     "INSTALL-003",
-    "INSTALL-012",
+    "INSTALL-004",
     "INSTR-019",
     "MANIP-004",
     "MANIP-006",
@@ -2022,6 +2089,7 @@
     "OBFUSC-008",
     "OBFUSC-CHAIN-006",
     "OBFUSC-CHAIN-008",
+    "OBFUSC-CHAIN-009",
     "OBFUSC-CHAIN-010",
     "OBFUSC-CHAIN-012",
     "OBFUSC-CHAIN-013",
@@ -2031,6 +2099,7 @@
     "PROMPT-014",
     "PROV-001",
     "PROV-004",
+    "SKILL-006",
     "SKILL-013",
     "SKILL-015",
     "SUPPLY-001",
@@ -2046,6 +2115,7 @@
     "CODE-001",
     "CODE-002",
     "CODE-008",
+    "CODE-009",
     "CODE-014",
     "CRED-008",
     "CRED-011",
@@ -2066,12 +2136,13 @@
     "PERSIST-005",
     "PROMPT-004",
     "PROMPT-014",
+    "SKILL-006",
     "SUPPLY-001",
     "SUPPLY-007",
     "SUPPLY-008",
     "SUPPLY-014"
    ],
-   "seconds": 43.01,
+   "seconds": 59.55,
    "error": null
   },
   {
@@ -2080,11 +2151,13 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 99,
+   "findings": 104,
    "rules": [
+    "CODE-003",
     "CODE-008",
     "CODE-009",
     "CODE-012",
+    "CRED-008",
     "CRED-ENV-001",
     "INFER-010",
     "INFER-011",
@@ -2101,18 +2174,23 @@
     "PERSIST-005",
     "PROV-002",
     "PROV-004",
+    "PROV-BUDGET-001",
     "PROV-INCOMPLETE-001",
+    "SUPPLY-008",
     "SUPPLY-014",
     "UNICODE-001"
    ],
    "high_rules": [
     "CODE-008",
+    "CODE-009",
+    "CRED-008",
     "NET-013",
     "OBFUSC-CHAIN-015",
     "PERSIST-005",
+    "SUPPLY-008",
     "SUPPLY-014"
    ],
-   "seconds": 5.06,
+   "seconds": 31.25,
    "error": null
   },
   {
@@ -2130,7 +2208,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 2.48,
+   "seconds": 1.44,
    "error": null
   },
   {
@@ -2138,17 +2216,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 6,
    "rules": [
     "CRED-001",
     "CRED-002",
-    "INSTALL-009",
-    "INSTALL-012",
+    "INSTALL-004",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 2.11,
+   "seconds": 0.99,
    "error": null
   },
   {
@@ -2165,7 +2242,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 2.08,
+   "seconds": 0.98,
    "error": null
   },
   {
@@ -2183,7 +2260,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 2.71,
+   "seconds": 2.65,
    "error": null
   },
   {
@@ -2201,7 +2278,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.24,
+   "seconds": 2.26,
    "error": null
   },
   {
@@ -2348,7 +2425,7 @@
     "PYSEC-2026-3659",
     "PYSEC-2026-3817"
    ],
-   "seconds": 9.17,
+   "seconds": 14.93,
    "error": null
   },
   {
@@ -2365,7 +2442,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.71,
+   "seconds": 1.6,
    "error": null
   },
   {
@@ -2382,7 +2459,7 @@
     "MANIP-006"
    ],
    "high_rules": [],
-   "seconds": 1.05,
+   "seconds": 1.06,
    "error": null
   },
   {
@@ -2396,7 +2473,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 1.2,
+   "seconds": 1.43,
    "error": null
   },
   {
@@ -2405,7 +2482,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 19,
+   "findings": 20,
    "rules": [
     "CODE-007",
     "CRED-002",
@@ -2419,7 +2496,7 @@
     "INFER-004",
     "INFER-005"
    ],
-   "seconds": 1.36,
+   "seconds": 2.54,
    "error": null
   },
   {
@@ -2439,7 +2516,7 @@
     "OBFUSC-008"
    ],
    "high_rules": [],
-   "seconds": 5.24,
+   "seconds": 10.41,
    "error": null
   },
   {
@@ -2458,7 +2535,7 @@
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 1.5,
+   "seconds": 3.35,
    "error": null
   },
   {
@@ -2475,7 +2552,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 2.01,
+   "seconds": 3.82,
    "error": null
   },
   {
@@ -2490,7 +2567,7 @@
     "INFER-002"
    ],
    "high_rules": [],
-   "seconds": 1.39,
+   "seconds": 1.1,
    "error": null
   },
   {
@@ -2498,8 +2575,8 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 539,
+   "level": "HIGH",
+   "findings": 551,
    "rules": [
     "CODE-003",
     "CODE-012",
@@ -2508,7 +2585,7 @@
     "CRED-007",
     "HYGIENE-001",
     "INFER-011",
-    "INSTALL-009",
+    "INSTALL-004",
     "NET-MCP-002",
     "OBFUSC-002",
     "OBFUSC-004",
@@ -2517,6 +2594,7 @@
     "OBFUSC-CHAIN-012",
     "OBFUSC-CHAIN-013",
     "SUPPLY-007",
+    "SUPPLY-008",
     "UNICODE-001",
     "UNICODE-002",
     "UNICODE-003"
@@ -2525,9 +2603,10 @@
     "CRED-007",
     "OBFUSC-006",
     "OBFUSC-CHAIN-006",
-    "SUPPLY-007"
+    "SUPPLY-007",
+    "SUPPLY-008"
    ],
-   "seconds": 3.67,
+   "seconds": 6.71,
    "error": null
   },
   {
@@ -2541,7 +2620,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 1.52,
+   "seconds": 2.15,
    "error": null
   },
   {
@@ -2555,7 +2634,7 @@
     "INSTR-024"
    ],
    "high_rules": [],
-   "seconds": 1.5,
+   "seconds": 2.38,
    "error": null
   },
   {
@@ -2572,7 +2651,7 @@
    "high_rules": [
     "OBFUSC-CHAIN-006"
    ],
-   "seconds": 1.39,
+   "seconds": 1.02,
    "error": null
   },
   {
@@ -2581,12 +2660,13 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 60,
+   "findings": 61,
    "rules": [
     "CODE-013",
     "CODE-MCP-001",
     "CODE-MCP-002",
     "CRED-001",
+    "CRED-008",
     "CRED-ENV-001",
     "HYGIENE-005",
     "MANIP-008",
@@ -2598,9 +2678,10 @@
     "PROV-001"
    ],
    "high_rules": [
+    "CRED-008",
     "OBFUSC-CHAIN-006"
    ],
-   "seconds": 2.19,
+   "seconds": 3.15,
    "error": null
   },
   {
@@ -2609,9 +2690,10 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 459,
+   "findings": 463,
    "rules": [
     "CODE-001",
+    "CODE-003",
     "CODE-007",
     "CODE-012",
     "CODE-MCP-001",
@@ -2621,6 +2703,7 @@
     "OBFUSC-003",
     "OBFUSC-004",
     "OBFUSC-008",
+    "OBFUSC-CHAIN-009",
     "OBFUSC-CHAIN-012",
     "PERSIST-001",
     "UNICODE-002",
@@ -2630,7 +2713,7 @@
     "CODE-001",
     "PERSIST-001"
    ],
-   "seconds": 4.68,
+   "seconds": 8.03,
    "error": null
   },
   {
@@ -2644,10 +2727,10 @@
     "CODE-006",
     "CODE-007",
     "HYGIENE-001",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.49,
+   "seconds": 1.87,
    "error": null
   },
   {
@@ -2655,12 +2738,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 91,
+   "level": "HIGH",
+   "findings": 93,
    "rules": [
+    "CODE-003",
     "CODE-007",
     "CODE-012",
     "CRED-002",
+    "CRED-008",
     "CRED-018",
     "CRED-ENV-001",
     "INSTALL-MCP-002",
@@ -2676,12 +2761,13 @@
     "TYPOSQUAT-001"
    ],
    "high_rules": [
+    "CRED-008",
     "CRED-018",
     "NET-RCE-001",
     "SUPPLY-007",
     "TYPOSQUAT-001"
    ],
-   "seconds": 2.86,
+   "seconds": 5.41,
    "error": null
   },
   {
@@ -2696,7 +2782,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 2.08,
+   "seconds": 1.82,
    "error": null
   },
   {
@@ -2716,7 +2802,7 @@
     "SUPPLY-010"
    ],
    "high_rules": [],
-   "seconds": 3.52,
+   "seconds": 4.18,
    "error": null
   },
   {
@@ -2731,7 +2817,7 @@
     "MANIP-006"
    ],
    "high_rules": [],
-   "seconds": 2.78,
+   "seconds": 3.22,
    "error": null
   },
   {
@@ -2740,15 +2826,18 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 112,
+   "findings": 159,
    "rules": [
     "CODE-001",
     "CODE-002",
+    "CODE-003",
     "CODE-007",
     "CODE-012",
     "CRED-002",
     "CRED-ENV-001",
     "INFER-002",
+    "INFER-004",
+    "INFER-005",
     "INFER-010",
     "INFER-011",
     "OBFUSC-002",
@@ -2757,9 +2846,11 @@
    ],
    "high_rules": [
     "CODE-001",
-    "CODE-002"
+    "CODE-002",
+    "INFER-004",
+    "INFER-005"
    ],
-   "seconds": 3.7,
+   "seconds": 4.75,
    "error": null
   },
   {
@@ -2768,7 +2859,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 433,
+   "findings": 434,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
@@ -2776,12 +2867,14 @@
     "INSTR-019",
     "OBFUSC-003",
     "OBFUSC-008",
-    "PROMPT-017"
+    "PROMPT-017",
+    "SKILL-006"
    ],
    "high_rules": [
-    "INSTALL-003"
+    "INSTALL-003",
+    "SKILL-006"
    ],
-   "seconds": 3.52,
+   "seconds": 4.13,
    "error": null
   },
   {
@@ -2789,13 +2882,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 136,
    "rules": [
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 2.41,
+   "seconds": 2.27,
    "error": null
   },
   {
@@ -2804,18 +2897,20 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 398,
+   "findings": 399,
    "rules": [
     "CODE-007",
     "CRED-002",
     "HYGIENE-001",
     "INSTALL-003",
-    "INSTALL-004"
+    "INSTALL-004",
+    "SKILL-006"
    ],
    "high_rules": [
-    "INSTALL-003"
+    "INSTALL-003",
+    "SKILL-006"
    ],
-   "seconds": 3.18,
+   "seconds": 3.33,
    "error": null
   },
   {
@@ -2827,7 +2922,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 1.69,
+   "seconds": 2.16,
    "error": null
   },
   {
@@ -2836,9 +2931,10 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "HIGH",
-   "findings": 667,
+   "findings": 671,
    "rules": [
     "CODE-002",
+    "CODE-003",
     "CODE-007",
     "CODE-012",
     "HYGIENE-001",
@@ -2850,12 +2946,13 @@
     "OBFUSC-002",
     "OBFUSC-004",
     "OBFUSC-008",
+    "OBFUSC-CHAIN-009",
     "OBFUSC-CHAIN-013"
    ],
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 4.81,
+   "seconds": 8.29,
    "error": null
   },
   {
@@ -2876,7 +2973,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 3.05,
+   "seconds": 3.36,
    "error": null
   },
   {
@@ -2884,13 +2981,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 19,
+   "level": "HIGH",
+   "findings": 21,
    "rules": [
+    "CODE-003",
     "CODE-007",
     "CODE-014",
     "CRED-002",
-    "INSTALL-009",
+    "INSTALL-004",
     "OBFUSC-002",
     "OBFUSC-003",
     "OBFUSC-004"
@@ -2898,7 +2996,7 @@
    "high_rules": [
     "CODE-014"
    ],
-   "seconds": 2.26,
+   "seconds": 3.84,
    "error": null
   },
   {
@@ -2919,7 +3017,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.96,
+   "seconds": 1.81,
    "error": null
   },
   {
@@ -2927,19 +3025,22 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 50,
+   "level": "MEDIUM",
+   "findings": 58,
    "rules": [
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "INSTALL-006",
     "INSTR-019",
     "NET-001",
     "NET-012",
     "NET-MCP-002"
    ],
-   "high_rules": [],
-   "seconds": 2.37,
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 2.28,
    "error": null
   },
   {
@@ -2947,11 +3048,12 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 30,
+   "level": "MEDIUM",
+   "findings": 31,
    "rules": [
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-008",
     "CRED-ENV-001",
     "INSTR-019",
     "NET-012",
@@ -2959,8 +3061,10 @@
     "NET-MCP-002",
     "PROV-001"
    ],
-   "high_rules": [],
-   "seconds": 1.8,
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 1.73,
    "error": null
   },
   {
@@ -2980,7 +3084,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.63,
+   "seconds": 1.8,
    "error": null
   },
   {
@@ -2988,17 +3092,20 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
-   "findings": 30,
+   "level": "MEDIUM",
+   "findings": 31,
    "rules": [
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-008",
     "NET-012",
     "NET-MCP-001",
     "NET-MCP-002"
    ],
-   "high_rules": [],
-   "seconds": 1.46,
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 1.91,
    "error": null
   },
   {
@@ -3015,7 +3122,7 @@
     "PROV-004"
    ],
    "high_rules": [],
-   "seconds": 1.73,
+   "seconds": 1.34,
    "error": null
   },
   {
@@ -3030,7 +3137,7 @@
     "NET-012"
    ],
    "high_rules": [],
-   "seconds": 1.54,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -3038,15 +3145,15 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 5,
    "rules": [
     "CRED-002",
-    "INSTALL-012",
+    "INSTALL-004",
     "INSTALL-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.29,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -3054,14 +3161,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
     "CODE-007",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.53,
+   "seconds": 1.74,
    "error": null
   },
   {
@@ -3077,7 +3184,7 @@
     "CRED-001"
    ],
    "high_rules": [],
-   "seconds": 1.45,
+   "seconds": 1.59,
    "error": null
   },
   {
@@ -3094,7 +3201,7 @@
     "SKILL-013"
    ],
    "high_rules": [],
-   "seconds": 1.77,
+   "seconds": 1.5,
    "error": null
   },
   {
@@ -3112,7 +3219,7 @@
    "high_rules": [
     "CRED-008"
    ],
-   "seconds": 1.53,
+   "seconds": 1.32,
    "error": null
   },
   {
@@ -3124,11 +3231,10 @@
    "findings": 3,
    "rules": [
     "CRED-002",
-    "INSTALL-004",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.44,
+   "seconds": 0.71,
    "error": null
   },
   {
@@ -3137,7 +3243,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 1655,
+   "findings": 1657,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
@@ -3155,7 +3261,7 @@
    "high_rules": [
     "CRED-008"
    ],
-   "seconds": 4.82,
+   "seconds": 2.56,
    "error": null
   },
   {
@@ -3163,14 +3269,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 18,
    "rules": [
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.38,
+   "seconds": 0.99,
    "error": null
   },
   {
@@ -3178,16 +3284,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 14,
    "rules": [
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-012",
+    "INSTALL-004",
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 2.29,
+   "seconds": 0.84,
    "error": null
   },
   {
@@ -3204,7 +3310,7 @@
     "OBFUSC-010"
    ],
    "high_rules": [],
-   "seconds": 1.56,
+   "seconds": 0.77,
    "error": null
   },
   {
@@ -3221,7 +3327,7 @@
     "NET-012"
    ],
    "high_rules": [],
-   "seconds": 1.4,
+   "seconds": 0.69,
    "error": null
   },
   {
@@ -3239,7 +3345,7 @@
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 1.15,
+   "seconds": 0.58,
    "error": null
   },
   {
@@ -3260,7 +3366,7 @@
    "high_rules": [
     "INSTR-014"
    ],
-   "seconds": 1.31,
+   "seconds": 0.93,
    "error": null
   },
   {
@@ -3268,14 +3374,14 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 2,
    "rules": [
     "CRED-002",
-    "INSTALL-012"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.36,
+   "seconds": 0.84,
    "error": null
   },
   {
@@ -3284,19 +3390,21 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "MEDIUM",
-   "findings": 21,
+   "findings": 23,
    "rules": [
     "CODE-MCP-001",
     "CRED-001",
+    "CRED-007",
     "CRED-008",
     "INSTALL-006",
     "NET-012",
     "OBFUSC-001"
    ],
    "high_rules": [
+    "CRED-007",
     "CRED-008"
    ],
-   "seconds": 1.18,
+   "seconds": 0.84,
    "error": null
   },
   {
@@ -3304,16 +3412,16 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "LOW",
+   "level": "MEDIUM",
    "findings": 35,
    "rules": [
     "CODE-MCP-001",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-009"
+    "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.24,
+   "seconds": 0.73,
    "error": null
   },
   {
@@ -3321,12 +3429,13 @@
    "label": "clean",
    "corpus": "mcp_clean",
    "tool": "sigil",
-   "level": "MEDIUM",
-   "findings": 160,
+   "level": "HIGH",
+   "findings": 161,
    "rules": [
+    "CODE-002",
     "CRED-002",
     "HYGIENE-001",
-    "INSTALL-012",
+    "INSTALL-004",
     "MANIP-008",
     "NET-012",
     "NET-MCP-002",
@@ -3334,9 +3443,10 @@
     "PROMPT-014"
    ],
    "high_rules": [
+    "CODE-002",
     "PROMPT-014"
    ],
-   "seconds": 1.69,
+   "seconds": 0.93,
    "error": null
   },
   {
@@ -3353,7 +3463,7 @@
    "high_rules": [
     "CODE-001"
    ],
-   "seconds": 1.37,
+   "seconds": 0.88,
    "error": null
   },
   {
@@ -3401,7 +3511,7 @@
     "GO-2026-5771",
     "GO-2026-5942"
    ],
-   "seconds": 2.85,
+   "seconds": 2.11,
    "error": null
   },
   {
@@ -3424,7 +3534,7 @@
     "CRED-033",
     "INSTALL-001"
    ],
-   "seconds": 1.08,
+   "seconds": 0.68,
    "error": null
   },
   {
@@ -3433,7 +3543,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 369,
+   "findings": 387,
    "rules": [
     "CODE-001",
     "CODE-002",
@@ -3459,6 +3569,7 @@
     "OBFUSC-010",
     "OBFUSC-012",
     "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-009",
     "OBFUSC-CHAIN-012",
     "OBFUSC-CHAIN-013",
     "PAD-003",
@@ -3467,12 +3578,15 @@
     "PROV-002",
     "PROV-004",
     "PROV-INCOMPLETE-001",
+    "SKILL-006",
     "SKILL-022",
     "SUPPLY-001",
     "SUPPLY-006",
     "SUPPLY-007",
+    "SUPPLY-008",
     "SUPPLY-009",
     "SUPPLY-010",
+    "SUPPLY-011",
     "SUPPLY-012",
     "SUPPLY-014",
     "UNICODE-001",
@@ -3483,6 +3597,7 @@
     "CODE-001",
     "CODE-002",
     "CODE-008",
+    "CODE-009",
     "CRED-008",
     "INSTALL-003",
     "NET-018",
@@ -3491,15 +3606,18 @@
     "OBFUSC-012",
     "OBFUSC-CHAIN-006",
     "PROMPT-004",
+    "SKILL-006",
     "SKILL-022",
     "SUPPLY-001",
     "SUPPLY-006",
     "SUPPLY-007",
+    "SUPPLY-008",
     "SUPPLY-009",
+    "SUPPLY-011",
     "SUPPLY-012",
     "SUPPLY-014"
    ],
-   "seconds": 7.24,
+   "seconds": 7.53,
    "error": null
   },
   {
@@ -3508,7 +3626,7 @@
    "corpus": "mcp_clean",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 387,
+   "findings": 389,
    "rules": [
     "ARTIFACT-007",
     "CODE-007",
@@ -3538,6 +3656,7 @@
     "PROV-004",
     "SKILL-018",
     "SUPPLY-001",
+    "SUPPLY-007",
     "UNICODE-003"
    ],
    "high_rules": [
@@ -3548,9 +3667,10 @@
     "OBFUSC-CHAIN-006",
     "PROMPT-004",
     "SKILL-018",
-    "SUPPLY-001"
+    "SUPPLY-001",
+    "SUPPLY-007"
    ],
-   "seconds": 7.91,
+   "seconds": 9.16,
    "error": null
   }
  ]

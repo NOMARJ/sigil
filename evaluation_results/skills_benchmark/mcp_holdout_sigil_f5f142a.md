@@ -1,6 +1,6 @@
 # Skill scanner head-to-head
 
-_Generated 2026-09-26T02:07:06+00:00 by `scripts/benchmark_skills.py`._
+_Generated 2026-09-26T02:55:25+00:00 by `scripts/benchmark_skills.py`._
 
 ```
 Data Source: Real samples. Malicious: 
@@ -20,7 +20,7 @@ Limitations: Static analysis only for every tool (SkillSpector --no-llm, Sigil o
 
 | Tool | Malicious blocked (≥ HIGH) | Malicious warned (≥ MEDIUM) | Clean blocked (FP) | Clean warned (FP) | Errors | Scan time |
 |---|---:|---:|---:|---:|---:|---:|
-| sigil | 0/0 (n/a) | 0/0 (n/a) | 66/146 (45.2%) | 114/146 (78.1%) | 0 | 217s |
+| sigil | 0/0 (n/a) | 0/0 (n/a) | 66/146 (45.2%) | 114/146 (78.1%) | 0 | 513s |
 
 ## Clean samples blocked
 
