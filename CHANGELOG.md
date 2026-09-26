@@ -112,7 +112,10 @@ pass.
   network, filesystem, child-process, environment or code-generation access;
   → `INSTALL-011` (Low) for exactly `npx only-allow <pm>`. `INSTALL-004` →
   `INSTALL-012` (Low) when `prepare`/`prepublish` only runs `tsc`, `husky`,
-  `chmod +x` or `shx`/`rimraf` on package paths. `CODE-014` → `CODE-016`
+  `chmod +x` or `shx`/`rimraf` on package paths, each such tool being a
+  dependency the manifest itself pins to a registry version (an undeclared
+  tool name could be shadowed by another dependency's bin on the lifecycle
+  PATH, so it stays `INSTALL-004`). `CODE-014` → `CODE-016`
   (Medium) for a `bin` launcher that installs its own
   `<name>-<platform>-<arch>@<version>`. Anything the classifier cannot prove
   keeps its original rule and severity.

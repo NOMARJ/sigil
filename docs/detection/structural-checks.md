@@ -287,10 +287,14 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   `husky` or `husky install`; `[shx] chmod +x <path>`; `shx mkdir -p`, `shx cp [-r]`,
   `shx rm -rf` or `rimraf` on paths; `true`; `exit 0`. A path must be relative to the
   package: no leading `/`, `~`, `$` or `-`, no `..` segment, no shell syntax. Each tool
-  the steps use (`typescript`, `husky`, `shx`, `rimraf`) must, where declared, have a
-  registry version range (no `git`, `github:`, `file:`, `link:`, URL, `npm:` alias or
-  `workspace:`), must not be bundled, overridden (`overrides`, `resolutions`,
-  `pnpm.overrides`) or resolved off the registry by a shipped lockfile.
+  the steps use (`typescript`, `husky`, `shx`, `rimraf`) must be a dependency the
+  manifest pins itself, with a registry version range (no `git`, `github:`, `file:`,
+  `link:`, URL, `npm:` alias or `workspace:`), and must not be bundled, overridden
+  (`overrides`, `resolutions`, `pnpm.overrides`) or resolved off the registry by a
+  shipped lockfile. An **undeclared** tool name is not trusted: npm prepends
+  `node_modules/.bin` to PATH for lifecycle scripts, so a dependency shipping a `tsc` /
+  `husky` / `rimraf` / `shx` bin would run in place of the real tool while the package
+  never named the real one, so such a `prepare` stays `INSTALL-004` (Medium).
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
