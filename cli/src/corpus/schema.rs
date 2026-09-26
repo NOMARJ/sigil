@@ -438,8 +438,13 @@ pub struct CorrelationRule {
     /// an assignment target or an object key that merely repeats it (a call's
     /// `url=` keyword beside a bound `url`) does not link. Every built-in
     /// chain sets `value`. A rule with `sink_window_before` reads names as
-    /// `value` whatever this says.
-    #[serde(default, skip_serializing_if = "NameUses::is_word")]
+    /// `value` whatever this says. `null` (an empty YAML value) is the
+    /// default, as a missing field is.
+    #[serde(
+        default,
+        deserialize_with = "null_is_default",
+        skip_serializing_if = "NameUses::is_word"
+    )]
     pub name_uses: NameUses,
     /// Substrings whose presence in the sink's argument window disqualifies
     /// the link — an auth header is where a key legitimately goes.
@@ -494,6 +499,17 @@ impl NameUses {
     fn is_word(&self) -> bool {
         *self == NameUses::Word
     }
+}
+
+/// A field whose `null` means what leaving it out means: a pack that loaded
+/// before the field existed ignored it whatever it held, so `name_uses: null`
+/// (or `name_uses:` with nothing after it in YAML) must not refuse the pack.
+fn null_is_default<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
 }
 
 fn default_window() -> usize {

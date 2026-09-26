@@ -1314,6 +1314,37 @@ rules:
             .is_empty());
     }
 
+    /// `name_uses: null`, or `name_uses:` with no value in YAML, is the
+    /// default, as leaving the field out is: a pack that carried it loaded
+    /// before the field existed (the key was ignored), and refusing it would
+    /// drop every rule in the pack.
+    #[test]
+    fn a_null_name_reading_is_the_default() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let json = r#"{"meta":{"id":"p","name":"p","version":"1","updated_at":"","author":"","description":""},
+            "correlation_rules":[{"id":"P-CHAIN-1","phase":"network_exfil","severity":"high","description":"d",
+            "source":{"rule_ids":["P-1"]},"sink":{"rule_ids":["P-2"]},"name_uses":null}]}"#;
+        let ok = parse("p.json", json).expect("null loads");
+        assert_eq!(ok.pack.correlation_rules[0].name_uses, NameUses::Word);
+        assert!(ok.ignored.is_empty(), "{:?}", ok.ignored);
+        let yaml =
+            "meta: {id: p, name: p, version: '1', updated_at: '', author: '', description: ''}\n\
+            correlation_rules:\n\
+            \x20 - id: P-CHAIN-1\n\
+            \x20   phase: network_exfil\n\
+            \x20   severity: high\n\
+            \x20   description: d\n\
+            \x20   source: {rule_ids: [P-1]}\n\
+            \x20   sink: {rule_ids: [P-2]}\n\
+            \x20   name_uses:\n";
+        let ok = parse("p.yaml", yaml).expect("an empty YAML value loads");
+        assert_eq!(ok.pack.correlation_rules[0].name_uses, NameUses::Word);
+        // Any other value that is not `word` or `value` is still refused.
+        let bad = json.replace("\"name_uses\":null", "\"name_uses\":1");
+        assert!(parse("p.json", &bad).is_err());
+    }
+
     /// An extra key on a correlation rule (a note for the team that owns
     /// it) loaded before the keys were checked; it still loads, with the
     /// key ignored and named. So does a misspelt selector key, which leaves

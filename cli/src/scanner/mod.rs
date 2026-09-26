@@ -44,7 +44,10 @@ pub use crate::corpus::schema::Evidence;
 ///
 /// 6: correlation reads a chain's names as values in the sink's own call,
 /// with strings and comments blanked (`scanner::correlate`).
-pub const ENGINE_REVISION: u32 = 6;
+/// 7: that call includes a heredoc it reads; Ruby, Swift and C# string
+/// interpolation is code; a helper called with the bound value below the
+/// rule's window receives it.
+pub const ENGINE_REVISION: u32 = 7;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
