@@ -17,6 +17,7 @@ not available yet is marked **not available**.
 - [Claude Code: enforce the guard with managed settings](#claude-code-enforce-the-guard-with-managed-settings)
 - [Optional LLM review and data egress](#optional-llm-review-and-data-egress)
 - [Air-gapped and offline operation](#air-gapped-and-offline-operation)
+- [Rule ids that changed (lifecycle classification)](#rule-ids-that-changed-lifecycle-classification)
 - [Limitations](#limitations)
 
 Policy file keys, the baseline format and the compact rule format are
@@ -203,13 +204,36 @@ reaches a sink finding's arguments; see `CONTRIBUTING.md`). A correlation
 rule's `sink_window_before`, which makes the rule read the sink's whole
 statement and how many lines above the sink that statement may start, may be
 at most 20 (in that mode a name links only where it is used as a value, not as
-a keyword argument's name or an object key); `max_line_length` skips sources and sinks on longer lines
+a keyword argument's name or an object key, whatever `name_uses` says).
+`name_uses: value` reads names that way in the ordinary window too, as every
+built-in chain does: a bound name links only where the sink sends it, read as
+code (not inside a string or a comment), not where it is only a keyword
+argument's name, an object key, an attribute of another object or a function
+parameter of the same name, and outside the statement mode only in the sink's
+own call ([correlation-chains.md](detection/correlation-chains.md) has the
+whole reading). Only the bound name itself links: a value computed from it on
+another line is not followed
+([correlation-names.md](detection/correlation-names.md)). `name_uses: word`,
+the default, links on any whole-word occurrence in the sink line and the four
+lines after it, so an existing pack that leaves the key out links as it did
+outside the statement mode (in the statement mode names are read as values,
+now with the fuller reading correlation-chains.md describes).
+Any other value is refused. An unknown key on a correlation rule or its
+`source`/`sink` selector, and a selector that names no rule, do not refuse the
+pack (earlier versions accepted them, and a signed pack cannot be edited
+without re-signing): the scan ignores the key and warns on stderr, and
+`sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+reject it. `max_line_length` skips sources and sinks on longer lines
 (minified code). Custom packs are **additive**: a pack whose id matches a
 built-in pack, or a rule whose id matches any existing rule, is refused, so a
 file named at scan time can never replace a core pack and remove its
 detections. (Replacing a core pack remains possible, deliberately, only from
 the machine-level `~/.sigil/packs/` directory.) Rule ids must look like
 `PREFIX-NAME` so `sigil:ignore` markers and policy globs can name them.
+A full-schema rule can exempt individual matches by the text around them
+(`suppress.match_context`) or by the value it captured
+(`suppress.value_matches`) instead of dropping whole lines; see
+[schemas.md](schemas.md#match-local-suppression-full-schema).
 
 Author, check and try rules without scanning anything:
 
@@ -914,6 +938,33 @@ The stage has not been measured on a live model; see the disclosure in
 - `--llm-review` needs a model endpoint. Behind an air gap, point it at a
   model you host inside the boundary (`llm_endpoint` in the organisation
   policy), or lock `llm_review: false`.
+
+## Rule ids that changed (lifecycle classification)
+
+Policies, baselines and SIEM rules key on rule ids and fingerprints. The
+third MCP false-positive pass
+([mcp-server-calibration.md](detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression))
+moved some findings to new ids:
+
+| Was | Now | When |
+|---|---|---|
+| `INSTALL-003` (Critical) | `INSTALL-010` (Medium) | `preinstall`/`postinstall` is exactly `node <local script>` and the script passes the inert test |
+| `INSTALL-003` (Critical) | `INSTALL-011` (Low) | the command is exactly `npx only-allow <pm>` |
+| `INSTALL-004` (Medium) | `INSTALL-012` (Low) | `prepare`/`prepublish` runs only build steps (`tsc`, `husky`, `chmod +x`, `shx`/`rimraf` on package paths) |
+| `INSTALL-004` (Medium) | `INSTALL-009` (Low) | the key is `prepublishOnly`, which npm runs on publish only |
+| `CODE-014` (High) | `CODE-016` (Medium) | a `bin` launcher installs its own platform package at run time |
+| `SKILL-006` on `package.json` | (none) | `INSTALL-003` already reports npm lifecycle keys |
+
+- A `disable_rules` or `severity_overrides` entry for `INSTALL-003`,
+  `INSTALL-004` or `CODE-014` no longer applies to the findings that moved;
+  add the new id if you want the same treatment. Globs such as `INSTALL-*`
+  keep matching.
+- The fingerprint covers the rule id, the file and the snippet, so a baseline entry for a
+  moved finding is reported stale and the finding comes back under its new id.
+  Regenerate the baseline (`sigil baseline`) after upgrading.
+- The corpus digest now covers every rule field that can change a finding
+  (severity, evidence, suppressions, provenance rules, an engine revision), so
+  cached scan results are invalidated once on upgrade.
 
 ## Limitations
 

@@ -711,6 +711,7 @@
         ]
       },
       "window_lines": 20,
+      "name_uses": "value",
       "sink_excludes": [
         "headers",
         "Authorization",
@@ -758,6 +759,7 @@
         ]
       },
       "window_lines": 20,
+      "name_uses": "value",
       "sink_excludes": [],
       "remediation": "A download writes a file (`open(PATH, 'wb')` under the response, `curl -o \"$OUT\"`, `curl.exe ... -o \"{output_file}\"`, `urlretrieve(url, path)`) and a few lines later the same path is launched: `subprocess.run([\"python3\", PATH])`, `Start-Process \"{output_file}\"`, `os.startfile(path)`. That is download-and-execute split across lines — the NET-RCE-001 shape without the pipe — and in the measured samples it ran at import time from a package's __init__.py (a .pyz from a look-alike domain) and from three PyPI droppers fetching an .exe. Nothing the package ships tells a reviewer what the downloaded program does. Pin the artifact by hash and verify it before running it, or reject the package.",
       "references": [

@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "updated_at": "2026-09-23",
     "author": "NOMARK <hello@sigilsec.ai>",
-    "description": "Rules implemented in the scanner engine rather than as regexes: shipped Python bytecode compared against its source, executables disguised under document names, archive contents, whitespace padding that hides instructions, and declared-versus-used privilege. This pack documents them; the detection lives in cli/src/scanner/{bytecode,artifacts,padding,lpriv}.rs."
+    "description": "Rules implemented in the scanner engine rather than as regexes: shipped Python bytecode compared against its source, executables disguised under document names, archive contents, whitespace padding that hides instructions, declared-versus-used privilege, and npm lifecycle scripts or launchers proven unable to act on the installing machine. This pack documents them; the detection lives in cli/src/scanner/{bytecode,artifacts,padding,lpriv,lifecycle}.rs."
   },
   "rules": [],
   "provenance_rules": [],
@@ -284,6 +284,52 @@
         "OWASP Agentic Top 10 — Agentic Supply Chain"
       ],
       "tags": ["obfuscation", "evasion", "encoding"]
+    },
+    {
+      "id": "INSTALL-010",
+      "phase": "install_hooks",
+      "severity": "medium",
+      "description": "npm lifecycle script that only runs an inert local script",
+      "remediation": "A preinstall or postinstall that is exactly node <script inside the package>, where that script and the local scripts it requires (two levels deep) are short, plain ASCII, load nothing but os, path, url, util and relative JSON, use process only for exit, argv, platform, arch, version, stdout, stderr and cwd, and use no network, filesystem, child-process, environment, eval, Function or reflection API. It still runs on every npm install, so it is Medium rather than Low: read the script, confirm it only checks the platform or prints a message, and re-read it whenever the package updates. Any change that adds a capability returns the finding to INSTALL-003 (Critical).",
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.007"
+      ],
+      "tags": ["install-hook", "npm", "package-json", "lifecycle-script"]
+    },
+    {
+      "id": "INSTALL-011",
+      "phase": "install_hooks",
+      "severity": "low",
+      "description": "npm lifecycle script that only enforces a package manager (only-allow)",
+      "remediation": "The lifecycle command is exactly npx only-allow pnpm (or yarn, npm, bun), a guard that stops installs with the wrong package manager. It is Low because the command is fixed and only-allow is fetched from the public registry: the package does not declare, bundle, override or ship its own only-allow, and no node_modules or binding.gyp sits beside the manifest. Anything added to the command (&&, ;, a version pin, another tool) returns the finding to INSTALL-003 (Critical).",
+      "references": [
+        "MITRE T1195.001"
+      ],
+      "tags": ["install-hook", "npm", "package-json", "lifecycle-script"]
+    },
+    {
+      "id": "INSTALL-012",
+      "phase": "install_hooks",
+      "severity": "low",
+      "description": "npm prepare/prepublish script that only builds the package",
+      "remediation": "Every command this prepare or prepublish script runs, following npm run chains three levels deep and the pre/post scripts npm runs around them, is a build step: tsc (flags or a tsconfig .json only), husky, chmod +x, shx mkdir/cp/rm or rimraf on package-relative paths, true or exit 0. The tools come from the public registry (no git, file, tarball or alias spec, no bundling, override, lockfile redirect or shipped node_modules). prepare runs on git-dependency and checkout installs, not registry installs; a script that adds any other command returns the finding to INSTALL-004 (Medium).",
+      "references": [
+        "MITRE T1195.001"
+      ],
+      "tags": ["npm", "package-json", "lifecycle-script", "build"]
+    },
+    {
+      "id": "CODE-016",
+      "phase": "code_patterns",
+      "severity": "medium",
+      "description": "Launcher installs its own platform-specific package at run time",
+      "remediation": "A bin script runs execSync(`npm install ${X}@${Y}`) where X is proven to be the package's own name joined with os.platform()/process.platform and os.arch()/process.arch, Y its own version, both read from its own package.json through single-assignment constants, and the manifest lists at least two such platform packages at that version as optionalDependencies. The only flags are ones that do not change what is installed or where from, and the options object sets no env, shell or uid. This is the platform-binary launcher pattern; it still installs code at run time, so confirm the platform packages are published by the same owner. Any other command shape returns the finding to CODE-014 (High).",
+      "references": [
+        "CWE-78",
+        "MITRE T1059.004"
+      ],
+      "tags": ["execution", "shell", "npm", "launcher"]
     }
   ]
 }

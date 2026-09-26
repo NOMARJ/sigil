@@ -574,6 +574,92 @@ mod tests {
         );
     }
 
+    /// com.aave/mcp: one High finding in a 38-file server plus a
+    /// `prepublishOnly` script. While `prepublishOnly` was an INSTALL-004
+    /// Medium it carried `install_time_execution`, and 30 + 20 first-party
+    /// points reached the action threshold of 50: HIGH. It runs on publish
+    /// only (INSTALL-009, Low, `publish_time_script`), so the same server is
+    /// MEDIUM: the High finding still needs review.
+    #[test]
+    fn a_publish_only_script_is_not_an_install_time_action() {
+        let before = vec![
+            at("PROMPT-003", "src/helpers/sanitize.ts", Severity::High, 10),
+            at("INSTALL-004", "package.json", Severity::Medium, 10),
+        ];
+        assert_eq!(
+            determine_verdict_with_size(&before, 50, 38),
+            Verdict::HighRisk,
+            "an install-time script still corroborates a High finding"
+        );
+        let after = vec![
+            at("PROMPT-003", "src/helpers/sanitize.ts", Severity::High, 10),
+            at("INSTALL-009", "package.json", Severity::Low, 10),
+        ];
+        assert!(!has_action_behaviour(&after));
+        assert_eq!(
+            determine_verdict_with_size(&after, 40, 38),
+            Verdict::MediumRisk
+        );
+    }
+
+    /// A finding produced by the embedded packs, so the rule's pack-declared
+    /// severity and evidence are what the verdict sees.
+    fn pack_finding(path: &str, contents: &str, rule: &str) -> Finding {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        let packs = crate::corpus::loader::load_all_packs().expect("packs");
+        crate::corpus::engine::scan_file_with_packs(&packs, path, name, contents)
+            .into_iter()
+            .find(|f| f.rule == rule)
+            .unwrap_or_else(|| panic!("{rule} did not fire on {contents}"))
+    }
+
+    // Assembled with concat! so this source file does not itself carry the
+    // shapes it tests (the repository scans itself with --fail-on high).
+    const LITERAL_API_KEY: &str = concat!(
+        "const client = new OpenAI({ api",
+        "Key: \"sk_proj_a1b2c3d4e5f6g7h8i9j0k1l2\" });"
+    );
+
+    /// INFER-007 is a corroborating Critical: a literal key in a client
+    /// config is Critical in the report, but alone it does not make the
+    /// verdict CRITICAL RISK (ai.dimensions/analytics-mcp ships a publishable
+    /// key). In a small package it is still HIGH through the concentration
+    /// term.
+    #[test]
+    fn a_lone_hardcoded_client_key_is_high_not_critical() {
+        let key = pack_finding("src/client.ts", LITERAL_API_KEY, "INFER-007");
+        assert_eq!(key.severity, Severity::Critical);
+        assert_eq!(key.evidence, Evidence::Corroborate);
+        let findings = vec![key];
+        let score = calculate_score(&findings);
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 3),
+            Verdict::HighRisk
+        );
+    }
+
+    /// ...and with a second, different corroborating Critical (an embedded
+    /// private key) the verdict is CRITICAL RISK again.
+    #[test]
+    fn a_hardcoded_client_key_with_a_private_key_is_critical() {
+        let findings = vec![
+            pack_finding("src/client.ts", LITERAL_API_KEY, "INFER-007"),
+            pack_finding(
+                "deploy/id.pem",
+                concat!(
+                    "-----BEGIN PRIVATE",
+                    " KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7\n"
+                ),
+                "CRED-006",
+            ),
+        ];
+        let score = calculate_score(&findings);
+        assert_eq!(
+            determine_verdict_with_size(&findings, score, 40),
+            Verdict::CriticalRisk
+        );
+    }
+
     #[test]
     fn an_action_behaviour_in_a_secondary_path_does_not_gate_high() {
         // Both halves of the action term have to agree about what is this

@@ -175,7 +175,7 @@
       "id": "INFER-004",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*\\b.*(` |\\$\\{)",
+      "pattern": "process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*\\b[^\\n;]{0,120}(` |\\$\\{)",
       "description": "Inference security — process.env in template literal prompt",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
@@ -191,7 +191,7 @@
       "id": "INFER-005",
       "phase": "inference_security",
       "severity": "high",
-      "pattern": "(`|\\$\\{).*process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
+      "pattern": "(`|\\$\\{)[^\\n;`]{0,120}process\\.env\\.[A-Za-z0-9_]*(?i:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)",
       "description": "Inference security — template literal with process.env",
       "file_filter": {
         "extensions": ["py", "js", "ts", "jsx", "tsx"]
@@ -231,7 +231,8 @@
       "suppress": {
         "line_contains": ["your-", "your_", "YOUR_", "<your", "placeholder", "example", "xxxx", "dummy", "fake", "test-key", "sk-..."]
       },
-      "remediation": "A literal apiKey value in a JavaScript/TypeScript client config (the apiKey option of the OpenAI or Anthropic Node SDK) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it.",
+      "evidence": "corroborate",
+      "remediation": "A literal apiKey value in a JavaScript/TypeScript client config (the apiKey option of the OpenAI or Anthropic Node SDK) ships with the package: if it is real, revoke and rotate it and load the key from the environment or a secrets manager. A placeholder or test fixture should be obviously fake and never reach a real request, and a package that carries a working key for its own LLM calls is routing your prompts through an account you do not control — reject it. The finding is Critical but corroborating: on its own it cannot make the verdict CRITICAL RISK (a shipped key harms its owner first, and clean MCP servers ship publishable client keys), and it needs a second, different corroborating Critical such as a private key (CRED-006) to do so.",
       "references": ["CWE-798", "MITRE T1552.001"],
       "tags": ["credentials", "hardcoded-secret", "api-key", "javascript"]
     },

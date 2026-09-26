@@ -28,13 +28,18 @@ use super::{Finding, Phase, Severity};
 const MANIFEST_DEPTH: usize = 4;
 
 /// npm lifecycle scripts that run without the user asking for them.
+///
+/// `prepublishOnly` is deliberately absent: npm runs it on `npm publish`
+/// only, never on any kind of install, so a file it names does not execute
+/// on the machine of whoever installs the package. A lifecycle script that
+/// runs it (`"postinstall": "npm run prepublishOnly"`) still links the files
+/// it names: see [`chained_scripts`].
 const LIFECYCLE_SCRIPTS: &[&str] = &[
     "preinstall",
     "install",
     "postinstall",
     "prepare",
     "prepublish",
-    "prepublishOnly",
     "preuninstall",
     "postuninstall",
 ];
@@ -183,6 +188,37 @@ fn command_tokens(cmd: &str) -> impl Iterator<Item = &str> {
         .filter(|t| !t.is_empty())
 }
 
+/// The package scripts a command runs by name: `npm run X`,
+/// `npm run-script X`, `pnpm run X`, `yarn run X`, `bun run X`, and the
+/// short forms `yarn X` and `pnpm X`.
+fn chained_scripts(cmd: &str) -> Vec<&str> {
+    let tokens: Vec<&str> = command_tokens(cmd).collect();
+    let mut out = Vec::new();
+    for (i, tool) in tokens.iter().enumerate() {
+        if !matches!(*tool, "npm" | "pnpm" | "yarn" | "bun") {
+            continue;
+        }
+        let mut j = i + 1;
+        // Flags between the tool and the verb (`npm --silent run x`).
+        while tokens.get(j).is_some_and(|t| t.starts_with('-')) {
+            j += 1;
+        }
+        let name = match tokens.get(j) {
+            Some(&"run") | Some(&"run-script") => {
+                j += 1;
+                while tokens.get(j).is_some_and(|t| t.starts_with('-')) {
+                    j += 1;
+                }
+                tokens.get(j).copied()
+            }
+            Some(other) if matches!(*tool, "yarn" | "pnpm") => Some(*other),
+            _ => None,
+        };
+        out.extend(name);
+    }
+    out
+}
+
 /// Resolve a command token to a file in the tree, if it names one.
 fn resolve_local(dir: &str, token: &str, present: &HashSet<String>) -> Option<String> {
     if token.contains("://") || token.starts_with('-') || token.starts_with('$') {
@@ -234,10 +270,18 @@ pub fn install_referenced(base: &Path, files: &[PathBuf]) -> BTreeMap<String, St
                     let Some(cmd) = scripts.get(*key).and_then(|c| c.as_str()) else {
                         continue;
                     };
-                    for token in command_tokens(cmd) {
-                        if let Some(target) = resolve_local(dir, token, &present) {
-                            out.entry(target)
-                                .or_insert_with(|| format!("package.json {key}"));
+                    // The lifecycle command itself, plus a publish-only
+                    // script it runs by name: that one now runs on install.
+                    let chained = chained_scripts(cmd)
+                        .into_iter()
+                        .filter(|name| *name == "prepublishOnly")
+                        .filter_map(|name| scripts.get(name).and_then(|c| c.as_str()));
+                    for command in std::iter::once(cmd).chain(chained) {
+                        for token in command_tokens(command) {
+                            if let Some(target) = resolve_local(dir, token, &present) {
+                                out.entry(target)
+                                    .or_insert_with(|| format!("package.json {key}"));
+                            }
                         }
                     }
                 }
@@ -546,6 +590,72 @@ mod tests {
             "test script is not install-time"
         );
         assert_eq!(refs.len(), 1);
+    }
+
+    /// `prepublishOnly` runs on `npm publish` only, so the file it names does
+    /// not run on install and is not linked. The same file named by a script
+    /// that does run on install is, including through `npm run
+    /// prepublishOnly` from such a script.
+    #[test]
+    fn publish_only_scripts_are_not_install_time() {
+        let (d, files) = tree(&[
+            (
+                "package.json",
+                r#"{"scripts":{"prepublishOnly":"node scripts/check.js"}}"#,
+            ),
+            ("scripts/check.js", "x"),
+        ]);
+        assert!(
+            install_referenced(d.path(), &files).is_empty(),
+            "a prepublishOnly target must not be linked"
+        );
+
+        let (d, files) = tree(&[
+            (
+                "package.json",
+                r#"{"scripts":{"prepublishOnly":"node scripts/check.js","postinstall":"node scripts/check.js"}}"#,
+            ),
+            ("scripts/check.js", "x"),
+        ]);
+        assert_eq!(
+            install_referenced(d.path(), &files)
+                .get("scripts/check.js")
+                .map(String::as_str),
+            Some("package.json postinstall")
+        );
+
+        for runner in [
+            "npm run prepublishOnly",
+            "npm run-script prepublishOnly",
+            "npm --silent run prepublishOnly",
+            "yarn prepublishOnly",
+            "pnpm run prepublishOnly",
+            "echo hi && npm run prepublishOnly",
+        ] {
+            let manifest = format!(
+                r#"{{"scripts":{{"prepublishOnly":"node scripts/check.js","postinstall":"{runner}"}}}}"#
+            );
+            let (d, files) = tree(&[("package.json", &manifest), ("scripts/check.js", "x")]);
+            assert_eq!(
+                install_referenced(d.path(), &files)
+                    .get("scripts/check.js")
+                    .map(String::as_str),
+                Some("package.json postinstall"),
+                "{runner}: a publish-only script run from postinstall runs on install"
+            );
+        }
+    }
+
+    #[test]
+    fn chained_scripts_are_read_from_run_commands() {
+        assert_eq!(chained_scripts("npm run build && npm test"), vec!["build"]);
+        assert_eq!(
+            chained_scripts("yarn build; pnpm lint"),
+            vec!["build", "lint"]
+        );
+        assert_eq!(chained_scripts("bun run x"), vec!["x"]);
+        assert!(chained_scripts("node x.js").is_empty());
+        assert!(chained_scripts("npm install").is_empty());
     }
 
     #[test]
