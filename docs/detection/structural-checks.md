@@ -394,6 +394,80 @@ What the classifier trusts, and so what it cannot see:
 - `INSTALL-003` itself does not cover npm's `install` key, or a key written with JSON
   escapes (`"postinstall"`); both are open gaps, independent of this pass.
 
+### Measured effect of the runner and dependency rules
+
+Release build of `3d8aa73` (this rule) against the release build of `34eaa0b` (the
+code of #172's head, `1ae5cbe`, before it), every scan `--no-cache` with an empty
+`HOME`, on 2026-09-26, run one corpus at a time on a 4-CPU machine with no build
+running. No scan in any run reported `PROV-BUDGET-001`, and none errored.
+
+| Corpus | Before (`34eaa0b`) | After (`3d8aa73`) | Level changes |
+|---|---:|---:|---|
+| Clean MCP servers, in-sample (169): blocked / warned / CRITICAL | 24 / 76 / 11 | 28 / 89 / 15 | 16, all up |
+| Clean MCP servers, unseen (146): blocked / warned / CRITICAL | 66 / 114 / 45 | 69 / 115 / 45 | 4, all up |
+| Malicious skills (204): blocked / warned | 173 / 184 | 173 / 184 | 0 |
+| Clean skills (455): blocked / warned | 7 / 71 | 7 / 71 | 0 |
+| Datadog (844, six offline phases): verdict blocked / warned | 705 / 761 | 705 / 761 | 0 |
+| Datadog recall at any / ≥ Medium / ≥ High / ≥ Critical | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 560 | 0 severity, 0 chain changes |
+
+Every level change comes from the dependency rule. None of the 149 + 156
+`package.json` files in the two MCP corpora (outside `node_modules`) declares a bin
+with any name the rewrites trust, so the runner rule (finding 1) and the `node` / `sh`
+checks cannot have changed anything there, and none of the changed manifests is in a
+workspace. After the change **no server in either MCP corpus and no Datadog sample
+keeps an `INSTALL-010`, `INSTALL-011` or `INSTALL-012` rewrite**: every one of them
+installs something besides the tools its script names. The 169-server corpus had 3
+`INSTALL-010`, 1 `INSTALL-011` and 16 `INSTALL-012` servers before; the unseen 146 had 17
+`INSTALL-012`; Datadog had 25 samples with `INSTALL-012`. The classifier's
+false-positive reduction for lifecycle scripts is, on these corpora, gone; `CODE-016`
+(the launcher, not a lifecycle script) is unchanged on the 3 servers that have it.
+
+In-sample, 169 servers:
+
+- `com.microsoft/azure`, `com.microsoft/microsoft-fabric`,
+  `com.microsoft/template-server-name`: MEDIUM → CRITICAL. The postinstall
+  `node ./scripts/post-install-script.js` is `INSTALL-003` again: six
+  `optionalDependencies` (the `<name>-<os>-<arch>` platform packages) are installed
+  before it runs.
+- `com.postman/postman-mcp-server`: LOW → CRITICAL. `preinstall: npx only-allow pnpm`
+  in `package/package.json` and `package/dist/package.json` is `INSTALL-003` again: six
+  `dependencies` (`@modelcontextprotocol/sdk`, `dotenv`, `newman`, `nunjucks`, `uuid`,
+  `zod`).
+- LOW → MEDIUM, `INSTALL-012` → `INSTALL-004` because `prepare` / `prepublish` installs
+  more than the build tools: `ai.perplexity/mcp-server`,
+  `io.github.perplexityai/mcp-server`, `io.github.timescale/tiger-skills`,
+  `io.github.Automattic/simplenote-mcp` (`npm run build` → `tsc && shx chmod +x`);
+  `com.kudosity/mcp`, `io.github.GoogleCloudPlatform/gemini-cloud-assist-mcp`
+  (`npm run build` → `tsc`); `io.github.ZenRows/zenrows-mcp` (`tsc && chmod +x`);
+  `io.capawesome/capacitor-mcp`, `io.capawesome/ionic-framework-mcp`, `io.capawesome/mcp`
+  (`husky`); `com.blackduck/mcp-server` (`husky install || exit 0`); `io.mailtrap/mcp`
+  (`prepublish: npm run build && shx chmod +x`). Each declares runtime `dependencies`
+  and more `devDependencies` than the tools (for example `@types/node`).
+- The same rule change without a level change: `com.zeroheight/zeroheight`,
+  `io.github.dynatrace-oss/dynatrace-managed-mcp`, `io.qase/mcp-server` (MEDIUM),
+  `io.github.SAP-samples/hana-cli` (CRITICAL).
+
+Unseen, 146 servers: `io.github.StuMason/coolify` (`husky`),
+`io.github.tosin2013/mcp-adr-analysis-server` (`husky`) and
+`io.github.yamadashy/repomix` (`npm run build` → `rimraf lib && tsc -p`) go MEDIUM → HIGH:
+`INSTALL-004` is an action again, which corroborates their existing High findings;
+`io.github.shinpr/mcp-local-rag` (`husky`) goes LOW → MEDIUM. Thirteen more servers swap
+`INSTALL-012` for `INSTALL-004` with no level change.
+
+```
+Data Source: Real scans of real samples: 169 in-sample and 146 unseen clean MCP servers
+             from the official MCP registry (scripts/benchmark_skills.py), 204 malicious
+             skills from the Datadog dataset and 455 vendor skills (anthropics, NVIDIA,
+             openai, vercel-labs), and the 844-sample Datadog selection
+             (scripts/datadog_diff.py --limit 204, fingerprint 63fcde5b...).
+Sample Size: 169 + 146 MCP servers, 659 skills, 844 malicious packages; two builds each.
+Limitations: Static scans only. "Clean" means published by a vendor or listed in the
+             registry, not audited. The attribution of each change was read from the
+             scanned manifest (dependency fields and bins), not from a third build with
+             one rule disabled. The runner rule was exercised only by the unit and
+             engine tests: no MCP-corpus manifest declares a colliding bin.
+```
+
 ## Measurements
 
 Every number below came from a command run on 2026-09-23/24 with the release binary built

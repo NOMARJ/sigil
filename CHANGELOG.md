@@ -20,9 +20,10 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
-On 169 clean MCP servers from the official registry, Sigil blocks 24 (14.2%;
-39 before the third false-positive pass below); SkillSpector blocks 100 of the
-156 it finished (64.1%; it timed out on 13).
+On 169 clean MCP servers from the official registry, Sigil blocks 28 (16.6%;
+24 before the lifecycle rewrites were made to fail closed, 39 before the third
+false-positive pass below); SkillSpector blocks 100 of the 156 it finished
+(64.1%; it timed out on 13).
 
 On the 844-package Datadog selection (npm and PyPI malware, same samples as the
 previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
@@ -526,7 +527,14 @@ pass.
   metadata, and a dependency's lockfile is ignored by the consumer's install.
   The Microsoft platform launchers' postinstall (three optional platform
   packages) is `INSTALL-003` again, and `ENGINE_REVISION` goes to 9, so cached
-  scans are recomputed.
+  scans are recomputed. Measured against `34eaa0b` (the code of #172's head):
+  clean MCP servers blocked 24 → 28 of 169 and 66 → 69 of 146 unseen, warned
+  76 → 89 and 114 → 115; skills and the 844 Datadog samples unchanged at the
+  verdict and severity level. No server in either MCP corpus, and no Datadog
+  sample, keeps an `INSTALL-010`, `-011` or `-012` rewrite: all of them
+  install more than the tools their scripts name. Every server that moved is
+  listed in
+  [structural-checks.md](docs/detection/structural-checks.md#measured-effect-of-the-runner-and-dependency-rules).
 - **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
   `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
   `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.
