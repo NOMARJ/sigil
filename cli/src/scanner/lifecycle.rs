@@ -1097,16 +1097,16 @@ fn install_command(
 ) -> Option<()> {
     let c = re!(r"^npm install \$\{\s*([A-Za-z_$][\w$]*)\s*\}@\$\{([^}]+)\}((?: [a-z.-]+)*)$")
         .captures(template)?;
-    if !flags_ok(&c[3]) || src.eval(&c[2], use_at, m, rel, 0)? != Sym::OwnVersion {
+    if !flags_ok(&c[3]) || src.symbol_of(&c[2], use_at, m, rel, 0)? != Sym::OwnVersion {
         return None;
     }
     let (at, rhs) = src.single_const(&c[1], use_at)?;
     let inner = rhs.strip_prefix('`')?.strip_suffix('`')?;
     let p = re!(r"^\$\{([^}]+)\}-\$\{([^}]+)\}-\$\{([^}]+)\}$").captures(inner)?;
     let parts = [
-        src.eval(&p[1], at, m, rel, 0)?,
-        src.eval(&p[2], at, m, rel, 0)?,
-        src.eval(&p[3], at, m, rel, 0)?,
+        src.symbol_of(&p[1], at, m, rel, 0)?,
+        src.symbol_of(&p[2], at, m, rel, 0)?,
+        src.symbol_of(&p[3], at, m, rel, 0)?,
     ];
     (parts == [Sym::OwnName, Sym::Platform, Sym::Arch]).then_some(())
 }
@@ -1392,7 +1392,7 @@ impl<'a> Source<'a> {
     }
 
     /// What `expr` is known to be at `use_at`.
-    fn eval(
+    fn symbol_of(
         &self,
         expr: &str,
         use_at: usize,
@@ -1406,7 +1406,7 @@ impl<'a> Source<'a> {
         let expr = expr.trim().trim_end_matches(';').trim();
         if re!(r"^[A-Za-z_$][\w$]*$").is_match(expr) {
             let (at, rhs) = self.single_const(expr, use_at)?;
-            return self.eval(rhs, at, m, rel, depth + 1);
+            return self.symbol_of(rhs, at, m, rel, depth + 1);
         }
         if let Some(c) =
             re!(r#"^require\(\s*(['"])(\.{1,2}/[A-Za-z0-9_./-]*package\.json)(['"])\s*\)$"#)
@@ -1426,7 +1426,7 @@ impl<'a> Source<'a> {
             _ => {}
         }
         if let Some(c) = re!(r"^([A-Za-z_$][\w$]*)\s*\.\s*(name|version)$").captures(expr) {
-            if self.eval(&c[1], use_at, m, rel, depth + 1)? == Sym::Manifest {
+            if self.symbol_of(&c[1], use_at, m, rel, depth + 1)? == Sym::Manifest {
                 return Some(if &c[2] == "name" {
                     Sym::OwnName
                 } else {
@@ -1436,7 +1436,7 @@ impl<'a> Source<'a> {
             return None;
         }
         if let Some(c) = re!(r"^([A-Za-z_$][\w$]*)\s*\.\s*(platform|arch)\(\)$").captures(expr) {
-            if self.eval(&c[1], use_at, m, rel, depth + 1)? == Sym::Os {
+            if self.symbol_of(&c[1], use_at, m, rel, depth + 1)? == Sym::Os {
                 return Some(if &c[2] == "platform" {
                     Sym::Platform
                 } else {

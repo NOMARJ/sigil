@@ -2,7 +2,7 @@
 //!
 //! The older suppression predicates decide per *line*: `line_contains` drops
 //! the finding whenever a string appears anywhere on the line, which is
-//! both too blunt (it cannot say "this `exec(` is a method definition") and
+//! both too blunt (it cannot tell a method definition from a call of the same name) and
 //! easy to exploit (append the string to a malicious line). These decide per
 //! *match*, from the text immediately around it, and a line is dropped only
 //! when every match of the rule on it is exempt:
