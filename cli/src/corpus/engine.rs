@@ -3666,6 +3666,74 @@ mod reconcile {
         );
     }
 
+    /// One propagation step (a line between source and sink that assigns an
+    /// expression using the bound name makes the new name a source too) was
+    /// measured and not adopted; see docs/detection/correlation-names.md.
+    /// These are clean shapes it reported CRITICAL RISK: an object built
+    /// from the credential whose attribute or method the request uses, and
+    /// a one-way or partial form of the secret sent where it is meant to go.
+    /// A value derived from a credential is not the credential, and one text
+    /// step cannot tell which derivations keep the secret.
+    #[test]
+    fn a_value_derived_from_a_credential_does_not_link() {
+        for (name, src) in [
+            (
+                "client.py",
+                "import os\nimport requests\n\
+                 token = os.environ[\"ACME_TOKEN\"]\n\
+                 client = Client(token)\n\
+                 STATUS_URL = \"https://status.example.com/report\"\n\
+                 requests.post(STATUS_URL, json={\"status\": client.status})\n",
+            ),
+            (
+                "engine.py",
+                "import os\nimport requests\n\
+                 url = os.environ[\"DATABASE_URL\"]\n\
+                 engine = create_engine(url, pool_pre_ping=True)\n\
+                 resp = requests.get(\"https://api.example.com/v1/health\", timeout=5)\n\
+                 with engine.connect() as conn:\n\
+                 \x20   conn.execute(text(\"select 1\"))\n",
+            ),
+            (
+                "client.js",
+                "const apiKey = process.env.OPENAI_API_KEY;\n\
+                 const openai = new OpenAI({ apiKey });\n\
+                 const res = await fetch(\"https://telemetry.example.com/v1/event\", {\n\
+                 \x20 method: \"POST\",\n\
+                 \x20 body: JSON.stringify({ model: openai.baseURL }),\n\
+                 });\n",
+            ),
+            (
+                "hook.py",
+                "import os\nimport requests\n\
+                 secret = os.environ[\"WEBHOOK_SECRET\"]\n\
+                 payload = json.dumps({\"event\": \"build.finished\"})\n\
+                 signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()\n\
+                 requests.post(\"https://ci.example.com/hooks/build\", json={\"payload\": payload, \"signature\": signature})\n",
+            ),
+            (
+                "audit.py",
+                "import os\nimport requests\n\
+                 key = os.environ[\"ACME_API_KEY\"]\n\
+                 hint = key[:4] + \"****\"\n\
+                 requests.post(\"https://audit.example.com/v1/events\", json={\"key_hint\": hint})\n",
+            ),
+        ] {
+            let findings = scan(name, src);
+            assert!(
+                findings.iter().any(|f| f.rule.starts_with("CRED-")),
+                "{name}: no source"
+            );
+            assert!(
+                findings
+                    .iter()
+                    .any(|f| f.rule == "NET-001" || f.rule == "NET-004"),
+                "{name}: no sink"
+            );
+            assert_eq!(chained(name, src, "EXFIL-CHAIN-001"), None, "{name}");
+        }
+    }
+
     // -- bundled pickle deserialized (DESER-CHAIN-001) ---------------------
 
     /// ai-labs-snippets-sdk 0.1.0, src/ai_labs_snippets_sdk/__init__.py.

@@ -1,0 +1,6082 @@
+{
+ "generated_by": "scripts/datadog_diff.py, run 2026-09-26; diffs recomputed from its rows with the committed diff(), chain snippets reduced to their link with link_of()",
+ "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
+ "fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
+ "limit": 204,
+ "phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
+ "builds": {
+  "head-ef0b95f": "release build of ef0b95f (per-sample identical to cff3fa2 in a separate run)",
+  "name_uses": "release build of this change: every built-in chain reads names as values",
+  "follow_assignment": "name_uses + evaluation_results/correlation_step/follow_assignment.patch (B)",
+  "follow_assignment_bare": "B + follow_assignment_bare.patch (C)"
+ },
+ "recall": {
+  "head-ef0b95f": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
+  },
+  "name_uses": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
+  },
+  "follow_assignment": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 562
+  },
+  "follow_assignment_bare": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
+  }
+ },
+ "exfil_chain_samples": {
+  "head-ef0b95f": 40,
+  "name_uses": 23,
+  "follow_assignment": 41,
+  "follow_assignment_bare": 40
+ },
+ "budget_expired": {
+  "head-ef0b95f": [
+   "samples/npm/compromised_lib/@asyncapi@studio/1.0.2/2025-11-24-@asyncapi_studio-v1.0.2.zip"
+  ],
+  "name_uses": [
+   "samples/npm/compromised_lib/@asyncapi@studio/1.0.2/2025-11-24-@asyncapi_studio-v1.0.2.zip",
+   "samples/npm/compromised_lib/@asyncapi@studio/1.0.3/2025-11-24-@asyncapi_studio-v1.0.3.zip",
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.33/2026-04-21-@automagik_genie-v4.260421.33.zip"
+  ],
+  "follow_assignment": [],
+  "follow_assignment_bare": []
+ },
+ "budget_check": "Samples that hit the 30 s per-file budget (PROV-BUDGET-001) in some runs were rescanned with every build and SIGIL_FILE_BUDGET_SECS=0: the chain findings are identical across all four builds (the two @asyncapi/studio samples: 44 each; @automagik/genie 4.260421.33: 2). The two chain changes marked budget_expired below are timing, not the build.",
+ "diffs": {
+  "head-ef0b95f->name_uses": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     561,
+     561
+    ]
+   },
+   "severity": [],
+   "verdict": [],
+   "chains": [
+    {
+     "zip": "samples/npm/compromised_lib/@asyncapi@studio/1.0.2/2025-11-24-@asyncapi_studio-v1.0.2.zip",
+     "budget_expired": [
+      true,
+      true
+     ],
+     "lost": [
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1200,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1770,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1200,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1770,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       409,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-012",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1769,
+       "Run of ASCII Unicode escapes \u2014 text hidden from a plain-text search"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1758,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/npm/compromised_lib/@automagik@genie/4.260421.33/2026-04-21-@automagik_genie-v4.260421.33.zip",
+     "budget_expired": [
+      false,
+      true
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "var/folders/rs/52vst_5924nc0zz5ccww9tl80000gp/T/tmp74eq1tmg/@automagik-genie/package/dist/genie.js",
+       3119,
+       "CRED-ENV-001 (@L3119) reaches NET-012 (@L3119)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpk3ltyin2/artifact-lab-3-package/artifact_lab_3_package-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpxulmfpmg/artifact-lab-3-package-153c1c1a/artifact_lab_3_package_153c1c1a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8qdrlt0n/artifact_lab_3_package_1f7a39bc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2h_2ie5m/artifact-lab-3-package-2387a34d-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp7k6w05zo/artifact-lab-3-package-34b21b63-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpsjnk8yif/artifact-lab-3-package-3ccf47e8-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2boamm3f/artifact-lab-3-package-438d82fc/artifact_lab_3_package_438d82fc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpdn0qjcg1/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp4zxle9do/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpltkzolsa/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.5/setup.py",
+       17,
+       "CRED-ENV-001 (@L12) reaches NET-007 (@L17)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpar1wc78u/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       15,
+       "CRED-ENV-001 (@L8) reaches NET-007 (@L15)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpi1splnb_/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-1.0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpw667ga8_/artifact-lab-3-package-77d0c154-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5/artifact-lab-3-package-a18ff5d9-1.1.5/setup.py",
+       14,
+       "CRED-ENV-001 (@L11) reaches NET-007 (@L14)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8ujn_04q/artifact-lab-3-package-b55680cd-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpefguuubo/artifact-lab-3-package-db7d716a/artifact-lab-3-package-db7d716a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp54x9w6f8/artifact-lab-3-package-e46d5661/artifact_lab_3_package_e46d5661-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    }
+   ]
+  },
+  "name_uses->follow_assignment": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     561,
+     562
+    ]
+   },
+   "severity": [
+    [
+     "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "High",
+     "Critical",
+     [
+      false,
+      false
+     ]
+    ]
+   ],
+   "verdict": [
+    [
+     "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "HIGH RISK",
+     "CRITICAL RISK",
+     [
+      false,
+      false
+     ]
+    ]
+   ],
+   "chains": [
+    {
+     "zip": "samples/npm/compromised_lib/@asyncapi@studio/1.0.2/2025-11-24-@asyncapi_studio-v1.0.2.zip",
+     "budget_expired": [
+      true,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1200,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-006",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1770,
+       "Zero-width Unicode characters detected \u2014 potential steganography"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1200,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1770,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       409,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
+      ],
+      [
+       "OBFUSC-CHAIN-012",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1769,
+       "Run of ASCII Unicode escapes \u2014 text hidden from a plain-text search"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1758,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/npm/compromised_lib/@automagik@genie/4.260421.33/2026-04-21-@automagik_genie-v4.260421.33.zip",
+     "budget_expired": [
+      true,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "var/folders/rs/52vst_5924nc0zz5ccww9tl80000gp/T/tmp74eq1tmg/@automagik-genie/package/dist/genie.js",
+       3119,
+       "CRED-ENV-001 (@L3119) reaches NET-012 (@L3119)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpl1t6wtn2/sources/mistralai/examples/mistral/ocr/ocr_process_from_file.py",
+       18,
+       "CRED-001 (@L12) reaches NET-002 (@L18) via client (@L13)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpk3ltyin2/artifact-lab-3-package/artifact_lab_3_package-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpxulmfpmg/artifact-lab-3-package-153c1c1a/artifact_lab_3_package_153c1c1a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8qdrlt0n/artifact_lab_3_package_1f7a39bc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2h_2ie5m/artifact-lab-3-package-2387a34d-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp7k6w05zo/artifact-lab-3-package-34b21b63-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpsjnk8yif/artifact-lab-3-package-3ccf47e8-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2boamm3f/artifact-lab-3-package-438d82fc/artifact_lab_3_package_438d82fc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpdn0qjcg1/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp4zxle9do/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpltkzolsa/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.5/setup.py",
+       17,
+       "CRED-ENV-001 (@L12) reaches NET-007 (@L17) via encoded_data (@L16)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpar1wc78u/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       15,
+       "CRED-ENV-001 (@L8) reaches NET-007 (@L15) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpi1splnb_/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-1.0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpw667ga8_/artifact-lab-3-package-77d0c154-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5/artifact-lab-3-package-a18ff5d9-1.1.5/setup.py",
+       14,
+       "CRED-ENV-001 (@L11) reaches NET-007 (@L14) via encoded_data (@L13)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8ujn_04q/artifact-lab-3-package-b55680cd-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpefguuubo/artifact-lab-3-package-db7d716a/artifact-lab-3-package-db7d716a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [],
+     "gained": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp54x9w6f8/artifact-lab-3-package-e46d5661/artifact_lab_3_package_e46d5661-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13) via encoded_data (@L12)"
+      ]
+     ]
+    }
+   ]
+  },
+  "follow_assignment->follow_assignment_bare": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     562,
+     561
+    ]
+   },
+   "severity": [
+    [
+     "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "Critical",
+     "High",
+     [
+      false,
+      false
+     ]
+    ]
+   ],
+   "verdict": [
+    [
+     "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "CRITICAL RISK",
+     "HIGH RISK",
+     [
+      false,
+      false
+     ]
+    ]
+   ],
+   "chains": [
+    {
+     "zip": "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpl1t6wtn2/sources/mistralai/examples/mistral/ocr/ocr_process_from_file.py",
+       18,
+       "CRED-001 (@L12) reaches NET-002 (@L18) via client (@L13)"
+      ]
+     ],
+     "gained": []
+    }
+   ]
+  }
+ },
+ "per_sample_head": [
+  [
+   "samples/ai-skills/malicious_intent/3bkader-gpt-malicious-skill-poc/3bkader-gpt-malicious-skill-poc.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/3bkader-gpt-malicious-skill-poc-malicious-skill-poc/3bkader-gpt-malicious-skill-poc-malicious-skill-poc.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-backdoor-skill/Charpup-skill-security-auditor-backdoor-skill.zip",
+   "High",
+   "HIGH RISK",
+   8
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-command-injection-skill/Charpup-skill-security-auditor-command-injection-skill.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-credential-harvester-skill/Charpup-skill-security-auditor-credential-harvester-skill.zip",
+   "High",
+   "HIGH RISK",
+   9
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-data-exfiltration-skill/Charpup-skill-security-auditor-data-exfiltration-skill.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-dependency-confusion-skill/Charpup-skill-security-auditor-dependency-confusion-skill.zip",
+   "Medium",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-malicious-code-execution-skill/Charpup-skill-security-auditor-malicious-code-execution-skill.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-network-egress-skill/Charpup-skill-security-auditor-network-egress-skill.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-obfuscation-skill/Charpup-skill-security-auditor-obfuscation-skill.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-privilege-escalation-skill/Charpup-skill-security-auditor-privilege-escalation-skill.zip",
+   "Critical",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/Charpup-skill-security-auditor-prompt-injection-skill/Charpup-skill-security-auditor-prompt-injection-skill.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ZackKorman-skills-audit/ZackKorman-skills-audit.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ZackKorman-skills-openclaw-admin-security-breakglass/ZackKorman-skills-openclaw-admin-security-breakglass.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/aaaaqwq-agi-super-skills-skills-deepwork-tracker/aaaaqwq-agi-super-skills-skills-deepwork-tracker.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/aaaaqwq-agi-super-skills-skills-env-setup/aaaaqwq-agi-super-skills-skills-env-setup.zip",
+   "High",
+   "HIGH RISK",
+   20
+  ],
+  [
+   "samples/ai-skills/malicious_intent/aaaaqwq-claude-code-skills-skills-deepwork-tracker/aaaaqwq-claude-code-skills-skills-deepwork-tracker.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/aaarnv-claude-skills-herobrine/aaarnv-claude-skills-herobrine.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/abpai-skills-codex/abpai-skills-codex.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/agentinsync-agentinsync-skill/agentinsync-agentinsync-skill.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/alfredang-skills-start-app/alfredang-skills-start-app.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/arjenschwarz-agentic-coding-claude-skills-project-init/arjenschwarz-agentic-coding-claude-skills-project-init.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/arlenagreer-claude_configuration_docs-skills-email/arlenagreer-claude_configuration_docs-skills-email.zip",
+   "High",
+   "HIGH RISK",
+   39
+  ],
+  [
+   "samples/ai-skills/malicious_intent/atrislabs-atris-atris-skills-magic-inbox/atrislabs-atris-atris-skills-magic-inbox.zip",
+   "High",
+   "HIGH RISK",
+   11
+  ],
+  [
+   "samples/ai-skills/malicious_intent/avivk5498-claude-code-beads-orchestration-dot-claude-skills-create-beads-orchestration/avivk5498-claude-code-beads-orchestration-dot-claude-skills-create-beads-orchestration.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/bigboggy-derp-derp/bigboggy-derp-derp.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/binhmuc-autobot-review-dot-claude-skills-frontend-development/binhmuc-autobot-review-dot-claude-skills-frontend-development.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/blessonism-openclaw-skills-gitclaw-backup/blessonism-openclaw-skills-gitclaw-backup.zip",
+   "Critical",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boomsystel-code-openclaw-workspace-skills-autonomous-brain/boomsystel-code-openclaw-workspace-skills-autonomous-brain.zip",
+   "Medium",
+   "MEDIUM RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boomsystel-code-openclaw-workspace-skills-financial-market-analysis/boomsystel-code-openclaw-workspace-skills-financial-market-analysis.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boomsystel-code-openclaw-workspace-skills-mia-twitter-stealth/boomsystel-code-openclaw-workspace-skills-mia-twitter-stealth.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boomsystel-code-openclaw-workspace-skills-nanopdf/boomsystel-code-openclaw-workspace-skills-nanopdf.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boomsystel-code-openclaw-workspace-skills-yahoo-finance-who/boomsystel-code-openclaw-workspace-skills-yahoo-finance-who.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/boshu2-agentops-skills-update/boshu2-agentops-skills-update.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/britg-landing-the-plane-skill/britg-landing-the-plane-skill.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/buff-m-email-sender-skill/buff-m-email-sender-skill.zip",
+   "High",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-base64-payload/cisco-ai-defense-skill-scanner-base64-payload.zip",
+   "High",
+   "HIGH RISK",
+   9
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-database-query/cisco-ai-defense-skill-scanner-database-query.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-environment-secrets/cisco-ai-defense-skill-scanner-environment-secrets.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-eval-execution/cisco-ai-defense-skill-scanner-eval-execution.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-exfiltrator/cisco-ai-defense-skill-scanner-exfiltrator.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-file-reader/cisco-ai-defense-skill-scanner-file-reader.zip",
+   "Medium",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-file-validator/cisco-ai-defense-skill-scanner-file-validator.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-infinite-loop/cisco-ai-defense-skill-scanner-infinite-loop.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-jailbreak-override/cisco-ai-defense-skill-scanner-jailbreak-override.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-magic-string-trigger/cisco-ai-defense-skill-scanner-magic-string-trigger.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-prompt-injection/cisco-ai-defense-skill-scanner-prompt-injection.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cisco-ai-defense-skill-scanner-simple-math/cisco-ai-defense-skill-scanner-simple-math.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/clawsights-clawsights-dot-agents-skills-clawsights/clawsights-clawsights-dot-agents-skills-clawsights.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/clawsights-clawsights-skills-clawsights/clawsights-clawsights-skills-clawsights.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cybertechajju-productivity-boost-skills-productivity-boost/cybertechajju-productivity-boost-skills-productivity-boost.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cybertechajju-version-demo-helper/cybertechajju-version-demo-helper.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/cybertechajju-version-demo-skills-helper/cybertechajju-version-demo-skills-helper.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/danielmiessler-paiplugin-skills-always-init/danielmiessler-paiplugin-skills-always-init.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dauquangthanh-hanoi-rainbow-skills-rpg-migration-analyzer/dauquangthanh-hanoi-rainbow-skills-rpg-migration-analyzer.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/devxoul-agent-messenger-skills-agent-discord/devxoul-agent-messenger-skills-agent-discord.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dglowacki-mega-agent-v2-dot-claude-skills-skill-find/dglowacki-mega-agent-v2-dot-claude-skills-skill-find.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dibenkobit-solaris-dot-agents-skills-private-diary/dibenkobit-solaris-dot-agents-skills-private-diary.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dibenkobit-solaris-skills-private-diary/dibenkobit-solaris-skills-private-diary.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/doccker-cc-use-exp-dot-claude-skills-ruanzhu/doccker-cc-use-exp-dot-claude-skills-ruanzhu.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dreamineering-meme-times-dot-claude-skills-community-architect/dreamineering-meme-times-dot-claude-skills-community-architect.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dreamineering-meme-times-dot-claude-skills-meme-pumper/dreamineering-meme-times-dot-claude-skills-meme-pumper.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/dtinth-agent-skills-discord/dtinth-agent-skills-discord.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/eraserlabs-eraser-io-skills-azure-diagrams/eraserlabs-eraser-io-skills-azure-diagrams.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/eraserlabs-eraser-io-skills-terraform-diagrams/eraserlabs-eraser-io-skills-terraform-diagrams.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/escapewu-skills-skills-CPA-antigravity-RT-exract/escapewu-skills-skills-CPA-antigravity-RT-exract.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/feed-mob-agent-skills-skills-civitai-analyst/feed-mob-agent-skills-skills-civitai-analyst.zip",
+   "High",
+   "MEDIUM RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/galz10-pickle-rick-extension-skills-load-pickle-persona/galz10-pickle-rick-extension-skills-load-pickle-persona.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/gchan-bad-humanizer/gchan-bad-humanizer.zip",
+   "High",
+   "HIGH RISK",
+   11
+  ],
+  [
+   "samples/ai-skills/malicious_intent/gchan-bad-humanizer-bad-humanizer/gchan-bad-humanizer-bad-humanizer.zip",
+   "High",
+   "HIGH RISK",
+   11
+  ],
+  [
+   "samples/ai-skills/malicious_intent/gmh5225-awesome-game-security-dot-claude-skills-anti-cheat/gmh5225-awesome-game-security-dot-claude-skills-anti-cheat.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/gmh5225-awesome-game-security-dot-claude-skills-graphics-api/gmh5225-awesome-game-security-dot-claude-skills-graphics-api.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/h1paastha-test-skill/h1paastha-test-skill.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/henryxv-study-platform-dot-agent-skills-vercel-deploy/henryxv-study-platform-dot-agent-skills-vercel-deploy.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/jitha-afk-projectscourgewizard-dot-agents-skills-security-review/jitha-afk-projectscourgewizard-dot-agents-skills-security-review.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/karlorz-cloudrouter-skills-cloudrouter/karlorz-cloudrouter-skills-cloudrouter.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/lannieyoo-gangwon-business-portal-dot-agent-skills-learning-brightspace_scraper/lannieyoo-gangwon-business-portal-dot-agent-skills-learning-brightspace_scraper.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/luoluoluo22-jianying-editor-skill/luoluoluo22-jianying-editor-skill.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/ai-skills/malicious_intent/manaflow-ai-cloudrouter-dot-agents-skills-cloudrouter/manaflow-ai-cloudrouter-dot-agents-skills-cloudrouter.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/manojbajaj95-gtm-skills-skills-community-architect/manojbajaj95-gtm-skills-skills-community-architect.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/manojbajaj95-gtm-skills-skills-leadgenius-api/manojbajaj95-gtm-skills-skills-leadgenius-api.zip",
+   "High",
+   "HIGH RISK",
+   23
+  ],
+  [
+   "samples/ai-skills/malicious_intent/matteocervelli-llms-dot-claude-skills-whitelist-bypass-skill/matteocervelli-llms-dot-claude-skills-whitelist-bypass-skill.zip",
+   "Medium",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/mcpcat-skills-skills-install-mcpcat-typescript/mcpcat-skills-skills-install-mcpcat-typescript.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/mindverse-second-me-skills-skills-secondme-reference/mindverse-second-me-skills-skills-secondme-reference.zip",
+   "Low",
+   "LOW RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/mitsuhiko-agent-commands-skills-google-workspace/mitsuhiko-agent-commands-skills-google-workspace.zip",
+   "Medium",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/mitsuhiko-agent-stuff-skills-google-workspace/mitsuhiko-agent-stuff-skills-google-workspace.zip",
+   "Medium",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/mvanhorn-clawdbot-skill-parallel/mvanhorn-clawdbot-skill-parallel.zip",
+   "High",
+   "MEDIUM RISK",
+   10
+  ],
+  [
+   "samples/ai-skills/malicious_intent/natemcgrady-slack-gif-creator-slack-gif-creator/natemcgrady-slack-gif-creator-slack-gif-creator.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-base-agent/netcode-openclaw-skills-old-fork-base-agent.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-bybit-agent/netcode-openclaw-skills-old-fork-bybit-agent.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-linkedin-job-application/netcode-openclaw-skills-old-fork-linkedin-job-application.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarket-assistant/netcode-openclaw-skills-old-fork-polymarket-assistant.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarket-bot/netcode-openclaw-skills-old-fork-polymarket-bot.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarket-hyperliquid-trading/netcode-openclaw-skills-old-fork-polymarket-hyperliquid-trading.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarket-trading/netcode-openclaw-skills-old-fork-polymarket-trading.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarket-traiding-bot/netcode-openclaw-skills-old-fork-polymarket-traiding-bot.zip",
+   "Low",
+   "LOW RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-polymarketagent/netcode-openclaw-skills-old-fork-polymarketagent.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-proxy-scrap/netcode-openclaw-skills-old-fork-proxy-scrap.zip",
+   "Critical",
+   "CRITICAL RISK",
+   17
+  ],
+  [
+   "samples/ai-skills/malicious_intent/netcode-openclaw-skills-old-fork-reddit-trends/netcode-openclaw-skills-old-fork-reddit-trends.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/nickoc-clawscan-malicious-skill/nickoc-clawscan-malicious-skill.zip",
+   "Critical",
+   "CRITICAL RISK",
+   32
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ninehills-skills-skills-firecrawl/ninehills-skills-skills-firecrawl.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ninehills-skills-skills-vercel-deploy/ninehills-skills-skills-vercel-deploy.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/one-box-u-openclaw-daily-hot-news/one-box-u-openclaw-daily-hot-news.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-autoupdate/openclaw-hightower6eu-autoupdate.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-clawhubcli/openclaw-hightower6eu-clawhubcli.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-cllawhub/openclaw-hightower6eu-cllawhub.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-poly/openclaw-hightower6eu-poly.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-polym/openclaw-hightower6eu-polym.zip",
+   "Low",
+   "LOW RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-polytrading/openclaw-hightower6eu-polytrading.zip",
+   "Low",
+   "LOW RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-update/openclaw-hightower6eu-update.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-hightower6eu-updater/openclaw-hightower6eu-updater.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-twittertrends/openclaw-jordanprater-twittertrends.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-xtrends/openclaw-jordanprater-xtrends.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-yahoofinance/openclaw-jordanprater-yahoofinance.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-youtube-summarize/openclaw-jordanprater-youtube-summarize.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-youtube-thumbnail-grabber/openclaw-jordanprater-youtube-thumbnail-grabber.zip",
+   "Low",
+   "LOW RISK",
+   8
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-jordanprater-youtube-video-downloader/openclaw-jordanprater-youtube-video-downloader.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-stveenli-browserautomation-skill/openclaw-stveenli-browserautomation-skill.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-stveenli-shieldphenix/openclaw-stveenli-shieldphenix.zip",
+   "Low",
+   "LOW RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-stveenli-ytwatchervideo/openclaw-stveenli-ytwatchervideo.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-bear-notes7mcp/openclaw-thiagoruss0-bear-notes7mcp.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-clawdbot-logs1kzm/openclaw-thiagoruss0-clawdbot-logs1kzm.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-coding-agent696vg/openclaw-thiagoruss0-coding-agent696vg.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-coding-agent9vr/openclaw-thiagoruss0-coding-agent9vr.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-coding-agentagb2/openclaw-thiagoruss0-coding-agentagb2.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-coding-agentem9ak/openclaw-thiagoruss0-coding-agentem9ak.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-coding-agentoj9u/openclaw-thiagoruss0-coding-agentoj9u.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-deep-researchj/openclaw-thiagoruss0-deep-researchj.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-discord-voicetwhtm/openclaw-thiagoruss0-discord-voicetwhtm.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-finance-news9/openclaw-thiagoruss0-finance-news9.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-finance-newsz/openclaw-thiagoruss0-finance-newsz.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-google-drivezqx/openclaw-thiagoruss0-google-drivezqx.zip",
+   "Low",
+   "LOW RISK",
+   17
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-instagramjg/openclaw-thiagoruss0-instagramjg.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-jirayb4nt/openclaw-thiagoruss0-jirayb4nt.zip",
+   "Low",
+   "LOW RISK",
+   21
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-moltbookwmap4/openclaw-thiagoruss0-moltbookwmap4.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-n8nemk/openclaw-thiagoruss0-n8nemk.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-n8nsk/openclaw-thiagoruss0-n8nsk.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-perplexityt9d/openclaw-thiagoruss0-perplexityt9d.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-pptx-creatord/openclaw-thiagoruss0-pptx-creatord.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-search-xepv0/openclaw-thiagoruss0-search-xepv0.zip",
+   "Low",
+   "LOW RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-seo-optimizerc6ynb/openclaw-thiagoruss0-seo-optimizerc6ynb.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-seo-optimizereq/openclaw-thiagoruss0-seo-optimizereq.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-seo-optimizeruu/openclaw-thiagoruss0-seo-optimizeruu.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-seo-optimizervoo/openclaw-thiagoruss0-seo-optimizervoo.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-tavily-web-searchajss/openclaw-thiagoruss0-tavily-web-searchajss.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-tavily-web-searchesq/openclaw-thiagoruss0-tavily-web-searchesq.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-telegramb4c/openclaw-thiagoruss0-telegramb4c.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-todo-tracker1/openclaw-thiagoruss0-todo-tracker1.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-transcribeeqdq6t/openclaw-thiagoruss0-transcribeeqdq6t.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-transcribeexx/openclaw-thiagoruss0-transcribeexx.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-veo3-genay/openclaw-thiagoruss0-veo3-genay.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-web-searchod/openclaw-thiagoruss0-web-searchod.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-web-searchuigr/openclaw-thiagoruss0-web-searchuigr.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-wechate/openclaw-thiagoruss0-wechate.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-wechatt9y1/openclaw-thiagoruss0-wechatt9y1.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-youtube37puq/openclaw-thiagoruss0-youtube37puq.zip",
+   "Low",
+   "LOW RISK",
+   21
+  ],
+  [
+   "samples/ai-skills/malicious_intent/openclaw-thiagoruss0-youtubea/openclaw-thiagoruss0-youtubea.zip",
+   "Low",
+   "LOW RISK",
+   21
+  ],
+  [
+   "samples/ai-skills/malicious_intent/parcadei-continuous-claude-v3-dot-claude-skills-git-commits/parcadei-continuous-claude-v3-dot-claude-skills-git-commits.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/pauldelavallaz-morpheus-fashion-design-morpheus-fashion-design/pauldelavallaz-morpheus-fashion-design-morpheus-fashion-design.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/phy041-claude-skill-reddit-dot-claude-skills-reddit-cultivate/phy041-claude-skill-reddit-dot-claude-skills-reddit-cultivate.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/phy041-claude-skill-reddit-dot-claude-skills-reddit-post/phy041-claude-skill-reddit-dot-claude-skills-reddit-post.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/plugins-world-pw-skills-pw-image-generation/plugins-world-pw-skills-pw-image-generation.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/ai-skills/malicious_intent/plurigrid-asi-skills-aqua-voice-malleability/plurigrid-asi-skills-aqua-voice-malleability.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/plurigrid-asi-skills-vercel-deploy/plurigrid-asi-skills-vercel-deploy.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/pooriaarab-vibeads/pooriaarab-vibeads.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ralph-wren-omni-recall/ralph-wren-omni-recall.zip",
+   "Medium",
+   "MEDIUM RISK",
+   9
+  ],
+  [
+   "samples/ai-skills/malicious_intent/riba2534-feishu-cli-skills-feishu-cli-create/riba2534-feishu-cli-skills-feishu-cli-create.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/ronyparra-fake-dep-check-skill/ronyparra-fake-dep-check-skill.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-ai-skills-skills-gmail/sanjay3290-ai-skills-skills-gmail.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-ai-skills-skills-google-drive/sanjay3290-ai-skills-skills-google-drive.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-ai-skills-skills-google-sheets/sanjay3290-ai-skills-skills-google-sheets.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-postgres-skill-skills-gmail/sanjay3290-postgres-skill-skills-gmail.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-postgres-skill-skills-google-calendar/sanjay3290-postgres-skill-skills-google-calendar.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-postgres-skill-skills-google-chat/sanjay3290-postgres-skill-skills-google-chat.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-postgres-skill-skills-google-docs/sanjay3290-postgres-skill-skills-google-docs.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sanjay3290-postgres-skill-skills-google-sheets/sanjay3290-postgres-skill-skills-google-sheets.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sebastiaanwouters-dotagents-skills-e2e-tester/sebastiaanwouters-dotagents-skills-e2e-tester.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/senturysh-skills-social/senturysh-skills-social.zip",
+   "Medium",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/shuliuzhenhua-sys-shuliu-skills-skills-banana-proxy/shuliuzhenhua-sys-shuliu-skills-skills-banana-proxy.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-bybit-trading/sundial-org-awesome-openclaw-skills-skills-bybit-trading.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-deep-research/sundial-org-awesome-openclaw-skills-skills-deep-research.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-deepwork-tracker/sundial-org-awesome-openclaw-skills-skills-deepwork-tracker.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-financial-market-analysis/sundial-org-awesome-openclaw-skills-skills-financial-market-analysis.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-polymarket/sundial-org-awesome-openclaw-skills-skills-polymarket.zip",
+   "Low",
+   "LOW RISK",
+   16
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-recruitment/sundial-org-awesome-openclaw-skills-skills-recruitment.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-twitter-openclaw-2/sundial-org-awesome-openclaw-skills-skills-twitter-openclaw-2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/ai-skills/malicious_intent/sundial-org-awesome-openclaw-skills-skills-vercel-deploy/sundial-org-awesome-openclaw-skills-skills-vercel-deploy.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/syncause-debug-skill-skills-syncause-debugger/syncause-debug-skill-skills-syncause-debugger.zip",
+   "High",
+   "HIGH RISK",
+   12
+  ],
+  [
+   "samples/ai-skills/malicious_intent/tjade273-agent-skills-skills-simple-formatter/tjade273-agent-skills-skills-simple-formatter.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/tjade273-agent-skills-test-skills-simple-formatter/tjade273-agent-skills-test-skills-simple-formatter.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/tmdgusya-code-squad-skills-subway/tmdgusya-code-squad-skills-subway.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/toolsai-auto-skill/toolsai-auto-skill.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/ai-skills/malicious_intent/wangyendt-wayne-skills-send-email/wangyendt-wayne-skills-send-email.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/ai-skills/malicious_intent/weklica-firecrawl-cli-skills-firecrawl-cli/weklica-firecrawl-cli-skills-firecrawl-cli.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/wpsteak-popmagic-skills-skills-emotion-bird/wpsteak-popmagic-skills-skills-emotion-bird.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/yoitaoai-yoitao-skills-skills-yoitao-jimeng-sessionid/yoitaoai-yoitao-skills-skills-yoitao-jimeng-sessionid.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zackkorman-skills-skills-audit/zackkorman-skills-skills-audit.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zackkorman-skills-skills-pdf-helper/zackkorman-skills-skills-pdf-helper.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zackkorman-skills-skills-security-review/zackkorman-skills-skills-security-review.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zackkorman-skills-skills-security-review-4/zackkorman-skills-skills-security-review-4.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zackkorman-skills-skills-security-review-6/zackkorman-skills-skills-security-review-6.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zhangyanxs-repo2skill-repo2skill/zhangyanxs-repo2skill-repo2skill.zip",
+   "Low",
+   "LOW RISK",
+   35
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zhanlincui-ultimate-agent-skills-collection-vercel-deploy/zhanlincui-ultimate-agent-skills-collection-vercel-deploy.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/ai-skills/malicious_intent/zircote-dot-claude-skills-frontend-development/zircote-dot-claude-skills-frontend-development.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/npm/compromised_lib/02-echo/0.0.7/2025-11-24-02-echo-v0.0.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@accordproject@concerto-linter-default-ruleset/3.24.1/2025-11-24-@accordproject_concerto-linter-default-ruleset-v3.24.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@accordproject@concerto-metamodel/3.12.5/2025-11-24-@accordproject_concerto-metamodel-v3.12.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@accordproject@concerto-types/3.24.1/2025-11-24-@accordproject_concerto-types-v3.24.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@accordproject@markdown-it-cicero/0.16.26/2025-11-24-@accordproject_markdown-it-cicero-v0.16.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@accordproject@template-engine/2.7.2/2025-11-24-@accordproject_template-engine-v2.7.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   63
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@css-to-react-native-transform/1.0.3/2025-11-24-@actbase_css-to-react-native-transform-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@native/0.1.32/2025-11-24-@actbase_native-v0.1.32.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@node-server/1.1.19/2025-11-24-@actbase_node-server-v1.1.19.zip",
+   "Critical",
+   "CRITICAL RISK",
+   33
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-absolute/0.8.3/2025-11-24-@actbase_react-absolute-v0.8.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-daum-postcode/1.0.5/2025-11-24-@actbase_react-daum-postcode-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-kakaosdk/0.9.27/2025-11-24-@actbase_react-kakaosdk-v0.9.27.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-actionsheet/1.0.3/2025-11-24-@actbase_react-native-actionsheet-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-devtools/0.1.3/2025-11-24-@actbase_react-native-devtools-v0.1.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-fast-image/8.5.13/2025-11-24-@actbase_react-native-fast-image-v8.5.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-kakao-channel/1.0.2/2025-11-24-@actbase_react-native-kakao-channel-v1.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-kakao-navi/2.0.4/2025-11-24-@actbase_react-native-kakao-navi-v2.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-less-transformer/1.0.6/2025-11-24-@actbase_react-native-less-transformer-v1.0.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-naver-login/1.0.1/2025-11-24-@actbase_react-native-naver-login-v1.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-simple-video/1.0.13/2025-11-24-@actbase_react-native-simple-video-v1.0.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@actbase@react-native-tiktok/1.1.3/2025-11-24-@actbase_react-native-tiktok-v1.1.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@ahmedhfarag@ngx-perfect-scrollbar/20.0.20/2025-09-15-@ahmedhfarag_ngx-perfect-scrollbar-v20.0.20.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@ahmedhfarag@ngx-virtual-scroller/4.0.4/2025-09-15-@ahmedhfarag_ngx-virtual-scroller-v4.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@aifabrix@miso-client/4.7.2/2026-03-07-@aifabrix_miso-client-v4.7.2.zip",
+   "High",
+   "MEDIUM RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@alexcolls@nuxt-socket.io/0.0.8/2025-11-24-@alexcolls_nuxt-socket.io-v0.0.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@alexcolls@nuxt-ux/0.6.2/2025-11-24-@alexcolls_nuxt-ux-v0.6.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@antstackio@eslint-config-antstack/0.0.3/2025-11-24-@antstackio_eslint-config-antstack-v0.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@antstackio@express-graphql-proxy/0.2.8/2025-11-24-@antstackio_express-graphql-proxy-v0.2.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@antstackio@graphql-body-parser/0.1.1/2025-11-24-@antstackio_graphql-body-parser-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@antstackio@json-to-graphql/1.0.3/2025-11-24-@antstackio_json-to-graphql-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@antstackio@shelbysam/1.1.7/2025-11-24-@antstackio_shelbysam-v1.1.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@algorithm/0.3.26/2026-05-19-@antv_algorithm-v0.3.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@ava/3.6.1/2026-05-19-@antv_ava-v3.6.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@ava-react/3.5.2/2026-05-19-@antv_ava-react-v3.5.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   13
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@data-samples/1.2.1/2026-05-19-@antv_data-samples-v1.2.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   89
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@data-set/0.12.8/2026-05-19-@antv_data-set-v0.12.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@dumi-theme-antv/0.10.4/2026-05-19-@antv_dumi-theme-antv-v0.10.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@f-engine/1.11.0/2026-05-19-@antv_f-engine-v1.11.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@f2-graphic/0.2.16/2026-05-19-@antv_f2-graphic-v0.2.16.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@f6/0.1.19/2026-05-19-@antv_f6-v0.1.19.zip",
+   "Critical",
+   "CRITICAL RISK",
+   15
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@f6-core/0.2.2/2026-05-19-@antv_f6-core-v0.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g/6.4.1/2026-05-19-@antv_g-v6.4.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g-device-api/1.7.13/2026-05-19-@antv_g-device-api-v1.7.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g-lite/2.8.0/2026-05-19-@antv_g-lite-v2.8.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g-lite/2.9.0/2026-05-19-@antv_g-lite-v2.9.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g2-extension-3d/0.3.0/2026-05-19-@antv_g2-extension-3d-v0.3.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   10
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g6-mobile/0.2.2/2026-05-19-@antv_g6-mobile-v0.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g6-pc/0.10.25/2026-05-19-@antv_g6-pc-v0.10.25.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@g6-pc/0.9.25/2026-05-19-@antv_g6-pc-v0.9.25.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@gi-assets-algorithm/2.4.19/2026-05-19-@antv_gi-assets-algorithm-v2.4.19.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@gi-assets-scene/2.3.21/2026-05-19-@antv_gi-assets-scene-v2.3.21.zip",
+   "Critical",
+   "CRITICAL RISK",
+   10
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@gi-assets-xlab/0.2.30/2026-05-19-@antv_gi-assets-xlab-v0.2.30.zip",
+   "Critical",
+   "CRITICAL RISK",
+   54
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@gi-assets-xlab/0.3.30/2026-05-19-@antv_gi-assets-xlab-v0.3.30.zip",
+   "Critical",
+   "CRITICAL RISK",
+   54
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@gpt-vis/1.1.0/2026-05-19-@antv_gpt-vis-v1.1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@insight-component/1.1.0/2026-05-19-@antv_insight-component-v1.1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-component/2.27.10/2026-05-19-@antv_l7-component-v2.27.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-composite-layers/0.19.1/2026-05-19-@antv_l7-composite-layers-v0.19.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-core/2.27.10/2026-05-19-@antv_l7-core-v2.27.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   17
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-draw/3.2.5/2026-05-19-@antv_l7-draw-v3.2.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   15
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-map/2.27.10/2026-05-19-@antv_l7-map-v2.27.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@l7-source/2.27.10/2026-05-19-@antv_l7-source-v2.27.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@li-aiearth-assets/0.5.7/2026-05-19-@antv_li-aiearth-assets-v0.5.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@li-aiearth-assets/0.6.7/2026-05-19-@antv_li-aiearth-assets-v0.6.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@lite-insight/2.2.1/2026-05-19-@antv_lite-insight-v2.2.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@mcp-server-chart/0.10.10/2026-05-19-@antv_mcp-server-chart-v0.10.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@narrative-text-editor/0.3.20/2026-05-19-@antv_narrative-text-editor-v0.3.20.zip",
+   "Critical",
+   "CRITICAL RISK",
+   70
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@narrative-text-editor/0.4.20/2026-05-19-@antv_narrative-text-editor-v0.4.20.zip",
+   "Critical",
+   "CRITICAL RISK",
+   70
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@narrative-text-vis/0.5.16/2026-05-19-@antv_narrative-text-vis-v0.5.16.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@s2-react/2.5.1/2026-05-19-@antv_s2-react-v2.5.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@s2-react-components/2.3.2/2026-05-19-@antv_s2-react-components-v2.3.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@scale/0.6.2/2026-05-19-@antv_scale-v0.6.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@t8/0.5.0/2026-05-19-@antv_t8-v0.5.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@x6-geometry/2.2.5/2026-05-19-@antv_x6-geometry-v2.2.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@x6-react-components/2.1.9/2026-05-19-@antv_x6-react-components-v2.1.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/compromised_lib/@antv@x6-react-components/2.2.9/2026-05-19-@antv_x6-react-components-v2.2.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@common/2.0.28/2025-09-15-@art-ws_common-v2.0.28.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@config-eslint/2.0.4/2025-09-15-@art-ws_config-eslint-v2.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@config-ts/2.0.7/2025-09-15-@art-ws_config-ts-v2.0.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@config-ts/2.0.8/2025-09-15-@art-ws_config-ts-v2.0.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@db-context/2.0.24/2025-09-15-@art-ws_db-context-v2.0.24.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@di/2.0.28/2025-09-15-@art-ws_di-v2.0.28.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@di/2.0.32/2025-09-15-@art-ws_di-v2.0.32.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@di-node/2.0.13/2025-09-15-@art-ws_di-node-v2.0.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@eslint/1.0.5/2025-09-15-@art-ws_eslint-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@eslint/1.0.6/2025-09-15-@art-ws_eslint-v1.0.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@fastify-http-server/2.0.24/2025-09-15-@art-ws_fastify-http-server-v2.0.24.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@fastify-http-server/2.0.27/2025-09-15-@art-ws_fastify-http-server-v2.0.27.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@http-server/2.0.21/2025-09-15-@art-ws_http-server-v2.0.21.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@http-server/2.0.25/2025-09-15-@art-ws_http-server-v2.0.25.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@openapi/0.1.12/2025-09-15-@art-ws_openapi-v0.1.12.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@openapi/0.1.9/2025-09-15-@art-ws_openapi-v0.1.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@package-base/1.0.5/2025-09-15-@art-ws_package-base-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@prettier/1.0.5/2025-09-15-@art-ws_prettier-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@slf/2.0.15/2025-09-15-@art-ws_slf-v2.0.15.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@slf/2.0.22/2025-09-15-@art-ws_slf-v2.0.22.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@ssl-info/1.0.10/2025-09-15-@art-ws_ssl-info-v1.0.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@ssl-info/1.0.9/2025-09-15-@art-ws_ssl-info-v1.0.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@art-ws@web-app/1.0.3/2025-09-15-@art-ws_web-app-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@aryanhussain@my-angular-lib/0.0.23/2025-11-24-@aryanhussain_my-angular-lib-v0.0.23.zip",
+   "Critical",
+   "CRITICAL RISK",
+   44
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@avro-schema-parser/3.0.26/2025-11-24-@asyncapi_avro-schema-parser-v3.0.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@bundler/0.6.6/2025-11-24-@asyncapi_bundler-v0.6.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@cli/4.1.3/2025-11-24-@asyncapi_cli-v4.1.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   38
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@converter/1.6.4/2025-11-24-@asyncapi_converter-v1.6.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@diff/0.5.1/2025-11-24-@asyncapi_diff-v0.5.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@generator/2.8.6/2025-11-24-@asyncapi_generator-v2.8.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   59
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@generator-components/0.3.3/2025-11-24-@asyncapi_generator-components-v0.3.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@generator-helpers/0.2.2/2025-11-24-@asyncapi_generator-helpers-v0.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@generator-react-sdk/1.1.4/2025-11-24-@asyncapi_generator-react-sdk-v1.1.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@html-template/3.3.2/2025-11-24-@asyncapi_html-template-v3.3.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   57
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@java-spring-template/1.6.2/2025-11-24-@asyncapi_java-spring-template-v1.6.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@java-template/0.3.5/2025-11-24-@asyncapi_java-template-v0.3.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@keeper/0.0.3/2025-11-24-@asyncapi_keeper-v0.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@markdown-template/1.6.8/2025-11-24-@asyncapi_markdown-template-v1.6.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@modelina/5.10.2/2025-11-24-@asyncapi_modelina-v5.10.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@modelina/5.10.3/2025-11-24-@asyncapi_modelina-v5.10.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@multi-parser/2.2.2/2025-11-24-@asyncapi_multi-parser-v2.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@nodejs-template/3.0.5/2025-11-24-@asyncapi_nodejs-template-v3.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@nunjucks-filters/2.1.2/2025-11-24-@asyncapi_nunjucks-filters-v2.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@openapi-schema-parser/3.0.26/2025-11-24-@asyncapi_openapi-schema-parser-v3.0.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@optimizer/1.0.6/2025-11-24-@asyncapi_optimizer-v1.0.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@parser/3.4.1/2025-11-24-@asyncapi_parser-v3.4.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@parser/3.4.2/2025-11-24-@asyncapi_parser-v3.4.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   32
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@php-template/0.1.1/2025-11-24-@asyncapi_php-template-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@problem/1.0.1/2025-11-24-@asyncapi_problem-v1.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@protobuf-schema-parser/3.5.2/2025-11-24-@asyncapi_protobuf-schema-parser-v3.5.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   27
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@protobuf-schema-parser/3.5.3/2025-11-24-@asyncapi_protobuf-schema-parser-v3.5.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@python-paho-template/0.2.14/2025-11-24-@asyncapi_python-paho-template-v0.2.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@react-component/2.6.7/2025-11-24-@asyncapi_react-component-v2.6.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   77
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@server-api/0.16.24/2025-11-24-@asyncapi_server-api-v0.16.24.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@specs/6.10.1/2025-11-24-@asyncapi_specs-v6.10.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@specs/6.8.2/2025-11-24-@asyncapi_specs-v6.8.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@specs/6.8.3/2025-11-24-@asyncapi_specs-v6.8.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@studio/1.0.2/2025-11-24-@asyncapi_studio-v1.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   250
+  ],
+  [
+   "samples/npm/compromised_lib/@asyncapi@studio/1.0.3/2025-11-24-@asyncapi_studio-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   251
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.33/2026-04-21-@automagik_genie-v4.260421.33.zip",
+   "Critical",
+   "CRITICAL RISK",
+   264
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.34/2026-04-21-@automagik_genie-v4.260421.34.zip",
+   "Critical",
+   "CRITICAL RISK",
+   264
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.36/2026-04-21-@automagik_genie-v4.260421.36.zip",
+   "Critical",
+   "CRITICAL RISK",
+   268
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.37/2026-04-21-@automagik_genie-v4.260421.37.zip",
+   "Critical",
+   "CRITICAL RISK",
+   268
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.38/2026-04-21-@automagik_genie-v4.260421.38.zip",
+   "Critical",
+   "CRITICAL RISK",
+   268
+  ],
+  [
+   "samples/npm/compromised_lib/@automagik@genie/4.260421.39/2026-04-22-@automagik_genie-v4.260421.39.zip",
+   "Critical",
+   "CRITICAL RISK",
+   268
+  ],
+  [
+   "samples/npm/compromised_lib/@beproduct@nestjs-auth/0.1.14/2026-05-11-@beproduct_nestjs-auth-v0.1.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   14
+  ],
+  [
+   "samples/npm/compromised_lib/@beproduct@nestjs-auth/0.1.16/2026-05-11-@beproduct_nestjs-auth-v0.1.16.zip",
+   "Critical",
+   "CRITICAL RISK",
+   14
+  ],
+  [
+   "samples/npm/compromised_lib/@beproduct@nestjs-auth/0.1.17/2026-05-11-@beproduct_nestjs-auth-v0.1.17.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/npm/compromised_lib/@beproduct@nestjs-auth/0.1.19/2026-05-11-@beproduct_nestjs-auth-v0.1.19.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/npm/compromised_lib/@beproduct@nestjs-auth/0.1.8/2026-05-11-@beproduct_nestjs-auth-v0.1.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   14
+  ],
+  [
+   "samples/npm/compromised_lib/@bitwarden@cli/2026.4.0/2026-04-23-@bitwarden_cli-v2026.4.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1656
+  ],
+  [
+   "samples/npm/compromised_lib/@browserbasehq@bb9/1.2.21/2025-11-24-@browserbasehq_bb9-v1.2.21.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/compromised_lib/@browserbasehq@director-ai/1.0.3/2025-11-24-@browserbasehq_director-ai-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/compromised_lib/@browserbasehq@mcp/2.1.1/2025-11-24-@browserbasehq_mcp-v2.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   32
+  ],
+  [
+   "samples/npm/compromised_lib/@browserbasehq@sdk-functions/0.0.4/2025-11-24-@browserbasehq_sdk-functions-v0.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   32
+  ],
+  [
+   "samples/npm/compromised_lib/@browserbasehq@stagehand/3.0.4/2025-11-24-@browserbasehq_stagehand-v3.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   55
+  ],
+  [
+   "samples/npm/compromised_lib/@cap-js@db-service/2.10.1/2026-04-29-@cap-js_db-service-v2.10.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   16
+  ],
+  [
+   "samples/npm/compromised_lib/@cap-js@postgres/2.2.2/2026-04-29-@cap-js_postgres-v2.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   14
+  ],
+  [
+   "samples/npm/compromised_lib/@cap-js@sqlite/2.2.2/2026-04-29-@cap-js_sqlite-v2.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   19
+  ],
+  [
+   "samples/npm/compromised_lib/@clausehq@flows-step-mqtt/0.1.14/2025-11-24-@clausehq_flows-step-mqtt-v0.1.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@clausehq@flows-step-sendgridemail/0.1.14/2025-11-24-@clausehq_flows-step-sendgridemail-v0.1.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@clausehq@flows-step-taskscreateurl/0.1.14/2025-11-24-@clausehq_flows-step-taskscreateurl-v0.1.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/compromised_lib/@coveops@abi/2.0.1/2025-09-09-@coveops_abi-v2.0.1.zip",
+   "High",
+   "MEDIUM RISK",
+   14
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@commitlint/8.1.1/2025-09-16-@crowdstrike_commitlint-v8.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@commitlint/8.1.2/2025-09-16-@crowdstrike_commitlint-v8.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@falcon-shoelace/0.4.1/2025-09-16-@crowdstrike_falcon-shoelace-v0.4.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@falcon-shoelace/0.4.2/2025-09-16-@crowdstrike_falcon-shoelace-v0.4.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@foundry-js/0.19.1/2025-09-16-@crowdstrike_foundry-js-v0.19.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@foundry-js/0.19.2/2025-09-16-@crowdstrike_foundry-js-v0.19.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@glide-core/0.34.2/2025-09-16-@crowdstrike_glide-core-v0.34.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@glide-core/0.34.3/2025-09-16-@crowdstrike_glide-core-v0.34.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@logscale-file-editor/1.205.2/2025-09-16-@crowdstrike_logscale-file-editor-v1.205.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@tailwind-toucan-base/5.0.1/2025-09-16-@crowdstrike_tailwind-toucan-base-v5.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@crowdstrike@tailwind-toucan-base/5.0.2/2025-09-16-@crowdstrike_tailwind-toucan-base-v5.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   20
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@deluge/7.2.1/2025-09-15-@ctrl_deluge-v7.2.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@deluge/7.2.2/2025-09-15-@ctrl_deluge-v7.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@golang-template/1.4.2/2025-09-15-@ctrl_golang-template-v1.4.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@golang-template/1.4.3/2025-09-15-@ctrl_golang-template-v1.4.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@magnet-link/4.0.3/2025-09-15-@ctrl_magnet-link-v4.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@magnet-link/4.0.4/2025-09-15-@ctrl_magnet-link-v4.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-codemirror/7.0.1/2025-09-15-@ctrl_ngx-codemirror-v7.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-codemirror/7.0.2/2025-09-15-@ctrl_ngx-codemirror-v7.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-csv/6.0.1/2025-09-15-@ctrl_ngx-csv-v6.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-csv/6.0.2/2025-09-15-@ctrl_ngx-csv-v6.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   25
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-rightclick/4.0.1/2025-09-15-@ctrl_ngx-rightclick-v4.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ngx-rightclick/4.0.2/2025-09-15-@ctrl_ngx-rightclick-v4.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@qbittorrent/9.7.1/2025-09-15-@ctrl_qbittorrent-v9.7.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@qbittorrent/9.7.2/2025-09-15-@ctrl_qbittorrent-v9.7.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@react-adsense/2.0.1/2025-09-15-@ctrl_react-adsense-v2.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@react-adsense/2.0.2/2025-09-15-@ctrl_react-adsense-v2.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@shared-torrent/6.3.1/2025-09-15-@ctrl_shared-torrent-v6.3.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@shared-torrent/6.3.2/2025-09-15-@ctrl_shared-torrent-v6.3.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@tinycolor/4.1.1/2025-09-15-@ctrl_tinycolor-v4.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@tinycolor/4.1.2/2025-09-15-@ctrl_tinycolor-v4.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@torrent-file/4.1.1/2025-09-15-@ctrl_torrent-file-v4.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@torrent-file/4.1.2/2025-09-15-@ctrl_torrent-file-v4.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@transmission/7.3.1/2025-09-15-@ctrl_transmission-v7.3.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ts-base32/4.0.1/2025-09-15-@ctrl_ts-base32-v4.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@ctrl@ts-base32/4.0.2/2025-09-15-@ctrl_ts-base32-v4.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/compromised_lib/@dev-blinq@cucumber-js/1.0.131/2025-11-24-@dev-blinq_cucumber-js-v1.0.131.zip",
+   "Critical",
+   "CRITICAL RISK",
+   46
+  ],
+  [
+   "samples/npm/compromised_lib/@dev-blinq@cucumber_client/1.0.738/2025-11-24-@dev-blinq_cucumber_client-v1.0.738.zip",
+   "Critical",
+   "CRITICAL RISK",
+   68
+  ],
+  [
+   "samples/npm/compromised_lib/@dirigible-ai@sdk/0.6.3/2026-05-11-@dirigible-ai_sdk-v0.6.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/compromised_lib/@draftauth@client/0.2.2/2026-05-11-@draftauth_client-v0.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/npm/compromised_lib/@draftauth@core/0.13.2/2026-05-11-@draftauth_core-v0.13.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   73
+  ],
+  [
+   "samples/npm/compromised_lib/@draftlab@auth/0.24.2/2026-05-11-@draftlab_auth-v0.24.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   97
+  ],
+  [
+   "samples/npm/compromised_lib/@draftlab@auth-router/0.5.2/2026-05-11-@draftlab_auth-router-v0.5.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/compromised_lib/@draftlab@db/0.16.2/2026-05-11-@draftlab_db-v0.16.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   15
+  ],
+  [
+   "samples/npm/compromised_lib/@duckdb@duckdb-wasm/1.29.2/2025-09-09-@duckdb_duckdb-wasm-v1.29.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   195
+  ],
+  [
+   "samples/npm/compromised_lib/@duckdb@node-api/1.3.3/2025-09-09-@duckdb_node-api-v1.3.3.zip",
+   "Medium",
+   "MEDIUM RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-admin/999.9.9/2024-12-14-000webhost-admin-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-analytics/999.9.9/2024-12-14-000webhost-analytics-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-api/999.9.9/2024-12-14-000webhost-api-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-api-client/999.9.9/2024-12-14-000webhost-api-client-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-auth/999.9.9/2024-12-14-000webhost-auth-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-cache/999.9.9/2024-12-14-000webhost-cache-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-checkout/999.9.9/2024-12-14-000webhost-checkout-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-cloud/999.9.9/2024-12-14-000webhost-cloud-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-connect/999.9.9/2024-12-14-000webhost-connect-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/000webhost-database/999.9.9/2024-12-14-000webhost-database-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/0vulns-dependency-confusion-poc/1.0.0/2024-12-25-0vulns-dependency-confusion-poc-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/malicious_intent/0x-smart-contracts/99.99.99/2025-05-04-0x-smart-contracts-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/0xmisoke/1.0.0/2024-05-26-0xmisoke-v1.0.0.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/npm/malicious_intent/1231dai/1.0.0/2025-12-30-1231dai-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/1imit/1.0.0/2025-06-03-1imit-v1.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/1imit/1.0.3/2025-06-03-1imit-v1.0.3.zip",
+   "High",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/1inch-p2p-sdk/0.1.0/2025-08-06-1inch-p2p-sdk-v0.1.0.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/npm/malicious_intent/1kzr/1.0.0/2025-12-02-1kzr-v1.0.0.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/1password-sdk-examples/1.0.0/2025-02-17-1password-sdk-examples-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/1password-sdk-exapmles/1.0.0/2025-01-09-1password-sdk-exapmles-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/1uniswapinterface/1.1.2/2025-09-18-1uniswapinterface-v1.1.2.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/npm/malicious_intent/1unitest/1.0.1/2025-09-21-1unitest-v1.0.1.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl3469/0.0.2/2026-05-06-24712-pl3469-v0.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5004/0.0.1/2026-05-06-24712-pl5004-v0.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5005/0.0.1/2026-05-06-24712-pl5005-v0.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5006/0.0.1/2026-05-06-24712-pl5006-v0.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5006/0.0.2/2026-05-07-24712-pl5006-v0.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5006/0.0.3/2026-05-07-24712-pl5006-v0.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5006/0.0.4/2026-05-07-24712-pl5006-v0.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-pl5006/0.0.5/2026-05-07-24712-pl5006-v0.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv2/0.0.2/2026-05-06-24712-plv2-v0.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv2/0.1.0/2026-05-06-24712-plv2-v0.1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv2/0.2.0/2026-05-06-24712-plv2-v0.2.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv2/0.3.0/2026-05-06-24712-plv2-v0.3.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv3/0.0.1/2026-05-06-24712-plv3-v0.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/24712-plv3/0.0.2/2026-05-06-24712-plv3-v0.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/2fa-exe/1.0.0/2026-06-05-2fa-exe-v1.0.0.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/2fa-exe/1.0.1/2026-06-05-2fa-exe-v1.0.1.zip",
+   "High",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-admin/999.9.9/2024-12-15-32red-admin-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-analytics/999.9.9/2024-12-15-32red-analytics-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-api/999.9.9/2024-12-15-32red-api-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-api-client/999.9.9/2024-12-15-32red-api-client-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-auth/999.9.9/2024-12-15-32red-auth-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-cache/999.9.9/2024-12-15-32red-cache-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-checkout/999.9.9/2024-12-15-32red-checkout-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-cloud/999.9.9/2024-12-15-32red-cloud-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-connect/999.9.9/2024-12-15-32red-connect-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/32red-database/999.9.9/2024-12-15-32red-database-v999.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1
+  ],
+  [
+   "samples/npm/malicious_intent/3cx-call-control-apps/1.0.0/2025-01-08-3cx-call-control-apps-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/4m-clean-shopify-app/9.0.0/2024-12-19-4m-clean-shopify-app-v9.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/4m-clean-shopify-app/9.0.1/2024-12-19-4m-clean-shopify-app-v9.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/npm/malicious_intent/4m-clean-shopify-app/9.0.4/2024-12-20-4m-clean-shopify-app-v9.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   12
+  ],
+  [
+   "samples/npm/malicious_intent/511fola/99.99.99/2025-12-26-511fola-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/npm/malicious_intent/52471254zqdl55/22.2.2/2025-02-10-52471254zqdl55-v22.2.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/npm/malicious_intent/6sdgsd6s-control/9999.0.0/2025-08-15-6sdgsd6s-control-v9999.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/npm/malicious_intent/7702-eoa-implementation/1.0.0/2025-07-29-7702-eoa-implementation-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/7715-permissions-shared/2.0.0/2025-11-30-7715-permissions-shared-v2.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/npm/malicious_intent/@0xengine@meow/1.2.5/2024-09-25-@0xengine_meow-v1.2.5.zip",
+   "High",
+   "HIGH RISK",
+   11
+  ],
+  [
+   "samples/npm/malicious_intent/@0xengine@meow/1.2.7/2024-10-08-@0xengine_meow-v1.2.7.zip",
+   "High",
+   "HIGH RISK",
+   11
+  ],
+  [
+   "samples/npm/malicious_intent/@0xengine@xmlrpc/1.3.17/2024-09-24-@0xengine_xmlrpc-v1.3.17.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/@0xengine@xmlrpc/1.3.18/2024-10-08-@0xengine_xmlrpc-v1.3.18.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/@0xme5war@apicli/10.9.8/2025-07-30-@0xme5war_apicli-v10.9.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   9
+  ],
+  [
+   "samples/npm/malicious_intent/@0xme5war@apicli/2.0.0/2025-07-29-@0xme5war_apicli-v2.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.10/2024-07-03-@0xobelisk_sui-cli-v0.5.10.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.12/2024-09-07-@0xobelisk_sui-cli-v0.5.12.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.13/2024-10-27-@0xobelisk_sui-cli-v0.5.13.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.14/2024-10-28-@0xobelisk_sui-cli-v0.5.14.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.15/2024-10-31-@0xobelisk_sui-cli-v0.5.15.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.16/2024-11-01-@0xobelisk_sui-cli-v0.5.16.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.17/2024-11-02-@0xobelisk_sui-cli-v0.5.17.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.20/2024-11-03-@0xobelisk_sui-cli-v0.5.20.zip",
+   "High",
+   "MEDIUM RISK",
+   19
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.22/2024-11-06-@0xobelisk_sui-cli-v0.5.22.zip",
+   "High",
+   "MEDIUM RISK",
+   19
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.23/2024-11-08-@0xobelisk_sui-cli-v0.5.23.zip",
+   "High",
+   "MEDIUM RISK",
+   19
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.24/2024-11-24-@0xobelisk_sui-cli-v0.5.24.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.25/2024-11-25-@0xobelisk_sui-cli-v0.5.25.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.26/2024-12-05-@0xobelisk_sui-cli-v0.5.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.27/2024-12-07-@0xobelisk_sui-cli-v0.5.27.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.28/2024-12-07-@0xobelisk_sui-cli-v0.5.28.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.29/2024-12-07-@0xobelisk_sui-cli-v0.5.29.zip",
+   "Critical",
+   "CRITICAL RISK",
+   24
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.30/2024-12-08-@0xobelisk_sui-cli-v0.5.30.zip",
+   "Critical",
+   "CRITICAL RISK",
+   22
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.34/2024-12-09-@0xobelisk_sui-cli-v0.5.34.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.35/2024-12-14-@0xobelisk_sui-cli-v0.5.35.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.36/2024-12-14-@0xobelisk_sui-cli-v0.5.36.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.37/2024-12-14-@0xobelisk_sui-cli-v0.5.37.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.38/2024-12-15-@0xobelisk_sui-cli-v0.5.38.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.39/2024-12-15-@0xobelisk_sui-cli-v0.5.39.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.8/2024-06-07-@0xobelisk_sui-cli-v0.5.8.zip",
+   "High",
+   "MEDIUM RISK",
+   12
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/0.5.9/2024-06-07-@0xobelisk_sui-cli-v0.5.9.zip",
+   "High",
+   "MEDIUM RISK",
+   13
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.0/2024-12-15-@0xobelisk_sui-cli-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.1/2024-12-24-@0xobelisk_sui-cli-v1.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   26
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.10/2025-01-20-@0xobelisk_sui-cli-v1.0.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.11/2025-01-28-@0xobelisk_sui-cli-v1.0.11.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.3/2024-12-26-@0xobelisk_sui-cli-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.4/2025-01-03-@0xobelisk_sui-cli-v1.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   28
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.5/2025-01-05-@0xobelisk_sui-cli-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.6/2025-01-08-@0xobelisk_sui-cli-v1.0.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.7/2025-01-08-@0xobelisk_sui-cli-v1.0.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.0.8/2025-01-08-@0xobelisk_sui-cli-v1.0.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.0/2025-01-29-@0xobelisk_sui-cli-v1.1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.1/2025-02-11-@0xobelisk_sui-cli-v1.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   30
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.12/2025-04-19-@0xobelisk_sui-cli-v1.1.12.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.13/2025-04-22-@0xobelisk_sui-cli-v1.1.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.2/2025-02-13-@0xobelisk_sui-cli-v1.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   33
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.3/2025-03-02-@0xobelisk_sui-cli-v1.1.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   33
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.6/2025-03-25-@0xobelisk_sui-cli-v1.1.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.7/2025-04-02-@0xobelisk_sui-cli-v1.1.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.1.8/2025-04-07-@0xobelisk_sui-cli-v1.1.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   36
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.1/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.10/2025-05-07-@0xobelisk_sui-cli-v1.2.0-pre.10.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.11/2025-05-07-@0xobelisk_sui-cli-v1.2.0-pre.11.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.12/2025-05-07-@0xobelisk_sui-cli-v1.2.0-pre.12.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.13/2025-05-07-@0xobelisk_sui-cli-v1.2.0-pre.13.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.14/2025-05-09-@0xobelisk_sui-cli-v1.2.0-pre.14.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.15/2025-05-09-@0xobelisk_sui-cli-v1.2.0-pre.15.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.16/2025-05-09-@0xobelisk_sui-cli-v1.2.0-pre.16.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.17/2025-05-16-@0xobelisk_sui-cli-v1.2.0-pre.17.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.18/2025-05-17-@0xobelisk_sui-cli-v1.2.0-pre.18.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.2/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.20/2025-05-21-@0xobelisk_sui-cli-v1.2.0-pre.20.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.21/2025-05-27-@0xobelisk_sui-cli-v1.2.0-pre.21.zip",
+   "Critical",
+   "CRITICAL RISK",
+   23
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.24/2025-06-21-@0xobelisk_sui-cli-v1.2.0-pre.24.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.25/2025-06-22-@0xobelisk_sui-cli-v1.2.0-pre.25.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.26/2025-06-22-@0xobelisk_sui-cli-v1.2.0-pre.26.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.28/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.28.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.29/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.29.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.3/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.33/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.33.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.35/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.35.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.38/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.38.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.39/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.39.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.4/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.40/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.40.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.41/2025-06-23-@0xobelisk_sui-cli-v1.2.0-pre.41.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.42/2025-06-24-@0xobelisk_sui-cli-v1.2.0-pre.42.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.43/2025-06-24-@0xobelisk_sui-cli-v1.2.0-pre.43.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.45/2025-06-25-@0xobelisk_sui-cli-v1.2.0-pre.45.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.46/2025-06-25-@0xobelisk_sui-cli-v1.2.0-pre.46.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.47/2025-06-30-@0xobelisk_sui-cli-v1.2.0-pre.47.zip",
+   "Critical",
+   "CRITICAL RISK",
+   39
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.48/2025-07-01-@0xobelisk_sui-cli-v1.2.0-pre.48.zip",
+   "Critical",
+   "CRITICAL RISK",
+   41
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.49/2025-07-01-@0xobelisk_sui-cli-v1.2.0-pre.49.zip",
+   "Critical",
+   "CRITICAL RISK",
+   41
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.51/2025-07-02-@0xobelisk_sui-cli-v1.2.0-pre.51.zip",
+   "Critical",
+   "CRITICAL RISK",
+   41
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.53/2025-07-03-@0xobelisk_sui-cli-v1.2.0-pre.53.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.54/2025-07-13-@0xobelisk_sui-cli-v1.2.0-pre.54.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.55/2025-07-20-@0xobelisk_sui-cli-v1.2.0-pre.55.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.56/2025-07-20-@0xobelisk_sui-cli-v1.2.0-pre.56.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.57/2025-07-24-@0xobelisk_sui-cli-v1.2.0-pre.57.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.58/2025-07-24-@0xobelisk_sui-cli-v1.2.0-pre.58.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.59/2025-07-24-@0xobelisk_sui-cli-v1.2.0-pre.59.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.6/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.60/2025-07-24-@0xobelisk_sui-cli-v1.2.0-pre.60.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.61/2025-08-04-@0xobelisk_sui-cli-v1.2.0-pre.61.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.62/2025-08-04-@0xobelisk_sui-cli-v1.2.0-pre.62.zip",
+   "Critical",
+   "CRITICAL RISK",
+   43
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.64/2025-09-28-@0xobelisk_sui-cli-v1.2.0-pre.64.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.68/2025-09-28-@0xobelisk_sui-cli-v1.2.0-pre.68.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.69/2025-09-28-@0xobelisk_sui-cli-v1.2.0-pre.69.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.7/2025-05-04-@0xobelisk_sui-cli-v1.2.0-pre.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   31
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.70/2025-10-07-@0xobelisk_sui-cli-v1.2.0-pre.70.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.71/2025-10-09-@0xobelisk_sui-cli-v1.2.0-pre.71.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.72/2025-10-12-@0xobelisk_sui-cli-v1.2.0-pre.72.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.73/2025-10-16-@0xobelisk_sui-cli-v1.2.0-pre.73.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.74/2025-10-17-@0xobelisk_sui-cli-v1.2.0-pre.74.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.75/2025-10-18-@0xobelisk_sui-cli-v1.2.0-pre.75.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.76/2025-10-22-@0xobelisk_sui-cli-v1.2.0-pre.76.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.77/2025-10-24-@0xobelisk_sui-cli-v1.2.0-pre.77.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.78/2025-10-27-@0xobelisk_sui-cli-v1.2.0-pre.78.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.79/2025-11-02-@0xobelisk_sui-cli-v1.2.0-pre.79.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.80/2025-11-02-@0xobelisk_sui-cli-v1.2.0-pre.80.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.83/2025-11-03-@0xobelisk_sui-cli-v1.2.0-pre.83.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.84/2025-11-04-@0xobelisk_sui-cli-v1.2.0-pre.84.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.85/2025-11-06-@0xobelisk_sui-cli-v1.2.0-pre.85.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.86/2025-11-06-@0xobelisk_sui-cli-v1.2.0-pre.86.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.87/2025-11-15-@0xobelisk_sui-cli-v1.2.0-pre.87.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.88/2025-11-16-@0xobelisk_sui-cli-v1.2.0-pre.88.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.9/2025-05-06-@0xobelisk_sui-cli-v1.2.0-pre.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   21
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.92/2025-11-30-@0xobelisk_sui-cli-v1.2.0-pre.92.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.93/2025-11-30-@0xobelisk_sui-cli-v1.2.0-pre.93.zip",
+   "Critical",
+   "CRITICAL RISK",
+   48
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.95/2026-02-01-@0xobelisk_sui-cli-v1.2.0-pre.95.zip",
+   "Critical",
+   "CRITICAL RISK",
+   51
+  ],
+  [
+   "samples/npm/malicious_intent/@0xobelisk@sui-cli/1.2.0-pre.96/2026-02-02-@0xobelisk_sui-cli-v1.2.0-pre.96.zip",
+   "Critical",
+   "CRITICAL RISK",
+   51
+  ],
+  [
+   "samples/npm/malicious_intent/@0xzyo111@frontend-logger/0.0.1/2025-07-12-@0xzyo111_frontend-logger-v0.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/npm/malicious_intent/@0xzyo111@frontend-logger/0.0.2/2025-07-12-@0xzyo111_frontend-logger-v0.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/npm/malicious_intent/@0xzyo@confutionrce/1.0.0/2025-04-10-@0xzyo_confutionrce-v1.0.0.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/npm/malicious_intent/@3kali182@angular-1.6/9.1.1/2025-07-11-@3kali182_angular-1.6-v9.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/malicious_intent/@3kali182@selenium-webdriver4/99.9.9/2025-07-11-@3kali182_selenium-webdriver4-v99.9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@api-client/999.0.2/2026-03-15-@3stripes_api-client-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@api-client/999.0.3/2026-03-15-@3stripes_api-client-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@auth/999.0.2/2026-03-15-@3stripes_auth-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@auth/999.0.3/2026-03-15-@3stripes_auth-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@common/999.0.2/2026-03-15-@3stripes_common-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@common/999.0.3/2026-03-15-@3stripes_common-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@components/999.0.2/2026-03-15-@3stripes_components-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@components/999.0.3/2026-03-15-@3stripes_components-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@config/999.0.2/2026-03-15-@3stripes_config-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@config/999.0.3/2026-03-15-@3stripes_config-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@core/999.0.2/2026-03-15-@3stripes_core-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@core/999.0.3/2026-03-15-@3stripes_core-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@helpers/999.0.2/2026-03-15-@3stripes_helpers-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@helpers/999.0.3/2026-03-15-@3stripes_helpers-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@lib/999.0.2/2026-03-15-@3stripes_lib-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@lib/999.0.3/2026-03-15-@3stripes_lib-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@sdk/999.0.2/2026-03-15-@3stripes_sdk-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@sdk/999.0.3/2026-03-15-@3stripes_sdk-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@shared/999.0.2/2026-03-15-@3stripes_shared-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@shared/999.0.3/2026-03-15-@3stripes_shared-v999.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/npm/malicious_intent/@3stripes@toolkit/999.0.2/2026-03-15-@3stripes_toolkit-v999.0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/pypi/compromised_lib/durabletask/1.4.1/2026-05-19-durabletask-v1.4.1.zip",
+   "High",
+   "HIGH RISK",
+   12
+  ],
+  [
+   "samples/pypi/compromised_lib/durabletask/1.4.2/2026-05-19-durabletask-v1.4.2.zip",
+   "High",
+   "HIGH RISK",
+   16
+  ],
+  [
+   "samples/pypi/compromised_lib/durabletask/1.4.3/2026-05-19-durabletask-v1.4.3.zip",
+   "High",
+   "HIGH RISK",
+   28
+  ],
+  [
+   "samples/pypi/compromised_lib/elementary-data/0.23.3/2026-04-24-elementary-data-v0.23.3.zip",
+   "High",
+   "HIGH RISK",
+   35
+  ],
+  [
+   "samples/pypi/compromised_lib/embiggen/0.11.97/2026-06-08-embiggen-v0.11.97.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/compromised_lib/gpsea/0.9.14/2026-06-08-gpsea-v0.9.14.zip",
+   "High",
+   "HIGH RISK",
+   9
+  ],
+  [
+   "samples/pypi/compromised_lib/guardrails-ai/0.10.1/2026-05-12-guardrails-ai-v0.10.1.zip",
+   "High",
+   "MEDIUM RISK",
+   29
+  ],
+  [
+   "samples/pypi/compromised_lib/lightning/2.6.2/2026-04-30-lightning-v2.6.2.zip",
+   "High",
+   "MEDIUM RISK",
+   41
+  ],
+  [
+   "samples/pypi/compromised_lib/lightning/2.6.3/2026-04-30-lightning-v2.6.3.zip",
+   "High",
+   "MEDIUM RISK",
+   41
+  ],
+  [
+   "samples/pypi/compromised_lib/litellm/1.82.7/2026-03-24-litellm-v1.82.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   1473
+  ],
+  [
+   "samples/pypi/compromised_lib/litellm/1.82.8/2026-03-24-litellm-v1.82.8.zip",
+   "Critical",
+   "CRITICAL RISK",
+   512
+  ],
+  [
+   "samples/pypi/compromised_lib/mflux-streamlit/0.0.3/2026-06-07-mflux-streamlit-v0.0.3.zip",
+   "High",
+   "MEDIUM RISK",
+   5
+  ],
+  [
+   "samples/pypi/compromised_lib/mflux-streamlit/0.0.4/2026-06-07-mflux-streamlit-v0.0.4.zip",
+   "High",
+   "MEDIUM RISK",
+   5
+  ],
+  [
+   "samples/pypi/compromised_lib/mistralai/2.4.6/2026-05-12-mistralai-v2.4.6.zip",
+   "High",
+   "HIGH RISK",
+   391
+  ],
+  [
+   "samples/pypi/compromised_lib/nhmpy/2.4.7/2026-06-07-nhmpy-v2.4.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   235
+  ],
+  [
+   "samples/pypi/compromised_lib/num2words/0.5.15/2025-07-28-num2words-v0.5.15.zip",
+   "Critical",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/pypi/compromised_lib/num2words/0.5.16/2025-07-28-num2words-v0.5.16.zip",
+   "Critical",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/pypi/compromised_lib/ppkt2synergy/0.1.1/2026-06-08-ppkt2synergy-v0.1.1.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/compromised_lib/pyphetools/0.9.120/2026-06-08-pyphetools-v0.9.120.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/compromised_lib/telnyx/4.87.1/2026-03-27-telnyx-v4.87.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   148
+  ],
+  [
+   "samples/pypi/compromised_lib/telnyx/4.87.2/2026-03-27-telnyx-v4.87.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   148
+  ],
+  [
+   "samples/pypi/compromised_lib/ultralytics/8.3.41/2024-12-04-ultralytics-v8.3.41.zip",
+   "High",
+   "HIGH RISK",
+   73
+  ],
+  [
+   "samples/pypi/compromised_lib/ultralytics/8.3.42/2024-12-05-ultralytics-v8.3.42.zip",
+   "High",
+   "HIGH RISK",
+   73
+  ],
+  [
+   "samples/pypi/compromised_lib/ultralytics/8.3.45/2024-12-07-ultralytics-v8.3.45.zip",
+   "Critical",
+   "CRITICAL RISK",
+   94
+  ],
+  [
+   "samples/pypi/compromised_lib/ultralytics/8.3.46/2024-12-07-ultralytics-v8.3.46.zip",
+   "Critical",
+   "CRITICAL RISK",
+   225
+  ],
+  [
+   "samples/pypi/compromised_lib/xinference/2.6.0/2026-04-21-xinference-v2.6.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   237
+  ],
+  [
+   "samples/pypi/compromised_lib/xinference/2.6.1/2026-04-21-xinference-v2.6.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   240
+  ],
+  [
+   "samples/pypi/compromised_lib/xinference/2.6.2/2026-04-21-xinference-v2.6.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   237
+  ],
+  [
+   "samples/pypi/malicious_intent/0wneg/0.9.0/2023-05-14-0wneg-v0.9.0.zip",
+   "Critical",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/1337test/1/2023-05-03-1337test-v1.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/282828282828282828/2022-11-16-282828282828282828.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/EZBEAMER/2022-11-14-EZBEAMER.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/EZBEAMSW/2022-11-14-EZBEAMSW.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/Gunbase/2022-11-14-Gunbase.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/J3y5r/2022-11-14-J3y5r.zip",
+   "High",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/PaypalOtpBypass/2022-11-14-PaypalOtpBypass.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/Roblox.-com/2022-11-14-Roblox.-com.zip",
+   "High",
+   "MEDIUM RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/SentinelOne/1.0.8/2022-12-20-SentinelOne-1.0.8.zip",
+   "High",
+   "HIGH RISK",
+   28
+  ],
+  [
+   "samples/pypi/malicious_intent/a-b27/1.0.0/2025-06-09-a-b27-v1.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/a1rn/0.1.4/2023-05-15-a1rn-v0.1.4.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/accesspdp/2.0.1/2025-12-31-accesspdp-v2.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/activedevbadge/2022-11-12-activedevbadge.zip",
+   "Critical",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/adanbu/92.6/2024-11-12-adanbu-v92.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/adandu/92.6/2024-11-12-adandu-v92.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/adandv/912.6/2024-11-12-adandv-v912.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa/1.0.0/2023-06-22-advpruebitaa-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa3/1.0.0/2023-06-22-advpruebitaa3-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa4/1.0.0/2023-06-22-advpruebitaa4-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa6/1.0.0/2023-06-22-advpruebitaa6-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa8/1.0.0/2023-06-22-advpruebitaa8-v1.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/advpruebitaa9/1.0.0/2023-06-23-advpruebitaa9-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/aeivasta/0.3/2023-04-20-aeivasta-v0.3.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/aeodata/0.4/2023-04-14-aeodata-v0.4.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/aeodatav04/0.4/2023-04-14-aeodatav04-v0.4.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/aes44/2022-11-16-aes44.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/aet-test/1.0.1/2026-04-17-aet-test-v1.0.1.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/affinequant/99.6/2024-11-19-affinequant-v99.6.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/0.1.0/2025-05-19-ai-labs-snippets-sdk-v0.1.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/1.1.0/2025-05-19-ai-labs-snippets-sdk-v1.1.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/1.2.0/2025-05-19-ai-labs-snippets-sdk-v1.2.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/2.0.0/2025-05-19-ai-labs-snippets-sdk-v2.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/2.2.0/2025-05-19-ai-labs-snippets-sdk-v2.2.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/3.0.0/2025-05-19-ai-labs-snippets-sdk-v3.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/3.2.0/2025-05-19-ai-labs-snippets-sdk-v3.2.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/3.3.0/2025-05-19-ai-labs-snippets-sdk-v3.3.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/3.4.0/2025-05-19-ai-labs-snippets-sdk-v3.4.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/3.5.0/2025-05-19-ai-labs-snippets-sdk-v3.5.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/4.0.0/2025-05-19-ai-labs-snippets-sdk-v4.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-labs-snippets-sdk/4.4.0/2025-05-19-ai-labs-snippets-sdk-v4.4.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/ai-solver-py/1.0/2023-04-03-ai-solver-py-v1.0.zip",
+   "High",
+   "MEDIUM RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/aietelegram/0.3/2023-04-21-aietelegram-v0.3.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/aiiohttp/2022-12-19-aiiohttp.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/ailyboostbot/1.0/2023-04-03-ailyboostbot-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/ailynitro/1.0/2023-04-03-ailynitro-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/ailzyn1tr0/1.0/2023-03-30-ailzyn1tr0-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/ailzynitro/1.0/2023-03-30-ailzynitro-v1.0.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/aio3/2022-12-20-aio3.zip",
+   "High",
+   "HIGH RISK",
+   20
+  ],
+  [
+   "samples/pypi/malicious_intent/aioconsol/2022-12-07-aioconsol.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-sever-patch/3.3.7/2025-12-25-aiogram-sever-patch-v3.3.7.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-sever-patch/3.3.8/2025-12-25-aiogram-sever-patch-v3.3.8.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-sever-patch/3.3.9/2025-12-25-aiogram-sever-patch-v3.3.9.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-sever-patch/3.5.0/2025-12-25-aiogram-sever-patch-v3.5.0.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-sever-patch/3.6.0/2025-12-25-aiogram-sever-patch-v3.6.0.zip",
+   "High",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.0.1/2025-12-28-aiogram-types-v3-v3.0.1.zip",
+   "Critical",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.0.2/2025-12-28-aiogram-types-v3-v3.0.2.zip",
+   "Critical",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.0.5/2025-12-28-aiogram-types-v3-v3.0.5.zip",
+   "Critical",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.1.0/2025-12-28-aiogram-types-v3-v3.1.0.zip",
+   "Critical",
+   "HIGH RISK",
+   39
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.1.5/2025-12-28-aiogram-types-v3-v3.1.5.zip",
+   "Critical",
+   "HIGH RISK",
+   56
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.2.0/2025-12-28-aiogram-types-v3-v3.2.0.zip",
+   "Critical",
+   "HIGH RISK",
+   45
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.3.1/2025-12-28-aiogram-types-v3-v3.3.1.zip",
+   "Critical",
+   "HIGH RISK",
+   59
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.4.0/2025-12-28-aiogram-types-v3-v3.4.0.zip",
+   "Critical",
+   "HIGH RISK",
+   52
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.9.7/2025-12-28-aiogram-types-v3-v3.9.7.zip",
+   "Critical",
+   "HIGH RISK",
+   56
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/3.9.8/2025-12-28-aiogram-types-v3-v3.9.8.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/4.2.0/2025-12-28-aiogram-types-v3-v4.2.0.zip",
+   "Critical",
+   "HIGH RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/aiogram-types-v3/5.9.8/2025-12-28-aiogram-types-v3-v5.9.8.zip",
+   "High",
+   "HIGH RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/aiohttp-libscss/0.25.0/2024-08-10-aiohttp-libscss-v0.25.0.zip",
+   "Critical",
+   "HIGH RISK",
+   33
+  ],
+  [
+   "samples/pypi/malicious_intent/aiohtttp/2022-12-19-aiohtttp.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/aiohtttps/2022-12-19-aiohtttps.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/aiolrucache/0.1.0/2026-03-20-aiolrucache-v0.1.0.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/aiolrucache/0.1.1/2026-03-20-aiolrucache-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/aiolrucache/0.2.0/2026-03-21-aiolrucache-v0.2.0.zip",
+   "High",
+   "MEDIUM RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/aiolrucache/0.3.0/2026-03-21-aiolrucache-v0.3.0.zip",
+   "High",
+   "HIGH RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/aiopbotocore/0.1.0/2024-11-10-aiopbotocore-v0.1.0.zip",
+   "Critical",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/aiopbotocore/0.2.0/2024-11-10-aiopbotocore-v0.2.0.zip",
+   "Critical",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/aiopbotocore/0.3/2024-11-10-aiopbotocore-v0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/aiopbotocore/0.4.0/2024-11-10-aiopbotocore-v0.4.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/aiopbotocore/0.9.0/2024-11-10-aiopbotocore-v0.9.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/airduq/1.0/2023-06-05-airduq-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/airio/9.9.9/2026-03-20-airio-v9.9.9.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/airnitro/1.0/2023-06-04-airnitro-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/algokit-arc/10.0.1/2023-08-05-algokit-arc-v10.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/aliyun-ai-labs-sdk/1.0.0/2025-05-20-aliyun-ai-labs-sdk-v1.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/aliyun-ai-labs-snippets-sdk/1.0.0/2025-05-20-aliyun-ai-labs-snippets-sdk-v1.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/aliyun-ai-labs-snippets-sdk/2.0.0/2025-05-20-aliyun-ai-labs-snippets-sdk-v2.0.0.zip",
+   "High",
+   "MEDIUM RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/aliyun-ai-labs-snippets-sdk/2.1.0/2025-05-20-aliyun-ai-labs-snippets-sdk-v2.1.0.zip",
+   "High",
+   "MEDIUM RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/alzynitro/1.0/2023-03-28-alzynitro-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/anaconda-anon-usage/0.4.9/2024-08-24-anaconda-anon-usage-v0.4.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/analyze-me/1.0.0/2023-03-23-analyze-me-v1.0.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/androidspyeye/2.5/2023-04-17-androidspyeye-v2.5.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/anduril-sdk/1.0.0/2026-03-23-anduril-sdk-v1.0.0.zip",
+   "Low",
+   "LOW RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/anduril-sdk/1.0.1/2026-03-23-anduril-sdk-v1.0.1.zip",
+   "High",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/antibyfron/0.0.1/2024-09-14-antibyfron-v0.0.1.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/aowdjpawojd/2022-11-08-aowdjpawojd.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/arangodb-driver/1.0.0/2023-06-04-arangodb-driver-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/arangodb-python/1.0.0/2023-06-04-arangodb-python-v1.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-02f73e0e/1.0.3/2024-11-07-artifact-lab-3-package-02f73e0e-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-02f73e0e/1.0.4/2024-11-07-artifact-lab-3-package-02f73e0e-v1.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-24ddbc49/0.5.0/2024-10-22-artifact-lab-3-package-24ddbc49-v0.5.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-24ddbc49/0.6.0/2024-10-22-artifact-lab-3-package-24ddbc49-v0.6.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-24ddbc49/0.7.0/2024-10-22-artifact-lab-3-package-24ddbc49-v0.7.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   11
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.2/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.4/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.4.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-736f752d/0.1.1/2024-11-09-artifact-lab-3-package-736f752d-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-736f752d/0.1.3/2024-11-09-artifact-lab-3-package-736f752d-v0.1.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.1/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.1.1/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.2.0/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.2.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.2.1/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.2.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b1ec2b9f/0.2.3/2024-11-09-artifact-lab-3-package-b1ec2b9f-v0.2.3.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   8
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/artifact-lab-3-package-e7ffd2ef/0.1.1/2024-10-11-artifact-lab-3-package-e7ffd2ef-v0.1.1.zip",
+   "Critical",
+   "HIGH RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/artindex/0.0.1/2024-09-12-artindex-v0.0.1.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/arubomber/2022-11-21-arubomber.zip",
+   "High",
+   "HIGH RISK",
+   386
+  ],
+  [
+   "samples/pypi/malicious_intent/asciidrawing/0.1.2/2024-09-20-asciidrawing-v0.1.2.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/aslmutetion/98.7/2024-11-05-aslmutetion-v98.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/aslmutetion/99.7/2024-11-05-aslmutetion-v99.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/asmutation/99.7/2024-11-06-asmutation-v99.7.zip",
+   "Critical",
+   "CRITICAL RISK",
+   3
+  ],
+  [
+   "samples/pypi/malicious_intent/assaulthimars/1.3.5/2024-10-02-assaulthimars-v1.3.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   13
+  ],
+  [
+   "samples/pypi/malicious_intent/assulthimars/1.3.5/2024-10-02-assulthimars-v1.3.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   13
+  ],
+  [
+   "samples/pypi/malicious_intent/astralnitro/1.0/2023-06-03-astralnitro-v1.0.zip",
+   "Critical",
+   "CRITICAL RISK",
+   29
+  ],
+  [
+   "samples/pypi/malicious_intent/asycn/2022-12-19-asycn.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/asyncmodules/2.3.5/2024-10-01-asyncmodules-v2.3.5.zip",
+   "Critical",
+   "CRITICAL RISK",
+   13
+  ],
+  [
+   "samples/pypi/malicious_intent/asyncoi/2022-12-19-asyncoi.zip",
+   null,
+   "LOW RISK",
+   0
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-00/99.99.99/2025-06-07-atlasctf-21-prod-00-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-00/99.99.99.1/2025-06-07-atlasctf-21-prod-00-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-01/99.99.99/2025-06-07-atlasctf-21-prod-01-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-01/99.99.99.1/2025-06-07-atlasctf-21-prod-01-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-02/99.99.99/2025-06-07-atlasctf-21-prod-02-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-02/99.99.99.1/2025-06-07-atlasctf-21-prod-02-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-03/99.99.99/2025-06-07-atlasctf-21-prod-03-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-03/99.99.99.1/2025-06-07-atlasctf-21-prod-03-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-04/99.99.99/2025-06-07-atlasctf-21-prod-04-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-04/99.99.99.1/2025-06-07-atlasctf-21-prod-04-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-05/99.99.99/2025-06-07-atlasctf-21-prod-05-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-05/99.99.99.1/2025-06-07-atlasctf-21-prod-05-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-06/99.99.99/2025-06-07-atlasctf-21-prod-06-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-06/99.99.99.1/2025-06-07-atlasctf-21-prod-06-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-07/99.99.99/2025-06-07-atlasctf-21-prod-07-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-07/99.99.99.1/2025-06-07-atlasctf-21-prod-07-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-08/99.99.99/2025-06-07-atlasctf-21-prod-08-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-08/99.99.99.1/2025-06-07-atlasctf-21-prod-08-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-09/99.99.99/2025-06-07-atlasctf-21-prod-09-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-09/99.99.99.1/2025-06-07-atlasctf-21-prod-09-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-10/99.99.99/2025-06-07-atlasctf-21-prod-10-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-10/99.99.99.1/2025-06-07-atlasctf-21-prod-10-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-11/99.99.99/2025-06-07-atlasctf-21-prod-11-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-11/99.99.99.1/2025-06-07-atlasctf-21-prod-11-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-12/99.99.99/2025-06-07-atlasctf-21-prod-12-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-12/99.99.99.1/2025-06-07-atlasctf-21-prod-12-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-13/99.99.99/2025-06-07-atlasctf-21-prod-13-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-13/99.99.99.1/2025-06-07-atlasctf-21-prod-13-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-14/99.99.99/2025-06-07-atlasctf-21-prod-14-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-14/99.99.99.1/2025-06-07-atlasctf-21-prod-14-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-15/99.99.99/2025-06-07-atlasctf-21-prod-15-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-15/99.99.99.1/2025-06-07-atlasctf-21-prod-15-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-16/99.99.99/2025-06-07-atlasctf-21-prod-16-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-16/99.99.99.1/2025-06-07-atlasctf-21-prod-16-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-17/99.99.99/2025-06-07-atlasctf-21-prod-17-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-17/99.99.99.1/2025-06-07-atlasctf-21-prod-17-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-18/99.99.99/2025-06-07-atlasctf-21-prod-18-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-18/99.99.99.1/2025-06-07-atlasctf-21-prod-18-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-19/99.99.99/2025-06-07-atlasctf-21-prod-19-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-19/99.99.99.1/2025-06-07-atlasctf-21-prod-19-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-20/99.99.99/2025-06-07-atlasctf-21-prod-20-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-20/99.99.99.1/2025-06-07-atlasctf-21-prod-20-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-21/99.99.99/2025-06-07-atlasctf-21-prod-21-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-21/99.99.99.1/2025-06-07-atlasctf-21-prod-21-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-29/0.1/2025-06-07-atlasctf-21-prod-29-v0.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-29/9.9/2025-06-07-atlasctf-21-prod-29-v9.9.zip",
+   "Critical",
+   "CRITICAL RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-29/99.99.99/2025-06-07-atlasctf-21-prod-29-v99.99.99.zip",
+   "Critical",
+   "CRITICAL RISK",
+   5
+  ],
+  [
+   "samples/pypi/malicious_intent/atlasctf-21-prod-29/99.99.99.1/2025-06-07-atlasctf-21-prod-29-v99.99.99.1.zip",
+   "Critical",
+   "CRITICAL RISK",
+   7
+  ],
+  [
+   "samples/pypi/malicious_intent/atlassian-exp/99.0.0/2025-11-26-atlassian-exp-v99.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/atlassian-praz/99.0.0/2025-11-26-atlassian-praz-v99.0.0.zip",
+   "Critical",
+   "HIGH RISK",
+   1
+  ],
+  [
+   "samples/pypi/malicious_intent/auto-scrubber/0.1/2024-05-23-auto-scrubber-v0.1.zip",
+   "Critical",
+   "HIGH RISK",
+   4
+  ],
+  [
+   "samples/pypi/malicious_intent/automsg/0.0.1/2024-09-11-automsg-v0.0.1.zip",
+   "High",
+   "HIGH RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/axderz/1.0.4/2023-03-15-axderz-v1.0.4.zip",
+   "Critical",
+   "HIGH RISK",
+   9
+  ],
+  [
+   "samples/pypi/malicious_intent/axelo/2022-11-24-axelo.zip",
+   "High",
+   "HIGH RISK",
+   2
+  ],
+  [
+   "samples/pypi/malicious_intent/azure-eventhub-checkpointstoretable/9.9.9/2026-03-20-azure-eventhub-checkpointstoretable-v9.9.9.zip",
+   "High",
+   "HIGH RISK",
+   6
+  ],
+  [
+   "samples/pypi/malicious_intent/azure-sdk-tools/2022-11-17-azure-sdk-tools.zip",
+   "Critical",
+   "CRITICAL RISK",
+   10
+  ],
+  [
+   "samples/pypi/malicious_intent/b10connoisseur/0.12.0/2026-03-06-b10connoisseur-v0.12.0.zip",
+   "Critical",
+   "HIGH RISK",
+   20
+  ],
+  [
+   "samples/pypi/malicious_intent/b10connoisseur/0.13.0/2026-03-06-b10connoisseur-v0.13.0.zip",
+   "High",
+   "HIGH RISK",
+   19
+  ],
+  [
+   "samples/pypi/malicious_intent/b10connoisseur/0.14.0/2026-03-06-b10connoisseur-v0.14.0.zip",
+   "High",
+   "HIGH RISK",
+   19
+  ],
+  [
+   "samples/pypi/malicious_intent/b10connoisseur/0.17.0/2026-03-06-b10connoisseur-v0.17.0.zip",
+   "High",
+   "HIGH RISK",
+   19
+  ],
+  [
+   "samples/pypi/malicious_intent/b10connoisseur/0.18.0/2026-03-06-b10connoisseur-v0.18.0.zip",
+   "High",
+   "HIGH RISK",
+   19
+  ]
+ ]
+}

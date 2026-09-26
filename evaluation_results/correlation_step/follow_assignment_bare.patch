@@ -1,0 +1,50 @@
+diff --git a/cli/src/scanner/correlate.rs b/cli/src/scanner/correlate.rs
+index d4fbaba..f15e76c 100644
+--- a/cli/src/scanner/correlate.rs
++++ b/cli/src/scanner/correlate.rs
+@@ -394,6 +394,31 @@ fn uses_word(text: &str, ident: &str) -> bool {
+     false
+ }
+ 
++/// [`uses_word`], counting only occurrences not followed by `.`: the name
++/// itself is used, not an attribute or method of it.
++fn used_bare(text: &str, ident: &str) -> bool {
++    if ident.is_empty() {
++        return false;
++    }
++    let bytes = text.as_bytes();
++    let mut start = 0;
++    while let Some(pos) = text[start..].find(ident) {
++        let at = start + pos;
++        let end = at + ident.len();
++        start = at + 1;
++        let before_ok = at == 0 || !is_ident_byte(bytes[at - 1]);
++        let after_ok = end >= bytes.len() || !is_ident_byte(bytes[end]);
++        if before_ok
++            && after_ok
++            && bytes.get(end) != Some(&b'.')
++            && !names_a_parameter(bytes, at, end)
++        {
++            return true;
++        }
++    }
++    false
++}
++
+ /// Is the word at `bytes[at..end]` a keyword-argument name, an assignment
+ /// target or an object key (see [`uses_word`])?
+ fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
+@@ -527,9 +552,12 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
+                             return true;
+                         }
+                         if rule.follow_assignment && !file_only {
++                            // A derived name counts only where it is sent
++                            // whole: `client.status` is a part of an object
++                            // built from the value, not the value.
+                             via = one_step(lines, source_line, sink_line, &bound)
+                                 .into_iter()
+-                                .find(|(name, _)| used(name));
++                                .find(|(name, _)| used_bare(link_text, name));
+                         }
+                         via.is_some()
+                     })

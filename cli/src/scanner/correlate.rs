@@ -48,14 +48,19 @@
 //! `token=role_token`) is not a use of it.
 //!
 //! A rule may set `name_uses: value` to read names that way in the ordinary
-//! window too. Every built-in chain does: `requests.get(url=base + "/ping")`
-//! passes a keyword argument that happens to be called `url`, and a `url`
-//! bound from `os.environ["DATABASE_URL"]` two lines up is not what it
-//! sends. The cost is a flow that only linked by that coincidence of names:
-//! `data = dict(os.environ)`, `encoded = urlencode(data)`, then
-//! `Request(url, data=encoded)` sends the environment in two hops, and the
-//! link through the keyword `data=` was never a reading of that flow (the
-//! same code with the variable called `env` did not link either).
+//! window too. Every built-in chain does: a request that passes a keyword
+//! argument which happens to be called `url` (`get(url=base + "/ping")`)
+//! does not send a `url` bound from the database URL in the environment two
+//! lines up. The cost is a flow that only linked by that coincidence of
+//! names: a copy of the whole environment bound to `data`, then
+//! `encoded = urlencode(data)`, then `Request(url, data=encoded)` sends the
+//! environment in two hops, and the link through the keyword `data=` was
+//! never a reading of that flow (the same code with the copy called `env`
+//! did not link either). Following
+//! that second hop (`encoded` bound because its expression uses `data`) was
+//! measured and not adopted: it links a client, a connection or a signature
+//! built from a key as if it were the key, and changed no real verdict except
+//! through such a link (docs/detection/correlation-names.md).
 //!
 //! A rule may set `max_line_length`: a source or sink on a longer line is not
 //! linked, because on a minified bundle one line holds a whole program.

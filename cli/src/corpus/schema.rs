@@ -395,7 +395,7 @@ pub struct CorrelationRule {
     /// Which occurrences of a bound name in the sink's window link. `word`
     /// (the default) takes any whole word; `value` takes only a use of the
     /// name as a value, so a keyword argument's name, an assignment target
-    /// or an object key that merely repeats it (`requests.get(url=...)`
+    /// or an object key that merely repeats it (a call's `url=` keyword
     /// beside a bound `url`) does not link. A rule with
     /// `sink_window_before` reads names as `value` whatever this says.
     #[serde(default, skip_serializing_if = "NameUses::is_word")]
