@@ -1,5 +1,5 @@
 {
- "generated_by": "scripts/datadog_diff.py, two runs on 2026-09-26: (1) head, name_uses, B, C; (2) name_uses, name_uses_python_keys. Diffs recomputed from their rows with the committed diff() (whole chain records, counted); chain snippets reduced to their link with link_of()",
+ "generated_by": "scripts/datadog_diff.py, three runs on 2026-09-26: (1) head, name_uses, B, C; (2) name_uses, name_uses_python_keys; (3) base-09d9fae, shipped. Diffs recomputed from their rows with the committed diff() (whole chain records, counted); chain snippets reduced to their link with link_of()",
  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
  "fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
  "limit": 204,
@@ -9,7 +9,9 @@
   "name_uses": "release build of fa601b8: every built-in chain reads names as values",
   "follow_assignment": "fa601b8 + evaluation_results/correlation_step/follow_assignment.patch (B)",
   "follow_assignment_bare": "B + follow_assignment_bare.patch (C)",
-  "name_uses_python_keys": "this change as shipped: name_uses, and a bare name inside {...} in a Python file read as a value (measured with its first implementation; the single-pass bracket scan that ships was re-run against it on every corpus: identical)"
+  "name_uses_python_keys": "this change as shipped: name_uses, and a bare name inside {...} in a Python file read as a value (measured with its first implementation; the single-pass bracket scan that ships was re-run against it on every corpus: identical)",
+  "base-09d9fae": "09d9fae: #168 and #170 (source maps not correlated), without #169",
+  "shipped": "09d9fae + #169 + the Python-braces fix (this branch)"
  },
  "recall": {
   "head-ef0b95f": {
@@ -41,6 +43,18 @@
    "Medium": 761,
    "High": 752,
    "Critical": 561
+  },
+  "base-09d9fae": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
+  },
+  "shipped": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
   }
  },
  "exfil_chain_samples": {
@@ -48,7 +62,9 @@
   "name_uses": 23,
   "follow_assignment": 41,
   "follow_assignment_bare": 40,
-  "name_uses_python_keys": 23
+  "name_uses_python_keys": 23,
+  "base-09d9fae": 40,
+  "shipped": 23
  },
  "budget_expired": {
   "head-ef0b95f": [
@@ -62,7 +78,9 @@
   "follow_assignment": [],
   "follow_assignment_bare": [],
   "name_uses (run 2)": [],
-  "name_uses_python_keys (run 2)": []
+  "name_uses_python_keys (run 2)": [],
+  "base-09d9fae (run 3)": [],
+  "shipped (run 3)": []
  },
  "budget_check": "Samples that hit the 30 s per-file budget (PROV-BUDGET-001) in some runs were rescanned with every build of run 1 and SIGIL_FILE_BUDGET_SECS=0: the chain findings are identical across all four builds (the two @asyncapi/studio samples: 44 each; @automagik/genie 4.260421.33: 2). The chain changes marked budget_expired below are timing, not the build.",
  "diffs": {
@@ -1044,6 +1062,302 @@
    "severity": [],
    "verdict": [],
    "chains": []
+  },
+  "base-09d9fae->shipped (run 3)": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     561,
+     561
+    ]
+   },
+   "severity": [],
+   "verdict": [],
+   "chains": [
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package/0.1.2/2024-10-11-artifact-lab-3-package-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpk3ltyin2/artifact-lab-3-package/artifact_lab_3_package-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-153c1c1a/0.1.1/2024-10-15-artifact-lab-3-package-153c1c1a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpxulmfpmg/artifact-lab-3-package-153c1c1a/artifact_lab_3_package_153c1c1a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-1f7a39bc/0.1.1/2024-09-05-artifact-lab-3-package-1f7a39bc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8qdrlt0n/artifact_lab_3_package_1f7a39bc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-2387a34d/0.1.1/2024-08-16-artifact-lab-3-package-2387a34d-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2h_2ie5m/artifact-lab-3-package-2387a34d-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-34b21b63/0.1.1/2024-08-18-artifact-lab-3-package-34b21b63-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp7k6w05zo/artifact-lab-3-package-34b21b63-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-3ccf47e8/0.1.1/2024-08-16-artifact-lab-3-package-3ccf47e8-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpsjnk8yif/artifact-lab-3-package-3ccf47e8-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-438d82fc/0.1.1/2024-10-11-artifact-lab-3-package-438d82fc-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp2boamm3f/artifact-lab-3-package-438d82fc/artifact_lab_3_package_438d82fc-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.1.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpdn0qjcg1/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp4zxle9do/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/0.5/2024-09-19-artifact-lab-3-package-4c04b1a2-v0.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpltkzolsa/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-0.5/setup.py",
+       17,
+       "CRED-ENV-001 (@L12) reaches NET-007 (@L17)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.1/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpar1wc78u/artifact-lab-3-package-4c04b1a2/artifact_lab_leak.py/artifact_lab_leak.py",
+       15,
+       "CRED-ENV-001 (@L8) reaches NET-007 (@L15)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-4c04b1a2/1.0.3/2024-09-19-artifact-lab-3-package-4c04b1a2-v1.0.3.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpi1splnb_/artifact-lab-3-package-4c04b1a2/artifact-lab-3-package-4c04b1a2-1.0.3/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-77d0c154/0.1.2/2024-08-28-artifact-lab-3-package-77d0c154-v0.1.2.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpw667ga8_/artifact-lab-3-package-77d0c154-0.1.2/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-a18ff5d9/1.1.5/2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "2024-06-22-artifact-lab-3-package-a18ff5d9-v1.1.5/artifact-lab-3-package-a18ff5d9-1.1.5/setup.py",
+       14,
+       "CRED-ENV-001 (@L11) reaches NET-007 (@L14)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-b55680cd/0.1.1/2024-08-18-artifact-lab-3-package-b55680cd-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp8ujn_04q/artifact-lab-3-package-b55680cd-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-db7d716a/0.1.1/2024-09-21-artifact-lab-3-package-db7d716a-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmpefguuubo/artifact-lab-3-package-db7d716a/artifact-lab-3-package-db7d716a-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    },
+    {
+     "zip": "samples/pypi/malicious_intent/artifact-lab-3-package-e46d5661/0.1.1/2024-10-02-artifact-lab-3-package-e46d5661-v0.1.1.zip",
+     "budget_expired": [
+      false,
+      false
+     ],
+     "lost": [
+      [
+       "EXFIL-CHAIN-001",
+       "tmp/tmp54x9w6f8/artifact-lab-3-package-e46d5661/artifact_lab_3_package_e46d5661-0.1.1/setup.py",
+       13,
+       "CRED-ENV-001 (@L10) reaches NET-007 (@L13)"
+      ]
+     ],
+     "gained": []
+    }
+   ]
   }
  },
  "per_sample_head": [

@@ -25,13 +25,14 @@ Data Source: Real samples, all static scans (nothing executed):
                (anthropics/skills 3337550, NVIDIA/skills 0f72c29b, openai/skills 49f948f,
                vercel-labs/agent-skills 063bee9), scripts/benchmark_skills.py.
              - 169 clean MCP servers (evaluation_results/corpora/mcp_clean_manifest.json, sha256-verified).
-             - 154 popular MCP servers re-derived from the out-of-sample holdout's published criteria
-               (evaluation_results/corpora/mcp_holdout_rederived_manifest.json); NOT the original 146.
+             - 157 popular MCP servers: the reconstruction of the out-of-sample holdout in
+               evaluation_results/corpora/mcp_holdout_manifest.json (docs/detection/source-map-correlation.md);
+               NOT the original 146.
              Synthetic: 14 constructed probe files (below), labelled as such wherever they are counted.
 Sample Size: 844 Datadog packages (their ai-skills bucket is the 204 malicious skills, also scanned
-             with benchmark_skills.py), 455 clean skills, 169 + 154 MCP servers: 1,622 distinct real
+             with benchmark_skills.py), 455 clean skills, 169 + 157 MCP servers: 1,625 distinct real
              samples. 14 synthetic probes.
-Limitations: The clean corpora gave the step few chances: 37 source/sink pairs in 18 of 778 clean
+Limitations: The clean corpora gave the step few chances: 37 source/sink pairs in 18 of 781 clean
              samples. Zero changes there is weak evidence of safety, and the probes carry most of the
              false-positive argument. "Clean" means published, not audited. The holdout is a
              re-selection, not the sample the earlier holdout figures came from. The restricted
@@ -66,14 +67,7 @@ recorded runs before anything was compared:
 | Datadog 844 | `run_eval.dataset_fingerprint` | `63fcde5b…`, identical; recall 785 / 761 / 752 / 561 at any / Med / High / Crit, identical to [the recorded run](../../evaluation_results/honest_detection_eval_7826ea1.md); cff3fa2 and head (ef0b95f) per-sample identical to each other |
 | Skills 659 | head's per-sample level, rule set, finding count vs `evaluation_results/skills_benchmark/sigil_tls.json` | 659 of 659 identical |
 | MCP clean 169 | archive sha256 (manifest); head per-sample vs `mcp_sigil_tls.json` | 169 of 169 identical |
-| MCP holdout | no manifest was published | re-derived from the stated criteria: 157 selected (a second run of `select_mcp_holdout.py` selects the same 157), 154 fetched (3 over the 30 MB archive cap) |
-
-The first holdout selection run lost one server to a throttled npm lookup,
-`io.github.cameroncooke/XcodeBuildMCP`. It publishes the same npm package as
-the in-sample `com.xcodebuildmcp/XcodeBuildMCP`, so the committed script
-excludes it by rule (in-sample packages as well as names). It also stops on a
-failed lookup instead of reading it as zero downloads. With those two
-changes, a second run selects the same 157.
+| MCP holdout 157 | archive sha256 (`mcp_holdout_manifest.json`, the reconstruction #170 published) | rebuilt 157 of 157 |
 
 ## What reading names as values changed
 
@@ -92,7 +86,7 @@ Measured, head (ef0b95f, the base of this change) → `name_uses: value`:
 | Datadog 844 | 0 (recall 785 / 761 / 752 / 561 both) | EXFIL-CHAIN-001 lost on 17 samples, gained on 0 |
 | Skills 204 malicious + 455 clean | 0 | 0 |
 | MCP clean 169 | 0 | 0 |
-| MCP holdout 154 | 0 | 0 |
+| MCP holdout 157 | 0 | 0 |
 
 The 17 are all `artifact-lab-3-package`: versions 0.1.2; -153c1c1a,
 -1f7a39bc, -2387a34d, -34b21b63, -3ccf47e8, -438d82fc, -77d0c154,
@@ -209,7 +203,7 @@ build to its left.
 | Datadog 844 | 1: mistralai 2.4.6, High → Critical (HIGH RISK → CRITICAL RISK) | EXFIL-CHAIN-001 +18 (the 17 artifact-lab samples, and mistralai), −0 | 1 against B: mistralai back to High; 0 against the shipped engine | against the shipped engine: EXFIL-CHAIN-001 +17 (artifact-lab), −0 |
 | Skills 204 + 455 | 0 | 0 | 0 | 0 |
 | MCP clean 169 | 0 | 0 | 0 | 0 |
-| MCP holdout 154 | 0 | 0 | 0 | 0 |
+| MCP holdout 157 | 0 | 0 | 0 | 0 |
 
 No other chain changed in any build: AGENTSC-CHAIN-002, DESER-CHAIN-001,
 DROPPER-CHAIN-001 and TLS-CHAIN-001 fire on the same Datadog samples
@@ -238,7 +232,7 @@ code, and it is the only real verdict B changes. Recall counts it as a gain at
 release), and the chain it now carries is false.
 
 **Exposure.** A zero on the clean corpora is only as good as the chances the
-step had. Across the 778 clean samples, 18 samples hold a source/sink pair
+step had. Across the 781 clean samples, 18 samples hold a source/sink pair
 EXFIL-CHAIN-001 could consider (CRED-* source, network sink, same file,
 source first, within 20 lines): 37 pairs in all. None links, directly or
 through the step. The clean MCP servers are mostly TypeScript calling
@@ -259,12 +253,30 @@ the three samples' chain findings are identical across all four builds. All
 three are CRITICAL RISK in every run. The counts in this page leave those
 two out.
 
+## Confirmed on the merged base
+
+#169 was merged onto a base that also carries #170, under which source maps
+are no longer correlated. The shipped tree is that base plus #169 and the
+Python-braces fix. It was measured against the base alone (09d9fae), and the
+result is the same as the head → `name_uses` comparison above:
+
+- **Datadog:** the same 17 `artifact-lab-3-package` samples lose
+  EXFIL-CHAIN-001, and nothing else changes. Recall is 785 / 761 / 752 / 561
+  on both builds, with 0 severity or verdict changes and no sample over the
+  time budget.
+- **Skills (659), clean MCP (169) and the 157-server holdout:** 0 level,
+  rule-set or finding-count changes.
+
+On the holdout, head → base reproduces #170's own result: two
+DROPPER-CHAIN-001 removals (`com.vibgrate/ai-context`,
+`dev.jasonpearson/auto-mobile`) and nothing else.
+
 ## Decision
 
 The step is not adopted, in either form, and the cost of reading names as
 values stays pinned.
 
-- **No measured benefit.** Across the 1,622 distinct real samples (the 204
+- **No measured benefit.** Across the 1,625 distinct real samples (the 204
   malicious skills are the Datadog selection's ai-skills bucket, scanned a
   second way), the step changed one verdict, through a false link. The 17
   samples it restores are CRITICAL RISK without it. The cases it would
@@ -337,8 +349,7 @@ regex exceptions.
 python3 evaluation_results/corpora/fetch_mcp_clean.py --out /data/mcp_clean \
     --from-manifest evaluation_results/corpora/mcp_clean_manifest.json
 python3 evaluation_results/corpora/fetch_mcp_clean.py --out /data/mcp_holdout \
-    --from-manifest evaluation_results/corpora/mcp_holdout_rederived_manifest.json
-# (the selection itself: evaluation_results/corpora/select_mcp_holdout.py)
+    --from-manifest evaluation_results/corpora/mcp_holdout_manifest.json
 
 # The experiment builds: apply a patch to fa601b8 (the tree B and C were
 # measured on, before the Python-braces fix), then `cargo build --release`
